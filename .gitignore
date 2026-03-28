@@ -42,8 +42,30 @@ app.*.map.json
 # Android Studio will place build artifacts here
 /android/app/debug
 /android/app/profile
+
 /android/app/release
 
 # Firebase（避免金鑰外洩🔥）
 android/app/google-services.json
 ios/Runner/GoogleService-Info.plist
+
+# Flutter build
+build/
+.dart_tool/
+.packages
+.pub/
+.pub-cache/
+
+# Firebase
+.firebase/
+
+# Logs
+*.log
+
+# Mac / Windows
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
