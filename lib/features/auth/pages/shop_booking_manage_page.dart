@@ -368,8 +368,6 @@ class _ShopBookingManagePageState extends State<ShopBookingManagePage> {
             selectedDate: _selectedCalendarDate ?? firstDate,
             blockedDateKeys: payload.blockedDateKeys,
             unbookableDateKeys: payload.unbookableDateKeys,
-            priceMap: payload.priceMap,
-            remainingRoomsMap: payload.remainingRoomsMap,
             onDayTap: (date) {
               setState(() {
                 _selectedCalendarDate = _dateOnly(date);

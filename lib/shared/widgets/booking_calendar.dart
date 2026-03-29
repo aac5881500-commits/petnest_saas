@@ -32,8 +32,7 @@ class BookingCalendar extends StatefulWidget {
     this.rangeEnd,
     this.blockedDateKeys = const {},
     this.unbookableDateKeys = const {},
-    this.priceMap = const {},
-    this.remainingRoomsMap = const {},
+    this.onMonthChanged,
   });
 
   final DateTime initialMonth;
@@ -46,16 +45,26 @@ class BookingCalendar extends StatefulWidget {
 
   final Set<String> blockedDateKeys;
   final Set<String> unbookableDateKeys;
-  final Map<String, int> priceMap;
-  final Map<String, int> remainingRoomsMap;
 
   final ValueChanged<DateTime> onDayTap;
+  final ValueChanged<DateTime>? onMonthChanged;
 
   @override
   State<BookingCalendar> createState() => _BookingCalendarState();
 }
 
 class _BookingCalendarState extends State<BookingCalendar> {
+
+  @override
+void didUpdateWidget(covariant BookingCalendar oldWidget) {
+  super.didUpdateWidget(oldWidget);
+
+  // 🔥 當 range 改變時強制刷新
+  if (oldWidget.rangeStart != widget.rangeStart ||
+      oldWidget.rangeEnd != widget.rangeEnd) {
+    setState(() {});
+  }
+}
   late DateTime _visibleMonth;
 
   @override
@@ -102,7 +111,7 @@ class _BookingCalendarState extends State<BookingCalendar> {
   physics: const NeverScrollableScrollPhysics(),
   crossAxisSpacing: 6,
   mainAxisSpacing: 6,
-  childAspectRatio: 0.68,
+  childAspectRatio: 0.9,
   children: dayCells,
 ),
           ],
@@ -160,128 +169,90 @@ class _BookingCalendarState extends State<BookingCalendar> {
     );
   }
 
-  Widget _buildDayCell(BuildContext context, DateTime date) {
-    final dateKey = _formatDateKey(date);
+ Widget _buildDayCell(BuildContext context, DateTime date) {
 
-    final bool isOutOfRange =
-        date.isBefore(_dateOnly(widget.firstDate)) ||
-        date.isAfter(_dateOnly(widget.lastDate));
+  final bool isOutOfRange =
+      date.isBefore(_dateOnly(widget.firstDate)) ||
+      date.isAfter(_dateOnly(widget.lastDate));
 
-    final bool isBlocked = widget.blockedDateKeys.contains(dateKey);
-    final bool isUnbookable = widget.unbookableDateKeys.contains(dateKey);
+  final bool isBlocked = false;
+  final bool isUnbookable = false;
+final bool isRangeStart =
+    widget.rangeStart != null &&
+    _isSameDate(widget.rangeStart!, date);
 
-    final bool isSelected = widget.selectedDate != null &&
-        _isSameDate(widget.selectedDate!, date);
+final bool isRangeEnd =
+    widget.rangeEnd != null &&
+    _isSameDate(widget.rangeEnd!, date);
 
-    final bool isRangeStart = widget.rangeStart != null &&
-        _isSameDate(widget.rangeStart!, date);
+final bool isInRange =
+    widget.rangeStart != null &&
+    widget.rangeEnd != null &&
+    !date.isBefore(_dateOnly(widget.rangeStart!)) &&
+    !date.isAfter(_dateOnly(widget.rangeEnd!));
 
-    final bool isRangeEnd = widget.rangeEnd != null &&
-        _isSameDate(widget.rangeEnd!, date);
+  Color borderColor = Colors.grey.shade300;
+  Color backgroundColor = Colors.white;
+  Color dayTextColor = Colors.black87;
 
-    final bool isInRange = _isDateInRange(
-      date: date,
-      start: widget.rangeStart,
-      end: widget.rangeEnd,
-    );
+  if (isOutOfRange) {
+    backgroundColor = Colors.grey.shade100;
+    dayTextColor = Colors.grey.shade400;
+  } else if (isBlocked || isUnbookable) {
+    backgroundColor = Colors.red.shade50;
+    borderColor = Colors.red.shade200;
+    dayTextColor = Colors.red.shade700;
+  } if (isRangeStart || isRangeEnd) {
+  backgroundColor = Colors.blue;
+  borderColor = Colors.blue.shade900;
+  dayTextColor = Colors.white;
+} else if (isInRange) {
+  backgroundColor = Colors.blue.shade100;
+  borderColor = Colors.blue.shade300;
+  dayTextColor = Colors.black;
+}
 
-    
-    final int? remainingRooms = widget.remainingRoomsMap[dateKey];
+  final bool canTap = !isOutOfRange;
 
-    Color borderColor = Colors.grey.shade300;
-    Color backgroundColor = Colors.white;
-    Color dayTextColor = Colors.black87;
-
-    if (isOutOfRange) {
-      backgroundColor = Colors.grey.shade100;
-      dayTextColor = Colors.grey.shade400;
-    } else if (isBlocked || isUnbookable) {
-      backgroundColor = Colors.red.shade50;
-      borderColor = Colors.red.shade200;
-      dayTextColor = Colors.red.shade700;
-    } else if (isRangeStart || isRangeEnd || isSelected) {
-      backgroundColor = Colors.blue.shade600;
-      borderColor = Colors.blue.shade700;
-      dayTextColor = Colors.white;
-    } else if (isInRange) {
-      backgroundColor = Colors.blue.shade50;
-      borderColor = Colors.blue.shade200;
-      dayTextColor = Colors.blue.shade900;
-    }
-
-    String bottomText = '';
-    if (isBlocked) {
-      bottomText = '關閉';
-    } else if (isUnbookable) {
-      bottomText = '不可訂';
-    } else if (remainingRooms != null) {
-      bottomText = '剩 $remainingRooms';
-    }
-
-    final bool canTap = !isOutOfRange;
-
-    return InkWell(
-  onTap: canTap ? () => widget.onDayTap(date) : null,
-  borderRadius: BorderRadius.circular(12),
-  child: Container(
-    padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
-    decoration: BoxDecoration(
-      color: backgroundColor,
-      borderRadius: BorderRadius.circular(12),
-      border: Border.all(color: borderColor),
-    ),
-    child: Column(
-      mainAxisAlignment: MainAxisAlignment.start,
-      crossAxisAlignment: CrossAxisAlignment.center,
-      children: [
-        Text(
+  return InkWell(
+    onTap: canTap ? () => widget.onDayTap(date) : null,
+    borderRadius: BorderRadius.circular(12),
+    child: Container(
+      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
+      decoration: BoxDecoration(
+        color: backgroundColor,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: borderColor),
+      ),
+      child: Center(
+        child: Text(
           '${date.day}',
           style: TextStyle(
-            fontSize: 15,
+            fontSize: 16,
             fontWeight: FontWeight.bold,
             color: dayTextColor,
           ),
         ),
-        const SizedBox(height: 10),
-        const SizedBox(height: 4),
-        Expanded(
-          child: Align(
-            alignment: Alignment.topCenter,
-            child: FittedBox(
-              fit: BoxFit.scaleDown,
-              child: Text(
-                bottomText,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  fontSize: 10,
-                  color: isRangeStart || isRangeEnd || isSelected
-                      ? Colors.white
-                      : (isBlocked || isUnbookable
-                          ? Colors.red.shade700
-                          : Colors.grey.shade700),
-                ),
-              ),
-            ),
-          ),
-        ),
-      ],
+      ),
     ),
-  ),
-);
-  }
+  );
+}
 
   void _goPrevMonth() {
-    setState(() {
-      _visibleMonth = DateTime(_visibleMonth.year, _visibleMonth.month - 1, 1);
-    });
-  }
+  setState(() {
+    _visibleMonth = DateTime(_visibleMonth.year, _visibleMonth.month - 1, 1);
+  });
+
+  widget.onMonthChanged?.call(_visibleMonth); // 🔥 新增
+}
 
   void _goNextMonth() {
-    setState(() {
-      _visibleMonth = DateTime(_visibleMonth.year, _visibleMonth.month + 1, 1);
-    });
-  }
+  setState(() {
+    _visibleMonth = DateTime(_visibleMonth.year, _visibleMonth.month + 1, 1);
+  });
+
+  widget.onMonthChanged?.call(_visibleMonth); // 🔥 新增
+}
 
   bool _isSameMonthOrBefore(DateTime a, DateTime b) {
     final aa = DateTime(a.year, a.month, 1);

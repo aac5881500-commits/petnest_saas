@@ -23,7 +23,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:petnest_saas/core/services/pet_service.dart';
 import 'package:petnest_saas/features/pet/pages/add_pet_page.dart';
-
+import 'package:flutter/foundation.dart';
 
 
 class ShopBookingPage extends StatefulWidget {
@@ -52,6 +52,8 @@ class _ShopBookingPageState extends State<ShopBookingPage> {
 
   DateTime? _startDate;
   DateTime? _endDate;
+  DateTime? _tempStartDate;
+  DateTime? _tempEndDate;
   String? _selectedServiceType;
   Map<String, dynamic>? _selectedRoomType;
 
@@ -260,6 +262,18 @@ const SizedBox(height: 8),
                             key: _formKey,
                             child: Column(
                               children: [
+                                Padding(
+  padding: const EdgeInsets.all(12),
+  child: Text(
+    (_tempStartDate != null && _tempEndDate != null)
+        ? '已選：${_formatDate(_tempStartDate!)} ～ ${_formatDate(_tempEndDate!)}'
+        : '請選擇入住與退房日期',
+    style: const TextStyle(
+      fontSize: 16,
+      fontWeight: FontWeight.bold,
+    ),
+  ),
+),
                                 TextFormField(
                                   controller: _customerNameController,
                                   decoration: const InputDecoration(
@@ -482,6 +496,11 @@ const SizedBox(height: 8),
     required DateTime firstDate,
     required DateTime lastDate,
   }) async {
+
+    if (kDebugMode) {
+  print('🔥 抓資料了：$firstDate ~ $lastDate');
+}
+
     final blockedDateKeys =
         List<String>.from(shop['blockedDates'] ?? []).map((e) => e.toString()).toSet();
 
@@ -507,6 +526,8 @@ while (!cursor.isAfter(last)) {
   for (final booking in bookings) {
     final start = (booking['startDate'] as Timestamp).toDate();
     final end = (booking['endDate'] as Timestamp).toDate();
+
+
 
     DateTime temp = DateTime(start.year, start.month, start.day);
 
@@ -546,76 +567,46 @@ while (!cursor.isAfter(last)) {
   }
 
   Future<void> _handleCalendarTap({
-    required Map<String, dynamic> shop,
-    required DateTime date,
-  }) async {
-    final tapped = _dateOnly(date);
+  required Map<String, dynamic> shop,
+  required DateTime date,
+}) async {
+  final tapped = _dateOnly(date);
 
-    if (_checkingRange || _submitting) return;
+  if (_checkingRange || _submitting) return;
 
-    if (_startDate == null || (_startDate != null && _endDate != null)) {
-      setState(() {
-        _startDate = tapped;
-        _endDate = null;
-        _rangeChecked = false;
-        _rangeBookable = false;
-        _rangeMessage = '已選入住日，請再點退房日';
-        _rangeTotalPrice = 0;
-        _rangeMinRemainingRooms = 0;
-      });
-      return;
-    }
-
-    if (!tapped.isAfter(_startDate!)) {
-      setState(() {
-        _startDate = tapped;
-        _endDate = null;
-        _rangeChecked = false;
-        _rangeBookable = false;
-        _rangeMessage = '已重新設定入住日，請再點退房日';
-        _rangeTotalPrice = 0;
-        _rangeMinRemainingRooms = 0;
-      });
-      return;
-    }
-
+  /// 第一次點 or 重選
+  if (_tempStartDate == null || (_tempStartDate != null && _tempEndDate != null)) {
     setState(() {
-      _endDate = tapped;
-      _rangeChecked = false;
-      _rangeBookable = false;
-      _rangeMessage = '正在檢查日期區間...';
-      _rangeTotalPrice = 0;
-      _rangeMinRemainingRooms = 0;
-      _checkingRange = true;
+      _tempStartDate = tapped;
+      _tempEndDate = null;
     });
 
-    try {
-      // 🔥 改成簡化版（先不驗證）
-if (!mounted) return;
-
-setState(() {
-  _rangeChecked = true;
-  _rangeBookable = true;
-  _rangeMessage = '請選擇房型';
-});
-    } catch (e) {
-      if (!mounted) return;
-
-      setState(() {
-        _rangeChecked = true;
-        _rangeBookable = false;
-        _rangeMessage = '檢查失敗：$e';
-        _rangeTotalPrice = 0;
-        _rangeMinRemainingRooms = 0;
-      });
-    } finally {
-      if (mounted) {
-        setState(() {
-          _checkingRange = false;
-        });
-      }
-    }
+    print('👉 第一次點: $tapped');
+    return;
   }
+
+  /// 第二次點
+  if (_tempEndDate == null) {
+    /// 點到比開始早 → 重設開始
+    if (tapped.isBefore(_tempStartDate!)) {
+      setState(() {
+        _tempStartDate = tapped;
+        _tempEndDate = null;
+      });
+
+      print('👉 重新選開始: $tapped');
+      return;
+    }
+
+    /// 正常設定結束
+    setState(() {
+      _tempEndDate = tapped;
+    });
+
+    print('👉 設定區間: $_tempStartDate ~ $_tempEndDate');
+    return;
+  }
+}
 
   bool _canSubmit(List<String> serviceTypes) {
     return !_submitting &&
@@ -769,6 +760,9 @@ if (_selectedPetIds.isEmpty) {
   final today = _dateOnly(DateTime.now());
   final maxDays = _toInt(shop['maxAdvanceBookingDays'], fallback: 30);
 
+  _tempStartDate = _startDate;
+  _tempEndDate = _endDate;
+
 
   // 🔥 當前月份範圍
   final firstDay = DateTime(_calendarMonth.year, _calendarMonth.month, 1);
@@ -782,54 +776,120 @@ if (_selectedPetIds.isEmpty) {
   );
 
   showDialog(
-    context: context,
-    builder: (_) {
-      return FutureBuilder<_FrontCalendarPayload>(
-        future: _calendarFuture,
-        builder: (context, snapshot) {
-          if (!snapshot.hasData) {
-            return const Center(
-              child: CircularProgressIndicator(),
-            );
-          }
+  context: context,
+  builder: (_) {
+    return StatefulBuilder(
+      builder: (context, setInnerState) {
+        return FutureBuilder<_FrontCalendarPayload>(
+          future: _calendarFuture,
+          builder: (context, snapshot) {
+            if (!snapshot.hasData) {
+              return const Center(
+                child: CircularProgressIndicator(),
+              );
+            }
 
-          final payload = snapshot.data!;
+            final payload = snapshot.data!;
 
-          return Dialog(
-            insetPadding: EdgeInsets.zero,
-            child: SafeArea(
-              child: BookingCalendar(
-                initialMonth: _calendarMonth,
-                firstDate: today,
-                lastDate: today.add(Duration(days: maxDays)),
+            return Dialog(
+  insetPadding: const EdgeInsets.symmetric(horizontal: 100, vertical: 40),
+  child: SafeArea(
+    child: SizedBox(
+      height: MediaQuery.of(context).size.height * 0.85,
+      child: Column(
+        children: [
 
-                rangeStart: _startDate,
-                rangeEnd: _endDate,
+          /// 🔥 日曆
+          Flexible(
+            child: BookingCalendar(
+              key: ValueKey('${_tempStartDate}_${_tempEndDate}'),
 
-                blockedDateKeys: payload.blockedDateKeys,
-                unbookableDateKeys: payload.unbookableDateKeys,
-                priceMap: payload.priceMap,
-                remainingRoomsMap: payload.remainingRoomsMap,
+              initialMonth: _calendarMonth,
+              firstDate: today,
+              lastDate: today.add(Duration(days: maxDays)),
 
-                /// 🔥 點日期
-                onDayTap: (date) async {
-                  await _handleCalendarTap(
+              rangeStart: _tempStartDate,
+              rangeEnd: _tempEndDate,
+
+              blockedDateKeys: payload.blockedDateKeys,
+              unbookableDateKeys: payload.unbookableDateKeys,
+
+              onMonthChanged: (newMonth) {
+                if (!mounted) return;
+
+                final firstDay = DateTime(newMonth.year, newMonth.month, 1);
+                final lastDay = DateTime(newMonth.year, newMonth.month + 1, 0);
+
+                setState(() {
+                  _calendarMonth = newMonth;
+
+                  _calendarFuture = _buildFrontCalendarPayload(
                     shop: shop,
-                    date: date,
+                    firstDate: firstDay,
+                    lastDate: lastDay,
                   );
+                });
+              },
 
-                  if (_startDate != null && _endDate != null) {
-                    Navigator.pop(context);
-                  }
-                },
+              onDayTap: (date) async {
+                await _handleCalendarTap(
+                  shop: shop,
+                  date: date,
+                );
 
-              ),
+                if (!mounted) return;
+
+                setInnerState(() {}); // 🔥 更新UI
+              },
             ),
-          );
-        },
-      );
-    },
-  );
+          ),
+
+          /// 🔥 底部按鈕
+          Padding(
+            padding: const EdgeInsets.all(12),
+            child: Row(
+              children: [
+
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: () {
+                      Navigator.pop(context);
+                    },
+                    child: const Text('取消'),
+                  ),
+                ),
+
+                const SizedBox(width: 12),
+
+                Expanded(
+                  child: ElevatedButton(
+                    onPressed: () {
+                      setState(() {
+                        _startDate = _tempStartDate;
+                        _endDate = _tempEndDate;
+                      });
+
+                      Navigator.pop(context);
+                    },
+                    child: const Text('確認'),
+                  ),
+                ),
+
+              ],
+            ),
+          ),
+
+        ],
+      ),
+    ),
+  ),
+);
+          },
+        );
+      },
+    );
+  },
+);
 }
 /// ===============================
 /// 第三步：房型

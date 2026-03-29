@@ -860,62 +860,7 @@ Future<void> setRoomStatus({
     'updatedAt': FieldValue.serverTimestamp(),
   });
 }
-// ===============================
-// 🧮 計算某天可住總數（核心）
-// ===============================
 
-Future<int> getAvailableCapacity({
-  required String shopId,
-  required String date, // yyyy-MM-dd
-}) async {
-  // 1️⃣ 取得所有房間
-  final roomsSnapshot = await roomsRef(shopId).get();
-  final rooms = roomsSnapshot.docs;
-
-  // 2️⃣ 取得房型
-  final roomTypesSnapshot = await roomTypesRef(shopId).get();
-  final roomTypesMap = {
-    for (var doc in roomTypesSnapshot.docs) doc.id: doc.data(),
-  };
-
-  // 3️⃣ 取得該日房間狀態
-  final calendarSnapshot = await roomCalendarRef(shopId)
-      .where('date', isEqualTo: date)
-      .get();
-
-  final calendarMap = {
-    for (var doc in calendarSnapshot.docs)
-      doc['roomId']: doc.data(),
-  };
-
-  int total = 0;
-
-  for (final roomDoc in rooms) {
-    final room = roomDoc.data();
-
-    // ❌ 關閉的房間直接跳過
-    if (room['enabled'] != true) continue;
-
-    final roomId = roomDoc.id;
-    final roomTypeId = room['roomTypeId'];
-
-    // 房型資料
-    final roomType = roomTypesMap[roomTypeId];
-    if (roomType == null) continue;
-
-    final capacity = (roomType['capacity'] as num?)?.toInt() ?? 0;
-
-    // 房間當日狀態
-    final cal = calendarMap[roomId];
-    final status = cal?['status'] ?? 'available';
-
-    if (status == 'available') {
-      total += capacity;
-    }
-  }
-
-  return total;
-}
 /// ===============================
 /// 🧮 取得可用房型（前台用）
 /// ===============================
