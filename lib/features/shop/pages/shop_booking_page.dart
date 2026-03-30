@@ -59,7 +59,7 @@ class _ShopBookingPageState extends State<ShopBookingPage> {
 
   bool _rangeChecked = false;
   bool _rangeBookable = false;
-  String _rangeMessage = '請先在月曆選擇入住與退房日期';
+  String _rangeMessage = '';
 
   int _rangeTotalPrice = 0;
   int _rangeMinRemainingRooms = 0;
@@ -504,6 +504,10 @@ const SizedBox(height: 8),
     final blockedDateKeys =
         List<String>.from(shop['blockedDates'] ?? []).map((e) => e.toString()).toSet();
 
+    final Map<String, String> blockedDateReasons =
+    Map<String, dynamic>.from(shop['blockedDateReasons'] ?? {})
+        .map((key, value) => MapEntry(key, value.toString()));
+
     final Map<String, int> priceMap = {};
     final Map<String, int> remainingRoomsMap = {};
     final Set<String> unbookableDateKeys = {};
@@ -511,7 +515,20 @@ const SizedBox(height: 8),
     DateTime cursor = _dateOnly(firstDate);
     final last = _dateOnly(lastDate);
 
-final bookings = <Map<String, dynamic>>[];
+final monthStart = _dateOnly(firstDate);
+final monthEnd = _dateOnly(lastDate);
+
+final snapshot = await FirebaseFirestore.instance
+    .collection('bookings')
+    .where('shopId', isEqualTo: shop['shopId'])
+    .where('status', whereIn: ['pending', 'confirmed'])
+    .where('startDate', isLessThanOrEqualTo: Timestamp.fromDate(monthEnd))
+    .get();
+
+final bookings = snapshot.docs.map((doc) {
+  return doc.data();
+}).toList();
+
 
 while (!cursor.isAfter(last)) {
   final key = ShopService.instance.formatDateKey(cursor);
@@ -526,6 +543,10 @@ while (!cursor.isAfter(last)) {
   for (final booking in bookings) {
     final start = (booking['startDate'] as Timestamp).toDate();
     final end = (booking['endDate'] as Timestamp).toDate();
+
+    if (end.isBefore(monthStart) || start.isAfter(monthEnd)) {
+  continue;
+}
 
 
 
@@ -559,11 +580,12 @@ while (!cursor.isAfter(last)) {
 }
 
     return _FrontCalendarPayload(
-      blockedDateKeys: blockedDateKeys,
-      unbookableDateKeys: unbookableDateKeys,
-      priceMap: priceMap,
-      remainingRoomsMap: remainingRoomsMap,
-    );
+  blockedDateKeys: blockedDateKeys,
+  blockedDateReasons: blockedDateReasons,
+  unbookableDateKeys: unbookableDateKeys,
+  priceMap: priceMap,
+  remainingRoomsMap: remainingRoomsMap,
+);
   }
 
   Future<void> _handleCalendarTap({
@@ -588,20 +610,98 @@ while (!cursor.isAfter(last)) {
   /// 第二次點
   if (_tempEndDate == null) {
     /// 點到比開始早 → 重設開始
-    if (tapped.isBefore(_tempStartDate!)) {
+    if (!tapped.isAfter(_tempStartDate!)) {
+
+  /// 🔥 同一天 → 自動+1天（安全寫法）
+  final sameDay =
+      tapped.year == _tempStartDate!.year &&
+      tapped.month == _tempStartDate!.month &&
+      tapped.day == _tempStartDate!.day;
+
+  if (sameDay) {
+
+  final nextDay = _tempStartDate!.add(const Duration(days: 1));
+  final payload = await _calendarFuture;
+
+  if (payload != null) {
+    final key = ShopService.instance.formatDateKey(nextDay);
+
+    /// ❌ 隔天是關閉日
+    if (payload.blockedDateKeys.contains(key)) {
+      _showSnackBar('隔天為休息日，請重新選擇');
+
       setState(() {
-        _tempStartDate = tapped;
+        _tempStartDate = null;
         _tempEndDate = null;
       });
 
-      print('👉 重新選開始: $tapped');
       return;
     }
 
+    /// ❌ 隔天滿房
+    if (payload.unbookableDateKeys.contains(key)) {
+      _showSnackBar('隔天已滿房，請重新選擇');
+
+      setState(() {
+        _tempStartDate = null;
+        _tempEndDate = null;
+      });
+
+      return;
+    }
+  }
+
+  /// ✅ 正常才走這裡
+  setState(() {
+  _tempEndDate = nextDay;
+  _rangeMessage = ''; // 🔥 清掉錯誤訊息
+});
+
+  print('👉 同一天自動+1天');
+  return;
+}
+
+  /// 🔥 比開始早 → 重選開始
+  setState(() {
+  _tempStartDate = tapped;
+  _tempEndDate = null;
+  _rangeMessage = ''; // 🔥 清掉
+});
+
+  print('👉 重新選開始: $tapped');
+  return;
+}
+
+/// 🔥 檢查區間內是否有不可預約
+final payload = await _calendarFuture;
+
+if (payload != null) {
+  DateTime temp = _tempStartDate!;
+
+  while (!temp.isAfter(tapped.subtract(const Duration(days: 1)))) {
+    final key = ShopService.instance.formatDateKey(temp);
+
+    /// ❌ 有關閉日
+    if (payload.blockedDateKeys.contains(key)) {
+      _showSnackBar('區間包含關閉日期');
+      return;
+    }
+
+    /// ❌ 房滿
+    if (payload.unbookableDateKeys.contains(key)) {
+      _showSnackBar('區間包含已滿日期');
+      return;
+    }
+
+    temp = temp.add(const Duration(days: 1));
+  }
+}
+
     /// 正常設定結束
     setState(() {
-      _tempEndDate = tapped;
-    });
+  _tempEndDate = tapped;
+  _rangeMessage = ''; // 🔥 清掉
+});
 
     print('👉 設定區間: $_tempStartDate ~ $_tempEndDate');
     return;
@@ -718,10 +818,10 @@ if (_selectedPetIds.isEmpty) {
   }
 
   void _showSnackBar(String text) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(text)),
-    );
-  }
+  setState(() {
+    _rangeMessage = text;
+  });
+}
 
   DateTime _dateOnly(DateTime date) {
     return DateTime(date.year, date.month, date.day);
@@ -769,7 +869,7 @@ if (_selectedPetIds.isEmpty) {
   final lastDay = DateTime(_calendarMonth.year, _calendarMonth.month + 1, 0);
 
   // 🔥 只抓一次
-  _calendarFuture ??= _buildFrontCalendarPayload(
+  _calendarFuture = _buildFrontCalendarPayload(
     shop: shop,
     firstDate: firstDay,
     lastDate: lastDay,
@@ -783,25 +883,39 @@ if (_selectedPetIds.isEmpty) {
         return FutureBuilder<_FrontCalendarPayload>(
           future: _calendarFuture,
           builder: (context, snapshot) {
-            if (!snapshot.hasData) {
-              return const Center(
-                child: CircularProgressIndicator(),
-              );
-            }
+            if (snapshot.connectionState == ConnectionState.waiting) {
+  return const Center(
+    child: CircularProgressIndicator(),
+  );
+}
+
+if (snapshot.hasError) {
+  return Center(
+    child: Text('日曆載入失敗：${snapshot.error}'),
+  );
+}
+
+if (!snapshot.hasData) {
+  return const Center(
+    child: Text('沒有資料'),
+  );
+}
 
             final payload = snapshot.data!;
 
             return Dialog(
-  insetPadding: const EdgeInsets.symmetric(horizontal: 100, vertical: 40),
-  child: SafeArea(
+  insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
+  child: Center( //
     child: SizedBox(
-      height: MediaQuery.of(context).size.height * 0.85,
-      child: Column(
+  height: MediaQuery.of(context).size.height * 0.95,
+  width: MediaQuery.of(context).size.width * 0.9,
+  child: SingleChildScrollView( // 🔥加這個
+    child: Column(
         children: [
 
           /// 🔥 日曆
-          Flexible(
-            child: BookingCalendar(
+          BookingCalendar(
+
               key: ValueKey('${_tempStartDate}_${_tempEndDate}'),
 
               initialMonth: _calendarMonth,
@@ -812,8 +926,9 @@ if (_selectedPetIds.isEmpty) {
               rangeEnd: _tempEndDate,
 
               blockedDateKeys: payload.blockedDateKeys,
+              blockedDateReasons: payload.blockedDateReasons,
               unbookableDateKeys: payload.unbookableDateKeys,
-
+              remainingRoomsMap: payload.remainingRoomsMap,
               onMonthChanged: (newMonth) {
                 if (!mounted) return;
 
@@ -842,7 +957,38 @@ if (_selectedPetIds.isEmpty) {
                 setInnerState(() {}); // 🔥 更新UI
               },
             ),
-          ),
+
+          
+
+/// 🔥 顯示訊息區（新增）
+if (_rangeMessage.isNotEmpty)
+  Container(
+    width: double.infinity,
+    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+    margin: const EdgeInsets.only(top: 8),
+    decoration: BoxDecoration(
+      color: Colors.grey.shade100,
+      borderRadius: BorderRadius.circular(8),
+    ),
+    child: Row(
+  children: [
+    const Text(
+      '⚠️ ',
+      style: TextStyle(fontSize: 18),
+    ),
+    Expanded(
+      child: Text(
+        _rangeMessage,
+        style: const TextStyle(
+          fontSize: 16, // 🔥變大
+          color: Colors.red, // 🔥變紅
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+    ),
+  ],
+),
+  ),
 
           /// 🔥 底部按鈕
           Padding(
@@ -882,6 +1028,7 @@ if (_selectedPetIds.isEmpty) {
         ],
       ),
     ),
+  ),
   ),
 );
           },
@@ -993,15 +1140,15 @@ void _onSelectRoomType(Map<String, dynamic> type) {
 class _FrontCalendarPayload {
   const _FrontCalendarPayload({
     required this.blockedDateKeys,
-    required this.unbookableDateKeys,
+required this.blockedDateReasons,
+required this.unbookableDateKeys,
     required this.priceMap,
     required this.remainingRoomsMap,
   });
 
   final Set<String> blockedDateKeys;
-  final Set<String> unbookableDateKeys;
-  final Map<String, int> priceMap;
-  final Map<String, int> remainingRoomsMap;
-
-  
+final Map<String, String> blockedDateReasons; // 🔥 新增
+final Set<String> unbookableDateKeys;
+final Map<String, int> priceMap;
+final Map<String, int> remainingRoomsMap;
 }

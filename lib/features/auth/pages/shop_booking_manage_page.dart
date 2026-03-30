@@ -6,20 +6,6 @@
 // - 預約設定區
 // - 共用月曆顯示
 // - 點日期可關閉 / 開放
-// - 可設定單日促銷價
-// - 可移除單日促銷價
-// - 可看單日剩餘房數
-// - 補上房況欄位：清潔中 / 修整中
-// - 顯示可預訂幾房
-// - 保留原本預約列表與狀態更新
-// - 加入角色權限入口
-// - 加入 action_logs 紀錄
-//
-// 依賴：
-// - ShopService
-// - BookingService
-// - ActionLogService
-// - shared/widgets/booking_calendar.dart
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -44,11 +30,8 @@ class ShopBookingManagePage extends StatefulWidget {
 class _ShopBookingManagePageState extends State<ShopBookingManagePage> {
   String _selectedStatus = 'all';
 
-  final _totalRoomsController = TextEditingController();
-  final _cleaningRoomsController = TextEditingController();
-  final _maintenanceRoomsController = TextEditingController();
   final _maxAdvanceBookingDaysController = TextEditingController();
-  final _defaultPricePerNightController = TextEditingController();
+
 
   bool _bookingEnabled = true;
   bool _settingsInitialized = false;
@@ -67,11 +50,7 @@ class _ShopBookingManagePageState extends State<ShopBookingManagePage> {
 
   @override
   void dispose() {
-    _totalRoomsController.dispose();
-    _cleaningRoomsController.dispose();
-    _maintenanceRoomsController.dispose();
     _maxAdvanceBookingDaysController.dispose();
-    _defaultPricePerNightController.dispose();
     super.dispose();
   }
 
@@ -155,7 +134,9 @@ class _ShopBookingManagePageState extends State<ShopBookingManagePage> {
             return const Center(child: Text('找不到店家資料'));
           }
 
-          _initSettingsIfNeeded(shop);
+          if (!_settingsInitialized) {
+  _initSettingsIfNeeded(shop);
+}
 
           final today = _dateOnly(DateTime.now());
           final maxAdvanceBookingDays =
@@ -187,13 +168,6 @@ class _ShopBookingManagePageState extends State<ShopBookingManagePage> {
                       shop: shop,
                       firstDate: today,
                       lastDate: lastDate,
-                      payload: payload,
-                    ),
-                    const SizedBox(height: 16),
-                    _buildSelectedDateActionCard(
-                      shop: shop,
-                      selectedDate: normalizedSelectedDate,
-                      selectedDateKey: selectedDateKey,
                       payload: payload,
                     ),
                     const SizedBox(height: 16),
@@ -257,36 +231,7 @@ class _ShopBookingManagePageState extends State<ShopBookingManagePage> {
                 });
               },
             ),
-            const SizedBox(height: 8),
-            TextFormField(
-              controller: _totalRoomsController,
-              keyboardType: TextInputType.number,
-              decoration: const InputDecoration(
-                labelText: '總房數',
-                hintText: '例如 20',
-                border: OutlineInputBorder(),
-              ),
-            ),
-            const SizedBox(height: 12),
-            TextFormField(
-              controller: _cleaningRoomsController,
-              keyboardType: TextInputType.number,
-              decoration: const InputDecoration(
-                labelText: '清潔中幾房',
-                hintText: '例如 1',
-                border: OutlineInputBorder(),
-              ),
-            ),
-            const SizedBox(height: 12),
-            TextFormField(
-              controller: _maintenanceRoomsController,
-              keyboardType: TextInputType.number,
-              decoration: const InputDecoration(
-                labelText: '修整中幾房',
-                hintText: '例如 1',
-                border: OutlineInputBorder(),
-              ),
-            ),
+
             const SizedBox(height: 12),
             TextFormField(
               controller: _maxAdvanceBookingDaysController,
@@ -297,16 +242,7 @@ class _ShopBookingManagePageState extends State<ShopBookingManagePage> {
                 border: OutlineInputBorder(),
               ),
             ),
-            const SizedBox(height: 12),
-            TextFormField(
-              controller: _defaultPricePerNightController,
-              keyboardType: TextInputType.number,
-              decoration: const InputDecoration(
-                labelText: '每晚預設價格',
-                hintText: '例如 1200',
-                border: OutlineInputBorder(),
-              ),
-            ),
+
             const SizedBox(height: 16),
             SizedBox(
               width: double.infinity,
@@ -347,7 +283,7 @@ class _ShopBookingManagePageState extends State<ShopBookingManagePage> {
         ),
         const SizedBox(height: 8),
         const Text(
-          '紅色代表關閉或不可預約。點日期後可切換開放/關閉，也能設定單日促銷價。',
+          '紅色代表關閉或不可預約。點日期可切換開放/關閉並設定原因。',
           style: TextStyle(color: Colors.grey),
         ),
         const SizedBox(height: 12),
@@ -365,99 +301,28 @@ class _ShopBookingManagePageState extends State<ShopBookingManagePage> {
             initialMonth: _selectedCalendarDate ?? firstDate,
             firstDate: firstDate,
             lastDate: lastDate,
-            selectedDate: _selectedCalendarDate ?? firstDate,
+            allowBlockedTap: true,
             blockedDateKeys: payload.blockedDateKeys,
             unbookableDateKeys: payload.unbookableDateKeys,
-            onDayTap: (date) {
-              setState(() {
-                _selectedCalendarDate = _dateOnly(date);
-              });
-            },
+            onDayTap: (date) async {
+  final selected = _dateOnly(date);
+
+  await _toggleBlockedDate(
+    shop: shop,
+    date: selected,
+  );
+
+  if (!mounted) return;
+
+  setState(() {
+    _selectedCalendarDate = selected;
+  });
+},
           ),
       ],
     );
   }
 
-  Widget _buildSelectedDateActionCard({
-    required Map<String, dynamic> shop,
-    required DateTime selectedDate,
-    required String selectedDateKey,
-    required _CalendarPayload? payload,
-  }) {
-    final specialPrices = Map<String, dynamic>.from(shop['specialPrices'] ?? {});
-    final blocked = ShopService.instance.isBlockedDate(shop, selectedDate);
-    final hasSpecialPrice = specialPrices.containsKey(selectedDateKey);
-    final specialPrice =
-        hasSpecialPrice ? _toInt(specialPrices[selectedDateKey]) : null;
-    final displayPrice = ShopService.instance.getPriceForDate(shop, selectedDate);
-
-    final remainingRooms = payload?.remainingRoomsMap[selectedDateKey];
-    final occupiedRooms = payload?.occupiedRoomsMap[selectedDateKey];
-    final isUnbookable =
-        payload?.unbookableDateKeys.contains(selectedDateKey) ?? false;
-    final baseAvailableRooms = ShopService.instance.getBaseCapacity(shop);
-
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              '已選日期：${_formatDate(selectedDate)}',
-              style: const TextStyle(
-                fontSize: 17,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 12),
-            _infoRow('目前狀態', blocked ? '已關閉' : (isUnbookable ? '不可預約' : '開放中')),
-            const SizedBox(height: 8),
-            _infoRow('當日價格', 'NT\$ $displayPrice'),
-            const SizedBox(height: 8),
-            _infoRow('促銷價', hasSpecialPrice ? 'NT\$ $specialPrice' : '未設定'),
-            const SizedBox(height: 8),
-            _infoRow('基礎可用房數', '$baseAvailableRooms'),
-            const SizedBox(height: 8),
-            _infoRow('當日已佔用房數', occupiedRooms == null ? '讀取中' : '$occupiedRooms'),
-            const SizedBox(height: 8),
-            _infoRow('可預訂幾房', remainingRooms == null ? '讀取中' : '$remainingRooms'),
-            const SizedBox(height: 16),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                ElevatedButton.icon(
-                  onPressed: () => _toggleBlockedDate(
-                    shop: shop,
-                    date: selectedDate,
-                  ),
-                  icon: Icon(blocked ? Icons.lock_open : Icons.block),
-                  label: Text(blocked ? '改成開放' : '改成關閉'),
-                ),
-                OutlinedButton.icon(
-                  onPressed: () => _showSetSpecialPriceDialog(
-                    shop: shop,
-                    date: selectedDate,
-                  ),
-                  icon: const Icon(Icons.local_offer_outlined),
-                  label: Text(hasSpecialPrice ? '修改促銷價' : '設定促銷價'),
-                ),
-                if (hasSpecialPrice)
-                  OutlinedButton.icon(
-                    onPressed: () => _removeSpecialPrice(
-                      date: selectedDate,
-                    ),
-                    icon: const Icon(Icons.delete_outline),
-                    label: const Text('移除促銷價'),
-                  ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 
   Widget _buildFilterBar() {
     return Row(
@@ -639,7 +504,6 @@ Text(
         .map((e) => e.toString())
         .toSet();
 
-    final Map<String, int> priceMap = {};
     final Map<String, int> remainingRoomsMap = {};
     final Map<String, int> occupiedRoomsMap = {};
     final Set<String> unbookableDateKeys = {};
@@ -650,32 +514,10 @@ Text(
     while (!cursor.isAfter(last)) {
   final key = ShopService.instance.formatDateKey(cursor);
 
-  // 價格
-  priceMap[key] = ShopService.instance.getPriceForDate(shop, cursor);
 
-  // 🔥 取得當天已被佔用房數
-  final occupied = await BookingService.instance.countRoomsByDate(
-    shopId: shop['shopId'],
-    date: key,
-  );
-
-  // 🔥 總房數 - 清潔 - 維修
-  final totalRooms = _toInt(shop['totalRooms']);
-  final cleaning = _toInt(shop['cleaningRooms']);
-  final maintenance = _toInt(shop['maintenanceRooms']);
-
-  final baseAvailable = totalRooms - cleaning - maintenance;
-
-  // 🔥 剩餘房數
-  final remaining = baseAvailable - occupied;
-
-  occupiedRoomsMap[key] = occupied;
-  remainingRoomsMap[key] = remaining;
-
-  // 🔥 沒房就不可預約
-  if (remaining <= 0) {
-    unbookableDateKeys.add(key);
-  }
+// 🔥 後台月曆不再算房間（統一用前台邏輯）
+occupiedRoomsMap[key] = 0;
+remainingRoomsMap[key] = 0;
 
   cursor = cursor.add(const Duration(days: 1));
 }
@@ -683,71 +525,39 @@ Text(
     return _CalendarPayload(
       blockedDateKeys: blockedDateKeys,
       unbookableDateKeys: unbookableDateKeys,
-      priceMap: priceMap,
       remainingRoomsMap: remainingRoomsMap,
       occupiedRoomsMap: occupiedRoomsMap,
     );
   }
 
   void _initSettingsIfNeeded(Map<String, dynamic> shop) {
-    if (_settingsInitialized) return;
+  if (_settingsInitialized) return;
 
-    _bookingEnabled = shop['bookingEnabled'] ?? true;
-    _totalRoomsController.text =
-        _toInt(shop['totalRooms'], fallback: 1).toString();
-    _cleaningRoomsController.text =
-        _toInt(shop['cleaningRooms'], fallback: 0).toString();
-    _maintenanceRoomsController.text =
-        _toInt(shop['maintenanceRooms'], fallback: 0).toString();
-    _maxAdvanceBookingDaysController.text =
-        _toInt(shop['maxAdvanceBookingDays'], fallback: 30).toString();
-    _defaultPricePerNightController.text =
-        _toInt(shop['defaultPricePerNight'], fallback: 0).toString();
+  _bookingEnabled = shop['bookingEnabled'] ?? true;
 
-    _selectedCalendarDate = _dateOnly(DateTime.now());
-    _settingsInitialized = true;
-  }
+  _maxAdvanceBookingDaysController.text =
+      _toInt(shop['maxAdvanceBookingDays'], fallback: 30).toString();
+
+  _selectedCalendarDate = _dateOnly(DateTime.now());
+
+  _settingsInitialized = true;
+
+  WidgetsBinding.instance.addPostFrameCallback((_) {
+    if (mounted) setState(() {});
+  });
+}
 
   Future<void> _saveSettings() async {
-    final totalRooms = int.tryParse(_totalRoomsController.text.trim()) ?? 0;
-    final cleaningRooms =
-        int.tryParse(_cleaningRoomsController.text.trim()) ?? 0;
-    final maintenanceRooms =
-        int.tryParse(_maintenanceRoomsController.text.trim()) ?? 0;
+
     final maxAdvanceBookingDays =
         int.tryParse(_maxAdvanceBookingDaysController.text.trim()) ?? 0;
-    final defaultPricePerNight =
-        int.tryParse(_defaultPricePerNightController.text.trim()) ?? 0;
 
-    if (totalRooms <= 0) {
-      _showSnackBar('總房數至少要 1');
-      return;
-    }
-
-    if (cleaningRooms < 0) {
-      _showSnackBar('清潔中房數不能小於 0');
-      return;
-    }
-
-    if (maintenanceRooms < 0) {
-      _showSnackBar('修整中房數不能小於 0');
-      return;
-    }
-
-    if (cleaningRooms + maintenanceRooms > totalRooms) {
-      _showSnackBar('清潔中 + 修整中 不能大於總房數');
-      return;
-    }
 
     if (maxAdvanceBookingDays <= 0) {
       _showSnackBar('最遠可預約天數至少要 1');
       return;
     }
 
-    if (defaultPricePerNight < 0) {
-      _showSnackBar('每晚預設價格不能小於 0');
-      return;
-    }
 
     setState(() {
       _savingSettings = true;
@@ -757,11 +567,7 @@ Text(
       await ShopService.instance.updateBookingSettings(
         shopId: widget.shopId,
         bookingEnabled: _bookingEnabled,
-        totalRooms: totalRooms,
-        cleaningRooms: cleaningRooms,
-        maintenanceRooms: maintenanceRooms,
         maxAdvanceBookingDays: maxAdvanceBookingDays,
-        defaultPricePerNight: defaultPricePerNight,
       );
 
       final user = FirebaseAuth.instance.currentUser;
@@ -775,11 +581,7 @@ Text(
           operatorRole: _currentUserRole!,
           payload: {
             'bookingEnabled': _bookingEnabled,
-            'totalRooms': totalRooms,
-            'cleaningRooms': cleaningRooms,
-            'maintenanceRooms': maintenanceRooms,
             'maxAdvanceBookingDays': maxAdvanceBookingDays,
-            'defaultPricePerNight': defaultPricePerNight,
           },
         );
       }
@@ -804,6 +606,42 @@ Text(
   }) async {
     final dateKey = ShopService.instance.formatDateKey(date);
     final blocked = ShopService.instance.isBlockedDate(shop, date);
+
+String? reason;
+
+if (!blocked) {
+  final controller = TextEditingController();
+
+  reason = await showDialog<String>(
+    context: context,
+    builder: (context) {
+      return AlertDialog(
+        title: Text('設定關閉原因：$dateKey'),
+        content: TextField(
+          controller: controller,
+          decoration: const InputDecoration(
+            labelText: '原因（例如：店休 / 清潔 / 客滿）',
+            border: OutlineInputBorder(),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('取消'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(context, controller.text.trim());
+            },
+            child: const Text('確認'),
+          ),
+        ],
+      );
+    },
+  );
+
+  if (reason == null || reason.isEmpty) return;
+}
 
     try {
       final user = FirebaseAuth.instance.currentUser;
@@ -831,10 +669,14 @@ Text(
         if (!mounted) return;
         _showSnackBar('已改成開放：$dateKey');
       } else {
-        await ShopService.instance.addBlockedDate(
-          shopId: widget.shopId,
-          dateKey: dateKey,
-        );
+  await FirebaseFirestore.instance
+      .collection('shops')
+      .doc(widget.shopId)
+      .update({
+    'blockedDates': FieldValue.arrayUnion([dateKey]),
+    'blockedDateReasons.$dateKey': reason,
+  });
+
 
         if (user != null && _currentUserRole != null) {
           await ActionLogService.instance.logAction(
@@ -856,120 +698,6 @@ Text(
     } catch (e) {
       if (!mounted) return;
       _showSnackBar('更新失敗：$e');
-    }
-  }
-
-  Future<void> _showSetSpecialPriceDialog({
-    required Map<String, dynamic> shop,
-    required DateTime date,
-  }) async {
-    final dateKey = ShopService.instance.formatDateKey(date);
-    final specialPrices = Map<String, dynamic>.from(shop['specialPrices'] ?? {});
-    final currentPrice = specialPrices.containsKey(dateKey)
-        ? _toInt(specialPrices[dateKey])
-        : ShopService.instance.getPriceForDate(shop, date);
-
-    final controller = TextEditingController(text: currentPrice.toString());
-
-    final result = await showDialog<int>(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: Text('設定促銷價：$dateKey'),
-          content: TextField(
-            controller: controller,
-            keyboardType: TextInputType.number,
-            decoration: const InputDecoration(
-              labelText: '促銷價格',
-              border: OutlineInputBorder(),
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('取消'),
-            ),
-            ElevatedButton(
-              onPressed: () {
-                final value = int.tryParse(controller.text.trim());
-                if (value == null || value < 0) {
-                  return;
-                }
-                Navigator.pop(context, value);
-              },
-              child: const Text('儲存'),
-            ),
-          ],
-        );
-      },
-    );
-
-    controller.dispose();
-
-    if (result == null) return;
-
-    try {
-      await ShopService.instance.setSpecialPrice(
-        shopId: widget.shopId,
-        dateKey: dateKey,
-        price: result,
-      );
-
-      final user = FirebaseAuth.instance.currentUser;
-      if (user != null && _currentUserRole != null) {
-        await ActionLogService.instance.logAction(
-          shopId: widget.shopId,
-          targetType: 'shop_calendar_date',
-          targetId: dateKey,
-          action: 'set_special_price',
-          operatorUid: user.uid,
-          operatorRole: _currentUserRole!,
-          payload: {
-            'dateKey': dateKey,
-            'price': result,
-          },
-        );
-      }
-
-      if (!mounted) return;
-      _showSnackBar('已設定促銷價：$dateKey / NT\$ $result');
-    } catch (e) {
-      if (!mounted) return;
-      _showSnackBar('設定失敗：$e');
-    }
-  }
-
-  Future<void> _removeSpecialPrice({
-    required DateTime date,
-  }) async {
-    final dateKey = ShopService.instance.formatDateKey(date);
-
-    try {
-      await ShopService.instance.removeSpecialPrice(
-        shopId: widget.shopId,
-        dateKey: dateKey,
-      );
-
-      final user = FirebaseAuth.instance.currentUser;
-      if (user != null && _currentUserRole != null) {
-        await ActionLogService.instance.logAction(
-          shopId: widget.shopId,
-          targetType: 'shop_calendar_date',
-          targetId: dateKey,
-          action: 'remove_special_price',
-          operatorUid: user.uid,
-          operatorRole: _currentUserRole!,
-          payload: {
-            'dateKey': dateKey,
-          },
-        );
-      }
-
-      if (!mounted) return;
-      _showSnackBar('已移除促銷價：$dateKey');
-    } catch (e) {
-      if (!mounted) return;
-      _showSnackBar('移除失敗：$e');
     }
   }
 
@@ -1087,14 +815,12 @@ class _CalendarPayload {
   const _CalendarPayload({
     required this.blockedDateKeys,
     required this.unbookableDateKeys,
-    required this.priceMap,
     required this.remainingRoomsMap,
     required this.occupiedRoomsMap,
   });
 
   final Set<String> blockedDateKeys;
   final Set<String> unbookableDateKeys;
-  final Map<String, int> priceMap;
   final Map<String, int> remainingRoomsMap;
   final Map<String, int> occupiedRoomsMap;
 }

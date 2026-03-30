@@ -7,9 +7,6 @@
 // - 可顯示：
 //   1. 不可預約日期
 //   2. 關閉日期
-//   3. 單日價格
-//   4. 剩餘房數
-//   5. 單日選取
 //   6. 區間選取
 //
 // 備註：
@@ -21,17 +18,20 @@
 import 'package:flutter/material.dart';
 
 class BookingCalendar extends StatefulWidget {
+  final bool allowBlockedTap;
   const BookingCalendar({
+    this.allowBlockedTap = false,
     super.key,
     required this.initialMonth,
     required this.firstDate,
     required this.lastDate,
     required this.onDayTap,
-    this.selectedDate,
     this.rangeStart,
     this.rangeEnd,
     this.blockedDateKeys = const {},
     this.unbookableDateKeys = const {},
+    this.blockedDateReasons = const {},
+    this.remainingRoomsMap = const {},
     this.onMonthChanged,
   });
 
@@ -39,13 +39,14 @@ class BookingCalendar extends StatefulWidget {
   final DateTime firstDate;
   final DateTime lastDate;
 
-  final DateTime? selectedDate;
   final DateTime? rangeStart;
   final DateTime? rangeEnd;
 
   final Set<String> blockedDateKeys;
   final Set<String> unbookableDateKeys;
 
+  final Map<String, String> blockedDateReasons;
+  final Map<String, int> remainingRoomsMap;
   final ValueChanged<DateTime> onDayTap;
   final ValueChanged<DateTime>? onMonthChanged;
 
@@ -97,21 +98,21 @@ void didUpdateWidget(covariant BookingCalendar oldWidget) {
     }
 
     return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(12),
+  child: Padding(
+    padding: const EdgeInsets.fromLTRB(12, 4, 12, 12), 
         child: Column(
           children: [
             _buildHeader(),
-            const SizedBox(height: 12),
+            const SizedBox(height: 4),
             _buildWeekHeader(),
             const SizedBox(height: 8),
             GridView.count(
   crossAxisCount: 7,
   shrinkWrap: true,
   physics: const NeverScrollableScrollPhysics(),
-  crossAxisSpacing: 6,
-  mainAxisSpacing: 6,
-  childAspectRatio: 0.9,
+  crossAxisSpacing: 8,
+  mainAxisSpacing: 8,
+  childAspectRatio: 0.55, 
   children: dayCells,
 ),
           ],
@@ -175,8 +176,13 @@ void didUpdateWidget(covariant BookingCalendar oldWidget) {
       date.isBefore(_dateOnly(widget.firstDate)) ||
       date.isAfter(_dateOnly(widget.lastDate));
 
-  final bool isBlocked = false;
-  final bool isUnbookable = false;
+  final dateKey = _formatDateKey(date);
+  final remaining = widget.remainingRoomsMap[dateKey];
+
+final bool isBlocked = widget.blockedDateKeys.contains(dateKey);
+final bool isUnbookable = widget.unbookableDateKeys.contains(dateKey);
+
+final String? reason = widget.blockedDateReasons[dateKey];
 final bool isRangeStart =
     widget.rangeStart != null &&
     _isSameDate(widget.rangeStart!, date);
@@ -215,25 +221,81 @@ final bool isInRange =
   final bool canTap = !isOutOfRange;
 
   return InkWell(
-    onTap: canTap ? () => widget.onDayTap(date) : null,
+  onTap: () {
+
+  /// 🔥 超出範圍
+  if (isOutOfRange) return;
+
+  /// 🔥 房滿（前後台都擋）
+  if (isUnbookable && !widget.allowBlockedTap) {
+  ScaffoldMessenger.of(context).showSnackBar(
+    const SnackBar(content: Text('此日期已滿')),
+  );
+  return;
+}
+
+  /// 🔥 關閉日期
+if (isBlocked && !widget.allowBlockedTap) {
+  return;
+}
+
+  /// ✅ 正常
+  widget.onDayTap(date);
+},
     borderRadius: BorderRadius.circular(12),
     child: Container(
-      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
+      height: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
       decoration: BoxDecoration(
         color: backgroundColor,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: borderColor),
       ),
-      child: Center(
-        child: Text(
-          '${date.day}',
-          style: TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.bold,
-            color: dayTextColor,
-          ),
-        ),
+      child: Column(
+  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+  children: [
+  /// 日期
+  Text(
+    '${date.day}',
+    style: TextStyle(
+      fontSize: 16,
+      fontWeight: FontWeight.bold,
+      color: dayTextColor,
+    ),
+  ),
+
+  /// 🔥 剩餘房數（這是你缺的）
+  if (remaining != null)
+    Text(
+      '剩 $remaining',
+      style: TextStyle(
+        fontSize: 10,
+        color: remaining <= 1 ? Colors.red : Colors.grey,
       ),
+    ),
+
+  /// 🔥 關閉原因
+  if (isBlocked && reason != null && reason.isNotEmpty)
+    Container(
+      margin: const EdgeInsets.only(top: 2),
+      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+      decoration: BoxDecoration(
+        color: Colors.red.shade100,
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Text(
+        reason,
+        style: const TextStyle(
+          fontSize: 9,
+          color: Colors.red,
+          fontWeight: FontWeight.bold,
+        ),
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+      ),
+    ),
+],
+),
     ),
   );
 }
@@ -264,22 +326,6 @@ final bool isInRange =
     final aa = DateTime(a.year, a.month, 1);
     final bb = DateTime(b.year, b.month, 1);
     return aa.isAtSameMomentAs(bb) || aa.isAfter(bb);
-  }
-
-  bool _isDateInRange({
-    required DateTime date,
-    required DateTime? start,
-    required DateTime? end,
-  }) {
-    if (start == null || end == null) return false;
-
-    final d = _dateOnly(date);
-    final s = _dateOnly(start);
-    final e = _dateOnly(end);
-
-    return (d.isAfter(s) && d.isBefore(e)) ||
-        d.isAtSameMomentAs(s) ||
-        d.isAtSameMomentAs(e);
   }
 
   bool _isSameDate(DateTime a, DateTime b) {
