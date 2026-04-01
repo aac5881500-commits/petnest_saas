@@ -171,30 +171,6 @@ class _ShopBookingManagePageState extends State<ShopBookingManagePage> {
                       payload: payload,
                     ),
                     const SizedBox(height: 16),
-                    _buildFilterBar(),
-                    const SizedBox(height: 16),
-                    SizedBox(
-                      height: 420,
-                      child: _selectedStatus == 'all'
-                          ? StreamBuilder<List<Map<String, dynamic>>>(
-                              stream: BookingService.instance.streamShopBookings(
-                                widget.shopId,
-                              ),
-                              builder: (context, snapshot) {
-                                return _buildBookingList(snapshot);
-                              },
-                            )
-                          : StreamBuilder<List<Map<String, dynamic>>>(
-                              stream: BookingService.instance
-                                  .streamShopBookingsByStatus(
-                                shopId: widget.shopId,
-                                status: _selectedStatus,
-                              ),
-                              builder: (context, snapshot) {
-                                return _buildBookingList(snapshot);
-                              },
-                            ),
-                    ),
                   ],
                 ),
               );

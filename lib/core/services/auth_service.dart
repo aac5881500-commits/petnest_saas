@@ -1,4 +1,4 @@
-// lib/core/services/auth_service.dart
+//   lib/core/services/auth_service.dart
 
 // 🔐 AuthService
 // 負責：
@@ -6,7 +6,6 @@
 // - Firebase 登入
 // - 建立 Firestore 使用者資料
 // - 登出
-//
 // 本次新增：
 // - 登入 / 註冊後自動同步店家邀請（員工綁定）
 //
@@ -41,6 +40,42 @@ class AuthService {
   /// 1. 建立 Firebase Auth
   /// 2. 建立 Firestore users/{uid}
   /// 3. 自動同步店家邀請（如果有被老闆指定 Email）
+  /// 
+  Future<void> _ensureUserBaseData(User user) async {
+  final userRef = _firestore.collection('users').doc(user.uid);
+  final profileRef = _firestore.collection('user_profiles').doc(user.uid);
+
+  final userDoc = await userRef.get();
+  final profileDoc = await profileRef.get();
+
+  /// 🧩 users（平台會員）
+  if (!userDoc.exists) {
+    await userRef.set({
+      'uid': user.uid,
+      'email': user.email,
+      'displayName': user.displayName ?? '',
+      'role': 'user',
+      'status': 'active',
+      'createdAt': FieldValue.serverTimestamp(),
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+  } else {
+    await userRef.update({
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+  }
+
+  /// 🧩 user_profiles（會員資料）
+  if (!profileDoc.exists) {
+    await profileRef.set({
+      'uid': user.uid,
+      'petsCount': 0,
+      'createdAt': FieldValue.serverTimestamp(),
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+  }
+}
+
   Future<UserCredential> register({
     required String email,
     required String password,
@@ -65,16 +100,15 @@ class AuthService {
       await user.updateDisplayName(safeDisplayName);
     }
 
-    // 建立 Firestore 使用者主檔
-    await _firestore.collection('users').doc(user.uid).set({
-      'uid': user.uid,
-      'email': user.email ?? email.trim(),
-      'displayName': safeDisplayName,
-      'role': 'user', // 全域角色（未來用）
-      'status': 'active',
-      'createdAt': FieldValue.serverTimestamp(),
-      'updatedAt': FieldValue.serverTimestamp(),
-    });
+    await _ensureUserBaseData(user);
+
+// 🆕 建立 user_profiles（會員自己的資料）
+await _firestore.collection('user_profiles').doc(user.uid).set({
+  'uid': user.uid,
+  'petsCount': 0,
+  'createdAt': FieldValue.serverTimestamp(),
+  'updatedAt': FieldValue.serverTimestamp(),
+});
 
     // 🔥 新增：同步店家邀請（關鍵）
     await ShopService.instance.syncPendingInvitesForCurrentUser();
@@ -95,6 +129,12 @@ class AuthService {
       email: email.trim(),
       password: password.trim(),
     );
+
+final user = credential.user;
+
+if (user != null) {
+  await _ensureUserBaseData(user);
+}
 
     // 🔥 新增：登入後同步邀請
     await ShopService.instance.syncPendingInvitesForCurrentUser();

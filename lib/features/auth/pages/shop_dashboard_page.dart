@@ -23,7 +23,8 @@ import 'package:petnest_saas/features/auth/pages/shop_permission_settings_page.d
 import 'package:petnest_saas/features/auth/pages/shop_room_type_page.dart';
 import 'package:petnest_saas/features/auth/pages/shop_room_page.dart';
 import 'package:petnest_saas/features/auth/pages/shop_room_calendar_page.dart';
-
+import 'package:petnest_saas/features/admin/pages/admin_booking_list_page.dart';
+import 'package:petnest_saas/features/admin/pages/admin_member_list_page.dart';
 
 
 class ShopDashboardPage extends StatefulWidget {
@@ -399,6 +400,22 @@ class _BasicInfoTab extends StatelessWidget {
     );
   },
 ),
+
+_MenuTile(
+  title: '會員管理',
+  subtitle: '查看會員資料與訂單紀錄（即將開放）',
+  icon: Icons.people,
+enabled: true,
+onTap: () {
+  Navigator.push(
+    context,
+    MaterialPageRoute(
+      builder: (_) => const AdminMemberListPage(),
+    ),
+  );
+},
+),
+
       ],
     );
   }
@@ -433,6 +450,23 @@ class _CatHotelTab extends StatelessWidget {
             );
           },
         ),
+
+_MenuTile(
+  title: '訂單管理',
+  subtitle: '查看與管理所有預約訂單',
+  icon: Icons.receipt_long,
+  onTap: () {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => AdminBookingListPage(
+          shopId: shopId,
+        ),
+      ),
+    );
+  },
+),
+
         _MenuTile(
   title: '房型管理',
   subtitle: '設定不同房型、可住數量與價格',

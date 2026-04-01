@@ -1,4 +1,4 @@
-// 檔案名稱：lib/core/services/booking_service.dart
+// 檔案名稱：lib/core/services/
 // 說明：預約服務層（區間預約版）
 //
 
@@ -57,7 +57,7 @@ final realRoomName = room['name'];
 if (user == null) throw Exception('未登入');
 
 final petDocs = await _firestore
-    .collection('users')
+    .collection('user_profiles')
     .doc(user.uid)
     .collection('pets')
     .where(FieldPath.documentId, whereIn: petIds)
@@ -85,9 +85,9 @@ if (!available) {
 }
 
     await doc.set({
+      'bookingId': doc.id,
       'shopId': shopId,
-      'customerUid': user?.uid,
-
+      'userId': user.uid,
       'customerName': customerName.trim(),
       'customerPhone': customerPhone.trim(),
       'petIds': petIds,

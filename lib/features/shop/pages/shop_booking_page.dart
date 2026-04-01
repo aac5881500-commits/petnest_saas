@@ -15,6 +15,7 @@
 // - 若第二次點的日期 <= 入住日，則重新選入住日
 // - 顯示區間晚數 / 總價 / 最少剩餘房數
 
+import 'package:petnest_saas/features/member/pages/member_page.dart';
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/services/booking_service.dart';
 import 'package:petnest_saas/core/services/shop_service.dart';
@@ -24,6 +25,9 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:petnest_saas/core/services/pet_service.dart';
 import 'package:petnest_saas/features/pet/pages/add_pet_page.dart';
 import 'package:flutter/foundation.dart';
+import 'package:petnest_saas/core/services/member_service.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 
 class ShopBookingPage extends StatefulWidget {
@@ -39,6 +43,12 @@ class ShopBookingPage extends StatefulWidget {
 }
 
 class _ShopBookingPageState extends State<ShopBookingPage> {
+
+@override
+void initState() {
+  super.initState();
+  _loadMemberData();
+}
   final _formKey = GlobalKey<FormState>();
 
   final _customerNameController = TextEditingController();
@@ -49,6 +59,7 @@ class _ShopBookingPageState extends State<ShopBookingPage> {
 
   bool _submitting = false;
   bool _checkingRange = false;
+  bool _isBlacklisted = false;
 
   DateTime? _startDate;
   DateTime? _endDate;
@@ -66,6 +77,29 @@ class _ShopBookingPageState extends State<ShopBookingPage> {
 
 
 List<String> _selectedPetIds = [];
+
+Future<void> _loadMemberData() async {
+  final user = FirebaseAuth.instance.currentUser;
+  if (user == null) return;
+
+  final doc = await FirebaseFirestore.instance
+      .collection('user_profiles')
+      .doc(user.uid)
+      .get();
+
+  final data = doc.data();
+  if (data == null) return;
+
+final tags = List<String>.from(data['tags'] ?? []);
+
+setState(() {
+  _customerNameController.text = data['name'] ?? '';
+  _customerPhoneController.text = data['phone'] ?? '';
+  _isBlacklisted = tags.contains('blacklist'); // 🔥關鍵
+});
+}
+
+
 
 DateTime _calendarMonth = DateTime.now();
 Future<_FrontCalendarPayload>? _calendarFuture;
@@ -98,6 +132,35 @@ Future<_FrontCalendarPayload>? _calendarFuture;
       appBar: AppBar(
         title: const Text('我要預約'),
       ),
+
+drawer: Drawer(
+  child: Column(
+    children: [
+
+      const DrawerHeader(
+        child: Text('會員中心'),
+      ),
+
+      ListTile(
+        leading: const Icon(Icons.login),
+        title: const Text('登入會員'),
+        onTap: () {
+          Navigator.pop(context);
+
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => const MemberPage(),
+            ),
+          );
+        },
+      ),
+
+    ],
+  ),
+),
+
+
       body: StreamBuilder<Map<String, dynamic>?>(
         stream: ShopService.instance.streamShop(widget.shopId),
         builder: (context, snapshot) {
@@ -180,22 +243,37 @@ if (_startDate != null && _endDate != null) ...[
 
 const SizedBox(height: 8),
 
-// 👇👇👇 插在這裡（新增按鈕）
-Align(
-  alignment: Alignment.centerRight,
-  child: TextButton(
-    onPressed: () async {
-      await Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (_) => const AddPetPage(),
-        ),
-      );
+StreamBuilder<List<Map<String, dynamic>>>(
+  stream: PetService.instance.streamMyPets(),
+  builder: (context, snapshot) {
+    final pets = snapshot.data ?? [];
 
-      setState(() {}); // 🔥 回來刷新
-    },
-    child: const Text('+ 新增寵物'),
-  ),
+    final isLimitReached = pets.length >= 5;
+
+    return Align(
+      alignment: Alignment.centerRight,
+      child: TextButton(
+        onPressed: isLimitReached
+            ? null
+            : () async {
+                await Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const AddPetPage(),
+                  ),
+                );
+
+                setState(() {});
+              },
+        child: Text(
+          isLimitReached ? '已達上限（5隻）' : '+ 新增寵物',
+          style: TextStyle(
+            color: isLimitReached ? Colors.grey : null,
+          ),
+        ),
+      ),
+    );
+  },
 ),
 
 const SizedBox(height: 8),
@@ -241,7 +319,12 @@ const SizedBox(height: 8),
 ),
   ],
 ), 
-  _buildRoomTypeSection(),
+_buildRoomTypeSection(),
+
+// 🔥 加在這裡
+if (_selectedRoomType != null && _startDate != null && _endDate != null) ...[
+  const SizedBox(height: 16),
+  _buildBookingSummary(),
 ],
 
 
@@ -307,38 +390,6 @@ const SizedBox(height: 8),
                                 ),
                                 const SizedBox(height: 16),
 
-                                TextFormField(
-                                  controller: _petNameController,
-                                  decoration: const InputDecoration(
-                                    labelText: '寵物名字',
-                                    border: OutlineInputBorder(),
-                                  ),
-                                  validator: (value) {
-                                    if (!_canSubmit(serviceTypes)) return null;
-                                    if (value == null || value.trim().isEmpty) {
-                                      return '請輸入寵物名字';
-                                    }
-                                    return null;
-                                  },
-                                ),
-                                const SizedBox(height: 16),
-
-                                TextFormField(
-                                  controller: _petTypeController,
-                                  decoration: const InputDecoration(
-                                    labelText: '寵物類型（例如：貓 / 狗）',
-                                    border: OutlineInputBorder(),
-                                  ),
-                                  validator: (value) {
-                                    if (!_canSubmit(serviceTypes)) return null;
-                                    if (value == null || value.trim().isEmpty) {
-                                      return '請輸入寵物類型';
-                                    }
-                                    return null;
-                                  },
-                                ),
-                                const SizedBox(height: 16),
-
                                 DropdownButtonFormField<String>(
                                   value: _selectedServiceType,
                                   items: serviceTypes.map((service) {
@@ -393,13 +444,27 @@ const SizedBox(height: 8),
 
                                 const SizedBox(height: 24),
 
+if (_isBlacklisted)
+  Container(
+    width: double.infinity,
+    padding: const EdgeInsets.all(12),
+    margin: const EdgeInsets.only(bottom: 12),
+    decoration: BoxDecoration(
+      color: Colors.red.shade50,
+      borderRadius: BorderRadius.circular(8),
+    ),
+    child: const Text(
+      '⚠️ 此帳號暫時無法預約，請聯絡店家',
+      style: TextStyle(color: Colors.red),
+    ),
+  ),
 
                                 SizedBox(
                                   width: double.infinity,
                                   child: ElevatedButton(
-                                    onPressed: _canSubmit(serviceTypes)
-                                        ? () => _submitBooking(shop)
-                                        : null,
+onPressed: (_canSubmit(serviceTypes) && !_isBlacklisted)
+    ? () => _submitBooking(shop)
+    : null,
                                     child: _submitting
                                         ? const SizedBox(
                                             height: 20,
@@ -415,6 +480,7 @@ const SizedBox(height: 8),
                             ),
                           ),
                         ],
+                      ],
                       ],
                     ),
                   ),
@@ -522,13 +588,21 @@ final snapshot = await FirebaseFirestore.instance
     .collection('bookings')
     .where('shopId', isEqualTo: shop['shopId'])
     .where('status', whereIn: ['pending', 'confirmed'])
-    .where('startDate', isLessThanOrEqualTo: Timestamp.fromDate(monthEnd))
     .get();
 
 final bookings = snapshot.docs.map((doc) {
-  return doc.data();
-}).toList();
+  final data = doc.data();
 
+  final start = (data['startDate'] as Timestamp).toDate();
+  final end = (data['endDate'] as Timestamp).toDate();
+
+  // 🔥 用 Dart 自己過濾（關鍵）
+  if (end.isBefore(monthStart) || start.isAfter(monthEnd)) {
+    return null;
+  }
+
+  return data;
+}).where((e) => e != null).cast<Map<String, dynamic>>().toList();
 
 while (!cursor.isAfter(last)) {
   final key = ShopService.instance.formatDateKey(cursor);
@@ -719,6 +793,12 @@ if (payload != null) {
   }
 
   Future<void> _submitBooking(Map<String, dynamic> shop) async {
+
+// 🔥 建立店家會員（關鍵）
+await MemberService.instance.ensureMember(
+  shopId: widget.shopId,
+);
+
     if (!_formKey.currentState!.validate()) return;
 
     if (_startDate == null || _endDate == null) {
@@ -748,6 +828,56 @@ if (_selectedPetIds.isEmpty) {
   return;
 }
 
+/// 🔥 取得使用者（統一檢查）
+final user = FirebaseAuth.instance.currentUser;
+if (user == null) return;
+
+/// 🔥 一次查詢（避免重複打 Firestore🔥）
+final snapshot = await FirebaseFirestore.instance
+    .collection('bookings')
+    .where('userId', isEqualTo: user.uid)
+    .where('status', whereIn: ['pending', 'confirmed'])
+    .get();
+
+/// 🔥 防重複預約（同寵物 + 時間重疊）
+for (final doc in snapshot.docs) {
+  final data = doc.data();
+
+  final List bookedPetIds =
+      List<String>.from(data['petIds'] ?? []);
+
+  final start = (data['startDate'] as Timestamp).toDate();
+  final end = (data['endDate'] as Timestamp).toDate();
+
+  /// 同一隻寵物
+  final hasSamePet =
+      _selectedPetIds.any((id) => bookedPetIds.contains(id));
+
+  /// 日期重疊
+  final isOverlap =
+      _startDate!.isBefore(end) && _endDate!.isAfter(start);
+
+  if (hasSamePet && isOverlap) {
+    _showSnackBar('該寵物已有未完成訂單，無法重複預約');
+    return;
+  }
+}
+
+/// 🔥 防刷訂單（最多3筆）
+if (snapshot.docs.length >= 3) {
+  _showSnackBar('您已有多筆未完成訂單，請先完成或取消後再預約');
+  return;
+}
+
+/// 🔥 回寫會員資料（姓名 / 電話）
+await FirebaseFirestore.instance
+    .collection('user_profiles')
+    .doc(user.uid)
+    .set({
+  'name': _customerNameController.text,
+  'phone': _customerPhoneController.text,
+  'updatedAt': FieldValue.serverTimestamp(),
+}, SetOptions(merge: true));
 
 
     setState(() {
@@ -802,6 +932,7 @@ if (_selectedPetIds.isEmpty) {
   }
 
   Widget _infoRow(String label, String value) {
+
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -1010,13 +1141,18 @@ if (_rangeMessage.isNotEmpty)
                 Expanded(
                   child: ElevatedButton(
                     onPressed: () {
-                      setState(() {
-                        _startDate = _tempStartDate;
-                        _endDate = _tempEndDate;
-                      });
+  setState(() {
+    _startDate = _tempStartDate;
+    _endDate = _tempEndDate;
 
-                      Navigator.pop(context);
-                    },
+    /// 🔥 加這三行（關鍵）
+    _rangeChecked = true;
+    _rangeBookable = true;
+    _rangeMessage = '';
+  });
+
+  Navigator.pop(context);
+},
                     child: const Text('確認'),
                   ),
                 ),
@@ -1038,6 +1174,54 @@ if (_rangeMessage.isNotEmpty)
   },
 );
 }
+
+
+Widget _buildBookingSummary() {
+  final totalPrice = BookingService.instance.calculateTotalPrice(
+    roomType: _selectedRoomType!,
+    startDate: _startDate!,
+    endDate: _endDate!,
+  );
+
+  return Card(
+    color: Colors.grey.shade100,
+    child: Padding(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            '預約確認',
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+
+          const SizedBox(height: 12),
+
+          _infoRow('入住日', _formatDate(_startDate!)),
+          const SizedBox(height: 6),
+
+          _infoRow('退房日', _formatDate(_endDate!)),
+          const SizedBox(height: 6),
+
+          _infoRow('晚數', '$_nights 晚'),
+          const SizedBox(height: 6),
+
+          _infoRow('寵物數量', '${_selectedPetIds.length} 隻'),
+          const SizedBox(height: 6),
+
+          _infoRow('房型', _selectedRoomType!['name'] ?? ''),
+          const SizedBox(height: 6),
+
+          _infoRow('總價', 'NT\$ $totalPrice'),
+        ],
+      ),
+    ),
+  );
+}
+
 /// ===============================
 /// 第三步：房型
 /// ===============================
@@ -1045,6 +1229,18 @@ Widget _buildRoomTypeSection() {
   if (_startDate == null || _endDate == null) {
     return const SizedBox();
   }
+
+// ❌ 沒選寵物 → 不顯示房型
+if (_selectedPetIds.isEmpty) {
+  return const Padding(
+    padding: EdgeInsets.symmetric(vertical: 16),
+    child: Text(
+      '請先選擇入住寵物',
+      style: TextStyle(color: Colors.red),
+    ),
+  );
+}
+
 
   return FutureBuilder<List<Map<String, dynamic>>>(
     future: ShopService.instance.getAvailableRoomTypes(
@@ -1113,7 +1309,25 @@ Widget _buildRoomTypeSection() {
     ),
   ],
 ),
-                trailing: Text('NT\$ ${type['price']}'),
+                trailing: Column(
+  crossAxisAlignment: CrossAxisAlignment.end,
+  children: [
+    Text('NT\$ ${type['price']} / 晚'),
+
+    const SizedBox(height: 4),
+
+    Text(
+      '共 NT\$ ${BookingService.instance.calculateTotalPrice(
+        roomType: type,
+        startDate: _startDate!,
+        endDate: _endDate!,
+      )}',
+      style: const TextStyle(
+        fontWeight: FontWeight.bold,
+      ),
+    ),
+  ],
+),
                 onTap: () => _onSelectRoomType(type),
               ),
             );
