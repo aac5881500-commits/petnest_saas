@@ -223,27 +223,42 @@ class ShopService {
 
   /// 更新店家基本資料
   Future<void> updateShopBasicInfo({
-    required String shopId,
-    required String name,
-    String businessType = 'cat',
-    String phone = '',
-    String address = '',
-    String description = '',
-    String city = '',
-    String district = '',
-    String lineUrl = '',
-  }) async {
+  required String shopId,
+  required String name,
+  String businessType = 'cat',
+  String phone = '',
+  String address = '',
+  String description = '',
+  String city = '',
+  String district = '',
+  String lineUrl = '',
+  String igUrl = '',
+  String fbUrl = '',
+  String businessHours = '',
+  String licenseNumber = '',
+  String taxId = '',
+  bool showTaxId = true,
+})async {
     await _shops.doc(shopId).update({
-      'name': name.trim(),
-      'businessType': businessType,
-      'phone': phone.trim(),
-      'address': address.trim(),
-      'description': description.trim(),
-      'city': city.trim(),
-      'district': district.trim(),
-      'lineUrl': lineUrl.trim(),
-      'updatedAt': FieldValue.serverTimestamp(),
-    });
+  'name': name.trim(),
+  'businessType': businessType,
+  'phone': phone.trim(),
+  'address': address.trim(),
+  'description': description.trim(),
+  'city': city.trim(),
+  'district': district.trim(),
+  'lineUrl': lineUrl.trim(),
+  'igUrl': igUrl.trim(),
+  'fbUrl': fbUrl.trim(),
+
+  /// 🔥 新增
+  'businessHours': businessHours.trim(),
+  'licenseNumber': licenseNumber.trim(),
+  'taxId': taxId.trim(),
+  'showTaxId': showTaxId,
+
+  'updatedAt': FieldValue.serverTimestamp(),
+});
   }
 
   /// 更新營業資訊

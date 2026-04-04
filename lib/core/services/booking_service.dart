@@ -1,4 +1,4 @@
-// 檔案名稱：lib/core/services/
+// 檔案名稱：lib/core/services/booking_serv.dart
 // 說明：預約服務層（區間預約版）
 //
 
@@ -31,6 +31,13 @@ class BookingService {
   required String roomId,
   required String roomName,
   String note = '',
+String address = '',
+String emergencyName = '',
+String emergencyPhone = '',
+String emergencyRelation = '',
+String emergencyAddress = '',
+String emergencyPhone2 = '',
+
 })async {
     final user = _currentUser;
     final doc = _bookings.doc();
@@ -90,6 +97,14 @@ if (!available) {
       'userId': user.uid,
       'customerName': customerName.trim(),
       'customerPhone': customerPhone.trim(),
+'address': address,
+'emergencyContact': {
+  'name': emergencyName,
+  'phone': emergencyPhone,
+  'relation': emergencyRelation,
+  'address': emergencyAddress,
+  'phone2': emergencyPhone2,
+},
       'petIds': petIds,
       'pets': pets,
       'roomId': realRoomId,
@@ -107,6 +122,7 @@ if (!available) {
 
       /// 備註
       'note': note.trim(),
+      
 
       /// 價格欄位
       'pricePerNight': null,

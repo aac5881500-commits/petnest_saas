@@ -1,17 +1,20 @@
 // lib/core/services/pet_service.dart
-// 🐱 PetService（會員寵物）
-// 負責：
-// - 新增寵物
-// - 取得寵物列表
-// - 自動更新 petsCount
+// 🐱 PetService（會員寵物完整版🔥）
 //
-// ⚠️ 使用結構：
-// /user_profiles/{uid}/pets/{petId}
+// 功能：
+// - 新增寵物（含完整欄位）
+// - 上傳寵物照片（覆蓋 + Web支援🔥）
+// - 取得寵物列表
+//
+// 📦 結構：
+// user_profiles/{uid}/pets/{petId}
 
+import 'dart:typed_data';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
-import 'package:image_picker/image_picker.dart';
+import 'package:image/image.dart' as img;
+import 'package:flutter/foundation.dart';
 
 class PetService {
   PetService._();
@@ -20,52 +23,69 @@ class PetService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
 
-  /// 🔐 取得目前使用者 UID
+  /// 🔐 取得 UID
   String get _uid {
     final user = _auth.currentUser;
-    if (user == null) {
-      throw Exception('尚未登入');
-    }
+    if (user == null) throw Exception('尚未登入');
     return user.uid;
   }
 
-/// 🖼️ 上傳寵物照片（會覆蓋舊照片）
-Future<void> uploadPetPhoto({
-  required String petId,
-}) async {
-  final picker = ImagePicker();
+  // ===============================
+  // 🖼️ 上傳寵物照片（覆蓋舊圖 + Web支援🔥）
+  // ===============================
+  Future<void> uploadPetPhoto({
+    required String petId,
+    required Uint8List bytes,
+  }) async {
+    Uint8List uploadData;
 
-  /// 選圖片
-  final picked = await picker.pickImage(source: ImageSource.gallery);
-  if (picked == null) return;
+    if (kIsWeb) {
+      /// 🔥 Web：不能用 image 套件 → 直接上傳
+      uploadData = bytes;
+    } else {
+      /// 🔥 手機：壓縮圖片
+      final image = img.decodeImage(bytes);
 
-  final file = picked;
+      if (image == null) throw Exception('圖片解析失敗');
 
-  /// 🔥 Storage 路徑（固定 = 覆蓋）
-  final ref = FirebaseStorage.instance
-      .ref()
-      .child('pets')
-      .child(_uid)
-      .child('$petId.jpg');
+      final resized = img.copyResize(
+        image,
+        width: 800,
+      );
 
-  /// 上傳
-  await ref.putData(await file.readAsBytes());
+      uploadData = img.encodeJpg(resized, quality: 85);
+    }
 
-  /// 取得下載URL
-  final url = await ref.getDownloadURL();
+    final ref = FirebaseStorage.instance
+        .ref()
+        .child('pets')
+        .child(_uid)
+        .child('$petId.jpg');
 
-  /// 存到 Firestore
-  await _firestore
-      .collection('user_profiles')
-      .doc(_uid)
-      .collection('pets')
-      .doc(petId)
-      .update({
-    'photoUrl': url,
-  });
-}
+    /// 🔥 覆蓋上傳
+    await ref.putData(
+  uploadData,
+  SettableMetadata(
+    contentType: 'image/jpeg',
+  ),
+);
 
-  /// 🐱 取得寵物列表（Stream）
+    final url = await ref.getDownloadURL();
+
+    await _firestore
+        .collection('user_profiles')
+        .doc(_uid)
+        .collection('pets')
+        .doc(petId)
+        .update({
+      'photoUrl': url,
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+  }
+
+  // ===============================
+  // 🐱 取得寵物列表
+  // ===============================
   Stream<List<Map<String, dynamic>>> streamMyPets() {
     return _firestore
         .collection('user_profiles')
@@ -83,52 +103,83 @@ Future<void> uploadPetPhoto({
     });
   }
 
-  /// 🐱 新增寵物
-  Future<void> createPet({
+  // ===============================
+  // 🐱 新增寵物（完整版🔥）
+  // ===============================
+  Future<String> createPet({
     required String name,
-    required String type, // cat / dog
-    String? breed,
-    String? gender,
-    DateTime? birthday,
-    String? note,
+
+    /// 固定貓（之後可擴狗）
+    String type = 'cat',
+
+    /// 基本
+    String gender = '',
+    String litterType = '',
+
+    /// 🔥 新增欄位
+    String age = '',
+    String breed = '',
+    String vaccine = '',
+    String note = '',
+
+    /// 狀態
+    bool isNeutered = false,
+    bool canSocial = false,
+    bool canMedicate = false,
   }) async {
-
-// 🔥 檢查上限（最多5隻）
-final snapshot = await _firestore
-    .collection('user_profiles')
-    .doc(_uid)
-    .collection('pets')
-    .get();
-
-if (snapshot.docs.length >= 5) {
-  throw Exception('最多只能新增 5 隻寵物');
-}
+    final user = _auth.currentUser;
+    if (user == null) throw Exception('未登入');
 
     final petsRef = _firestore
         .collection('user_profiles')
-        .doc(_uid)
+        .doc(user.uid)
         .collection('pets');
+
+    /// 🔥 限制最多 5 隻
+    final snapshot = await petsRef.get();
+    if (snapshot.docs.length >= 5) {
+      throw Exception('最多只能新增 5 隻寵物');
+    }
 
     final doc = petsRef.doc();
 
     await doc.set({
       'petId': doc.id,
+      'userId': user.uid,
+
+      /// 基本
       'name': name,
       'type': type,
-      'breed': breed ?? '',
-      'gender': gender ?? '',
-      'birthday': birthday,
-      'note': note ?? '',
+      'gender': gender,
+      'litterType': litterType,
+
+      /// 🔥 新欄位
+      'age': age,
+      'breed': breed,
+      'vaccine': vaccine,
+      'note': note,
+
+      /// 狀態
+      'isNeutered': isNeutered,
+      'canSocial': canSocial,
+      'canMedicate': canMedicate,
+
+      /// 照片
+      'photoUrl': '',
+
+      /// 系統
       'createdAt': FieldValue.serverTimestamp(),
     });
 
-    // 🔥 更新寵物數量
+    /// 🔥 更新數量
     await _firestore
         .collection('user_profiles')
-        .doc(_uid)
-        .update({
+        .doc(user.uid)
+        .set({
       'petsCount': FieldValue.increment(1),
       'updatedAt': FieldValue.serverTimestamp(),
-    });
+    }, SetOptions(merge: true));
+
+    return doc.id;
   }
 }

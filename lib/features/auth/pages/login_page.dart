@@ -1,5 +1,6 @@
 // 🔐 登入頁 LoginPage
-//
+
+// 檔案名稱 lib/features/auth/pages/login_page.dart
 // 功能：
 // - 登入
 // - 記住 Email

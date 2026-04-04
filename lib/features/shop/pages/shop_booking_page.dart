@@ -26,8 +26,8 @@ import 'package:petnest_saas/core/services/pet_service.dart';
 import 'package:petnest_saas/features/pet/pages/add_pet_page.dart';
 import 'package:flutter/foundation.dart';
 import 'package:petnest_saas/core/services/member_service.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:petnest_saas/features/booking/pages/booking_form_page.dart';
+import 'package:petnest_saas/features/booking/pages/booking_success_page.dart';
 
 
 class ShopBookingPage extends StatefulWidget {
@@ -298,21 +298,50 @@ const SizedBox(height: 8),
         final selected = _selectedPetIds.contains(petId);
 
         return FilterChip(
-          label: Text(pet['name'] ?? '未命名'),
-          selected: selected,
-          onSelected: (value) {
-            setState(() {
-              if (value) {
-                _selectedPetIds.add(petId);
-              } else {
-                _selectedPetIds.remove(petId);
-              }
+  avatar: CircleAvatar(
+    backgroundColor: Colors.grey.shade200,
+    backgroundImage: (pet['photoUrl'] != null &&
+            pet['photoUrl'].toString().isNotEmpty)
+        ? NetworkImage(pet['photoUrl'])
+        : null,
+    child: (pet['photoUrl'] == null ||
+            pet['photoUrl'].toString().isEmpty)
+        ? const Icon(Icons.pets, size: 16)
+        : null,
+  ),
+  label: Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Text(
+        pet['name'] ?? '未命名',
+        style: const TextStyle(
+          fontWeight: FontWeight.bold,
+          fontSize: 14,
+        ),
+      ),
+      Text(
+        '性別：${pet['gender'] ?? '-'} ｜ 貓砂：${pet['litterType'] ?? '-'}',
+        style: const TextStyle(fontSize: 11),
+      ),
+      Text(
+        '社交：${pet['canSocial'] == true ? '可' : '不可'} ｜ 用藥：${pet['canMedicate'] == true ? '可' : '不可'}',
+        style: const TextStyle(fontSize: 11),
+      ),
+    ],
+  ),
+  selected: selected,
+  onSelected: (value) {
+    setState(() {
+      if (value) {
+        _selectedPetIds.add(petId);
+      } else {
+        _selectedPetIds.remove(petId);
+      }
 
-              // 🔥 重選房型
-              _selectedRoomType = null;
-            });
-          },
-        );
+      _selectedRoomType = null;
+    });
+  },
+);
       }).toList(),
     );
   },
@@ -327,158 +356,67 @@ if (_selectedRoomType != null && _startDate != null && _endDate != null) ...[
   _buildBookingSummary(),
 ],
 
+if (_canShowFormFields) ...[
+  const SizedBox(height: 20),
+  const Divider(),
+  const SizedBox(height: 20),
+
+  SizedBox(
+    width: double.infinity,
+    child: ElevatedButton(
+      onPressed: (_canSubmit(serviceTypes) && !_isBlacklisted)
+          ? () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => BookingFormPage(
+                    formKey: _formKey,
+                    customerNameController: _customerNameController,
+                    customerPhoneController: _customerPhoneController,
+                    noteController: _noteController,
+                    serviceTypes: serviceTypes,
+                    selectedServiceType: _selectedServiceType,
+                    onServiceChanged: (value) {
+                      setState(() {
+                        _selectedServiceType = value;
+                      });
+                    },
+                    onSubmitWithData: (
+  address,
+  emergencyName,
+  emergencyPhone,
+  relation,
+  emergencyAddress,
+  phone2,
+) {
+  _submitBooking(
+    shop,
+    address: address,
+    emergencyName: emergencyName,
+    emergencyPhone: emergencyPhone,
+    relation: relation,
+    emergencyAddress: emergencyAddress,
+    phone2: phone2,
+  );
+},
+                    onSubmit: () {},
+                    isSubmitting: _submitting,
+                    canSubmit: _canSubmit(serviceTypes),
+                    isBlacklisted: _isBlacklisted,
+                  ),
+                ),
+              );
+            }
+          : null,
+      child: const Text('下一步：填寫資料'),
+    ),
+  ),
+],
 
                         if (_canShowFormFields) ...[
                           const SizedBox(height: 20),
                           const Divider(),
                           const SizedBox(height: 20),
-                          const Text(
-                            '預約資料',
-                            style: TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          const SizedBox(height: 16),
-
-                          Form(
-                            key: _formKey,
-                            child: Column(
-                              children: [
-                                Padding(
-  padding: const EdgeInsets.all(12),
-  child: Text(
-    (_tempStartDate != null && _tempEndDate != null)
-        ? '已選：${_formatDate(_tempStartDate!)} ～ ${_formatDate(_tempEndDate!)}'
-        : '請選擇入住與退房日期',
-    style: const TextStyle(
-      fontSize: 16,
-      fontWeight: FontWeight.bold,
-    ),
-  ),
-),
-                                TextFormField(
-                                  controller: _customerNameController,
-                                  decoration: const InputDecoration(
-                                    labelText: '聯絡人姓名',
-                                    border: OutlineInputBorder(),
-                                  ),
-                                  validator: (value) {
-                                    if (!_canSubmit(serviceTypes)) return null;
-                                    if (value == null || value.trim().isEmpty) {
-                                      return '請輸入聯絡人姓名';
-                                    }
-                                    return null;
-                                  },
-                                ),
-                                const SizedBox(height: 16),
-
-                                TextFormField(
-                                  controller: _customerPhoneController,
-                                  keyboardType: TextInputType.phone,
-                                  decoration: const InputDecoration(
-                                    labelText: '聯絡電話',
-                                    border: OutlineInputBorder(),
-                                  ),
-                                  validator: (value) {
-                                    if (!_canSubmit(serviceTypes)) return null;
-                                    if (value == null || value.trim().isEmpty) {
-                                      return '請輸入聯絡電話';
-                                    }
-                                    return null;
-                                  },
-                                ),
-                                const SizedBox(height: 16),
-
-                                DropdownButtonFormField<String>(
-                                  value: _selectedServiceType,
-                                  items: serviceTypes.map((service) {
-                                    return DropdownMenuItem<String>(
-                                      value: service,
-                                      child: Text(_serviceTypeText(service)),
-                                    );
-                                  }).toList(),
-                                  onChanged: serviceTypes.isEmpty
-                                      ? null
-                                      : (value) {
-                                          setState(() {
-                                            _selectedServiceType = value;
-                                          });
-                                        },
-                                  decoration: const InputDecoration(
-                                    labelText: '服務類型',
-                                    border: OutlineInputBorder(),
-                                  ),
-                                  validator: (value) {
-                                    if (!_canSubmit(serviceTypes)) return null;
-                                    if (serviceTypes.isNotEmpty &&
-                                        (value == null || value.isEmpty)) {
-                                      return '請選擇服務類型';
-                                    }
-                                    return null;
-                                  },
-                                ),
-
-                                if (serviceTypes.isEmpty) ...[
-                                  const SizedBox(height: 8),
-                                  const Align(
-                                    alignment: Alignment.centerLeft,
-                                    child: Text(
-                                      '此店家尚未設定服務項目，暫時無法預約。',
-                                      style: TextStyle(color: Colors.red),
-                                    ),
-                                  ),
-                                ],
-
-                                const SizedBox(height: 16),
-
-                                TextFormField(
-                                  controller: _noteController,
-                                  maxLines: 4,
-                                  decoration: const InputDecoration(
-                                    labelText: '備註',
-                                    border: OutlineInputBorder(),
-                                    alignLabelWithHint: true,
-                                  ),
-                                ),
-
-                                const SizedBox(height: 24),
-
-if (_isBlacklisted)
-  Container(
-    width: double.infinity,
-    padding: const EdgeInsets.all(12),
-    margin: const EdgeInsets.only(bottom: 12),
-    decoration: BoxDecoration(
-      color: Colors.red.shade50,
-      borderRadius: BorderRadius.circular(8),
-    ),
-    child: const Text(
-      '⚠️ 此帳號暫時無法預約，請聯絡店家',
-      style: TextStyle(color: Colors.red),
-    ),
-  ),
-
-                                SizedBox(
-                                  width: double.infinity,
-                                  child: ElevatedButton(
-onPressed: (_canSubmit(serviceTypes) && !_isBlacklisted)
-    ? () => _submitBooking(shop)
-    : null,
-                                    child: _submitting
-                                        ? const SizedBox(
-                                            height: 20,
-                                            width: 20,
-                                            child: CircularProgressIndicator(
-                                              strokeWidth: 2,
-                                            ),
-                                          )
-                                        : const Text('送出預約'),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
                         ],
                       ],
                       ],
@@ -792,7 +730,15 @@ if (payload != null) {
         serviceTypes.isNotEmpty;
   }
 
-  Future<void> _submitBooking(Map<String, dynamic> shop) async {
+  Future<void> _submitBooking(
+  Map<String, dynamic> shop, {
+  String address = '',
+  String emergencyName = '',
+  String emergencyPhone = '',
+  String relation = '',
+  String emergencyAddress = '',
+  String phone2 = '',
+}) async {
 
 // 🔥 建立店家會員（關鍵）
 await MemberService.instance.ensureMember(
@@ -876,6 +822,17 @@ await FirebaseFirestore.instance
     .set({
   'name': _customerNameController.text,
   'phone': _customerPhoneController.text,
+  'address': address,
+
+  /// 🚨 緊急聯絡人（完整）
+  'emergencyContact': {
+    'name': emergencyName,
+    'phone': emergencyPhone,
+    'relation': relation,
+    'address': emergencyAddress,
+    'phone2': phone2,
+  },
+
   'updatedAt': FieldValue.serverTimestamp(),
 }, SetOptions(merge: true));
 
@@ -895,18 +852,28 @@ await FirebaseFirestore.instance
 
       final pricePerNight = _nights > 0 ? (totalPrice ~/ _nights) : 0;
 
-      final bookingId = await BookingService.instance.createBooking(
+ final bookingId = await BookingService.instance.createBooking(
   shopId: widget.shopId,
   customerName: _customerNameController.text,
   customerPhone: _customerPhoneController.text,
   petIds: _selectedPetIds,
   serviceType: _selectedServiceType!,
-  roomId: _selectedRoomType!['roomTypeId'], 
-  roomName: _selectedRoomType!['name'],     
+  roomId: _selectedRoomType!['roomTypeId'],
+  roomName: _selectedRoomType!['name'],
   startDate: _startDate!,
   endDate: _endDate!,
   nights: _nights,
   note: _noteController.text,
+
+  /// 🔥 新增（先給空）
+address: address,
+emergencyName: emergencyName,
+emergencyPhone: emergencyPhone,
+
+/// 🔥 新增
+emergencyRelation: relation,
+emergencyAddress: emergencyAddress,
+emergencyPhone2: phone2,
 );
       await BookingService.instance.updateBooking(
         bookingId: bookingId,
@@ -917,8 +884,14 @@ await FirebaseFirestore.instance
 
       if (!mounted) return;
 
-      _showSnackBar('預約已送出');
-      Navigator.pop(context);
+      Navigator.pushReplacement(
+  context,
+  MaterialPageRoute(
+    builder: (_) => BookingSuccessPage(
+      shopName: shop['name'] ?? '',
+    ),
+  ),
+);
     } catch (e) {
       if (!mounted) return;
       _showSnackBar('送出失敗：$e');
