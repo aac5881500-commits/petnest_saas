@@ -16,6 +16,15 @@ class ShopService {
   ShopService._();
   static final instance = ShopService._();
 
+Future<void> deleteImageByUrl(String url) async {
+  try {
+    final ref = FirebaseStorage.instance.refFromURL(url);
+    await ref.delete();
+  } catch (e) {
+    print('刪除圖片失敗: $e');
+  }
+}
+
   final FirebaseStorage _storage = FirebaseStorage.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
@@ -62,6 +71,14 @@ class ShopService {
       'updatedAt': FieldValue.serverTimestamp(),
     });
   }
+
+/// 🔥 更新店家資料（新增給後台用）
+Future<void> updateShop({
+  required String shopId,
+  required Map<String, dynamic> data,
+}) async {
+  await _firestore.collection('shops').doc(shopId).update(data);
+}
 
   /// 建立店家
   Future<String> createShop({
@@ -437,20 +454,24 @@ class ShopService {
 
   /// 上傳店家 Cover
   Future<String> uploadShopCover({
-    required String shopId,
-    required Uint8List bytes,
-  }) async {
-    final ref = _storage.ref().child('shops/$shopId/cover.jpg');
-    await ref.putData(bytes);
-    final url = await ref.getDownloadURL();
+  required String shopId,
+  required Uint8List bytes,
+}) async {
+  /// 🔥 每次用新檔名（避免快取＆壞檔）
+  final fileName = 'banner_${DateTime.now().millisecondsSinceEpoch}.jpg';
 
-    await _shops.doc(shopId).update({
-      'coverUrl': url,
-      'updatedAt': FieldValue.serverTimestamp(),
-    });
+  final ref = _storage.ref().child('shops/$shopId/$fileName');
 
-    return url;
-  }
+  /// 🔥 強制指定圖片格式（關鍵）
+  await ref.putData(
+    bytes,
+    SettableMetadata(
+      contentType: 'image/jpeg',
+    ),
+  );
+
+  return await ref.getDownloadURL();
+}
 
   int _toInt(dynamic value, {int fallback = 0}) {
     if (value is int) return value;
@@ -970,4 +991,5 @@ Future<List<Map<String, dynamic>>> getAvailableRoomTypes({
 
   return result;
 }
+
 }

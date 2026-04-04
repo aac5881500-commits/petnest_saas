@@ -337,7 +337,7 @@ class _BasicInfoTab extends StatelessWidget {
           },
         ),
         _MenuTile(
-          title: '店家封面 / Logo',
+          title: '店家封面 ',
           subtitle: '上傳 Logo 與封面圖片',
           icon: Icons.image,
           onTap: () {

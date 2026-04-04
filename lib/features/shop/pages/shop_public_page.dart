@@ -5,14 +5,31 @@ import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/services/shop_service.dart';
 import 'package:petnest_saas/features/shop/pages/shop_booking_page.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'dart:async';
 
-class ShopPublicPage extends StatelessWidget {
+class ShopPublicPage extends StatefulWidget {
   const ShopPublicPage({
     super.key,
     required this.shopId,
   });
 
   final String shopId;
+
+
+  @override
+  State<ShopPublicPage> createState() => _ShopPublicPageState();
+}
+class _ShopPublicPageState extends State<ShopPublicPage> {
+  late final PageController _pageController;
+  int _currentIndex = 0;
+  bool _isPageChanging = false;
+
+ @override
+void initState() {
+  super.initState();
+  _pageController = PageController(initialPage: 0);
+}
+
 
   Future<void> _openUrl(String url) async {
     if (url.isEmpty) return;
@@ -23,7 +40,7 @@ class ShopPublicPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return StreamBuilder<Map<String, dynamic>?>(
-      stream: ShopService.instance.streamShop(shopId),
+      stream: ShopService.instance.streamShop(widget.shopId),
       builder: (context, snapshot) {
 
         if (snapshot.connectionState == ConnectionState.waiting) {
@@ -45,14 +62,28 @@ class ShopPublicPage extends StatelessWidget {
           );
         }
 
-        final List<dynamic> rawCovers = shop['coverUrls'] ?? [];
-        final List<String> coverUrls =
-            rawCovers.map((e) => e.toString()).toList();
+        /// 🔥 Banner（支援圖片 + 連結）
+final List<dynamic> rawBanners = shop['banners'] ?? [];
 
-        if (coverUrls.isEmpty &&
-            (shop['coverUrl'] ?? '').toString().isNotEmpty) {
-          coverUrls.add(shop['coverUrl']);
-        }
+final List<Map<String, String>> banners =
+    rawBanners.where((e) {
+      return (e['isActive'] ?? true) == true;
+    }).map<Map<String, String>>((e) {
+      return {
+        'image': (e['imageUrl'] ?? '').toString(),
+        'link': (e['linkUrl'] ?? '').toString(),
+      };
+    }).toList();
+
+/// 舊資料兼容（如果還沒升級）
+if (banners.isEmpty &&
+    (shop['coverUrl'] ?? '').toString().isNotEmpty) {
+  banners.add({
+    'image': shop['coverUrl'],
+    'link': '',
+  });
+}
+
 
         /// 🔥 正確：只保留一個 Scaffold
         return Scaffold(
@@ -78,31 +109,88 @@ class ShopPublicPage extends StatelessWidget {
             children: [
 
               /// 🔥 上半部
-              Expanded(
-                child: ListView(
-                  padding: const EdgeInsets.all(16),
-                  children: [
+Expanded(
+  child: ListView(
+    padding: const EdgeInsets.all(16),
+    children: [
 
-                    /// Banner
-                    if (coverUrls.isNotEmpty)
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(16),
-                        child: SizedBox(
-                          height: 260,
-                          child: PageView.builder(
-                            itemCount: coverUrls.length,
-                            itemBuilder: (context, index) {
-                              return Image.network(
-                                coverUrls[index],
-                                fit: BoxFit.cover,
-                                width: double.infinity,
-                              );
-                            },
-                          ),
-                        ),
-                      ),
+     /// 🔥 Banner（Stack版本，100%正常）
+if (banners.isNotEmpty)
+  SizedBox(
+    height: 260,
+    child: Stack(
+      children: [
 
-                    if (coverUrls.isNotEmpty) const SizedBox(height: 20),
+        /// 圖片滑動
+        PageView.builder(
+          controller: _pageController,
+          physics: const PageScrollPhysics(),
+          itemCount: banners.length,
+          onPageChanged: (index) {
+  _currentIndex = index;
+},
+          itemBuilder: (context, index) {
+            final banner = banners[index];
+
+            return GestureDetector(
+              onTap: () {
+                final link = banner['link'] ?? '';
+                if (link.isNotEmpty) {
+                  _openUrl(link);
+                }
+              },
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(16),
+                child: Container(
+                  color: Colors.black,
+                  child: Center(
+                    child: Image.network(
+                      banner['image']!,
+                      fit: BoxFit.contain,
+                      width: double.infinity,
+                      height: double.infinity,
+                    ),
+                  ),
+                ),
+              ),
+            );
+          },
+        ),
+
+        /// 🔥 圓點（在圖片裡面）
+        Positioned(
+          bottom: 12,
+          left: 0,
+          right: 0,
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: List.generate(banners.length, (index) {
+              return GestureDetector(
+                onTap: () {
+  if (_pageController.hasClients) {
+    _pageController.jumpToPage(index);
+  }
+},
+                child: Container(
+                  margin: const EdgeInsets.symmetric(horizontal: 6),
+                  width: _currentIndex == index ? 12 : 8,
+                  height: _currentIndex == index ? 12 : 8,
+                  decoration: BoxDecoration(
+                    color: _currentIndex == index
+                        ? Colors.white
+                        : Colors.white54,
+                    shape: BoxShape.circle,
+                  ),
+                ),
+              );
+            }),
+          ),
+        ),
+      ],
+    ),
+  ),
+
+if (banners.isNotEmpty) const SizedBox(height: 20),
 
                     /// 我要預約（大）
                     _buildMenuButton(
@@ -113,7 +201,7 @@ class ShopPublicPage extends StatelessWidget {
                           context,
                           MaterialPageRoute(
                             builder: (_) =>
-                                ShopBookingPage(shopId: shopId),
+                                ShopBookingPage(shopId: widget.shopId),
                           ),
                         );
                       },
@@ -280,7 +368,7 @@ class ShopPublicPage extends StatelessWidget {
                 Navigator.push(
                   context,
                   MaterialPageRoute(
-                    builder: (_) => ShopBookingPage(shopId: shopId),
+                    builder: (_) => ShopBookingPage(shopId: widget.shopId),
                   ),
                 );
               },

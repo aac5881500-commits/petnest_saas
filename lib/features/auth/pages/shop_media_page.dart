@@ -1,18 +1,14 @@
-// 檔案名稱：lib/features/auth/pages/shop_media_page.dart
-// 說明：店家媒體設定頁
-//
-// 功能：
-// - 上傳 Logo
-// - 上傳封面
-// - 限制 Logo 最大 3MB
-// - 限制封面最大 5MB
-// - 顯示上傳中狀態與結果提示
+// lib/features/auth/pages/shop_media_page.dart
+// 🔥 店家媒體設定頁（活動海報管理 完整版）
 
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:petnest_saas/core/services/shop_service.dart';
+import 'package:image/image.dart' as img;
+// ❌ 已移除 image_cropper（Web會爆）
 
 class ShopMediaPage extends StatefulWidget {
   const ShopMediaPage({
@@ -27,111 +23,113 @@ class ShopMediaPage extends StatefulWidget {
 }
 
 class _ShopMediaPageState extends State<ShopMediaPage> {
-  bool _uploadingLogo = false;
-  bool _uploadingCover = false;
+  bool _uploading = false;
 
-  static const int _maxLogoBytes = 3 * 1024 * 1024; // 3MB
-  static const int _maxCoverBytes = 5 * 1024 * 1024; // 5MB
+  List<Map<String, dynamic>> banners = [];
 
-  Future<void> _pickAndUploadLogo() async {
+  static const int _maxImageBytes = 5 * 1024 * 1024;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadBanners();
+  }
+
+  void _loadBanners() async {
+    final shop = await ShopService.instance.getShop(widget.shopId);
+    final data = shop?['banners'];
+
+    if (data != null && data is List) {
+      setState(() {
+        banners = data.map<Map<String, dynamic>>((e) {
+          return {
+            'imageUrl': e['imageUrl'] ?? '',
+            'linkUrl': e['linkUrl'] ?? '',
+            'isActive': e['isActive'] ?? true,
+          };
+        }).toList();
+      });
+    }
+  }
+
+  Future<void> _pickAndUploadImage(int index) async {
     final picker = ImagePicker();
-    final file = await picker.pickImage(source: ImageSource.gallery);
+
+    final file = await picker.pickImage(
+      source: ImageSource.gallery,
+      imageQuality: 90,
+    );
 
     if (file == null) return;
 
-    setState(() {
-      _uploadingLogo = true;
-    });
+    /// 🔥 不裁切（Web穩定版）
+    final XFile finalFile = file;
+
+    setState(() => _uploading = true);
 
     try {
-      final Uint8List bytes = await file.readAsBytes();
+      final Uint8List originalBytes = await finalFile.readAsBytes();
 
-      if (bytes.length > _maxLogoBytes) {
-        if (!mounted) return;
+      final decoded = img.decodeImage(originalBytes);
+
+      if (decoded == null) {
+        throw Exception('圖片格式不支援（請使用 JPG / PNG）');
+      }
+
+      /// 🔥 自動縮放
+      final resized = img.copyResize(
+        decoded,
+        width: 1200,
+      );
+
+      /// 🔥 轉 JPG
+      final jpg = img.encodeJpg(resized, quality: 85);
+      final bytes = Uint8List.fromList(jpg);
+
+      /// 🔥 限制大小
+      if (bytes.length > _maxImageBytes) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Logo 圖片太大，請小於 3MB')),
+          const SnackBar(content: Text('圖片需小於5MB')),
         );
         return;
       }
 
-      await ShopService.instance.uploadShopLogo(
+      /// 🔥 刪舊圖
+      final oldUrl = banners[index]['imageUrl'];
+      if (oldUrl != null && oldUrl.toString().isNotEmpty) {
+        await ShopService.instance.deleteImageByUrl(oldUrl);
+      }
+
+      /// 🔥 上傳
+      final url = await ShopService.instance.uploadShopCover(
         shopId: widget.shopId,
         bytes: bytes,
       );
 
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Logo 上傳成功')),
-      );
+      setState(() {
+        banners[index]['imageUrl'] = url;
+      });
+
     } catch (e) {
-      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Logo 上傳失敗：$e')),
+        SnackBar(content: Text('上傳失敗：$e')),
       );
     } finally {
-      if (mounted) {
-        setState(() {
-          _uploadingLogo = false;
-        });
-      }
+      setState(() => _uploading = false);
     }
   }
 
-  Future<void> _pickAndUploadCover() async {
-    final picker = ImagePicker();
-    final file = await picker.pickImage(source: ImageSource.gallery);
+  Future<void> _save() async {
+    await ShopService.instance.updateShop(
+      shopId: widget.shopId,
+      data: {
+        'banners': banners,
+      },
+    );
 
-    if (file == null) return;
-
-    setState(() {
-      _uploadingCover = true;
-    });
-
-    try {
-      final Uint8List bytes = await file.readAsBytes();
-
-      if (bytes.length > _maxCoverBytes) {
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('封面圖片太大，請小於 5MB')),
-        );
-        return;
-      }
-
-      await ShopService.instance.uploadShopCover(
-        shopId: widget.shopId,
-        bytes: bytes,
-      );
-
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('封面上傳成功')),
-      );
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('封面上傳失敗：$e')),
-      );
-    } finally {
-      if (mounted) {
-        setState(() {
-          _uploadingCover = false;
-        });
-      }
-    }
-  }
-
-  Widget _buildUploadButton({
-    required String title,
-    required bool loading,
-    required VoidCallback? onPressed,
-  }) {
-    return SizedBox(
-      width: double.infinity,
-      child: ElevatedButton(
-        onPressed: loading ? null : onPressed,
-        child: Text(loading ? '$title 上傳中...' : '選擇$title'),
-      ),
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('儲存成功')),
     );
   }
 
@@ -156,40 +154,148 @@ class _ShopMediaPageState extends State<ShopMediaPage> {
 
   @override
   Widget build(BuildContext context) {
-    final bool isUploading = _uploadingLogo || _uploadingCover;
-
     return Scaffold(
       appBar: AppBar(
-        title: const Text('店家封面 / Logo'),
+        title: const Text('活動海報管理'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.save),
+            onPressed: _save,
+          )
+        ],
       ),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
+
           _buildHintCard(
-            title: 'Logo 建議',
-            desc: '建議使用正方形圖片，檔案小於 3MB。',
+            title: '海報說明',
+            desc: '建議使用橫式16:9圖片（系統會自動處理比例）',
           ),
-          const SizedBox(height: 12),
-          _buildUploadButton(
-            title: 'Logo',
-            loading: _uploadingLogo,
-            onPressed: _pickAndUploadLogo,
+
+          const SizedBox(height: 16),
+
+          ReorderableListView(
+            buildDefaultDragHandles: false,
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            onReorder: (oldIndex, newIndex) {
+              setState(() {
+                if (newIndex > oldIndex) newIndex--;
+                final item = banners.removeAt(oldIndex);
+                banners.insert(newIndex, item);
+              });
+            },
+            children: banners.asMap().entries.map((entry) {
+              final index = entry.key;
+              final banner = entry.value;
+
+              return Card(
+                key: ValueKey('banner_$index'),
+                margin: const EdgeInsets.only(bottom: 12),
+                child: Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: Column(
+                    children: [
+
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: ReorderableDragStartListener(
+                          index: index,
+                          child: const Icon(Icons.drag_handle, color: Colors.grey),
+                        ),
+                      ),
+
+                      banner['imageUrl'] != ''
+                          ? AspectRatio(
+                              aspectRatio: 16 / 9,
+                              child: ClipRRect(
+                                borderRadius: BorderRadius.circular(8),
+                                child: Image.network(
+                                  banner['imageUrl'],
+                                  fit: BoxFit.cover,
+                                ),
+                              ),
+                            )
+                          : const Text('尚未上傳圖片'),
+
+                      const SizedBox(height: 6),
+
+                      ElevatedButton(
+                        onPressed: () => _pickAndUploadImage(index),
+                        child: const Text('上傳圖片'),
+                      ),
+
+                      const SizedBox(height: 8),
+
+                      TextFormField(
+                        initialValue: banner['linkUrl'],
+                        decoration: const InputDecoration(
+                          labelText: '點擊連結（可空）',
+                        ),
+                        onChanged: (value) {
+                          banner['linkUrl'] = value;
+                        },
+                      ),
+
+                      SwitchListTile(
+                        title: const Text('啟用'),
+                        value: banner['isActive'],
+                        onChanged: (value) {
+                          setState(() {
+                            banner['isActive'] = value;
+                          });
+                        },
+                      ),
+
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: TextButton(
+                          onPressed: () async {
+                            final oldUrl = banners[index]['imageUrl'];
+
+                            if (oldUrl != null && oldUrl.toString().isNotEmpty) {
+                              await ShopService.instance.deleteImageByUrl(oldUrl);
+                            }
+
+                            setState(() {
+                              banners.removeAt(index);
+                            });
+                          },
+                          child: const Text('刪除'),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            }).toList(),
           ),
-          const SizedBox(height: 24),
-          _buildHintCard(
-            title: '封面建議',
-            desc: '建議使用橫式圖片，檔案小於 5MB。',
+
+          ElevatedButton(
+            onPressed: () {
+              if (banners.length >= 5) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('最多只能5張海報')),
+                );
+                return;
+              }
+
+              setState(() {
+                banners.add({
+                  'imageUrl': '',
+                  'linkUrl': '',
+                  'isActive': true,
+                });
+              });
+            },
+            child: const Text('新增海報'),
           ),
-          const SizedBox(height: 12),
-          _buildUploadButton(
-            title: '封面',
-            loading: _uploadingCover,
-            onPressed: _pickAndUploadCover,
-          ),
-          const SizedBox(height: 24),
-          if (isUploading)
-            const Center(
-              child: CircularProgressIndicator(),
+
+          if (_uploading)
+            const Padding(
+              padding: EdgeInsets.all(16),
+              child: Center(child: CircularProgressIndicator()),
             ),
         ],
       ),
