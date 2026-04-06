@@ -6,6 +6,10 @@ import 'package:petnest_saas/core/services/shop_service.dart';
 import 'package:petnest_saas/features/shop/pages/shop_booking_page.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'dart:async';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:petnest_saas/features/shop/pages/shop_policy_view_page.dart';
+
+
 
 class ShopPublicPage extends StatefulWidget {
   const ShopPublicPage({
@@ -24,14 +28,13 @@ class _ShopPublicPageState extends State<ShopPublicPage> {
   int _currentIndex = 0;
   bool _isPageChanging = false;
 
- @override
+@override
 void initState() {
   super.initState();
   _pageController = PageController(initialPage: 0);
 }
 
-
-  Future<void> _openUrl(String url) async {
+Future<void> _openUrl(String url) async {
     if (url.isEmpty) return;
     final uri = Uri.parse(url);
     await launchUrl(uri, mode: LaunchMode.externalApplication);
@@ -196,15 +199,45 @@ if (banners.isNotEmpty) const SizedBox(height: 20),
                     _buildMenuButton(
                       icon: Icons.calendar_month,
                       title: '我要預約',
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) =>
-                                ShopBookingPage(shopId: widget.shopId),
-                          ),
-                        );
-                      },
+                      onTap: () async {
+  final user = FirebaseAuth.instance.currentUser;
+
+  if (user == null) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('請先登入')),
+    );
+    return;
+  }
+
+  final hasAccepted =
+      await ShopService.instance.hasAcceptedPolicy(
+    shopId: widget.shopId,
+    userId: user.uid,
+  );
+
+  if (!hasAccepted) {
+    final result = await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ShopPolicyViewPage(
+  shopId: widget.shopId,
+  readOnly: false, 
+),
+      ),
+    );
+
+    if (result != true) return;
+  }
+
+  /// ✅ 通過才進預約
+  Navigator.push(
+    context,
+    MaterialPageRoute(
+      builder: (_) =>
+          ShopBookingPage(shopId: widget.shopId),
+    ),
+  );
+},
                     ),
 
                     const SizedBox(height: 12),
@@ -232,10 +265,20 @@ if (banners.isNotEmpty) const SizedBox(height: 20),
                         ),
 
                         _buildMenuButton(
-                          icon: Icons.info,
-                          title: '入住須知',
-                          onTap: () {},
-                        ),
+  icon: Icons.info,
+  title: '入住須知',
+  onTap: () {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ShopPolicyViewPage(
+          shopId: widget.shopId,
+          readOnly: true,
+        ),
+      ),
+    );
+  },
+),
 
                         _buildMenuButton(
                           icon: Icons.map,
@@ -363,15 +406,39 @@ if (banners.isNotEmpty) const SizedBox(height: 20),
             ListTile(
               leading: const Icon(Icons.calendar_month),
               title: const Text('我要預約'),
-              onTap: () {
-                Navigator.pop(context);
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => ShopBookingPage(shopId: widget.shopId),
-                  ),
-                );
-              },
+              onTap: () async {
+  Navigator.pop(context);
+
+  final user = FirebaseAuth.instance.currentUser;
+  if (user == null) return;
+
+  final hasAccepted =
+      await ShopService.instance.hasAcceptedPolicy(
+    shopId: widget.shopId,
+    userId: user.uid,
+  );
+
+  if (!hasAccepted) {
+    final result = await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ShopPolicyViewPage(
+          shopId: widget.shopId,
+        ),
+      ),
+    );
+
+    if (result != true) return;
+  }
+
+  Navigator.push(
+    context,
+    MaterialPageRoute(
+      builder: (_) =>
+          ShopBookingPage(shopId: widget.shopId),
+    ),
+  );
+},
             ),
 
             ListTile(leading: const Icon(Icons.home), title: const Text('環境介紹')),

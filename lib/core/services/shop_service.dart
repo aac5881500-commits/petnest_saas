@@ -991,5 +991,150 @@ Future<List<Map<String, dynamic>>> getAvailableRoomTypes({
 
   return result;
 }
+// ===============================
+// 📜 入住條款（版本控管）
+// ===============================
 
+/// 取得入住條款
+Future<Map<String, dynamic>?> getCheckinPolicy(String shopId) async {
+  final doc = await _firestore
+      .collection('shops')
+      .doc(shopId)
+      .collection('policies')
+      .doc('checkin_policy')
+      .get();
+
+  if (!doc.exists) return null;
+
+  return doc.data();
+}
+
+/// 更新入住條款（自動版本 +1）
+Future<void> updateCheckinPolicy({
+  required String shopId,
+  required Map<String, dynamic> sections,
+  required Map<String, bool> enabled,
+
+  /// 🔵 第一頁
+  required List<String> customPoliciesPage1,
+
+  /// 🔴 第二頁
+  required List<String> customPoliciesPage2,
+})async {
+  final docRef = _firestore
+      .collection('shops')
+      .doc(shopId)
+      .collection('policies')
+      .doc('checkin_policy');
+
+  final doc = await docRef.get();
+
+  int newVersion = 1;
+
+  if (doc.exists) {
+    final oldVersion = doc.data()?['version'] ?? 1;
+    newVersion = oldVersion + 1;
+  }
+
+  await docRef.set({
+  'version': newVersion,
+
+  /// 🔥 模板欄位（可開關）
+  'sections': sections,
+
+  /// 🔥 每個欄位是否啟用
+  'enabled': enabled,
+
+  /// 🔥 額外條款（自由新增）
+  'customPoliciesPage1': customPoliciesPage1,
+'customPoliciesPage2': customPoliciesPage2,
+
+  'updatedAt': FieldValue.serverTimestamp(),
+});
+}
+// ===============================
+// 📜 條款確認（會員）
+// ===============================
+
+/// 取得會員是否已確認條款
+Future<bool> hasAcceptedPolicy({
+  required String shopId,
+  required String userId,
+}) async {
+  final policy = await getCheckinPolicy(shopId);
+  if (policy == null) return true; // 沒條款直接通過
+
+  final currentVersion = policy['version'] ?? 1;
+
+  final doc = await _firestore
+      .collection('users')
+      .doc(userId)
+      .collection('policy_acceptances')
+      .doc(shopId)
+      .get();
+
+  if (!doc.exists) return false;
+
+  final acceptedVersion = doc.data()?['acceptedVersion'] ?? 0;
+
+  return acceptedVersion == currentVersion;
+}
+
+/// 記錄會員已確認條款
+Future<void> acceptPolicy({
+  required String shopId,
+  required String userId,
+}) async {
+  final policy = await getCheckinPolicy(shopId);
+  if (policy == null) return;
+
+  final version = policy['version'] ?? 1;
+
+  await _firestore
+      .collection('users')
+      .doc(userId)
+      .collection('policy_acceptances')
+      .doc(shopId)
+      .set({
+    'acceptedVersion': version,
+    'acceptedAt': FieldValue.serverTimestamp(),
+    'email': _currentUser?.email ?? '',
+  });
+}
+/// 📊 取得條款同意紀錄（店家用）
+Future<List<Map<String, dynamic>>> getPolicyAcceptances(
+    String shopId) async {
+
+  final usersSnapshot = await _firestore.collection('users').get();
+
+  final result = <Map<String, dynamic>>[];
+
+  for (final userDoc in usersSnapshot.docs) {
+    final userId = userDoc.id;
+
+    final doc = await _firestore
+        .collection('users')
+        .doc(userId)
+        .collection('policy_acceptances')
+        .doc(shopId)
+        .get();
+
+    if (!doc.exists) continue;
+
+    result.add({
+      'userId': userId,
+      ...doc.data()!,
+    });
+  }
+
+  return result;
+}
+/// 👤 取得會員資料（給條款紀錄用）
+Future<Map<String, dynamic>?> getUserProfile(String userId) async {
+  final doc = await _firestore.collection('user_profiles').doc(userId).get();
+
+  if (!doc.exists) return null;
+
+  return doc.data();
+}
 }
