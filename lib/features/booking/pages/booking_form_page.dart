@@ -131,7 +131,18 @@ for (final city in cityData.keys) {
 }
 
 /// 剩下當詳細地址
-_detailAddressController.text = address;
+/// 🔥 去掉縣市 + 區，只留詳細地址
+String detail = address;
+
+if (_city != null && detail.startsWith(_city!)) {
+  detail = detail.substring(_city!.length);
+}
+
+if (_district != null && detail.startsWith(_district!)) {
+  detail = detail.substring(_district!.length);
+}
+
+_detailAddressController.text = detail;
 
       /// 🚨 緊急聯絡人
       final emergency = data['emergencyContact'];

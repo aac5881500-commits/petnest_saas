@@ -28,6 +28,7 @@ import 'package:flutter/foundation.dart';
 import 'package:petnest_saas/core/services/member_service.dart';
 import 'package:petnest_saas/features/booking/pages/booking_form_page.dart';
 import 'package:petnest_saas/features/booking/pages/booking_success_page.dart';
+import 'package:petnest_saas/features/shop/pages/room_type_detail_page.dart';
 
 
 class ShopBookingPage extends StatefulWidget {
@@ -349,6 +350,16 @@ const SizedBox(height: 8),
   ],
 ), 
 _buildRoomTypeSection(),
+if (_selectedRoomType != null) ...[
+  const SizedBox(height: 12),
+  Text(
+    '✅ 已選房型：${_selectedRoomType!['name']}',
+    style: const TextStyle(
+      color: Colors.green,
+      fontWeight: FontWeight.bold,
+    ),
+  ),
+],
 
 // 🔥 加在這裡
 if (_selectedRoomType != null && _startDate != null && _endDate != null) ...[
@@ -364,7 +375,9 @@ if (_canShowFormFields) ...[
   SizedBox(
     width: double.infinity,
     child: ElevatedButton(
-      onPressed: (_canSubmit(serviceTypes) && !_isBlacklisted)
+      onPressed: (_canSubmit(serviceTypes) &&
+        !_isBlacklisted &&
+        _selectedRoomType != null)
           ? () {
               Navigator.push(
                 context,
@@ -516,6 +529,15 @@ if (_canShowFormFields) ...[
     final Map<String, int> remainingRoomsMap = {};
     final Set<String> unbookableDateKeys = {};
 
+final roomsSnapshot = await FirebaseFirestore.instance
+    .collection('shops')
+    .doc(widget.shopId)
+    .collection('rooms')
+    .where('enabled', isEqualTo: true)
+    .get();
+
+final totalRooms = roomsSnapshot.docs.length;
+
     DateTime cursor = _dateOnly(firstDate);
     final last = _dateOnly(lastDate);
 
@@ -525,7 +547,8 @@ final monthEnd = _dateOnly(lastDate);
 final snapshot = await FirebaseFirestore.instance
     .collection('bookings')
     .where('shopId', isEqualTo: shop['shopId'])
-    .where('status', whereIn: ['pending', 'confirmed'])
+.where('status', whereIn: ['pending', 'confirmed'])
+.where('startDate', isLessThanOrEqualTo: Timestamp.fromDate(monthEnd))
     .get();
 
 final bookings = snapshot.docs.map((doc) {
@@ -576,11 +599,8 @@ while (!cursor.isAfter(last)) {
     }
   }
 
-  final totalRooms = _toInt(shop['totalRooms']);
-  final cleaning = _toInt(shop['cleaningRooms']);
-  final maintenance = _toInt(shop['maintenanceRooms']);
 
-  final remaining = totalRooms - cleaning - maintenance - occupied;
+final remaining = totalRooms - occupied;
 
   remainingRoomsMap[key] = remaining;
 
@@ -740,6 +760,7 @@ if (payload != null) {
   String phone2 = '',
 }) async {
 
+
 // 🔥 建立店家會員（關鍵）
 await MemberService.instance.ensureMember(
   shopId: widget.shopId,
@@ -781,7 +802,7 @@ if (user == null) return;
 /// 🔥 一次查詢（避免重複打 Firestore🔥）
 final snapshot = await FirebaseFirestore.instance
     .collection('bookings')
-    .where('userId', isEqualTo: user.uid)
+    .where('shopId', isEqualTo: widget.shopId)
     .where('status', whereIn: ['pending', 'confirmed'])
     .get();
 
@@ -858,7 +879,7 @@ await FirebaseFirestore.instance
   customerPhone: _customerPhoneController.text,
   petIds: _selectedPetIds,
   serviceType: _selectedServiceType!,
-  roomId: _selectedRoomType!['roomTypeId'],
+  roomId: _selectedRoomType!['roomTypeId'], 
   roomName: _selectedRoomType!['name'],
   startDate: _startDate!,
   endDate: _endDate!,
@@ -925,8 +946,14 @@ emergencyPhone2: phone2,
   setState(() {
     _rangeMessage = text;
   });
-}
 
+  ScaffoldMessenger.of(context).showSnackBar(
+    SnackBar(
+      content: Text(text),
+      backgroundColor: Colors.red,
+    ),
+  );
+}
   DateTime _dateOnly(DateTime date) {
     return DateTime(date.year, date.month, date.day);
   }
@@ -1301,7 +1328,24 @@ if (_selectedPetIds.isEmpty) {
     ),
   ],
 ),
-                onTap: () => _onSelectRoomType(type),
+                onTap: () async {
+  final result = await Navigator.push(
+    context,
+    MaterialPageRoute(
+      builder: (_) => RoomTypeDetailPage(
+        roomType: type,
+        startDate: _startDate!,
+        endDate: _endDate!,
+      ),
+    ),
+  );
+
+  if (result != null) {
+    setState(() {
+      _selectedRoomType = result;
+    });
+  }
+},
               ),
             );
           }).toList(),

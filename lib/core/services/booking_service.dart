@@ -1,4 +1,4 @@
-// 檔案名稱：lib/core/services/booking_serv.dart
+// 檔案名稱：lib/core/services/booking_service.dart
 // 說明：預約服務層（區間預約版）
 //
 

@@ -1,8 +1,10 @@
-// 檔案名稱 /features/auth/pages/shop_room_page.dart
-// 🏠 房間管理
+// 檔案名稱 lib/features/auth/pages/shop_room_page.dart
+// 🏠 房間管理（完整升級版🔥）
 
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/services/shop_service.dart';
+
+
 
 class ShopRoomPage extends StatefulWidget {
   const ShopRoomPage({
@@ -20,6 +22,7 @@ class _ShopRoomPageState extends State<ShopRoomPage> {
   final _nameController = TextEditingController();
   String? _selectedRoomTypeId;
 
+  /// 🔥 建立房間（含防呆）
   Future<void> _createRoom() async {
     final name = _nameController.text.trim();
 
@@ -30,6 +33,42 @@ class _ShopRoomPageState extends State<ShopRoomPage> {
       return;
     }
 
+    /// 🔥 取得房型
+    final roomTypes =
+        await ShopService.instance.getRoomTypes(widget.shopId);
+
+    final selectedType = roomTypes.firstWhere(
+      (e) => e['id'] == _selectedRoomTypeId,
+    );
+
+    final totalRooms = selectedType['totalRooms'] ?? 0;
+
+    /// 🔥 取得現有房間
+    final rooms = await ShopService.instance.getRooms(widget.shopId);
+
+    final sameTypeRooms = rooms
+        .where((r) => r['roomTypeId'] == _selectedRoomTypeId)
+        .toList();
+
+    /// ❗ 房型數量限制
+    if (sameTypeRooms.length >= totalRooms) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('此房型已達最大房間數')),
+      );
+      return;
+    }
+
+    /// ❗ 房號重複
+    final isDuplicate = sameTypeRooms.any((r) => r['name'] == name);
+
+    if (isDuplicate) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('此房型已有相同房號')),
+      );
+      return;
+    }
+
+    /// ✅ 新增
     await ShopService.instance.createRoom(
       shopId: widget.shopId,
       name: name,
@@ -43,6 +82,46 @@ class _ShopRoomPageState extends State<ShopRoomPage> {
     );
   }
 
+  /// 🔥 刪除房間
+  Future<void> _deleteRoom(String roomId) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('確認刪除'),
+        content: const Text('確定要刪除此房間嗎？'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('取消'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('刪除'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true) return;
+
+    await ShopService.instance.deleteRoom(
+      shopId: widget.shopId,
+      roomId: roomId,
+    );
+
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('已刪除房間')),
+    );
+  }
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -51,7 +130,7 @@ class _ShopRoomPageState extends State<ShopRoomPage> {
         padding: const EdgeInsets.all(16),
         child: Column(
           children: [
-            /// 新增房間
+            /// 🔥 新增房間
             Card(
               child: Padding(
                 padding: const EdgeInsets.all(12),
@@ -66,6 +145,7 @@ class _ShopRoomPageState extends State<ShopRoomPage> {
 
                     const SizedBox(height: 8),
 
+                    /// 🔥 房型選擇
                     StreamBuilder<List<Map<String, dynamic>>>(
                       stream: ShopService.instance
                           .streamRoomTypes(widget.shopId),
@@ -75,11 +155,11 @@ class _ShopRoomPageState extends State<ShopRoomPage> {
                         return DropdownButtonFormField<String>(
                           value: _selectedRoomTypeId,
                           items: list.map<DropdownMenuItem<String>>((item) {
-  return DropdownMenuItem<String>(
-    value: item['id'] as String,
-    child: Text(item['name'] ?? ''),
-  );
-}).toList(),
+                            return DropdownMenuItem<String>(
+                              value: item['id'] as String,
+                              child: Text(item['name'] ?? ''),
+                            );
+                          }).toList(),
                           onChanged: (value) {
                             setState(() {
                               _selectedRoomTypeId = value;
@@ -105,7 +185,7 @@ class _ShopRoomPageState extends State<ShopRoomPage> {
 
             const SizedBox(height: 16),
 
-            /// 房間列表
+            /// 🔥 房間列表
             Expanded(
               child: StreamBuilder<List<Map<String, dynamic>>>(
                 stream: ShopService.instance
@@ -122,17 +202,40 @@ class _ShopRoomPageState extends State<ShopRoomPage> {
                     itemBuilder: (context, index) {
                       final item = list[index];
 
-                      return SwitchListTile(
-                        title: Text(item['name'] ?? ''),
-                        subtitle: Text('房型ID: ${item['roomTypeId']}'),
-                        value: item['enabled'] ?? true,
-                        onChanged: (value) {
-                          ShopService.instance.updateRoomStatus(
-                            shopId: widget.shopId,
-                            roomId: item['id'],
-                            enabled: value,
-                          );
-                        },
+                      return Card(
+                        child: ListTile(
+
+                          subtitle: Text(
+  '${item['name'] ?? ''}（${item['roomTypeId']}）',
+),
+
+                          /// 🔥 開關
+                          trailing: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+
+                              /// 開關
+                              Switch(
+                                value: item['enabled'] ?? true,
+                                onChanged: (value) {
+                                  ShopService.instance.updateRoomStatus(
+                                    shopId: widget.shopId,
+                                    roomId: item['id'],
+                                    enabled: value,
+                                  );
+                                },
+                              ),
+
+                              /// 🔥 刪除按鈕
+                              IconButton(
+                                icon: const Icon(Icons.delete, color: Colors.red),
+                                onPressed: () {
+                                  _deleteRoom(item['id']);
+                                },
+                              ),
+                            ],
+                          ),
+                        ),
                       );
                     },
                   );

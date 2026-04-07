@@ -3,7 +3,6 @@
 
 
 import 'dart:typed_data';
-
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
@@ -11,6 +10,7 @@ import 'package:petnest_saas/core/constants/shop_roles.dart';
 import 'package:petnest_saas/core/constants/shop_modules.dart';
 import 'package:petnest_saas/core/constants/shop_permission_keys.dart';
 import 'package:petnest_saas/core/services/action_log_service.dart';
+
 
 class ShopService {
   ShopService._();
@@ -766,7 +766,8 @@ Future<void> updateShop({
   required String name,
   required int capacity,
   required int price,
-  required int totalRooms, // 👈 新增
+  required int totalRooms,
+  required String description,
 }) async {
     final doc = roomTypesRef(shopId).doc();
 
@@ -774,7 +775,8 @@ Future<void> updateShop({
   'name': name,
   'capacity': capacity,
   'price': price,
-  'totalRooms': totalRooms, // 👈 一定要這行
+  'totalRooms': totalRooms,
+  'description': description,
   'images': [],
   'isSingle': false,
   'createdAt': FieldValue.serverTimestamp(),
@@ -807,6 +809,60 @@ Future<void> updateShop({
   }) async {
     await roomTypesRef(shopId).doc(roomTypeId).delete();
   }
+
+  /// 上傳房型圖片
+Future<String> uploadRoomTypeImage({
+  required String shopId,
+  required String roomTypeId,
+  required Uint8List bytes,
+}) async {
+  final fileName =
+      'room_${DateTime.now().millisecondsSinceEpoch}.jpg';
+
+  final ref = _storage
+      .ref()
+      .child('shops/$shopId/room_types/$roomTypeId/$fileName');
+
+  await ref.putData(
+    bytes,
+    SettableMetadata(contentType: 'image/jpeg'),
+  );
+
+  final url = await ref.getDownloadURL();
+
+  /// 🔥 存進 Firestore（array）
+  await roomTypesRef(shopId).doc(roomTypeId).update({
+    'images': FieldValue.arrayUnion([url]),
+  });
+
+  return url;
+}
+
+/// 🔥 刪除房型圖片（Firestore + Storage）
+Future<void> deleteRoomTypeImage({
+  required String shopId,
+  required String roomTypeId,
+  required String imageUrl,
+}) async {
+  try {
+    /// 🔥 刪 Storage
+    final ref = FirebaseStorage.instance.refFromURL(imageUrl);
+    await ref.delete();
+
+    /// 🔥 刪 Firestore
+    await FirebaseFirestore.instance
+        .collection('shops')
+        .doc(shopId)
+        .collection('room_types')
+        .doc(roomTypeId)
+        .update({
+      'images': FieldValue.arrayRemove([imageUrl]),
+    });
+  } catch (e) {
+    print('刪除圖片錯誤: $e');
+  }
+}
+
   // ===============================
 // 🏠 房間（Room）
 // ===============================
@@ -827,6 +883,42 @@ Stream<List<Map<String, dynamic>>> streamRooms(String shopId) {
   });
 }
 
+/// 🔥 取得所有房型（一次性）
+Future<List<Map<String, dynamic>>> getRoomTypes(String shopId) async {
+  final snapshot = await roomTypesRef(shopId).get();
+
+  return snapshot.docs.map((doc) {
+    return {
+      'id': doc.id,
+      ...doc.data(),
+    };
+  }).toList();
+}
+
+/// 🔥 設定房間關閉日期
+Future<void> updateRoomBlockedDates({
+  required String shopId,
+  required String roomId,
+  required List<String> blockedDates,
+}) async {
+  await roomsRef(shopId).doc(roomId).update({
+    'blockedDates': blockedDates,
+    'updatedAt': FieldValue.serverTimestamp(),
+  });
+}
+
+/// 🔥 取得所有房間（一次性）
+Future<List<Map<String, dynamic>>> getRooms(String shopId) async {
+  final snapshot = await roomsRef(shopId).get();
+
+  return snapshot.docs.map((doc) {
+    return {
+      'id': doc.id,
+      ...doc.data(),
+    };
+  }).toList();
+}
+
 /// 新增房間
 Future<void> createRoom({
   required String shopId,
@@ -837,7 +929,12 @@ Future<void> createRoom({
     'name': name,
     'roomTypeId': roomTypeId,
     'enabled': true,
-    'cameraIds': [], // 之後用
+    'cameraIds': [], 
+    'blockedDates': [],
+    'cameraIds': [],
+'blockedDates': [],
+'priceRules': [], 
+'discountRules': [], 
     'createdAt': FieldValue.serverTimestamp(),
     'updatedAt': FieldValue.serverTimestamp(),
   });
@@ -854,6 +951,42 @@ Future<void> updateRoomStatus({
     'updatedAt': FieldValue.serverTimestamp(),
   });
 }
+
+/// 🔥 刪除房間
+Future<void> deleteRoom({
+  required String shopId,
+  required String roomId,
+}) async {
+  await FirebaseFirestore.instance
+      .collection('shops')
+      .doc(shopId)
+      .collection('rooms')
+      .doc(roomId)
+      .delete();
+}
+
+Future<void> updateRoomPriceRules({
+  required String shopId,
+  required String roomId,
+  required List<Map<String, dynamic>> rules,
+}) async {
+  await roomsRef(shopId).doc(roomId).update({
+    'priceRules': rules,
+    'updatedAt': FieldValue.serverTimestamp(),
+  });
+}
+
+Future<void> updateRoomDiscountRules({
+  required String shopId,
+  required String roomId,
+  required List<Map<String, dynamic>> rules,
+}) async {
+  await roomsRef(shopId).doc(roomId).update({
+    'discountRules': rules,
+    'updatedAt': FieldValue.serverTimestamp(),
+  });
+}
+
 // ===============================
 // 📅 房間日曆（Room Calendar）
 // ===============================
@@ -967,6 +1100,13 @@ Future<List<Map<String, dynamic>>> getAvailableRoomTypes({
         final roomId = room.id;
         final cal = calendarMap[roomId];
         final status = cal?['status'] ?? 'available';
+        /// 🔥 房間自己的 blockedDates
+final roomData = room.data();
+final List blocked = roomData['blockedDates'] ?? [];
+
+if (blocked.contains(date)) {
+  continue;
+}
 
         if (status == 'available') {
           availableCount++;
@@ -985,6 +1125,8 @@ Future<List<Map<String, dynamic>>> getAvailableRoomTypes({
         'price': type['price'],
         'capacity': type['capacity'],
         'availableRooms': minAvailableRooms,
+        'images': type['images'] ?? [],
+        'description': type['description'] ?? '',
       });
     }
   }
@@ -1137,4 +1279,57 @@ Future<Map<String, dynamic>?> getUserProfile(String userId) async {
 
   return doc.data();
 }
+
+/// 🔥 計算房間總價格（貼在這裡）
+int calculateRoomPrice({
+  required Map<String, dynamic> room,
+  required int basePrice,
+  required DateTime startDate,
+  required DateTime endDate,
+}) {
+  int total = 0;
+
+  final List priceRules = room['priceRules'] ?? [];
+  final List discountRules = room['discountRules'] ?? [];
+
+  DateTime cursor = startDate;
+  int days = 0;
+
+  while (cursor.isBefore(endDate)) {
+    int price = basePrice;
+
+    final dateKey = formatDateKey(cursor);
+
+    /// 🔥 套用加價
+    for (final rule in priceRules) {
+  if (dateKey.compareTo(rule['start']) >= 0 &&
+      dateKey.compareTo(rule['end']) <= 0) {
+
+    final extra = rule['extra'];
+
+    if (extra is num) {
+      price += extra.toInt();
+    }
+
+  }
 }
+    total += price;
+
+    days++;
+    cursor = cursor.add(const Duration(days: 1));
+  }
+
+  /// 🔥 折扣
+  double discount = 1.0;
+
+  for (final rule in discountRules) {
+    if (days >= (rule['minDays'] ?? 0)) {
+      discount = rule['discount'] ?? 1.0;
+    }
+  }
+
+  return (total * discount).toInt();
+}
+}
+
+

@@ -12,6 +12,8 @@ class MemberBookingPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final user = FirebaseAuth.instance.currentUser;
+    
+    print('目前登入 uid: ${user?.uid}');
 
     if (user == null) {
       return const Scaffold(

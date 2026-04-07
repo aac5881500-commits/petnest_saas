@@ -1,5 +1,5 @@
 // lib/features/admin/pages/admin_booking_list_page.dart
-// 📦 店家訂單列表頁（完整版）
+// 📦 店家訂單列表頁（完整版🔥 + 已修正取消訂單）
 
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -9,11 +9,11 @@ class AdminBookingListPage extends StatefulWidget {
   const AdminBookingListPage({
     super.key,
     required this.shopId,
-    this.filterType, // 🔥 加這行
+    this.filterType,
   });
 
   final String shopId;
-  final String? filterType; // 🔥 加這行
+  final String? filterType;
 
   @override
   State<AdminBookingListPage> createState() =>
@@ -48,6 +48,7 @@ class _AdminBookingListPageState extends State<AdminBookingListPage> {
                 _buildTab('checkIn', '今日入住'),
                 _buildTab('checkOut', '今日退房'),
                 _buildTab('future', '未來'),
+                _buildTab('cancelled', '已取消'), // ✅ 新增
               ],
             ),
           ),
@@ -87,18 +88,25 @@ class _AdminBookingListPageState extends State<AdminBookingListPage> {
                           .toDate();
                   final status = data['status'] ?? '';
 
-                  if (status == 'cancelled') return false;
-
+                  /// ✅ 改這裡：不再隱藏 cancelled
                   switch (_filterType) {
                     case 'checkIn':
-                      return start
-                              .isAfter(todayStart) &&
+                      return status != 'cancelled' &&
+                          start.isAfter(todayStart) &&
                           start.isBefore(todayEnd);
+
                     case 'checkOut':
-                      return end.isAfter(todayStart) &&
+                      return status != 'cancelled' &&
+                          end.isAfter(todayStart) &&
                           end.isBefore(todayEnd);
+
                     case 'future':
-                      return start.isAfter(todayEnd);
+                      return status != 'cancelled' &&
+                          start.isAfter(todayEnd);
+
+                    case 'cancelled':
+                      return status == 'cancelled';
+
                     default:
                       return true;
                   }

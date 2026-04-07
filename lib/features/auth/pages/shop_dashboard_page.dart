@@ -22,11 +22,11 @@ import 'package:petnest_saas/features/auth/pages/shop_module_settings_page.dart'
 import 'package:petnest_saas/features/auth/pages/shop_permission_settings_page.dart';
 import 'package:petnest_saas/features/auth/pages/shop_room_type_page.dart';
 import 'package:petnest_saas/features/auth/pages/shop_room_page.dart';
-import 'package:petnest_saas/features/auth/pages/shop_room_calendar_page.dart';
 import 'package:petnest_saas/features/admin/pages/admin_booking_list_page.dart';
 import 'package:petnest_saas/features/admin/pages/admin_member_list_page.dart';
 import 'package:petnest_saas/features/auth/pages/shop_policy_page.dart';
 import 'package:petnest_saas/features/auth/pages/shop_policy_logs_page.dart';
+import 'package:petnest_saas/features/room/pages/room_dashboard_page.dart';
 
 
 class ShopDashboardPage extends StatefulWidget {
@@ -500,14 +500,14 @@ _MenuTile(
   },
 ),
 _MenuTile(
-  title: '房間日曆',
-  subtitle: '設定某天房間是否可用 / 整修',
-  icon: Icons.date_range,
+  title: '房務管理',
+  subtitle: '查看所有房間狀態（入住 / 清潔 / 關閉）',
+  icon: Icons.grid_view,
   onTap: () {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => ShopRoomCalendarPage(
+        builder: (_) => RoomDashboardPage(
           shopId: shopId,
         ),
       ),
