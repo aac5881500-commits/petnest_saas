@@ -27,6 +27,7 @@ import 'package:petnest_saas/features/admin/pages/admin_member_list_page.dart';
 import 'package:petnest_saas/features/auth/pages/shop_policy_page.dart';
 import 'package:petnest_saas/features/auth/pages/shop_policy_logs_page.dart';
 import 'package:petnest_saas/features/room/pages/room_dashboard_page.dart';
+import 'package:petnest_saas/features/shop/pages/shop_addon_page.dart';
 
 
 class ShopDashboardPage extends StatefulWidget {
@@ -514,10 +515,19 @@ _MenuTile(
     );
   },
 ),
-        const _TemplateCard(
-          title: '住宿加購 / 附加服務',
-          description: '先預留位置，之後可擴充接送、陪玩、額外清潔、餵藥等功能。',
-        ),
+        _MenuTile(
+  title: '住宿加購 / 附加服務',
+  subtitle: '設定時間加購、額外服務、價格與開關',
+  icon: Icons.add_box,
+  onTap: () {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ShopAddonPage(shopId: shopId),
+      ),
+    );
+  },
+),
         _MenuTile(
   title: '入住規則 / 貓咪條件',
   subtitle: '設定入住條款（客戶預約前需同意）',

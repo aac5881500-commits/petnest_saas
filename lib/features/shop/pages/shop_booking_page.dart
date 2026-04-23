@@ -49,6 +49,7 @@ class _ShopBookingPageState extends State<ShopBookingPage> {
 void initState() {
   super.initState();
   _loadMemberData();
+  _loadAddons();
 }
   final _formKey = GlobalKey<FormState>();
 
@@ -68,6 +69,12 @@ void initState() {
   DateTime? _tempEndDate;
   String? _selectedServiceType;
   Map<String, dynamic>? _selectedRoomType;
+  bool _showAddons = false;
+  List<Map<String, dynamic>> _selectedValueServices = []; 
+Map<String, List<String>> _selectedCustomServices = {}; 
+  Map<String, dynamic>? _selectedTimeAddon;
+  Map<String, dynamic>? _addonData;
+bool _addonLoading = true;
 
   bool _rangeChecked = false;
   bool _rangeBookable = false;
@@ -78,6 +85,7 @@ void initState() {
 
 
 List<String> _selectedPetIds = [];
+List<Map<String, dynamic>> _pets = [];
 
 Future<void> _loadMemberData() async {
   final user = FirebaseAuth.instance.currentUser;
@@ -98,6 +106,20 @@ setState(() {
   _customerPhoneController.text = data['phone'] ?? '';
   _isBlacklisted = tags.contains('blacklist'); // 🔥關鍵
 });
+}
+
+Future<void> _loadAddons() async {
+  final doc = await FirebaseFirestore.instance
+      .collection('shops')
+      .doc(widget.shopId)
+      .collection('addons')
+      .doc('main')
+      .get();
+
+  setState(() {
+    _addonData = doc.data();
+    _addonLoading = false;
+  });
 }
 
 
@@ -287,6 +309,7 @@ const SizedBox(height: 8),
     }
 
     final pets = snapshot.data!;
+    _pets = pets;
 
     if (pets.isEmpty) {
       return const Text('尚未新增寵物');
@@ -350,16 +373,294 @@ const SizedBox(height: 8),
   ],
 ), 
 _buildRoomTypeSection(),
+
+/// 🔥 加值服務（展開式）
+const SizedBox(height: 16),
+
+GestureDetector(
+  onTap: () {
+    setState(() {
+      _showAddons = !_showAddons;
+    });
+  },
+  child: Container(
+    padding: const EdgeInsets.all(12),
+    decoration: BoxDecoration(
+      color: Colors.grey.shade100,
+      borderRadius: BorderRadius.circular(10),
+    ),
+    child: Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        const Text(
+          '加值服務',
+          style: TextStyle(fontWeight: FontWeight.bold),
+        ),
+        Icon(
+          _showAddons
+              ? Icons.keyboard_arrow_up
+              : Icons.keyboard_arrow_down,
+        ),
+      ],
+    ),
+  ),
+),
+
+/// 🔥 展開內容
+if (_showAddons)
+  Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      const SizedBox(height: 10),
+
+      /// 🔥 載入中
+      if (_addonLoading)
+        const Center(child: CircularProgressIndicator()),
+
+      /// 🔥 沒資料
+      if (!_addonLoading && _addonData == null)
+        const Text('尚未設定加值服務'),
+
+      /// 🔥 有資料
+      if (_addonData == null)
+  const Text('尚未設定加值服務'),
+      if (!_addonLoading && _addonData != null) ...[
+
+  /// 🔥 第一層：營業時間外入住
+  if (_addonData?['enabled'] == false)
+  const Padding(
+    padding: EdgeInsets.only(top: 10),
+    child: Text(
+      '目前未開放營業時間外入住',
+      style: TextStyle(
+        color: Colors.red,
+        fontWeight: FontWeight.bold,
+      ),
+    ),
+  ),
+if (_addonData?['enabled'] == true &&
+    (_addonData!['timeOptions'] ?? []).isNotEmpty) ...[
+    const SizedBox(height: 10),
+    Column(
+  crossAxisAlignment: CrossAxisAlignment.start,
+  children: [
+    const Text(
+      '營業時間外入住',
+      style: TextStyle(fontWeight: FontWeight.bold),
+    ),
+
+    const SizedBox(height: 4),
+
+    const Text(
+      '※ 正常營業時間入住不需勾選',
+      style: TextStyle(
+        color: Colors.red,
+        fontSize: 12,
+      ),
+    ),
+  ],
+),
+    const SizedBox(height: 6),
+
+    ...List<Map<String, dynamic>>.from(
+  _addonData!['timeOptions'],
+).map((item) {
+  final isSelected =
+      _selectedTimeAddon?['label'] == item['label'];
+
+  return GestureDetector(
+    onTap: () {
+      setState(() {
+        _selectedTimeAddon = item;
+      });
+    },
+    child: Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: isSelected
+            ? Colors.green.shade50
+            : Colors.white,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(
+          color: isSelected
+              ? Colors.green
+              : Colors.grey.shade300,
+          width: isSelected ? 2 : 1,
+        ),
+      ),
+      child: Row(
+        children: [
+
+          /// 🔥 Radio效果
+          Icon(
+            isSelected
+                ? Icons.radio_button_checked
+                : Icons.radio_button_off,
+            color: isSelected ? Colors.green : Colors.grey,
+          ),
+
+          const SizedBox(width: 10),
+
+          /// 文字
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  item['label'] ?? '',
+                  style: const TextStyle(
+                      fontWeight: FontWeight.bold),
+                ),
+                Text(
+                  item['desc'] ?? '',
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: Colors.grey,
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          /// 價格
+          Text(
+            '+NT\$ ${item['price'] ?? 0}',
+            style: const TextStyle(color: Colors.red),
+          ),
+        ],
+      ),
+    ),
+  );
+}),
+  ],
+
+  /// 🔥 第二層：加值服務
+  if ((_addonData!['valueServices'] ?? []).isNotEmpty) ...[
+    const SizedBox(height: 16),
+    const Text(
+  '加值服務',
+  style: TextStyle(fontWeight: FontWeight.bold),
+),
+
+    ...List<Map<String, dynamic>>.from(
+  _addonData!['valueServices'],
+).map((item) {
+  final isSelected = _selectedValueServices.any(
+    (e) => e['name'] == item['name'],
+  );
+
+  return GestureDetector(
+    onTap: () {
+      setState(() {
+        if (isSelected) {
+          _selectedValueServices.removeWhere(
+            (e) => e['name'] == item['name'],
+          );
+        } else {
+          _selectedValueServices.add(item);
+        }
+      });
+    },
+    child: _addonItemUI(item, isSelected),
+  );
+}),
+  ],
+
+  /// 🔥 第三層：客製化服務
+  if ((_addonData!['customServices'] ?? []).isNotEmpty) ...[
+    const SizedBox(height: 16),
+    const Text(
+      '客製化服務',
+      style: TextStyle(fontWeight: FontWeight.bold),
+    ),
+    const SizedBox(height: 6),
+
+    ...List<Map<String, dynamic>>.from(
+  _addonData!['customServices'],
+).map((item) {
+  final isSelected =
+    _selectedCustomServices.containsKey(item['name']);
+
+  return GestureDetector(
+    onTap: () {
+  setState(() {
+    final name = item['name'];
+
+    if (_selectedCustomServices.containsKey(name)) {
+      _selectedCustomServices.remove(name);
+    } else {
+      // 🔥 預設全部寵物選取
+      _selectedCustomServices[name] = List.from(_selectedPetIds);
+    }
+  });
+},
+    child: Column(
+  crossAxisAlignment: CrossAxisAlignment.start,
+  children: [
+    _addonItemUI(item, isSelected),
+
+    /// 🔥 展開寵物選擇
+    if (isSelected)
+      Padding(
+        padding: const EdgeInsets.only(left: 30, top: 6),
+        child: Wrap(
+          spacing: 6,
+          children: _selectedPetIds.map((petId) {
+  final pet = _pets.firstWhere(
+    (p) => p['petId'] == petId,
+    orElse: () => {},
+  );
+
+  final petName = pet['name'] ?? petId;
+
+  final selectedList =
+      _selectedCustomServices[item['name']] ?? [];
+
+  final selected = selectedList.contains(petId);
+
+  return FilterChip(
+    label: Text('🐱 $petName'),
+    selected: selected,
+    onSelected: (value) {
+  setState(() {
+    final newList = List<String>.from(selectedList);
+
+    if (value) {
+      newList.add(petId);
+    } else {
+      newList.remove(petId);
+    }
+
+    _selectedCustomServices[item['name']] = newList;
+  });
+},
+  );
+}).toList(),
+        ),
+      ),
+  ],
+),
+  );
+}),
+  ],
+],
+    ],
+  ),
+
 if (_selectedRoomType != null) ...[
   const SizedBox(height: 12),
   Text(
     '✅ 已選房型：${_selectedRoomType!['name']}',
+    
     style: const TextStyle(
       color: Colors.green,
       fontWeight: FontWeight.bold,
     ),
   ),
 ],
+
+
 
 // 🔥 加在這裡
 if (_selectedRoomType != null && _startDate != null && _endDate != null) ...[
@@ -865,11 +1166,7 @@ await FirebaseFirestore.instance
     try {
       // 🔒 檢查房間是否已被預約（最終防線🔥）
 
-      final totalPrice = BookingService.instance.calculateTotalPrice(
-        roomType: _selectedRoomType!,
-        startDate: _startDate!,
-        endDate: _endDate!,
-      );
+     final totalPrice = _calculateTotalPrice();
 
       final pricePerNight = _nights > 0 ? (totalPrice ~/ _nights) : 0;
 
@@ -1175,13 +1472,53 @@ if (_rangeMessage.isNotEmpty)
 );
 }
 
-
-Widget _buildBookingSummary() {
-  final totalPrice = BookingService.instance.calculateTotalPrice(
+int _calculateTotalPrice() {
+  /// 🔥 房價
+  int total = BookingService.instance.calculateTotalPrice(
     roomType: _selectedRoomType!,
     startDate: _startDate!,
     endDate: _endDate!,
   );
+  /// 🔥 加寵物價格
+final petCount = _selectedPetIds.length;
+final basePet = 1; // 🔥 1隻免費（你現在UI邏輯）
+final extraPrice = (_selectedRoomType!['extraPrice'] ?? 0).toInt();
+
+if (petCount > basePet) {
+  final extraCount = petCount - basePet;
+  total += (extraCount * extraPrice).toInt();
+}
+  /// 🔥 時間加購（單選）
+  if (_selectedTimeAddon != null) {
+    total += (_selectedTimeAddon!['price'] ?? 0) as int;
+  }
+
+  /// 🔥 加值服務（單次）
+  for (var item in _selectedValueServices) {
+    total += (item['price'] ?? 0) as int;
+  }
+
+  /// 🔥 客製化（每隻）
+  for (var entry in _selectedCustomServices.entries) {
+  final serviceName = entry.key;
+  final selectedPets = entry.value;
+
+  final service = (_addonData?['customServices'] ?? [])
+      .firstWhere(
+        (e) => e['name'] == serviceName,
+        orElse: () => {},
+      );
+
+  final price = (service['price'] ?? 0) as int;
+
+  total += price * selectedPets.length;
+}
+
+  return total;
+}
+
+Widget _buildBookingSummary() {
+  final totalPrice = _calculateTotalPrice();
 
   return Card(
     color: Colors.grey.shade100,
@@ -1211,9 +1548,48 @@ Widget _buildBookingSummary() {
 
           _infoRow('寵物數量', '${_selectedPetIds.length} 隻'),
           const SizedBox(height: 6),
+          
 
           _infoRow('房型', _selectedRoomType!['name'] ?? ''),
           const SizedBox(height: 6),
+
+/// 🔥 時間加購
+if (_selectedTimeAddon != null)
+  _infoRow(
+    '時間加購',
+    '+NT\$ ${_selectedTimeAddon!['price']}',
+  ),
+
+/// 🔥 加值服務（單次）
+if (_selectedValueServices.isNotEmpty)
+  ..._selectedValueServices.map(
+  (e) => _infoRow(
+    e['name'],   // 🔥 改這裡
+    '+NT\$ ${e['price']}',
+  ),
+),
+
+/// 🔥 客製化（每隻）
+if (_selectedCustomServices.isNotEmpty)
+  ..._selectedCustomServices.entries.map((entry) {
+  final name = entry.key;
+  final count = entry.value.length;
+
+  final service = (_addonData?['customServices'] ?? [])
+      .firstWhere(
+        (e) => e['name'] == name,
+        orElse: () => {},
+      );
+
+  final price = (service['price'] ?? 0) as int;
+
+  return _infoRow(
+    '$name ($count隻)',
+    '+NT\$ ${price * count}',
+  );
+}),
+
+const Divider(),
 
           _infoRow('總價', 'NT\$ $totalPrice'),
         ],
@@ -1283,53 +1659,14 @@ if (_selectedPetIds.isEmpty) {
           const SizedBox(height: 12),
 
           ...roomTypes.map((type) {
-            return Card(
-              child: ListTile(
-                title: Text(type['name'] ?? ''),
-                subtitle: Column(
-  crossAxisAlignment: CrossAxisAlignment.start,
-  children: [
-    Text('容量：${type['capacity']}'),
 
-    const SizedBox(height: 4),
+final isSelected = _selectedRoomType?['roomTypeId'] == type['roomTypeId'];
 
-    Builder(
-      builder: (_) {
-        final rooms = type['availableRooms'] ?? 0;
+            return GestureDetector(
+  onTap: () {
+  _onSelectRoomType(type);
 
-        if (rooms <= 1) {
-          return const Text(
-            '🔥 剩 1 間',
-            style: TextStyle(color: Colors.red),
-          );
-        }
-
-        return Text('剩 $rooms 間');
-      },
-    ),
-  ],
-),
-                trailing: Column(
-  crossAxisAlignment: CrossAxisAlignment.end,
-  children: [
-    Text('NT\$ ${type['price']} / 晚'),
-
-    const SizedBox(height: 4),
-
-    Text(
-      '共 NT\$ ${BookingService.instance.calculateTotalPrice(
-        roomType: type,
-        startDate: _startDate!,
-        endDate: _endDate!,
-      )}',
-      style: const TextStyle(
-        fontWeight: FontWeight.bold,
-      ),
-    ),
-  ],
-),
-                onTap: () async {
-  final result = await Navigator.push(
+  Navigator.push(
     context,
     MaterialPageRoute(
       builder: (_) => RoomTypeDetailPage(
@@ -1339,15 +1676,109 @@ if (_selectedPetIds.isEmpty) {
       ),
     ),
   );
-
-  if (result != null) {
-    setState(() {
-      _selectedRoomType = result;
-    });
-  }
 },
+
+  child: Card(
+    child: Container(
+  margin: const EdgeInsets.only(bottom: 12),
+  padding: const EdgeInsets.all(12),
+  decoration: BoxDecoration(
+    color: Colors.white,
+    borderRadius: BorderRadius.circular(12),
+    border: Border.all(
+      color: isSelected ? Colors.green : Colors.grey.shade300,
+      width: isSelected ? 2 : 1,
+    ),
+  ),
+  child: Row(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+
+      /// 左邊資訊
+      Expanded(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+
+            Text(
+              type['name'] ?? '',
+              style: const TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
               ),
-            );
+            ),
+
+            const SizedBox(height: 4),
+
+            Text('容量：${type['capacity']}'),
+
+            const SizedBox(height: 6),
+
+            Builder(
+              builder: (_) {
+                final rooms = type['availableRooms'] ?? 0;
+
+                if (rooms <= 1) {
+                  return const Text(
+                    '🔥 剩 1 間',
+                    style: TextStyle(color: Colors.red),
+                  );
+                }
+
+                return Text('剩 $rooms 間');
+              },
+            ),
+          ],
+        ),
+      ),
+
+      /// 右邊價格（完全不會炸🔥）
+      Builder(
+        builder: (_) {
+          final basePrice = type['price'] ?? 0;
+          final extraPrice = type['extraPrice'] ?? 0;
+
+          final petCount = _selectedPetIds.length;
+          final extraCount = petCount > 1 ? petCount - 1 : 0;
+
+          final totalPrice = basePrice + (extraCount * extraPrice);
+
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+
+              Text(
+                'NT\$ $basePrice',
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+
+              if (extraCount > 0 && extraPrice > 0)
+                Text(
+                  '+$extraCount隻 +$extraPrice',
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: Colors.red,
+                  ),
+                ),
+
+              Text(
+                '共 NT\$ $totalPrice',
+                style: const TextStyle(
+                  fontSize: 12,
+                  color: Colors.grey,
+                ),
+              ),
+            ],
+          );
+        },
+      ),
+    ],
+  ),
+)
+            ),
+);
           }).toList(),
         ],
       );
@@ -1366,6 +1797,102 @@ void _onSelectRoomType(Map<String, dynamic> type) {
 }
 
 /// ✅ 關閉 _ShopBookingPageState
+/// 
+ /// 🔥 小卡顯示
+Widget _buildFeatureTags(List features) {
+  final featureOptions = {
+    'private_space': {'name': '🏡 獨立包廂', 'icon': Icons.home},
+    'daily_clean': {'name': '🧹 每日整理', 'icon': Icons.cleaning_services},
+    'camera': {'name': '📹 全日監控', 'icon': Icons.videocam},
+    'aircon': {'name': '❄️ 舒適空調', 'icon': Icons.ac_unit},
+    'private_door': {'name': '🔒 獨立房門', 'icon': Icons.lock},
+    'cat_window': {'name': '🪟 透明貓窗', 'icon': Icons.window},
+    'sky_walk': {'name': '🌉 天空步道', 'icon': Icons.architecture},
+    'scratch': {'name': '🐾 貓抓板', 'icon': Icons.pets},
+    'jump': {'name': '🪜 跳台設計', 'icon': Icons.stairs},
+    'bed': {'name': '🛏️ 舒眠睡窩', 'icon': Icons.bed},
+  };
+
+  return Wrap(
+    spacing: 6,
+    runSpacing: 6,
+    children: features.map<Widget>((key) {
+      final item = featureOptions[key];
+      if (item == null) return const SizedBox();
+
+      return _featureCard(
+        item['icon'] as IconData,
+        item['name'] as String,
+      );
+    }).toList(),
+  );
+}
+
+/// 🔥 單個小卡
+Widget _featureCard(IconData icon, String text) {
+  return Container(
+    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+    decoration: BoxDecoration(
+      color: Colors.grey.shade200,
+      borderRadius: BorderRadius.circular(12),
+    ),
+    child: Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 14),
+        const SizedBox(width: 4),
+        Text(text, style: const TextStyle(fontSize: 11)),
+      ],
+    ),
+  );
+}
+Widget _addonItemUI(Map item, bool isSelected) {
+  return Container(
+    margin: const EdgeInsets.only(bottom: 8),
+    padding: const EdgeInsets.all(10),
+    decoration: BoxDecoration(
+      color: isSelected ? Colors.green.shade50 : Colors.white,
+      borderRadius: BorderRadius.circular(10),
+      border: Border.all(
+        color: isSelected ? Colors.green : Colors.grey.shade300,
+        width: isSelected ? 2 : 1,
+      ),
+    ),
+    child: Row(
+      children: [
+        Icon(
+          isSelected
+              ? Icons.check_circle
+              : Icons.radio_button_unchecked,
+          color: isSelected ? Colors.green : Colors.grey,
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                item['name'] ?? '',
+                style: const TextStyle(fontWeight: FontWeight.bold),
+              ),
+              Text(
+                item['desc'] ?? '',
+                style: const TextStyle(
+                  fontSize: 12,
+                  color: Colors.grey,
+                ),
+              ),
+            ],
+          ),
+        ),
+        Text(
+          '+NT\$ ${item['price'] ?? 0}',
+          style: const TextStyle(color: Colors.red),
+        ),
+      ],
+    ),
+  );
+}
 }
 
 class _FrontCalendarPayload {
@@ -1382,4 +1909,5 @@ final Map<String, String> blockedDateReasons; // 🔥 新增
 final Set<String> unbookableDateKeys;
 final Map<String, int> priceMap;
 final Map<String, int> remainingRoomsMap;
+
 }

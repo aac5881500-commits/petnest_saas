@@ -768,21 +768,39 @@ Future<void> updateShop({
   required int price,
   required int totalRooms,
   required String description,
-}) async {
-    final doc = roomTypesRef(shopId).doc();
 
-    await doc.set({
-  'name': name,
-  'capacity': capacity,
-  'price': price,
-  'totalRooms': totalRooms,
-  'description': description,
-  'images': [],
-  'isSingle': false,
-  'createdAt': FieldValue.serverTimestamp(),
-  'updatedAt': FieldValue.serverTimestamp(),
-});
-  }
+  /// 🔥 新增
+  required int extraPrice,
+  required int width,
+  required int depth,
+  required int height,
+
+  Map<String, dynamic>? extraData,
+}) async {
+  final doc = roomTypesRef(shopId).doc();
+
+  await doc.set({
+    'name': name,
+    'capacity': capacity,
+    'price': price,
+    'totalRooms': totalRooms,
+    'description': description,
+
+    /// 🔥 重點欄位
+    'extraPrice': extraPrice,
+    'width': width,
+    'depth': depth,
+    'height': height,
+
+    'images': [],
+    'isSingle': false,
+
+    ...?extraData,
+
+    'createdAt': FieldValue.serverTimestamp(),
+    'updatedAt': FieldValue.serverTimestamp(),
+  });
+}
 
   /// 更新房型
   Future<void> updateRoomType({
@@ -1120,14 +1138,21 @@ if (blocked.contains(date)) {
 
     if (minAvailableRooms > 0) {
       result.add({
-        'roomTypeId': typeId,
-        'name': type['name'],
-        'price': type['price'],
-        'capacity': type['capacity'],
-        'availableRooms': minAvailableRooms,
-        'images': type['images'] ?? [],
-        'description': type['description'] ?? '',
-      });
+  'roomTypeId': typeId,
+  'name': type['name'],
+  'price': type['price'],
+  'capacity': type['capacity'],
+  'availableRooms': minAvailableRooms,
+  'images': type['images'] ?? [],
+  'description': type['description'] ?? '',
+  'features': type['features'] ?? [],
+
+  /// 🔥 這幾個一定要補
+  'extraPrice': type['extraPrice'] ?? 0,
+  'width': type['width'] ?? 0,
+  'depth': type['depth'] ?? 0,
+  'height': type['height'] ?? 0,
+});
     }
   }
 
@@ -1329,6 +1354,21 @@ int calculateRoomPrice({
   }
 
   return (total * discount).toInt();
+}
+/// 🔥 判斷是否為員工（含 owner / manager / staff）
+Future<bool> isEmployee({
+  required String shopId,
+  required String userId,
+}) async {
+  if (userId.isEmpty) return false;
+
+  final snapshot = await _shopMembers
+      .where('shopId', isEqualTo: shopId)
+      .where('uid', isEqualTo: userId)
+      .limit(1)
+      .get();
+
+  return snapshot.docs.isNotEmpty;
 }
 }
 

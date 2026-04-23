@@ -380,21 +380,37 @@ if (banners.isNotEmpty) const SizedBox(height: 20),
 
             ListTile(
               leading: const Icon(Icons.home),
-              title: const Text('回首頁'),
-              onTap: () => Navigator.pop(context),
+              title: const Text('回到首頁'),
+              onTap: () {
+  Navigator.pop(context); // 關 drawer
+  Navigator.of(context).pushNamedAndRemoveUntil(
+    '/home',
+    (route) => false,
+  );
+},
             ),
 
-            ListTile(
-              leading: const Icon(Icons.public),
-              title: const Text('回平台'),
-              onTap: () {},
-            ),
 
-            ListTile(
-              leading: const Icon(Icons.admin_panel_settings),
-              title: const Text('回後台'),
-              onTap: () {},
-            ),
+            FutureBuilder<bool>(
+  future: ShopService.instance.isEmployee(
+    shopId: widget.shopId,
+    userId: FirebaseAuth.instance.currentUser?.uid ?? '',
+  ),
+  builder: (context, snapshot) {
+    if (!snapshot.hasData || snapshot.data != true) {
+      return const SizedBox(); // ❌ 不是員工 → 不顯示
+    }
+
+    return ListTile(
+      leading: const Icon(Icons.admin_panel_settings),
+      title: const Text('回後台'),
+      onTap: () {
+        Navigator.pop(context);
+        Navigator.pushNamed(context, '/admin');
+      },
+    );
+  },
+),
 
             const Divider(),
 
