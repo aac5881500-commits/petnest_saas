@@ -347,10 +347,6 @@ const SizedBox(height: 8),
         '性別：${pet['gender'] ?? '-'} ｜ 貓砂：${pet['litterType'] ?? '-'}',
         style: const TextStyle(fontSize: 11),
       ),
-      Text(
-        '社交：${pet['canSocial'] == true ? '可' : '不可'} ｜ 用藥：${pet['canMedicate'] == true ? '可' : '不可'}',
-        style: const TextStyle(fontSize: 11),
-      ),
     ],
   ),
   selected: selected,
@@ -680,10 +676,21 @@ if (_canShowFormFields) ...[
         !_isBlacklisted &&
         _selectedRoomType != null)
           ? () {
-              Navigator.push(
+  final totalPrice = _calculateTotalPrice();
+
+  final roomPrice = BookingService.instance.calculateTotalPrice(
+    roomType: _selectedRoomType!,
+    startDate: _startDate!,
+    endDate: _endDate!,
+  );
+
+  Navigator.push(
                 context,
                 MaterialPageRoute(
                   builder: (_) => BookingFormPage(
+  shopId: widget.shopId,
+  totalPrice: totalPrice,
+  roomPrice: roomPrice,
                     formKey: _formKey,
                     customerNameController: _customerNameController,
                     customerPhoneController: _customerPhoneController,
@@ -702,16 +709,22 @@ if (_canShowFormFields) ...[
   relation,
   emergencyAddress,
   phone2,
+  depositAmount,
+  paymentMethod,
+  payAmountType,
 ) {
   _submitBooking(
-    shop,
-    address: address,
-    emergencyName: emergencyName,
-    emergencyPhone: emergencyPhone,
-    relation: relation,
-    emergencyAddress: emergencyAddress,
-    phone2: phone2,
-  );
+  shop,
+  address: address,
+  emergencyName: emergencyName,
+  emergencyPhone: emergencyPhone,
+  relation: relation,
+  emergencyAddress: emergencyAddress,
+  phone2: phone2,
+  depositAmount: depositAmount,
+  paymentMethod: paymentMethod,
+  payAmountType: payAmountType,
+);
 },
                     onSubmit: () {},
                     isSubmitting: _submitting,
@@ -1059,6 +1072,9 @@ if (payload != null) {
   String relation = '',
   String emergencyAddress = '',
   String phone2 = '',
+  int depositAmount = 0,
+  String paymentMethod = '',
+  String payAmountType = '',
 }) async {
 
 
@@ -1192,6 +1208,10 @@ emergencyPhone: emergencyPhone,
 emergencyRelation: relation,
 emergencyAddress: emergencyAddress,
 emergencyPhone2: phone2,
+totalPrice: totalPrice,
+depositAmount: depositAmount,
+paymentMethod: paymentMethod,
+payAmountType: payAmountType,
 );
       await BookingService.instance.updateBooking(
         bookingId: bookingId,

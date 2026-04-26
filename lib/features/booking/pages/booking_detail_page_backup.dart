@@ -6,7 +6,7 @@
 // - 可取消訂單（pending 狀態）
 // - 取消後更新 Firestore
 // - 顯示提示訊息
-
+//
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
@@ -22,6 +22,12 @@ class BookingDetailPage extends StatelessWidget {
   Widget build(BuildContext context) {
     final start = (data['startDate'] as Timestamp).toDate();
     final end = (data['endDate'] as Timestamp).toDate();
+    final emergency = Map<String, dynamic>.from(
+  data['emergencyContact'] ?? {},
+);
+
+final paymentMethodText = _paymentMethodText(data['paymentMethod']);
+final payAmountTypeText = _payAmountTypeText(data['payAmountType']);
 
     return Scaffold(
       appBar: AppBar(
@@ -61,8 +67,36 @@ class BookingDetailPage extends StatelessWidget {
             Text('備註：${data['note'] ?? ''}'),
             const SizedBox(height: 12),
 
-            /// 價格
-            Text('總價：NT\$ ${data['totalPrice'] ?? '-'}'),
+            /// 地址
+Text('地址：${data['address'] ?? '-'}'),
+const SizedBox(height: 12),
+
+/// 緊急聯絡人
+Text('緊急聯絡人：${emergency['name'] ?? '-'}'),
+const SizedBox(height: 12),
+
+Text('緊急電話：${emergency['phone'] ?? '-'}'),
+const SizedBox(height: 12),
+
+Text('關係：${emergency['relation'] ?? '-'}'),
+const SizedBox(height: 12),
+
+Text('緊急聯絡人地址：${emergency['address'] ?? '-'}'),
+const SizedBox(height: 12),
+
+Text('備用電話：${emergency['phone2'] ?? '-'}'),
+
+/// 價格
+Text('總價：NT\$ ${data['totalPrice'] ?? '-'}'),
+const SizedBox(height: 12),
+
+Text('訂金：NT\$ ${data['depositAmount'] ?? '-'}'),
+const SizedBox(height: 12),
+
+Text('付款方式：$paymentMethodText'),
+const SizedBox(height: 12),
+
+Text('付款金額：$payAmountTypeText'),
 
             const SizedBox(height: 24),
 
@@ -137,4 +171,25 @@ class BookingDetailPage extends StatelessWidget {
     final d = date.day.toString().padLeft(2, '0');
     return '$y-$m-$d';
   }
+  String _paymentMethodText(dynamic value) {
+  switch (value) {
+    case 'cash':
+      return '到店付款';
+    case 'transfer':
+      return '銀行轉帳';
+    default:
+      return '-';
+  }
+}
+
+String _payAmountTypeText(dynamic value) {
+  switch (value) {
+    case 'deposit':
+      return '先付訂金';
+    case 'full':
+      return '一次付清';
+    default:
+      return '-';
+  }
+}
 }

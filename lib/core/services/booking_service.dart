@@ -37,6 +37,10 @@ String emergencyPhone = '',
 String emergencyRelation = '',
 String emergencyAddress = '',
 String emergencyPhone2 = '',
+int totalPrice = 0,
+int depositAmount = 0,
+String paymentMethod = '',
+String payAmountType = '', // deposit / full
 
 })async {
     final user = _currentUser;
@@ -73,10 +77,28 @@ final petDocs = await _firestore
 final pets = petDocs.docs.map((doc) {
   final data = doc.data();
   return {
-    'petId': doc.id,
-    'name': data['name'],
-    'type': data['type'],
-  };
+  'petId': doc.id,
+  'name': data['name'] ?? '',
+  'type': data['type'] ?? data['breed'] ?? data['species'] ?? '',
+  'breed': data['breed'] ?? data['type'] ?? data['species'] ?? '',
+  'gender': data['gender'] ?? '',
+  'age': data['age'] ?? '',
+  'isNeutered': data['isNeutered'],
+  'medicalStatus': data['medicalStatus'] ??
+    data['vaccine'] ??
+    data['medicalCondition'] ??
+    data['medicalNote'] ??
+    data['medical'] ??
+    '',
+  'litterType': data['litterType'] ?? '',
+  'photoUrl': data['photoUrl'] ?? '',
+  'note': data['note'] ?? '',
+  'staffNote': data['staffNote'] ??
+      data['internalNote'] ??
+      data['adminNote'] ??
+      data['staffMemo'] ??
+      '',
+};
 }).toList();
 
 // 🔥 最終防呆：再次確認房間可用
@@ -125,8 +147,10 @@ if (!available) {
       
 
       /// 價格欄位
-      'pricePerNight': null,
-      'totalPrice': null,
+'totalPrice': totalPrice,
+'depositAmount': depositAmount,
+'paymentMethod': paymentMethod,
+'payAmountType': payAmountType,
 
       /// 未來預留
       'checkedInAt': null,

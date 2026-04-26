@@ -204,10 +204,8 @@ class _AddPetPageState extends State<AddPetPage> {
                 hint: const Text('請選擇結紮狀況'),
                 validator: (v) => v == null ? '請選擇結紮狀況' : null,
                 items: const [
-                  DropdownMenuItem(value: '有結紮公貓', child: Text('有結紮公貓')),
-                  DropdownMenuItem(value: '有結紮母貓', child: Text('有結紮母貓')),
-                  DropdownMenuItem(value: '未結紮公貓', child: Text('未結紮公貓')),
-                  DropdownMenuItem(value: '未結紮母貓', child: Text('未結紮母貓')),
+                  DropdownMenuItem(value: '有結紮', child: Text('有結紮')),
+                  DropdownMenuItem(value: '未結紮', child: Text('未結紮')),
                 ],
                 onChanged: (v) => setState(() => _neuterStatus = v),
               ),

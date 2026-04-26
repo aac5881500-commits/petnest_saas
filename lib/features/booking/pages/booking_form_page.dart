@@ -7,7 +7,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 
 class BookingFormPage extends StatefulWidget {
   const BookingFormPage({
-    required this.onSubmitWithData,
+  required this.shopId,
+  required this.onSubmitWithData,
     super.key,
     required this.formKey,
     required this.customerNameController,
@@ -20,6 +21,8 @@ class BookingFormPage extends StatefulWidget {
     required this.isSubmitting,
     required this.canSubmit,
     required this.isBlacklisted,
+    required this.totalPrice, 
+    required this.roomPrice,
   });
 
   final GlobalKey<FormState> formKey;
@@ -36,15 +39,22 @@ class BookingFormPage extends StatefulWidget {
   final bool isSubmitting;
   final bool canSubmit;
   final bool isBlacklisted;
+  final int totalPrice; 
+  final int roomPrice;
+
+  final String shopId;
 
   final Function(
-    String address,
-    String emergencyName,
-    String emergencyPhone,
-    String relation,
-    String emergencyAddress,
-    String phone2,
-  ) onSubmitWithData;
+  String address,
+  String emergencyName,
+  String emergencyPhone,
+  String relation,
+  String emergencyAddress,
+  String phone2,
+  int depositAmount,
+  String paymentMethod,
+  String payAmountType,
+) onSubmitWithData;
 
   @override
   State<BookingFormPage> createState() => _BookingFormPageState();
@@ -52,6 +62,17 @@ class BookingFormPage extends StatefulWidget {
 
 class _BookingFormPageState extends State<BookingFormPage> {
 
+  bool _depositEnabled = false;
+int _depositAmount = 0;
+double _depositRate = 0; 
+String _depositBase = 'total'; 
+bool _cashEnabled = true;
+bool _transferEnabled = true;
+String _bankName = '';
+String _accountName = '';
+String _accountNumber = '';
+  String? _paymentMethod;
+  String _payAmountType = 'deposit'; 
   String? _city;
   String? _district;
   final _detailAddressController = TextEditingController();
@@ -86,10 +107,54 @@ class _BookingFormPageState extends State<BookingFormPage> {
 };
 
   @override
-  void initState() {
-    super.initState();
-    _loadMemberData();
-  }
+void initState() {
+  super.initState();
+  _loadMemberData();
+  _loadShopPaymentSettings(); 
+}
+
+Future<void> _loadShopPaymentSettings() async {
+  final doc = await FirebaseFirestore.instance
+      .collection('shops')
+      .doc(widget.shopId)
+      .get();
+
+  final data = doc.data();
+  if (data == null) return;
+
+  setState(() {
+  _depositEnabled = data['depositEnabled'] ?? false;
+
+final depositType = data['depositType'] ?? 'fixed';
+
+_depositBase = (data['depositBase'] ?? 'room').toString(); 
+
+final rawValue = data['depositValue'] ?? 0;
+final depositValue = rawValue is int
+    ? rawValue
+    : rawValue is double
+        ? rawValue.toInt()
+        : int.tryParse(rawValue.toString()) ?? 0;
+
+if (depositType == 'percent') {
+  _depositAmount = 0;
+  _depositRate = depositValue / 100;
+} else {
+  _depositAmount = depositValue;
+  _depositRate = 0;
+}
+
+  _bankName = data['bankName'] ?? '';
+  _accountName = data['accountName'] ?? '';
+  _accountNumber = data['accountNumber'] ?? '';
+
+  /// 🔥 新增（吃後台付款方式）
+  final methods = data['paymentMethods'] ?? {};
+
+  _cashEnabled = methods['cash'] ?? false;
+  _transferEnabled = methods['transfer'] ?? false;
+});
+}
 
   /// 🔥 會員資料完整帶入（重點）
   Future<void> _loadMemberData() async {
@@ -130,6 +195,8 @@ for (final city in cityData.keys) {
   }
 }
 
+
+
 /// 剩下當詳細地址
 /// 🔥 去掉縣市 + 區，只留詳細地址
 String detail = address;
@@ -158,8 +225,29 @@ _detailAddressController.text = detail;
   }
 
   @override
-  Widget build(BuildContext context) {
-    final user = FirebaseAuth.instance.currentUser;
+Widget build(BuildContext context) {
+  final user = FirebaseAuth.instance.currentUser;
+
+  final depositBasePrice =
+    _depositBase == 'room' ? widget.roomPrice : widget.totalPrice;
+
+final rawCalculatedDeposit = _depositEnabled
+    ? (_depositRate > 0
+        ? (depositBasePrice * _depositRate).round()
+        : _depositAmount)
+    : 0;
+
+/// 固定金額也做防呆，不能超過總金額
+final calculatedDeposit =
+    rawCalculatedDeposit > widget.totalPrice ? widget.totalPrice : rawCalculatedDeposit;
+
+final remainingAmount = widget.totalPrice - calculatedDeposit;
+
+final currentPayAmount =
+    _payAmountType == 'full' ? widget.totalPrice : calculatedDeposit;
+
+final depositBaseText =
+    _depositBase == 'room' ? '只算房價' : '算總金額';
 
     return Scaffold(
       appBar: AppBar(title: const Text('填寫預約資料')),
@@ -314,25 +402,187 @@ _detailAddressController.text = detail;
 
               const SizedBox(height: 24),
 
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: () {
-                    final fullAddress =
-                        '${_city ?? ''}${_district ?? ''}${_detailAddressController.text}';
 
-                    widget.onSubmitWithData(
-                      fullAddress,
-                      _emergencyNameController.text,
-                      _emergencyPhoneController.text,
-                      _emergencyRelationController.text,
-                      _emergencyAddressController.text,
-                      _phone2Controller.text,
-                    );
-                  },
-                  child: const Text('送出預約'),
-                ),
+/// 🔥 總金額顯示（新增）
+Container(
+  width: double.infinity,
+  padding: const EdgeInsets.all(12),
+  margin: const EdgeInsets.only(bottom: 10),
+  decoration: BoxDecoration(
+    color: Colors.grey.shade100,
+    borderRadius: BorderRadius.circular(10),
+  ),
+  child: Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+
+      /// 總金額
+      Text(
+        '總金額：NT\$ ${widget.totalPrice}',
+        style: const TextStyle(
+          fontSize: 16,
+          fontWeight: FontWeight.bold,
+        ),
+      ),
+
+      const SizedBox(height: 6),
+
+      /// 🔥 如果有訂金
+      if (_depositEnabled) ...[
+        Text(
+  '需支付訂金：NT\$ $calculatedDeposit',
+          style: const TextStyle(
+            color: Colors.red,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+
+        Text(
+  '計算方式：$depositBaseText',
+  style: const TextStyle(
+    fontSize: 12,
+    color: Colors.grey,
+  ),
+),
+
+        Text(
+          '現場付款：NT\$ $remainingAmount',
+          style: const TextStyle(
+            color: Colors.grey,
+          ),
+        ),
+      ],
+
+      /// 🔥 沒有訂金
+      if (!_depositEnabled)
+        const Text(
+          '付款方式依店家規定',
+          style: TextStyle(color: Colors.grey),
+        ),
+    ],
+  ),
+),
+              /// 🔥 付款方式（先做UI）
+const SizedBox(height: 10),
+
+
+if (!_cashEnabled && !_transferEnabled)
+  const Text(
+    '目前未開放付款方式',
+    style: TextStyle(color: Colors.red),
+  ),
+
+if (_depositEnabled) ...[
+  const Text(
+    '付款金額',
+    style: TextStyle(fontWeight: FontWeight.bold),
+  ),
+
+  RadioListTile(
+    value: 'deposit',
+    groupValue: _payAmountType,
+    onChanged: (v) {
+      setState(() {
+        _payAmountType = v.toString();
+      });
+    },
+    title: Text('先付訂金 NT\$ $calculatedDeposit'),
+  ),
+
+  RadioListTile(
+    value: 'full',
+    groupValue: _payAmountType,
+    onChanged: (v) {
+      setState(() {
+        _payAmountType = v.toString();
+      });
+    },
+    title: Text('一次付清 NT\$ ${widget.totalPrice}'),
+  ),
+
+  const SizedBox(height: 12),
+],
+
+const Text(
+  '付款方式',
+  style: TextStyle(fontWeight: FontWeight.bold),
+),
+
+if (_cashEnabled)
+  RadioListTile(
+    value: 'cash',
+    groupValue: _paymentMethod,
+    onChanged: (v) {
+      setState(() {
+        _paymentMethod = v as String;
+      });
+    },
+    title: const Text('到店付款'),
+  ),
+
+if (_transferEnabled)
+  RadioListTile(
+    value: 'transfer',
+    groupValue: _paymentMethod,
+    onChanged: (v) {
+      setState(() {
+        _paymentMethod = v as String;
+      });
+    },
+    title: const Text('銀行轉帳'),
+  ),
+
+              SizedBox(
+  width: double.infinity,
+  child: ElevatedButton(
+    onPressed: () async {
+      if (_paymentMethod == null) {
+  ScaffoldMessenger.of(context).showSnackBar(
+    const SnackBar(content: Text('請選擇付款方式')),
+  );
+  return;
+}
+      final fullAddress =
+          '${_city ?? ''}${_district ?? ''}${_detailAddressController.text}';
+
+      /// 🔥 如果選轉帳 → 先顯示帳號
+      if (_paymentMethod == 'transfer') {
+        await showDialog(
+          context: context,
+          builder: (_) => AlertDialog(
+            title: const Text('請先完成轉帳'),
+            content: Text(
+  '本次需轉帳：NT\$ $currentPayAmount\n\n'
+  '銀行：$_bankName\n'
+  '戶名：$_accountName\n'
+  '帳號：$_accountNumber',
+),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('我已轉帳'),
               ),
+            ],
+          ),
+        );
+      }
+
+      /// 🔥 再送出預約（一定要放最後）
+      widget.onSubmitWithData(
+  fullAddress,
+  _emergencyNameController.text,
+  _emergencyPhoneController.text,
+  _emergencyRelationController.text,
+  _emergencyAddressController.text,
+  _phone2Controller.text,
+  calculatedDeposit,
+  _paymentMethod ?? '',
+  _payAmountType,
+);
+    },
+    child: const Text('送出預約'),
+  ),
+),
             ],
           ),
         ),

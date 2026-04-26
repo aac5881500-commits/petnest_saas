@@ -135,6 +135,19 @@ Future<void> updateShop({
       'bookingEnabled': true,
       'totalRooms': 1,
 
+      // ========= 💰 訂金 / 付款設定 =========
+'depositEnabled': false,
+'depositAmount': 0,
+
+'bankName': '',
+'accountName': '',
+'accountNumber': '',
+
+'paymentMethods': {
+  'cash': true,
+  'transfer': false,
+},
+
       // 本次新增：房況欄位
       'cleaningRooms': 0,
       'maintenanceRooms': 0,

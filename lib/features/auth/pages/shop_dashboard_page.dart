@@ -28,6 +28,7 @@ import 'package:petnest_saas/features/auth/pages/shop_policy_page.dart';
 import 'package:petnest_saas/features/auth/pages/shop_policy_logs_page.dart';
 import 'package:petnest_saas/features/room/pages/room_dashboard_page.dart';
 import 'package:petnest_saas/features/shop/pages/shop_addon_page.dart';
+import 'package:petnest_saas/features/shop/pages/shop_payment_setting_page.dart';
 
 
 class ShopDashboardPage extends StatefulWidget {
@@ -528,6 +529,23 @@ _MenuTile(
     );
   },
 ),
+
+_MenuTile(
+  title: '付款 / 訂金設定',
+  subtitle: '設定是否需要訂金、付款方式與收款資訊',
+  icon: Icons.payments,
+  onTap: () {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ShopPaymentSettingPage(
+          shopId: shopId,
+        ),
+      ),
+    );
+  },
+),
+
         _MenuTile(
   title: '入住規則 / 貓咪條件',
   subtitle: '設定入住條款（客戶預約前需同意）',
