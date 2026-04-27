@@ -63,6 +63,9 @@ class AdminBookingDetailPage extends StatelessWidget {
 final paymentMethodText = _paymentMethodText(data['paymentMethod']);
 final payAmountTypeText = _payAmountTypeText(data['payAmountType']);
 
+final depositPaid = data['depositPaid'] == true;
+final depositAmount = data['depositAmount'] ?? 0;
+
           return SingleChildScrollView(
             padding: const EdgeInsets.all(16),
             child: Column(
@@ -71,7 +74,6 @@ final payAmountTypeText = _payAmountTypeText(data['payAmountType']);
                 _sectionTitle('基本資訊'),
 
                 _infoRow('房型', data['roomName'] ?? '-'),
-                _infoRow('服務', data['serviceType'] ?? '-'),
                 _infoRow('入住日', _formatDate(start)),
                 _infoRow('退房日', _formatDate(end)),
                 _infoRow('晚數', '${data['nights'] ?? 0} 晚'),
@@ -87,7 +89,6 @@ _infoRow('緊急聯絡人', emergency['name'] ?? '-'),
 _infoRow('緊急電話', emergency['phone'] ?? '-'),
 _infoRow('關係', emergency['relation'] ?? '-'),
 _infoRow('緊急地址', emergency['address'] ?? '-'),
-_infoRow('備用電話', emergency['phone2'] ?? '-'),
 
                 const SizedBox(height: 16),
 
@@ -140,10 +141,10 @@ _infoRow('備用電話', emergency['phone2'] ?? '-'),
 
                 _infoRow('總價', 'NT\$ ${data['totalPrice'] ?? 0}'),
 
-                _infoRow('訂金', 'NT\$ ${data['depositAmount'] ?? 0}'),
+                _infoRow('訂金', 'NT\$ $depositAmount'),
+_infoRow('訂金狀態', depositPaid ? '已收到訂金' : '尚未確認訂金'),
 _infoRow('付款方式', paymentMethodText),
 _infoRow('付款金額', payAmountTypeText),
-
                 const SizedBox(height: 16),
 
                 _sectionTitle('狀態'),
@@ -157,11 +158,24 @@ _infoRow('付款金額', payAmountTypeText),
   children: [
 
     /// 👉 pending → confirmed
-    if (status == 'pending')
-      ElevatedButton(
-        onPressed: () => _updateStatus('confirmed'),
-        child: const Text('確認'),
-      ),
+    if (status == 'pending' && depositAmount <= 0)
+  ElevatedButton(
+    onPressed: () => _updateStatus('confirmed'),
+    child: const Text('確認'),
+  ),
+
+if (status == 'pending' && depositAmount > 0 && !depositPaid)
+  ElevatedButton(
+    onPressed: () => _confirmDepositAndBooking(),
+    style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
+    child: const Text('確認收到訂金'),
+  ),
+
+if (status == 'pending' && depositAmount > 0 && depositPaid)
+  ElevatedButton(
+    onPressed: () => _updateStatus('confirmed'),
+    child: const Text('確認訂單'),
+  ),
 
     /// 👉 pending → cancelled
     if (status == 'pending')
@@ -206,6 +220,8 @@ Future<void> _updateStatus(String status) async {
     bookingId: bookingId,
     status: status,
   );
+
+  
 
   /// 🔥 紀錄操作
   await FirebaseFirestore.instance
@@ -320,5 +336,28 @@ String _payAmountTypeText(dynamic value) {
     default:
       return '-';
   }
+}
+Future<void> _confirmDepositAndBooking() async {
+  final user = FirebaseAuth.instance.currentUser;
+
+  await FirebaseFirestore.instance
+      .collection('bookings')
+      .doc(bookingId)
+      .update({
+    'depositPaid': true,
+    'depositPaidAt': FieldValue.serverTimestamp(),
+    'status': 'confirmed',
+    'updatedAt': FieldValue.serverTimestamp(),
+  });
+
+  await FirebaseFirestore.instance
+      .collection('action_logs')
+      .add({
+    'type': 'deposit_confirmed',
+    'bookingId': bookingId,
+    'operatorUid': user?.uid,
+    'operatorRole': 'staff',
+    'createdAt': FieldValue.serverTimestamp(),
+  });
 }
 }
