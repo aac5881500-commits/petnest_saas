@@ -1,4 +1,4 @@
-//lib/features/auth/pages/shop_module_settings_page.dart
+//lib/features/shop/pages/shop_module_settings_page.dart
 //模組開關頁
 
 import 'package:flutter/material.dart';

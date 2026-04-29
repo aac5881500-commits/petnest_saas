@@ -1,4 +1,4 @@
-// lib/features/auth/pages/shop_room_type_page.dart
+// lib/features/shop/pages/shop_room_type_page.dart
 // 🐱 房型管理頁（升級：支援小卡片🔥）
 
 import 'package:image_picker/image_picker.dart';

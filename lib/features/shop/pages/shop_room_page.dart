@@ -1,4 +1,4 @@
-// 檔案名稱 lib/features/auth/pages/shop_room_page.dart
+// 檔案名稱 lib/features/shop/pages/shop_room_page.dart
 // 🏠 房間管理（完整升級版🔥）
 
 import 'package:flutter/material.dart';

@@ -1,4 +1,4 @@
-// lib/features/auth/pages/shop_policy_page.dart
+// lib/features/shop/pages/shop_policy_page.dart
 // 📜 入住條款編輯頁（後台｜模板版🔥＋一鍵套用）
 
 import 'package:flutter/material.dart';

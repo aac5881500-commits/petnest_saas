@@ -1,4 +1,4 @@
-// lib/features/auth/pages/shop_media_page.dart
+// lib/features/shop/pages/shop_media_page.dart
 // 🔥 店家媒體設定頁（活動海報管理 完整版）
 
 import 'dart:typed_data';

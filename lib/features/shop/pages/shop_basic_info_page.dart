@@ -1,4 +1,4 @@
-// lib/features/auth/pages/shop_basic_info_page.dart
+// lib/features/shop/pages/shop_basic_info_page.dart
 // 👤 店家基本資料（完整版🔥）
 // ✅ 縣市區域下拉
 // ✅ IG / FB

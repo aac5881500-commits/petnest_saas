@@ -1,4 +1,4 @@
-// 檔案名稱 lib/features/auth/pages/shop_booking_manage_page.dart
+// 檔案名稱 lib/features/shop/pages/shop_booking_settings_page.dart
 //
 // 預約管理頁（店家後台）
 //
@@ -15,8 +15,8 @@ import 'package:petnest_saas/core/services/booking_service.dart';
 import 'package:petnest_saas/core/services/shop_service.dart';
 import 'package:petnest_saas/shared/widgets/booking_calendar.dart';
 
-class ShopBookingManagePage extends StatefulWidget {
-  const ShopBookingManagePage({
+class ShopBookingSettingsPage extends StatefulWidget {
+  const ShopBookingSettingsPage({
     super.key,
     required this.shopId,
   });
@@ -24,10 +24,10 @@ class ShopBookingManagePage extends StatefulWidget {
   final String shopId;
 
   @override
-  State<ShopBookingManagePage> createState() => _ShopBookingManagePageState();
+State<ShopBookingSettingsPage> createState() => _ShopBookingSettingsPageState();
 }
 
-class _ShopBookingManagePageState extends State<ShopBookingManagePage> {
+class _ShopBookingSettingsPageState extends State<ShopBookingSettingsPage> {
   String _selectedStatus = 'all';
 
   final _maxAdvanceBookingDaysController = TextEditingController();

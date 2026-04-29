@@ -1,4 +1,4 @@
-// 檔案名稱：lib/features/auth/pages/shop_dashboard_page.dart
+// 檔案名稱：lib/features/shop/pages/shop_dashboard_page.dart
 // 說明：店家後台首頁（模組分頁骨架版）
 //
 // 目前目標：
@@ -13,19 +13,19 @@ import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/constants/shop_modules.dart';
 import 'package:petnest_saas/core/constants/shop_roles.dart';
 import 'package:petnest_saas/core/services/shop_service.dart';
-import 'package:petnest_saas/features/auth/pages/shop_basic_info_page.dart';
-import 'package:petnest_saas/features/auth/pages/shop_booking_manage_page.dart';
-import 'package:petnest_saas/features/auth/pages/shop_business_info_page.dart';
-import 'package:petnest_saas/features/auth/pages/shop_media_page.dart';
+import 'package:petnest_saas/features/shop/pages/shop_basic_info_page.dart';
+import 'package:petnest_saas/features/shop/pages/shop_booking_settings_page.dart';
+import 'package:petnest_saas/features/shop/pages/shop_business_info_page.dart';
+import 'package:petnest_saas/features/shop/pages/shop_media_page.dart';
 import 'package:petnest_saas/features/shop/pages/shop_public_page.dart';
-import 'package:petnest_saas/features/auth/pages/shop_module_settings_page.dart';
-import 'package:petnest_saas/features/auth/pages/shop_permission_settings_page.dart';
-import 'package:petnest_saas/features/auth/pages/shop_room_type_page.dart';
-import 'package:petnest_saas/features/auth/pages/shop_room_page.dart';
+import 'package:petnest_saas/features/shop/pages/shop_module_settings_page.dart';
+import 'package:petnest_saas/features/shop/pages/shop_permission_settings_page.dart';
+import 'package:petnest_saas/features/shop/pages/shop_room_type_page.dart';
+import 'package:petnest_saas/features/shop/pages/shop_room_page.dart';
 import 'package:petnest_saas/features/admin/pages/admin_booking_list_page.dart';
 import 'package:petnest_saas/features/admin/pages/admin_member_list_page.dart';
-import 'package:petnest_saas/features/auth/pages/shop_policy_page.dart';
-import 'package:petnest_saas/features/auth/pages/shop_policy_logs_page.dart';
+import 'package:petnest_saas/features/shop/pages/shop_policy_page.dart';
+import 'package:petnest_saas/features/shop/pages/shop_policy_logs_page.dart';
 import 'package:petnest_saas/features/room/pages/room_dashboard_page.dart';
 import 'package:petnest_saas/features/shop/pages/shop_addon_page.dart';
 import 'package:petnest_saas/features/shop/pages/shop_payment_setting_page.dart';
@@ -449,7 +449,7 @@ class _CatHotelTab extends StatelessWidget {
             Navigator.push(
               context,
               MaterialPageRoute(
-                builder: (_) => ShopBookingManagePage(shopId: shopId),
+               builder: (_) => ShopBookingSettingsPage(shopId: shopId),
               ),
             );
           },

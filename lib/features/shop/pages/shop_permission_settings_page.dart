@@ -1,4 +1,4 @@
-//lib/features/auth/pages/shop_permission_settings_page.dart
+//lib/features/shop/pages/shop_permission_settings_page.dart
 //實際操作權限的畫面
 
 import 'package:firebase_auth/firebase_auth.dart';

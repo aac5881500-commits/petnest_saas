@@ -1,4 +1,4 @@
-// lib/features/auth/pages/shop_policy_logs_page.dart
+// lib/features/shop/pages/shop_policy_logs_page.dart
 // 📊 條款同意紀錄（後台 + 搜尋 + 排序 + 美化時間）
 
 import 'package:flutter/material.dart';

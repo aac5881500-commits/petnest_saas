@@ -1,11 +1,11 @@
-// 檔案名稱 lib/features/shop/pages/shop_booking_manage_page.dart
+// 檔案名稱 lib/features/shop/pages/shop_order_manage_page.dart
 // 訂單管理頁（店家後台）
 
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/services/booking_service.dart';
 
-class ShopBookingManagePage extends StatelessWidget {
-  const ShopBookingManagePage({
+class ShopOrderManagePage extends StatelessWidget {
+  const ShopOrderManagePage({
     super.key,
     required this.shopId,
   });

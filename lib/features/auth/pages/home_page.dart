@@ -15,7 +15,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:petnest_saas/core/services/auth_service.dart';
 import 'package:petnest_saas/core/services/shop_service.dart';
-import 'package:petnest_saas/features/auth/pages/shop_dashboard_page.dart';
+import 'package:petnest_saas/features/shop/pages/shop_dashboard_page.dart';
 
 class HomePage extends StatelessWidget {
   const HomePage({super.key});

@@ -1,4 +1,4 @@
-// 檔案名稱 lib/features/auth/pages/shop_room_calendar_page.dart
+// 檔案名稱 lib/features/shop/pages/shop_room_calendar_page.dart
 // 📅 房間日曆管理（第一版）
 
 import 'package:flutter/material.dart';
