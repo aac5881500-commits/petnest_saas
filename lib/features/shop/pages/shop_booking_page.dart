@@ -528,8 +528,13 @@ if (_addonData?['enabled'] == true &&
             (e) => e['name'] == item['name'],
           );
         } else {
-          _selectedValueServices.add(item);
-        }
+  _selectedValueServices.add({
+    ...item,
+
+    /// 🔥 關鍵：記錄是哪幾隻寵物
+    'petIds': List<String>.from(_selectedPetIds),
+  });
+}
       });
     },
     child: _addonItemUI(item, isSelected),
@@ -1977,7 +1982,15 @@ List<Map<String, dynamic>> _buildAddonsData() {
       'price': price,
       'count': petList.length,
       'total': price * petList.length,
-      'petNames': petList.map((p) => p.toString()).toList(),
+      'petNames': petList.map((petId) {
+  final pet = _pets
+      .where((p) => p['petId'] == petId)
+      .toList();
+
+  if (pet.isEmpty) return petId;
+
+  return (pet.first['name'] ?? petId).toString();
+}).toList(),
       'type': 'custom',
     });
   }

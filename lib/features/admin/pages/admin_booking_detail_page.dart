@@ -1,4 +1,5 @@
 // lib/features/admin/pages/admin_booking_detail_page.dart
+
 // 📄 訂單詳細頁（後台版）
 //
 //  店主自己的後台店家詳細頁
@@ -65,8 +66,14 @@ final correctSubtotal = roomPriceTotal + petPriceTotal;
           final rawPets = data['pets'];
 
 final pets = rawPets is List
+
     ? rawPets.map((e) => e as Map<String, dynamic>).toList()
     : [];
+
+final petMap = {
+  for (var pet in pets)
+    pet['name']: pet['name']
+};
 
           final status = data['status'] ?? 'pending';
 
@@ -189,14 +196,57 @@ if ((data['addons'] ?? []).isNotEmpty)
           final count = item['count'] ?? 1;
           final total = item['total'] ?? (price * count);
 
-          return Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                count > 1
-                    ? '${item['name']} ($count)'
-                    : item['name'],
-              ),
+          final petIds = (item['petNames'] ?? []) as List;
+
+final petNames = petIds
+    .map((id) {
+      final match = pets.cast<Map<String, dynamic>?>().firstWhere(
+        (p) => p?['name'] == id || p?['petId'] == id,
+        orElse: () => null,
+      );
+
+      return match != null ? match['name'] : id;
+    })
+    .where((name) => name != null && name.toString().isNotEmpty)
+    .toList();
+
+return Row(
+  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+  children: [
+    Column(
+  crossAxisAlignment: CrossAxisAlignment.start,
+  children: [
+
+    /// 🔥 服務名稱
+    Text(
+      '🐾 ${item['name']}',
+      style: const TextStyle(
+        fontWeight: FontWeight.bold,
+      ),
+    ),
+
+    /// 🔥 客製化 → 顯示寵物（重點強化）
+    if (item['type'] == 'custom' && petNames.isNotEmpty)
+      Container(
+        margin: const EdgeInsets.only(top: 4),
+        padding: const EdgeInsets.symmetric(
+          horizontal: 8,
+          vertical: 4,
+        ),
+        decoration: BoxDecoration(
+          color: Colors.orange.shade100,
+          borderRadius: BorderRadius.circular(6),
+        ),
+        child: Text(
+          '👉 指定寵物：${petNames.join('、')}',
+          style: const TextStyle(
+            color: Colors.deepOrange,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+      ),
+  ],
+),
               Text(
                 count > 1
                     ? '$price x $count = $total'

@@ -115,7 +115,7 @@ if (!available) {
 }
 
     await doc.set({
-      'addons': addons,
+      'addons': (addons ?? []).isNotEmpty ? addons : [],
       'bookingId': doc.id,
       'shopId': shopId,
       'userId': user.uid,
