@@ -9,6 +9,7 @@ class BookingFormPage extends StatefulWidget {
   const BookingFormPage({
   required this.shopId,
   required this.onSubmitWithData,
+  required this.addons,
     super.key,
     required this.formKey,
     required this.customerNameController,
@@ -29,6 +30,7 @@ class BookingFormPage extends StatefulWidget {
   final TextEditingController customerNameController;
   final TextEditingController customerPhoneController;
   final TextEditingController noteController;
+  final List<Map<String, dynamic>> addons;
 
   final List<String> serviceTypes;
   final String? selectedServiceType;

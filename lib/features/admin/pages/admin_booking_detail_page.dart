@@ -1,6 +1,8 @@
 // lib/features/admin/pages/admin_booking_detail_page.dart
 // 📄 訂單詳細頁（後台版）
 //
+//  店主自己的後台店家詳細頁
+
 // 功能：
 // - 即時讀取 booking（Firestore）
 // - 顯示完整訂單資料
@@ -44,15 +46,27 @@ class AdminBookingDetailPage extends StatelessWidget {
 
           final data = doc.data() as Map<String, dynamic>;
 
+          final basePrice = data['basePrice'] ?? 0;
+final extraPetPrice = data['extraPetPrice'] ?? 0;
+final extraPetCount = data['extraPetCount'] ?? 0;
+final extraPetTotal = data['extraPetTotal'] ?? 0;
+final roomSubtotal = data['roomSubtotal'] ?? 0;
+
+final nights = data['nights'] ?? 1;
+final roomPriceTotal = basePrice * nights;
+final petPriceTotal = extraPetTotal;
+final correctSubtotal = roomPriceTotal + petPriceTotal;
+
           final start =
               (data['startDate'] as Timestamp).toDate();
           final end =
               (data['endDate'] as Timestamp).toDate();
 
-          final pets = (data['pets'] as List?)
-                  ?.map((e) => e as Map<String, dynamic>)
-                  .toList() ??
-              [];
+          final rawPets = data['pets'];
+
+final pets = rawPets is List
+    ? rawPets.map((e) => e as Map<String, dynamic>).toList()
+    : [];
 
           final status = data['status'] ?? 'pending';
 
@@ -72,8 +86,10 @@ final depositAmount = data['depositAmount'] ?? 0;
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 _sectionTitle('基本資訊'),
-
-                _infoRow('房型', data['roomName'] ?? '-'),
+                _infoRow('下訂時間', _formatDateTime(data['createdAt'])),
+_infoRow('房型', data['roomTypeName'] ?? '-'),
+_infoRow('房號', data['roomName'] ?? '-'),
+_infoRow('房號ID', data['roomId'] ?? '-'),
                 _infoRow('入住日', _formatDate(start)),
                 _infoRow('退房日', _formatDate(end)),
                 _infoRow('晚數', '${data['nights'] ?? 0} 晚'),
@@ -137,12 +153,133 @@ _infoRow('緊急地址', emergency['address'] ?? '-'),
 
                 const SizedBox(height: 16),
 
-                _sectionTitle('價格'),
+               _sectionTitle('價格'),
 
-                _infoRow('總價', 'NT\$ ${data['totalPrice'] ?? 0}'),
+_infoRow(
+  '房型價格',
+  'NT\$ $basePrice x ${data['nights']}晚 = NT\$ ${basePrice * (data['nights'] ?? 1)}',
+),
+_infoRow(
+  '寵物加價',
+  extraPetCount > 0
+      ? '$extraPetPrice x $extraPetCount隻 x $nights晚 = NT\$ $petPriceTotal'
+      : 'NT\$ 0',
+),
+_infoRow('房費小計', 'NT\$ $correctSubtotal'),
 
-                _infoRow('訂金', 'NT\$ $depositAmount'),
-_infoRow('訂金狀態', depositPaid ? '已收到訂金' : '尚未確認訂金'),
+const SizedBox(height: 10),
+
+/// 🔥 加值服務
+if ((data['addons'] ?? []).isNotEmpty)
+  Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      const Text(
+        '加值服務',
+        style: TextStyle(fontWeight: FontWeight.bold),
+      ),
+      const SizedBox(height: 6),
+
+      ...List.generate(
+        (data['addons'] as List).length,
+        (index) {
+          final item = data['addons'][index];
+
+          final price = item['price'] ?? 0;
+          final count = item['count'] ?? 1;
+          final total = item['total'] ?? (price * count);
+
+          return Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                count > 1
+                    ? '${item['name']} ($count)'
+                    : item['name'],
+              ),
+              Text(
+                count > 1
+                    ? '$price x $count = $total'
+                    : '+$price',
+                style: const TextStyle(
+                  color: Colors.blue,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          );
+        },
+      ),
+    ],
+  ),
+
+const SizedBox(height: 10),
+
+/// 🔥 總價
+_infoRow('總價', 'NT\$ ${data['totalPrice'] ?? 0}'),
+
+/// 🔥 訂金
+_infoRow('訂金', 'NT\$ ${data['depositAmount'] ?? 0}'),
+Container(
+  padding: const EdgeInsets.all(10),
+  decoration: BoxDecoration(
+    color: depositPaid ? Colors.green.shade100 : Colors.red.shade100,
+    borderRadius: BorderRadius.circular(8),
+  ),
+  child: Text(
+    depositPaid ? '✅ 已收到訂金' : '❌ 尚未確認訂金',
+    style: TextStyle(
+      fontWeight: FontWeight.bold,
+      color: depositPaid ? Colors.green : Colors.red,
+    ),
+  ),
+),
+/// 🔥 客戶轉帳資訊
+if (data['transferLast5'] != null)
+  const SizedBox(height: 10),
+
+Container(
+  width: double.infinity,
+  padding: const EdgeInsets.all(12),
+  decoration: BoxDecoration(
+    color: Colors.yellow.shade100,
+    borderRadius: BorderRadius.circular(10),
+    border: Border.all(color: Colors.orange),
+  ),
+  child: Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      const Text(
+        '⚠️ 客戶轉帳後五碼',
+        style: TextStyle(
+          fontWeight: FontWeight.bold,
+          color: Colors.orange,
+        ),
+      ),
+      const SizedBox(height: 6),
+      Text(
+        data['transferLast5'] ?? '未填寫',
+        style: const TextStyle(
+          fontSize: 20,
+          fontWeight: FontWeight.bold,
+        ),
+      ),
+    ],
+  ),
+),
+
+const SizedBox(height: 8),
+
+if (data['transferImageUrl'] != null)
+  ClipRRect(
+    borderRadius: BorderRadius.circular(10),
+    child: Image.network(
+      data['transferImageUrl'],
+      height: 200,
+      width: double.infinity,
+      fit: BoxFit.cover,
+    ),
+  ),
 _infoRow('付款方式', paymentMethodText),
 _infoRow('付款金額', payAmountTypeText),
                 const SizedBox(height: 16),
@@ -164,7 +301,7 @@ _infoRow('付款金額', payAmountTypeText),
     child: const Text('確認'),
   ),
 
-if (status == 'pending' && depositAmount > 0 && !depositPaid)
+if (status == 'pending' && depositAmount > 0 && depositPaid != true)
   ElevatedButton(
     onPressed: () => _confirmDepositAndBooking(),
     style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
@@ -359,5 +496,10 @@ Future<void> _confirmDepositAndBooking() async {
     'operatorRole': 'staff',
     'createdAt': FieldValue.serverTimestamp(),
   });
+}
+String _formatDateTime(dynamic value) {
+  if (value == null) return '-';
+  final date = (value as Timestamp).toDate();
+  return '${date.year}-${date.month}-${date.day} ${date.hour}:${date.minute}';
 }
 }

@@ -30,6 +30,12 @@ class BookingService {
   required int nights,
   required String roomId,
   required String roomName,
+  required String roomTypeName, 
+required int basePrice,
+required int extraPetPrice,
+required int extraPetCount,
+required int extraPetTotal,
+required int roomSubtotal,
   String note = '',
 String address = '',
 String emergencyName = '',
@@ -41,6 +47,9 @@ int totalPrice = 0,
 int depositAmount = 0,
 String paymentMethod = '',
 String payAmountType = '', // deposit / full
+List<Map<String, dynamic>>? pets,
+List<Map<String, dynamic>>? addons,
+
 
 })async {
     final user = _currentUser;
@@ -74,31 +83,23 @@ final petDocs = await _firestore
     .where(FieldPath.documentId, whereIn: petIds)
     .get();
 
-final pets = petDocs.docs.map((doc) {
-  final data = doc.data();
+final finalPets = petDocs.docs.map((doc) {
+  final p = doc.data();
+
   return {
-  'petId': doc.id,
-  'name': data['name'] ?? '',
-  'type': data['type'] ?? data['breed'] ?? data['species'] ?? '',
-  'breed': data['breed'] ?? data['type'] ?? data['species'] ?? '',
-  'gender': data['gender'] ?? '',
-  'age': data['age'] ?? '',
-  'isNeutered': data['isNeutered'],
-  'medicalStatus': data['medicalStatus'] ??
-    data['vaccine'] ??
-    data['medicalCondition'] ??
-    data['medicalNote'] ??
-    data['medical'] ??
-    '',
-  'litterType': data['litterType'] ?? '',
-  'photoUrl': data['photoUrl'] ?? '',
-  'note': data['note'] ?? '',
-  'staffNote': data['staffNote'] ??
-      data['internalNote'] ??
-      data['adminNote'] ??
-      data['staffMemo'] ??
-      '',
-};
+    'name': p['name'],
+    'breed': p['breed'],
+    'gender': p['gender'],
+    'age': p['age'],
+    'isNeutered': p['isNeutered'],
+
+    /// 🔥 這兩個是關鍵
+    'medicalStatus': p['vaccine'],   // ← 你現在資料是用 vaccine
+    'litterType': p['litterType'],
+
+    'note': p['note'],
+    'staffNote': p['adminNote'] ?? '',
+  };
 }).toList();
 
 // 🔥 最終防呆：再次確認房間可用
@@ -114,12 +115,19 @@ if (!available) {
 }
 
     await doc.set({
+      'addons': addons,
       'bookingId': doc.id,
       'shopId': shopId,
       'userId': user.uid,
       'customerName': customerName.trim(),
       'customerPhone': customerPhone.trim(),
-'address': address,
+      'address': address,
+      'roomTypeName': roomName, 
+'basePrice': basePrice,
+'extraPetPrice': extraPetPrice,
+'extraPetCount': extraPetCount,
+'extraPetTotal': extraPetTotal,
+'roomSubtotal': roomSubtotal,
 'emergencyContact': {
   'name': emergencyName,
   'phone': emergencyPhone,
@@ -128,7 +136,7 @@ if (!available) {
   'phone2': emergencyPhone2,
 },
       'petIds': petIds,
-      'pets': pets,
+      'pets': finalPets,
       'roomId': realRoomId,
       'roomName': realRoomName,
       'serviceType': serviceType,
@@ -166,7 +174,7 @@ if (!available) {
 // 🔒 同步鎖房（確保不會漏）
 await blockRoomCalendar(
   shopId: shopId,
-  roomId: roomId,
+  roomId: realRoomId,
   startDate: normalizedStart,
   endDate: normalizedEnd,
 );

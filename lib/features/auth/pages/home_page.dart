@@ -16,6 +16,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:petnest_saas/core/services/auth_service.dart';
 import 'package:petnest_saas/core/services/shop_service.dart';
 import 'package:petnest_saas/features/shop/pages/shop_dashboard_page.dart';
+import 'package:petnest_saas/features/platform/pages/create_shop_page.dart';
 
 class HomePage extends StatelessWidget {
   const HomePage({super.key});
@@ -42,118 +43,171 @@ class HomePage extends StatelessWidget {
           child: Padding(
             padding: const EdgeInsets.all(16),
             child: Column(
-              mainAxisSize: MainAxisSize.min,
+              mainAxisSize: MainAxisSize.max,
               children: [
-                /// 登入資訊
-                const Text('登入成功'),
-                const SizedBox(height: 8),
-                Text(user?.email ?? '無法取得 Email'),
-                const SizedBox(height: 24),
+                /// 🌐 平台入口區（🔥新增）
+Container(
+  width: double.infinity,
+  padding: const EdgeInsets.all(16),
+  margin: const EdgeInsets.only(bottom: 20),
+  decoration: BoxDecoration(
+    color: Colors.blue.shade50,
+    borderRadius: BorderRadius.circular(12),
+  ),
+  child: Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      const Text(
+        '歡迎使用 PetNest',
+        style: TextStyle(
+          fontSize: 18,
+          fontWeight: FontWeight.bold,
+        ),
+      ),
+      const SizedBox(height: 10),
 
-                /// 建立店家按鈕
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    onPressed: () async {
-                      try {
-                        final shopId = await ShopService.instance.createShop(
-                          name: '我的第一間店',
-                        );
+      /// 客戶入口
+      const Text('🐱 找寵物旅館'),
+      const SizedBox(height: 6),
+      ElevatedButton(
+        onPressed: () {
+          // TODO: 之後做搜尋頁
+        },
+        child: const Text('前往找店'),
+      ),
 
-                        if (!context.mounted) return;
+      const SizedBox(height: 12),
 
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text('店家建立成功：$shopId')),
-                        );
-                      } catch (e) {
-                        if (!context.mounted) return;
-
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text('建立失敗：$e')),
-                        );
-                      }
-                    },
-                    child: const Text('建立店家'),
-                  ),
-                ),
-
-                const SizedBox(height: 24),
-
-                /// 我的店家列表標題
-                const Align(
-                  alignment: Alignment.centerLeft,
-                  child: Text(
-                    '我的店家',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-
-                const SizedBox(height: 12),
-
-                /// 我的店家列表
-                FutureBuilder<List<Map<String, dynamic>>>(
-                  future: ShopService.instance.getMyShops(),
-                  builder: (context, snapshot) {
-                    /// 載入中
-                    if (snapshot.connectionState == ConnectionState.waiting) {
-                      return const CircularProgressIndicator();
-                    }
-
-                    /// 發生錯誤
-                    if (snapshot.hasError) {
-                      return Text('錯誤：${snapshot.error}');
-                    }
-
-                    /// 取得資料
-                    final shops = snapshot.data ?? [];
-
-                    /// 沒有店家
-                    if (shops.isEmpty) {
-                      return const Text('目前沒有店家');
-                    }
-
-                    /// 顯示店家列表
-                    return Column(
-  children: shops.map((shop) {
-    return Card(
-      child: ListTile(
-        title: Text(shop['name'] ?? '未命名店家'),
-        subtitle: Text('角色：${shop['role'] ?? '-'}'),
-
-        /// 🔥 加這段（關鍵）
-        onTap: () {
+      /// 店主入口
+      const Text('🏪 我要開店'),
+      const SizedBox(height: 6),
+      ElevatedButton(
+        onPressed: () {
           Navigator.push(
             context,
             MaterialPageRoute(
-              builder: (_) => ShopDashboardPage(
-                shopId: shop['shopId'],
-              ),
+              builder: (_) => const CreateShopPage(),
             ),
           );
         },
+        child: const Text('建立店家'),
       ),
-    );
-  }).toList(),
-);
-                  },
-                ),
+    ],
+  ),
+),
 
-                const SizedBox(height: 24),
+  /// 👤 使用者資訊卡
+  Container(
+    width: double.infinity,
+    padding: const EdgeInsets.all(16),
+    decoration: BoxDecoration(
+      color: Colors.grey.shade100,
+      borderRadius: BorderRadius.circular(12),
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          '目前登入',
+          style: TextStyle(fontSize: 12, color: Colors.grey),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          user?.email ?? '',
+          style: const TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+      ],
+    ),
+  ),
 
-                /// 登出按鈕
-                SizedBox(
-                  width: double.infinity,
-                  child: OutlinedButton(
-                    onPressed: () async {
-                      await AuthService.instance.logout();
-                    },
-                    child: const Text('登出'),
-                  ),
-                ),
-              ],
+  const SizedBox(height: 20),
+
+  /// ➕ 建立店家（主按鈕）
+  SizedBox(
+    width: double.infinity,
+    child: ElevatedButton(
+      style: ElevatedButton.styleFrom(
+        padding: const EdgeInsets.symmetric(vertical: 16),
+      ),
+      onPressed: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => const CreateShopPage(),
+          ),
+        );
+      },
+      child: const Text(
+        '➕ 建立新店家',
+        style: TextStyle(fontSize: 16),
+      ),
+    ),
+  ),
+
+  const SizedBox(height: 24),
+
+  /// 🏪 我的店家標題
+  const Align(
+    alignment: Alignment.centerLeft,
+    child: Text(
+      '我的店家',
+      style: TextStyle(
+        fontSize: 18,
+        fontWeight: FontWeight.bold,
+      ),
+    ),
+  ),
+
+  const SizedBox(height: 12),
+
+  /// 🏪 店家列表
+  Expanded(
+    child: FutureBuilder<List<Map<String, dynamic>>>(
+      future: ShopService.instance.getMyShops(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+
+        final shops = snapshot.data ?? [];
+
+        if (shops.isEmpty) {
+          return const Center(child: Text('還沒有店家'));
+        }
+
+        return ListView.builder(
+          itemCount: shops.length,
+          itemBuilder: (context, index) {
+            final shop = shops[index];
+
+            return Card(
+              margin: const EdgeInsets.only(bottom: 12),
+              child: ListTile(
+                title: Text(shop['name'] ?? ''),
+                subtitle: Text('角色：${shop['role']}'),
+                trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => ShopDashboardPage(
+                        shopId: shop['shopId'],
+                      ),
+                    ),
+                  );
+                },
+              ),
+            );
+          },
+        );
+      },
+    ),
+  ),
+
+],
             ),
           ),
         ),

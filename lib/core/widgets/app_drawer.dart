@@ -1,11 +1,14 @@
 // lib/core/widgets/app_drawer.dart
-// 🔥 共用側邊選單 Drawer
+// 🔥 店主 共用側邊選單 Drawer
 
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:petnest_saas/core/services/shop_service.dart';
 import 'package:petnest_saas/features/shop/pages/shop_booking_page.dart';
 import 'package:petnest_saas/features/shop/pages/shop_policy_view_page.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:petnest_saas/features/shop/pages/shop_public_page.dart';
+import 'package:petnest_saas/features/shop/pages/shop_dashboard_page.dart';
 
 class AppDrawer extends StatelessWidget {
   const AppDrawer({
@@ -22,21 +25,125 @@ class AppDrawer extends StatelessWidget {
         child: Column(
           children: [
 
-            const ListTile(
-              title: Text('選單', style: TextStyle(fontWeight: FontWeight.bold)),
+/// 🔥 會員中心（整合版）
+Builder(
+  builder: (context) {
+    final user = FirebaseAuth.instance.currentUser;
+
+    if (user == null) {
+  return Column(
+    children: [
+      const SizedBox(height: 16),
+
+      const Text(
+        '會員中心',
+        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+      ),
+
+      const SizedBox(height: 12),
+
+      const Text('尚未登入'),
+
+      const SizedBox(height: 12),
+
+ElevatedButton(
+  onPressed: () {
+    Navigator.pushNamed(context, '/login');
+  },
+  child: const Text('登入 / 註冊'),
+),
+
+      const SizedBox(height: 12),
+
+      ListTile(
+  leading: const Icon(Icons.home),
+  title: const Text('回店家首頁'),
+  onTap: () {
+    Navigator.pushAndRemoveUntil(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ShopPublicPage(
+          shopId: shopId,
+        ),
+      ),
+      (route) => false,
+    );
+  },
+),
+
+      const Divider(),
+    ],
+  );
+}
+
+    return StreamBuilder<DocumentSnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('user_profiles')
+          .doc(user.uid)
+          .snapshots(),
+      builder: (context, snapshot) {
+        final data = snapshot.data?.data() as Map<String, dynamic>?;
+
+        final name = data?['name'] ?? '';
+        final phone = data?['phone'] ?? '';
+
+        return Column(
+          children: [
+            const SizedBox(height: 16),
+
+            const Text(
+              '會員中心',
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+            ),
+
+            const SizedBox(height: 12),
+
+const SizedBox(height: 8),
+
+/// 🔥 姓名
+Text(
+  name.isNotEmpty ? name : user.email ?? '',
+  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+),
+
+const SizedBox(height: 4),
+
+/// 🔥 電話
+Text(phone),
+
+const SizedBox(height: 4),
+
+/// 🔥 Email
+Text(user.email ?? ''),
+
+            const SizedBox(height: 8),
+
+            ListTile(
+              leading: const Icon(Icons.person),
+              title: const Text('會員資料'),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.pushNamed(context, '/member');
+              },
             ),
 
             ListTile(
-              leading: const Icon(Icons.home),
-              title: const Text('回到首頁'),
-              onTap: () {
-                Navigator.pop(context);
-                Navigator.of(context).pushNamedAndRemoveUntil(
-                  '/home',
-                  (route) => false,
-                );
-              },
+              leading: const Icon(Icons.logout),
+              title: const Text('登出'),
+              onTap: () async {
+  await FirebaseAuth.instance.signOut();
+  Navigator.pop(context); // 只關 Drawer
+},
             ),
+
+            const Divider(),
+          ],
+        );
+      },
+    );
+  },
+),
+
 
             /// 👇 員工才顯示
             FutureBuilder<bool>(
@@ -52,11 +159,19 @@ class AppDrawer extends StatelessWidget {
                 return ListTile(
                   leading: const Icon(Icons.admin_panel_settings),
                   title: const Text('回後台'),
-                  onTap: () {
-                    Navigator.pop(context);
-                    Navigator.pushNamed(context, '/admin');
-                  },
+onTap: () {
+  Navigator.pushAndRemoveUntil(
+    context,
+    MaterialPageRoute(
+      builder: (_) => ShopDashboardPage(
+        shopId: shopId, // 🔥 關鍵
+      ),
+    ),
+    (route) => false,
+  );
+},
                 );
+                
               },
             ),
 
@@ -74,7 +189,10 @@ class AppDrawer extends StatelessWidget {
                 Navigator.pop(context);
 
                 final user = FirebaseAuth.instance.currentUser;
-                if (user == null) return;
+if (user == null) {
+  Navigator.pushNamed(context, '/login');
+  return;
+}
 
                 final hasAccepted =
                     await ShopService.instance.hasAcceptedPolicy(
@@ -113,7 +231,6 @@ class AppDrawer extends StatelessWidget {
 
             const Divider(),
 
-            ListTile(leading: const Icon(Icons.person), title: const Text('會員')),
             ListTile(leading: const Icon(Icons.settings), title: const Text('功能設定')),
 
             const Divider(),

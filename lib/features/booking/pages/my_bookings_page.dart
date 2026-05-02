@@ -4,6 +4,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'booking_detail_page.dart';
 
 class MyBookingsPage extends StatelessWidget {
   const MyBookingsPage({super.key});
@@ -24,7 +25,6 @@ class MyBookingsPage extends StatelessWidget {
         stream: FirebaseFirestore.instance
             .collection('bookings')
             .where('userId', isEqualTo: user.uid)
-            .orderBy('createdAt', descending: true)
             .snapshots(),
         builder: (context, snapshot) {
 
@@ -47,19 +47,32 @@ class MyBookingsPage extends StatelessWidget {
               final end = (data['endDate'] as Timestamp).toDate();
 
               return Card(
-                margin: const EdgeInsets.all(12),
-                child: ListTile(
-                  title: Text(data['roomName'] ?? '房型'),
-                  subtitle: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('${start.toString().substring(0, 10)} → ${end.toString().substring(0, 10)}'),
-                      Text('寵物數：${(data['petIds'] ?? []).length}'),
-                      Text('狀態：${data['status'] ?? ''}'),
-                    ],
-                  ),
-                ),
-              );
+  margin: const EdgeInsets.all(12),
+  child: ListTile(
+    title: Text(data['roomName'] ?? '房型'),
+    subtitle: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('${start.toString().substring(0, 10)} → ${end.toString().substring(0, 10)}'),
+        Text('寵物數：${(data['petIds'] ?? []).length}'),
+        Text('狀態：${data['status'] ?? ''}'),
+      ],
+    ),
+
+    /// 🔥 點擊進詳細頁
+    onTap: () {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => BookingDetailPage(
+  data: data,
+  docId: docs[index].id, // 🔥 這行關鍵
+),
+        ),
+      );
+    },
+  ),
+);
             },
           );
         },

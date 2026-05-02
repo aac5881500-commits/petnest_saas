@@ -15,7 +15,6 @@
 // - 若第二次點的日期 <= 入住日，則重新選入住日
 // - 顯示區間晚數 / 總價 / 最少剩餘房數
 
-import 'package:petnest_saas/features/member/pages/member_page.dart';
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/services/booking_service.dart';
 import 'package:petnest_saas/core/services/shop_service.dart';
@@ -29,6 +28,7 @@ import 'package:petnest_saas/core/services/member_service.dart';
 import 'package:petnest_saas/features/booking/pages/booking_form_page.dart';
 import 'package:petnest_saas/features/booking/pages/booking_success_page.dart';
 import 'package:petnest_saas/features/shop/pages/room_type_detail_page.dart';
+import 'package:petnest_saas/core/widgets/app_drawer.dart';
 
 
 class ShopBookingPage extends StatefulWidget {
@@ -156,33 +156,7 @@ Future<_FrontCalendarPayload>? _calendarFuture;
         title: const Text('我要預約'),
       ),
 
-drawer: Drawer(
-  child: Column(
-    children: [
-
-      const DrawerHeader(
-        child: Text('會員中心'),
-      ),
-
-      ListTile(
-        leading: const Icon(Icons.login),
-        title: const Text('登入會員'),
-        onTap: () {
-          Navigator.pop(context);
-
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (_) => const MemberPage(),
-            ),
-          );
-        },
-      ),
-
-    ],
-  ),
-),
-
+      drawer: AppDrawer(shopId: widget.shopId),
 
       body: StreamBuilder<Map<String, dynamic>?>(
         stream: ShopService.instance.streamShop(widget.shopId),
@@ -688,9 +662,11 @@ if (_canShowFormFields) ...[
                 context,
                 MaterialPageRoute(
                   builder: (_) => BookingFormPage(
+                    
   shopId: widget.shopId,
   totalPrice: totalPrice,
   roomPrice: roomPrice,
+  addons: _selectedValueServices,
                     formKey: _formKey,
                     customerNameController: _customerNameController,
                     customerPhoneController: _customerPhoneController,
@@ -1184,6 +1160,21 @@ await FirebaseFirestore.instance
 
      final totalPrice = _calculateTotalPrice();
 
+     /// 🔥 房價拆解（新增）
+final basePrice = (_selectedRoomType!['price'] ?? 0).toInt();
+
+final petCount = _selectedPetIds.length;
+
+final extraPrice = (_selectedRoomType!['extraPrice'] ?? 0).toInt();
+
+final extraPetCount = petCount > 1 ? petCount - 1 : 0;
+
+final int extraPetTotal =
+    (extraPetCount * extraPrice * _nights).toInt();
+
+/// 🔥 房費小計
+final int roomSubtotal = basePrice + extraPetTotal;
+
       final pricePerNight = _nights > 0 ? (totalPrice ~/ _nights) : 0;
 
  final bookingId = await BookingService.instance.createBooking(
@@ -1191,27 +1182,50 @@ await FirebaseFirestore.instance
   customerName: _customerNameController.text,
   customerPhone: _customerPhoneController.text,
   petIds: _selectedPetIds,
+basePrice: basePrice,
+extraPetPrice: extraPrice,
+extraPetCount: extraPetCount,
+extraPetTotal: extraPetTotal,
+roomSubtotal: roomSubtotal,
+
+  /// 🔥🔥🔥 新增：完整寵物資料
+  pets: _pets
+      .where((p) => _selectedPetIds.contains(p['petId']))
+      .map((p) => {
+            'name': p['name'],
+            'breed': p['breed'] ?? p['type'],
+            'age': p['age'],
+            'gender': p['gender'],
+            'isNeutered': p['isNeutered'],
+            'medicalStatus': p['medicalStatus'],
+            'litterType': p['litterType'],
+            'note': p['note'],
+          })
+      .toList(),
+
   serviceType: _selectedServiceType!,
-  roomId: _selectedRoomType!['roomTypeId'], 
-  roomName: _selectedRoomType!['name'],
+  roomId: _selectedRoomType!['roomTypeId'], // 👉 這其實是 typeId
+  roomName: _selectedRoomType!['name'], // 👉 先留著
+  roomTypeName: _selectedRoomType!['name'],
   startDate: _startDate!,
   endDate: _endDate!,
   nights: _nights,
   note: _noteController.text,
 
-  /// 🔥 新增（先給空）
-address: address,
-emergencyName: emergencyName,
-emergencyPhone: emergencyPhone,
+  address: address,
+  emergencyName: emergencyName,
+  emergencyPhone: emergencyPhone,
+  emergencyRelation: relation,
+  emergencyAddress: emergencyAddress,
+  emergencyPhone2: phone2,
 
-/// 🔥 新增
-emergencyRelation: relation,
-emergencyAddress: emergencyAddress,
-emergencyPhone2: phone2,
-totalPrice: totalPrice,
-depositAmount: depositAmount,
-paymentMethod: paymentMethod,
-payAmountType: payAmountType,
+  totalPrice: totalPrice,
+  depositAmount: depositAmount,
+  paymentMethod: paymentMethod,
+  payAmountType: payAmountType,
+
+  /// 🔥🔥🔥 加值服務（最重要）
+  addons: _buildAddonsData(),
 );
       await BookingService.instance.updateBooking(
         bookingId: bookingId,
@@ -1493,46 +1507,48 @@ if (_rangeMessage.isNotEmpty)
 }
 
 int _calculateTotalPrice() {
-  /// 🔥 房價
-  int total = BookingService.instance.calculateTotalPrice(
-    roomType: _selectedRoomType!,
-    startDate: _startDate!,
-    endDate: _endDate!,
-  );
-  /// 🔥 加寵物價格
-final petCount = _selectedPetIds.length;
-final basePet = 1; // 🔥 1隻免費（你現在UI邏輯）
-final extraPrice = (_selectedRoomType!['extraPrice'] ?? 0).toInt();
+  final basePrice = (_selectedRoomType!['price'] ?? 0).toInt();
 
-if (petCount > basePet) {
-  final extraCount = petCount - basePet;
-  total += (extraCount * extraPrice).toInt();
-}
-  /// 🔥 時間加購（單選）
+  /// 🔥 房價（乘晚數）
+  int total = basePrice * _nights;
+
+  /// 🔥 多貓
+  final petCount = _selectedPetIds.length;
+  final basePet = 1;
+  final extraPrice = (_selectedRoomType!['extraPrice'] ?? 0).toInt();
+
+  if (petCount > basePet) {
+    final extraCount = petCount - basePet;
+
+    /// 🔥 這裡是你剛剛錯的地方
+    total += (extraCount * extraPrice * _nights).toInt();
+  }
+
+  /// 🔥 時間加購
   if (_selectedTimeAddon != null) {
     total += (_selectedTimeAddon!['price'] ?? 0) as int;
   }
 
-  /// 🔥 加值服務（單次）
+  /// 🔥 加值服務
   for (var item in _selectedValueServices) {
     total += (item['price'] ?? 0) as int;
   }
 
-  /// 🔥 客製化（每隻）
+  /// 🔥 客製化
   for (var entry in _selectedCustomServices.entries) {
-  final serviceName = entry.key;
-  final selectedPets = entry.value;
+    final serviceName = entry.key;
+    final selectedPets = entry.value;
 
-  final service = (_addonData?['customServices'] ?? [])
-      .firstWhere(
-        (e) => e['name'] == serviceName,
-        orElse: () => {},
-      );
+    final service = (_addonData?['customServices'] ?? [])
+        .firstWhere(
+          (e) => e['name'] == serviceName,
+          orElse: () => {},
+        );
 
-  final price = (service['price'] ?? 0) as int;
+    final price = (service['price'] ?? 0) as int;
 
-  total += price * selectedPets.length;
-}
+    total += price * selectedPets.length;
+  }
 
   return total;
 }
@@ -1912,6 +1928,61 @@ Widget _addonItemUI(Map item, bool isSelected) {
       ],
     ),
   );
+}
+List<Map<String, dynamic>> _buildAddonsData() {
+  List<Map<String, dynamic>> addons = [];
+
+  /// 🔥 時間加購（單選）
+  if (_selectedTimeAddon != null) {
+    addons.add({
+      'name': _selectedTimeAddon!['label'],
+      'price': _selectedTimeAddon!['price'],
+      'type': 'time',
+    });
+  }
+
+  /// 🔥 一般加值
+  for (var item in _selectedValueServices) {
+  addons.add({
+    'name': item['name'],
+    'price': item['price'],
+    'type': 'value',
+
+    /// 🔥 新增（關鍵）
+    'petIds': _selectedPetIds,
+
+    /// 🔥 讓後台顯示名字用
+    'petNames': _selectedPetIds.map((petId) {
+      final pet = _pets.firstWhere(
+        (p) => p['petId'] == petId,
+        orElse: () => {},
+      );
+      return pet['name'] ?? petId;
+    }).toList(),
+  });
+}
+
+  /// 🔥 客製化（每隻）
+  for (var entry in _selectedCustomServices.entries) {
+    final name = entry.key;
+    final petList = entry.value;
+
+    final service = (_addonData?['customServices'] ?? [])
+        .firstWhere((e) => e['name'] == name, orElse: () => {});
+
+    final price = service['price'] ?? 0;
+
+    addons.add({
+      'name': name,
+      'price': price,
+      'count': petList.length,
+      'total': price * petList.length,
+      'petNames': petList.map((p) => p.toString()).toList(),
+      'type': 'custom',
+    });
+  }
+
+  return addons;
 }
 }
 

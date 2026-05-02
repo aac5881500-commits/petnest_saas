@@ -7,7 +7,6 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:petnest_saas/core/services/pet_service.dart';
 import 'package:petnest_saas/features/pet/pages/pet_detail_page.dart';
 import 'package:petnest_saas/features/pet/pages/add_pet_page.dart';
-import 'package:petnest_saas/features/booking/pages/booking_detail_page_backup.dart';
 import 'package:petnest_saas/features/member/pages/member_booking_page.dart';
 import 'package:petnest_saas/features/booking/pages/my_bookings_page.dart';
 

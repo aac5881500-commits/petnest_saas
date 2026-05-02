@@ -61,6 +61,15 @@ class _LoginPageState extends State<LoginPage> {
         password: _passwordController.text.trim(),
       );
 
+      if (!mounted) return;
+
+/// 🔥 登入成功 → 回首頁（或店家頁）
+Navigator.pushNamedAndRemoveUntil(
+  context,
+  '/home',
+  (route) => false,
+);
+
       /// 🔥 記住帳號
       final prefs = await SharedPreferences.getInstance();
 
@@ -171,6 +180,50 @@ class _LoginPageState extends State<LoginPage> {
                 ),
 
                 const SizedBox(height: 12),
+
+/// 🔥 Google 登入
+SizedBox(
+  width: double.infinity,
+  child: ElevatedButton.icon(
+    icon: const Icon(Icons.g_mobiledata, size: 28),
+    label: const Text('使用 Google 登入'),
+    onPressed: _loading
+        ? null
+        : () async {
+            try {
+              setState(() {
+                _loading = true;
+              });
+
+              final result =
+                  await AuthService.instance.signInWithGoogle();
+
+              if (result == null) return;
+
+              if (!mounted) return;
+
+              Navigator.pushNamedAndRemoveUntil(
+                context,
+                '/home',
+                (route) => false,
+              );
+            } catch (e) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text('Google登入失敗: $e')),
+              );
+            } finally {
+              if (mounted) {
+                setState(() {
+                  _loading = false;
+                });
+              }
+            }
+          },
+  ),
+),
+
+const SizedBox(height: 12),
+
 
                 /// 建立店家
                 SizedBox(

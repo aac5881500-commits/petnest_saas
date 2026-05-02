@@ -1,9 +1,13 @@
+
+//lib/main.dart 入口 
+
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/features/auth/pages/home_page.dart';
 import 'package:petnest_saas/features/auth/pages/login_page.dart';
 import 'package:petnest_saas/firebase_options.dart';
+import 'package:petnest_saas/features/member/pages/member_page.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -21,14 +25,23 @@ class PetNestApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'PetNest SaaS',
-      debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        useMaterial3: true,
-        colorSchemeSeed: Colors.blue,
-      ),
-      home: const AppEntryPage(),
-    );
+  title: 'PetNest SaaS',
+  debugShowCheckedModeBanner: false,
+  theme: ThemeData(
+    useMaterial3: true,
+    colorSchemeSeed: Colors.blue,
+  ),
+
+  /// 🔥 一定要有這段
+  routes: {
+    '/member': (context) => const MemberPage(),
+    '/login': (context) => const LoginPage(),
+    '/home': (context) => const HomePage(),
+    
+  },
+
+  home: const AppEntryPage(),
+);
   }
 }
 
