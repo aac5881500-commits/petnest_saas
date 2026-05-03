@@ -93,8 +93,10 @@ final finalPets = petDocs.docs.map((doc) {
     'age': p['age'],
     'isNeutered': p['isNeutered'],
 
-    /// 🔥 這兩個是關鍵
-    'medicalStatus': p['vaccine'],   // ← 你現在資料是用 vaccine
+    /// 🔥 修正這裡
+    'photoUrl': p['photoUrl'] ?? '',
+
+    'medicalStatus': p['vaccine'],
     'litterType': p['litterType'],
 
     'note': p['note'],

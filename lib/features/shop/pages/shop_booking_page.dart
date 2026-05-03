@@ -657,11 +657,14 @@ if (_canShowFormFields) ...[
           ? () {
   final totalPrice = _calculateTotalPrice();
 
-  final roomPrice = BookingService.instance.calculateTotalPrice(
-    roomType: _selectedRoomType!,
-    startDate: _startDate!,
-    endDate: _endDate!,
-  );
+  final basePrice = (_selectedRoomType!['price'] ?? 0).toInt();
+final extraPrice = (_selectedRoomType!['extraPrice'] ?? 0).toInt();
+final petCount = _selectedPetIds.length;
+final extraPetCount = petCount > 1 ? petCount - 1 : 0;
+
+final int roomSubtotal =
+    (basePrice * _nights) +
+    (extraPetCount * extraPrice * _nights);
 
   Navigator.push(
                 context,
@@ -670,7 +673,7 @@ if (_canShowFormFields) ...[
                     
   shopId: widget.shopId,
   totalPrice: totalPrice,
-  roomPrice: roomPrice,
+  roomPrice: roomSubtotal,
   addons: _selectedValueServices,
                     formKey: _formKey,
                     customerNameController: _customerNameController,
