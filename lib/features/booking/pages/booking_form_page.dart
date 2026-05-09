@@ -404,6 +404,19 @@ final depositBaseText =
 
               const SizedBox(height: 24),
 
+const SizedBox(height: 24),
+
+TextFormField(
+  controller: widget.noteController,
+  maxLines: 4,
+  decoration: const InputDecoration(
+    labelText: '訂單備註',
+    hintText: '例如：貓咪比較怕生、希望安排安靜一點的位置',
+    border: OutlineInputBorder(),
+  ),
+),
+
+const SizedBox(height: 24),
 
 /// 🔥 總金額顯示（新增）
 Container(

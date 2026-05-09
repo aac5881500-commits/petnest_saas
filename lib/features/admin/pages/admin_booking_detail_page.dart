@@ -13,8 +13,12 @@
 
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:petnest_saas/core/services/booking_service.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:firebase_storage/firebase_storage.dart';
+
 
 class AdminBookingDetailPage extends StatelessWidget {
   const AdminBookingDetailPage({
@@ -28,8 +32,63 @@ class AdminBookingDetailPage extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('訂單詳細'),
+  title: const Text('訂單詳細'),
+  actions: [
+    Padding(
+      padding: const EdgeInsets.only(right: 12),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+
+          const Text(
+            '訂單編號',
+            style: TextStyle(
+              fontSize: 11,
+              color: Colors.grey,
+            ),
+          ),
+
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+
+              Text(
+  bookingId.substring(0, 8),
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 15,
+                ),
+              ),
+
+              const SizedBox(width: 4),
+
+              GestureDetector(
+                onTap: () async {
+                  await Clipboard.setData(
+                    ClipboardData(text: bookingId),
+                  );
+
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('已複製訂單編號'),
+                      ),
+                    );
+                  }
+                },
+                child: const Icon(
+                  Icons.copy,
+                  size: 16,
+                ),
+              ),
+            ],
+          ),
+        ],
       ),
+    ),
+  ],
+),
       body: StreamBuilder<DocumentSnapshot>(
         stream: FirebaseFirestore.instance
             .collection('bookings')
@@ -651,39 +710,41 @@ Container(
     ],
   ),
 ),
-if (data['transferLast5'] != null)
+if (data['paymentMethod'] == 'transfer') ...[
   const SizedBox(height: 10),
 
-Container(
-  width: double.infinity,
-  padding: const EdgeInsets.all(12),
-  decoration: BoxDecoration(
-    color: Colors.yellow.shade100,
-    borderRadius: BorderRadius.circular(10),
-    border: Border.all(color: Colors.orange),
-  ),
-  child: Column(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: [
-      const Text(
-        '⚠️ 客戶轉帳後五碼',
-        style: TextStyle(
-          fontWeight: FontWeight.bold,
-          color: Colors.orange,
+  Container(
+    width: double.infinity,
+    padding: const EdgeInsets.all(12),
+    decoration: BoxDecoration(
+      color: Colors.yellow.shade100,
+      borderRadius: BorderRadius.circular(10),
+      border: Border.all(color: Colors.orange),
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          '⚠️ 客戶轉帳後五碼',
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
+            color: Colors.orange,
+          ),
         ),
-      ),
-      const SizedBox(height: 6),
-      Text(
-        data['transferLast5'] ?? '未填寫',
-        style: const TextStyle(
-          fontSize: 20,
-          fontWeight: FontWeight.bold,
+        const SizedBox(height: 6),
+        Text(
+          (data['transferLast5'] ?? '').toString().isEmpty
+              ? '未填寫'
+              : data['transferLast5'].toString(),
+          style: const TextStyle(
+            fontSize: 20,
+            fontWeight: FontWeight.bold,
+          ),
         ),
-      ),
-    ],
+      ],
+    ),
   ),
-),
-
+],
 
 const SizedBox(height: 8),
 
@@ -730,11 +791,297 @@ if (data['transferImageUrl'] != null)
       ],
     ),
   ),
+
+_sectionTitle('退房額外費用'),
+
+Container(
+  width: double.infinity,
+  padding: const EdgeInsets.all(14),
+  margin: const EdgeInsets.only(bottom: 16),
+  decoration: BoxDecoration(
+    color: Colors.white,
+    borderRadius: BorderRadius.circular(16),
+    boxShadow: [
+      BoxShadow(
+        color: Colors.black.withOpacity(0.05),
+        blurRadius: 10,
+      ),
+    ],
+  ),
+  child: (data['extraCharges'] ?? []).isEmpty
+      ? const Text(
+          '目前無額外費用',
+          style: TextStyle(color: Colors.grey),
+        )
+      : Column(
+          children: List.generate(
+            (data['extraCharges'] as List).length,
+            (index) {
+              final item = data['extraCharges'][index];
+              final title = item['title'] ?? '額外費用';
+              final amount = item['amount'] ?? 0;
+              final note = item['note'] ?? '';
+              final imageUrls = (item['imageUrls'] ?? []) as List;
+
+              return Container(
+                margin: const EdgeInsets.only(bottom: 12),
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.red.shade50,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.red.shade100),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          title,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        Text(
+                          'NT\$ $amount',
+                          style: const TextStyle(
+                            color: Colors.red,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
+
+                    if (note.toString().isNotEmpty) ...[
+                      const SizedBox(height: 6),
+                      Text(
+                        note.toString(),
+                        style: const TextStyle(color: Colors.black87),
+                      ),
+                    ],
+
+                    if (imageUrls.isNotEmpty) ...[
+                      const SizedBox(height: 10),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: List.generate(imageUrls.length, (imgIndex) {
+                          final url = imageUrls[imgIndex].toString();
+
+                          return GestureDetector(
+                            onTap: () {
+                              showDialog(
+                                context: context,
+                                builder: (_) => Dialog(
+                                  child: InteractiveViewer(
+                                    child: Image.network(
+                                      url,
+                                      fit: BoxFit.contain,
+                                    ),
+                                  ),
+                                ),
+                              );
+                            },
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(10),
+                              child: Image.network(
+                                url,
+                                width: 80,
+                                height: 80,
+                                fit: BoxFit.cover,
+                              ),
+                            ),
+                          );
+                        }),
+                      ),
+                    ],
+                  ],
+                ),
+              );
+            },
+          ),
+        ),
+),
+
+_sectionTitle('訂單備註'),
+
+Container(
+  width: double.infinity,
+  padding: const EdgeInsets.all(14),
+  margin: const EdgeInsets.only(bottom: 16),
+  decoration: BoxDecoration(
+    color: Colors.grey.shade50,
+    borderRadius: BorderRadius.circular(12),
+    border: Border.all(color: Colors.grey.shade300),
+  ),
+  child: Text(
+    (data['note'] ?? '').toString().trim().isEmpty
+        ? '無備註'
+        : data['note'].toString(),
+    style: const TextStyle(
+      fontSize: 15,
+      height: 1.5,
+    ),
+  ),
+),
+
+_sectionTitle('訂單時間軸'),
+
+Container(
+  width: double.infinity,
+  padding: const EdgeInsets.all(14),
+  margin: const EdgeInsets.only(bottom: 16),
+  decoration: BoxDecoration(
+    color: Colors.white,
+    borderRadius: BorderRadius.circular(16),
+    boxShadow: [
+      BoxShadow(
+        color: Colors.black.withOpacity(0.05),
+        blurRadius: 10,
+      ),
+    ],
+  ),
+  child: Column(
+    children: [
+      _timelineItem(
+        title: '已送出預約',
+        time: _formatDateTime(data['createdAt']),
+        active: true,
+      ),
+
+      _timelineItem(
+        title: '付款 / 訂單保留期限',
+        time: _formatDateTime(data['depositExpireAt']),
+        active: data['depositExpireAt'] != null,
+      ),
+
+      _timelineItem(
+        title: '店家已確認',
+        time: _formatDateTime(data['confirmedAt']),
+        active: data['confirmedAt'] != null,
+      ),
+
+      _timelineItem(
+        title: '入住',
+        time: _formatDateTime(data['checkInAt']),
+        active: data['checkInAt'] != null,
+      ),
+
+      _timelineItem(
+        title: '退房完成',
+        time: _formatDateTime(data['checkOutAt']),
+        active: data['checkOutAt'] != null,
+      ),
+
+      if (status == 'cancelled')
+        _timelineItem(
+          title: '訂單已取消',
+          time: _formatDateTime(data['cancelledAt']),
+          active: true,
+          isLast: true,
+        )
+      else
+        _timelineItem(
+          title: '訂單完成',
+          time: _formatDateTime(data['checkOutAt']),
+          active: status == 'completed',
+          isLast: true,
+        ),
+    ],
+  ),
+),
+
+
                 _sectionTitle('狀態'),
 
                 _statusChip(status),
 
+if (status == 'cancelled') ...[
+  const SizedBox(height: 10),
+  Container(
+    width: double.infinity,
+    padding: const EdgeInsets.all(12),
+    decoration: BoxDecoration(
+      color: Colors.red.shade50,
+      borderRadius: BorderRadius.circular(12),
+      border: Border.all(color: Colors.red.shade100),
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          '取消原因：${data['cancelReason'] ?? '未填寫'}',
+          style: const TextStyle(
+            color: Colors.red,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          '取消來源：${_cancelByText(data['cancelBy'])}',
+          style: TextStyle(
+            color: Colors.red.shade700,
+            fontSize: 13,
+          ),
+        ),
+      ],
+    ),
+  ),
+],
+
                 const SizedBox(height: 16),
+
+_sectionTitle('操作紀錄'),
+
+Container(
+  width: double.infinity,
+  padding: const EdgeInsets.all(14),
+  margin: const EdgeInsets.only(bottom: 16),
+  decoration: BoxDecoration(
+    color: Colors.white,
+    borderRadius: BorderRadius.circular(16),
+    boxShadow: [
+      BoxShadow(
+        color: Colors.black.withOpacity(0.05),
+        blurRadius: 10,
+      ),
+    ],
+  ),
+  child: StreamBuilder<QuerySnapshot>(
+    stream: FirebaseFirestore.instance
+        .collection('action_logs')
+        .where('bookingId', isEqualTo: bookingId)
+        .snapshots(),
+    builder: (context, snapshot) {
+
+      if (!snapshot.hasData) {
+        return const Center(
+          child: CircularProgressIndicator(),
+        );
+      }
+
+      final logs = snapshot.data!.docs;
+
+      if (logs.isEmpty) {
+        return const Text(
+          '目前無操作紀錄',
+          style: TextStyle(color: Colors.grey),
+        );
+      }
+
+      return Column(
+        children: logs.map((doc) {
+
+          final log = doc.data() as Map<String, dynamic>;
+
+          return _actionLogCard(log);
+
+        }).toList(),
+      );
+    },
+  ),
+),
 
                 Wrap(
   spacing: 8,
@@ -743,7 +1090,18 @@ if (data['transferImageUrl'] != null)
     /// 👉 pending → confirmed
     if (status == 'pending' && depositAmount <= 0)
   ElevatedButton(
-    onPressed: () => _updateStatus('confirmed'),
+    onPressed: () async {
+
+      await FirebaseFirestore.instance
+          .collection('bookings')
+          .doc(bookingId)
+          .update({
+        'status': 'confirmed',
+        'confirmedAt': FieldValue.serverTimestamp(),
+      });
+
+      await _updateStatus('confirmed');
+    },
     child: const Text('確認'),
   ),
 
@@ -761,18 +1119,32 @@ if (status == 'pending' && depositAmount > 0 && depositPaid)
   ),
 
     /// 👉 pending → cancelled
-    if (status == 'pending')
-      ElevatedButton(
-        onPressed: () => _updateStatus('cancelled'),
-        style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-        child: const Text('取消'),
-      ),
-
+   if (status == 'pending' || status == 'confirmed')
+  ElevatedButton(
+    onPressed: () async {
+      await _cancelBookingWithReason(
+        context: context,
+        data: data,
+      );
+    },
+    style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+    child: const Text('取消訂單'),
+  ),
     /// 👉 confirmed → completed
     /// 👉 confirmed → checked_in（入住）
 if (status == 'confirmed')
   ElevatedButton(
-    onPressed: () => _updateStatus('checked_in'),
+    onPressed: () async {
+
+      await FirebaseFirestore.instance
+          .collection('bookings')
+          .doc(bookingId)
+          .update({
+        'checkInAt': FieldValue.serverTimestamp(),
+      });
+
+      await _updateStatus('checked_in');
+    },
     style: ElevatedButton.styleFrom(backgroundColor: Colors.blue),
     child: const Text('入住'),
   ),
@@ -780,7 +1152,270 @@ if (status == 'confirmed')
 /// 👉 checked_in → completed（退房）
 if (status == 'checked_in')
   ElevatedButton(
-    onPressed: () => _updateStatus('completed'),
+    onPressed: () async {
+  final extraFeeController = TextEditingController();
+
+ final extraChargeTitleController =
+    TextEditingController(text: '額外清潔費');
+final extraChargeNoteController = TextEditingController();
+
+List<XFile> extraChargeImages = [];
+bool isUploadingExtraImage = false;
+
+  final result = await showDialog(
+    context: context,
+    builder: (context) {
+      return AlertDialog(
+        title: const Text('退房 - 額外收費'),
+        content: Column(
+  mainAxisSize: MainAxisSize.min,
+  children: [
+    TextField(
+      controller: extraChargeTitleController,
+      decoration: const InputDecoration(
+  labelText: '費用名稱',
+  hintText: '例如：額外清潔費',
+),
+    ),
+
+    const SizedBox(height: 12),
+
+    TextField(
+      controller: extraFeeController,
+      keyboardType: TextInputType.number,
+      decoration: const InputDecoration(
+        labelText: '金額',
+        hintText: '例如：300',
+      ),
+    ),
+
+    const SizedBox(height: 12),
+
+    TextField(
+      controller: extraChargeNoteController,
+      decoration: const InputDecoration(
+        labelText: '備註',
+        hintText: '例如：退房時發現亂尿尿',
+      ),
+    ),
+    const SizedBox(height: 12),
+
+StatefulBuilder(
+  builder: (context, setDialogState) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        OutlinedButton.icon(
+          onPressed: () async {
+
+  if (isUploadingExtraImage) return;
+
+  if (extraChargeImages.length >= 3) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('最多只能上傳 3 張照片'),
+      ),
+    );
+    return;
+  }
+
+  setDialogState(() {
+    isUploadingExtraImage = true;
+  });
+
+  final picked = await ImagePicker().pickImage(
+    source: ImageSource.gallery,
+    maxWidth: 1200,
+    imageQuality: 75,
+  );
+
+  if (picked != null) {
+    extraChargeImages.add(picked);
+  }
+
+  setDialogState(() {
+    isUploadingExtraImage = false;
+  });
+},
+          icon: Icon(
+  isUploadingExtraImage
+      ? Icons.hourglass_top
+      : Icons.photo_library,
+),
+          label: Text(
+  isUploadingExtraImage
+      ? '照片處理中...'
+      : '選擇照片',
+),
+        ),
+
+        if (extraChargeImages.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.only(top: 8),
+            child: Text(
+              '已選擇 ${extraChargeImages.length} 張照片',
+              style: const TextStyle(
+                color: Colors.green,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+      ],
+    );
+  },
+),
+  ],
+),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('取消'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(context, extraFeeController.text);
+            },
+            child: const Text('確認退房'),
+          ),
+        ],
+      );
+    },
+  );
+
+final confirmCheckout = await showDialog<bool>(
+  context: context,
+  builder: (_) => AlertDialog(
+    title: const Text('確認退房'),
+    content: const Text('確定要將此訂單改為退房完成嗎？此操作會結束本次入住流程。'),
+    actions: [
+      TextButton(
+        onPressed: () => Navigator.pop(context, false),
+        child: const Text('返回'),
+      ),
+      ElevatedButton(
+        onPressed: () => Navigator.pop(context, true),
+        style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
+        child: const Text('確認退房'),
+      ),
+    ],
+  ),
+);
+
+if (confirmCheckout != true) return;
+
+  if (result == null) return;
+
+  final extraFee = int.tryParse(result) ?? 0;
+
+final extraChargeTitle = extraChargeTitleController.text.trim();
+final extraChargeNote = extraChargeNoteController.text.trim();
+
+final List<Map<String, dynamic>> extraCharges = [];
+
+List<String> evidenceImageUrls = [];
+
+if (extraChargeImages.isNotEmpty) {
+  showDialog(
+    context: context,
+    barrierDismissible: false,
+    builder: (_) => const AlertDialog(
+      content: Row(
+        children: [
+          CircularProgressIndicator(),
+          SizedBox(width: 16),
+          Text('照片上傳中，請稍候...'),
+        ],
+      ),
+    ),
+  );
+
+  try {
+  evidenceImageUrls = await _uploadExtraChargeImages(
+    bookingId: bookingId,
+    images: extraChargeImages,
+  );
+} catch (e) {
+  if (context.mounted) {
+    Navigator.pop(context);
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('照片上傳失敗：$e')),
+    );
+  }
+
+  return;
+}
+
+  if (context.mounted) {
+    Navigator.pop(context);
+  }
+}
+
+if (extraFee > 0) {
+  extraCharges.add({
+  'title': extraChargeTitle.isEmpty ? '退房額外費用' : extraChargeTitle,
+  'amount': extraFee,
+  'note': extraChargeNote,
+  'imageUrls': evidenceImageUrls,
+  'createdAt': Timestamp.now(),
+});
+}
+
+  final now = FieldValue.serverTimestamp();
+
+  await FirebaseFirestore.instance
+    .collection('bookings')
+    .doc(bookingId)
+    .update({
+  'checkOutAt': now,
+  'extraFee': extraFee,
+  'extraCharges': FieldValue.arrayUnion(extraCharges),
+});
+
+/// 🔥 👉 這裡貼（就是這一行下面）
+await FirebaseFirestore.instance
+    .collection('reports')
+    .add({
+  'bookingId': bookingId,
+  'roomName': data['roomName'],
+  'totalPrice': data['totalPrice'] ?? 0,
+  'extraFee': extraFee,
+  'extraCharges': extraCharges,
+  'finalAmount': (data['totalPrice'] ?? 0) + extraFee,
+  'createdAt': FieldValue.serverTimestamp(),
+});
+
+final user = FirebaseAuth.instance.currentUser;
+
+await FirebaseFirestore.instance.collection('action_logs').add({
+  'type': 'checkout_completed',
+
+  /// 訂單資訊
+  'bookingId': bookingId,
+  'bookingShortId': bookingId.substring(0, 8),
+  'shopId': data['shopId'],
+  'roomId': data['roomId'],
+  'roomName': data['roomName'],
+  'roomTypeName': data['roomTypeName'],
+
+  /// 金額資訊
+  'totalPrice': data['totalPrice'] ?? 0,
+  'extraFee': extraFee,
+  'finalAmount': (data['totalPrice'] ?? 0) + extraFee,
+  'extraCharges': extraCharges,
+  'extraChargeImageCount': evidenceImageUrls.length,
+
+  /// 操作者
+  'operatorUid': user?.uid,
+  'operatorRole': 'staff',
+'operatorEmail': user?.email,
+
+  /// 時間
+  'createdAt': FieldValue.serverTimestamp(),
+});
+
+  await _updateStatus('completed');
+},
     style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
     child: const Text('退房完成'),
   ),
@@ -795,26 +1430,163 @@ if (status == 'checked_in')
     );
   }
 
-Future<void> _updateStatus(String status) async {
-  final user = FirebaseAuth.instance.currentUser;
+Future<List<String>> _uploadExtraChargeImages({
+  required String bookingId,
+  required List<XFile> images,
+}) async {
+  final List<String> urls = [];
 
-  /// 🔥 更新狀態
-  await BookingService.instance.updateBookingStatus(
-    bookingId: bookingId,
-    status: status,
+  for (final image in images) {
+    final bytes = await image.readAsBytes();
+
+    if (bytes.length > 5 * 1024 * 1024) {
+      throw Exception('圖片太大，請選擇 5MB 以下的圖片');
+    }
+
+    final ref = FirebaseStorage.instance
+        .ref()
+        .child('booking_extra_charges')
+        .child(bookingId)
+        .child('${DateTime.now().millisecondsSinceEpoch}_${image.name}');
+
+    await ref.putData(
+      bytes,
+      SettableMetadata(contentType: 'image/jpeg'),
+    );
+
+    final url = await ref.getDownloadURL();
+    urls.add(url);
+  }
+
+  return urls;
+}
+
+Future<void> _cancelBookingWithReason({
+  required BuildContext context,
+  required Map<String, dynamic> data,
+}) async {
+  String selectedReason = '客戶未付款';
+  final otherReasonController = TextEditingController();
+
+  final result = await showDialog<String>(
+    context: context,
+    builder: (context) {
+      return StatefulBuilder(
+        builder: (context, setDialogState) {
+          return AlertDialog(
+            title: const Text('取消訂單原因'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                DropdownButtonFormField<String>(
+                  value: selectedReason,
+                  items: const [
+                    DropdownMenuItem(value: '客戶未付款', child: Text('客戶未付款')),
+                    DropdownMenuItem(value: '客戶自行取消', child: Text('客戶自行取消')),
+                    DropdownMenuItem(value: '店家無法接待', child: Text('店家無法接待')),
+                    DropdownMenuItem(value: '重複預約', child: Text('重複預約')),
+                    DropdownMenuItem(value: '其他', child: Text('其他')),
+                  ],
+                  onChanged: (v) {
+                    setDialogState(() {
+                      selectedReason = v ?? '客戶未付款';
+                    });
+                  },
+                  decoration: const InputDecoration(
+                    labelText: '取消原因',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+
+                if (selectedReason == '其他') ...[
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: otherReasonController,
+                    decoration: const InputDecoration(
+                      labelText: '其他原因',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('返回'),
+              ),
+              ElevatedButton(
+                onPressed: () {
+                  final reason = selectedReason == '其他'
+                      ? otherReasonController.text.trim()
+                      : selectedReason;
+
+                  if (reason.isEmpty) return;
+
+                  Navigator.pop(context, reason);
+                },
+                style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+                child: const Text('確認取消'),
+              ),
+            ],
+          );
+        },
+      );
+    },
   );
 
-  
+  if (result == null) return;
 
-  /// 🔥 紀錄操作
-  await FirebaseFirestore.instance
-      .collection('action_logs')
-      .add({
+  await BookingService.instance.cancelBooking(
+  bookingId: bookingId,
+  cancelReason: result,
+  cancelBy: 'admin',
+);
+
+  if (context.mounted) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('訂單已取消並釋放房間')),
+    );
+  }
+}
+
+Future<void> _updateStatus(String newStatus) async {
+  final user = FirebaseAuth.instance.currentUser;
+
+  final doc = await FirebaseFirestore.instance
+      .collection('bookings')
+      .doc(bookingId)
+      .get();
+
+  final data = doc.data() ?? {};
+  final oldStatus = data['status'] ?? '';
+
+  await BookingService.instance.updateBookingStatus(
+    bookingId: bookingId,
+    status: newStatus,
+  );
+
+  await FirebaseFirestore.instance.collection('action_logs').add({
     'type': 'booking_status_update',
+
+    /// 訂單資訊
     'bookingId': bookingId,
-    'status': status,
+    'bookingShortId': bookingId.substring(0, 8),
+    'shopId': data['shopId'],
+    'roomId': data['roomId'],
+    'roomName': data['roomName'],
+    'roomTypeName': data['roomTypeName'],
+
+    /// 狀態變化
+    'fromStatus': oldStatus,
+    'toStatus': newStatus,
+
+    /// 操作者
     'operatorUid': user?.uid,
     'operatorRole': 'staff',
+    'operatorEmail': user?.email,
+
+    /// 時間
     'createdAt': FieldValue.serverTimestamp(),
   });
 }
@@ -850,6 +1622,128 @@ Future<void> _updateStatus(String status) async {
       ),
     );
   }
+
+Widget _actionLogCard(Map<String, dynamic> log) {
+  final type = log['type'] ?? '';
+  final time = _formatDateTime(log['createdAt']);
+  final operatorEmail = log['operatorEmail'];
+
+final operatorText = operatorEmail != null &&
+        operatorEmail.toString().isNotEmpty
+    ? operatorEmail.toString()
+    : _operatorRoleText(log['operatorRole']);
+
+  String title = '操作紀錄';
+
+  if (type == 'booking_status_update') {
+    title =
+    '狀態變更：'
+    '${_statusText(log['fromStatus'])}'
+    ' → '
+    '${_statusText(log['toStatus'])}';
+  } else if (type == 'deposit_confirmed') {
+    title = '確認收到訂金';
+  } else if (type == 'booking_cancelled') {
+    title = '取消訂單：${log['cancelReason'] ?? '-'}';
+  } else if (type == 'checkout_completed') {
+    title = '退房完成：額外費用 NT\$ ${log['extraFee'] ?? 0}';
+  }
+
+  return Container(
+    width: double.infinity,
+    margin: const EdgeInsets.only(bottom: 10),
+    padding: const EdgeInsets.all(12),
+    decoration: BoxDecoration(
+      color: Colors.grey.shade50,
+      borderRadius: BorderRadius.circular(12),
+      border: Border.all(color: Colors.grey.shade300),
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          title,
+          style: const TextStyle(fontWeight: FontWeight.bold),
+        ),
+        const SizedBox(height: 4),
+        Text(
+  '$time ・ 操作者：$operatorText',
+          style: TextStyle(
+            fontSize: 12,
+            color: Colors.grey.shade600,
+          ),
+        ),
+      ],
+    ),
+  );
+}
+
+Widget _timelineItem({
+  required String title,
+  required String time,
+  required bool active,
+  bool isLast = false,
+}) {
+  return Row(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Column(
+        children: [
+          Container(
+            width: 18,
+            height: 18,
+            decoration: BoxDecoration(
+              color: active ? Colors.green : Colors.grey.shade300,
+              shape: BoxShape.circle,
+            ),
+            child: active
+                ? const Icon(
+                    Icons.check,
+                    size: 13,
+                    color: Colors.white,
+                  )
+                : null,
+          ),
+          if (!isLast)
+            Container(
+              width: 2,
+              height: 38,
+              color: Colors.grey.shade300,
+            ),
+        ],
+      ),
+
+      const SizedBox(width: 10),
+
+      Expanded(
+        child: Padding(
+          padding: const EdgeInsets.only(bottom: 16),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  title,
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: active ? Colors.black : Colors.grey,
+                  ),
+                ),
+              ),
+              Text(
+  time,
+  style: TextStyle(
+    fontSize: 15,
+    fontWeight: FontWeight.w800,
+    color: active ? Colors.blue.shade700 : Colors.grey,
+  ),
+),
+            ],
+          ),
+        ),
+      ),
+    ],
+  );
+}
 
   Widget _statusChip(String status) {
     Color color;
@@ -899,6 +1793,60 @@ case 'checked_in':
   String _formatDate(DateTime date) {
     return '${date.year}-${date.month}-${date.day}';
   }
+
+String _operatorRoleText(dynamic value) {
+  switch (value) {
+    case 'customer':
+      return '客戶自行取消';
+
+    case 'admin':
+      return '店家操作';
+
+    case 'system':
+      return '系統自動取消';
+
+    case 'staff':
+      return '店家人員';
+
+    default:
+      return value?.toString() ?? '-';
+  }
+}
+
+String _statusText(dynamic value) {
+  switch (value) {
+    case 'pending':
+      return '待確認';
+
+    case 'confirmed':
+      return '已確認';
+
+    case 'checked_in':
+      return '入住中';
+
+    case 'completed':
+      return '已完成';
+
+    case 'cancelled':
+      return '已取消';
+
+    default:
+      return value?.toString() ?? '-';
+  }
+}
+
+  String _cancelByText(dynamic value) {
+  switch (value) {
+    case 'customer':
+      return '客戶取消';
+    case 'admin':
+      return '店家取消';
+    case 'system':
+      return '系統自動取消';
+    default:
+      return '-';
+  }
+}
   String _paymentMethodText(dynamic value) {
   switch (value) {
     case 'cash':
@@ -924,24 +1872,50 @@ Future<void> _confirmDepositAndBooking() async {
   final user = FirebaseAuth.instance.currentUser;
 
   await FirebaseFirestore.instance
-      .collection('bookings')
-      .doc(bookingId)
-      .update({
-    'depositPaid': true,
-    'depositPaidAt': FieldValue.serverTimestamp(),
-    'status': 'confirmed',
-    'updatedAt': FieldValue.serverTimestamp(),
-  });
+    .collection('bookings')
+    .doc(bookingId)
+    .update({
+  'depositPaid': true,
+  'depositStatus': 'confirmed', 
+  'depositPaidAt': FieldValue.serverTimestamp(),
+  'confirmedAt': FieldValue.serverTimestamp(),
+  'status': 'confirmed',
+  'updatedAt': FieldValue.serverTimestamp(),
+});
 
-  await FirebaseFirestore.instance
-      .collection('action_logs')
-      .add({
-    'type': 'deposit_confirmed',
-    'bookingId': bookingId,
-    'operatorUid': user?.uid,
-    'operatorRole': 'staff',
-    'createdAt': FieldValue.serverTimestamp(),
-  });
+  final doc = await FirebaseFirestore.instance
+    .collection('bookings')
+    .doc(bookingId)
+    .get();
+
+final data = doc.data() ?? {};
+
+await FirebaseFirestore.instance
+    .collection('action_logs')
+    .add({
+  'type': 'deposit_confirmed',
+
+  /// 訂單資訊
+  'bookingId': bookingId,
+  'bookingShortId': bookingId.substring(0, 8),
+  'shopId': data['shopId'],
+  'roomId': data['roomId'],
+  'roomName': data['roomName'],
+  'roomTypeName': data['roomTypeName'],
+
+  /// 訂金資訊
+  'depositAmount': data['depositAmount'] ?? 0,
+  'paymentMethod': data['paymentMethod'],
+  'transferLast5': data['transferLast5'],
+
+  /// 操作者
+  'operatorUid': user?.uid,
+  'operatorRole': 'staff',
+  'operatorEmail': user?.email,
+
+  /// 時間
+  'createdAt': FieldValue.serverTimestamp(),
+});
 }
 String _formatDateTime(dynamic value) {
   if (value == null) return '-';

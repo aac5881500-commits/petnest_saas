@@ -29,6 +29,7 @@ class _ShopPaymentSettingPageState
 
   bool _cash = true;
   bool _transfer = false;
+ int _depositExpireHours = 12;
 
   final _bankNameCtrl = TextEditingController();
   final _accountNameCtrl = TextEditingController();
@@ -74,6 +75,8 @@ _depositValueCtrl.text = _depositValue.toString();
 
       _transfer = data['paymentMethods']?['transfer'] ?? false;
 
+      _depositExpireHours = data['depositExpireHours'] ?? 12;
+
       _bankNameCtrl.text = data['bankName'] ?? '';
 
       _accountNameCtrl.text = data['accountName'] ?? '';
@@ -102,9 +105,11 @@ _depositValueCtrl.text = _depositValue.toString();
       'accountName': _accountNameCtrl.text,
       'accountNumber': _accountNumberCtrl.text,
       'paymentMethods': {
-        'cash': _cash,
-        'transfer': _transfer,
-      }
+  'cash': _cash,
+  'transfer': _transfer,
+},
+
+'depositExpireHours': _depositExpireHours,
     });
 
     ScaffoldMessenger.of(context).showSnackBar(
@@ -134,6 +139,45 @@ _depositValueCtrl.text = _depositValue.toString();
             ),
 
             if (_depositEnabled) ...[
+
+              /// 🔥 訂金付款期限
+const Align(
+  alignment: Alignment.centerLeft,
+  child: Text(
+    '訂金付款期限',
+    style: TextStyle(fontWeight: FontWeight.bold),
+  ),
+),
+
+const SizedBox(height: 8),
+
+...[
+  {
+    'label': '12 小時',
+    'value': 12,
+  },
+  {
+    'label': '1 天',
+    'value': 24,
+  },
+  {
+    'label': '3 天',
+    'value': 72,
+  },
+].map((item) {
+  return RadioListTile<int>(
+    title: Text(item['label'].toString()),
+    value: item['value'] as int,
+    groupValue: _depositExpireHours,
+    onChanged: (v) {
+      setState(() {
+        _depositExpireHours = v ?? 12;
+      });
+    },
+  );
+}).toList(),
+
+const Divider(height: 30),
 
               if (_depositType == 'percent') ...[
 

@@ -57,6 +57,18 @@ List<Map<String, dynamic>>? addons,
 
     final normalizedStart = _dateOnly(startDate);
     final normalizedEnd = _dateOnly(endDate);
+    /// 🔥 取得店家付款資料快照
+final shopDoc = await _firestore
+    .collection('shops')
+    .doc(shopId)
+    .get();
+
+final shopData = shopDoc.data() ?? {};
+
+final bankName = shopData['bankName'] ?? '';
+final accountName = shopData['accountName'] ?? '';
+final accountNumber = shopData['accountNumber'] ?? '';
+final depositExpireHours = shopData['depositExpireHours'] ?? 1;
 
 // 🔥 自動找房間
 final room = await findAvailableRoom(
@@ -162,6 +174,21 @@ if (!available) {
 'paymentMethod': paymentMethod,
 'payAmountType': payAmountType,
 
+/// 🔥 店家轉帳資訊快照
+'bankName': bankName,
+'accountName': accountName,
+'accountNumber': accountNumber,
+'depositExpireHours': depositExpireHours,
+'depositExpireAt': paymentMethod == 'transfer' ||
+        paymentMethod == 'cash'
+    ? Timestamp.fromDate(
+        DateTime.now().add(
+          depositExpireHours == 0
+              ? const Duration(minutes: 1)
+              : Duration(hours: depositExpireHours),
+        ),
+      )
+    : null,
       /// 未來預留
       'checkedInAt': null,
       'checkedOutAt': null,
@@ -258,6 +285,90 @@ await blockRoomCalendar(
       };
     }).toList();
   }
+
+/// ===============================
+/// ❌ 統一取消訂單
+/// ===============================
+/// 功能：
+/// - 更新 bookings 狀態為 cancelled
+/// - 寫入取消原因 / 取消來源
+/// - 釋放 room_calendar 房間
+Future<void> cancelBooking({
+  required String bookingId,
+  required String cancelReason,
+  required String cancelBy, // customer / admin / system
+}) async {
+  final docRef = _bookings.doc(bookingId);
+  final doc = await docRef.get();
+
+  if (!doc.exists) {
+    throw Exception('訂單不存在');
+  }
+
+  final data = doc.data();
+  if (data == null) {
+    throw Exception('訂單資料不存在');
+  }
+
+  final status = data['status']?.toString() ?? '';
+final cancelledAt = data['cancelledAt'];
+
+/// 已取消就不重複處理
+if (status == 'cancelled' || cancelledAt != null) return;
+
+  await docRef.update({
+    'status': 'cancelled',
+    'cancelReason': cancelReason,
+    'cancelBy': cancelBy,
+    'cancelledAt': FieldValue.serverTimestamp(),
+    'updatedAt': FieldValue.serverTimestamp(),
+  });
+
+  final shopId = data['shopId'];
+  final roomId = data['roomId'];
+  final startDate = data['startDate'];
+  final endDate = data['endDate'];
+
+  if (shopId != null &&
+      roomId != null &&
+      startDate is Timestamp &&
+      endDate is Timestamp) {
+    await releaseRoomCalendar(
+      shopId: shopId,
+      roomId: roomId,
+      startDate: startDate.toDate(),
+      endDate: endDate.toDate(),
+    );
+  }
+
+  await _firestore.collection('action_logs').add({
+  'type': 'booking_cancelled',
+
+  /// 訂單資訊
+  'bookingId': bookingId,
+  'bookingShortId': bookingId.substring(0, 8),
+  'shopId': data['shopId'],
+  'roomId': data['roomId'],
+  'roomName': data['roomName'],
+  'roomTypeName': data['roomTypeName'],
+
+  /// 狀態變化
+  'fromStatus': status,
+  'toStatus': 'cancelled',
+
+  /// 取消資訊
+  'cancelReason': cancelReason,
+  'cancelBy': cancelBy, // customer / admin / system
+
+  /// 操作者
+  'operatorUid': _currentUser?.uid,
+  'operatorRole': cancelBy,
+  'operatorEmail': _currentUser?.email,
+
+  /// 時間
+  'createdAt': FieldValue.serverTimestamp(),
+});
+}
 
   /// 更新預約狀態
   Future<void> updateBookingStatus({

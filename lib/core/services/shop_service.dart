@@ -1130,8 +1130,14 @@ Future<List<Map<String, dynamic>>> getAvailableRoomTypes({
       for (final room in typeRooms) {
         final roomId = room.id;
         final cal = calendarMap[roomId];
-        final status = cal?['status'] ?? 'available';
-        /// 🔥 房間自己的 blockedDates
+       final status = cal?['status'] ?? 'available';
+
+/// 🔥 room_calendar 有標記 booked，就代表此房間當天不可用
+if (status == 'booked') {
+  continue;
+}
+
+/// 🔥 房間自己的 blockedDates
 final roomData = room.data();
 final List blocked = roomData['blockedDates'] ?? [];
 
@@ -1139,9 +1145,8 @@ if (blocked.contains(date)) {
   continue;
 }
 
-        if (status == 'available') {
-          availableCount++;
-        }
+/// 🔥 沒被 booked、沒被房間封鎖，就算可用
+availableCount++;
       }
 
       if (availableCount < minAvailableRooms) {
