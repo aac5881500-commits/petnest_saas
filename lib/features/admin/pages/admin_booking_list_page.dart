@@ -4,6 +4,16 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:petnest_saas/features/admin/pages/admin_booking_detail_page.dart';
+import 'package:petnest_saas/features/admin/widgets/booking_search_bar.dart';
+import 'package:petnest_saas/features/admin/widgets/booking_status_filter.dart';
+import 'package:petnest_saas/features/admin/widgets/booking_sort_bar.dart';
+import 'package:petnest_saas/features/admin/widgets/booking_order_card.dart';
+import 'package:petnest_saas/features/admin/widgets/booking_advanced_filter_button.dart';
+import 'package:petnest_saas/dev/dev_fake_booking_generator.dart';
+import 'package:petnest_saas/features/admin/pages/admin_booking_history_page.dart';
+const bool kDevMode = false;
+
+
 
 class AdminBookingListPage extends StatefulWidget {
   const AdminBookingListPage({
@@ -23,44 +33,81 @@ class AdminBookingListPage extends StatefulWidget {
 class _AdminBookingListPageState extends State<AdminBookingListPage> {
   late String _filterType;
 
+  final TextEditingController _searchController = TextEditingController();
+  String _keyword = '';
+  String _sortType = 'startDesc';
+  final int _pageSize = 5;
+int _currentPage = 0;
   @override
   void initState() {
-    super.initState();
-    _filterType = widget.filterType ?? 'all';
-  }
+  super.initState();
+
+  _filterType = widget.filterType ?? 'pending';
+
+}
+
+@override
+void dispose() {
+  _searchController.dispose();
+  super.dispose();
+}
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('訂單管理'),
-      ),
+  title: const Text('訂單管理'),
+  actions: [
+  if (kDevMode)
+    IconButton(
+      tooltip: '產生測試訂單',
+      icon: const Icon(Icons.bug_report),
+      onPressed: () async {
+        await DevFakeBookingGenerator.generate(
+          shopId: widget.shopId,
+          count: 50,
+        );
+
+        if (!context.mounted) return;
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('已產生 50 筆測試訂單'),
+          ),
+        );
+      },
+    ),
+  ],
+),
       body: Column(
         children: [
-          /// 🔥 Tab
-          Padding(
-            padding: const EdgeInsets.all(8),
-            child: Row(
-              mainAxisAlignment:
-                  MainAxisAlignment.spaceAround,
-              children: [
-                _buildTab('all', '全部'),
-                _buildTab('checkIn', '今日入住'),
-                _buildTab('checkOut', '今日退房'),
-                _buildTab('future', '未來'),
-                _buildTab('cancelled', '已取消'), // ✅ 新增
-              ],
-            ),
-          ),
+          BookingSearchBar(
+  controller: _searchController,
+  onChanged: (value) {
+    setState(() {
+  _keyword = value.trim();
+  _currentPage = 0;
+});
+  },
+),
+
+BookingAdvancedFilterButton(
+  onTap: () {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('進階篩選功能開發中'),
+      ),
+    );
+  },
+),
 
           /// 🔥 列表
           Expanded(
             child: StreamBuilder<QuerySnapshot>(
               stream: FirebaseFirestore.instance
-                  .collection('bookings')
-                  .where('shopId',
-                      isEqualTo: widget.shopId)
-                  .snapshots(),
+    .collection('bookings')
+    .where('shopId', isEqualTo: widget.shopId)
+    .snapshots(),
               builder: (context, snapshot) {
                 if (!snapshot.hasData) {
                   return const Center(
@@ -68,7 +115,10 @@ class _AdminBookingListPageState extends State<AdminBookingListPage> {
                           CircularProgressIndicator());
                 }
 
+
                 final docs = snapshot.data!.docs;
+                
+                final statusCounts = _buildStatusCounts(docs);
 
                 final now = DateTime.now();
                 final todayStart =
@@ -77,6 +127,7 @@ class _AdminBookingListPageState extends State<AdminBookingListPage> {
                     todayStart.add(const Duration(days: 1));
 
                 final filteredDocs = docs.where((doc) {
+
                   final data =
                       doc.data() as Map<String, dynamic>;
 
@@ -88,185 +139,307 @@ class _AdminBookingListPageState extends State<AdminBookingListPage> {
                           .toDate();
                   final status = data['status'] ?? '';
 
-                  /// ✅ 改這裡：不再隱藏 cancelled
-                  switch (_filterType) {
-                    case 'checkIn':
-                      return status != 'cancelled' &&
-                          start.isAfter(todayStart) &&
-                          start.isBefore(todayEnd);
+                  final bookingId = doc.id.toLowerCase();
 
-                    case 'checkOut':
-                      return status != 'cancelled' &&
-                          end.isAfter(todayStart) &&
-                          end.isBefore(todayEnd);
+final customerName =
+    (data['customerName'] ?? '')
+        .toString()
+        .toLowerCase();
 
-                    case 'future':
-                      return status != 'cancelled' &&
-                          start.isAfter(todayEnd);
+final customerPhone =
+    (data['customerPhone'] ?? '')
+        .toString()
+        .toLowerCase();
 
-                    case 'cancelled':
-                      return status == 'cancelled';
+final roomName =
+    (data['roomName'] ?? '')
+        .toString()
+        .toLowerCase();
 
-                    default:
-                      return true;
-                  }
+final pets = (data['pets'] as List?) ?? [];
+
+final petNames = pets
+    .map((e) {
+      if (e is Map<String, dynamic>) {
+        return (e['name'] ?? '')
+            .toString()
+            .toLowerCase();
+      }
+      return '';
+    })
+    .join(',');
+
+final keyword = _keyword.toLowerCase();
+
+final matchKeyword =
+    keyword.isEmpty ||
+    bookingId.contains(keyword) ||
+    customerName.contains(keyword) ||
+    customerPhone.contains(keyword) ||
+    roomName.contains(keyword) ||
+    petNames.contains(keyword);
+
+if (!matchKeyword) {
+  return false;
+}
+
+              switch (_filterType) {
+  case 'pending':
+  return status == 'pending' || status == 'unpaid';
+
+case 'depositReview':
+
+  final depositStatus =
+      (data['depositStatus'] ?? '').toString();
+
+ return depositStatus == 'pending_review' &&
+    status != 'completed' &&
+    status != 'cancelled';
+
+case 'confirmed':
+  return status == 'confirmed';
+
+  case 'checked_in':
+    return status == 'checked_in';
+
+  case 'todayCheckIn':
+    return status != 'cancelled' &&
+        start.isAfter(todayStart) &&
+        start.isBefore(todayEnd);
+
+  case 'todayCheckOut':
+  return status != 'cancelled' &&
+      end.isAfter(todayStart) &&
+      end.isBefore(todayEnd);
+
+case 'futureCheckIn':
+  return status != 'cancelled' &&
+      status != 'completed' &&
+      start.isAfter(todayEnd);
+
+case 'history':
+  return false;
+
+case 'active':
+default:
+  return status == 'pending' ||
+      status == 'unpaid' ||
+      status == 'confirmed' ||
+      status == 'checked_in';
+}
                 }).toList()
                   ..sort((a, b) {
-                    final aData =
-                        a.data() as Map<String, dynamic>;
-                    final bData =
-                        b.data() as Map<String, dynamic>;
+  final aData = a.data() as Map<String, dynamic>;
+  final bData = b.data() as Map<String, dynamic>;
 
-                    final aDate = (aData['startDate']
-                            as Timestamp)
-                        .toDate();
-                    final bDate = (bData['startDate']
-                            as Timestamp)
-                        .toDate();
+  DateTime getDate(Map<String, dynamic> data, String key) {
+    final value = data[key];
+    if (value is Timestamp) return value.toDate();
+    return DateTime.fromMillisecondsSinceEpoch(0);
+  }
 
-                    return bDate.compareTo(aDate);
-                  });
+  switch (_sortType) {
+    case 'startAsc':
+      return getDate(aData, 'startDate')
+          .compareTo(getDate(bData, 'startDate'));
+
+    case 'createdDesc':
+      return getDate(bData, 'createdAt')
+          .compareTo(getDate(aData, 'createdAt'));
+
+    case 'createdAsc':
+      return getDate(aData, 'createdAt')
+          .compareTo(getDate(bData, 'createdAt'));
+
+    case 'startDesc':
+    default:
+      return getDate(bData, 'startDate')
+          .compareTo(getDate(aData, 'startDate'));
+  }
+});
+
+final totalPages =
+    (filteredDocs.length / _pageSize).ceil();
+
+if (_currentPage >= totalPages && totalPages > 0) {
+  _currentPage = totalPages - 1;
+}
+
+final visibleDocs = filteredDocs
+    .skip(_currentPage * _pageSize)
+    .take(_pageSize)
+    .toList();
 
                 if (filteredDocs.isEmpty) {
-                  return const Center(
-                      child:
-                          Text('尚無符合條件的訂單'));
-                }
+  return ListView(
+    children: [
+      BookingStatusFilter(
+        selectedType: _filterType,
+        counts: statusCounts,
+        onChanged: (type) {
+  if (type == 'history') {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => AdminBookingHistoryPage(
+          shopId: widget.shopId,
+        ),
+      ),
+    );
+    return;
+  }
+
+ setState(() {
+  _filterType = type;
+  _currentPage = 0;
+});
+},
+      ),
+
+      BookingSortBar(
+        totalCount: filteredDocs.length,
+        sortType: _sortType,
+        isGridMode: false,
+        onSortChanged: (value) {
+          setState(() {
+            _sortType = value;
+          });
+        },
+        onToggleViewMode: () {
+  ScaffoldMessenger.of(context).showSnackBar(
+    const SnackBar(
+      content: Text('格子檢視之後再開放'),
+    ),
+  );
+},
+      ),
+
+      const SizedBox(height: 80),
+
+     Center(
+  child: Text(
+    _filterType == 'history'
+        ? '歷史查詢之後會改成用月份搜尋'
+        : '尚無符合條件的訂單',
+          style: TextStyle(
+            color: Colors.grey,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+      ),
+    ],
+  );
+}
 
                 return ListView(
-                  children: filteredDocs.map((doc) {
+  children: [
+    BookingStatusFilter(
+      selectedType: _filterType,
+      counts: statusCounts,
+      onChanged: (type) {
+  if (type == 'history') {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => AdminBookingHistoryPage(
+          shopId: widget.shopId,
+        ),
+      ),
+    );
+    return;
+  }
+
+  setState(() {
+  _filterType = type;
+  _currentPage = 0;
+});
+},
+    ),
+
+    BookingSortBar(
+      totalCount: filteredDocs.length,
+      sortType: _sortType,
+      isGridMode: false,
+      onSortChanged: (value) {
+        setState(() {
+          _sortType = value;
+        });
+      },
+      onToggleViewMode: () {
+  ScaffoldMessenger.of(context).showSnackBar(
+    const SnackBar(
+      content: Text('格子檢視之後再開放'),
+    ),
+  );
+},
+    ),
+
+    ...visibleDocs.map((doc) {
                     final data =
                         doc.data() as Map<String, dynamic>;
+return BookingOrderCard(
+  bookingId: doc.id,
+  data: data,
+  onTap: () {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => AdminBookingDetailPage(
+          bookingId: doc.id,
+        ),
+      ),
+    );
+  },
+);
+}).toList(),
 
-                    final start = (data['startDate']
-                            as Timestamp)
-                        .toDate();
-                    final end =
-                        (data['endDate'] as Timestamp)
-                            .toDate();
+const SizedBox(height: 8),
 
-                    final status =
-                        data['status'] ?? 'pending';
-
-                    Color statusColor;
-                    String statusText;
-
-                    switch (status) {
-                      case 'confirmed':
-                        statusColor = Colors.green;
-                        statusText = '已確認';
-                        break;
-                      case 'checked_in':
-                        statusColor = Colors.blue;
-                        statusText = '入住中';
-                        break;
-                      case 'completed':
-                        statusColor = Colors.grey;
-                        statusText = '已完成';
-                        break;
-                      case 'cancelled':
-                        statusColor = Colors.red;
-                        statusText = '已取消';
-                        break;
-                      default:
-                        statusColor = Colors.orange;
-                        statusText = '待確認';
-                    }
-
-                    return Card(
-                      child: ListTile(
-                        leading:
-                            const Icon(Icons.home),
-                        title: Text(
-                            data['roomName'] ?? '房型'),
-
-                        subtitle: Column(
-                          crossAxisAlignment:
-                              CrossAxisAlignment.start,
-                          children: [
-                            /// 日期
-                            Text(
-                              '${_formatDate(start)} ～ ${_formatDate(end)}',
-                            ),
-
-                            const SizedBox(height: 4),
-
-                            /// 客人
-                            Text(
-                              '👤 ${data['customerName'] ?? '未填姓名'}',
-                            ),
-
-                            const SizedBox(height: 4),
-
-                            /// 寵物
-                            Builder(
-                              builder: (_) {
-                                final pets =
-                                    (data['pets'] as List?)
-                                            ?.map((e) => e
-                                                as Map<String,
-                                                    dynamic>)
-                                            .toList() ??
-                                        [];
-
-                                if (pets.isEmpty) {
-                                  return const Text(
-                                      '🐾 無寵物資料');
-                                }
-
-                                final names = pets
-                                    .map((p) =>
-                                        p['name'])
-                                    .join(', ');
-                                return Text(
-                                    '🐾 $names');
-                              },
-                            ),
-
-                            const SizedBox(height: 6),
-
-                            /// 狀態
-                            Container(
-                              padding:
-                                  const EdgeInsets.symmetric(
-                                horizontal: 8,
-                                vertical: 4,
-                              ),
-                              decoration:
-                                  BoxDecoration(
-                                color: statusColor
-                                    .withOpacity(0.1),
-                                borderRadius:
-                                    BorderRadius.circular(
-                                        12),
-                              ),
-                              child: Text(
-                                statusText,
-                                style: TextStyle(
-                                  color: statusColor,
-                                  fontWeight:
-                                      FontWeight.bold,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-
-                        onTap: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) =>
-                                  AdminBookingDetailPage(
-                                bookingId: doc.id,
-                              ),
-                            ),
-                          );
-                        },
-                      ),
-                    );
-                  }).toList(),
-                );
+if (totalPages > 1)
+  Padding(
+    padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
+    child: Row(
+      children: [
+        Expanded(
+          child: OutlinedButton.icon(
+            onPressed: _currentPage <= 0
+                ? null
+                : () {
+                    setState(() {
+                      _currentPage--;
+                    });
+                  },
+            icon: const Icon(Icons.chevron_left),
+            label: const Text('上一頁'),
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          child: Text(
+            '${_currentPage + 1} / $totalPages',
+            style: const TextStyle(
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ),
+        Expanded(
+          child: OutlinedButton.icon(
+            onPressed: _currentPage >= totalPages - 1
+                ? null
+                : () {
+                    setState(() {
+                      _currentPage++;
+                    });
+                  },
+            icon: const Icon(Icons.chevron_right),
+            label: const Text('下一頁'),
+          ),
+        ),
+      ],
+    ),
+  ),
+  ],
+);
               },
             ),
           ),
@@ -274,41 +447,81 @@ class _AdminBookingListPageState extends State<AdminBookingListPage> {
       ),
     );
   }
+  Map<String, int> _buildStatusCounts(List<QueryDocumentSnapshot> docs) {
+  final now = DateTime.now();
+  final todayStart = DateTime(now.year, now.month, now.day);
+  final todayEnd = todayStart.add(const Duration(days: 1));
 
-  /// 🔥 Tab UI
-  Widget _buildTab(String type, String text) {
-    final selected = _filterType == type;
+ final counts = <String, int>{
+  'active': 0,
+  'pending': 0,
+  'depositReview': 0,
+  'confirmed': 0,
+  'checked_in': 0,
+  'todayCheckIn': 0,
+  'todayCheckOut': 0,
+  'futureCheckIn': 0,
+  'history': 0,
+};
 
-    return GestureDetector(
-      onTap: () {
-        setState(() {
-          _filterType = type;
-        });
-      },
-      child: Container(
-        padding: const EdgeInsets.symmetric(
-            horizontal: 12, vertical: 6),
-        decoration: BoxDecoration(
-          color:
-              selected ? Colors.blue : Colors.grey.shade200,
-          borderRadius: BorderRadius.circular(20),
-        ),
-        child: Text(
-          text,
-          style: TextStyle(
-            color:
-                selected ? Colors.white : Colors.black,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-      ),
-    );
+  for (final doc in docs) {
+    final data = doc.data() as Map<String, dynamic>;
+    final status = (data['status'] ?? 'pending').toString();
+
+final depositStatus =
+    (data['depositStatus'] ?? '').toString();
+
+if (status == 'pending' || status == 'unpaid') {
+  counts['pending'] = (counts['pending'] ?? 0) + 1;
+  counts['active'] = (counts['active'] ?? 0) + 1;
+}
+
+if (depositStatus == 'pending_review' &&
+    status != 'completed' &&
+    status != 'cancelled') {
+  counts['depositReview'] =
+      (counts['depositReview'] ?? 0) + 1;
+}
+
+if (status == 'confirmed') {
+  counts['confirmed'] = (counts['confirmed'] ?? 0) + 1;
+  counts['active'] = (counts['active'] ?? 0) + 1;
+}
+
+if (status == 'checked_in') {
+  counts['checked_in'] = (counts['checked_in'] ?? 0) + 1;
+  counts['active'] = (counts['active'] ?? 0) + 1;
+}
+
+if (status == 'completed' || status == 'cancelled') {
+  counts['history'] = (counts['history'] ?? 0) + 1;
+}
+
+    final startRaw = data['startDate'];
+    final endRaw = data['endDate'];
+
+    if (startRaw is Timestamp) {
+  final start = startRaw.toDate();
+
+  if (start.isAfter(todayStart) && start.isBefore(todayEnd)) {
+    counts['todayCheckIn'] = (counts['todayCheckIn'] ?? 0) + 1;
   }
 
-  String _formatDate(DateTime date) {
-    final y = date.year.toString().padLeft(4, '0');
-    final m = date.month.toString().padLeft(2, '0');
-    final d = date.day.toString().padLeft(2, '0');
-    return '$y-$m-$d';
+  if (status != 'completed' &&
+      status != 'cancelled' &&
+      start.isAfter(todayEnd)) {
+    counts['futureCheckIn'] = (counts['futureCheckIn'] ?? 0) + 1;
   }
+}
+
+    if (endRaw is Timestamp) {
+      final end = endRaw.toDate();
+      if (end.isAfter(todayStart) && end.isBefore(todayEnd)) {
+        counts['todayCheckOut'] = (counts['todayCheckOut'] ?? 0) + 1;
+      }
+    }
+  }
+
+  return counts;
+}
 }

@@ -10,6 +10,7 @@
 
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:petnest_saas/core/constants/shop_modules.dart';
 import 'package:petnest_saas/core/constants/shop_roles.dart';
 import 'package:petnest_saas/core/services/shop_service.dart';
@@ -455,10 +456,8 @@ class _CatHotelTab extends StatelessWidget {
           },
         ),
 
-_MenuTile(
-  title: '訂單管理',
-  subtitle: '查看與管理所有預約訂單',
-  icon: Icons.receipt_long,
+_BookingManageTile(
+  shopId: shopId,
   onTap: () {
     Navigator.push(
       context,
@@ -672,6 +671,97 @@ class _TemplateCard extends StatelessWidget {
           subtitle: Text(description),
         ),
       ),
+    );
+  }
+}
+
+class _BookingManageTile extends StatelessWidget {
+  const _BookingManageTile({
+    required this.shopId,
+    required this.onTap,
+  });
+
+  final String shopId;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('bookings')
+          .where('shopId', isEqualTo: shopId)
+          .where(
+            'status',
+            whereIn: [
+              'pending',
+              'payment_uploaded',
+            ],
+          )
+          .snapshots(),
+      builder: (context, snapshot) {
+        int pendingCount = 0;
+        int paymentUploadedCount = 0;
+
+        if (snapshot.hasData) {
+          for (final doc in snapshot.data!.docs) {
+            final data = doc.data() as Map<String, dynamic>;
+
+           final status =
+    (data['status'] ?? '').toString();
+
+final depositStatus =
+    (data['depositStatus'] ?? '').toString();
+
+if (status == 'pending' ||
+    status == 'unpaid') {
+  pendingCount++;
+}
+
+if (depositStatus == 'pending_review' &&
+    status != 'completed' &&
+    status != 'cancelled') {
+  paymentUploadedCount++;
+}
+          }
+        }
+
+        final totalCount =
+            pendingCount + paymentUploadedCount;
+
+        return Card(
+          child: ListTile(
+            leading: const Icon(Icons.receipt_long),
+
+            title: const Text('訂單管理'),
+
+            subtitle: Text(
+              '待確認 $pendingCount 筆 ・ 已回傳付款 $paymentUploadedCount 筆',
+            ),
+
+            trailing: totalCount > 0
+                ? Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 6,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.red,
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                    child: Text(
+                      '$totalCount',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  )
+                : const Icon(Icons.chevron_right),
+
+            onTap: onTap,
+          ),
+        );
+      },
     );
   }
 }

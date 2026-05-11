@@ -110,7 +110,6 @@ class AdminBookingDetailPage extends StatelessWidget {
 final extraPetPrice = data['extraPetPrice'] ?? 0;
 final extraPetCount = data['extraPetCount'] ?? 0;
 final extraPetTotal = data['extraPetTotal'] ?? 0;
-final roomSubtotal = data['roomSubtotal'] ?? 0;
 
 final nights = data['nights'] ?? 1;
 final roomPriceTotal = basePrice * nights;
@@ -129,11 +128,6 @@ final pets = rawPets is List
     ? rawPets.map((e) => e as Map<String, dynamic>).toList()
     : [];
 
-final petMap = {
-  for (var pet in pets)
-    pet['name']: pet['name']
-};
-
           final status = data['status'] ?? 'pending';
 
           final emergency = Map<String, dynamic>.from(
@@ -141,10 +135,11 @@ final petMap = {
 );
 
 final paymentMethodText = _paymentMethodText(data['paymentMethod']);
-final payAmountTypeText = _payAmountTypeText(data['payAmountType']);
 
 final depositPaid = data['depositPaid'] == true;
 final depositAmount = data['depositAmount'] ?? 0;
+final depositRequired = data['depositRequired'] == true;
+
 
           return SingleChildScrollView(
             padding: const EdgeInsets.all(16),
@@ -625,13 +620,29 @@ if (depositAmount > 0)
           : Colors.red.shade100,
       borderRadius: BorderRadius.circular(8),
     ),
-    child: Text(
-      depositPaid ? '✅ 已收到訂金' : '❌ 尚未確認訂金',
-      style: TextStyle(
-        fontWeight: FontWeight.bold,
-        color: depositPaid ? Colors.green : Colors.red,
+    child: Row(
+  children: [
+    Expanded(
+      child: Text(
+        depositPaid ? '✅ 已收到訂金' : '❌ 尚未確認訂金',
+        style: TextStyle(
+          fontWeight: FontWeight.bold,
+          color: depositPaid ? Colors.green : Colors.red,
+        ),
       ),
     ),
+
+    if (!depositPaid && data['depositExpireAt'] != null)
+      Text(
+        _formatDateTime(data['depositExpireAt']),
+        style: TextStyle(
+          fontSize: 12,
+          fontWeight: FontWeight.bold,
+          color: Colors.red.shade700,
+        ),
+      ),
+  ],
+),
   )
 else
   Container(
@@ -686,25 +697,6 @@ Container(
               ),
             ),
           ],
-        ),
-      ),
-
-      /// 金額型態
-      Container(
-        padding: const EdgeInsets.symmetric(
-          horizontal: 10,
-          vertical: 6,
-        ),
-        decoration: BoxDecoration(
-          color: Colors.blue.shade100,
-          borderRadius: BorderRadius.circular(20),
-        ),
-        child: Text(
-          payAmountTypeText,
-          style: const TextStyle(
-            fontSize: 12,
-            fontWeight: FontWeight.bold,
-          ),
         ),
       ),
     ],
@@ -776,18 +768,35 @@ if (data['transferImageUrl'] != null)
           ),
         ),
 
-        /// 🔥 圖片
-        ClipRRect(
-          borderRadius: const BorderRadius.vertical(
-            bottom: Radius.circular(12),
-          ),
+        /// 🔥 圖片，可點開放大檢查
+GestureDetector(
+  onTap: () {
+    showDialog(
+      context: context,
+      builder: (_) => Dialog(
+        child: InteractiveViewer(
+          minScale: 0.8,
+          maxScale: 5,
           child: Image.network(
             data['transferImageUrl'],
-            height: 200,
-            width: double.infinity,
-            fit: BoxFit.cover,
+            fit: BoxFit.contain,
           ),
         ),
+      ),
+    );
+  },
+  child: ClipRRect(
+    borderRadius: const BorderRadius.vertical(
+      bottom: Radius.circular(12),
+    ),
+    child: Image.network(
+      data['transferImageUrl'],
+      height: 200,
+      width: double.infinity,
+      fit: BoxFit.cover,
+    ),
+  ),
+),
       ],
     ),
   ),
@@ -950,11 +959,12 @@ Container(
         active: true,
       ),
 
-      _timelineItem(
-        title: '付款 / 訂單保留期限',
-        time: _formatDateTime(data['depositExpireAt']),
-        active: data['depositExpireAt'] != null,
-      ),
+      if (depositRequired)
+  _timelineItem(
+    title: '付款 / 訂單保留期限',
+    time: _formatDateTime(data['depositExpireAt']),
+    active: data['depositExpireAt'] != null,
+  ),
 
       _timelineItem(
         title: '店家已確認',

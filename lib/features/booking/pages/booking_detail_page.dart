@@ -113,6 +113,11 @@ final extraChargeTotal =
 
     final depositStatus = data['depositStatus'] ?? '';
     final bookingStatus = data['status'] ?? 'unpaid';
+    final transferLast5 = (data['transferLast5'] ?? '').toString();
+
+if (_last5Controller.text.isEmpty && transferLast5.isNotEmpty) {
+  _last5Controller.text = transferLast5;
+}
     final bankName = data['bankName'] ?? '';
 final accountName = data['accountName'] ?? '';
 final accountNumber = data['accountNumber'] ?? '';
@@ -1079,7 +1084,9 @@ Column(
 
     TextField(
   controller: _last5Controller,
-  enabled: depositStatus != 'pending' && depositStatus != 'confirmed',
+  enabled: depositStatus != 'pending_review' &&
+    depositStatus != 'pending' &&
+    depositStatus != 'confirmed',
   keyboardType: TextInputType.number,
   inputFormatters: [
     FilteringTextInputFormatter.digitsOnly,
@@ -1125,9 +1132,11 @@ Column(
                 /// 上傳圖片
 /// 上傳圖片 / 顯示圖片
 GestureDetector(
-  onTap: (depositStatus == 'pending' || depositStatus == 'confirmed')
-      ? null
-      : (_loading ? null : _uploadImage),
+  onTap: (depositStatus == 'pending_review' ||
+        depositStatus == 'pending' ||
+        depositStatus == 'confirmed')
+    ? null
+    : (_loading ? null : _uploadImage),
   child: Container(
     width: double.infinity,
     height: 140,
@@ -1138,14 +1147,48 @@ GestureDetector(
     ),
     child: (data['transferImageUrl'] != null &&
             data['transferImageUrl'].toString().isNotEmpty)
-        ? ClipRRect(
-            borderRadius: BorderRadius.circular(14),
-            child: Image.network(
-  data['transferImageUrl'],
-  width: double.infinity,
-  fit: BoxFit.contain,
-),
-          )
+        ? Stack(
+    children: [
+      ClipRRect(
+        borderRadius: BorderRadius.circular(14),
+        child: Image.network(
+          data['transferImageUrl'],
+          width: double.infinity,
+          height: 140,
+          fit: BoxFit.contain,
+        ),
+      ),
+if (depositStatus != 'pending_review' &&
+    depositStatus != 'pending' &&
+    depositStatus != 'confirmed')
+      Positioned(
+        top: 8,
+        right: 8,
+        child: InkWell(
+          onTap: (_loading ||
+        depositStatus == 'pending_review' ||
+        depositStatus == 'pending' ||
+        depositStatus == 'confirmed')
+    ? null
+    : () => _deleteTransferImage(
+          data['transferImageUrl'].toString(),
+        ),
+          child: Container(
+            padding: const EdgeInsets.all(6),
+            decoration: BoxDecoration(
+              color: Colors.black.withOpacity(0.65),
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(
+              Icons.close,
+              color: Colors.white,
+              size: 18,
+            ),
+          ),
+        ),
+      ),
+    ],
+  )
         : Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: const [
@@ -1171,10 +1214,12 @@ GestureDetector(
                 SizedBox(
                   width: double.infinity,
                   child: ElevatedButton(
-  onPressed: (depositStatus == 'pending' || depositStatus == 'confirmed')
-      ? null
-      : (_loading ? null : _submitDeposit),
-                    child: Text(_loading ? '送出中...' : '送出訂金'),
+  onPressed: (depositStatus == 'pending_review' ||
+        depositStatus == 'pending' ||
+        depositStatus == 'confirmed')
+    ? null
+    : (_loading ? null : _submitDeposit),
+                    child: Text(_loading ? '送出中...' : '送出付款資料'),
                   ),
                 ),
                 ],
@@ -1465,9 +1510,42 @@ Future<String?> _showCancelReasonDialog(BuildContext context) async {
 
   /// 🔥 寫入訂金
   Future<void> _submitDeposit() async {
-    final last5 = _last5Controller.text.trim();
+  final last5 = _last5Controller.text.trim();
 
-    if (last5.length != 5) {
+  final bookingDoc = await FirebaseFirestore.instance
+      .collection('bookings')
+      .doc(widget.docId)
+      .get();
+
+  final bookingData = bookingDoc.data() ?? {};
+  final transferImageUrl =
+      (bookingData['transferImageUrl'] ?? '').toString();
+
+  if (transferImageUrl.isEmpty) {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('尚未上傳轉帳截圖'),
+        content: const Text(
+          '你目前沒有上傳轉帳截圖，確定只送出後五碼嗎？',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('返回上傳'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('確定送出'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true) return;
+  }
+
+  if (last5.length != 5) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('請輸入正確的後五碼')),
       );
@@ -1480,12 +1558,17 @@ Future<String?> _showCancelReasonDialog(BuildContext context) async {
       });
 
       await FirebaseFirestore.instance
-          .collection('bookings')
-          .doc(widget.docId)
-          .update({
-        'transferLast5': last5,
-        'depositStatus': 'pending',
-      });
+    .collection('bookings')
+    .doc(widget.docId)
+    .update({
+  'transferLast5': last5,
+
+  /// 🔥 客戶已回傳付款資料
+  'depositStatus': 'pending_review',
+
+  /// 🔥 記錄送出時間
+  'depositSubmittedAt': FieldValue.serverTimestamp(),
+});
 
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('訂金已送出')),
@@ -1622,6 +1705,64 @@ await ref.putData(
       });
     }
   }
+
+Future<void> _deleteTransferImage(String imageUrl) async {
+  if (imageUrl.isEmpty) return;
+
+  final confirm = await showDialog<bool>(
+    context: context,
+    builder: (_) => AlertDialog(
+      title: const Text('刪除轉帳截圖'),
+      content: const Text('確定要刪除目前上傳的轉帳截圖嗎？'),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context, false),
+          child: const Text('取消'),
+        ),
+        ElevatedButton(
+          onPressed: () => Navigator.pop(context, true),
+          child: const Text('確定刪除'),
+        ),
+      ],
+    ),
+  );
+
+  if (confirm != true) return;
+
+  setState(() {
+    _loading = true;
+  });
+
+  try {
+    await FirebaseStorage.instance.refFromURL(imageUrl).delete();
+
+    await FirebaseFirestore.instance
+        .collection('bookings')
+        .doc(widget.docId)
+        .update({
+      'transferImageUrl': FieldValue.delete(),
+    });
+
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('已刪除轉帳截圖')),
+    );
+  } catch (e) {
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('刪除失敗：$e')),
+    );
+  } finally {
+    if (mounted) {
+      setState(() {
+        _loading = false;
+      });
+    }
+  }
+}
+
 Widget _buildStatusCard(String status) {
   Color bgColor;
   Color textColor;
