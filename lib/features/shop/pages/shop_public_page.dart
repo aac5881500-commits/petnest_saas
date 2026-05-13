@@ -10,7 +10,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:petnest_saas/features/shop/pages/shop_policy_view_page.dart';
 import 'package:petnest_saas/core/widgets/app_drawer.dart';
 import 'package:petnest_saas/features/shop/widgets/shop_template_feature_card.dart';
-import 'package:petnest_saas/features/shop/widgets/shop_section_title.dart';
+import 'package:petnest_saas/features/shop/pages/shop_room_intro_page.dart';
 
 
 
@@ -314,11 +314,20 @@ GridView.count(
   onTap: () {},
 ),
 
-                        ShopTemplateFeatureCard(
+ShopTemplateFeatureCard(
   icon: Icons.bed,
   title: '房間介紹',
   subtitle: '多種房型・專屬選擇',
-  onTap: () {},
+  onTap: () {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ShopRoomIntroPage(
+          shopId: widget.shopId,
+        ),
+      ),
+    );
+  },
 ),
                     ShopTemplateFeatureCard(
   icon: Icons.info,

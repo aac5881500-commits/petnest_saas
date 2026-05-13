@@ -18,10 +18,8 @@
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/services/booking_service.dart';
 import 'package:petnest_saas/core/services/shop_service.dart';
-import 'package:petnest_saas/shared/widgets/booking_calendar.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:flutter/foundation.dart';
 import 'package:petnest_saas/core/services/member_service.dart';
 import 'package:petnest_saas/features/booking/pages/booking_success_page.dart';
 import 'package:petnest_saas/core/widgets/app_drawer.dart';
@@ -31,7 +29,12 @@ import 'package:petnest_saas/features/shop/widgets/booking/booking_pet_section.d
 import 'package:petnest_saas/features/shop/widgets/booking/booking_summary_helper.dart';
 import 'package:petnest_saas/features/shop/widgets/booking/booking_date_section.dart';
 import 'package:petnest_saas/features/shop/widgets/booking/booking_next_step_section.dart';
+import 'package:petnest_saas/features/shop/widgets/booking/front_calendar_payload.dart';
 import 'package:petnest_saas/features/shop/widgets/booking/booking_addons_helper.dart';
+import 'package:petnest_saas/features/shop/widgets/booking/booking_calendar_dialog.dart';
+import 'package:petnest_saas/features/shop/widgets/booking/front_calendar_helper.dart';
+
+
 
 
 
@@ -60,8 +63,6 @@ void initState() {
 
   final _customerNameController = TextEditingController();
   final _customerPhoneController = TextEditingController();
-  final _petNameController = TextEditingController();
-  final _petTypeController = TextEditingController();
   final _noteController = TextEditingController();
 
   bool _submitting = false;
@@ -126,14 +127,12 @@ Future<void> _loadAddons() async {
 
 
 DateTime _calendarMonth = DateTime.now();
-Future<_FrontCalendarPayload>? _calendarFuture;
+Future<FrontCalendarPayload>? _calendarFuture;
 
   @override
   void dispose() {
     _customerNameController.dispose();
     _customerPhoneController.dispose();
-    _petNameController.dispose();
-    _petTypeController.dispose();
     _noteController.dispose();
     super.dispose();
   }
@@ -400,117 +399,18 @@ BookingNextStepSection(
     );
   }
 
-  Future<_FrontCalendarPayload> _buildFrontCalendarPayload({
-    required Map<String, dynamic> shop,
-    required DateTime firstDate,
-    required DateTime lastDate,
-  }) async {
-
-    if (kDebugMode) {
-  print('🔥 抓資料了：$firstDate ~ $lastDate');
-}
-
-    final blockedDateKeys =
-        List<String>.from(shop['blockedDates'] ?? []).map((e) => e.toString()).toSet();
-
-    final Map<String, String> blockedDateReasons =
-    Map<String, dynamic>.from(shop['blockedDateReasons'] ?? {})
-        .map((key, value) => MapEntry(key, value.toString()));
-
-    final Map<String, int> priceMap = {};
-    final Map<String, int> remainingRoomsMap = {};
-    final Set<String> unbookableDateKeys = {};
-
-final roomsSnapshot = await FirebaseFirestore.instance
-    .collection('shops')
-    .doc(widget.shopId)
-    .collection('rooms')
-    .where('enabled', isEqualTo: true)
-    .get();
-
-final totalRooms = roomsSnapshot.docs.length;
-
-    DateTime cursor = _dateOnly(firstDate);
-    final last = _dateOnly(lastDate);
-
-final monthStart = _dateOnly(firstDate);
-final monthEnd = _dateOnly(lastDate);
-
-final snapshot = await FirebaseFirestore.instance
-    .collection('bookings')
-    .where('shopId', isEqualTo: shop['shopId'])
-.where('status', whereIn: ['pending', 'confirmed'])
-.where('startDate', isLessThanOrEqualTo: Timestamp.fromDate(monthEnd))
-    .get();
-
-final bookings = snapshot.docs.map((doc) {
-  final data = doc.data();
-
-  final start = (data['startDate'] as Timestamp).toDate();
-  final end = (data['endDate'] as Timestamp).toDate();
-
-  // 🔥 用 Dart 自己過濾（關鍵）
-  if (end.isBefore(monthStart) || start.isAfter(monthEnd)) {
-    return null;
-  }
-
-  return data;
-}).where((e) => e != null).cast<Map<String, dynamic>>().toList();
-
-while (!cursor.isAfter(last)) {
-  final key = ShopService.instance.formatDateKey(cursor);
-
-  priceMap[key] = ShopService.instance.getPriceForDate(
-    shop,
-    cursor,
+  Future<FrontCalendarPayload> _buildFrontCalendarPayload({
+  required Map<String, dynamic> shop,
+  required DateTime firstDate,
+  required DateTime lastDate,
+}) {
+  return FrontCalendarHelper.buildPayload(
+    shopId: widget.shopId,
+    shop: shop,
+    firstDate: firstDate,
+    lastDate: lastDate,
   );
-
-  int occupied = 0;
-
-  for (final booking in bookings) {
-    final start = (booking['startDate'] as Timestamp).toDate();
-    final end = (booking['endDate'] as Timestamp).toDate();
-
-    if (end.isBefore(monthStart) || start.isAfter(monthEnd)) {
-  continue;
 }
-
-
-
-    DateTime temp = DateTime(start.year, start.month, start.day);
-
-    while (!temp.isAfter(end.subtract(const Duration(days: 1)))) {
-      final dKey = ShopService.instance.formatDateKey(temp);
-
-      if (dKey == key) {
-        occupied++;
-        break;
-      }
-
-      temp = temp.add(const Duration(days: 1));
-    }
-  }
-
-
-final remaining = totalRooms - occupied;
-
-  remainingRoomsMap[key] = remaining;
-
-  if (remaining <= 0) {
-    unbookableDateKeys.add(key);
-  }
-
-  cursor = cursor.add(const Duration(days: 1));
-}
-
-    return _FrontCalendarPayload(
-  blockedDateKeys: blockedDateKeys,
-  blockedDateReasons: blockedDateReasons,
-  unbookableDateKeys: unbookableDateKeys,
-  priceMap: priceMap,
-  remainingRoomsMap: remainingRoomsMap,
-);
-  }
 
   Future<void> _handleCalendarTap({
   required Map<String, dynamic> shop,
@@ -917,7 +817,7 @@ roomImages:
   builder: (_) {
     return StatefulBuilder(
       builder: (context, setInnerState) {
-        return FutureBuilder<_FrontCalendarPayload>(
+        return FutureBuilder<FrontCalendarPayload>(
           future: _calendarFuture,
           builder: (context, snapshot) {
             if (snapshot.connectionState == ConnectionState.waiting) {
@@ -940,138 +840,68 @@ if (!snapshot.hasData) {
 
             final payload = snapshot.data!;
 
-            return Dialog(
-  insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
-  child: Center( //
-    child: SizedBox(
-  height: MediaQuery.of(context).size.height * 0.95,
-  width: MediaQuery.of(context).size.width * 0.9,
-  child: SingleChildScrollView( // 🔥加這個
-    child: Column(
-        children: [
+return BookingCalendarDialog(
+  payload: payload,
+  calendarMonth: _calendarMonth,
+  today: today,
+  maxDays: maxDays,
+  tempStartDate: _tempStartDate,
+  tempEndDate: _tempEndDate,
+  rangeMessage: _rangeMessage,
 
-          /// 🔥 日曆
-          BookingCalendar(
+  onMonthChanged: (newMonth) {
+    if (!mounted) return;
 
-              key: ValueKey('${_tempStartDate}_${_tempEndDate}'),
+    final firstDay = DateTime(
+      newMonth.year,
+      newMonth.month,
+      1,
+    );
 
-              initialMonth: _calendarMonth,
-              firstDate: today,
-              lastDate: today.add(Duration(days: maxDays)),
+    final lastDay = DateTime(
+      newMonth.year,
+      newMonth.month + 1,
+      0,
+    );
 
-              rangeStart: _tempStartDate,
-              rangeEnd: _tempEndDate,
+    setState(() {
+      _calendarMonth = newMonth;
 
-              blockedDateKeys: payload.blockedDateKeys,
-              blockedDateReasons: payload.blockedDateReasons,
-              unbookableDateKeys: payload.unbookableDateKeys,
-              remainingRoomsMap: payload.remainingRoomsMap,
-              onMonthChanged: (newMonth) {
-                if (!mounted) return;
+      _calendarFuture = _buildFrontCalendarPayload(
+        shop: shop,
+        firstDate: firstDay,
+        lastDate: lastDay,
+      );
+    });
+  },
 
-                final firstDay = DateTime(newMonth.year, newMonth.month, 1);
-                final lastDay = DateTime(newMonth.year, newMonth.month + 1, 0);
+  onDayTap: (date) async {
+    await _handleCalendarTap(
+      shop: shop,
+      date: date,
+    );
 
-                setState(() {
-                  _calendarMonth = newMonth;
+    if (!mounted) return;
 
-                  _calendarFuture = _buildFrontCalendarPayload(
-                    shop: shop,
-                    firstDate: firstDay,
-                    lastDate: lastDay,
-                  );
-                });
-              },
+    setInnerState(() {});
+  },
 
-              onDayTap: (date) async {
-                await _handleCalendarTap(
-                  shop: shop,
-                  date: date,
-                );
+  onCancel: () {
+    Navigator.pop(context);
+  },
 
-                if (!mounted) return;
+  onConfirm: () {
+    setState(() {
+      _startDate = _tempStartDate;
+      _endDate = _tempEndDate;
 
-                setInnerState(() {}); // 🔥 更新UI
-              },
-            ),
+      _rangeChecked = true;
+      _rangeBookable = true;
+      _rangeMessage = '';
+    });
 
-          
-
-/// 🔥 顯示訊息區（新增）
-if (_rangeMessage.isNotEmpty)
-  Container(
-    width: double.infinity,
-    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-    margin: const EdgeInsets.only(top: 8),
-    decoration: BoxDecoration(
-      color: Colors.grey.shade100,
-      borderRadius: BorderRadius.circular(8),
-    ),
-    child: Row(
-  children: [
-    const Text(
-      '⚠️ ',
-      style: TextStyle(fontSize: 18),
-    ),
-    Expanded(
-      child: Text(
-        _rangeMessage,
-        style: const TextStyle(
-          fontSize: 16, // 🔥變大
-          color: Colors.red, // 🔥變紅
-          fontWeight: FontWeight.w600,
-        ),
-      ),
-    ),
-  ],
-),
-  ),
-
-          /// 🔥 底部按鈕
-          Padding(
-            padding: const EdgeInsets.all(12),
-            child: Row(
-              children: [
-
-                Expanded(
-                  child: OutlinedButton(
-                    onPressed: () {
-                      Navigator.pop(context);
-                    },
-                    child: const Text('取消'),
-                  ),
-                ),
-
-                const SizedBox(width: 12),
-
-                Expanded(
-                  child: ElevatedButton(
-                    onPressed: () {
-  setState(() {
-    _startDate = _tempStartDate;
-    _endDate = _tempEndDate;
-
-    /// 🔥 加這三行（關鍵）
-    _rangeChecked = true;
-    _rangeBookable = true;
-    _rangeMessage = '';
-  });
-
-  Navigator.pop(context);
-},
-                    child: const Text('確認'),
-                  ),
-                ),
-
-              ],
-            ),
-          ),
-
-        ],
-      ),
-    ),
-  ),
-  ),
+    Navigator.pop(context);
+  },
 );
           },
         );
@@ -1122,19 +952,3 @@ List<Map<String, dynamic>> _buildAddonsData() {
 }
 }
 
-class _FrontCalendarPayload {
-  const _FrontCalendarPayload({
-    required this.blockedDateKeys,
-required this.blockedDateReasons,
-required this.unbookableDateKeys,
-    required this.priceMap,
-    required this.remainingRoomsMap,
-  });
-
-  final Set<String> blockedDateKeys;
-final Map<String, String> blockedDateReasons; // 🔥 新增
-final Set<String> unbookableDateKeys;
-final Map<String, int> priceMap;
-final Map<String, int> remainingRoomsMap;
-
-}
