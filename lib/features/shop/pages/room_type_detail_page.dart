@@ -1,4 +1,30 @@
+// lib/features/shop/pages/room_type_detail_page.dart
+//
+// 🔥 前台房型詳細頁
+//
+// 功能：
+// - 顯示房型照片
+// - 顯示房型特色小卡
+// - 顯示房型尺寸
+// - 顯示房型介紹
+// - 顯示入住與退房日期
+// - 顯示房型價格
+// - 提供返回預約頁按鈕
+//
+// 使用位置：
+// - shop_booking_page.dart 點選房型後進入
+//
+// 共用元件：
+// - RoomFeatureTags（房型特色小卡）
+//
+// 後續可擴充：
+// - 房型影片
+// - 房型規範
+// - 房型直播鏡頭
+// - 房型可入住寵物條件
+
 import 'package:flutter/material.dart';
+import 'package:petnest_saas/features/shop/widgets/room/room_feature_tags.dart';
 
 class RoomTypeDetailPage extends StatefulWidget {
   const RoomTypeDetailPage({
@@ -154,13 +180,11 @@ class _RoomTypeDetailPageState extends State<RoomTypeDetailPage> {
                       ),
                     ),
 
-                  const SizedBox(height: 20),
+RoomFeatureTags(
+  features: List<String>.from(widget.roomType['features'] ?? []),
+),
 
-                  /// 🔥 小卡（主角）
-                  _buildFeatureTags(widget.roomType['features'] ?? []),
-
-                  const SizedBox(height: 20),
-
+const SizedBox(height: 20),
 
 const SizedBox(height: 10),
 
@@ -303,54 +327,5 @@ Widget _sizeItem(String label, dynamic value) {
         style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
       ),
     ],
-  );
-}
-
-/// 小卡
-Widget _buildFeatureTags(List features) {
-  final featureOptions = {
-    'private_space': {'name': '獨立包廂', 'icon': Icons.home},
-    'daily_clean': {'name': '每日整理', 'icon': Icons.cleaning_services},
-    'camera': {'name': '全日監控', 'icon': Icons.videocam},
-    'aircon': {'name': '舒適空調', 'icon': Icons.ac_unit},
-    'private_door': {'name': '獨立房門', 'icon': Icons.lock},
-    'cat_window': {'name': '透明貓窗', 'icon': Icons.window},
-    'sky_walk': {'name': '天空步道', 'icon': Icons.architecture},
-    'scratch': {'name': '貓抓板', 'icon': Icons.pets},
-    'jump': {'name': '跳台設計', 'icon': Icons.stairs},
-    'bed': {'name': '舒眠睡窩', 'icon': Icons.bed},
-  };
-
-  return Wrap(
-    spacing: 10,
-    runSpacing: 10,
-    children: features.map<Widget>((key) {
-      final item = featureOptions[key];
-      if (item == null) return const SizedBox();
-
-      return Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-       decoration: BoxDecoration(
-  color: Colors.white,
-  borderRadius: BorderRadius.circular(16),
-  border: Border.all(color: Colors.grey.shade200),
-  boxShadow: [
-    BoxShadow(
-      color: Colors.black.withOpacity(0.05),
-      blurRadius: 6,
-      offset: const Offset(0, 2),
-    ),
-  ],
-),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(item['icon'] as IconData, size: 18),
-            const SizedBox(width: 6),
-            Text(item['name'] as String),
-          ],
-        ),
-      );
-    }).toList(),
   );
 }

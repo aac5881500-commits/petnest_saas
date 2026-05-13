@@ -9,6 +9,8 @@ import 'dart:async';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:petnest_saas/features/shop/pages/shop_policy_view_page.dart';
 import 'package:petnest_saas/core/widgets/app_drawer.dart';
+import 'package:petnest_saas/features/shop/widgets/shop_template_feature_card.dart';
+import 'package:petnest_saas/features/shop/widgets/shop_section_title.dart';
 
 
 
@@ -288,7 +290,7 @@ _buildMainServiceButton(
 
                     const SizedBox(height: 22),
 
-_buildSectionTitle(
+ShopSectionTitle(
   icon: Icons.pets,
   title: '住宿服務',
 ),
@@ -305,20 +307,20 @@ GridView.count(
                       childAspectRatio: 2.0,
                       children: [
 
-                        _buildTemplateFeatureCard(
+                        ShopTemplateFeatureCard(
   icon: Icons.home,
   title: '環境介紹',
   subtitle: '住宿空間・安心設備',
   onTap: () {},
 ),
 
-                        _buildTemplateFeatureCard(
+                        ShopTemplateFeatureCard(
   icon: Icons.bed,
   title: '房間介紹',
   subtitle: '多種房型・專屬選擇',
   onTap: () {},
 ),
-                    _buildTemplateFeatureCard(
+                    ShopTemplateFeatureCard(
   icon: Icons.info,
   title: '入住須知',
   subtitle: '入住條件・注意事項',
@@ -339,7 +341,7 @@ GridView.count(
 
 const SizedBox(height: 24),
 
-_buildSectionTitle(
+ShopSectionTitle(
   icon: Icons.storefront,
   title: '了解我們',
 ),
@@ -442,7 +444,7 @@ const SizedBox(height: 80),
     );
   }
 
-Widget _buildSectionTitle({
+Widget ShopSectionTitle({
   required IconData icon,
   required String title,
   String actionText = '',
@@ -563,66 +565,6 @@ Widget _buildMainServiceButton({
     ),
   );
 }
-
-Widget _buildTemplateFeatureCard({
-  required IconData icon,
-  required String title,
-  required String subtitle,
-  required VoidCallback onTap,
-}) {
-  return GestureDetector(
-    onTap: onTap,
-    child: Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: const Color(0xFFF0E0CC)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.045),
-            blurRadius: 10,
-            offset: const Offset(0, 3),
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
-          Icon(
-            icon,
-            size: 30,
-            color: const Color(0xFFB86B18),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w800,
-                    color: Color(0xFF3A2A1A),
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  subtitle,
-                  style: const TextStyle(
-                    fontSize: 11,
-                    color: Color(0xFF8A6A45),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    ),
-  );
-}
   Widget _buildMenuButton({
     required IconData icon,
     required String title,
@@ -644,6 +586,7 @@ Widget _buildTemplateFeatureCard({
             ),
           ],
         ),
+
         padding: const EdgeInsets.symmetric(horizontal: 16),
         child: Row(
           children: [
