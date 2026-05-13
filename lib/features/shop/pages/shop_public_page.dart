@@ -290,7 +290,7 @@ _buildMainServiceButton(
 
 _buildSectionTitle(
   icon: Icons.pets,
-  title: '貓咪旅館功能',
+  title: '住宿服務',
 ),
 
 const SizedBox(height: 12),
@@ -318,9 +318,10 @@ GridView.count(
   subtitle: '多種房型・專屬選擇',
   onTap: () {},
 ),
-                        _buildMenuButton(
+                    _buildTemplateFeatureCard(
   icon: Icons.info,
   title: '入住須知',
+  subtitle: '入住條件・注意事項',
   onTap: () {
     Navigator.push(
       context,
@@ -333,22 +334,42 @@ GridView.count(
     );
   },
 ),
-
-                        _buildMenuButton(
-                          icon: Icons.map,
-                          title: '關於我們',
-                          onTap: () {},
-                        ),
-
-                        _buildMenuButton(
-                          icon: Icons.star,
-                          title: '評價',
-                          onTap: () {},
-                        ),
                       ],
                     ),
 
-                    const SizedBox(height: 80),
+const SizedBox(height: 24),
+
+_buildSectionTitle(
+  icon: Icons.storefront,
+  title: '了解我們',
+),
+
+const SizedBox(height: 12),
+
+GridView.count(
+  crossAxisCount: 2,
+  shrinkWrap: true,
+  physics: const NeverScrollableScrollPhysics(),
+  mainAxisSpacing: 12,
+  crossAxisSpacing: 12,
+  childAspectRatio: 2.0,
+  children: [
+
+    _buildMenuButton(
+      icon: Icons.map,
+      title: '關於我們',
+      onTap: () {},
+    ),
+
+    _buildMenuButton(
+      icon: Icons.star,
+      title: '評價',
+      onTap: () {},
+    ),
+  ],
+),
+
+const SizedBox(height: 80),
                   ],
                 ),
               ),
