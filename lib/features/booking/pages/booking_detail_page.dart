@@ -230,7 +230,7 @@ if (cancelReason == null) return;
           children: [
 
 /// 🏠 房型卡（完全後台版🔥）
-_buildStatusCard(bookingStatus),
+_buildStatusCard(data),
 
 if (bookingStatus == 'cancelled')
   Container(
@@ -1763,60 +1763,70 @@ Future<void> _deleteTransferImage(String imageUrl) async {
   }
 }
 
-Widget _buildStatusCard(String status) {
+Widget _buildStatusCard(Map<String, dynamic> data) {
+  final status = (data['status'] ?? '').toString();
+  final depositStatus = (data['depositStatus'] ?? '').toString();
+  final paymentMethod = (data['paymentMethod'] ?? '').toString();
+
+  final depositAmountRaw = data['depositAmount'];
+  final int depositAmount = depositAmountRaw is int
+      ? depositAmountRaw
+      : depositAmountRaw is double
+          ? depositAmountRaw.round()
+          : 0;
+
+  final bool hasDeposit = depositAmount > 0;
+  final bool isBankTransfer =
+      paymentMethod == 'transfer' ||
+      paymentMethod == 'bank_transfer' ||
+      paymentMethod == 'bankTransfer' ||
+      paymentMethod == '銀行轉帳';
+
   Color bgColor;
   Color textColor;
   String text;
   IconData icon;
 
-  switch (status) {
-    case 'unpaid':
-      bgColor = Colors.red.shade50;
-      textColor = Colors.red;
-      text = '尚未付款';
-      icon = Icons.warning;
-      break;
-
-    case 'pending':
-      bgColor = Colors.orange.shade50;
-      textColor = Colors.orange;
-      text = '已付款・待確認';
-      icon = Icons.access_time;
-      break;
-
-    case 'confirmed':
-      bgColor = Colors.green.shade50;
-      textColor = Colors.green;
-      text = '已確認訂單';
-      icon = Icons.check_circle;
-      break;
-
-    case 'checked_in':
-      bgColor = Colors.blue.shade50;
-      textColor = Colors.blue;
-      text = '入住中';
-      icon = Icons.home;
-      break;
-
-    case 'completed':
-      bgColor = Colors.grey.shade300;
-      textColor = Colors.black87;
-      text = '已完成';
-      icon = Icons.flag;
-      break;
-
-case 'cancelled':
-  bgColor = Colors.red.shade50;
-  textColor = Colors.red;
-  text = '已取消訂單';
-  icon = Icons.cancel;
-  break;
-
-    default:
-      bgColor = Colors.grey.shade200;
-      textColor = Colors.black;
-      text = '未知狀態';
-      icon = Icons.help;
+  if (status == 'completed') {
+    bgColor = Colors.grey.shade300;
+    textColor = Colors.black87;
+    text = '已完成';
+    icon = Icons.flag;
+  } else if (status == 'cancelled') {
+    bgColor = Colors.red.shade50;
+    textColor = Colors.red;
+    text = '已取消訂單';
+    icon = Icons.cancel;
+  } else if (status == 'checked_in') {
+    bgColor = Colors.blue.shade50;
+    textColor = Colors.blue;
+    text = '入住中';
+    icon = Icons.home;
+  } else if (status == 'confirmed') {
+    bgColor = Colors.green.shade50;
+    textColor = Colors.green;
+    text = '已確認訂單';
+    icon = Icons.check_circle;
+  } else if (depositStatus == 'pending_review') {
+    bgColor = Colors.orange.shade50;
+    textColor = Colors.orange.shade800;
+    text = hasDeposit ? '已付款・待店家確認' : '已回傳轉帳・待店家確認';
+    icon = Icons.receipt_long;
+  } else if (hasDeposit) {
+    bgColor = Colors.amber.shade100;
+    textColor = Colors.amber.shade900;
+    text = '需支付訂金';
+    icon = Icons.account_balance_wallet;
+  } else if (isBankTransfer) {
+    bgColor = Colors.deepOrange.shade50;
+    textColor = Colors.deepOrange.shade700;
+    text = '尚未轉帳';
+    icon = Icons.account_balance;
+  } else {
+    bgColor = Colors.orange.shade50;
+    textColor = Colors.orange;
+    text = '待店家確認';
+    icon = Icons.access_time;
   }
 
   return Container(

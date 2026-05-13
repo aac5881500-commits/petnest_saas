@@ -441,6 +441,40 @@ class _CatHotelTab extends StatelessWidget {
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
+        const _MenuSectionTitle('今日營運'),
+
+        _BookingManageTile(
+  shopId: shopId,
+  onTap: () {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => AdminBookingListPage(
+          shopId: shopId,
+        ),
+      ),
+    );
+  },
+),
+
+_MenuTile(
+  title: '房務管理',
+  subtitle: '查看所有房間狀態（入住 / 清潔 / 關閉）',
+  icon: Icons.grid_view,
+  onTap: () {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => RoomDashboardPage(
+          shopId: shopId,
+        ),
+      ),
+    );
+  },
+),
+
+const _MenuSectionTitle('預約與房型設定'),
+
         _MenuTile(
           title: '預約管理',
           subtitle: isProfileComplete ? '管理房數、關閉日期、促銷價與預約列表' : '請先完成基本資料',
@@ -456,19 +490,7 @@ class _CatHotelTab extends StatelessWidget {
           },
         ),
 
-_BookingManageTile(
-  shopId: shopId,
-  onTap: () {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => AdminBookingListPage(
-          shopId: shopId,
-        ),
-      ),
-    );
-  },
-),
+
 
         _MenuTile(
   title: '房型管理',
@@ -500,21 +522,9 @@ _MenuTile(
     );
   },
 ),
-_MenuTile(
-  title: '房務管理',
-  subtitle: '查看所有房間狀態（入住 / 清潔 / 關閉）',
-  icon: Icons.grid_view,
-  onTap: () {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => RoomDashboardPage(
-          shopId: shopId,
-        ),
-      ),
-    );
-  },
-),
+
+const _MenuSectionTitle('付款與加購'),
+
         _MenuTile(
   title: '住宿加購 / 附加服務',
   subtitle: '設定時間加購、額外服務、價格與開關',
@@ -544,6 +554,8 @@ _MenuTile(
     );
   },
 ),
+
+const _MenuSectionTitle('規則與紀錄'),
 
         _MenuTile(
   title: '入住規則 / 貓咪條件',
@@ -645,6 +657,27 @@ class _ModuleTemplateTab extends StatelessWidget {
           description: '這個模組目前先留位置，不一定顯示，不重做資料結構。',
         ),
       ],
+    );
+  }
+}
+
+class _MenuSectionTitle extends StatelessWidget {
+  const _MenuSectionTitle(this.title);
+
+  final String title;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(4, 18, 4, 8),
+      child: Text(
+        title,
+        style: TextStyle(
+          fontSize: 13,
+          fontWeight: FontWeight.bold,
+          color: Colors.grey.shade700,
+        ),
+      ),
     );
   }
 }

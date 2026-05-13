@@ -49,11 +49,11 @@ class PetDetailPage extends StatelessWidget {
   ],
 ],
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          children: [
-
+     body: SingleChildScrollView(
+  padding: const EdgeInsets.all(16),
+  child: Column(
+    children: [
+      
             /// 🖼️ 圖片
             GestureDetector(
               onTap: photoUrl.isNotEmpty
@@ -188,6 +188,36 @@ const Text(
     );
   }
 
+/// ✨ 統一輸入框樣式
+InputDecoration _inputStyle(String label) {
+  return InputDecoration(
+    labelText: label,
+    filled: true,
+    fillColor: Colors.grey.shade50,
+    contentPadding: const EdgeInsets.symmetric(
+      horizontal: 14,
+      vertical: 20,
+    ),
+    border: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(14),
+      borderSide: BorderSide.none,
+    ),
+    enabledBorder: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(14),
+      borderSide: BorderSide(
+        color: Colors.grey.shade300,
+      ),
+    ),
+    focusedBorder: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(14),
+      borderSide: const BorderSide(
+        color: Colors.blue,
+        width: 1.5,
+      ),
+    ),
+  );
+}
+
   Widget _item(String label, dynamic value) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 10),
@@ -229,6 +259,7 @@ const Text(
     String? age = pet['age'];
     String? medical = pet['vaccine'];
     String? litterType = pet['litterType'];
+    String? neuterStatus = pet['isNeutered'] == true ? '有結紮' : '未結紮';
 
     Uint8List? newImage;
 
@@ -238,9 +269,25 @@ const Text(
         return StatefulBuilder(
           builder: (context, setState) {
             return AlertDialog(
-              title: const Text('編輯寵物'),
+  backgroundColor: Colors.white,
+  elevation: 0,
+  shape: RoundedRectangleBorder(
+    borderRadius: BorderRadius.circular(28),
+  ),
+  insetPadding: const EdgeInsets.symmetric(
+    horizontal: 24,
+    vertical: 24,
+  ),
+              title: const Text(
+  '編輯寵物',
+  style: TextStyle(
+    fontSize: 24,
+    fontWeight: FontWeight.bold,
+  ),
+),
               content: SingleChildScrollView(
                 child: Column(
+  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
 
                     
@@ -279,138 +326,229 @@ const Text(
                     TextField(
   controller: name,
   enabled: !isAdminView,
+  decoration: _inputStyle('名稱'),
+),
 
-                      decoration: const InputDecoration(labelText: '名稱'),
-                    ),
+const SizedBox(height: 12),
+
+TextField(
+  controller: breed,
+  decoration: _inputStyle('品種'),
+),
 
 if (isAdminView) ...[
   const SizedBox(height: 12),
   TextField(
-    controller: adminNote,
-    decoration: const InputDecoration(
-      labelText: '員工備註（只有後台看得到）',
-    ),
-  ),
+  controller: adminNote,
+  maxLines: 3,
+  decoration: _inputStyle('員工備註（只有後台看得到）'),
+),
 ],
 
-                    DropdownButtonFormField(
+                    DropdownButtonFormField<String>(
                       value: ['公貓', '母貓'].contains(gender) ? gender : null,
+
+decoration: _inputStyle('性別'),
+
                       items: ['公貓', '母貓']
                           .map((e) =>
                               DropdownMenuItem(value: e, child: Text(e)))
                           .toList(),
+
                       onChanged: isAdminView
     ? null
-    : (v) => setState(() => gender = v as String?),
+    : (v) => setState(() => gender = v),
+
                     ),
 
-                    DropdownButtonFormField(
-                      value: ['6~12個月', '1~10歲'].contains(age) ? age : null,
-                      items: const [
-                        DropdownMenuItem(value: '6~12個月', child: Text('6~12個月')),
-                        DropdownMenuItem(value: '1~10歲', child: Text('1~10歲')),
-                      ],
-                      onChanged: isAdminView
-    ? null
-    : (v) => setState(() => age = v as String?),
-                    ),
+const SizedBox(height: 12),
 
-                    DropdownButtonFormField(
-  value: ['無', '慢性腎臟病', '糖尿病'].contains(medical)
+DropdownButtonFormField<String>(
+  value: ['有結紮', '未結紮'].contains(neuterStatus)
+      ? neuterStatus
+      : null,
+  decoration: _inputStyle('結紮狀況'),
+  items: const [
+    DropdownMenuItem(value: '有結紮', child: Text('有結紮')),
+    DropdownMenuItem(value: '未結紮', child: Text('未結紮')),
+  ],
+  onChanged: isAdminView
+      ? null
+      : (v) => setState(() => neuterStatus = v),
+),
+
+                    DropdownButtonFormField<String>(
+  value: ['6~12個月', '1~10歲', '10~12歲', '12歲以上'].contains(age)
+      ? age
+      : null,
+  decoration: _inputStyle('年齡'),
+  items: const [
+    DropdownMenuItem(value: '6~12個月', child: Text('含6~12個月')),
+    DropdownMenuItem(value: '1~10歲', child: Text('1~10歲')),
+    DropdownMenuItem(value: '10~12歲', child: Text('10~12歲')),
+    DropdownMenuItem(value: '12歲以上', child: Text('12歲以上')),
+  ],
+  onChanged: isAdminView
+      ? null
+      : (v) => setState(() => age = v),
+),
+
+                    DropdownButtonFormField<String>(
+  value: [
+    '無',
+    '慢性腎臟病',
+    '心臟病',
+    '糖尿病',
+    '術後照護',
+    '皮膚疾病',
+    '其他',
+  ].contains(medical)
       ? medical
       : null,
-                      items: const [
-                        DropdownMenuItem(value: '無', child: Text('無')),
-                        DropdownMenuItem(value: '慢性腎臟病', child: Text('慢性腎臟病')),
-                        DropdownMenuItem(value: '糖尿病', child: Text('糖尿病')), 
-                      ],
-                      onChanged: isAdminView
-    ? null
-    : (v) => setState(() => medical = v as String?),
-                    ),
+  decoration: _inputStyle('醫療狀況'),
+  items: const [
+    DropdownMenuItem(value: '無', child: Text('無')),
+    DropdownMenuItem(value: '慢性腎臟病', child: Text('慢性腎臟病')),
+    DropdownMenuItem(value: '心臟病', child: Text('心臟病')),
+    DropdownMenuItem(value: '糖尿病', child: Text('糖尿病')),
+    DropdownMenuItem(value: '術後照護', child: Text('術後照護')),
+    DropdownMenuItem(value: '皮膚疾病', child: Text('皮膚治療')),
+    DropdownMenuItem(value: '其他', child: Text('其他')),
+  ],
+  onChanged: isAdminView
+      ? null
+      : (v) => setState(() => medical = v),
+),
 
-                    DropdownButtonFormField(
-                      value: ['豆腐砂', '礦砂'].contains(litterType)
-    ? litterType
-    : null,
-                      items: const [
-                        DropdownMenuItem(value: '豆腐砂', child: Text('豆腐砂')),
-                        DropdownMenuItem(value: '礦砂', child: Text('礦砂')),
-                      ],
-                      onChanged: isAdminView
-    ? null
-    : (v) => setState(() => litterType = v as String?),
-                    ),
+                    DropdownButtonFormField<String>(
+  value: ['豆腐砂', '礦砂', '其他'].contains(litterType)
+      ? litterType
+      : null,
+  decoration: _inputStyle('貓砂種類'),
+  items: const [
+    DropdownMenuItem(value: '豆腐砂', child: Text('豆腐砂')),
+    DropdownMenuItem(value: '礦砂', child: Text('礦砂')),
+    DropdownMenuItem(value: '其他', child: Text('其他')),
+  ],
+  onChanged: isAdminView
+      ? null
+      : (v) => setState(() => litterType = v),
+),
 
-                    TextField(
+const SizedBox(height: 12),
+
+TextField(
   controller: note,
-  enabled: !isAdminView,
-  decoration: const InputDecoration(labelText: '備註'),
+  maxLines: 4,
+  decoration: _inputStyle('其他備註'),
 ),
                   ],
                 ),
               ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(context),
-                  child: const Text('取消'),
-                ),
-                TextButton(
-                  onPressed: () async {
+              actionsPadding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
 
-                    /// 🔥 刪舊圖
-                    if (newImage != null &&
-                        pet['photoUrl'] != null &&
-                        pet['photoUrl'] != '') {
-                      try {
-                        await FirebaseStorage.instance
-                            .refFromURL(pet['photoUrl'])
-                            .delete();
-                      } catch (e) {}
-                    }
+actions: [
+  Row(
+    children: [
 
-                    /// 🔥 更新資料
-                    await FirebaseFirestore.instance
-                        .collection('user_profiles')
-                        .doc(uid)
-                        .collection('pets')
-                        .doc(pet['petId'])
-                        .update({
-                      'name': name.text,
-                      'age': age,
-                      'gender': gender,
-                      'breed': breed.text,
-                      'vaccine': medical,
-                      'litterType': litterType,
-                      'note': note.text,
-                      'adminNote': adminNote.text,
-                    });
+      /// 取消
+      Expanded(
+        child: OutlinedButton(
+          onPressed: () => Navigator.pop(context),
+          style: OutlinedButton.styleFrom(
+            minimumSize: const Size.fromHeight(52),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+          ),
+          child: const Text(
+            '取消',
+            style: TextStyle(
+              fontSize: 16,
+            ),
+          ),
+        ),
+      ),
 
-                    /// 🔥 上傳新圖
-                    if (newImage != null) {
-                      final ref = FirebaseStorage.instance
-                          .ref()
-                          .child('pets')
-                          .child(uid)
-                          .child('${pet['petId']}.jpg');
+      const SizedBox(width: 12),
 
-                      await ref.putData(newImage!);
-                      final url = await ref.getDownloadURL();
+      /// 儲存
+      Expanded(
+        child: FilledButton(
+          onPressed: () async {
 
-                      await FirebaseFirestore.instance
-                          .collection('user_profiles')
-                          .doc(uid)
-                          .collection('pets')
-                          .doc(pet['petId'])
-                          .update({'photoUrl': url});
-                    }
+            /// 🔥 刪舊圖
+            if (newImage != null &&
+                pet['photoUrl'] != null &&
+                pet['photoUrl'] != '') {
+              try {
+                await FirebaseStorage.instance
+                    .refFromURL(pet['photoUrl'])
+                    .delete();
+              } catch (e) {}
+            }
 
-                    Navigator.pop(context);
-                    Navigator.pop(context);
-                  },
-                  child: const Text('儲存'),
-                ),
-              ],
+            /// 🔥 更新資料
+            await FirebaseFirestore.instance
+                .collection('user_profiles')
+                .doc(uid)
+                .collection('pets')
+                .doc(pet['petId'])
+                .update({
+              'name': name.text,
+              'age': age,
+              'gender': gender,
+              'breed': breed.text,
+              'isNeutered': neuterStatus == '有結紮',
+              'vaccine': medical,
+              'litterType': litterType,
+              'note': note.text,
+              'adminNote': adminNote.text,
+            });
+
+            /// 🔥 上傳新圖
+            if (newImage != null) {
+              final ref = FirebaseStorage.instance
+                  .ref()
+                  .child('pets')
+                  .child(uid)
+                  .child('${pet['petId']}.jpg');
+
+              await ref.putData(newImage!);
+
+              final url = await ref.getDownloadURL();
+
+              await FirebaseFirestore.instance
+                  .collection('user_profiles')
+                  .doc(uid)
+                  .collection('pets')
+                  .doc(pet['petId'])
+                  .update({
+                'photoUrl': url,
+              });
+            }
+
+            Navigator.pop(context);
+            Navigator.pop(context);
+          },
+          style: FilledButton.styleFrom(
+            minimumSize: const Size.fromHeight(52),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+          ),
+          child: const Text(
+            '儲存',
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ),
+      ),
+    ],
+  ),
+],
             );
           },
         );

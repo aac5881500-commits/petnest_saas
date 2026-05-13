@@ -60,11 +60,31 @@ Future<void> _openUrl(String url) async {
         }
 
         final shop = snapshot.data;
-        if (shop == null) {
-          return const Scaffold(
-            body: Center(child: Text('找不到店家')),
-          );
-        }
+if (shop == null) {
+  return const Scaffold(
+    body: Center(child: Text('找不到店家')),
+  );
+}
+
+/// 🔥 店家已開啟的模組 / 服務類型
+final List enabledModules = shop['enabledModules'] ?? [];
+final List serviceTypes = shop['serviceTypes'] ?? [];
+
+/// 🔥 模板判斷：之後首頁功能卡會依照這些顯示
+final bool hasBooking = enabledModules.contains('booking');
+final bool hasCatHotel = serviceTypes.contains('cat_hotel');
+final bool hasDogHotel = serviceTypes.contains('dog_hotel');
+final bool hasGrooming = serviceTypes.contains('grooming');
+final bool hasHospital = serviceTypes.contains('hospital');
+final bool hasShop = serviceTypes.contains('shop');
+
+/// 🔥 目前主模板：先固定貓咪旅館
+/// 未來可改成從店家設定讀取 primaryService
+final String primaryService = 'cat_hotel';
+
+/// 🔥 未來多模板入口判斷
+/// 目前先保留，不顯示其他模板
+final bool showServiceEntrance = serviceTypes.length > 1;
 
         /// 🔥 Banner（支援圖片 + 連結）
 final List<dynamic> rawBanners = shop['banners'] ?? [];
@@ -91,9 +111,13 @@ if (banners.isEmpty &&
 
         /// 🔥 正確：只保留一個 Scaffold
         return Scaffold(
-          drawer: AppDrawer(shopId: widget.shopId),
+  backgroundColor: const Color(0xFFFFFCF7),
+  drawer: AppDrawer(shopId: widget.shopId),
 
-          appBar: AppBar(
+  appBar: AppBar(
+    backgroundColor: const Color(0xFFFFFCF7),
+    elevation: 0,
+    surfaceTintColor: Colors.transparent,
             leading: Builder(
               builder: (context) => IconButton(
                 icon: const Icon(Icons.menu),
@@ -102,10 +126,27 @@ if (banners.isEmpty &&
                 },
               ),
             ),
-            title: Text(
-              shop['name'] ?? '店家',
-              style: const TextStyle(fontWeight: FontWeight.bold),
-            ),
+            title: Column(
+  children: [
+    Text(
+      shop['name'] ?? '店家',
+      style: const TextStyle(
+        fontSize: 22,
+        fontWeight: FontWeight.w800,
+        color: Color(0xFF3A2A1A),
+      ),
+    ),
+    const SizedBox(height: 4),
+    const Text(
+      '🐾 讓每一隻貓咪都有溫暖的家 🐾',
+      style: TextStyle(
+        fontSize: 12,
+        fontWeight: FontWeight.w400,
+        color: Color(0xFF9A7B55),
+      ),
+    ),
+  ],
+),
             centerTitle: true,
           ),
 
@@ -196,11 +237,15 @@ if (banners.isNotEmpty)
 
 if (banners.isNotEmpty) const SizedBox(height: 20),
 
-                    /// 我要預約（大）
-                    _buildMenuButton(
-                      icon: Icons.calendar_month,
-                      title: '我要預約',
-                      onTap: () async {
+
+
+                    /// 🔥 貓咪旅館主服務卡
+_buildMainServiceButton(
+  icon: Icons.pets,
+  title: '貓咪旅館',
+  subtitle: '安心住宿・房型介紹・入住須知',
+  actionText: '我要預約住宿',
+  onTap: () async {
   final user = FirebaseAuth.instance.currentUser;
 
   if (user == null) {
@@ -241,10 +286,17 @@ if (banners.isNotEmpty) const SizedBox(height: 20),
 },
                     ),
 
-                    const SizedBox(height: 12),
+                    const SizedBox(height: 22),
 
-                    /// 其他按鈕
-                    GridView.count(
+_buildSectionTitle(
+  icon: Icons.pets,
+  title: '貓咪旅館功能',
+),
+
+const SizedBox(height: 12),
+
+/// 貓咪旅館功能
+GridView.count(
                       crossAxisCount: 2,
                       shrinkWrap: true,
                       physics: const NeverScrollableScrollPhysics(),
@@ -253,18 +305,19 @@ if (banners.isNotEmpty) const SizedBox(height: 20),
                       childAspectRatio: 2.0,
                       children: [
 
-                        _buildMenuButton(
-                          icon: Icons.home,
-                          title: '環境介紹',
-                          onTap: () {},
-                        ),
+                        _buildTemplateFeatureCard(
+  icon: Icons.home,
+  title: '環境介紹',
+  subtitle: '住宿空間・安心設備',
+  onTap: () {},
+),
 
-                        _buildMenuButton(
-                          icon: Icons.bed,
-                          title: '房間介紹',
-                          onTap: () {},
-                        ),
-
+                        _buildTemplateFeatureCard(
+  icon: Icons.bed,
+  title: '房間介紹',
+  subtitle: '多種房型・專屬選擇',
+  onTap: () {},
+),
                         _buildMenuButton(
   icon: Icons.info,
   title: '入住須知',
@@ -368,6 +421,187 @@ if (banners.isNotEmpty) const SizedBox(height: 20),
     );
   }
 
+Widget _buildSectionTitle({
+  required IconData icon,
+  required String title,
+  String actionText = '',
+  VoidCallback? onTap,
+}) {
+  return Row(
+    children: [
+      Icon(
+        icon,
+        size: 20,
+        color: const Color(0xFFFF8A2A),
+      ),
+      const SizedBox(width: 8),
+      Text(
+        title,
+        style: const TextStyle(
+          fontSize: 17,
+          fontWeight: FontWeight.w800,
+          color: Color(0xFF3A2A1A),
+        ),
+      ),
+      const Spacer(),
+
+      if (actionText.isNotEmpty)
+        GestureDetector(
+          onTap: onTap,
+          child: Text(
+            actionText,
+            style: const TextStyle(
+              fontSize: 13,
+              color: Color(0xFF9A7B55),
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
+    ],
+  );
+}
+
+Widget _buildMainServiceButton({
+  required IconData icon,
+  required String title,
+  required String subtitle,
+  required String actionText,
+  required VoidCallback onTap,
+}) {
+  return GestureDetector(
+    onTap: onTap,
+    child: Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFF1DD),
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: const Color(0xFFFFD7A8)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.06),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 58,
+            height: 58,
+            decoration: const BoxDecoration(
+              color: Color(0xFFFFD59E),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(
+              icon,
+              size: 30,
+              color: Color(0xFF6B3F16),
+            ),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: const TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w800,
+                    color: Color(0xFF3A2A1A),
+                  ),
+                ),
+                const SizedBox(height: 5),
+                Text(
+                  subtitle,
+                  style: const TextStyle(
+                    fontSize: 13,
+                    color: Color(0xFF8A6A45),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  actionText,
+                  style: const TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFFB86B18),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const Icon(
+            Icons.arrow_forward_ios,
+            size: 18,
+            color: Color(0xFFB86B18),
+          ),
+        ],
+      ),
+    ),
+  );
+}
+
+Widget _buildTemplateFeatureCard({
+  required IconData icon,
+  required String title,
+  required String subtitle,
+  required VoidCallback onTap,
+}) {
+  return GestureDetector(
+    onTap: onTap,
+    child: Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: const Color(0xFFF0E0CC)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.045),
+            blurRadius: 10,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Icon(
+            icon,
+            size: 30,
+            color: const Color(0xFFB86B18),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w800,
+                    color: Color(0xFF3A2A1A),
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  subtitle,
+                  style: const TextStyle(
+                    fontSize: 11,
+                    color: Color(0xFF8A6A45),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
+}
   Widget _buildMenuButton({
     required IconData icon,
     required String title,

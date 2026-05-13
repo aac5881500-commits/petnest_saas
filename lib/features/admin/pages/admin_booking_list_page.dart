@@ -11,7 +11,11 @@ import 'package:petnest_saas/features/admin/widgets/booking_order_card.dart';
 import 'package:petnest_saas/features/admin/widgets/booking_advanced_filter_button.dart';
 import 'package:petnest_saas/dev/dev_fake_booking_generator.dart';
 import 'package:petnest_saas/features/admin/pages/admin_booking_history_page.dart';
+
+//關閉測試 生成定安
 const bool kDevMode = false;
+//打開測試 生成訂單
+//const bool kDevMode = true;
 
 
 

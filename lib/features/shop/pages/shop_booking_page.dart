@@ -1195,11 +1195,14 @@ extraPetPrice: extraPrice,
 extraPetCount: extraPetCount,
 extraPetTotal: extraPetTotal,
 roomSubtotal: roomSubtotal,
+roomImages:
+    _selectedRoomType!['images'] ?? [],
 
   /// 🔥🔥🔥 新增：完整寵物資料
   pets: _pets
       .where((p) => _selectedPetIds.contains(p['petId']))
       .map((p) => {
+            'photoUrl': p['photoUrl'],
             'name': p['name'],
             'breed': p['breed'] ?? p['type'],
             'age': p['age'],
