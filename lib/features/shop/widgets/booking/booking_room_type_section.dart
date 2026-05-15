@@ -93,6 +93,7 @@ class BookingRoomTypeSection extends StatelessWidget {
                     context,
                     MaterialPageRoute(
                       builder: (_) => RoomTypeDetailPage(
+                        shopId: shopId,
                         roomType: type,
                         startDate: startDate!,
                         endDate: endDate!,

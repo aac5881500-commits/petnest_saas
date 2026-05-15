@@ -117,6 +117,7 @@ final finalPets = petDocs.docs.map((doc) {
   };
 }).toList();
 
+
 // 🔥 最終防呆：再次確認房間可用
 final available = await isRoomAvailable(
   shopId: shopId,
@@ -646,6 +647,38 @@ Future<Map<String, dynamic>?> findAvailableRoom({
 
   for (final roomDoc in roomsSnapshot.docs) {
     final roomId = roomDoc.id;
+
+// 🔥 檢查房間是否被手動關閉
+bool blocked = false;
+
+final stayDates = getStayDates(
+  startDate: startDate,
+  endDate: endDate,
+);
+
+for (final date in stayDates) {
+  final dateKey = ShopService.instance.formatDateKey(date);
+
+  final calendarDoc = await _firestore
+      .collection('shops')
+      .doc(shopId)
+      .collection('room_calendar')
+      .doc('${roomId}_$dateKey')
+      .get();
+
+  if (calendarDoc.exists) {
+    final data = calendarDoc.data();
+
+    if (data?['status'] == 'blocked') {
+      blocked = true;
+      break;
+    }
+  }
+}
+
+if (blocked) {
+  continue;
+}
 
     final available = await isRoomAvailable(
       shopId: shopId,

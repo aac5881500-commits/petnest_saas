@@ -74,39 +74,50 @@ class RoomFeatureCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: 14,
-        vertical: 10,
-      ),
+      height: 58,
+      padding: const EdgeInsets.symmetric(horizontal: 8),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.grey.shade200),
+        color: const Color(0xFFFFFCF7),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: const Color(0xFFF0E0CC)),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 6,
-            offset: const Offset(0, 2),
+            color: Colors.black.withOpacity(0.035),
+            blurRadius: 8,
+            offset: const Offset(0, 3),
           ),
         ],
       ),
       child: Row(
-  mainAxisAlignment: MainAxisAlignment.center,
-  mainAxisSize: MainAxisSize.max,
-  children: [
-    Icon(icon, size: 18),
-
-    const SizedBox(width: 6),
-
-    Flexible(
-      child: Text(
-        text,
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
+        children: [
+          Container(
+            width: 30,
+            height: 30,
+            decoration: const BoxDecoration(
+              color: Color(0xFFFFF1DD),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(
+              icon,
+              size: 17,
+              color: Color(0xFFB86B18),
+            ),
+          ),
+          const SizedBox(width: 7),
+          Expanded(
+            child: Text(
+              text,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+                color: Color(0xFF3A2A1A),
+              ),
+            ),
+          ),
+        ],
       ),
-    ),
-  ],
-),
     );
   }
 }

@@ -11,7 +11,7 @@ class ShopTemplateFeatureCard extends StatelessWidget {
     required this.title,
     required this.subtitle,
     required this.onTap,
-  });
+  }); 
 
   final IconData icon;
   final String title;

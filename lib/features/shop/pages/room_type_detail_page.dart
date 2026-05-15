@@ -25,18 +25,24 @@
 
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/features/shop/widgets/room/room_feature_tags.dart';
+import 'package:petnest_saas/features/shop/pages/shop_booking_page.dart';
 
 class RoomTypeDetailPage extends StatefulWidget {
   const RoomTypeDetailPage({
-    super.key,
-    required this.roomType,
-    required this.startDate,
-    required this.endDate,
-  });
+  super.key,
+  required this.shopId,
+  required this.roomType,
+  required this.startDate,
+  required this.endDate,
+  this.isIntroMode = false,
+});
 
+
+  final String shopId;
   final Map<String, dynamic> roomType;
   final DateTime startDate;
   final DateTime endDate;
+  final bool isIntroMode;
 
   @override
   State<RoomTypeDetailPage> createState() => _RoomTypeDetailPageState();
@@ -50,195 +56,292 @@ class _RoomTypeDetailPageState extends State<RoomTypeDetailPage> {
     final images = List<String>.from(widget.roomType['images'] ?? []);
 
     return Scaffold(
-      bottomNavigationBar: Container(
-        padding: const EdgeInsets.all(16),
-        child: ElevatedButton(
-          onPressed: () {
-            Navigator.pop(context, widget.roomType);
-          },
-          style: ElevatedButton.styleFrom(
-            padding: const EdgeInsets.symmetric(vertical: 16),
-          ),
-          child: const Text('查看您的選項'),
-        ),
+backgroundColor: const Color(0xFFFFFAF4),  appBar: AppBar(
+backgroundColor: const Color(0xFFFFFAF4),    elevation: 0,
+    surfaceTintColor: Colors.transparent,
+    title: Text(
+      widget.roomType['name'] ?? '房型介紹',
+      style: const TextStyle(
+        fontWeight: FontWeight.w800,
+        color: Color(0xFF3A2A1A),
       ),
+    ),
+    centerTitle: true,
+  ),
+  bottomNavigationBar: widget.isIntroMode
+    ? Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: const Color(0xFFFFFCF7),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.06),
+              blurRadius: 12,
+              offset: const Offset(0, -4),
+            ),
+          ],
+        ),
+        child: ElevatedButton(
+         onPressed: () {
+  Navigator.push(
+    context,
+    MaterialPageRoute(
+      builder: (_) => ShopBookingPage(
+        shopId: widget.shopId,
+      ),
+    ),
+  );
+},
+          style: ElevatedButton.styleFrom(
+            backgroundColor: const Color(0xFFB86B18),
+            foregroundColor: Colors.white,
+            padding: const EdgeInsets.symmetric(vertical: 16),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(18),
+            ),
+          ),
+          child: const Text(
+            '我要預約',
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ),
+      )
+    : Container(
+          padding: const EdgeInsets.all(16),
+          child: ElevatedButton(
+            onPressed: () {
+              Navigator.pop(context, widget.roomType);
+            },
+            style: ElevatedButton.styleFrom(
+              padding: const EdgeInsets.symmetric(vertical: 16),
+            ),
+            child: const Text('查看您的選項'),
+          ),
+        ),
       body: SingleChildScrollView(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
 
             /// 🔥 圖片區
-            if (images.isNotEmpty)
-              Padding(
-                padding: const EdgeInsets.all(16),
-                child: Row(
-                  children: [
+if (images.isNotEmpty)
+  Padding(
+    padding: const EdgeInsets.all(16),
+    child: Column(
+      children: [
+        ClipRRect(
+          borderRadius: BorderRadius.circular(18),
+          child: Image.network(
+            images[_currentIndex],
+            height: 260,
+            width: double.infinity,
+            fit: BoxFit.cover,
+          ),
+        ),
 
-                    /// 左大圖
-                    Expanded(
-                      flex: 3,
-                      child: Container(
-                        height: 240,
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(12),
-                          image: DecorationImage(
-                            image: NetworkImage(images[_currentIndex]),
-                            fit: BoxFit.cover,
-                          ),
-                        ),
-                      ),
+        const SizedBox(height: 10),
+
+        SizedBox(
+          height: 72,
+          child: ListView.builder(
+            scrollDirection: Axis.horizontal,
+            itemCount: images.length,
+            itemBuilder: (context, index) {
+              final selected = _currentIndex == index;
+
+              return GestureDetector(
+                onTap: () {
+                  setState(() => _currentIndex = index);
+                },
+                child: Container(
+                  width: 82,
+                  margin: const EdgeInsets.only(right: 8),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: selected
+                          ? const Color(0xFFB86B18)
+                          : Colors.transparent,
+                      width: 2,
                     ),
-
-                    const SizedBox(width: 10),
-
-                    /// 右小圖
-                    SizedBox(
-                      width: 90,
-                      height: 240,
-                      child: ListView.builder(
-                        itemCount: images.length,
-                        itemBuilder: (context, index) {
-                          return GestureDetector(
-                            onTap: () {
-                              setState(() => _currentIndex = index);
-                            },
-                            child: Container(
-                              margin: const EdgeInsets.only(bottom: 8),
-                              height: 70,
-                              decoration: BoxDecoration(
-                                border: Border.all(
-                                  color: _currentIndex == index
-                                      ? Colors.blue
-                                      : Colors.transparent,
-                                ),
-                                borderRadius: BorderRadius.circular(8),
-                                image: DecorationImage(
-                                  image: NetworkImage(images[index]),
-                                  fit: BoxFit.cover,
-                                ),
-                              ),
-                            ),
-                          );
-                        },
-                      ),
+                    image: DecorationImage(
+                      image: NetworkImage(images[index]),
+                      fit: BoxFit.cover,
                     ),
-                  ],
+                  ),
                 ),
-              )
-            else
-              Container(
-                height: 200,
-                color: Colors.grey.shade200,
-                child: const Center(child: Text('尚無圖片')),
-              ),
-
-            /// 🔥 房型資訊
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-
-                  /// 名稱
-                  Text(
-                    widget.roomType['name'] ?? '',
-                    style: const TextStyle(
-                      fontSize: 22,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-
-                  const SizedBox(height: 6),
-
-                  /// 價格
-                  Text(
-                    'NT\$ ${widget.roomType['price']} / 晚',
-                    style: const TextStyle(
-                      color: Colors.blue,
-                      fontSize: 16,
-                    ),
-                  ),
-
-                  const SizedBox(height: 4),
-
-                  /// 容量
-                  Text(
-                    '可住 ${widget.roomType['capacity']} 隻',
-                    style: const TextStyle(color: Colors.grey),
-                  ),
-
-                  /// 加價
-                  if ((widget.roomType['extraPrice'] ?? 0) > 0)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 4),
-                      child: Text(
-                        '每多一隻 +${widget.roomType['extraPrice']} 元',
-                        style: const TextStyle(
-                          color: Colors.red,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-
-RoomFeatureTags(
-  features: List<String>.from(widget.roomType['features'] ?? []),
-),
-
-const SizedBox(height: 20),
-
-const SizedBox(height: 10),
-
-Row(
-  children: const [
-    Icon(Icons.straighten, size: 16),
-    SizedBox(width: 6),
-    Text(
-      '房間尺寸',
-      style: TextStyle(fontWeight: FontWeight.bold),
+              );
+            },
+          ),
+        ),
+      ],
     ),
-  ],
-),
+  )
+else
+  Padding(
+    padding: const EdgeInsets.all(16),
+    child: Container(
+      height: 240,
+      decoration: BoxDecoration(
+        color: Colors.grey.shade200,
+        borderRadius: BorderRadius.circular(18),
+      ),
+      child: const Center(child: Text('尚無圖片')),
+    ),
+  ),
 
-                  /// 📏 尺寸
-                  Container(
-                    padding: const EdgeInsets.all(14),
-                    decoration: BoxDecoration(
-                      color: Colors.grey.shade100,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceAround,
-                      children: [
-                        _sizeItem('寬', widget.roomType['width']),
-                        _sizeItem('深', widget.roomType['depth']),
-                        _sizeItem('高', widget.roomType['height']),
-                      ],
-                    ),
-                  ),
+  /// 🔥 房型資訊
+Padding(
+  padding: const EdgeInsets.symmetric(horizontal: 16),
+  child: Container(
+    padding: const EdgeInsets.all(16),
+    decoration: BoxDecoration(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(18),
+      border: Border.all(color: const Color(0xFFF0E0CC)),
+      boxShadow: [
+        BoxShadow(
+          color: Colors.black.withOpacity(0.04),
+          blurRadius: 10,
+          offset: const Offset(0, 4),
+        ),
+      ],
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        /// 名稱
+        Text(
+          widget.roomType['name'] ?? '',
+          style: const TextStyle(
+            fontSize: 22,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
 
-                  const SizedBox(height: 20),
+        const SizedBox(height: 6),
 
-                  /// 🏠 房型介紹
-                  if ((widget.roomType['description'] ?? '').toString().isNotEmpty)
-                    Container(
-                      padding: const EdgeInsets.all(14),
-                      decoration: BoxDecoration(
-                        color: Colors.grey.shade50,
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Text(
-                        widget.roomType['description'],
-                        style: const TextStyle(height: 1.5),
-                      ),
-                    ),
-                ],
+        /// 價格
+        Text(
+          'NT\$ ${widget.roomType['price']} / 晚',
+          style: const TextStyle(
+            color: Color(0xFFB86B18),
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+
+        const SizedBox(height: 4),
+
+        /// 容量
+        Text(
+          '可住 ${widget.roomType['capacity']} 隻',
+          style: const TextStyle(
+            color: Colors.grey,
+          ),
+        ),
+
+        /// 加價
+        if ((widget.roomType['extraPrice'] ?? 0) > 0)
+          Padding(
+            padding: const EdgeInsets.only(top: 4),
+            child: Text(
+              '每多一隻 +${widget.roomType['extraPrice']} 元',
+              style: const TextStyle(
+                color: Colors.red,
+                fontWeight: FontWeight.bold,
               ),
             ),
+          ),
 
+        const SizedBox(height: 14),
+
+        RoomFeatureTags(
+          features: List<String>.from(
+            widget.roomType['features'] ?? [],
+          ),
+        ),
+
+        const SizedBox(height: 20),
+
+        Row(
+          children: const [
+            Icon(Icons.straighten, size: 16),
+            SizedBox(width: 6),
+            Text(
+              '房間尺寸',
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ],
+        ),
+
+        const SizedBox(height: 10),
+
+        /// 📏 尺寸
+        Container(
+          padding: const EdgeInsets.symmetric(
+            horizontal: 12,
+            vertical: 16,
+          ),
+          decoration: BoxDecoration(
+            color: const Color(0xFFFFFCF7),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: const Color(0xFFF0E0CC),
+            ),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceAround,
+            children: [
+              _sizeItem('寬', widget.roomType['width']),
+              _sizeItem('深', widget.roomType['depth']),
+              _sizeItem('高', widget.roomType['height']),
+            ],
+          ),
+        ),
+
+        const SizedBox(height: 20),
+
+        /// 🏠 房型介紹
+        if ((widget.roomType['description'] ?? '')
+            .toString()
+            .isNotEmpty) ...[
+          const Text(
+            '房型介紹',
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w800,
+              color: Color(0xFF3A2A1A),
+            ),
+          ),
+          const SizedBox(height: 10),
+          Container(
+  width: double.infinity,
+  padding: const EdgeInsets.all(14),
+  decoration: BoxDecoration(
+              color: const Color(0xFFFFF8EE),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Text(
+              widget.roomType['description'],
+              style: const TextStyle(height: 1.5),
+            ),
+          ),
+        ],
+      ],
+    ),
+  ),
+),
             const SizedBox(height: 20),
 
             /// 📅 入住時間
-            Padding(
+if (!widget.isIntroMode)
+  Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
               child: Container(
                 padding: const EdgeInsets.all(14),
@@ -276,13 +379,14 @@ Row(
 
             const SizedBox(height: 20),
 
-            /// 💰 價格
-Padding(
+            /// 💰 價格（訂房流程用）
+if (!widget.isIntroMode)
+  Padding(
   padding: const EdgeInsets.symmetric(horizontal: 16),
   child: Container(
     padding: const EdgeInsets.all(16),
     decoration: BoxDecoration(
-      color: Colors.white,
+      color: const Color(0xFFFFFCF7),
       borderRadius: BorderRadius.circular(12),
       boxShadow: [
         BoxShadow(

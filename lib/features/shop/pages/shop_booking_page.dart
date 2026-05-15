@@ -41,11 +41,13 @@ import 'package:petnest_saas/features/shop/widgets/booking/front_calendar_helper
 
 class ShopBookingPage extends StatefulWidget {
   const ShopBookingPage({
-    super.key,
-    required this.shopId,
-  });
+  super.key,
+  required this.shopId,
+  this.preSelectedRoomType,
+});
 
   final String shopId;
+  final Map<String, dynamic>? preSelectedRoomType;
 
   @override
   State<ShopBookingPage> createState() => _ShopBookingPageState();

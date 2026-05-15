@@ -39,6 +39,27 @@ class FrontCalendarHelper {
 
     final totalRooms = roomsSnapshot.docs.length;
 
+    final calendarSnapshot = await FirebaseFirestore.instance
+    .collection('shops')
+    .doc(shopId)
+    .collection('room_calendar')
+    .get();
+
+final blockedRoomDateSet = <String>{};
+
+for (final doc in calendarSnapshot.docs) {
+  final data = doc.data();
+
+  if (data['status'] != 'blocked') continue;
+
+  final roomId = (data['roomId'] ?? '').toString();
+  final date = (data['date'] ?? '').toString();
+
+  if (roomId.isEmpty || date.isEmpty) continue;
+
+  blockedRoomDateSet.add('$roomId|$date');
+}
+
     DateTime cursor = DateTime(
       firstDate.year,
       firstDate.month,
@@ -100,6 +121,16 @@ class FrontCalendarHelper {
 
       int occupied = 0;
 
+      int blockedRooms = 0;
+
+for (final roomDoc in roomsSnapshot.docs) {
+  final roomId = roomDoc.id;
+
+  if (blockedRoomDateSet.contains('$roomId|$key')) {
+    blockedRooms++;
+  }
+}
+
       for (final booking in bookings) {
         final start = (booking['startDate'] as Timestamp).toDate();
         final end = (booking['endDate'] as Timestamp).toDate();
@@ -126,7 +157,7 @@ class FrontCalendarHelper {
         }
       }
 
-      final remaining = totalRooms - occupied;
+      final remaining = totalRooms - occupied - blockedRooms;
 
       remainingRoomsMap[key] = remaining;
 

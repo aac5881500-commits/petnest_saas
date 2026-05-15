@@ -904,11 +904,22 @@ CollectionReference<Map<String, dynamic>> roomsRef(String shopId) {
 
 /// 監聽房間列表
 Stream<List<Map<String, dynamic>>> streamRooms(String shopId) {
-  return roomsRef(shopId).snapshots().map((snapshot) {
+  return roomsRef(shopId).snapshots().asyncMap((snapshot) async {
+    final roomTypesSnapshot = await roomTypesRef(shopId).get();
+
+    final roomTypeMap = {
+      for (final doc in roomTypesSnapshot.docs) doc.id: doc.data(),
+    };
+
     return snapshot.docs.map((doc) {
+      final data = doc.data();
+      final roomTypeId = data['roomTypeId']?.toString() ?? '';
+      final roomTypeData = roomTypeMap[roomTypeId];
+
       return {
         'id': doc.id,
-        ...doc.data(),
+        ...data,
+        'roomTypeName': roomTypeData?['name'] ?? '未分類',
       };
     }).toList();
   });
@@ -1133,7 +1144,10 @@ Future<List<Map<String, dynamic>>> getAvailableRoomTypes({
        final status = cal?['status'] ?? 'available';
 
 /// 🔥 room_calendar 有標記 booked，就代表此房間當天不可用
-if (status == 'booked') {
+if (
+    status == 'booked' ||
+    status == 'blocked'
+) {
   continue;
 }
 

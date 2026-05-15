@@ -1,16 +1,17 @@
 // lib/features/shop/pages/shop_public_page.dart
-// 👤 前台店家頁（完整版🔥 + Drawer版 + 修正錯誤）
+// 👤 前台店家家頁（完整版🔥 + Drawer版 + 修正錯誤）
 
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/services/shop_service.dart';
 import 'package:petnest_saas/features/shop/pages/shop_booking_page.dart';
 import 'package:url_launcher/url_launcher.dart';
-import 'dart:async';
+import 'dart:async'; 
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:petnest_saas/features/shop/pages/shop_policy_view_page.dart';
 import 'package:petnest_saas/core/widgets/app_drawer.dart';
 import 'package:petnest_saas/features/shop/widgets/shop_template_feature_card.dart';
 import 'package:petnest_saas/features/shop/pages/shop_room_intro_page.dart';
+import 'package:petnest_saas/features/shop/pages/shop_environment_page.dart';
 
 
 
@@ -311,7 +312,16 @@ GridView.count(
   icon: Icons.home,
   title: '環境介紹',
   subtitle: '住宿空間・安心設備',
-  onTap: () {},
+  onTap: () {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ShopEnvironmentPage(
+          shopId: widget.shopId,
+        ),
+      ),
+    );
+  },
 ),
 
 ShopTemplateFeatureCard(

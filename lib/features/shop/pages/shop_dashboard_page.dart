@@ -30,6 +30,7 @@ import 'package:petnest_saas/features/shop/pages/shop_policy_logs_page.dart';
 import 'package:petnest_saas/features/room/pages/room_dashboard_page.dart';
 import 'package:petnest_saas/features/shop/pages/shop_addon_page.dart';
 import 'package:petnest_saas/features/shop/pages/shop_payment_setting_page.dart';
+import 'package:petnest_saas/features/shop/pages/shop_environment_manage_page.dart';
 
 
 class ShopDashboardPage extends StatefulWidget {
@@ -354,6 +355,23 @@ class _BasicInfoTab extends StatelessWidget {
             );
           },
         ),
+
+_MenuTile(
+  title: '環境介紹管理',
+  subtitle: '設定環境照片、介紹文案與展示內容',
+  icon: Icons.apartment_rounded,
+  onTap: () {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ShopEnvironmentManagePage(
+          shopId: shopId,
+        ),
+      ),
+    );
+  },
+),
+
         _MenuTile(
           title: '前台預覽',
           subtitle: '查看客戶看到的頁面',
