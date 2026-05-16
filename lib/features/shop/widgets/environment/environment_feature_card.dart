@@ -30,7 +30,7 @@ class EnvironmentFeatureCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       margin: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(20),
@@ -46,44 +46,56 @@ class EnvironmentFeatureCard extends StatelessWidget {
       child: Row(
         children: [
           Expanded(
-            child: Padding(
-              padding: const EdgeInsets.only(left: 4, right: 10),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Icon(
-                    icon,
-                    color: const Color(0xFFB87535),
-                    size: 25,
-                  ),
-                  const SizedBox(height: 10),
-                  Text(
-                    title,
-                    style: const TextStyle(
-                      fontSize: 17,
-                      fontWeight: FontWeight.w900,
-                      color: Color(0xFF3A2A1A),
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    description,
-                    style: const TextStyle(
-                      fontSize: 13,
-                      height: 1.55,
-                      color: Color(0xFF6F5A43),
-                    ),
-                  ),
-                ],
-              ),
+  child: Padding(
+padding: const EdgeInsets.only(left: 10, right: 8),              
+child: Column(
+  crossAxisAlignment: CrossAxisAlignment.start,
+  children: [
+    Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Icon(
+          icon,
+          color: const Color(0xFFB87535),
+          size: 20,
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Text(
+            title,
+            style: const TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w900,
+              color: Color(0xFF3A2A1A),
+            ),
+          ),
+        ),
+      ],
+    ),
+
+    const SizedBox(height: 8),
+
+    Padding(
+  padding: const EdgeInsets.only(left: 30),
+  child: Text(
+    description,
+    style: const TextStyle(
+      fontSize: 12.5,
+      height: 1.5,
+      color: Color(0xFF6F5A43),
+    ),
+  ),
+),
+  ],
+),
             ),
           ),
           ClipRRect(
             borderRadius: BorderRadius.circular(16),
             child: imageBuilder(
               imageUrl: imageUrl,
-              width: 132,
-              height: 118,
+              width: 122,
+              height: 102,
             ),
           ),
         ],

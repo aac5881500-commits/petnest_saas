@@ -150,10 +150,11 @@ rooms.sort((a, b) {
                       .collection('bookings')
                       .where('shopId', isEqualTo: widget.shopId)
                       .where('status', whereIn: [
-                        'pending',
-                        'confirmed',
-                        'checked_in',
-                      ])
+  'pending',
+  'confirmed',
+  'checked_in',
+  'completed',
+])
                       .snapshots(),
                   builder: (context, bookingSnap) {
   final bookings = bookingSnap.data?.docs ?? [];
@@ -207,11 +208,14 @@ return _getRoomStatusText(todayBooking);
 
 final emptyCount =
     roomStatusList.where((status) => status == '空房').length;
-final checkInCount =
-    roomStatusList.where((status) => status == '今日入住').length;
-final stayingCount =
-    roomStatusList.where((status) => status == '入住中').length;
-    final blockedCount =
+
+final usingCount = roomStatusList.where((status) {
+  return status == '已訂' ||
+      status == '入住中' ||
+      status == '已完成';
+}).length;
+
+final blockedCount =
     roomStatusList.where((status) => status == '維修中').length;
 
                     return Column(
@@ -224,21 +228,21 @@ final stayingCount =
       Text(
         '目前顯示：${DateFormat('yyyy-MM-dd').format(selectedDate)} 當日房況',
         style: const TextStyle(
-          fontSize: 12,
-          color: Colors.grey,
-          fontWeight: FontWeight.w600,
-        ),
+  fontSize: 15,
+  color: Colors.black87,
+  fontWeight: FontWeight.w700,
+),
       ),
       const SizedBox(height: 6),
-      Row(
-        children: [
-          _buildSummaryCard('空房', emptyCount, Colors.green),
-          const SizedBox(width: 8),
-          _buildSummaryCard('今日入住', checkInCount, Colors.orange),
-          const SizedBox(width: 8),
-          _buildSummaryCard('入住中', stayingCount, Colors.blue),
-                ],
-      ),
+     Row(
+  children: [
+    _buildSummaryCard('空房', emptyCount, Colors.green),
+    const SizedBox(width: 8),
+    _buildSummaryCard('使用中', usingCount, Colors.blue),
+    const SizedBox(width: 8),
+    _buildSummaryCard('維修中', blockedCount, Colors.black),
+  ],
+),
     ],
   ),
 ),
@@ -269,26 +273,35 @@ final stayingCount =
                             break;
                           }
                         }
+/// 🔥 右邊狀態顏色
+Color color = Colors.green;
 
-                        /// 🔥 右邊顏色
-                        Color color = Colors.green;
+final roomId = (room['id'] ?? '').toString();
+final manualStatus = roomCalendarStatus['$roomId|$dateStr'];
 
-                        if (todayBooking != null) {
-                          final status = todayBooking['status'] ?? '';
+if (manualStatus == 'blocked') {
+  color = Colors.black;
+} else if (todayBooking != null) {
+  final status = todayBooking['status'] ?? '';
 
-                          switch (status) {
-                            case 'pending':
-                            case 'confirmed':
-                              color = Colors.red;
-                              break;
-                            case 'checked_in':
-                              color = Colors.blue;
-                              break;
-                            default:
-                              color = Colors.green;
-                          }
-                        }
+  switch (status) {
+    case 'pending':
+    case 'confirmed':
+      color = Colors.red;
+      break;
 
+    case 'checked_in':
+      color = Colors.blue;
+      break;
+
+    case 'completed':
+      color = Colors.grey;
+      break;
+
+    default:
+      color = Colors.green;
+  }
+}
                        return InkWell(
   onTap: () async {
   String roomTypeName = '未設定房型';
@@ -467,11 +480,24 @@ for (var doc in bookings) {
   final endOnly = DateTime(end.year, end.month, end.day);
 
   if (!dayOnly.isBefore(startOnly) && dayOnly.isBefore(endOnly)) {
-  if (status == 'checked_in') {
-    dotColor = Colors.blue;
-  } else {
-    dotColor = Colors.red;
+  switch (status) {
+    case 'pending':
+    case 'confirmed':
+      dotColor = Colors.deepOrange;
+      break;
+
+    case 'checked_in':
+      dotColor = Colors.blue;
+      break;
+
+    case 'completed':
+      dotColor = Colors.purple;
+      break;
+
+    default:
+      dotColor = Colors.green;
   }
+
   break;
 }
 }
@@ -489,10 +515,11 @@ return _buildDot(dotColor);
 
         /// 右邊狀態
         _buildStatusChip(
-          color: color,
-          text: _getRoomStatusText(todayBooking),
-        ),
-
+  color: color,
+  text: manualStatus == 'blocked'
+      ? '維修中'
+      : _getRoomStatusText(todayBooking),
+),
         const SizedBox(width: 4),
 
         const Icon(
@@ -534,7 +561,6 @@ return _buildDot(dotColor);
     );
   }
 
- /// 🔥 房間狀態文字
 String _getRoomStatusText(Map<String, dynamic>? booking) {
   if (booking == null) {
     return '空房';
@@ -545,9 +571,14 @@ String _getRoomStatusText(Map<String, dynamic>? booking) {
   switch (status) {
     case 'pending':
     case 'confirmed':
-      return '今日入住';
+      return '已訂';
+
     case 'checked_in':
       return '入住中';
+
+    case 'completed':
+      return '已完成';
+
     default:
       return '空房';
   }

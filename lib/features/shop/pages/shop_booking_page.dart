@@ -208,6 +208,56 @@ Future<FrontCalendarPayload>? _calendarFuture;
 
 const SizedBox(height: 16),
 
+const SizedBox(height: 16),
+
+if (_startDate == null || _endDate == null)
+  Container(
+    width: double.infinity,
+    padding: const EdgeInsets.all(14),
+    decoration: BoxDecoration(
+      color: const Color(0xFFFFF7E8),
+      borderRadius: BorderRadius.circular(16),
+      border: Border.all(
+        color: const Color(0xFFFFD59A),
+      ),
+    ),
+    child: const Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+  Text(
+    '預約前提醒',
+    style: TextStyle(
+      fontSize: 15,
+      fontWeight: FontWeight.w800,
+      color: Color(0xFF6B3F00),
+    ),
+  ),
+
+  SizedBox(height: 10),
+
+  Text(
+    '訂房安全提醒',
+    style: TextStyle(
+      fontSize: 14,
+      fontWeight: FontWeight.w700,
+      color: Color(0xFF8B5E00),
+    ),
+  ),
+
+  SizedBox(height: 6),
+
+  Text(
+    '• 本平台僅提供預約系統服務，實際住宿與照護內容由店家負責。',
+    style: TextStyle(
+      fontSize: 12,
+      color: Color.fromRGBO(214, 12, 22, 0.952),
+    ),
+  ),
+],
+    ),
+  ),
+
+
 if (_startDate != null && _endDate != null) ...[
   const SizedBox(height: 16),
 
@@ -748,6 +798,7 @@ roomImages:
   MaterialPageRoute(
     builder: (_) => BookingSuccessPage(
       shopName: shop['name'] ?? '',
+      shopId: widget.shopId,
     ),
   ),
 );

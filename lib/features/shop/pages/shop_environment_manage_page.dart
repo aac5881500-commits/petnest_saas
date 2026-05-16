@@ -9,6 +9,9 @@ import 'package:firebase_storage/firebase_storage.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:petnest_saas/features/shop/widgets/environment/environment_gallery_manager.dart';
 import 'package:petnest_saas/features/shop/widgets/environment/environment_image_upload_box.dart';
+import 'package:petnest_saas/features/shop/widgets/environment/environment_feature_manager.dart';
+import 'package:petnest_saas/features/shop/widgets/environment/environment_icon_picker_dialog.dart';
+import 'package:petnest_saas/features/shop/data/environment_facility_options.dart';
 
 
 class ShopEnvironmentManagePage extends StatefulWidget {
@@ -28,6 +31,14 @@ class _ShopEnvironmentManagePageState extends State<ShopEnvironmentManagePage> {
     bool _loading = true;
       List<String> environmentGalleryImages = [];
         List<Map<String, dynamic>> environmentFeatures = [];
+          List<String> selectedFacilityKeys = [
+    'air_cleaner',
+    'camera_24h',
+    'hospital',
+    'water',
+    'sunlight',
+    'disinfect',
+  ];
       bool _uploadingHeroImage = false;
   bool _uploadingBannerImage = false;
   final heroTitleController = TextEditingController(
@@ -86,6 +97,8 @@ class _ShopEnvironmentManagePageState extends State<ShopEnvironmentManagePage> {
           List<String>.from(environmentIntro['galleryImages'] ?? []);
                 environmentFeatures =
           List<Map<String, dynamic>>.from(environmentIntro['features'] ?? []);
+                selectedFacilityKeys =
+          List<String>.from(environmentIntro['facilityKeys'] ?? selectedFacilityKeys);
     }
 
     if (!mounted) return;
@@ -273,6 +286,156 @@ class _ShopEnvironmentManagePageState extends State<ShopEnvironmentManagePage> {
     );
   }
 
+  Future<void> _editFeature(int index) async {
+    if (index < 0 || index >= environmentFeatures.length) return;
+
+    final item = environmentFeatures[index];
+
+    final titleController = TextEditingController(
+      text: item['title'] ?? '',
+    );
+
+    final descriptionController = TextEditingController(
+      text: item['description'] ?? '',
+    );
+
+    await showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('編輯環境特色'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: titleController,
+                decoration: const InputDecoration(
+                  labelText: '特色標題',
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: descriptionController,
+                maxLines: 3,
+                decoration: const InputDecoration(
+                  labelText: '特色說明',
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('取消'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                setState(() {
+                  environmentFeatures[index] = {
+                    ...environmentFeatures[index],
+                    'title': titleController.text.trim(),
+                    'description': descriptionController.text.trim(),
+                  };
+                });
+
+                _save();
+                Navigator.pop(context);
+              },
+              child: const Text('儲存'),
+            ),
+          ],
+        );
+      },
+    );
+
+    titleController.dispose();
+    descriptionController.dispose();
+  }
+
+    Future<void> _changeFeatureIcon(int index) async {
+    if (index < 0 || index >= environmentFeatures.length) return;
+
+    await showDialog(
+      context: context,
+      builder: (context) {
+        return EnvironmentIconPickerDialog(
+          onSelect: (selectedKey) {
+            setState(() {
+              environmentFeatures[index] = {
+                ...environmentFeatures[index],
+                'icon': selectedKey,
+              };
+            });
+
+            _save();
+          },
+        );
+      },
+    );
+  }
+
+  Future<void> _pickAndUploadFeatureImage(int index) async {
+    if (index < 0 || index >= environmentFeatures.length) return;
+
+    final picker = ImagePicker();
+
+    final image = await picker.pickImage(
+      source: ImageSource.gallery,
+      maxWidth: 1200,
+      imageQuality: 85,
+    );
+
+    if (image == null) return;
+
+    try {
+      final bytes = await image.readAsBytes();
+
+      const maxImageSize = 5 * 1024 * 1024;
+
+      if (bytes.length > maxImageSize) {
+        if (!mounted) return;
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('圖片太大，請選擇 5MB 以下的圖片')),
+        );
+        return;
+      }
+
+      final filePath =
+          'shops/${widget.shopId}/environment/features/feature_$index.jpg';
+
+      final ref = FirebaseStorage.instance.ref(filePath);
+
+      await ref.putData(
+        bytes,
+        SettableMetadata(contentType: 'image/jpeg'),
+      );
+
+      final downloadUrl = await ref.getDownloadURL();
+
+      setState(() {
+        environmentFeatures[index] = {
+          ...environmentFeatures[index],
+          'imageUrl': downloadUrl,
+        };
+      });
+
+      await _save();
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('特色圖片已上傳')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('特色圖片上傳失敗：$e')),
+      );
+    }
+  }
+
   Future<void> _save() async {
   await FirebaseFirestore.instance
       .collection('shops')
@@ -285,8 +448,9 @@ class _ShopEnvironmentManagePageState extends State<ShopEnvironmentManagePage> {
       'bottomNote': bottomNoteController.text.trim(),
       'heroImageUrl': heroImageUrlController.text.trim(),
       'bannerImageUrl': bannerImageUrlController.text.trim(),
-            'galleryImages': environmentGalleryImages,
-                  'features': environmentFeatures,
+      'galleryImages': environmentGalleryImages,
+      'features': environmentFeatures,
+      'facilityKeys': selectedFacilityKeys,
       'updatedAt': FieldValue.serverTimestamp(),
     },
   }, SetOptions(merge: true));
@@ -396,7 +560,39 @@ class _ShopEnvironmentManagePageState extends State<ShopEnvironmentManagePage> {
             title: '環境特色卡片',
             subtitle: '顯示在前台「我們的環境特色」區塊',
             children: [
-              _buildFeatureManager(),
+              EnvironmentFeatureManager(
+  features: environmentFeatures,
+  onAdd: () {
+    setState(() {
+      environmentFeatures.add({
+        'icon': 'home',
+        'title': '新的環境特色',
+        'description': '請輸入環境特色說明',
+        'imageUrl': '',
+      });
+    });
+    _save();
+  },
+  onEdit: _editFeature,
+  onUploadImage: _pickAndUploadFeatureImage,
+  onChangeIcon: _changeFeatureIcon,
+  onDelete: (index) {
+    setState(() {
+      environmentFeatures.removeAt(index);
+    });
+    _save();
+  },
+),
+            ],
+          ),
+
+          const SizedBox(height: 16),
+
+          _buildSectionCard(
+            title: '安心照護設備',
+            subtitle: '勾選後會顯示在前台設備區塊',
+            children: [
+              _buildFacilitySelector(),
             ],
           ),
 
@@ -500,92 +696,44 @@ class _ShopEnvironmentManagePageState extends State<ShopEnvironmentManagePage> {
     );
   }
 
-  Widget _buildFeatureManager() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        if (environmentFeatures.isEmpty)
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: const Color(0xFFFFFCF7),
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: const Color(0xFFF0E0CC)),
-            ),
-            child: const Text(
-              '尚未新增環境特色',
-              style: TextStyle(
-                color: Color(0xFF8A6A45),
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          )
-        else
-          ...environmentFeatures.asMap().entries.map((entry) {
-            final index = entry.key;
-            final item = entry.value;
+    Widget _buildFacilitySelector() {
+    return Wrap(
+      spacing: 10,
+      runSpacing: 10,
+      children: environmentFacilityOptions.map((item) {
+        final key = item['key'] as String;
 
-            return Container(
-              margin: const EdgeInsets.only(bottom: 10),
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: const Color(0xFFFFFCF7),
-                borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: const Color(0xFFF0E0CC)),
-              ),
-              child: Row(
-                children: [
-                  const Icon(
-                    Icons.pets_rounded,
-                    color: Color(0xFFB87535),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Text(
-                      item['title'] ?? '未命名特色',
-                      style: const TextStyle(
-                        fontWeight: FontWeight.w800,
-                        color: Color(0xFF3A2A1A),
-                      ),
-                    ),
-                  ),
-                  IconButton(
-                    onPressed: () {
-                      setState(() {
-                        environmentFeatures.removeAt(index);
-                      });
-                      _save();
-                    },
-                    icon: const Icon(Icons.delete_outline_rounded),
-                  ),
-                ],
-              ),
-            );
-          }),
+        final selected = selectedFacilityKeys.contains(key);
 
-        const SizedBox(height: 12),
-
-        SizedBox(
-          width: double.infinity,
-          height: 44,
-          child: OutlinedButton.icon(
-            onPressed: () {
-              setState(() {
-                environmentFeatures.add({
-                  'icon': 'home',
-                  'title': '新的環境特色',
-                  'description': '請輸入環境特色說明',
-                  'imageUrl': '',
-                });
-              });
-              _save();
-            },
-            icon: const Icon(Icons.add_rounded),
-            label: const Text('新增環境特色'),
+        return FilterChip(
+          label: Text(item['title']),
+          selected: selected,
+          avatar: Icon(
+            item['icon'] as IconData,
+            size: 18,
+            color: selected
+                ? Colors.white
+                : const Color(0xFFB87535),
           ),
-        ),
-      ],
+          selectedColor: const Color(0xFFB87535),
+          checkmarkColor: Colors.white,
+          labelStyle: TextStyle(
+            color: selected
+                ? Colors.white
+                : const Color(0xFF3A2A1A),
+            fontWeight: FontWeight.w700,
+          ),
+          onSelected: (value) {
+            setState(() {
+              if (value) {
+                selectedFacilityKeys.add(key);
+              } else {
+                selectedFacilityKeys.remove(key);
+              }
+            });
+          },
+        );
+      }).toList(),
     );
   }
   Widget _buildTextField({

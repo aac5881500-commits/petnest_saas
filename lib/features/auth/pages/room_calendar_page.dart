@@ -4,6 +4,7 @@
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/services/shop_service.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:petnest_saas/features/admin/pages/admin_booking_detail_page.dart';
 
 class RoomCalendarPage extends StatefulWidget {
   const RoomCalendarPage({
@@ -29,12 +30,42 @@ class _RoomCalendarPageState extends State<RoomCalendarPage> {
   DateTime _currentMonth = DateTime.now();
 DateTime? _selectedDate;
 String _selectedStatus = 'available';
+Map<String, dynamic>? _selectedBooking;
+String? _selectedBookingId;
 
 int bookingRangeDays = 30;
+
+@override
+void initState() {
+  super.initState();
+  _loadBookingRangeDays();
+}
+
+Future<void> _loadBookingRangeDays() async {
+  final shop = await ShopService.instance.getShop(widget.shopId);
+
+  if (!mounted) return;
+
+  setState(() {
+    bookingRangeDays = shop?['maxAdvanceBookingDays'] ?? 30;
+  });
+}
 
   String _format(DateTime d) {
     return '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
   }
+
+  DateTime get _monthStart {
+  return DateTime(_currentMonth.year, _currentMonth.month, 1);
+}
+
+DateTime get _nextMonthStart {
+  return DateTime(_currentMonth.year, _currentMonth.month + 1, 1);
+}
+
+String get _monthStartKey => _format(_monthStart);
+
+String get _nextMonthStartKey => _format(_nextMonthStart);
 
   @override
   Widget build(BuildContext context) {
@@ -43,14 +74,16 @@ int bookingRangeDays = 30;
 
     return Scaffold(
       appBar: AppBar(
-        title: Text('房間日曆 - ${widget.roomName}'),
-      ),
+  title: Text('單房紀錄 - ${widget.roomName}'),
+),
 
       body: StreamBuilder(
         stream: ShopService.instance
-            .roomCalendarRef(widget.shopId)
-            .where('roomId', isEqualTo: widget.roomId)
-            .snapshots(),
+    .roomCalendarRef(widget.shopId)
+    .where('roomId', isEqualTo: widget.roomId)
+    .where('date', isGreaterThanOrEqualTo: _monthStartKey)
+    .where('date', isLessThan: _nextMonthStartKey)
+    .snapshots(),
         builder: (context, snapshot) {
           final docs = snapshot.data?.docs ?? [];
 
@@ -64,13 +97,27 @@ int bookingRangeDays = 30;
           /// 🔥 訂單監聽
           return StreamBuilder<QuerySnapshot>(
             stream: FirebaseFirestore.instance
-                .collection('bookings')
-                .where('shopId', isEqualTo: widget.shopId)
-                .where('roomId', isEqualTo: widget.roomId)
-                .where('status', whereIn: ['pending', 'confirmed', 'checked_in'])
-                .snapshots(),
+    .collection('bookings')
+    .where('shopId', isEqualTo: widget.shopId)
+    .where('roomId', isEqualTo: widget.roomId)
+    .where('status', whereIn: [
+      'pending',
+      'confirmed',
+      'checked_in',
+      'completed',
+    ])
+    .snapshots(),
             builder: (context, bookingSnap) {
-              final bookings = bookingSnap.data?.docs ?? [];
+              final allBookingDocs = bookingSnap.data?.docs ?? [];
+
+final bookings = allBookingDocs.where((doc) {
+  final data = doc.data() as Map<String, dynamic>;
+
+  final start = (data['startDate'] as Timestamp).toDate();
+  final end = (data['endDate'] as Timestamp).toDate();
+
+  return start.isBefore(_nextMonthStart) && end.isAfter(_monthStart);
+}).toList();
 
               final daysInMonth = DateUtils.getDaysInMonth(
                 _currentMonth.year,
@@ -87,8 +134,7 @@ final leadingEmptyDays = firstDayOfMonth.weekday % 7;
 final totalGridCount = daysInMonth + leadingEmptyDays;
 
               return Column(
-                children: [
-
+  children: [
                   Container(
   width: double.infinity,
   margin: const EdgeInsets.fromLTRB(12, 12, 12, 8),
@@ -148,12 +194,12 @@ final totalGridCount = daysInMonth + leadingEmptyDays;
             ),
             const SizedBox(height: 4),
             const Text(
-              '房間月曆 / 可設定關閉單日房號',
-              style: TextStyle(
-                fontSize: 13,
-                color: Colors.grey,
-              ),
-            ),
+  '單房使用紀錄 / 可關閉單日房間',
+  style: TextStyle(
+    fontSize: 13,
+    color: Colors.grey,
+  ),
+),
           ],
         ),
       ),
@@ -257,6 +303,8 @@ final key = _format(date);
 
                         /// 🔥 預設狀態
                         String status = map[key] ?? 'available';
+                        Map<String, dynamic>? dayBooking;
+String? dayBookingId;
 
                         /// 🔥 訂單覆蓋（紅色）
                         for (var doc in bookings) {
@@ -273,21 +321,34 @@ final key = _format(date);
                           if (dateObj.isAfter(
                                   start.subtract(const Duration(days: 1))) &&
                               dateObj.isBefore(end)) {
-                            if (data['status'] == 'checked_in') {
+                           if (data['status'] == 'checked_in') {
   status = 'occupied';
+} else if (data['status'] == 'completed') {
+  status = 'completed';
 } else {
   status = 'booked';
 }
+
+dayBooking = data;
+dayBookingId = doc.id;
+
 break;
                           }
                         }
 
                         /// 🔥 可操作範圍
-                       final isDisabled =
-    date.isBefore(
-      today.subtract(const Duration(days: 1)),
-    ) ||
-    date.isAfter(lastAllowedDate);
+                       final isPastDate = date.isBefore(
+  today.subtract(const Duration(days: 1)),
+);
+
+final isFutureOutOfRange = date.isAfter(lastAllowedDate);
+
+final hasBooking = dayBooking != null;
+final isBlocked = status == 'blocked';
+
+/// 過去日期如果有訂單或維修紀錄，要能顯示出來
+final isDisabled =
+    isFutureOutOfRange || (isPastDate && !hasBooking && !isBlocked);
 
     final isSelected =
     _selectedDate != null &&
@@ -302,14 +363,19 @@ break;
   color = Colors.deepOrange;
   break;
                           case 'occupied':
-                            color = Colors.blue;
-                            break;
-                        
+  color = Colors.blue;
+  break;
+
+case 'completed':
+  color = Colors.purple;
+  break;
+
 case 'blocked':
   color = Colors.black;
   break;
-                          default:
-                            color = Colors.green;
+
+default:
+  color = Colors.green;
                         }
 
                         if (isDisabled) {
@@ -323,6 +389,8 @@ case 'blocked':
         setState(() {
   _selectedDate = date;
   _selectedStatus = status;
+  _selectedBooking = dayBooking;
+  _selectedBookingId = dayBookingId;
 });
       },
                           child: Container(
@@ -391,8 +459,15 @@ width: isSelected ? 2 : 1,
 if (_selectedDate != null)
   _selectedDateActionPanel(
     date: _selectedDate!,
-    status: _selectedStatus,
+    status: _selectedBooking != null
+        ? (_selectedBooking!['status'] ?? _selectedStatus)
+        : _selectedStatus,
   ),
+
+SizedBox(
+  height: 180,
+  child: _roomActionLogsPanel(),
+),
 
                   /// 🔥 圖例
 Container(
@@ -408,10 +483,11 @@ Container(
     spacing: 16,
     runSpacing: 8,
     children: [
-      _legend(Colors.green, '空房'),
-      _legend(Colors.deepOrange, '已訂'),
-      _legend(Colors.blue, '入住'),
-      _legend(Colors.black, '維修中'),
+_legend(Colors.green, '空房'),
+_legend(Colors.deepOrange, '已訂'),
+_legend(Colors.blue, '入住'),
+_legend(Colors.purple, '退房/完成'),
+_legend(Colors.black, '維修中'),
     ],
   ),
 ),
@@ -430,7 +506,13 @@ Widget _selectedDateActionPanel({
   required String status,
 }) {
   final key = _format(date);
-final lockedByBooking = status == 'booked' || status == 'occupied';
+final lockedByBooking =
+    status == 'booked' ||
+    status == 'occupied' ||
+    status == 'pending' ||
+    status == 'confirmed' ||
+    status == 'checked_in' ||
+    status == 'completed';
 
   return Container(
     width: double.infinity,
@@ -444,22 +526,39 @@ final lockedByBooking = status == 'booked' || status == 'occupied';
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
-          '選取日期資訊',
-          style: TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.w800,
-          ),
+        Row(
+  children: [
+    const Expanded(
+      child: Text(
+        '選取日期資訊',
+        style: TextStyle(
+          fontSize: 14,
+          fontWeight: FontWeight.w800,
         ),
+      ),
+    ),
+    IconButton(
+      icon: const Icon(Icons.close, size: 18),
+      onPressed: () {
+        setState(() {
+          _selectedDate = null;
+          _selectedBooking = null;
+          _selectedBookingId = null;
+          _selectedStatus = 'available';
+        });
+      },
+    ),
+  ],
+),
         const SizedBox(height: 8),
 
         Text(
-          '$key　目前狀態：${_statusText(status)}',
-          style: const TextStyle(
-            fontSize: 13,
-            color: Colors.grey,
-          ),
-        ),
+  '$key　目前狀態：${_selectedBooking != null ? _statusText(_selectedBooking!['status']) : _statusText(status)}',
+  style: const TextStyle(
+    fontSize: 13,
+    color: Colors.grey,
+  ),
+),
         const Text(
   '關閉此日後，前台該房間當日將無法被預訂。',
   style: TextStyle(
@@ -468,6 +567,78 @@ final lockedByBooking = status == 'booked' || status == 'occupied';
     fontWeight: FontWeight.w600,
   ),
 ),
+
+if (_selectedBooking != null) ...[
+  const SizedBox(height: 14),
+
+  Container(
+    width: double.infinity,
+    padding: const EdgeInsets.all(12),
+    decoration: BoxDecoration(
+      color: Colors.grey.shade50,
+      borderRadius: BorderRadius.circular(14),
+      border: Border.all(
+        color: Colors.grey.shade300,
+      ),
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          '訂單摘要',
+          style: TextStyle(
+            fontWeight: FontWeight.w800,
+            fontSize: 14,
+          ),
+        ),
+
+        const SizedBox(height: 10),
+
+        Text(
+          '客人：${_selectedBooking!['customerName'] ?? '未知'}',
+          style: const TextStyle(
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+
+        const SizedBox(height: 4),
+
+        Text(
+          '狀態：${_statusText(_selectedBooking!['status'])}',
+        ),
+
+        const SizedBox(height: 4),
+
+        Text(
+          '日期：'
+          '${_format((_selectedBooking!['startDate'] as Timestamp).toDate())}'
+          ' ～ '
+          '${_format((_selectedBooking!['endDate'] as Timestamp).toDate())}',
+        ),
+
+        const SizedBox(height: 12),
+
+        SizedBox(
+          width: double.infinity,
+          child: ElevatedButton.icon(
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => AdminBookingDetailPage(
+                    bookingId: _selectedBookingId!,
+                  ),
+                ),
+              );
+            },
+            icon: const Icon(Icons.receipt_long),
+            label: const Text('查看訂單'),
+          ),
+        ),
+      ],
+    ),
+  ),
+],
         const SizedBox(height: 12),
 
 if (lockedByBooking)
@@ -511,6 +682,125 @@ Expanded(
   );
 }
 
+/// 🔥 房務操作紀錄
+Widget _roomActionLogsPanel() {
+  return Container(
+    width: double.infinity,
+    margin: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+    padding: const EdgeInsets.all(14),
+    decoration: BoxDecoration(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(16),
+      border: Border.all(color: Colors.grey.shade200),
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          '房務操作紀錄',
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+        const SizedBox(height: 10),
+
+        StreamBuilder<QuerySnapshot>(
+          stream: FirebaseFirestore.instance
+              .collection('action_logs')
+              .where('shopId', isEqualTo: widget.shopId)
+              .where('roomId', isEqualTo: widget.roomId)
+              .where(
+  'type',
+  isEqualTo: 'room_calendar_status_update',
+)
+.limit(10)
+.snapshots(),
+          builder: (context, snapshot) {
+            if (!snapshot.hasData) {
+              return const Padding(
+                padding: EdgeInsets.symmetric(vertical: 12),
+                child: Center(
+                  child: CircularProgressIndicator(),
+                ),
+              );
+            }
+
+            final logs = snapshot.data!.docs;
+
+            if (logs.isEmpty) {
+              return const Text(
+                '目前沒有房務操作紀錄',
+                style: TextStyle(
+                  color: Colors.grey,
+                  fontSize: 13,
+                ),
+              );
+            }
+
+            return Expanded(
+  child: ListView(
+    padding: EdgeInsets.zero,
+    children: logs.map((doc) {
+      final log =
+          doc.data() as Map<String, dynamic>;
+
+      return _roomActionLogItem(log);
+    }).toList(),
+  ),
+);
+          },
+        ),
+      ],
+    ),
+  );
+}
+
+Widget _roomActionLogItem(Map<String, dynamic> log) {
+  final date = log['date'] ?? '-';
+  final operatorEmail = log['operatorEmail'] ?? '-';
+  final fromStatus = _statusText(log['fromStatus'] ?? '');
+  final toStatus = _statusText(log['toStatus'] ?? '');
+  final createdAt =
+    (log['createdAt'] as Timestamp?)?.toDate();
+
+final timeText = createdAt != null
+    ? '${createdAt.hour.toString().padLeft(2, '0')}:'
+        '${createdAt.minute.toString().padLeft(2, '0')}'
+    : '--:--';
+
+  return Container(
+    width: double.infinity,
+    margin: const EdgeInsets.only(bottom: 8),
+    padding: const EdgeInsets.all(10),
+    decoration: BoxDecoration(
+      color: Colors.grey.shade50,
+      borderRadius: BorderRadius.circular(12),
+      border: Border.all(color: Colors.grey.shade200),
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          '$date $timeText：$fromStatus → $toStatus',
+          style: const TextStyle(
+            fontWeight: FontWeight.w700,
+            fontSize: 13,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          '操作者：$operatorEmail',
+          style: const TextStyle(
+            fontSize: 12,
+            color: Colors.grey,
+          ),
+        ),
+      ],
+    ),
+  );
+}
+
 /// 🔥 下方小操作按鈕
 Widget _smallActionButton({
   required String label,
@@ -531,11 +821,12 @@ Widget _smallActionButton({
     onPressed: enabled
     ? () async {
         await ShopService.instance.setRoomStatus(
-          shopId: widget.shopId,
-          roomId: widget.roomId,
-          date: dateKey,
-          status: status,
-        );
+  shopId: widget.shopId,
+  roomId: widget.roomId,
+  roomName: widget.roomName,
+  date: dateKey,
+  status: status,
+);
       }
     : null,
     child: Text(
@@ -551,12 +842,29 @@ Widget _smallActionButton({
 /// 🔥 狀態文字
 String _statusText(String status) {
   switch (status) {
+    /// 日曆狀態
     case 'booked':
-      return '已預訂';
+      return '已訂';
+
     case 'occupied':
       return '入住中';
+
+    /// 訂單狀態
+   case 'pending':
+  return '預訂中';
+
+case 'confirmed':
+  return '已確認';
+
+    case 'checked_in':
+      return '入住中';
+
+    case 'completed':
+      return '退房/完成';
+
     case 'blocked':
       return '維修中';
+
     case 'available':
     default:
       return '空房';

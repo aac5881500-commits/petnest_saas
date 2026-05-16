@@ -560,27 +560,7 @@ if (_transferEnabled)
       final fullAddress =
           '${_city ?? ''}${_district ?? ''}${_detailAddressController.text}';
 
-      /// 🔥 如果選轉帳 → 先顯示帳號
-      if (_paymentMethod == 'transfer') {
-        await showDialog(
-          context: context,
-          builder: (_) => AlertDialog(
-            title: const Text('請先完成轉帳'),
-            content: Text(
-  '本次需轉帳：NT\$ $currentPayAmount\n\n'
-  '銀行：$_bankName\n'
-  '戶名：$_accountName\n'
-  '帳號：$_accountNumber',
-),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text('我已轉帳'),
-              ),
-            ],
-          ),
-        );
-      }
+
 
       /// 🔥 再送出預約（一定要放最後）
       widget.onSubmitWithData(

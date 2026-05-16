@@ -12,6 +12,7 @@ import 'package:petnest_saas/features/shop/widgets/environment/environment_image
 import 'package:petnest_saas/features/shop/widgets/environment/environment_bottom_note.dart';
 import 'package:petnest_saas/features/shop/widgets/environment/environment_section_title.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:petnest_saas/features/shop/data/environment_facility_options.dart';
 
 
 const String _environmentHeroImageUrl =
@@ -50,39 +51,6 @@ const List<Map<String, String>> _environmentFeatures = [
     'description': '全館恆溫控制，讓貓咪在炎熱或潮濕天氣中也能舒適休息。',
     'imageUrl':
         'https://images.unsplash.com/photo-1495360010541-f48722b34f7d?w=800',
-  },
-];
-
-const List<Map<String, String>> _environmentCareItems = [
-  {
-    'icon': 'air',
-    'title': '空氣清淨',
-    'subtitle': '維持空氣流通',
-  },
-  {
-    'icon': 'camera',
-    'title': '監視設備',
-    'subtitle': '住宿更安心',
-  },
-  {
-    'icon': 'hospital',
-    'title': '緊急送醫',
-    'subtitle': '即時協助',
-  },
-  {
-    'icon': 'water',
-    'title': '飲水設備',
-    'subtitle': '補充水分',
-  },
-  {
-    'icon': 'sun',
-    'title': '日照空間',
-    'subtitle': '舒適放鬆',
-  },
-  {
-    'icon': 'clean_hand',
-    'title': '定期消毒',
-    'subtitle': '乾淨衛生',
   },
 ];
 
@@ -150,8 +118,28 @@ final String? bottomNote;
 
     final displayBottomNote =
         bottomNote ?? environmentIntro?['bottomNote'] ?? _environmentBottomNote;
+        final displayFeatures =
+    List<Map<String, dynamic>>.from(
+  environmentIntro?['features'] ?? _environmentFeatures,
+);
             final displayGalleryImages =
         List<String>.from(environmentIntro?['galleryImages'] ?? _environmentGalleryImages);
+final selectedFacilityKeys = List<String>.from(
+  environmentIntro?['facilityKeys'] ??
+      [
+        'air_cleaner',
+        'camera_24h',
+        'hospital',
+        'water',
+        'sunlight',
+        'disinfect',
+      ],
+);
+
+final displayCareItems = environmentFacilityOptions
+    .where((item) => selectedFacilityKeys.contains(item['key']))
+    .toList();
+
             final displayHeroImageUrl =
         environmentIntro?['heroImageUrl'] ?? _environmentHeroImageUrl;
 
@@ -175,7 +163,7 @@ EnvironmentSectionTitle(
 ),
           const SizedBox(height: 12),
 
-         ..._environmentFeatures.map((item) {
+         ...displayFeatures.map((item) {
   return EnvironmentFeatureCard(
   icon: _environmentIcon(item['icon'] ?? ''),
   title: item['title'] ?? '',
@@ -184,6 +172,16 @@ EnvironmentSectionTitle(
   imageBuilder: _networkImage,
 );
 }),
+
+     const SizedBox(height: 24),
+
+          EnvironmentImageBanner(
+  imageUrl: displayBannerImageUrl,
+  title: displayBannerTitle,
+  imageBuilder: _networkImage,
+),
+
+          const SizedBox(height: 24),
 
           const SizedBox(height: 18),
 
@@ -203,25 +201,15 @@ EnvironmentSectionTitle(
               mainAxisSpacing: 10,
               crossAxisSpacing: 10,
               childAspectRatio: 0.88,
-             children: _environmentCareItems.map((item) {
+            children: displayCareItems.map((item) {
   return EnvironmentCareItem(
-  icon: _environmentIcon(item['icon'] ?? ''),
-  title: item['title'] ?? '',
-  subtitle: item['subtitle'] ?? '',
-);
+    icon: item['icon'] as IconData,
+    title: item['title'] ?? '',
+    subtitle: item['description'] ?? '',
+  );
 }).toList(),
             ),
           ),
-
-          const SizedBox(height: 24),
-
-          EnvironmentImageBanner(
-  imageUrl: displayBannerImageUrl,
-  title: displayBannerTitle,
-  imageBuilder: _networkImage,
-),
-
-          const SizedBox(height: 24),
 
           EnvironmentSectionTitle(
             icon: Icons.photo_library_rounded,
@@ -265,6 +253,10 @@ IconData _environmentIcon(String key) {
       return Icons.wb_sunny_rounded;
     case 'clean_hand':
       return Icons.clean_hands_rounded;
+          case 'pets':
+      return Icons.pets_rounded;
+    case 'toys':
+      return Icons.toys_rounded;
     default:
       return Icons.pets_rounded;
   }

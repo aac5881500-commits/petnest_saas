@@ -1060,9 +1060,13 @@ Future<void> setRoomStatus({
   required String shopId,
   required String roomId,
   required String date, // yyyy-MM-dd
-  required String status, // available / blocked / cleaning
+  required String status, // available / blocked
+  String roomName = '',
 }) async {
   final docId = '${roomId}_$date';
+
+  final oldDoc = await roomCalendarRef(shopId).doc(docId).get();
+  final oldStatus = oldDoc.data()?['status'] ?? 'available';
 
   await roomCalendarRef(shopId).doc(docId).set({
     'roomId': roomId,
@@ -1070,8 +1074,29 @@ Future<void> setRoomStatus({
     'status': status,
     'updatedAt': FieldValue.serverTimestamp(),
   });
-}
 
+  await _firestore.collection('action_logs').add({
+    'type': 'room_calendar_status_update',
+
+    /// 店家 / 房間
+    'shopId': shopId,
+    'roomId': roomId,
+    'roomName': roomName,
+
+    /// 日期與狀態
+    'date': date,
+    'fromStatus': oldStatus,
+    'toStatus': status,
+
+    /// 操作者
+    'operatorUid': _currentUser?.uid,
+    'operatorEmail': _currentUser?.email,
+    'operatorRole': 'staff',
+
+    /// 時間
+    'createdAt': FieldValue.serverTimestamp(),
+  });
+}
 /// ===============================
 /// 🧮 取得可用房型（前台用）
 /// ===============================
