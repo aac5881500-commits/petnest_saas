@@ -11,6 +11,7 @@ class EnvironmentFeatureManager extends StatelessWidget {
     required this.onDelete,
     required this.onEdit,
     required this.onChangeIcon,
+    required this.onChangeLayout,
     required this.onUploadImage,
   });
 
@@ -19,6 +20,7 @@ class EnvironmentFeatureManager extends StatelessWidget {
   final Function(int index) onDelete;
   final Function(int index) onEdit;
   final Function(int index) onChangeIcon;
+  final Function(int index) onChangeLayout;
   final Function(int index) onUploadImage;
 
   IconData _featureIcon(String key) {
@@ -111,6 +113,14 @@ class EnvironmentFeatureManager extends StatelessWidget {
                   IconButton(
   onPressed: () => onChangeIcon(index),
   icon: const Icon(Icons.apps_rounded),
+),
+IconButton(
+  onPressed: () => onChangeLayout(index),
+  icon: Icon(
+    item['layout'] == 'imageLeft'
+        ? Icons.format_indent_decrease_rounded
+        : Icons.format_indent_increase_rounded,
+  ),
 ),
 IconButton(
   onPressed: () => onDelete(index),

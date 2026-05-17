@@ -82,8 +82,11 @@ Future<void> updateShop({
 
   /// 建立店家
   Future<String> createShop({
-    required String name,
-  }) async {
+  required String name,
+  required String city,
+  required String district,
+  String businessType = 'cat_hotel',
+}) async {
     final user = _currentUser;
 
     if (user == null) throw Exception('未登入');
@@ -104,17 +107,28 @@ Future<void> updateShop({
 
     batch.set(shopRef, {
       'name': name.trim(),
-      'ownerUid': user.uid,
-      'createdAt': FieldValue.serverTimestamp(),
-      'updatedAt': FieldValue.serverTimestamp(),
+'ownerUid': user.uid,
+
+// 🔒 建立後鎖定欄位
+'profileLocked': true,
+'lockedFields': [
+  'name',
+  'businessType',
+  'city',
+  'licenseNumber',
+  'taxId',
+],
+
+'createdAt': FieldValue.serverTimestamp(),
+'updatedAt': FieldValue.serverTimestamp(),
 
       // 基本資料
-      'businessType': 'cat',
-      'phone': '',
-      'address': '',
-      'description': '',
-      'city': '',
-      'district': '',
+      'businessType': businessType,
+'phone': '',
+'address': '',
+'description': '',
+'city': city.trim(),
+'district': district.trim(),
       'lineUrl': '',
 
       // 營業資訊
@@ -194,11 +208,21 @@ Future<void> updateShop({
       final shopDoc = await _shops.doc(shopId).get();
       if (!shopDoc.exists) continue;
 
-      result.add({
-        'shopId': shopId,
-        'name': shopDoc.data()?['name'] ?? '',
-        'role': data['role'] ?? '',
-      });
+      final shopData = shopDoc.data() ?? {};
+
+result.add({
+  'shopId': shopId,
+  'name': shopData['name'] ?? '',
+  'role': data['role'] ?? '',
+
+  // 🔥 新增
+  'coverUrl': shopData['coverUrl'] ?? '',
+  'city': shopData['city'] ?? '',
+  'district': shopData['district'] ?? '',
+  'isOpen': shopData['isOpen'] ?? true,
+  'isPublic': shopData['isPublic'] ?? false,
+  'businessType': shopData['businessType'] ?? '',
+});
     }
 
     return result;
@@ -247,9 +271,9 @@ Future<void> updateShop({
   }
 
   /// 是否有管理店家權限
-  bool canManageShop(String? role) {
-    return role == ShopRoles.owner || role == ShopRoles.manager;
-  }
+ bool canManageShop(String? role) {
+  return role == ShopRoles.owner;
+}
 
   /// 更新店家基本資料
   Future<void> updateShopBasicInfo({
@@ -293,16 +317,23 @@ Future<void> updateShop({
 
   /// 更新營業資訊
   Future<void> updateBusinessInfo({
-    required String shopId,
-    required bool isOpen,
-    String businessHours = '',
-    List<String> closedDays = const [],
-    List<String> serviceTypes = const [],
-    bool isPublic = false,
-  }) async {
+  required String shopId,
+  required bool isOpen,
+
+  String businessHours = '',
+
+  String openTime = '',
+  String closeTime = '',
+
+  List<String> closedDays = const [],
+  List<String> serviceTypes = const [],
+  bool isPublic = false,
+}) async {
     await _shops.doc(shopId).update({
       'isOpen': isOpen,
       'businessHours': businessHours,
+      'openTime': openTime,
+'closeTime': closeTime,
       'closedDays': closedDays,
       'serviceTypes': serviceTypes,
       'isPublic': isPublic,
@@ -535,8 +566,6 @@ Future<void> updateShop({
 
   Map<String, bool> defaultPermissionsByRole(String role) {
     switch (role) {
-      case ShopRoles.manager:
-        return managerDefaultPermissions();
       case ShopRoles.staff:
         return staffDefaultPermissions();
       case ShopRoles.owner:
@@ -690,6 +719,66 @@ Future<void> updateShop({
       operatorRole: operatorRole,
     );
   }
+
+Future<void> updateMemberPermission({
+  required String memberDocId,
+  required String shopId,
+  required String role,
+  required Map<String, bool> permissions,
+  required String operatorUid,
+  required String operatorRole,
+}) async {
+  await _shopMembers.doc(memberDocId).update({
+    'role': role,
+    'permissions': normalizePermissions(
+      permissions,
+      role: role,
+    ),
+    'updatedAt': FieldValue.serverTimestamp(),
+  });
+
+  await ActionLogService.instance.logAction(
+    shopId: shopId,
+    targetType: 'shop_member',
+    targetId: memberDocId,
+    action: 'update_member_permission',
+    operatorUid: operatorUid,
+    operatorRole: operatorRole,
+  );
+}
+
+Future<void> removeMember({
+  required String memberDocId,
+  required String shopId,
+  required String operatorUid,
+  required String operatorRole,
+}) async {
+  final doc = await _shopMembers.doc(memberDocId).get();
+
+  if (!doc.exists) {
+    throw Exception('找不到成員');
+  }
+
+  final data = doc.data() as Map<String, dynamic>;
+
+  final role = data['role']?.toString();
+
+  if (role == 'owner') {
+    throw Exception('不可刪除老闆');
+  }
+
+  await _shopMembers.doc(memberDocId).delete();
+
+  await ActionLogService.instance.logAction(
+    shopId: shopId,
+    targetType: 'shop_member',
+    targetId: memberDocId,
+    action: 'remove_member',
+    operatorUid: operatorUid,
+    operatorRole: operatorRole,
+  );
+}
+
   Future<void> removeMemberInvite({
   required String inviteDocId,
   required String shopId,

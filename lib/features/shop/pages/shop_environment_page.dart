@@ -170,6 +170,7 @@ EnvironmentSectionTitle(
   description: item['description'] ?? '',
   imageUrl: item['imageUrl'] ?? '',
   imageBuilder: _networkImage,
+  reverse: item['layout'] == 'imageLeft',
 );
 }),
 

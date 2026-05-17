@@ -31,6 +31,7 @@ import 'package:petnest_saas/features/room/pages/room_dashboard_page.dart';
 import 'package:petnest_saas/features/shop/pages/shop_addon_page.dart';
 import 'package:petnest_saas/features/shop/pages/shop_payment_setting_page.dart';
 import 'package:petnest_saas/features/shop/pages/shop_environment_manage_page.dart';
+import 'package:petnest_saas/features/shop/pages/shop_about_manage_page.dart';
 
 
 class ShopDashboardPage extends StatefulWidget {
@@ -307,17 +308,19 @@ class _BasicInfoTab extends StatelessWidget {
   final String shopId;
   final String? currentUserRole;
 
-  bool get _canManageModules =>
-      currentUserRole == ShopRoles.owner ||
-      currentUserRole == ShopRoles.manager;
+ bool get _canManageModules =>
+    currentUserRole == ShopRoles.owner;
+    
 
   @override
   Widget build(BuildContext context) {
     return ListView(
       padding: const EdgeInsets.all(16),
-      children: [
-        _MenuTile(
-          title: '店家基本資料',
+     children: [
+  const _MenuSectionTitle('店家資料'),
+
+  _MenuTile(
+    title: '店家基本資料',
           subtitle: '設定店名、類型、地址、電話與介紹',
           icon: Icons.store,
           onTap: () {
@@ -344,7 +347,7 @@ class _BasicInfoTab extends StatelessWidget {
         ),
         _MenuTile(
           title: '店家封面 ',
-          subtitle: '上傳 Logo 與封面圖片',
+          subtitle: '上傳封面圖片',
           icon: Icons.image,
           onTap: () {
             Navigator.push(
@@ -355,6 +358,8 @@ class _BasicInfoTab extends StatelessWidget {
             );
           },
         ),
+
+        const _MenuSectionTitle('前台內容'),
 
 _MenuTile(
   title: '環境介紹管理',
@@ -367,6 +372,22 @@ _MenuTile(
         builder: (_) => ShopEnvironmentManagePage(
           shopId: shopId,
         ),
+      ),
+    );
+  },
+),
+
+_MenuTile(
+  title: '關於我們管理',
+  subtitle: '設定品牌故事、理念與介紹內容',
+  icon: Icons.favorite_border,
+  onTap: () {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ShopAboutManagePage(
+  shopId: shopId,
+),
       ),
     );
   },
@@ -385,6 +406,9 @@ _MenuTile(
             );
           },
         ),
+
+        const _MenuSectionTitle('後台管理'),
+        
         _MenuTile(
           title: '模組設定',
           subtitle: _canManageModules
@@ -433,7 +457,9 @@ onTap: () {
   Navigator.push(
     context,
     MaterialPageRoute(
-      builder: (_) => const AdminMemberListPage(),
+      builder: (_) => AdminMemberListPage(
+  shopId: shopId,
+),
     ),
   );
 },
@@ -495,7 +521,7 @@ const _MenuSectionTitle('預約與房型設定'),
 
         _MenuTile(
           title: '預約管理',
-          subtitle: isProfileComplete ? '管理房數、關閉日期、促銷價與預約列表' : '請先完成基本資料',
+          subtitle: isProfileComplete ? '管理房數開放預約時間設定' : '請先完成基本資料',
           icon: Icons.calendar_month,
           enabled: isProfileComplete,
           onTap: () {

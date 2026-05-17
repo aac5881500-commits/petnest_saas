@@ -436,6 +436,25 @@ class _ShopEnvironmentManagePageState extends State<ShopEnvironmentManagePage> {
     }
   }
 
+  Future<void> _changeFeatureLayout(int index) async {
+    if (index < 0 || index >= environmentFeatures.length) return;
+
+    final currentLayout =
+        environmentFeatures[index]['layout'] ?? 'imageRight';
+
+    final nextLayout =
+        currentLayout == 'imageLeft' ? 'imageRight' : 'imageLeft';
+
+    setState(() {
+      environmentFeatures[index] = {
+        ...environmentFeatures[index],
+        'layout': nextLayout,
+      };
+    });
+
+    await _save();
+  }
+
   Future<void> _save() async {
   await FirebaseFirestore.instance
       .collection('shops')
@@ -565,17 +584,19 @@ class _ShopEnvironmentManagePageState extends State<ShopEnvironmentManagePage> {
   onAdd: () {
     setState(() {
       environmentFeatures.add({
-        'icon': 'home',
-        'title': '新的環境特色',
-        'description': '請輸入環境特色說明',
-        'imageUrl': '',
-      });
+  'icon': 'home',
+  'title': '新的環境特色',
+  'description': '請輸入環境特色說明',
+  'imageUrl': '',
+  'layout': 'imageRight',
+});
     });
     _save();
   },
   onEdit: _editFeature,
   onUploadImage: _pickAndUploadFeatureImage,
   onChangeIcon: _changeFeatureIcon,
+  onChangeLayout: _changeFeatureLayout,
   onDelete: (index) {
     setState(() {
       environmentFeatures.removeAt(index);

@@ -89,14 +89,16 @@ class _ShopBasicInfoPageState extends State<ShopBasicInfoPage> {
     _igUrlController.text = shop?['igUrl'] ?? '';
     _fbUrlController.text = shop?['fbUrl'] ?? '';
 
-    _businessHoursController.text =
-        shop?['businessHours'] ?? '';
     _licenseController.text =
         shop?['licenseNumber'] ?? '';
     _taxIdController.text = shop?['taxId'] ?? '';
     _showTaxId = shop?['showTaxId'] ?? true;
 
-    _businessType = shop?['businessType'] ?? 'cat';
+    final rawBusinessType = shop?['businessType']?.toString() ?? 'cat_hotel';
+
+_businessType = rawBusinessType == 'cat'
+    ? 'cat_hotel'
+    : rawBusinessType;
 
     setState(() => _loading = false);
   }
@@ -119,7 +121,6 @@ class _ShopBasicInfoPageState extends State<ShopBasicInfoPage> {
       igUrl: _igUrlController.text,
       fbUrl: _fbUrlController.text,
 
-      businessHours: _businessHoursController.text,
       licenseNumber: _licenseController.text,
       taxId: _taxIdController.text,
       showTaxId: _showTaxId,
@@ -137,6 +138,45 @@ class _ShopBasicInfoPageState extends State<ShopBasicInfoPage> {
       border: const OutlineInputBorder(),
     );
   }
+
+  String? _validateSocialUrl({
+  required String? value,
+  required String type,
+}) {
+  final text = value?.trim() ?? '';
+
+  if (text.isEmpty) return null;
+
+  final uri = Uri.tryParse(text);
+
+  if (uri == null || !uri.hasScheme || uri.host.isEmpty) {
+    return '請輸入完整網址，例如 https://...';
+  }
+
+  final host = uri.host.toLowerCase();
+
+  if (type == 'line') {
+    if (host == 'line.me' || host == 'lin.ee') return null;
+    return 'LINE 連結只能使用 line.me 或 lin.ee';
+  }
+
+  if (type == 'ig') {
+    if (host == 'instagram.com' || host == 'www.instagram.com') return null;
+    return 'IG 連結只能使用 instagram.com';
+  }
+
+  if (type == 'fb') {
+    if (
+        host == 'facebook.com' ||
+        host == 'www.facebook.com' ||
+        host == 'fb.me') {
+      return null;
+    }
+    return 'FB 連結只能使用 facebook.com 或 fb.me';
+  }
+
+  return null;
+}
 
   @override
   void dispose() {
@@ -168,22 +208,31 @@ class _ShopBasicInfoPageState extends State<ShopBasicInfoPage> {
               child: ListView(
                 padding: const EdgeInsets.all(16),
                 children: [
-                  TextFormField(
-                    controller: _nameController,
-                    decoration: _input('店名'),
-                    validator: (v) => v!.isEmpty ? '必填' : null,
-                  ),
+                 TextFormField(
+  controller: _nameController,
+  readOnly: true,
+  decoration: _input('店名（建立後不可修改）').copyWith(
+    filled: true,
+    fillColor: Colors.grey.shade100,
+  ),
+),
                   const SizedBox(height: 16),
 
-                  DropdownButtonFormField(
-                    value: _businessType,
-                    decoration: _input('類型'),
-                    items: const [
-                      DropdownMenuItem(value: 'cat', child: Text('貓')),
-                    ],
-                    onChanged: (v) =>
-                        setState(() => _businessType = v!),
-                  ),
+                 DropdownButtonFormField<String>(
+  value: _businessType,
+  decoration: _input('類型（建立後不可修改）').copyWith(
+    filled: true,
+    fillColor: Colors.grey.shade100,
+  ),
+  items: const [
+    DropdownMenuItem(value: 'cat_hotel', child: Text('貓咪旅店')),
+    DropdownMenuItem(value: 'dog_hotel', child: Text('狗狗旅店')),
+    DropdownMenuItem(value: 'grooming', child: Text('美容功能')),
+    DropdownMenuItem(value: 'hospital', child: Text('動物醫院')),
+    DropdownMenuItem(value: 'shop', child: Text('賣場功能')),
+  ],
+  onChanged: null,
+),
 
                   const SizedBox(height: 16),
 
@@ -195,25 +244,14 @@ class _ShopBasicInfoPageState extends State<ShopBasicInfoPage> {
                   const SizedBox(height: 16),
 
                   /// 🔥 縣市
-                  DropdownButtonFormField(
-                    value: _cityController.text.isEmpty
-                        ? null
-                        : _cityController.text,
-                    decoration: _input('縣市'),
-                    items: taiwanMap.keys
-                        .map((e) => DropdownMenuItem(
-                              value: e,
-                              child: Text(e),
-                            ))
-                        .toList(),
-                    onChanged: (v) {
-                      setState(() {
-                        _cityController.text = v!;
-                        _districtController.clear();
-                      });
-                    },
-                  ),
-
+                  TextFormField(
+  controller: _cityController,
+  readOnly: true,
+  decoration: _input('縣市（建立後不可修改）').copyWith(
+    filled: true,
+    fillColor: Colors.grey.shade100,
+  ),
+),
                   const SizedBox(height: 16),
 
                   /// 🔥 區域
@@ -242,23 +280,24 @@ class _ShopBasicInfoPageState extends State<ShopBasicInfoPage> {
                   const SizedBox(height: 24),
 
                   TextFormField(
-                    controller: _businessHoursController,
-                    decoration: _input('營業時間'),
-                  ),
+  controller: _licenseController,
+  readOnly: true,
+  decoration: _input('特寵字號（需平台審核修改）').copyWith(
+    filled: true,
+    fillColor: Colors.grey.shade100,
+  ),
+),
 
                   const SizedBox(height: 16),
 
-                  TextFormField(
-                    controller: _licenseController,
-                    decoration: _input('特寵字號'),
-                  ),
-
-                  const SizedBox(height: 16),
-
-                  TextFormField(
-                    controller: _taxIdController,
-                    decoration: _input('統編'),
-                  ),
+                 TextFormField(
+  controller: _taxIdController,
+  readOnly: true,
+  decoration: _input('統編（需平台審核修改）').copyWith(
+    filled: true,
+    fillColor: Colors.grey.shade100,
+  ),
+),
 
                   SwitchListTile(
                     value: _showTaxId,
@@ -271,21 +310,33 @@ class _ShopBasicInfoPageState extends State<ShopBasicInfoPage> {
 
                   /// 🔥 LINE / IG / FB
                   TextFormField(
-                    controller: _lineUrlController,
-                    decoration: _input('LINE'),
-                  ),
+  controller: _lineUrlController,
+  decoration: _input('LINE'),
+  validator: (v) => _validateSocialUrl(
+    value: v,
+    type: 'line',
+  ),
+),
                   const SizedBox(height: 16),
 
                   TextFormField(
-                    controller: _igUrlController,
-                    decoration: _input('IG'),
-                  ),
+  controller: _igUrlController,
+  decoration: _input('IG'),
+  validator: (v) => _validateSocialUrl(
+    value: v,
+    type: 'ig',
+  ),
+),
                   const SizedBox(height: 16),
 
                   TextFormField(
-                    controller: _fbUrlController,
-                    decoration: _input('FB'),
-                  ),
+  controller: _fbUrlController,
+  decoration: _input('FB'),
+  validator: (v) => _validateSocialUrl(
+    value: v,
+    type: 'fb',
+  ),
+),
 
                   const SizedBox(height: 24),
 

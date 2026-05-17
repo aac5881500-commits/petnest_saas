@@ -47,6 +47,11 @@ class _ShopBusinessInfoPageState
       _isPublic = shop['isPublic'] ?? false;
       _businessHoursController.text =
           shop['businessHours'] ?? '';
+          final openTime = shop['openTime']?.toString() ?? '';
+final closeTime = shop['closeTime']?.toString() ?? '';
+
+_startTime = _parseTimeOfDay(openTime);
+_endTime = _parseTimeOfDay(closeTime);
 
       _serviceTypes =
           List<String>.from(shop['serviceTypes'] ?? []);
@@ -89,6 +94,22 @@ class _ShopBusinessInfoPageState
     }
   }
 
+TimeOfDay? _parseTimeOfDay(String value) {
+  if (value.isEmpty || !value.contains(':')) return null;
+
+  final parts = value.split(':');
+  if (parts.length != 2) return null;
+
+  final hour = int.tryParse(parts[0]);
+  final minute = int.tryParse(parts[1]);
+
+  if (hour == null || minute == null) return null;
+  if (hour < 0 || hour > 23) return null;
+  if (minute < 0 || minute > 59) return null;
+
+  return TimeOfDay(hour: hour, minute: minute);
+}
+
   // 🔥 更新文字
   void _updateBusinessHoursText() {
     if (_startTime != null && _endTime != null) {
@@ -109,12 +130,18 @@ class _ShopBusinessInfoPageState
     });
 
     await ShopService.instance.updateBusinessInfo(
-      shopId: widget.shopId,
-      isOpen: _isOpen,
-      businessHours: _businessHoursController.text,
-      isPublic: _isPublic,
-      serviceTypes: _serviceTypes, // 🔥 重點
-    );
+  shopId: widget.shopId,
+  isOpen: _isOpen,
+  businessHours: _businessHoursController.text,
+  openTime: _startTime == null
+      ? ''
+      : '${_startTime!.hour.toString().padLeft(2, '0')}:${_startTime!.minute.toString().padLeft(2, '0')}',
+  closeTime: _endTime == null
+      ? ''
+      : '${_endTime!.hour.toString().padLeft(2, '0')}:${_endTime!.minute.toString().padLeft(2, '0')}',
+  isPublic: _isPublic,
+  serviceTypes: _serviceTypes,
+);
 
     if (!mounted) return;
 
@@ -191,41 +218,6 @@ class _ShopBusinessInfoPageState
 
             const SizedBox(height: 20),
 
-            /// 🔥 服務類型
-            const Text(
-              '提供服務',
-              style: TextStyle(fontWeight: FontWeight.bold),
-            ),
-
-            CheckboxListTile(
-              title: const Text('住宿'),
-              value: _serviceTypes.contains('overnight'),
-              onChanged: (value) {
-                setState(() {
-                  if (value == true) {
-                    _serviceTypes.add('overnight');
-                  } else {
-                    _serviceTypes.remove('overnight');
-                  }
-                });
-              },
-            ),
-
-            CheckboxListTile(
-              title: const Text('日托'),
-              value: _serviceTypes.contains('daycare'),
-              onChanged: (value) {
-                setState(() {
-                  if (value == true) {
-                    _serviceTypes.add('daycare');
-                  } else {
-                    _serviceTypes.remove('daycare');
-                  }
-                });
-              },
-            ),
-
-            const SizedBox(height: 16),
 
             /// 公開開關
             SwitchListTile(

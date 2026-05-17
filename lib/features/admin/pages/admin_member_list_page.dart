@@ -6,7 +6,12 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:petnest_saas/features/admin/pages/admin_member_detail_page.dart';
 
 class AdminMemberListPage extends StatefulWidget {
-  const AdminMemberListPage({super.key});
+  const AdminMemberListPage({
+    super.key,
+    required this.shopId,
+  });
+
+  final String shopId;
 
   @override
   State<AdminMemberListPage> createState() =>
@@ -45,8 +50,9 @@ class _AdminMemberListPageState extends State<AdminMemberListPage> {
           Expanded(
             child: StreamBuilder<QuerySnapshot>(
               stream: FirebaseFirestore.instance
-                  .collection('user_profiles')
-                  .snapshots(),
+    .collection('bookings')
+    .where('shopId', isEqualTo: widget.shopId)
+    .snapshots(),
               builder: (context, snapshot) {
                 if (!snapshot.hasData) {
                   return const Center(
@@ -55,21 +61,34 @@ class _AdminMemberListPageState extends State<AdminMemberListPage> {
 
                 final allDocs = snapshot.data!.docs;
 
-                /// 🔥 精準搜尋
-                final docs = allDocs.where((doc) {
-                  final data =
-                      doc.data() as Map<String, dynamic>;
+                final bookingDocs = snapshot.data!.docs;
 
-                  final name =
-                      (data['name'] ?? '').toString();
-                  final phone =
-                      (data['phone'] ?? '').toString();
+final userMap = <String, Map<String, dynamic>>{};
 
-                  if (keyword.isEmpty) return true;
+for (final doc in bookingDocs) {
+  final data = doc.data() as Map<String, dynamic>;
 
-                  return name.contains(keyword) ||
-                      phone.contains(keyword);
-                }).toList();
+  final userId = data['userId'];
+
+  if (userId == null) continue;
+
+  userMap[userId] = {
+    'userId': userId,
+    'name': data['customerName'] ?? '',
+    'phone': data['customerPhone'] ?? '',
+    'email': data['customerEmail'] ?? '',
+  };
+}
+
+final docs = userMap.values.where((data) {
+  final name = (data['name'] ?? '').toString();
+  final phone = (data['phone'] ?? '').toString();
+
+  if (keyword.isEmpty) return true;
+
+  return name.contains(keyword) ||
+      phone.contains(keyword);
+}).toList();
 
                 if (docs.isEmpty) {
                   return const Center(child: Text('查無會員'));
@@ -86,16 +105,18 @@ class _AdminMemberListPageState extends State<AdminMemberListPage> {
                   ),
                   itemCount: docs.length,
                   itemBuilder: (context, index) {
-                    final doc = docs[index];
-                    final data =
-                        doc.data() as Map<String, dynamic>;
+                    final data = docs[index];
 
-                    final name =
-                        data['name'] ?? '未填姓名';
-                    final phone =
-                        data['phone'] ?? '未填電話';
-                    final email =
-                        data['email'] ?? data['account'] ?? '無Email';
+final userId = data['userId']?.toString() ?? '';
+final name = data['name']?.toString().isEmpty == true
+    ? '未填姓名'
+    : data['name'].toString();
+final phone = data['phone']?.toString().isEmpty == true
+    ? '未填電話'
+    : data['phone'].toString();
+final email = data['email']?.toString().isEmpty == true
+    ? '無Email'
+    : data['email'].toString();
 
                     final note1Controller =
                         TextEditingController(
@@ -107,9 +128,9 @@ class _AdminMemberListPageState extends State<AdminMemberListPage> {
                     return FutureBuilder<QuerySnapshot>(
                       future: FirebaseFirestore.instance
                           .collection('user_profiles')
-                          .doc(doc.id)
-                          .collection('pets')
-                          .get(),
+.doc(userId)
+.collection('pets')
+.get(),
                       builder: (context, petSnapshot) {
                         int petCount = 0;
                         if (petSnapshot.hasData) {
@@ -124,8 +145,8 @@ class _AdminMemberListPageState extends State<AdminMemberListPage> {
                               MaterialPageRoute(
                                 builder: (_) =>
                                     AdminMemberDetailPage(
-                                  userId: doc.id,
-                                ),
+  userId: userId,
+),
                               ),
                             );
                           },
@@ -200,7 +221,7 @@ class _AdminMemberListPageState extends State<AdminMemberListPage> {
       onSubmitted: (v) {
         FirebaseFirestore.instance
             .collection('user_profiles')
-            .doc(doc.id)
+            .doc(userId)
             .update({'adminNote1': v});
       },
     ),
@@ -220,7 +241,7 @@ class _AdminMemberListPageState extends State<AdminMemberListPage> {
       onSubmitted: (v) {
         FirebaseFirestore.instance
             .collection('user_profiles')
-            .doc(doc.id)
+            .doc(userId)
             .update({'adminNote2': v});
       },
     ),

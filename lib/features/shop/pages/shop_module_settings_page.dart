@@ -25,10 +25,8 @@ class _ShopModuleSettingsPageState extends State<ShopModuleSettingsPage> {
   bool _saving = false;
   List<String> _selectedModules = [];
 
-  bool get _canEdit =>
-      widget.currentUserRole == ShopRoles.owner ||
-      widget.currentUserRole == ShopRoles.manager;
-
+bool get _canEdit =>
+    widget.currentUserRole == ShopRoles.owner;
   @override
   void initState() {
     super.initState();

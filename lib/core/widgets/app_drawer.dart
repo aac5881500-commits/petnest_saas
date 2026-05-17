@@ -10,6 +10,7 @@ import 'package:petnest_saas/features/shop/pages/shop_dashboard_page.dart';
 import 'package:petnest_saas/features/shop/pages/shop_policy_view_page.dart';
 import 'package:petnest_saas/features/shop/pages/shop_public_page.dart';
 import 'package:petnest_saas/features/booking/pages/my_bookings_page.dart';
+import 'package:petnest_saas/features/auth/pages/login_page.dart';
 
 
 class AppDrawer extends StatelessWidget {
@@ -47,10 +48,17 @@ class AppDrawer extends StatelessWidget {
                     onTap: () {
                       Navigator.pop(context);
                       if (user == null) {
-                        Navigator.pushNamed(context, '/login');
-                      } else {
-                        Navigator.pushNamed(context, '/member');
-                      }
+  Navigator.push(
+    context,
+    MaterialPageRoute(
+      builder: (_) => LoginPage(
+        redirectShopId: shopId,
+      ),
+    ),
+  );
+} else {
+  Navigator.pushNamed(context, '/member');
+}
                     },
                   ),
                   _menuItem(
@@ -113,6 +121,17 @@ if (user != null)
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           _sectionTitle('系統'),
+                          _menuItem(
+  icon: Icons.home_work_outlined,
+  title: '回平台首頁',
+  onTap: () {
+    Navigator.pushNamedAndRemoveUntil(
+      context,
+      '/home',
+      (route) => false,
+    );
+  },
+),
                           _menuItem(
                             icon: Icons.desktop_windows,
                             title: '回後台',
@@ -223,7 +242,14 @@ if (user != null)
                     ),
                     onPressed: () {
                       Navigator.pop(context);
-                      Navigator.pushNamed(context, '/login');
+                      Navigator.push(
+  context,
+  MaterialPageRoute(
+    builder: (_) => LoginPage(
+      redirectShopId: shopId,
+    ),
+  ),
+);
                     },
                     child: const Text('登入 / 註冊'),
                   ),
@@ -870,9 +896,16 @@ String _formatDate(dynamic value) {
     final user = FirebaseAuth.instance.currentUser;
 
     if (user == null) {
-      Navigator.pushNamed(context, '/login');
-      return;
-    }
+  Navigator.push(
+    context,
+    MaterialPageRoute(
+      builder: (_) => LoginPage(
+        redirectShopId: shopId,
+      ),
+    ),
+  );
+  return;
+}
 
     final hasAccepted = await ShopService.instance.hasAcceptedPolicy(
       shopId: shopId,

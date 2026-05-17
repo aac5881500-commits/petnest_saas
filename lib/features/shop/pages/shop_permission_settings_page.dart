@@ -3,10 +3,18 @@
 
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-import 'package:petnest_saas/core/constants/shop_permission_keys.dart';
 import 'package:petnest_saas/core/constants/shop_roles.dart';
 import 'package:petnest_saas/core/services/action_log_service.dart';
 import 'package:petnest_saas/core/services/shop_service.dart';
+import 'package:petnest_saas/features/shop/widgets/permissions/permission_category_tile.dart';
+import 'package:petnest_saas/features/shop/pages/permissions/basic_info_permission_page.dart';
+import 'package:petnest_saas/features/shop/pages/permissions/cat_hotel_permission_page.dart';
+import 'package:petnest_saas/features/shop/pages/permissions/reports_permission_page.dart';
+import 'package:petnest_saas/features/shop/widgets/permissions/permission_member_list_card.dart';
+import 'package:petnest_saas/features/shop/widgets/permissions/permission_invite_list_card.dart';
+import 'package:petnest_saas/features/shop/pages/permissions/member_permission_detail_page.dart';
+
+
 
 class ShopPermissionSettingsPage extends StatefulWidget {
   const ShopPermissionSettingsPage({
@@ -34,6 +42,80 @@ class _ShopPermissionSettingsPageState
 
   bool get _isOwner => widget.currentUserRole == ShopRoles.owner;
 
+  String _roleLabel(String role) {
+  switch (role) {
+    case ShopRoles.owner:
+      return '老闆';
+    case ShopRoles.staff:
+      return '員工';
+    default:
+      return role;
+  }
+}
+
+String _actionLabel(String action) {
+  switch (action) {
+    case 'update_booking_settings':
+      return '更新預約設定';
+    case 'update_permission':
+      return '更新權限設定';
+    case 'remove_member_invite':
+      return '刪除待綁定邀請';
+    default:
+      return action == '-' ? '-' : action;
+  }
+}
+
+String _targetTypeLabel(String targetType) {
+  switch (targetType) {
+    case 'shop_booking_settings':
+      return '預約設定';
+    case 'shop_permission_settings':
+      return '權限設定';
+    case 'shop_member_invite':
+      return '待綁定邀請';
+    default:
+      return targetType == '-' ? '-' : targetType;
+  }
+}
+
+String _permissionLabel(String key) {
+  switch (key) {
+    case 'manage_members':
+      return '會員管理';
+    case 'edit_basic_info':
+      return '店家基本資料';
+    case 'edit_business_info':
+      return '營業資訊';
+    case 'edit_media':
+      return '店家封面';
+    case 'manage_environment':
+      return '環境介紹';
+    case 'manage_about':
+      return '關於我們';
+    case 'manage_modules':
+      return '模組設定';
+    case 'manage_bookings':
+      return '訂單管理';
+    case 'manage_room_dashboard':
+      return '房務管理';
+    case 'manage_room_types':
+      return '房型管理';
+    case 'manage_rooms':
+      return '房間管理';
+    case 'manage_payment_settings':
+      return '付款 / 訂金設定';
+    case 'manage_policy':
+      return '入住規則';
+    case 'view_reports':
+      return '表格統計';
+    case 'view_action_logs':
+      return '動作紀錄';
+    default:
+      return key;
+  }
+}
+
   @override
   void initState() {
     super.initState();
@@ -46,26 +128,7 @@ class _ShopPermissionSettingsPageState
     super.dispose();
   }
 
-  String _permissionLabel(String key) {
-    switch (key) {
-      case ShopPermissionKeys.manageMembers:
-        return '管理權限設定';
-      case ShopPermissionKeys.editBasicInfo:
-        return '修改店家基本資料';
-      case ShopPermissionKeys.editBusinessInfo:
-        return '修改營業資訊';
-      case ShopPermissionKeys.editMedia:
-        return '修改 Logo / 封面';
-      case ShopPermissionKeys.manageBookings:
-        return '管理預約功能';
-      case ShopPermissionKeys.viewReports:
-        return '查看表格統計';
-      case ShopPermissionKeys.viewActionLogs:
-        return '查看動作記錄';
-      default:
-        return key;
-    }
-  }
+
 
   void _applyRoleTemplate(String role) {
     setState(() {
@@ -135,10 +198,6 @@ class _ShopPermissionSettingsPageState
               ),
               items: const [
                 DropdownMenuItem(
-                  value: ShopRoles.manager,
-                  child: Text('主管'),
-                ),
-                DropdownMenuItem(
                   value: ShopRoles.staff,
                   child: Text('員工'),
                 ),
@@ -166,39 +225,6 @@ class _ShopPermissionSettingsPageState
     );
   }
 
-  Widget _buildPermissionCard() {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Column(
-          children: [
-            const Align(
-              alignment: Alignment.centerLeft,
-              child: Text(
-                '功能開關',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-              ),
-            ),
-            const SizedBox(height: 8),
-            ...ShopPermissionKeys.all.map((key) {
-              return SwitchListTile(
-                value: _permissions[key] ?? false,
-                onChanged: !_isOwner
-                    ? null
-                    : (value) {
-                        setState(() {
-                          _permissions[key] = value;
-                        });
-                      },
-                title: Text(_permissionLabel(key)),
-              );
-            }),
-          ],
-        ),
-      ),
-    );
-  }
-
   Widget _buildSaveButton() {
     return SizedBox(
       width: double.infinity,
@@ -216,107 +242,6 @@ class _ShopPermissionSettingsPageState
     );
   }
 
-  Widget _buildMemberList() {
-    return StreamBuilder<List<Map<String, dynamic>>>(
-      stream: ShopService.instance.streamShopMembers(widget.shopId),
-      builder: (context, snapshot) {
-        final members = snapshot.data ?? [];
-
-        return Card(
-          child: Padding(
-            padding: const EdgeInsets.all(12),
-            child: Column(
-              children: [
-                const Align(
-                  alignment: Alignment.centerLeft,
-                  child: Text(
-                    '目前成員',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                  ),
-                ),
-                const SizedBox(height: 8),
-                if (members.isEmpty)
-                  const ListTile(
-                    title: Text('目前沒有其他成員'),
-                  ),
-                ...members.map((member) {
-                  final role = member['role']?.toString() ?? '-';
-                  final email = member['email']?.toString() ?? '-';
-                  final permissions = ShopService.instance.normalizePermissions(
-                    member['permissions'],
-                    role: role,
-                  );
-                  final enabledCount =
-                      permissions.values.where((e) => e).length;
-
-                  return ListTile(
-                    leading: const Icon(Icons.person),
-                    title: Text(email),
-                    subtitle: Text('角色：$role｜啟用權限：$enabledCount'),
-                  );
-                }),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _buildInviteList() {
-    return StreamBuilder<List<Map<String, dynamic>>>(
-      stream: ShopService.instance.streamShopMemberInvites(widget.shopId),
-      builder: (context, snapshot) {
-        final invites = snapshot.data ?? [];
-
-        return Card(
-          child: Padding(
-            padding: const EdgeInsets.all(12),
-            child: Column(
-              children: [
-                const Align(
-                  alignment: Alignment.centerLeft,
-                  child: Text(
-                    '待綁定邀請',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                  ),
-                ),
-                const SizedBox(height: 8),
-                if (invites.isEmpty)
-                  const ListTile(
-                    title: Text('目前沒有待綁定邀請'),
-                  ),
-                ...invites.map((invite) {
-                  return ListTile(
-                    leading: const Icon(Icons.mail_outline),
-                    title: Text(invite['email']?.toString() ?? '-'),
-                    subtitle: Text('角色：${invite['role'] ?? '-'}'),
-                    trailing: _isOwner
-                        ? IconButton(
-                            onPressed: () async {
-                              final user = FirebaseAuth.instance.currentUser;
-                              if (user == null) return;
-
-                              await ShopService.instance.removeMemberInvite(
-                                inviteDocId: invite['id'],
-                                shopId: widget.shopId,
-                                operatorUid: user.uid,
-                                operatorRole:
-                                    widget.currentUserRole ?? ShopRoles.owner,
-                              );
-                            },
-                            icon: const Icon(Icons.delete_outline),
-                          )
-                        : null,
-                  );
-                }),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-  }
 
   Widget _buildActionLogs() {
     return StreamBuilder<List<Map<String, dynamic>>>(
@@ -343,14 +268,24 @@ class _ShopPermissionSettingsPageState
                   ),
                 ...logs.map((log) {
                   final action = log['action']?.toString() ?? '-';
-                  final targetType = log['targetType']?.toString() ?? '-';
-                  final operatorRole = log['operatorRole']?.toString() ?? '-';
+final targetType = log['targetType']?.toString() ?? '-';
+final operatorRole = log['operatorRole']?.toString() ?? '-';
+final operatorEmail = log['operatorEmail']?.toString() ?? '-';
 
+final currentUserEmail =
+    FirebaseAuth.instance.currentUser?.email?.toLowerCase() ?? '';
+
+final displayRole =
+    operatorEmail.toLowerCase() == currentUserEmail
+        ? (widget.currentUserRole ?? operatorRole)
+        : operatorRole;
                   return ListTile(
                     dense: true,
                     leading: const Icon(Icons.history),
-                    title: Text(action),
-                    subtitle: Text('目標：$targetType｜操作者角色：$operatorRole'),
+                    title: Text(_actionLabel(action)),
+subtitle: Text(
+  '目標：${_targetTypeLabel(targetType)}｜操作者：$operatorEmail｜角色：${_roleLabel(displayRole)}',
+),
                   );
                 }),
               ],
@@ -384,13 +319,120 @@ class _ShopPermissionSettingsPageState
           const SizedBox(height: 16),
           _buildRoleSelector(),
           const SizedBox(height: 12),
-          _buildPermissionCard(),
+         PermissionCategoryTile(
+  title: '基本資訊權限',
+  subtitle: '營業資訊、封面、環境介紹、關於我們、模組、會員',
+  icon: Icons.store,
+  onTap: () {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => BasicInfoPermissionPage(
+          permissions: _permissions,
+          isOwner: _isOwner,
+          onChanged: (key, value) {
+            setState(() {
+              _permissions[key] = value;
+            });
+          },
+        ),
+      ),
+    );
+  },
+),
+const SizedBox(height: 12),
+
+PermissionCategoryTile(
+  title: '貓咪旅店權限',
+  subtitle: '訂單、房務、房型、付款、入住規則',
+  icon: Icons.pets,
+  onTap: () {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => CatHotelPermissionPage(
+          permissions: _permissions,
+          isOwner: _isOwner,
+          onChanged: (key, value) {
+            setState(() {
+              _permissions[key] = value;
+            });
+          },
+        ),
+      ),
+    );
+  },
+),
+const SizedBox(height: 12),
+
+PermissionCategoryTile(
+  title: '表格統計權限',
+  subtitle: '報表統計、動作紀錄',
+  icon: Icons.bar_chart,
+  onTap: () {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ReportsPermissionPage(
+          permissions: _permissions,
+          isOwner: _isOwner,
+          onChanged: (key, value) {
+            setState(() {
+              _permissions[key] = value;
+            });
+          },
+        ),
+      ),
+    );
+  },
+),
+
+const SizedBox(height: 12),
+
+PermissionCategoryTile(
+  title: '未來模板權限',
+  subtitle: '狗狗旅店、美容、醫院、賣場功能',
+  icon: Icons.extension,
+  onTap: () {},
+),
           const SizedBox(height: 12),
           _buildSaveButton(),
           const SizedBox(height: 20),
-          _buildMemberList(),
+          PermissionMemberListCard(
+  shopId: widget.shopId,
+  roleLabelBuilder: _roleLabel,
+  onTapMember: (member) {
+    final role = member['role']?.toString() ?? '-';
+
+    final permissions = ShopService.instance.normalizePermissions(
+      member['permissions'],
+      role: role,
+    );
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => MemberPermissionDetailPage(
+  shopId: widget.shopId,
+  memberDocId: member['id']?.toString() ?? '',
+  email: member['email']?.toString() ?? '-',
+  role: role,
+  roleLabel: _roleLabel(role),
+  permissions: permissions,
+  currentUserRole: widget.currentUserRole,
+  permissionLabelBuilder: _permissionLabel,
+),
+      ),
+    );
+  },
+),
           const SizedBox(height: 12),
-          _buildInviteList(),
+         PermissionInviteListCard(
+  shopId: widget.shopId,
+  currentUserRole: widget.currentUserRole,
+  isOwner: _isOwner,
+  roleLabelBuilder: _roleLabel,
+),
           const SizedBox(height: 12),
           _buildActionLogs(),
         ],

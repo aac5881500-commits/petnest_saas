@@ -12,6 +12,7 @@ import 'package:petnest_saas/core/widgets/app_drawer.dart';
 import 'package:petnest_saas/features/shop/widgets/shop_template_feature_card.dart';
 import 'package:petnest_saas/features/shop/pages/shop_room_intro_page.dart';
 import 'package:petnest_saas/features/shop/pages/shop_environment_page.dart';
+import 'package:petnest_saas/features/shop/pages/shop_about_page.dart';
 
 
 
@@ -377,10 +378,19 @@ GridView.count(
   children: [
 
     _buildMenuButton(
-      icon: Icons.map,
-      title: '關於我們',
-      onTap: () {},
-    ),
+  icon: Icons.map,
+  title: '關於我們',
+  onTap: () {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ShopAboutPage(
+          shopId: widget.shopId,
+        ),
+      ),
+    );
+  },
+),
 
     _buildMenuButton(
       icon: Icons.star,
