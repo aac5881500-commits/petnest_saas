@@ -74,7 +74,9 @@ class BookingSuccessPage extends StatelessWidget {
                     Navigator.pushAndRemoveUntil(
                       context,
                       MaterialPageRoute(
-                        builder: (_) => const MyBookingsPage(),
+                        builder: (_) => MyBookingsPage(
+  returnShopId: shopId,
+),
                       ),
                       (route) => false,
                     );

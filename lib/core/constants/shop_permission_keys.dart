@@ -35,6 +35,10 @@ class ShopPermissionKeys {
   /// 📅 管理預約功能
   static const manageBookings = 'manage_bookings';
 
+  /// 📅 管理預約設定
+static const manageBookingSettings =
+    'manage_booking_settings';
+
   static const manageRoomDashboard = 'manage_room_dashboard';
 static const manageRoomTypes = 'manage_room_types';
 static const manageRooms = 'manage_rooms';
@@ -57,6 +61,7 @@ static const managePolicy = 'manage_policy';
     manageAbout,
     manageModules,
     manageBookings,
+    manageBookingSettings,
     manageRoomDashboard,
 manageRoomTypes,
 manageRooms,

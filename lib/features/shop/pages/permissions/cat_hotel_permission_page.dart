@@ -1,11 +1,16 @@
 // lib/features/shop/pages/permissions/cat_hotel_permission_page.dart
 // 🐱 貓咪旅店權限設定頁
+//
+// 用途：
+// - 管理貓咪旅店相關功能權限
+// - 開關切換後立即刷新 UI
+// - 條款同意紀錄固定可查看，不列入權限開關
 
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/constants/shop_permission_keys.dart';
 import 'package:petnest_saas/features/shop/widgets/permissions/permission_switch_tile.dart';
 
-class CatHotelPermissionPage extends StatelessWidget {
+class CatHotelPermissionPage extends StatefulWidget {
   const CatHotelPermissionPage({
     super.key,
     required this.permissions,
@@ -16,6 +21,21 @@ class CatHotelPermissionPage extends StatelessWidget {
   final Map<String, bool> permissions;
   final bool isOwner;
   final void Function(String key, bool value) onChanged;
+
+  @override
+  State<CatHotelPermissionPage> createState() =>
+      _CatHotelPermissionPageState();
+}
+
+class _CatHotelPermissionPageState
+    extends State<CatHotelPermissionPage> {
+  void _updatePermission(String key, bool value) {
+    setState(() {
+      widget.permissions[key] = value;
+    });
+
+    widget.onChanged(key, value);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -29,10 +49,12 @@ class CatHotelPermissionPage extends StatelessWidget {
           PermissionSwitchTile(
             title: '訂單管理',
             subtitle: '可查看與管理住宿訂單',
-            value: permissions[ShopPermissionKeys.manageBookings] ?? false,
-            enabled: isOwner,
+            value:
+                widget.permissions[ShopPermissionKeys.manageBookings] ??
+                    false,
+            enabled: widget.isOwner,
             onChanged: (value) {
-              onChanged(
+              _updatePermission(
                 ShopPermissionKeys.manageBookings,
                 value,
               );
@@ -42,10 +64,13 @@ class CatHotelPermissionPage extends StatelessWidget {
           PermissionSwitchTile(
             title: '房務管理',
             subtitle: '可操作入住、退房、房間狀態',
-            value: permissions[ShopPermissionKeys.manageRoomDashboard] ?? false,
-            enabled: isOwner,
+            value:
+                widget.permissions[
+                    ShopPermissionKeys.manageRoomDashboard] ??
+                false,
+            enabled: widget.isOwner,
             onChanged: (value) {
-              onChanged(
+              _updatePermission(
                 ShopPermissionKeys.manageRoomDashboard,
                 value,
               );
@@ -55,10 +80,13 @@ class CatHotelPermissionPage extends StatelessWidget {
           PermissionSwitchTile(
             title: '房型管理',
             subtitle: '可新增與修改房型',
-            value: permissions[ShopPermissionKeys.manageRoomTypes] ?? false,
-            enabled: isOwner,
+            value:
+                widget.permissions[
+                    ShopPermissionKeys.manageRoomTypes] ??
+                false,
+            enabled: widget.isOwner,
             onChanged: (value) {
-              onChanged(
+              _updatePermission(
                 ShopPermissionKeys.manageRoomTypes,
                 value,
               );
@@ -68,10 +96,12 @@ class CatHotelPermissionPage extends StatelessWidget {
           PermissionSwitchTile(
             title: '房間管理',
             subtitle: '可新增與修改實際房間',
-            value: permissions[ShopPermissionKeys.manageRooms] ?? false,
-            enabled: isOwner,
+            value:
+                widget.permissions[ShopPermissionKeys.manageRooms] ??
+                    false,
+            enabled: widget.isOwner,
             onChanged: (value) {
-              onChanged(
+              _updatePermission(
                 ShopPermissionKeys.manageRooms,
                 value,
               );
@@ -80,11 +110,14 @@ class CatHotelPermissionPage extends StatelessWidget {
 
           PermissionSwitchTile(
             title: '付款 / 訂金設定',
-            subtitle: '可修改付款方式與訂金規則',
-            value: permissions[ShopPermissionKeys.managePaymentSettings] ?? false,
-            enabled: isOwner,
+            subtitle: '可修改付款方式、訂金與加購設定',
+            value:
+                widget.permissions[
+                    ShopPermissionKeys.managePaymentSettings] ??
+                false,
+            enabled: widget.isOwner,
             onChanged: (value) {
-              onChanged(
+              _updatePermission(
                 ShopPermissionKeys.managePaymentSettings,
                 value,
               );
@@ -94,14 +127,26 @@ class CatHotelPermissionPage extends StatelessWidget {
           PermissionSwitchTile(
             title: '入住規則',
             subtitle: '可修改入住條款與規則',
-            value: permissions[ShopPermissionKeys.managePolicy] ?? false,
-            enabled: isOwner,
+            value:
+                widget.permissions[ShopPermissionKeys.managePolicy] ??
+                    false,
+            enabled: widget.isOwner,
             onChanged: (value) {
-              onChanged(
+              _updatePermission(
                 ShopPermissionKeys.managePolicy,
                 value,
               );
             },
+          ),
+
+          const SizedBox(height: 12),
+
+          Text(
+            '條款同意紀錄固定可查看，不列入權限控制。',
+            style: TextStyle(
+              color: Colors.grey.shade700,
+              fontSize: 13,
+            ),
           ),
         ],
       ),

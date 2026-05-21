@@ -6,6 +6,8 @@ import 'package:intl/intl.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:petnest_saas/core/services/shop_service.dart';
 import 'package:petnest_saas/features/auth/pages/room_calendar_page.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:petnest_saas/core/constants/shop_permission_keys.dart';
 
 class RoomDashboardPage extends StatefulWidget {
   const RoomDashboardPage({
@@ -22,6 +24,9 @@ class RoomDashboardPage extends StatefulWidget {
 class _RoomDashboardPageState extends State<RoomDashboardPage> {
   DateTime selectedDate = DateTime.now();
 
+bool _loadingPermission = true;
+bool _hasPermission = false;
+
   DateTime get weekStart {
   final d = selectedDate;
   return DateTime(d.year, d.month, d.day)
@@ -35,10 +40,63 @@ List<DateTime> get weekDays {
   );
 }
 
+Future<void> _checkPermission() async {
+  final user = FirebaseAuth.instance.currentUser;
+
+  if (user == null) {
+    setState(() {
+      _loadingPermission = false;
+      _hasPermission = false;
+    });
+    return;
+  }
+
+  final memberData = await ShopService.instance.getUserMemberInShop(
+    shopId: widget.shopId,
+    uid: user.uid,
+  );
+
+  final hasPermission = ShopService.instance.hasPermission(
+    memberData,
+    ShopPermissionKeys.manageRoomDashboard,
+  );
+
+  if (!mounted) return;
+
+  setState(() {
+    _loadingPermission = false;
+    _hasPermission = hasPermission;
+  });
+}
+
   String get dateStr => DateFormat('yyyy-MM-dd').format(selectedDate);
+
+@override
+void initState() {
+  super.initState();
+  _checkPermission();
+}
 
   @override
   Widget build(BuildContext context) {
+    if (_loadingPermission) {
+  return const Scaffold(
+    body: Center(
+      child: CircularProgressIndicator(),
+    ),
+  );
+}
+
+if (!_hasPermission) {
+  return Scaffold(
+    appBar: AppBar(
+      title: const Text('權限限制'),
+    ),
+    body: const Center(
+      child: Text('你沒有房務管理權限'),
+    ),
+  );
+}
     return Scaffold(
       appBar: AppBar(title: const Text('房務管理')),
       body: Column(

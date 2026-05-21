@@ -10,6 +10,17 @@ import 'package:petnest_saas/features/auth/pages/login_page.dart';
 import 'package:petnest_saas/features/platform/pages/create_shop_page.dart';
 import 'package:petnest_saas/features/shop/pages/shop_dashboard_page.dart';
 import 'package:petnest_saas/features/platform/pages/platform_shop_list_page.dart';
+import 'package:petnest_saas/features/auth/widgets/my_shop_card.dart';
+import 'package:petnest_saas/features/auth/widgets/my_shop_stat_row.dart';
+import 'package:petnest_saas/features/auth/widgets/platform_home_hero_card.dart';
+import 'package:petnest_saas/features/auth/widgets/platform_account_card.dart';
+import 'package:petnest_saas/features/auth/widgets/platform_section_title.dart';
+import 'package:petnest_saas/features/auth/widgets/my_shop_badges.dart';
+import 'package:petnest_saas/features/auth/widgets/my_shop_info.dart';
+import 'package:petnest_saas/features/auth/widgets/my_shop_open_status_helper.dart';
+import 'package:petnest_saas/features/auth/pages/my_shop_card_media_page.dart';
+
+
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -154,29 +165,8 @@ String _roleLabel(String value) {
             padding: const EdgeInsets.all(16),
             child: Column(
               children: [
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(16),
-                  margin: const EdgeInsets.only(bottom: 20),
-                  decoration: BoxDecoration(
-                    color: Colors.blue.shade50,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        '歡迎使用 PetNest',
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      const SizedBox(height: 10),
-                      const Text('🐱 找寵物旅館'),
-                      const SizedBox(height: 6),
-                      ElevatedButton(
-  onPressed: () {
+                PlatformHomeHeroCard(
+  onFindShopTap: () {
     Navigator.push(
       context,
       MaterialPageRoute(
@@ -184,73 +174,18 @@ String _roleLabel(String value) {
       ),
     );
   },
-  child: const Text('前往找店'),
+  onCreateShopTap: _openCreateShopPage,
 ),
-                      const SizedBox(height: 12),
-                      const Text('🏪 我要開店'),
-                      const SizedBox(height: 6),
-                      ElevatedButton(
-                        onPressed: _openCreateShopPage,
-                        child: const Text('建立店家'),
-                      ),
-                    ],
-                  ),
-                ),
 
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: Colors.grey.shade100,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        '目前登入',
-                        style: TextStyle(fontSize: 12, color: Colors.grey),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        user?.email ?? '',
-                        style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
+                PlatformAccountCard(
+  email: user?.email ?? '',
+),
 
                 const SizedBox(height: 20),
 
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    style: ElevatedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                    ),
-                    onPressed: _openCreateShopPage,
-                    child: const Text(
-                      '➕ 建立新店家',
-                      style: TextStyle(fontSize: 16),
-                    ),
-                  ),
-                ),
-
-                const SizedBox(height: 24),
-
-                const Align(
-                  alignment: Alignment.centerLeft,
-                  child: Text(
-                    '我的店家',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
+                const PlatformSectionTitle(
+  title: '我的店家',
+),
 
                 const SizedBox(height: 12),
 
@@ -275,10 +210,25 @@ String _roleLabel(String value) {
                         itemCount: shops.length,
                         itemBuilder: (context, index) {
                           final shop = shops[index];
-final coverUrl = shop['coverUrl']?.toString() ?? '';
+final coverUrl =
+    shop['platformHomeCoverUrl']
+        ?.toString() ??
+    '';
+final logoUrl =
+    shop['platformHomeLogoUrl']
+        ?.toString() ??
+    '';
 final city = shop['city']?.toString() ?? '';
 final district = shop['district']?.toString() ?? '';
 final isOpen = shop['isOpen'] == true;
+final openTime = shop['openTime']?.toString() ?? '';
+final closeTime = shop['closeTime']?.toString() ?? '';
+
+final isOpenNow = isShopOpenNow(
+  isOpen: isOpen,
+  openTime: openTime,
+  closeTime: closeTime,
+);
 final isPublic = shop['isPublic'] == true;
 
 final businessType = _businessTypeLabel(
@@ -288,8 +238,8 @@ final businessType = _businessTypeLabel(
 final role = _roleLabel(
   shop['role']?.toString() ?? '',
 );
-return InkWell(
-  borderRadius: BorderRadius.circular(22),
+return MyShopCard(
+  shop: shop,
   onTap: () {
     Navigator.push(
       context,
@@ -300,19 +250,6 @@ return InkWell(
       ),
     );
   },
-  child: Container(
-    margin: const EdgeInsets.only(bottom: 18),
-    decoration: BoxDecoration(
-      color: Colors.white,
-      borderRadius: BorderRadius.circular(22),
-      boxShadow: [
-        BoxShadow(
-          color: Colors.black.withOpacity(0.05),
-          blurRadius: 12,
-          offset: const Offset(0, 5),
-        ),
-      ],
-    ),
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -347,135 +284,142 @@ return InkWell(
               left: 14,
               top: 14,
               child: _HomeBadge(
-                text: isOpen ? '營業中' : '休息中',
-                icon: Icons.circle,
-              ),
+  text: isOpenNow ? '營業中' : '休息中',
+  icon: Icons.circle,
+),
             ),
+            Positioned(
+  right: 14,
+  top: 14,
+  child: InkWell(
+    borderRadius: BorderRadius.circular(999),
+    onTap: () {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => MyShopCardMediaPage(
+            shopId: shop['shopId'].toString(),
+          ),
+        ),
+      ).then((_) {
+        _reloadShops();
+      });
+    },
+    child: Container(
+      padding: const EdgeInsets.symmetric(
+        horizontal: 10,
+        vertical: 6,
+      ),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: const Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            Icons.image,
+            size: 15,
+            color: Colors.blue,
+          ),
+          SizedBox(width: 4),
+          Text(
+            '圖片',
+            style: TextStyle(
+              fontSize: 12,
+              color: Colors.blue,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ],
+      ),
+    ),
+  ),
+),
           ],
         ),
 
         Padding(
-          padding: const EdgeInsets.all(16),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      shop['name'] ?? '未命名店家',
-                      style: const TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-
-                    const SizedBox(height: 8),
-
-                    Row(
-                      children: [
-                        const Icon(
-                          Icons.pets,
-                          size: 16,
-                          color: Colors.black45,
-                        ),
-                        const SizedBox(width: 6),
-                        Text(
-                          businessType,
-                          style: TextStyle(
-                            color: Colors.grey.shade700,
-                            fontSize: 13,
-                          ),
-                        ),
-                      ],
-                    ),
-
-                    const SizedBox(height: 6),
-
-                    Row(
-                      children: [
-                        const Icon(
-                          Icons.location_on,
-                          size: 16,
-                          color: Colors.black45,
-                        ),
-                        const SizedBox(width: 6),
-                      
-                        Text(
-                          '$city $district',
-                          style: TextStyle(
-                            color: Colors.grey.shade700,
-                            fontSize: 13,
-                          ),
-                        ),
-                      ],
-                    ),
-
-                    const SizedBox(height: 12),
-
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: [
-                        _HomeBadge(
-                          text: role,
-                          icon: Icons.admin_panel_settings,
-                        ),
-                        _HomeBadge(
-                          text: isPublic ? '平台顯示' : '未公開',
-                          icon: Icons.visibility,
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 18),
-
-Row(
-  children: [
-    Expanded(
-      child: _HomeInfoCard(
-        icon: Icons.receipt_long,
-        title: '今日訂單',
-        value: '0',
-      ),
-    ),
-
-    const SizedBox(width: 10),
-
-    Expanded(
-      child: _HomeInfoCard(
-        icon: Icons.schedule,
-        title: '待確認',
-        value: '0',
-      ),
-    ),
-
-    const SizedBox(width: 10),
-
-    Expanded(
-      child: _HomeInfoCard(
-        icon: Icons.people,
-        title: '會員數',
-        value: '0',
-      ),
-    ),
-  ],
-),
-                  ],
+  padding: const EdgeInsets.all(16),
+  child: Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Container(
+            width: 82,
+            height: 82,
+            margin: const EdgeInsets.only(right: 14),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(22),
+              border: Border.all(
+                color: Colors.grey.shade200,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.06),
+                  blurRadius: 10,
+                  offset: const Offset(0, 4),
                 ),
-              ),
-
-              const Icon(
-                Icons.chevron_right,
-                size: 34,
-                color: Colors.black45,
-              ),
-            ],
+              ],
+              image: logoUrl.isNotEmpty
+                  ? DecorationImage(
+                      image: NetworkImage(logoUrl),
+                      fit: BoxFit.cover,
+                    )
+                  : null,
+            ),
+            child: logoUrl.isEmpty
+                ? const Icon(
+                    Icons.storefront,
+                    size: 36,
+                    color: Colors.black26,
+                  )
+                : null,
           ),
-        ),
+
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                MyShopInfo(
+  shopName: shop['name'] ?? '未命名店家',
+  businessType: businessType,
+  city: city,
+  district: district,
+  shopId: shop['shopId'].toString(),
+),
+
+                const SizedBox(height: 10),
+
+                MyShopBadges(
+                  role: role,
+                  isPublic: isPublic,
+                ),
+              ],
+            ),
+          ),
+
+          const Icon(
+            Icons.chevron_right,
+            size: 34,
+            color: Colors.black45,
+          ),
+        ],
+      ),
+
+      const SizedBox(height: 16),
+
+      MyShopStatRow(
+        shopId: shop['shopId'].toString(),
+      ),
+    ],
+  ),
+),
       ],
     ),
-  ),
 );
                         },
                       );
@@ -486,64 +430,6 @@ Row(
             ),
           ),
         ),
-      ),
-    );
-  }
-}
-
-class _HomeInfoCard extends StatelessWidget {
-  const _HomeInfoCard({
-    required this.icon,
-    required this.title,
-    required this.value,
-  });
-
-  final IconData icon;
-  final String title;
-  final String value;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: 12,
-        vertical: 14,
-      ),
-      decoration: BoxDecoration(
-        color: Colors.grey.shade50,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: Colors.grey.shade200,
-        ),
-      ),
-      child: Column(
-        children: [
-          Icon(
-            icon,
-            color: Colors.orange.shade400,
-            size: 22,
-          ),
-
-          const SizedBox(height: 8),
-
-          Text(
-            title,
-            style: TextStyle(
-              fontSize: 12,
-              color: Colors.grey.shade700,
-            ),
-          ),
-
-          const SizedBox(height: 4),
-
-          Text(
-            value,
-            style: const TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-        ],
       ),
     );
   }
@@ -572,13 +458,21 @@ class _HomeBadge extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 14, color: Colors.grey.shade700),
+          Icon(
+  icon,
+  size: 14,
+  color: text == '營業中'
+      ? Colors.green.shade600
+      : Colors.grey.shade500,
+),
           const SizedBox(width: 4),
           Text(
             text,
             style: TextStyle(
               fontSize: 12,
-              color: Colors.grey.shade800,
+              color: text == '營業中'
+    ? Colors.green.shade700
+    : Colors.grey.shade800,
               fontWeight: FontWeight.w600,
             ),
           ),

@@ -697,8 +697,8 @@ _buildSectionCard(
         Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (_) => const MyBookingsPage(),
-          ),
+  builder: (_) => const MyBookingsPage(),
+),
         );
       },
     ),

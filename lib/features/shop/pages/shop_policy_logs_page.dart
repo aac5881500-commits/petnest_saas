@@ -3,6 +3,8 @@
 
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/services/shop_service.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:petnest_saas/features/shop/pages/policy_version_detail_page.dart';
 
 class ShopPolicyLogsPage extends StatefulWidget {
   const ShopPolicyLogsPage({
@@ -190,7 +192,50 @@ final phone = data['phone']?.toString() ?? '';
                                       ],
                                     ),
                                     Text(
-                                        '時間：${_formatTime(item['acceptedAt'])}'),
+                                        '時間：${_formatTime(item['acceptedAt'])}'
+                                        ),
+const SizedBox(height: 6),
+
+InkWell(
+  onTap: () async {
+    final version =
+        item['acceptedVersion'] ?? 1;
+
+    final doc = await FirebaseFirestore.instance
+        .collection('shops')
+        .doc(widget.shopId)
+        .collection('policy_versions')
+        .doc('v$version')
+        .get();
+
+    if (!context.mounted) return;
+
+    if (!doc.exists) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('找不到該版本條款'),
+        ),
+      );
+      return;
+    }
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => PolicyVersionDetailPage(
+          data: doc.data()!,
+        ),
+      ),
+    );
+  },
+  child: const Text(
+    '查看當時條款',
+    style: TextStyle(
+      color: Colors.blue,
+      fontWeight: FontWeight.bold,
+    ),
+  ),
+),
                                   ],
                                 ),
                               ),

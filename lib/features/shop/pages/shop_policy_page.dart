@@ -3,6 +3,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/services/shop_service.dart';
+import 'package:petnest_saas/features/shop/pages/policy_version_history_page.dart';
 
 class ShopPolicyPage extends StatefulWidget {
   const ShopPolicyPage({
@@ -388,6 +389,21 @@ Container(
                       ),
                     ],
                   ),
+
+TextButton.icon(
+  onPressed: () {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => PolicyVersionHistoryPage(
+          shopId: widget.shopId,
+        ),
+      ),
+    );
+  },
+  icon: const Icon(Icons.history),
+  label: const Text('查看歷史版本'),
+),
 
                   const SizedBox(height: 12),
 

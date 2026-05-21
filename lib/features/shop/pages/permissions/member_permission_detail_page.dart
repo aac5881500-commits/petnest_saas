@@ -5,6 +5,12 @@
 // - 從權限設定頁的「目前成員」點進來
 // - 查看指定成員角色與已開啟權限
 // - 可直接修改該成員權限並儲存
+//
+// 權限規則：
+// - 店家基本資料：固定只有 owner 可修改
+// - 模組設定：固定只有 owner 可操作
+// - 權限設定：固定只有 owner 可操作
+// - 條款同意紀錄：固定可查看，不列入權限
 
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
@@ -42,10 +48,12 @@ class MemberPermissionDetailPage extends StatefulWidget {
 class _MemberPermissionDetailPageState
     extends State<MemberPermissionDetailPage> {
   late Map<String, bool> _permissions;
+
   bool _saving = false;
+
   bool get _isOwnerMember => widget.role == ShopRoles.owner;
 
-bool get _canEdit => !_isOwnerMember;
+  bool get _canEdit => !_isOwnerMember;
 
   @override
   void initState() {
@@ -56,55 +64,58 @@ bool get _canEdit => !_isOwnerMember;
     );
   }
 
-Future<void> _deleteMember() async {
-  final user = FirebaseAuth.instance.currentUser;
-  if (user == null) return;
+  Future<void> _deleteMember() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
 
-  final confirm = await showDialog<bool>(
-    context: context,
-    builder: (context) {
-      return AlertDialog(
-        title: const Text('刪除成員'),
-        content: Text('確定要刪除 ${widget.email} 嗎？\n刪除後對方將無法進入此店家後台。'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('取消'),
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('刪除成員'),
+          content: Text(
+            '確定要刪除 ${widget.email} 嗎？\n'
+            '刪除後對方將無法進入此店家後台。',
           ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('刪除'),
-          ),
-        ],
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('取消'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('刪除'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirm != true) return;
+
+    try {
+      await ShopService.instance.removeMember(
+        memberDocId: widget.memberDocId,
+        shopId: widget.shopId,
+        operatorUid: user.uid,
+        operatorRole: widget.currentUserRole ?? 'owner',
       );
-    },
-  );
 
-  if (confirm != true) return;
+      if (!mounted) return;
 
-  try {
-    await ShopService.instance.removeMember(
-      memberDocId: widget.memberDocId,
-      shopId: widget.shopId,
-      operatorUid: user.uid,
-      operatorRole: widget.currentUserRole ?? 'owner',
-    );
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('成員已刪除')),
+      );
 
-    if (!mounted) return;
+      Navigator.pop(context);
+    } catch (e) {
+      if (!mounted) return;
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('成員已刪除')),
-    );
-
-    Navigator.pop(context);
-  } catch (e) {
-    if (!mounted) return;
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('刪除失敗：$e')),
-    );
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('刪除失敗：$e')),
+      );
+    }
   }
-}
 
   Future<void> _save() async {
     final user = FirebaseAuth.instance.currentUser;
@@ -146,21 +157,73 @@ Future<void> _deleteMember() async {
     }
   }
 
+  Widget _buildPermissionSwitch(String key) {
+  final isBookingGroup = key == ShopPermissionKeys.manageBookings;
+
+  final value = _isOwnerMember
+      ? true
+      : isBookingGroup
+          ? ((_permissions[ShopPermissionKeys.manageBookings] ?? false) ||
+              (_permissions[ShopPermissionKeys.manageRoomDashboard] ?? false))
+          : (_permissions[key] ?? false);
+
+  return SwitchListTile(
+    value: value,
+    title: Text(
+      isBookingGroup
+          ? '訂單 / 房務管理'
+          : widget.permissionLabelBuilder(key),
+    ),
+    onChanged: _canEdit
+        ? (value) {
+            setState(() {
+              if (isBookingGroup) {
+                _permissions[ShopPermissionKeys.manageBookings] = value;
+                _permissions[ShopPermissionKeys.manageRoomDashboard] = value;
+              } else {
+                _permissions[key] = value;
+              }
+            });
+          }
+        : null,
+  );
+}
+
   @override
   Widget build(BuildContext context) {
-    final permissionKeys = ShopPermissionKeys.all;
+    final basicPermissionKeys = [
+      ShopPermissionKeys.manageMembers,
+      ShopPermissionKeys.editBusinessInfo,
+      ShopPermissionKeys.editMedia,
+      ShopPermissionKeys.manageEnvironment,
+      ShopPermissionKeys.manageAbout,
+    ];
+
+    final catHotelPermissionKeys = [
+  ShopPermissionKeys.manageBookings, 
+  ShopPermissionKeys.manageBookingSettings,
+  ShopPermissionKeys.manageRoomTypes,
+  ShopPermissionKeys.manageRooms,
+  ShopPermissionKeys.managePaymentSettings,
+  ShopPermissionKeys.managePolicy,
+];
+
+    final reportPermissionKeys = [
+      ShopPermissionKeys.viewReports,
+      ShopPermissionKeys.viewActionLogs,
+    ];
 
     return Scaffold(
       appBar: AppBar(
-  title: const Text('成員權限'),
-  actions: [
-    if (!_isOwnerMember)
-      IconButton(
-        onPressed: _deleteMember,
-        icon: const Icon(Icons.delete_outline),
+        title: const Text('成員權限'),
+        actions: [
+          if (!_isOwnerMember)
+            IconButton(
+              onPressed: _deleteMember,
+              icon: const Icon(Icons.delete_outline),
+            ),
+        ],
       ),
-  ],
-),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
@@ -190,27 +253,75 @@ Future<void> _deleteMember() async {
                     ),
                   ),
 
+                  const SizedBox(height: 16),
+
+                  /// ===== 基本資訊 =====
+                  const Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      '基本資訊',
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+
                   const SizedBox(height: 8),
 
-                  ...permissionKeys.map((key) {
-  final value = _isOwnerMember
-      ? true
-      : (_permissions[key] ?? false);
+                  ...basicPermissionKeys.map(
+                    (key) => _buildPermissionSwitch(key),
+                  ),
 
-  return SwitchListTile(
-    value: value,
-    title: Text(
-      widget.permissionLabelBuilder(key),
-    ),
-    onChanged: _canEdit
-        ? (value) {
-            setState(() {
-              _permissions[key] = value;
-            });
-          }
-        : null,
-  );
-}),
+                  const Divider(height: 28),
+
+                  /// ===== 貓咪旅店 =====
+                  const Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      '貓咪旅店',
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+
+                  const SizedBox(height: 8),
+
+                  ...catHotelPermissionKeys.map(
+                    (key) => _buildPermissionSwitch(key),
+                  ),
+
+                  const Divider(height: 28),
+
+                  /// ===== 表格統計 =====
+                  const Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      '表格統計',
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+
+                  const SizedBox(height: 8),
+
+                  ...reportPermissionKeys.map(
+                    (key) => _buildPermissionSwitch(key),
+                  ),
+
+                  const SizedBox(height: 8),
+
+                  Text(
+                    '店家基本資料、模組設定、權限設定固定只有老闆可操作，不開放給員工。',
+                    style: TextStyle(
+                      color: Colors.grey.shade700,
+                      fontSize: 12,
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -221,15 +332,21 @@ Future<void> _deleteMember() async {
           SizedBox(
             width: double.infinity,
             child: ElevatedButton.icon(
-              onPressed: (_saving || !_canEdit) ? null : _save,
+              onPressed: (_saving || !_canEdit)
+                  ? null
+                  : _save,
               icon: _saving
                   ? const SizedBox(
                       width: 18,
                       height: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2),
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                      ),
                     )
                   : const Icon(Icons.save),
-              label: Text(_saving ? '儲存中...' : '儲存權限'),
+              label: Text(
+                _saving ? '儲存中...' : '儲存權限',
+              ),
             ),
           ),
         ],

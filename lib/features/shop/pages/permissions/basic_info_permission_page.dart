@@ -5,12 +5,13 @@
 // - 管理基本資訊分頁相關權限
 // - 避免所有權限全部擠在同一頁
 // - 店家基本資料固定只有老闆可改，不放入員工權限開關
+// - 模組設定 / 權限設定固定只有老闆可操作，不放入員工權限開關
 
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/constants/shop_permission_keys.dart';
 import 'package:petnest_saas/features/shop/widgets/permissions/permission_switch_tile.dart';
 
-class BasicInfoPermissionPage extends StatelessWidget {
+class BasicInfoPermissionPage extends StatefulWidget {
   const BasicInfoPermissionPage({
     super.key,
     required this.permissions,
@@ -21,6 +22,20 @@ class BasicInfoPermissionPage extends StatelessWidget {
   final Map<String, bool> permissions;
   final bool isOwner;
   final void Function(String key, bool value) onChanged;
+
+  @override
+  State<BasicInfoPermissionPage> createState() =>
+      _BasicInfoPermissionPageState();
+}
+
+class _BasicInfoPermissionPageState extends State<BasicInfoPermissionPage> {
+  void _updatePermission(String key, bool value) {
+    setState(() {
+      widget.permissions[key] = value;
+    });
+
+    widget.onChanged(key, value);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -34,60 +49,81 @@ class BasicInfoPermissionPage extends StatelessWidget {
           PermissionSwitchTile(
             title: '營業資訊',
             subtitle: '可修改營業時間與服務項目',
-            value: permissions[ShopPermissionKeys.editBusinessInfo] ?? false,
-            enabled: isOwner,
+            value:
+                widget.permissions[ShopPermissionKeys.editBusinessInfo] ??
+                    false,
+            enabled: widget.isOwner,
             onChanged: (value) {
-              onChanged(ShopPermissionKeys.editBusinessInfo, value);
+              _updatePermission(
+                ShopPermissionKeys.editBusinessInfo,
+                value,
+              );
             },
           ),
+
           PermissionSwitchTile(
             title: '店家封面',
             subtitle: '可修改 Logo 與封面圖片',
-            value: permissions[ShopPermissionKeys.editMedia] ?? false,
-            enabled: isOwner,
+            value:
+                widget.permissions[ShopPermissionKeys.editMedia] ?? false,
+            enabled: widget.isOwner,
             onChanged: (value) {
-              onChanged(ShopPermissionKeys.editMedia, value);
+              _updatePermission(
+                ShopPermissionKeys.editMedia,
+                value,
+              );
             },
           ),
+
           PermissionSwitchTile(
             title: '環境介紹',
             subtitle: '可修改環境照片、介紹文案與展示內容',
-            value: permissions[ShopPermissionKeys.manageEnvironment] ?? false,
-            enabled: isOwner,
+            value:
+                widget.permissions[ShopPermissionKeys.manageEnvironment] ??
+                    false,
+            enabled: widget.isOwner,
             onChanged: (value) {
-              onChanged(ShopPermissionKeys.manageEnvironment, value);
+              _updatePermission(
+                ShopPermissionKeys.manageEnvironment,
+                value,
+              );
             },
           ),
+
           PermissionSwitchTile(
             title: '關於我們',
             subtitle: '可修改品牌故事、理念與介紹內容',
-            value: permissions[ShopPermissionKeys.manageAbout] ?? false,
-            enabled: isOwner,
+            value:
+                widget.permissions[ShopPermissionKeys.manageAbout] ?? false,
+            enabled: widget.isOwner,
             onChanged: (value) {
-              onChanged(ShopPermissionKeys.manageAbout, value);
+              _updatePermission(
+                ShopPermissionKeys.manageAbout,
+                value,
+              );
             },
           ),
-          PermissionSwitchTile(
-            title: '模組設定',
-            subtitle: '可控制後台顯示哪些功能模組',
-            value: permissions[ShopPermissionKeys.manageModules] ?? false,
-            enabled: isOwner,
-            onChanged: (value) {
-              onChanged(ShopPermissionKeys.manageModules, value);
-            },
-          ),
+
           PermissionSwitchTile(
             title: '會員管理',
             subtitle: '可查看會員資料與訂單紀錄',
-            value: permissions[ShopPermissionKeys.manageMembers] ?? false,
-            enabled: isOwner,
+            value:
+                widget.permissions[ShopPermissionKeys.manageMembers] ??
+                    false,
+            enabled: widget.isOwner,
             onChanged: (value) {
-              onChanged(ShopPermissionKeys.manageMembers, value);
+              _updatePermission(
+                ShopPermissionKeys.manageMembers,
+                value,
+              );
             },
           ),
+
           const SizedBox(height: 12),
+
           Text(
-            '店家基本資料固定只有老闆可以修改，不開放給主管或員工。',
+            '店家基本資料固定只有老闆可以修改，不開放給員工。\n'
+            '模組設定與權限設定也固定只有老闆可以操作。',
             style: TextStyle(
               color: Colors.grey.shade700,
               fontSize: 13,

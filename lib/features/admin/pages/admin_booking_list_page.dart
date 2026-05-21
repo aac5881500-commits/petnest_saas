@@ -386,13 +386,14 @@ return BookingOrderCard(
   data: data,
   onTap: () {
     Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => AdminBookingDetailPage(
-          bookingId: doc.id,
-        ),
-      ),
-    );
+  context,
+  MaterialPageRoute(
+    builder: (_) => AdminBookingDetailPage(
+      bookingId: doc.id,
+      canEdit: true,
+    ),
+  ),
+);
   },
 );
 }).toList(),

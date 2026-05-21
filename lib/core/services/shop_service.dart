@@ -215,13 +215,22 @@ result.add({
   'name': shopData['name'] ?? '',
   'role': data['role'] ?? '',
 
-  // 🔥 新增
-  'coverUrl': shopData['coverUrl'] ?? '',
-  'city': shopData['city'] ?? '',
+  // 首頁卡片顯示用
+ 'coverUrl': shopData['coverUrl'] ?? '',
+
+/// 平台首頁「我的店家卡片」專用圖片
+'platformHomeCoverUrl': shopData['platformHomeCoverUrl'] ?? '',
+'platformHomeLogoUrl': shopData['platformHomeLogoUrl'] ?? '',
+
+'city': shopData['city'] ?? '',
   'district': shopData['district'] ?? '',
   'isOpen': shopData['isOpen'] ?? true,
   'isPublic': shopData['isPublic'] ?? false,
   'businessType': shopData['businessType'] ?? '',
+
+  // 營業時間自動判斷用
+  'openTime': shopData['openTime'] ?? '',
+  'closeTime': shopData['closeTime'] ?? '',
 });
     }
 
@@ -269,6 +278,27 @@ result.add({
     final data = snapshot.docs.first.data();
     return data['role']?.toString();
   }
+
+  /// 🔐 取得某使用者在該店的完整成員資料
+Future<Map<String, dynamic>?> getUserMemberInShop({
+  required String shopId,
+  required String uid,
+}) async {
+  final snapshot = await _shopMembers
+      .where('shopId', isEqualTo: shopId)
+      .where('uid', isEqualTo: uid)
+      .limit(1)
+      .get();
+
+  if (snapshot.docs.isEmpty) return null;
+
+  final doc = snapshot.docs.first;
+
+  return {
+    'id': doc.id,
+    ...doc.data(),
+  };
+}
 
   /// 是否有管理店家權限
  bool canManageShop(String? role) {
@@ -673,6 +703,21 @@ result.add({
     for (final doc in existingMembers.docs) {
       final data = doc.data();
       if (data['emailKey'] == normalizedEmail) {
+        
+        final oldPermissions =
+    normalizePermissions(data['permissions'], role: data['role']?.toString());
+
+final newPermissions =
+    normalizePermissions(permissions, role: role);
+
+final changedPermissions = ShopPermissionKeys.all
+    .where((key) => oldPermissions[key] != newPermissions[key])
+    .map((key) => {
+          'key': key,
+          'oldValue': oldPermissions[key] ?? false,
+          'newValue': newPermissions[key] ?? false,
+        })
+    .toList();
         await _shopMembers.doc(doc.id).update({
           'role': role,
           'permissions': normalizePermissions(
@@ -683,13 +728,18 @@ result.add({
         });
 
         await ActionLogService.instance.logAction(
-          shopId: shopId,
-          targetType: 'shop_member',
-          targetId: doc.id,
-          action: 'update_member_permission',
-          operatorUid: operatorUid,
-          operatorRole: operatorRole,
-        );
+  shopId: shopId,
+  targetType: 'shop_member',
+  targetId: doc.id,
+  action: 'update_member_permission',
+  operatorUid: operatorUid,
+  operatorRole: operatorRole,
+  payload: {
+    'memberEmail': data['email'] ?? '',
+    'memberRole': role,
+    'changedPermissions': changedPermissions,
+  },
+);
 
         return;
       }
@@ -728,12 +778,31 @@ Future<void> updateMemberPermission({
   required String operatorUid,
   required String operatorRole,
 }) async {
+  final oldDoc = await _shopMembers.doc(memberDocId).get();
+  final oldData = oldDoc.data() ?? {};
+
+  final oldPermissions = normalizePermissions(
+    oldData['permissions'],
+    role: oldData['role']?.toString(),
+  );
+
+  final newPermissions = normalizePermissions(
+    permissions,
+    role: role,
+  );
+
+  final changedPermissions = ShopPermissionKeys.all
+      .where((key) => oldPermissions[key] != newPermissions[key])
+      .map((key) => {
+            'key': key,
+            'oldValue': oldPermissions[key] ?? false,
+            'newValue': newPermissions[key] ?? false,
+          })
+      .toList();
+
   await _shopMembers.doc(memberDocId).update({
     'role': role,
-    'permissions': normalizePermissions(
-      permissions,
-      role: role,
-    ),
+    'permissions': newPermissions,
     'updatedAt': FieldValue.serverTimestamp(),
   });
 
@@ -744,6 +813,11 @@ Future<void> updateMemberPermission({
     action: 'update_member_permission',
     operatorUid: operatorUid,
     operatorRole: operatorRole,
+    payload: {
+      'memberEmail': oldData['email'] ?? '',
+      'memberRole': role,
+      'changedPermissions': changedPermissions,
+    },
   );
 }
 
@@ -1322,7 +1396,7 @@ Future<Map<String, dynamic>?> getCheckinPolicy(String shopId) async {
   return doc.data();
 }
 
-/// 更新入住條款（自動版本 +1）
+/// 更新入住條款（自動版本 +1，並留存歷史版本）
 Future<void> updateCheckinPolicy({
   required String shopId,
   required Map<String, dynamic> sections,
@@ -1333,7 +1407,9 @@ Future<void> updateCheckinPolicy({
 
   /// 🔴 第二頁
   required List<String> customPoliciesPage2,
-})async {
+}) async {
+  final user = _currentUser;
+
   final docRef = _firestore
       .collection('shops')
       .doc(shopId)
@@ -1349,21 +1425,34 @@ Future<void> updateCheckinPolicy({
     newVersion = oldVersion + 1;
   }
 
-  await docRef.set({
-  'version': newVersion,
+  final policyData = {
+    'version': newVersion,
 
-  /// 🔥 模板欄位（可開關）
-  'sections': sections,
+    /// 🔥 模板欄位（可開關）
+    'sections': sections,
 
-  /// 🔥 每個欄位是否啟用
-  'enabled': enabled,
+    /// 🔥 每個欄位是否啟用
+    'enabled': enabled,
 
-  /// 🔥 額外條款（自由新增）
-  'customPoliciesPage1': customPoliciesPage1,
-'customPoliciesPage2': customPoliciesPage2,
+    /// 🔥 額外條款（自由新增）
+    'customPoliciesPage1': customPoliciesPage1,
+    'customPoliciesPage2': customPoliciesPage2,
 
-  'updatedAt': FieldValue.serverTimestamp(),
-});
+    'updatedAt': FieldValue.serverTimestamp(),
+    'updatedByUid': user?.uid ?? '',
+    'updatedByEmail': user?.email ?? '',
+  };
+
+  /// 🔥 更新目前最新條款
+  await docRef.set(policyData);
+
+  /// 🔥 另存一份歷史版本，之後爭議時可查回當時條款
+  await _firestore
+      .collection('shops')
+      .doc(shopId)
+      .collection('policy_versions')
+      .doc('v$newVersion')
+      .set(policyData);
 }
 // ===============================
 // 📜 條款確認（會員）

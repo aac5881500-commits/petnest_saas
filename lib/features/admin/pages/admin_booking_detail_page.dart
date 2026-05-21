@@ -24,9 +24,15 @@ class AdminBookingDetailPage extends StatelessWidget {
   const AdminBookingDetailPage({
     super.key,
     required this.bookingId,
+    this.canEdit = true,
   });
 
   final String bookingId;
+
+  /// 是否可操作訂單
+  /// true：訂單管理進來，可確認 / 取消 / 入住 / 退房
+  /// false：房務或會員詳細進來，只能查看
+  final bool canEdit;
 
   @override
   Widget build(BuildContext context) {
@@ -1093,9 +1099,10 @@ Container(
   ),
 ),
 
-                Wrap(
-  spacing: 8,
-  children: [
+                if (canEdit)
+  Wrap(
+    spacing: 8,
+    children: [
 
     /// 👉 pending → confirmed
     if (status == 'pending' && depositAmount <= 0)

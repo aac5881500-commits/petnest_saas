@@ -3,6 +3,8 @@
 
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:intl/intl.dart';
 import 'package:petnest_saas/core/constants/shop_roles.dart';
 import 'package:petnest_saas/core/services/action_log_service.dart';
 import 'package:petnest_saas/core/services/shop_service.dart';
@@ -55,28 +57,78 @@ class _ShopPermissionSettingsPageState
 
 String _actionLabel(String action) {
   switch (action) {
-    case 'update_booking_settings':
-      return '更新預約設定';
+    case 'create_invite':
+      return '建立員工邀請';
+    case 'invite_accepted':
+      return '員工接受邀請';
+    case 'update_member_permission':
+      return '更新成員權限';
     case 'update_permission':
       return '更新權限設定';
     case 'remove_member_invite':
       return '刪除待綁定邀請';
+    case 'remove_member':
+      return '刪除成員';
+    case 'block_date':
+      return '關閉預約日期';
+    case 'unblock_date':
+      return '恢復預約日期';
+    case 'update_booking_settings':
+      return '更新預約設定';
     default:
-      return action == '-' ? '-' : action;
+      return action == '-' ? '未記錄動作' : action;
   }
 }
 
 String _targetTypeLabel(String targetType) {
   switch (targetType) {
-    case 'shop_booking_settings':
-      return '預約設定';
+    case 'shop_member':
+      return '店家成員';
+    case 'shop_member_invite':
+      return '員工邀請';
     case 'shop_permission_settings':
       return '權限設定';
-    case 'shop_member_invite':
-      return '待綁定邀請';
+    case 'shop_booking_settings':
+      return '預約設定';
+    case 'shop_calendar_date':
+      return '預約日期';
     default:
-      return targetType == '-' ? '-' : targetType;
+      return targetType == '-' ? '未記錄目標' : targetType;
   }
+}
+
+String _buildLogSubtitle(Map<String, dynamic> log) {
+  final targetType = log['targetType']?.toString() ?? '-';
+  final operatorEmail = log['operatorEmail']?.toString() ?? '-';
+  final operatorRole = log['operatorRole']?.toString() ?? '-';
+  final createdAt = log['createdAt'];
+
+final timeText = createdAt is Timestamp
+    ? DateFormat('yyyy-MM-dd HH:mm').format(createdAt.toDate())
+    : '-';
+
+  final payload = Map<String, dynamic>.from(log['payload'] ?? {});
+  final memberEmail = payload['memberEmail']?.toString() ?? '';
+  final changedPermissions = payload['changedPermissions'];
+
+  if (log['action'] == 'update_member_permission' &&
+      memberEmail.isNotEmpty &&
+      changedPermissions is List &&
+      changedPermissions.isNotEmpty) {
+    final changes = changedPermissions.map((item) {
+      final data = Map<String, dynamic>.from(item);
+      final key = data['key']?.toString() ?? '';
+      final newValue = data['newValue'] == true;
+
+      return '${_permissionLabel(key)}：${newValue ? '開啟' : '關閉'}';
+    }).join('、');
+
+    return '$timeText\n'
+    '對象：$memberEmail｜變更：$changes｜操作者：$operatorEmail｜角色：${_roleLabel(operatorRole)}';
+  }
+
+  return '$timeText\n'
+    '目標：${_targetTypeLabel(targetType)}｜操作者：$operatorEmail｜角色：${_roleLabel(operatorRole)}';
 }
 
 String _permissionLabel(String key) {
@@ -97,6 +149,8 @@ String _permissionLabel(String key) {
       return '模組設定';
     case 'manage_bookings':
       return '訂單管理';
+      case 'manage_booking_settings':
+  return '預約管理';
     case 'manage_room_dashboard':
       return '房務管理';
     case 'manage_room_types':
@@ -108,7 +162,7 @@ String _permissionLabel(String key) {
     case 'manage_policy':
       return '入住規則';
     case 'view_reports':
-      return '表格統計';
+  return '營運報表';
     case 'view_action_logs':
       return '動作紀錄';
     default:
@@ -284,7 +338,7 @@ final displayRole =
                     leading: const Icon(Icons.history),
                     title: Text(_actionLabel(action)),
 subtitle: Text(
-  '目標：${_targetTypeLabel(targetType)}｜操作者：$operatorEmail｜角色：${_roleLabel(displayRole)}',
+  _buildLogSubtitle(log),
 ),
                   );
                 }),
@@ -366,8 +420,8 @@ PermissionCategoryTile(
 const SizedBox(height: 12),
 
 PermissionCategoryTile(
-  title: '表格統計權限',
-  subtitle: '報表統計、動作紀錄',
+  title: '報表紀錄權限',
+subtitle: '營運報表、動作紀錄',
   icon: Icons.bar_chart,
   onTap: () {
     Navigator.push(

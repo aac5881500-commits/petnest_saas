@@ -10,10 +10,16 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:petnest_saas/features/shop/pages/shop_public_page.dart';
 import 'booking_detail_page.dart';
 
 class MyBookingsPage extends StatefulWidget {
-  const MyBookingsPage({super.key});
+  const MyBookingsPage({
+    super.key,
+    this.returnShopId,
+  });
+
+  final String? returnShopId;
 
   @override
   State<MyBookingsPage> createState() => _MyBookingsPageState();
@@ -136,7 +142,27 @@ String _formatDateTime(dynamic value) {
     }
 
     return Scaffold(
-      appBar: AppBar(title: const Text('我的訂單')),
+      appBar: AppBar(
+  title: const Text('我的訂單'),
+  leading: IconButton(
+    icon: const Icon(Icons.home),
+    onPressed: () {
+      final shopId = widget.returnShopId;
+
+      if (shopId != null && shopId.isNotEmpty) {
+        Navigator.pushAndRemoveUntil(
+          context,
+          MaterialPageRoute(
+            builder: (_) => ShopPublicPage(shopId: shopId),
+          ),
+          (route) => false,
+        );
+      } else {
+        Navigator.pop(context);
+      }
+    },
+  ),
+),
       body: StreamBuilder<QuerySnapshot>(
         stream: FirebaseFirestore.instance
     .collection('bookings')

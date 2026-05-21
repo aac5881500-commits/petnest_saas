@@ -626,8 +626,9 @@ if (_selectedBooking != null) ...[
                 context,
                 MaterialPageRoute(
                   builder: (_) => AdminBookingDetailPage(
-                    bookingId: _selectedBookingId!,
-                  ),
+  bookingId: _selectedBookingId!,
+  canEdit: true,
+),
                 ),
               );
             },

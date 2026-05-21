@@ -14,6 +14,7 @@ import 'package:petnest_saas/core/services/action_log_service.dart';
 import 'package:petnest_saas/core/services/booking_service.dart';
 import 'package:petnest_saas/core/services/shop_service.dart';
 import 'package:petnest_saas/shared/widgets/booking_calendar.dart';
+import 'package:petnest_saas/core/constants/shop_permission_keys.dart';
 
 class ShopBookingSettingsPage extends StatefulWidget {
   const ShopBookingSettingsPage({
@@ -39,6 +40,7 @@ class _ShopBookingSettingsPageState extends State<ShopBookingSettingsPage> {
 
   String? _currentUserRole;
   bool _roleLoaded = false;
+  Map<String, dynamic>? _memberData;
 
   DateTime? _selectedCalendarDate;
 
@@ -67,14 +69,18 @@ class _ShopBookingSettingsPageState extends State<ShopBookingSettingsPage> {
     }
 
     try {
-      final role = await ShopService.instance.getUserRoleInShop(
-        shopId: widget.shopId,
-        uid: user.uid,
-      );
+      final memberData =
+    await ShopService.instance.getUserMemberInShop(
+  shopId: widget.shopId,
+  uid: user.uid,
+);
+
+final role = memberData?['role']?.toString();
 
       if (!mounted) return;
       setState(() {
         _currentUserRole = role;
+        _memberData = memberData;
         _roleLoaded = true;
       });
     } catch (_) {
@@ -104,14 +110,35 @@ class _ShopBookingSettingsPageState extends State<ShopBookingSettingsPage> {
       );
     }
 
-    if (!ShopService.instance.canManageShop(_currentUserRole)) {
-      return const Scaffold(
-        body: Center(
-          child: Text('你沒有管理權限'),
-        ),
-      );
-    }
+   final canManageBookings =
+    ShopService.instance.hasPermission(
+  _memberData,
+  ShopPermissionKeys.manageBookings,
+);
 
+if (!canManageBookings) {
+  return Scaffold(
+    appBar: AppBar(
+      title: const Text('權限限制'),
+      leading: IconButton(
+        icon: const Icon(Icons.arrow_back),
+        onPressed: () {
+          if (Navigator.canPop(context)) {
+            Navigator.pop(context);
+          } else {
+            Navigator.pushReplacementNamed(
+              context,
+              '/home',
+            );
+          }
+        },
+      ),
+    ),
+    body: const Center(
+      child: Text('你沒有管理權限'),
+    ),
+  );
+}
     return Scaffold(
       appBar: AppBar(
         title: const Text('預約管理'),

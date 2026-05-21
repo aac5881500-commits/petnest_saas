@@ -11,6 +11,7 @@ import 'package:petnest_saas/features/shop/pages/shop_policy_view_page.dart';
 import 'package:petnest_saas/features/shop/pages/shop_public_page.dart';
 import 'package:petnest_saas/features/booking/pages/my_bookings_page.dart';
 import 'package:petnest_saas/features/auth/pages/login_page.dart';
+import 'package:petnest_saas/core/constants/shop_permission_keys.dart';
 
 
 class AppDrawer extends StatelessWidget {
@@ -70,7 +71,9 @@ class AppDrawer extends StatelessWidget {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => const MyBookingsPage(),
+        builder: (_) => MyBookingsPage(
+  returnShopId: shopId,
+),
       ),
     );
   },
@@ -105,17 +108,27 @@ if (user != null)
 
                   _divider(),
 
-                  FutureBuilder<bool>(
-                    future: ShopService.instance.isEmployee(
-                      shopId: shopId,
-                      userId: user?.uid ?? '',
-                    ),
-                    builder: (context, snapshot) {
-                      final isEmployee = snapshot.data == true;
+                  if (user != null)
+  FutureBuilder<Map<String, dynamic>?>(
+    future: ShopService.instance.getUserMemberInShop(
+      shopId: shopId,
+      uid: user.uid,
+    ),
+  builder: (context, snapshot) {
+    final memberData = snapshot.data;
 
-                      if (!isEmployee) {
-                        return const SizedBox();
-                      }
+    bool hasAnyPermission = false;
+
+    for (final key in ShopPermissionKeys.all) {
+      if (ShopService.instance.hasPermission(memberData, key)) {
+        hasAnyPermission = true;
+        break;
+      }
+    }
+
+    if (!hasAnyPermission) {
+      return const SizedBox();
+    }
 
                       return Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -547,7 +560,9 @@ final canShowDepositExpire =
           Navigator.push(
             context,
             MaterialPageRoute(
-              builder: (_) => const MyBookingsPage(),
+              builder: (_) => MyBookingsPage(
+  returnShopId: shopId,
+),
             ),
           );
         },
