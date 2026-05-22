@@ -10,6 +10,7 @@ import 'package:petnest_saas/features/auth/pages/login_page.dart';
 import 'package:petnest_saas/features/platform/pages/create_shop_page.dart';
 import 'package:petnest_saas/features/shop/pages/shop_dashboard_page.dart';
 import 'package:petnest_saas/features/platform/pages/platform_shop_list_page.dart';
+import 'package:petnest_saas/features/platform/pages/platform_admin_page.dart';
 import 'package:petnest_saas/features/auth/widgets/my_shop_card.dart';
 import 'package:petnest_saas/features/auth/widgets/my_shop_stat_row.dart';
 import 'package:petnest_saas/features/auth/widgets/platform_home_hero_card.dart';
@@ -19,6 +20,7 @@ import 'package:petnest_saas/features/auth/widgets/my_shop_badges.dart';
 import 'package:petnest_saas/features/auth/widgets/my_shop_info.dart';
 import 'package:petnest_saas/features/auth/widgets/my_shop_open_status_helper.dart';
 import 'package:petnest_saas/features/auth/pages/my_shop_card_media_page.dart';
+import 'package:petnest_saas/features/auth/widgets/my_shop_meta_info.dart';
 
 
 
@@ -105,6 +107,8 @@ String _roleLabel(String value) {
   @override
   Widget build(BuildContext context) {
     final User? user = FirebaseAuth.instance.currentUser;
+    final isPlatformAdmin =
+    user?.email == 'aac5881500@gmail.com';
 
     return Scaffold(
       appBar: AppBar(
@@ -180,6 +184,47 @@ String _roleLabel(String value) {
                 PlatformAccountCard(
   email: user?.email ?? '',
 ),
+if (isPlatformAdmin) ...[
+  const SizedBox(height: 12),
+
+  Card(
+    elevation: 0,
+    color: Colors.white,
+    shape: RoundedRectangleBorder(
+      borderRadius: BorderRadius.circular(18),
+      side: BorderSide(
+        color: Colors.grey.shade200,
+      ),
+    ),
+    child: ListTile(
+      leading: CircleAvatar(
+        backgroundColor: const Color(0xFFEAF3FF),
+        child: const Icon(
+          Icons.admin_panel_settings,
+          color: Color(0xFF1565C0),
+        ),
+      ),
+      title: const Text(
+        '平台後台',
+        style: TextStyle(
+          fontWeight: FontWeight.w800,
+        ),
+      ),
+      subtitle: const Text(
+        '管理店家、方案、付款期限與平台紀錄',
+      ),
+      trailing: const Icon(Icons.chevron_right),
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => const PlatformAdminPage(),
+          ),
+        );
+      },
+    ),
+  ),
+],
 
                 const SizedBox(height: 20),
 
@@ -220,6 +265,17 @@ final logoUrl =
     '';
 final city = shop['city']?.toString() ?? '';
 final district = shop['district']?.toString() ?? '';
+final enabledModules = List<String>.from(
+  shop['enabledModules'] ?? [],
+);
+
+final licenseNumber =
+    shop['licenseNumber']?.toString() ?? '';
+
+final taxId =
+    shop['taxId']?.toString() ?? '';
+
+final updatedAt = shop['updatedAt'];
 final isOpen = shop['isOpen'] == true;
 final openTime = shop['openTime']?.toString() ?? '';
 final closeTime = shop['closeTime']?.toString() ?? '';
@@ -256,7 +312,7 @@ return MyShopCard(
         Stack(
           children: [
             Container(
-              height: 135,
+              height: 175,
               decoration: BoxDecoration(
                 color: Colors.grey.shade200,
                 borderRadius: const BorderRadius.vertical(
@@ -348,12 +404,12 @@ return MyShopCard(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           Container(
-            width: 82,
-            height: 82,
+            width: 96,
+            height: 96,
             margin: const EdgeInsets.only(right: 14),
             decoration: BoxDecoration(
               color: Colors.white,
-              borderRadius: BorderRadius.circular(22),
+              borderRadius: BorderRadius.circular(28),
               border: Border.all(
                 color: Colors.grey.shade200,
               ),
@@ -415,6 +471,15 @@ return MyShopCard(
       MyShopStatRow(
         shopId: shop['shopId'].toString(),
       ),
+      MyShopMetaInfo(
+  enabledModules: enabledModules,
+  openTime: openTime,
+  closeTime: closeTime,
+  isPublic: isPublic,
+  licenseNumber: licenseNumber,
+  taxId: taxId,
+  updatedAt: updatedAt,
+),
     ],
   ),
 ),
@@ -458,6 +523,7 @@ class _HomeBadge extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
+
           Icon(
   icon,
   size: 14,

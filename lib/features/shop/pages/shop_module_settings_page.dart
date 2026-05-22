@@ -24,6 +24,7 @@ class ShopModuleSettingsPage extends StatefulWidget {
 class _ShopModuleSettingsPageState extends State<ShopModuleSettingsPage> {
   bool _saving = false;
   List<String> _selectedModules = [];
+  String _plan = 'free';
 
 bool get _canEdit =>
     widget.currentUserRole == ShopRoles.owner;
@@ -43,8 +44,9 @@ bool get _canEdit =>
 
     if (!mounted) return;
     setState(() {
-      _selectedModules = modules;
-    });
+  _selectedModules = modules;
+  _plan = shop['plan']?.toString() ?? 'free';
+});
   }
 
   String _label(String module) {
@@ -92,20 +94,86 @@ bool get _canEdit =>
   bool _isLockedAlwaysOn(String module) {
     return module == ShopModules.basicInfo || module == ShopModules.reports;
   }
+  bool _isMainModule(String module) {
+  return module != ShopModules.basicInfo &&
+      module != ShopModules.reports;
+}
+bool get _basicPlanTemplateLocked {
+  if (_plan != 'basic') return false;
 
-  void _toggleModule(String module, bool value) {
-    if (_isLockedAlwaysOn(module)) return;
+  final mainModules = _selectedModules.where(_isMainModule).toList();
 
-    setState(() {
-      if (value) {
-        if (!_selectedModules.contains(module)) {
-          _selectedModules.add(module);
-        }
-      } else {
-        _selectedModules.remove(module);
-      }
-    });
+  return mainModules.isNotEmpty;
+}
+
+String get _basicLockedModule {
+  final mainModules = _selectedModules.where(_isMainModule).toList();
+
+  if (mainModules.isEmpty) return '';
+
+  return mainModules.first;
+}
+
+bool _isModuleBlockedByPlan(String module) {
+  if (_plan == 'basic' && module == ShopModules.store) {
+    return true;
   }
+
+  return false;
+}
+
+void _toggleModule(String module, bool value) {
+  if (_isLockedAlwaysOn(module)) return;
+
+  final isMainModule = _isMainModule(module);
+
+  if (value && _isModuleBlockedByPlan(module)) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          _plan == 'basic'
+              ? '999 方案目前不開放賣場功能'
+              : '免費版無法開啟主要模板',
+        ),
+      ),
+    );
+    return;
+  }
+
+  if (_plan == 'basic' && isMainModule) {
+    if (_basicPlanTemplateLocked && module != _basicLockedModule) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            '999 方案已選定「${_label(_basicLockedModule)}」，如需更換請聯絡平台',
+          ),
+        ),
+      );
+      return;
+    }
+
+    if (!value && _basicPlanTemplateLocked && module == _basicLockedModule) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            '999 方案已選定「${_label(_basicLockedModule)}」，不能自行關閉',
+          ),
+        ),
+      );
+      return;
+    }
+  }
+
+  setState(() {
+    if (value) {
+      if (!_selectedModules.contains(module)) {
+        _selectedModules.add(module);
+      }
+    } else {
+      _selectedModules.remove(module);
+    }
+  });
+}
 
   Future<void> _save() async {
     if (!_canEdit) return;
@@ -115,10 +183,25 @@ bool get _canEdit =>
     });
 
     try {
-      final finalModules = <String>[
-        ..._selectedModules,
-      ];
+ final finalModules = <String>[
+  ..._selectedModules,
+];
 
+if (_plan == 'free') {
+  finalModules.removeWhere(_isMainModule);
+}
+
+if (_plan == 'basic') {
+  final mainModules = finalModules.where(_isMainModule).toList();
+
+  finalModules.removeWhere(_isMainModule);
+
+  if (mainModules.isNotEmpty) {
+    finalModules.add(mainModules.first);
+  }
+
+  finalModules.removeWhere((module) => module == ShopModules.store);
+}
       if (!finalModules.contains(ShopModules.basicInfo)) {
         finalModules.add(ShopModules.basicInfo);
       }

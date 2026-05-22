@@ -74,7 +74,7 @@ InkWell(
         const SizedBox(width: 5),
 
         Text(
-          'ID：$shopId',
+          'ID：${shopId.substring(0, 6)}...${shopId.substring(shopId.length - 4)}',
           style: TextStyle(
             fontSize: 13,
             fontWeight: FontWeight.w600,

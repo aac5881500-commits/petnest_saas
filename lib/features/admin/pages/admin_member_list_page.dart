@@ -72,13 +72,40 @@ for (final doc in bookingDocs) {
 
   if (userId == null) continue;
 
-  userMap[userId] = {
-    'userId': userId,
-    'name': data['customerName'] ?? '',
-    'phone': data['customerPhone'] ?? '',
-    'email': data['customerEmail'] ?? '',
-  };
+  if (!userMap.containsKey(userId)) {
+ userMap[userId] = {
+  'userId': userId,
+  'name': data['customerName'] ?? '',
+  'phone': data['customerPhone'] ?? '',
+  'email': data['customerEmail'] ?? '',
+  'bookingCount': 0,
+  'tags': [],
+};
 }
+
+userMap[userId]!['bookingCount'] =
+    (userMap[userId]!['bookingCount'] ?? 0) + 1;
+      final startDate = data['startDate'];
+
+  if (startDate != null) {
+    final currentLatest =
+        userMap[userId]!['latestStartDate'];
+
+    if (currentLatest == null ||
+        startDate.compareTo(currentLatest) > 0) {
+      userMap[userId]!['latestStartDate'] =
+          startDate;
+
+      userMap[userId]!['latestRoomName'] =
+          data['roomName'] ?? '';
+
+          userMap[userId]!['latestEndDate'] =
+    data['endDate'];
+    }
+  }
+}
+
+
 
 final docs = userMap.values.where((data) {
   final name = (data['name'] ?? '').toString();
@@ -98,10 +125,10 @@ final docs = userMap.values.where((data) {
                   padding: const EdgeInsets.all(12),
                   gridDelegate:
                       const SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: 2, // 🔥 一排2個
-                    crossAxisSpacing: 12,
-                    mainAxisSpacing: 12,
-                    childAspectRatio: 0.85,
+                    crossAxisCount: 2,
+crossAxisSpacing: 12,
+mainAxisSpacing: 12,
+childAspectRatio: 0.56,
                   ),
                   itemCount: docs.length,
                   itemBuilder: (context, index) {
@@ -118,6 +145,16 @@ final email = data['email']?.toString().isEmpty == true
     ? '無Email'
     : data['email'].toString();
 
+    final latestRoomName =
+    data['latestRoomName']?.toString() ?? '';
+    final latestStartDate = data['latestStartDate'];
+final latestEndDate = data['latestEndDate'];
+
+final latestDateText =
+    latestStartDate is Timestamp && latestEndDate is Timestamp
+        ? '${_formatDate(latestStartDate)} ～ ${_formatDate(latestEndDate)}'
+        : '';
+
                     final note1Controller =
                         TextEditingController(
                             text: data['adminNote1'] ?? '');
@@ -125,18 +162,48 @@ final email = data['email']?.toString().isEmpty == true
                         TextEditingController(
                             text: data['adminNote2'] ?? '');
 
-                    return FutureBuilder<QuerySnapshot>(
-                      future: FirebaseFirestore.instance
-                          .collection('user_profiles')
-.doc(userId)
-.collection('pets')
-.get(),
-                      builder: (context, petSnapshot) {
-                        int petCount = 0;
-                        if (petSnapshot.hasData) {
-                          petCount =
-                              petSnapshot.data!.docs.length;
-                        }
+                    return FutureBuilder<List<dynamic>>(
+  future: Future.wait([
+    FirebaseFirestore.instance
+        .collection('user_profiles')
+        .doc(userId)
+        .collection('pets')
+        .get(),
+    FirebaseFirestore.instance
+        .collection('user_profiles')
+        .doc(userId)
+        .get(),
+  ]),
+  builder: (context, profileSnapshot) {
+    int petCount = 0;
+List<String> tags = [];
+String displayEmail = email;
+
+    if (profileSnapshot.hasData) {
+      final petsSnap =
+          profileSnapshot.data![0] as QuerySnapshot;
+      final userSnap =
+          profileSnapshot.data![1] as DocumentSnapshot;
+
+      petCount = petsSnap.docs.length;
+
+      final profileData =
+    userSnap.data() as Map<String, dynamic>?;
+
+tags = List<String>.from(
+  profileData?['tags'] ?? [],
+);
+
+final profileEmail =
+    profileData?['email']?.toString() ?? '';
+
+displayEmail =
+    profileEmail.isNotEmpty ? profileEmail : email;
+    final profileNote =
+    profileData?['adminNote1']?.toString() ?? '';
+
+note1Controller.text = profileNote;
+    }
 
                         return GestureDetector(
                           onTap: () {
@@ -146,6 +213,7 @@ final email = data['email']?.toString().isEmpty == true
                                 builder: (_) =>
                                     AdminMemberDetailPage(
   userId: userId,
+  shopId: widget.shopId,
 ),
                               ),
                             );
@@ -160,90 +228,236 @@ final email = data['email']?.toString().isEmpty == true
                               padding:
                                   const EdgeInsets.all(12),
                               child: Column(
-                                children: [
-  const Icon(Icons.person, size: 50),
+  crossAxisAlignment: CrossAxisAlignment.start,
+  children: [
+    Row(
+      crossAxisAlignment:
+          CrossAxisAlignment.start,
+      children: [
+    /// 📦 右邊資訊
+    Expanded(
+      child: Column(
+        crossAxisAlignment:
+            CrossAxisAlignment.start,
+        children: [
+          /// 👤 名字 + 標籤
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ),
 
-  const SizedBox(height: 8),
-
-  Text(
-    name,
-    style: const TextStyle(
-      fontSize: 18,
-      fontWeight: FontWeight.bold,
+              if (tags.contains('vip'))
+  Container(
+    margin: const EdgeInsets.only(left: 6),
+    padding: const EdgeInsets.symmetric(
+      horizontal: 8,
+      vertical: 4,
+    ),
+    decoration: BoxDecoration(
+      color: Colors.orange.shade50,
+      borderRadius: BorderRadius.circular(20),
+    ),
+    child: Text(
+      '⭐ 常客',
+      style: TextStyle(
+        color: Colors.orange.shade800,
+        fontSize: 11,
+        fontWeight: FontWeight.bold,
+      ),
     ),
   ),
 
-  Text(phone, style: const TextStyle(fontSize: 14)),
+if (tags.contains('blacklist'))
+  Container(
+    margin: const EdgeInsets.only(left: 6),
+    padding: const EdgeInsets.symmetric(
+      horizontal: 8,
+      vertical: 4,
+    ),
+    decoration: BoxDecoration(
+      color: Colors.red.shade50,
+      borderRadius: BorderRadius.circular(20),
+    ),
+    child: Text(
+      '🚫 黑名單',
+      style: TextStyle(
+        color: Colors.red.shade700,
+        fontSize: 11,
+        fontWeight: FontWeight.bold,
+      ),
+    ),
+  ),
+            ],
+          ),
 
-  Text(
-    email,
+          const SizedBox(height: 8),
+
+          /// 📞 電話
+          Row(
+            children: [
+              const Icon(
+                Icons.phone,
+                size: 16,
+                color: Colors.grey,
+              ),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  phone,
+                  style: const TextStyle(
+                    fontSize: 15,
+                  ),
+                ),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 6),
+
+          /// 📧 Email
+          Row(
+            children: [
+              const Icon(
+                Icons.email,
+                size: 16,
+                color: Colors.grey,
+              ),
+              const SizedBox(width: 6),
+             Expanded(
+  child: Text(
+    displayEmail,
+    maxLines: 1,
+    overflow: TextOverflow.ellipsis,
     style: const TextStyle(
-      fontSize: 12,
+      fontSize: 13,
       color: Colors.grey,
     ),
   ),
-
-  const SizedBox(height: 6),
-
-  /// 🔴 黑名單（中間）
-  if (data['isBlack'] == true)
-    Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: Colors.red,
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: const Text(
-        '黑名單',
-        style: TextStyle(color: Colors.white, fontSize: 12),
+),
+            ],
+          ),
+        ],
       ),
     ),
+  ],
+),
 
-  const SizedBox(height: 6),
+const SizedBox(height: 12),
 
-  /// 🐱 寵物
-  Text(
-    '🐱 $petCount 隻',
-    style: const TextStyle(fontSize: 14),
-  ),
-
-  const Spacer(), // 🔥 關鍵：往下推
-
-  /// 🔥 備註1（下面）
-  GestureDetector(
-    onTap: () {},
-    child: TextField(
-      controller: note1Controller,
-      decoration: const InputDecoration(
-        hintText: '備註1',
-        isDense: true,
+Row(
+  children: [
+    Expanded(
+      child: _miniInfoBox(
+        icon: Icons.pets,
+        color: Colors.orange,
+        label: '寵物',
+        value: '$petCount 隻',
       ),
-      onSubmitted: (v) {
-        FirebaseFirestore.instance
-            .collection('user_profiles')
-            .doc(userId)
-            .update({'adminNote1': v});
-      },
     ),
+    const SizedBox(width: 8),
+    Expanded(
+      child: _miniInfoBox(
+  icon: Icons.receipt_long,
+  color: Colors.blue,
+  label: '訂單',
+  value: '${data['bookingCount'] ?? 0} 筆',
+),
+
+    ),
+  ],
+),
+const SizedBox(height: 8),
+
+if (latestRoomName.isNotEmpty)
+  Container(
+    width: double.infinity,
+    margin: const EdgeInsets.only(top: 8),
+    padding: const EdgeInsets.symmetric(
+  horizontal: 8,
+  vertical: 6,
+),
+    decoration: BoxDecoration(
+      color: Colors.green.shade50,
+      borderRadius: BorderRadius.circular(10),
+    ),
+   child: Column(
+  crossAxisAlignment: CrossAxisAlignment.start,
+  children: [
+    const Text(
+      '最近入住',
+      style: TextStyle(
+        fontSize: 11,
+        fontWeight: FontWeight.bold,
+      ),
+    ),
+    Text(
+      latestRoomName,
+      style: TextStyle(
+        fontSize: 15,
+        fontWeight: FontWeight.w900,
+        color: Colors.green.shade800,
+      ),
+    ),
+    if (latestDateText.isNotEmpty)
+      Text(
+        latestDateText,
+        style: TextStyle(
+          fontSize: 11,
+          color: Colors.green.shade700,
+        ),
+      ),
+  ],
+),
   ),
 
-  const SizedBox(height: 6),
-
-  /// 🔥 備註2（最下面）
-  GestureDetector(
-    onTap: () {},
-    child: TextField(
-      controller: note2Controller,
-      decoration: const InputDecoration(
-        hintText: '備註2',
-        isDense: true,
+if (note1Controller.text.isNotEmpty)
+  Container(
+    width: double.infinity,
+    padding: const EdgeInsets.symmetric(
+      horizontal: 10,
+      vertical: 8,
+    ),
+    decoration: BoxDecoration(
+      color: Colors.orange.shade50,
+      borderRadius: BorderRadius.circular(10),
+      border: Border.all(
+        color: Colors.orange.shade100,
       ),
-      onSubmitted: (v) {
-        FirebaseFirestore.instance
-            .collection('user_profiles')
-            .doc(userId)
-            .update({'adminNote2': v});
-      },
+    ),
+    child: Column(
+      crossAxisAlignment:
+          CrossAxisAlignment.start,
+      children: [
+        Text(
+          '📝 店家備註',
+          style: TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.bold,
+            color: Colors.orange.shade800,
+          ),
+        ),
+
+        const SizedBox(height: 4),
+
+        Text(
+          note1Controller.text,
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(
+            fontSize: 12,
+            color: Colors.grey.shade800,
+          ),
+        ),
+      ],
     ),
   ),
 ],
@@ -262,4 +476,45 @@ final email = data['email']?.toString().isEmpty == true
       ),
     );
   }
+  Widget _miniInfoBox({
+  required IconData icon,
+  required Color color,
+  required String label,
+  required String value,
+}) {
+  return Container(
+    padding: const EdgeInsets.all(8),
+    decoration: BoxDecoration(
+      color: color.withOpacity(0.08),
+      borderRadius: BorderRadius.circular(12),
+      border: Border.all(color: color.withOpacity(0.18)),
+    ),
+    child: Row(
+      children: [
+        Icon(icon, size: 18, color: color),
+        const SizedBox(width: 6),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(label, style: const TextStyle(fontSize: 11)),
+              Text(
+                value,
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 13,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    ),
+  );
+}
+String _formatDate(Timestamp value) {
+  final dt = value.toDate();
+  String two(int n) => n.toString().padLeft(2, '0');
+  return '${dt.year}-${two(dt.month)}-${two(dt.day)}';
+}
 }

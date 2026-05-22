@@ -226,11 +226,25 @@ result.add({
   'district': shopData['district'] ?? '',
   'isOpen': shopData['isOpen'] ?? true,
   'isPublic': shopData['isPublic'] ?? false,
-  'businessType': shopData['businessType'] ?? '',
+'businessType': shopData['businessType'] ?? '',
 
-  // 營業時間自動判斷用
-  'openTime': shopData['openTime'] ?? '',
-  'closeTime': shopData['closeTime'] ?? '',
+// 🔥 首頁營運資訊區
+'enabledModules': List<String>.from(
+  shopData['enabledModules'] ?? [],
+),
+
+'licenseNumber':
+    shopData['licenseNumber'] ?? '',
+
+'taxId':
+    shopData['taxId'] ?? '',
+
+'updatedAt':
+    shopData['updatedAt'],
+
+// 營業時間自動判斷用
+'openTime': shopData['openTime'] ?? '',
+'closeTime': shopData['closeTime'] ?? '',
 });
     }
 
