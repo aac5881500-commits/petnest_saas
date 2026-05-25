@@ -125,7 +125,42 @@ final String shopId;
                         ],
                       ),
 
+const SizedBox(height: 6),
+
+if ((data['linkedAuthUid'] ?? '').toString().isNotEmpty)
+  Container(
+    width: double.infinity,
+    padding: const EdgeInsets.all(10),
+    decoration: BoxDecoration(
+      color: Colors.green.shade50,
+      borderRadius: BorderRadius.circular(12),
+      border: Border.all(
+        color: Colors.green.shade100,
+      ),
+    ),
+    child: Row(
+      children: [
+        const Icon(
+          Icons.verified_user,
+          size: 18,
+          color: Colors.green,
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            '已綁定登入帳號：${data['email'] ?? '未填 Email'}',
+            style: TextStyle(
+              color: Colors.green.shade800,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ),
+      ],
+    ),
+  ),
+
                       const SizedBox(height: 6),
+
 
                       /// 📞 電話
                       Row(
@@ -340,6 +375,249 @@ if (tags.contains('blacklist') &&
     ),
   ),
 ],
+
+const SizedBox(height: 12),
+
+StreamBuilder<QuerySnapshot>(
+  stream: FirebaseFirestore.instance
+      .collection('member_link_requests')
+      .where('targetUserId', isEqualTo: userId)
+      .where('status', isEqualTo: 'pending')
+      .snapshots(),
+  builder: (context, requestSnapshot) {
+    if (!requestSnapshot.hasData) {
+      return const SizedBox();
+    }
+
+    final requests = requestSnapshot.data!.docs;
+
+    if (requests.isEmpty) {
+      return const SizedBox();
+    }
+
+    return Column(
+      children: requests.map((requestDoc) {
+        final request =
+            requestDoc.data() as Map<String, dynamic>;
+
+        return Container(
+          width: double.infinity,
+          margin: const EdgeInsets.only(bottom: 12),
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: Colors.blue.shade50,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: Colors.blue.shade100),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                '會員綁定申請',
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 17,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text('登入帳號：${request['authEmail'] ?? '未填'}'),
+              Text('申請手機：${request['targetPhone'] ?? '未填'}'),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Expanded(
+                    child: ElevatedButton.icon(
+                     onPressed: () async {
+
+  final authUid =
+      request['authUid']?.toString() ?? '';
+
+  if (authUid.isEmpty) {
+    return;
+  }
+
+  final oldUserRef = FirebaseFirestore.instance
+      .collection('user_profiles')
+      .doc(userId);
+
+  final newUserRef = FirebaseFirestore.instance
+      .collection('user_profiles')
+      .doc(authUid);
+
+  final oldUserSnap = await oldUserRef.get();
+
+  if (!oldUserSnap.exists) {
+    return;
+  }
+
+  final oldData = oldUserSnap.data() ?? {};
+
+  /// 🔥 合併會員資料
+await newUserRef.set({
+  ...oldData,
+  'uid': authUid,
+  'email': request['authEmail'] ?? '',
+  'linkedAuthUid': authUid,
+  'updatedAt': FieldValue.serverTimestamp(),
+}, SetOptions(merge: true));
+  /// 🔥 搬移寵物
+  final pets = await oldUserRef
+      .collection('pets')
+      .get();
+
+  for (final pet in pets.docs) {
+
+    await newUserRef
+        .collection('pets')
+        .doc(pet.id)
+        .set(pet.data());
+
+    await pet.reference.delete();
+  }
+
+  /// 🔥 更新訂單 userId
+  final bookings = await FirebaseFirestore.instance
+      .collection('bookings')
+      .where('userId', isEqualTo: userId)
+      .get();
+
+  for (final booking in bookings.docs) {
+
+    await booking.reference.update({
+      'userId': authUid,
+    });
+  }
+
+  /// 🔥 更新綁定狀態
+  await requestDoc.reference.update({
+    'status': 'approved',
+    'approvedAt':
+        FieldValue.serverTimestamp(),
+    'updatedAt':
+        FieldValue.serverTimestamp(),
+  });
+  
+
+  final operator = FirebaseAuth.instance.currentUser;
+
+await FirebaseFirestore.instance.collection('action_logs').add({
+  'type': 'member_link_approved',
+  'targetUserId': userId,
+  'targetUserName': data['name'] ?? '',
+  'targetUserEmail': data['email'] ?? '',
+  'operatorUid': operator?.uid,
+  'operatorEmail': operator?.email,
+  'createdAt': FieldValue.serverTimestamp(),
+});
+
+  /// 🔥 刪除舊會員
+  await oldUserRef.delete();
+
+  if (!context.mounted) return;
+
+  ScaffoldMessenger.of(context)
+      .showSnackBar(
+    const SnackBar(
+      content: Text('會員資料已成功合併'),
+    ),
+  );
+  Navigator.pop(context);
+},
+                      icon: const Icon(Icons.check),
+                      label: const Text('確認綁定'),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: () async {
+  final reasonController = TextEditingController();
+
+  final reason = await showDialog<String>(
+    context: context,
+    builder: (context) {
+      return AlertDialog(
+        title: const Text('拒絕綁定原因'),
+        content: TextField(
+          controller: reasonController,
+          maxLines: 3,
+          decoration: const InputDecoration(
+            hintText: '例如：資料不符、無法確認本人、手機號碼填錯',
+            border: OutlineInputBorder(),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+            },
+            child: const Text('取消'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(
+                context,
+                reasonController.text.trim(),
+              );
+            },
+            child: const Text('確認拒絕'),
+          ),
+        ],
+      );
+    },
+  );
+
+  if (reason == null || reason.isEmpty) {
+    return;
+  }
+
+  await requestDoc.reference.update({
+    'status': 'rejected',
+    'rejectReason': reason,
+    'rejectedAt':
+        FieldValue.serverTimestamp(),
+    'updatedAt':
+        FieldValue.serverTimestamp(),
+  });
+
+  final operator =
+      FirebaseAuth.instance.currentUser;
+
+  await FirebaseFirestore.instance
+      .collection('action_logs')
+      .add({
+    'type': 'member_link_rejected',
+    'targetUserId': userId,
+    'targetUserName': data['name'] ?? '',
+    'targetUserEmail': data['email'] ?? '',
+    'operatorUid': operator?.uid,
+    'operatorEmail': operator?.email,
+    'reason': reason,
+    'createdAt':
+        FieldValue.serverTimestamp(),
+  });
+
+  if (!context.mounted) return;
+
+  ScaffoldMessenger.of(context).showSnackBar(
+    const SnackBar(
+      content: Text('已拒絕會員綁定'),
+    ),
+  );
+},
+                      icon: const Icon(Icons.close),
+                      label: const Text('拒絕'),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        );
+      }).toList(),
+    );
+  },
+),
 
 const SizedBox(height: 12),
 
@@ -930,6 +1208,14 @@ logs.sort((a, b) {
           case 'member_blacklisted':
             title = '加入黑名單';
             break;
+
+case 'member_link_approved':
+  title = '確認會員綁定';
+  break;
+
+case 'member_link_rejected':
+  title = '拒絕會員綁定';
+  break;
 
           case 'member_blacklist_removed':
             title = '解除黑名單';

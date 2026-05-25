@@ -59,7 +59,6 @@ class _AdminMemberListPageState extends State<AdminMemberListPage> {
                       child: CircularProgressIndicator());
                 }
 
-                final allDocs = snapshot.data!.docs;
 
                 final bookingDocs = snapshot.data!.docs;
 
@@ -128,7 +127,7 @@ final docs = userMap.values.where((data) {
                     crossAxisCount: 2,
 crossAxisSpacing: 12,
 mainAxisSpacing: 12,
-childAspectRatio: 0.56,
+childAspectRatio: 0.68,
                   ),
                   itemCount: docs.length,
                   itemBuilder: (context, index) {
@@ -158,9 +157,7 @@ final latestDateText =
                     final note1Controller =
                         TextEditingController(
                             text: data['adminNote1'] ?? '');
-                    final note2Controller =
-                        TextEditingController(
-                            text: data['adminNote2'] ?? '');
+               
 
                     return FutureBuilder<List<dynamic>>(
   future: Future.wait([
@@ -177,6 +174,8 @@ final latestDateText =
   builder: (context, profileSnapshot) {
     int petCount = 0;
 List<String> tags = [];
+String displayName = name;
+String displayPhone = phone;
 String displayEmail = email;
 
     if (profileSnapshot.hasData) {
@@ -194,8 +193,20 @@ tags = List<String>.from(
   profileData?['tags'] ?? [],
 );
 
+final profileName =
+    profileData?['name']?.toString() ?? '';
+
+final profilePhone =
+    profileData?['phone']?.toString() ?? '';
+
 final profileEmail =
     profileData?['email']?.toString() ?? '';
+
+displayName =
+    profileName.isNotEmpty ? profileName : name;
+
+displayPhone =
+    profilePhone.isNotEmpty ? profilePhone : phone;
 
 displayEmail =
     profileEmail.isNotEmpty ? profileEmail : email;
@@ -245,7 +256,7 @@ note1Controller.text = profileNote;
             children: [
               Expanded(
                 child: Text(
-                  name,
+  displayName,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
@@ -312,7 +323,7 @@ if (tags.contains('blacklist'))
               const SizedBox(width: 6),
               Expanded(
                 child: Text(
-                  phone,
+  displayPhone,
                   style: const TextStyle(
                     fontSize: 15,
                   ),

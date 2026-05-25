@@ -10,6 +10,7 @@ import 'package:petnest_saas/core/constants/shop_roles.dart';
 import 'package:petnest_saas/core/constants/shop_modules.dart';
 import 'package:petnest_saas/core/constants/shop_permission_keys.dart';
 import 'package:petnest_saas/core/services/action_log_service.dart';
+import 'package:petnest_saas/core/services/platform_activation_code_service.dart';
 
 
 class ShopService {
@@ -85,6 +86,8 @@ Future<void> updateShop({
   required String name,
   required String city,
   required String district,
+  required int acceptedShopOwnerPolicyVersion,
+  required String activationCode,
   String businessType = 'cat_hotel',
 }) async {
     final user = _currentUser;
@@ -99,11 +102,53 @@ Future<void> updateShop({
     if (existing.docs.isNotEmpty) {
       throw Exception('你已經建立過店家了');
     }
+    final activationError =
+    await PlatformActivationCodeService.instance.validateCode(
+  activationCode,
+);
+
+if (activationError != null) {
+  throw Exception(activationError);
+}
+
+final activationCodeData =
+    await PlatformActivationCodeService.instance.getCode(
+  activationCode,
+);
+
+if (activationCodeData == null) {
+  throw Exception('找不到此激活碼');
+}
 
     final shopRef = _shops.doc();
     final memberRef = _shopMembers.doc('${shopRef.id}_${user.uid}');
 
+    final activationCodeId =
+    activationCodeData['id'].toString();
+
+final activationPlan =
+    activationCodeData['plan']?.toString() ?? 'basic';
+
+final activationFreeDays =
+    activationCodeData['freeDays'] is int
+        ? activationCodeData['freeDays'] as int
+        : 30;
+
+final paidUntil = Timestamp.fromDate(
+  DateTime.now().add(
+    Duration(days: activationFreeDays),
+  ),
+);
+
+final activationCodeRef = _firestore
+    .collection('activation_codes')
+    .doc(activationCodeId);
+
     final batch = _firestore.batch();
+
+final policyAcceptanceRef = shopRef
+    .collection('policy_acceptances')
+    .doc('shop_owner_policy_v$acceptedShopOwnerPolicyVersion');
 
     batch.set(shopRef, {
       'name': name.trim(),
@@ -121,6 +166,18 @@ Future<void> updateShop({
 
 'createdAt': FieldValue.serverTimestamp(),
 'updatedAt': FieldValue.serverTimestamp(),
+// 🎟️ 激活碼 / 方案開通
+'activationCode': activationCode.trim(),
+'activationCodeId': activationCodeId,
+'activationFreeDays': activationFreeDays,
+'plan': activationPlan,
+'paidUntil': paidUntil,
+'planStartedAt': FieldValue.serverTimestamp(),
+'acceptedShopOwnerPolicyVersion':
+    acceptedShopOwnerPolicyVersion,
+
+'acceptedShopOwnerPolicyAt':
+    FieldValue.serverTimestamp(),
 
       // 基本資料
       'businessType': businessType,
@@ -185,6 +242,46 @@ Future<void> updateShop({
       'createdAt': FieldValue.serverTimestamp(),
       'updatedAt': FieldValue.serverTimestamp(),
     });
+
+batch.set(policyAcceptanceRef, {
+  'type': 'shop_owner_policy',
+  'version': acceptedShopOwnerPolicyVersion,
+  'acceptedAt': FieldValue.serverTimestamp(),
+  'acceptedByUid': user.uid,
+  'acceptedByEmail': user.email ?? '',
+});
+
+final currentUsedCount =
+    activationCodeData['usedCount'] ?? 0;
+
+final maxUses =
+    activationCodeData['maxUses'] ?? 0;
+
+final newUsedCount =
+    currentUsedCount + 1;
+
+batch.update(activationCodeRef, {
+  'usedCount': newUsedCount,
+  'usedShopIds': FieldValue.arrayUnion([shopRef.id]),
+  'usedByUids': FieldValue.arrayUnion([user.uid]),
+  'lastUsedAt': FieldValue.serverTimestamp(),
+  'updatedAt': FieldValue.serverTimestamp(),
+
+  // 🔥 用完自動停用
+  'enabled': newUsedCount < maxUses,
+});
+final activationUsageLogRef =
+    activationCodeRef.collection('usage_logs').doc(shopRef.id);
+
+batch.set(activationUsageLogRef, {
+  'shopId': shopRef.id,
+  'shopName': name.trim(),
+  'usedByUid': user.uid,
+  'usedByEmail': user.email ?? '',
+  'plan': activationPlan,
+  'freeDays': activationFreeDays,
+  'usedAt': FieldValue.serverTimestamp(),
+});
 
     await batch.commit();
 

@@ -5,13 +5,18 @@
 // - 登入
 // - 記住 Email
 // - 下次自動填入
+// - 登入後檢查平台會員條款版本
 
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart'; // 🔥 新增
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:petnest_saas/core/services/auth_service.dart';
+import 'package:petnest_saas/core/services/platform_policy_service.dart';
 import 'package:petnest_saas/core/services/shop_service.dart';
-import 'register_page.dart';
+import 'package:petnest_saas/features/platform/pages/platform_user_policy_page.dart';
 import 'package:petnest_saas/features/shop/pages/shop_public_page.dart';
+import 'package:petnest_saas/core/services/platform_policy_manage_service.dart';
+import 'package:petnest_saas/features/platform/pages/platform_shop_owner_policy_page.dart';
+import 'register_page.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({
@@ -31,8 +36,6 @@ class _LoginPageState extends State<LoginPage> {
 
   bool _loading = false;
   String? _error;
-
-  /// 🔥 記住帳號
   bool _rememberEmail = false;
 
   @override
@@ -41,7 +44,6 @@ class _LoginPageState extends State<LoginPage> {
     _loadSavedEmail();
   }
 
-  /// 🔥 讀取已儲存 Email
   Future<void> _loadSavedEmail() async {
     final prefs = await SharedPreferences.getInstance();
     final savedEmail = prefs.getString('saved_email');
@@ -54,22 +56,32 @@ class _LoginPageState extends State<LoginPage> {
     }
   }
 
-  /// 🔵 登入
- Future<void> _login() async {
-  setState(() {
-    _loading = true;
-    _error = null;
-  });
-
-  try {
-    await AuthService.instance.login(
-      email: _emailController.text.trim(),
-      password: _passwordController.text.trim(),
-    );
+  Future<void> _goNextAfterLogin() async {
+    final accepted =
+        await PlatformPolicyService.instance.hasAcceptedCurrentUserPolicy();
 
     if (!mounted) return;
 
-    /// 🔥 登入成功 → 有店家來源就回店家，沒有就回首頁
+    if (!accepted) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => PlatformUserPolicyPage(
+            onAgree: () async {
+              await PlatformPolicyService.instance.acceptCurrentUserPolicy();
+
+              if (!mounted) return;
+
+              Navigator.pop(context);
+
+              await _goNextAfterLogin();
+            },
+          ),
+        ),
+      );
+      return;
+    }
+
     if (widget.redirectShopId != null) {
       Navigator.pushAndRemoveUntil(
         context,
@@ -87,40 +99,65 @@ class _LoginPageState extends State<LoginPage> {
         (route) => false,
       );
     }
+  }
 
-    /// 🔥 記住帳號
-    final prefs = await SharedPreferences.getInstance();
-
-    if (_rememberEmail) {
-      await prefs.setString(
-        'saved_email',
-        _emailController.text.trim(),
-      );
-    } else {
-      await prefs.remove('saved_email');
-    }
-  } catch (e) {
+  Future<void> _login() async {
     setState(() {
-      _error = '登入失敗：$e';
+      _loading = true;
+      _error = null;
     });
-  } finally {
-    if (mounted) {
+
+    try {
+      await AuthService.instance.login(
+        email: _emailController.text.trim(),
+        password: _passwordController.text.trim(),
+      );
+
+      final prefs = await SharedPreferences.getInstance();
+
+      if (_rememberEmail) {
+        await prefs.setString(
+          'saved_email',
+          _emailController.text.trim(),
+        );
+      } else {
+        await prefs.remove('saved_email');
+      }
+
+      if (!mounted) return;
+
+      await _goNextAfterLogin();
+    } catch (e) {
       setState(() {
-        _loading = false;
+        _error = '登入失敗：$e';
       });
+    } finally {
+      if (mounted) {
+        setState(() {
+          _loading = false;
+        });
+      }
     }
   }
-}
 
-  /// 🏪 建立店家（測試用）
   Future<void> _createShop() async {
     try {
-      final shopId = await ShopService.instance.createShop(
+      final policy = await PlatformPolicyManageService.instance.getPolicy(
+  PlatformShopOwnerPolicyPage.policyKey,
+);
+
+final currentPolicyVersion =
+    policy?['version'] is int ? policy!['version'] : 1;
+
+final shopId = await ShopService.instance.createShop(
   name: '我的第一間店',
   city: '新竹縣',
   district: '新埔鎮',
   businessType: 'cat_hotel',
+  acceptedShopOwnerPolicyVersion: currentPolicyVersion,
+  activationCode: 'TEST',
 );
+
       if (!mounted) return;
 
       ScaffoldMessenger.of(context).showSnackBar(
@@ -132,6 +169,35 @@ class _LoginPageState extends State<LoginPage> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('建立失敗：$e')),
       );
+    }
+  }
+
+  Future<void> _googleLogin() async {
+    try {
+      setState(() {
+        _loading = true;
+        _error = null;
+      });
+
+      final result = await AuthService.instance.signInWithGoogle();
+
+      if (result == null) return;
+
+      if (!mounted) return;
+
+      await _goNextAfterLogin();
+    } catch (e) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Google登入失敗: $e')),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _loading = false;
+        });
+      }
     }
   }
 
@@ -154,7 +220,6 @@ class _LoginPageState extends State<LoginPage> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                /// Email
                 TextField(
                   controller: _emailController,
                   decoration: const InputDecoration(
@@ -162,9 +227,9 @@ class _LoginPageState extends State<LoginPage> {
                     border: OutlineInputBorder(),
                   ),
                 ),
+
                 const SizedBox(height: 12),
 
-                /// 密碼
                 TextField(
                   controller: _passwordController,
                   obscureText: true,
@@ -173,9 +238,9 @@ class _LoginPageState extends State<LoginPage> {
                     border: OutlineInputBorder(),
                   ),
                 ),
+
                 const SizedBox(height: 8),
 
-                /// 🔥 記住帳號
                 CheckboxListTile(
                   title: const Text('記住帳號'),
                   value: _rememberEmail,
@@ -186,7 +251,6 @@ class _LoginPageState extends State<LoginPage> {
                   },
                 ),
 
-                /// 錯誤訊息
                 if (_error != null)
                   Text(
                     _error!,
@@ -195,7 +259,6 @@ class _LoginPageState extends State<LoginPage> {
 
                 const SizedBox(height: 12),
 
-                /// 登入按鈕
                 SizedBox(
                   width: double.infinity,
                   child: ElevatedButton(
@@ -206,64 +269,17 @@ class _LoginPageState extends State<LoginPage> {
 
                 const SizedBox(height: 12),
 
-/// 🔥 Google 登入
-SizedBox(
-  width: double.infinity,
-  child: ElevatedButton.icon(
-    icon: const Icon(Icons.g_mobiledata, size: 28),
-    label: const Text('使用 Google 登入'),
-    onPressed: _loading
-        ? null
-        : () async {
-            try {
-              setState(() {
-                _loading = true;
-              });
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    icon: const Icon(Icons.g_mobiledata, size: 28),
+                    label: const Text('使用 Google 登入'),
+                    onPressed: _loading ? null : _googleLogin,
+                  ),
+                ),
 
-              final result =
-                  await AuthService.instance.signInWithGoogle();
+                const SizedBox(height: 12),
 
-              if (result == null) return;
-
-              if (!mounted) return;
-
-/// 🔥 Google 登入成功後回原店家
-if (widget.redirectShopId != null) {
-  Navigator.pushAndRemoveUntil(
-    context,
-    MaterialPageRoute(
-      builder: (_) => ShopPublicPage(
-        shopId: widget.redirectShopId!,
-      ),
-    ),
-    (route) => false,
-  );
-} else {
-  Navigator.pushNamedAndRemoveUntil(
-    context,
-    '/home',
-    (route) => false,
-  );
-}
-            } catch (e) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('Google登入失敗: $e')),
-              );
-            } finally {
-              if (mounted) {
-                setState(() {
-                  _loading = false;
-                });
-              }
-            }
-          },
-  ),
-),
-
-const SizedBox(height: 12),
-
-
-                /// 建立店家
                 SizedBox(
                   width: double.infinity,
                   child: ElevatedButton(
@@ -274,7 +290,6 @@ const SizedBox(height: 12),
 
                 const SizedBox(height: 12),
 
-                /// 註冊
                 TextButton(
                   onPressed: _loading
                       ? null

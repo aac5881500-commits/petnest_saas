@@ -153,6 +153,61 @@ final depositRequired = data['depositRequired'] == true;
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 /// 🔥 房間主卡片（取代基本資訊）
+                if (data['source'] == 'admin')
+  Container(
+    width: double.infinity,
+    padding: const EdgeInsets.all(12),
+    margin: const EdgeInsets.only(bottom: 12),
+    decoration: BoxDecoration(
+      color: Colors.blue.shade50,
+      borderRadius: BorderRadius.circular(14),
+      border: Border.all(color: Colors.blue.shade200),
+    ),
+    child: Row(
+      children: [
+        const Icon(Icons.edit_note, color: Colors.blue),
+        const SizedBox(width: 8),
+        Expanded(
+          child: RichText(
+  text: TextSpan(
+    style: TextStyle(
+      color: Colors.blue.shade800,
+      fontWeight: FontWeight.w900,
+      fontSize: 14,
+      height: 1.5,
+    ),
+    children: [
+      TextSpan(
+        text:
+            '手動新增訂單｜${data['createdByEmail'] ?? '未知操作人員'}\n',
+      ),
+
+      const TextSpan(
+        text:
+            '⚠ 此訂單為店家後台手動建立。\n',
+        style: TextStyle(
+          color: Colors.red,
+          fontWeight: FontWeight.w900,
+        ),
+      ),
+
+      const TextSpan(
+        text:
+            '• 不會自動套用訂金模式\n'
+            '• 不會自動產生付款方式\n'
+            '• 建立完成後，請店主自行確認訂單與收款狀態',
+        style: TextStyle(
+          color: Colors.red,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+    ],
+  ),
+),
+        ),
+      ],
+    ),
+  ),
 Container(
   width: double.infinity,
   padding: const EdgeInsets.all(16),
@@ -670,7 +725,7 @@ const SizedBox(height: 10),
 
 Container(
   width: double.infinity,
-  padding: const EdgeInsets.all(12),
+  padding: const EdgeInsets.all(14),
   decoration: BoxDecoration(
     color: Colors.blue.shade50,
     borderRadius: BorderRadius.circular(12),

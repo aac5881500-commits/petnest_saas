@@ -213,6 +213,204 @@ await blockRoomCalendar(
 
     return doc.id;
   }
+    Future<String> createAdminBooking({
+  required String shopId,
+  required String userId,
+  required String customerName,
+  required String customerPhone,
+  required List<String> petIds,
+  required String serviceType,
+  required DateTime startDate,
+  required DateTime endDate,
+  required int nights,
+  required String roomId,
+  required String roomName,
+  required String roomTypeName, 
+required int basePrice,
+required int extraPetPrice,
+required int extraPetCount,
+required int extraPetTotal,
+required int roomSubtotal,
+required List<dynamic> roomImages,
+  String note = '',
+String address = '',
+String emergencyName = '',
+String emergencyPhone = '',
+String emergencyRelation = '',
+String emergencyAddress = '',
+String emergencyPhone2 = '',
+int totalPrice = 0,
+int depositAmount = 0,
+String paymentMethod = '',
+String payAmountType = '', // deposit / full
+List<Map<String, dynamic>>? pets,
+List<Map<String, dynamic>>? addons,
+
+
+})async {
+    final operator = _currentUser;
+    final doc = _bookings.doc();
+
+    final normalizedStart = _dateOnly(startDate);
+    final normalizedEnd = _dateOnly(endDate);
+    /// 🔥 取得店家付款資料快照
+final shopDoc = await _firestore
+    .collection('shops')
+    .doc(shopId)
+    .get();
+
+final shopData = shopDoc.data() ?? {};
+
+final bankName = shopData['bankName'] ?? '';
+final accountName = shopData['accountName'] ?? '';
+final accountNumber = shopData['accountNumber'] ?? '';
+final depositExpireHours = shopData['depositExpireHours'] ?? 1;
+
+// 🔥 自動找房間
+final room = await findAvailableRoom(
+  shopId: shopId,
+  roomTypeId: roomId, // 👈 先暫用 roomId 當 typeId
+  startDate: normalizedStart,
+  endDate: normalizedEnd,
+);
+
+if (room == null) {
+  throw Exception('沒有可用房間');
+}
+
+final realRoomId = room['id'];
+final realRoomName = room['name'];
+
+// 🔥 取得寵物資料（快照）
+if (operator == null) throw Exception('未登入');
+
+final petDocs = await _firestore
+    .collection('user_profiles')
+    .doc(userId)
+    .collection('pets')
+    .where(FieldPath.documentId, whereIn: petIds)
+    .get();
+
+final finalPets = petDocs.docs.map((doc) {
+  final p = doc.data();
+
+  return {
+    'name': p['name'],
+    'breed': p['breed'],
+    'gender': p['gender'],
+    'age': p['age'],
+    'isNeutered': p['isNeutered'],
+
+    /// 🔥 修正這裡
+    'photoUrl': p['photoUrl'] ?? '',
+
+    'medicalStatus': p['vaccine'],
+    'litterType': p['litterType'],
+
+    'note': p['note'],
+    'staffNote': p['adminNote'] ?? '',
+  };
+}).toList();
+
+
+// 🔥 最終防呆：再次確認房間可用
+final available = await isRoomAvailable(
+  shopId: shopId,
+  roomId: realRoomId, 
+  startDate: normalizedStart,
+  endDate: normalizedEnd,
+);
+
+if (!available) {
+  throw Exception('房間已被預約');
+}
+
+    await doc.set({
+      'addons': (addons ?? []).isNotEmpty ? addons : [],
+      'bookingId': doc.id,
+      'shopId': shopId,
+      'userId': userId,
+'source': 'admin',
+'createdByUid': operator.uid,
+'createdByEmail': operator.email,
+      'customerName': customerName.trim(),
+      'customerPhone': customerPhone.trim(),
+      'address': address,
+      'roomTypeName': roomName, 
+'basePrice': basePrice,
+'extraPetPrice': extraPetPrice,
+'extraPetCount': extraPetCount,
+'extraPetTotal': extraPetTotal,
+'roomSubtotal': roomSubtotal,
+'roomImages': roomImages,
+'emergencyContact': {
+  'name': emergencyName,
+  'phone': emergencyPhone,
+  'relation': emergencyRelation,
+  'address': emergencyAddress,
+  'phone2': emergencyPhone2,
+},
+      'petIds': petIds,
+      'pets': finalPets,
+      'roomId': realRoomId,
+      'roomName': realRoomName,
+      'serviceType': serviceType,
+
+      /// 區間日期
+      'startDate': Timestamp.fromDate(normalizedStart),
+      'endDate': Timestamp.fromDate(normalizedEnd),
+      'nights': nights,
+
+
+      /// 狀態
+      'status': 'pending', // pending / confirmed / completed / cancelled
+
+      /// 備註
+      'note': note.trim(),
+      
+
+      /// 價格欄位
+'totalPrice': totalPrice,
+'depositAmount': depositAmount,
+'paymentMethod': paymentMethod,
+'payAmountType': payAmountType,
+
+/// 🔥 店家轉帳資訊快照
+'bankName': bankName,
+'accountName': accountName,
+'accountNumber': accountNumber,
+'depositExpireHours': depositExpireHours,
+'depositExpireAt': paymentMethod == 'transfer' ||
+        paymentMethod == 'cash'
+    ? Timestamp.fromDate(
+        DateTime.now().add(
+          depositExpireHours == 0
+              ? const Duration(minutes: 1)
+              : Duration(hours: depositExpireHours),
+        ),
+      )
+    : null,
+      /// 未來預留
+      'checkedInAt': null,
+      'checkedOutAt': null,
+      'cameraAccessEnabled': false,
+      'cameraUrl': null,
+
+      /// 系統欄位
+      'createdAt': FieldValue.serverTimestamp(),
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+
+// 🔒 同步鎖房（確保不會漏）
+await blockRoomCalendar(
+  shopId: shopId,
+  roomId: realRoomId,
+  startDate: normalizedStart,
+  endDate: normalizedEnd,
+);
+
+    return doc.id;
+  }
 
   /// 取得單筆預約
   Future<Map<String, dynamic>?> getBooking(String bookingId) async {

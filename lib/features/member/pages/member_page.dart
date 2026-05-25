@@ -38,10 +38,107 @@ bool _sameAsOwner = false;
 bool _editingProfile = false;
 bool _editingAddress = false;
 bool _editingEmergency = false;
+bool _hasSyncedMember = false;
+
+Future<void> _syncMemberByEmail(User user) async {
+  final result = await FirebaseFirestore.instance
+      .collection('user_profiles')
+      .where('email', isEqualTo: user.email)
+      .limit(1)
+      .get();
+
+  if (result.docs.isEmpty) return;
+
+  final oldDoc = result.docs.first;
+  if (oldDoc.id == user.uid) return;
+
+  final oldData = oldDoc.data();
+
+  await FirebaseFirestore.instance
+      .collection('user_profiles')
+      .doc(user.uid)
+      .set({
+    ...oldData,
+    'uid': user.uid,
+    'linkedAuthUid': user.uid,
+    'updatedAt': FieldValue.serverTimestamp(),
+  }, SetOptions(merge: true));
+}
+
+Future<void> _createMemberLinkRequest({
+  required User user,
+  required String phone,
+}) async {
+  final samePhoneResult = await FirebaseFirestore.instance
+    .collection('user_profiles')
+    .where('phone', isEqualTo: phone)
+    .limit(10)
+    .get();
+
+final oldDocs = samePhoneResult.docs.where((doc) {
+  final data = doc.data();
+  final linkedAuthUid = data['linkedAuthUid']?.toString() ?? '';
+
+  return doc.id != user.uid && linkedAuthUid.isEmpty;
+}).toList();
+
+if (oldDocs.isEmpty) return;
+
+final oldDoc = oldDocs.first;
+
+  final oldData = oldDoc.data();
+
+  final linkedAuthUid = oldData['linkedAuthUid']?.toString() ?? '';
+  if (linkedAuthUid.isNotEmpty) return;
+
+ final exists = await FirebaseFirestore.instance
+    .collection('member_link_requests')
+    .where('authUid', isEqualTo: user.uid)
+    .where('targetUserId', isEqualTo: oldDoc.id)
+    .limit(1)
+    .get();
+
+if (exists.docs.isNotEmpty) {
+  final requestDoc = exists.docs.first;
+  final requestData = requestDoc.data();
+
+  final status =
+      requestData['status']?.toString() ?? '';
+
+  if (status == 'pending' ||
+      status == 'approved') {
+    return;
+  }
+
+  if (status == 'rejected') {
+    await requestDoc.reference.update({
+      'status': 'pending',
+      'resentAt': FieldValue.serverTimestamp(),
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+
+    return;
+  }
+}
+  await FirebaseFirestore.instance.collection('member_link_requests').add({
+    'authUid': user.uid,
+    'authEmail': user.email ?? '',
+    'targetUserId': oldDoc.id,
+    'targetName': oldData['name'] ?? '',
+    'targetPhone': phone,
+    'status': 'pending',
+    'createdAt': FieldValue.serverTimestamp(),
+    'updatedAt': FieldValue.serverTimestamp(),
+  });
+}
 
   @override
   Widget build(BuildContext context) {
     final user = FirebaseAuth.instance.currentUser;
+    if (user != null && !_hasSyncedMember) {
+  _hasSyncedMember = true;
+  _syncMemberByEmail(user);
+}
 
     return Scaffold(
       appBar: AppBar(
@@ -138,6 +235,145 @@ if (emergency != null && !_sameAsOwner) {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
+
+                        StreamBuilder<QuerySnapshot>(
+  stream: FirebaseFirestore.instance
+      .collection('member_link_requests')
+      .where('authUid', isEqualTo: user.uid)
+      .where('status', isEqualTo: 'pending')
+      .snapshots(),
+  builder: (context, requestSnapshot) {
+    if (!requestSnapshot.hasData) {
+      return const SizedBox();
+    }
+
+    if (requestSnapshot.data!.docs.isEmpty) {
+      return const SizedBox();
+    }
+
+
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.blue.shade50,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: Colors.blue.shade100,
+        ),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            Icons.info_outline,
+            color: Colors.blue.shade700,
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              '已送出會員綁定申請，等待店家確認後，會自動帶入原本的寵物與訂單資料。',
+              style: TextStyle(
+                color: Colors.blue.shade800,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  },
+),
+
+if ((data?['linkedAuthUid'] ?? '').toString().isNotEmpty)
+  Container(
+    width: double.infinity,
+    margin: const EdgeInsets.only(bottom: 16),
+    padding: const EdgeInsets.all(14),
+    decoration: BoxDecoration(
+      color: Colors.green.shade50,
+      borderRadius: BorderRadius.circular(14),
+      border: Border.all(
+        color: Colors.green.shade100,
+      ),
+    ),
+    child: Row(
+      children: [
+        Icon(
+          Icons.verified_user,
+          color: Colors.green.shade700,
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Text(
+            '已完成會員綁定，原本的寵物與訂單資料已帶入此帳號。',
+            style: TextStyle(
+              color: Colors.green.shade800,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ),
+      ],
+    ),
+  ),
+
+  StreamBuilder<QuerySnapshot>(
+  stream: FirebaseFirestore.instance
+      .collection('member_link_requests')
+      .where('authUid', isEqualTo: user.uid)
+      .where('status', isEqualTo: 'rejected')
+      .limit(1)
+      .snapshots(),
+  builder: (context, requestSnapshot) {
+    if (!requestSnapshot.hasData) {
+      return const SizedBox();
+    }
+
+    if (requestSnapshot.data!.docs.isEmpty) {
+  return const SizedBox();
+}
+
+final request =
+    requestSnapshot.data!.docs.first.data()
+        as Map<String, dynamic>;
+
+final rejectReason =
+    request['rejectReason']?.toString() ?? '';
+
+return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.orange.shade50,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: Colors.orange.shade200,
+        ),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            Icons.info_outline,
+            color: Colors.orange.shade700,
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              rejectReason.isEmpty
+    ? '店家未通過此手機綁定申請，你仍可正常使用此帳號。如需帶入舊訂單或寵物資料，請確認手機後重新送出，或聯繫店家協助。'
+    : '店家未通過此手機綁定申請，原因：$rejectReason。你仍可正常使用此帳號，如需帶入舊資料請確認手機後重新送出。',
+              style: TextStyle(
+                color: Colors.orange.shade900,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  },
+),
 
                         if (_editingProfile ||
     _editingAddress ||
@@ -506,23 +742,23 @@ _buildSectionCard(
   /// （你原本的必填判斷可以刪掉或留著都可以）
 
   /// ✅ 必填鎖（全部欄位）
-  if (_nameController.text.trim().isEmpty ||
-      _phoneController.text.trim().isEmpty ||
-      _city == null ||
-      _district == null ||
-      _detailAddressController.text.trim().isEmpty ||
-      _emergencyNameController.text.trim().isEmpty ||
-      _emergencyPhoneController.text.trim().isEmpty ||
-      _emergencyRelationController.text.trim().isEmpty ||
-      _emergencyAddressController.text.trim().isEmpty) {
-
+/// ✅ 會員中心只強制姓名 + 電話
+if (_nameController.text.trim().isEmpty ||
+    _phoneController.text.trim().isEmpty) {
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('請填寫所有必填欄位')),
+      const SnackBar(
+  content: Text('請填寫姓名與電話'),
+),
     );
     return;
   }
       final fullAddress =
           '${_city ?? ''}${_district ?? ''}${_detailAddressController.text}';
+
+await _createMemberLinkRequest(
+  user: user,
+  phone: _phoneController.text.trim(),
+);
 
       await FirebaseFirestore.instance
           .collection('user_profiles')
@@ -550,7 +786,9 @@ _buildSectionCard(
   });
 
   ScaffoldMessenger.of(context).showSnackBar(
-    const SnackBar(content: Text('已儲存')),
+    const SnackBar(
+  content: Text('已儲存，如手機曾由店家建立會員，將等待店家確認綁定'),
+),
   );
 }
     },

@@ -11,6 +11,7 @@ import 'package:petnest_saas/features/admin/widgets/booking_order_card.dart';
 import 'package:petnest_saas/features/admin/widgets/booking_advanced_filter_button.dart';
 import 'package:petnest_saas/dev/dev_fake_booking_generator.dart';
 import 'package:petnest_saas/features/admin/pages/admin_booking_history_page.dart';
+import 'package:petnest_saas/features/admin/pages/admin_create_booking_page.dart';
 
 //關閉測試 生成定安
 const bool kDevMode = false;
@@ -81,6 +82,23 @@ void dispose() {
         );
       },
     ),
+    Padding(
+  padding: const EdgeInsets.only(right: 8),
+  child: TextButton.icon(
+    onPressed: () {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => AdminCreateBookingPage(
+            shopId: widget.shopId,
+          ),
+        ),
+      );
+    },
+    icon: const Icon(Icons.add),
+    label: const Text('手動新增訂單'),
+  ),
+),
   ],
 ),
       body: Column(

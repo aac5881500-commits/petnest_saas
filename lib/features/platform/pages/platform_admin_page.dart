@@ -3,7 +3,10 @@
 // 功能：平台管理入口，包含店家管理、方案付款、平台操作紀錄
 
 import 'package:flutter/material.dart';
+import 'package:petnest_saas/features/platform/pages/platform_member_manage_page.dart';
 import 'package:petnest_saas/features/platform/pages/platform_shop_manage_page.dart';
+import 'package:petnest_saas/features/platform/pages/platform_policy_manage_page.dart';
+import 'package:petnest_saas/features/platform/pages/platform_activation_code_manage_page.dart';
 
 class PlatformAdminPage extends StatelessWidget {
   const PlatformAdminPage({super.key});
@@ -32,6 +35,21 @@ class PlatformAdminPage extends StatelessWidget {
             },
           ),
           const SizedBox(height: 12),
+
+_AdminEntryCard(
+  icon: Icons.people_alt_outlined,
+  title: '平台會員管理',
+  subtitle: '管理平台會員、封鎖狀態與平台備註',
+  onTap: () {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => const PlatformMemberManagePage(),
+      ),
+    );
+  },
+),
+          const SizedBox(height: 12),
           _AdminEntryCard(
             icon: Icons.payments,
             title: '方案 / 付款管理',
@@ -39,6 +57,38 @@ class PlatformAdminPage extends StatelessWidget {
             onTap: () {},
           ),
           const SizedBox(height: 12),
+          const SizedBox(height: 12),
+
+const SizedBox(height: 12),
+
+_AdminEntryCard(
+  icon: Icons.key_outlined,
+  title: '激活碼管理',
+  subtitle: '建立創店激活碼、查看使用次數與啟用狀態',
+  onTap: () {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) =>
+            const PlatformActivationCodeManagePage(),
+      ),
+    );
+  },
+),
+
+_AdminEntryCard(
+  icon: Icons.article_outlined,
+  title: '平台條款管理',
+  subtitle: '管理平台會員條款與創店主條款版本',
+  onTap: () {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => const PlatformPolicyManagePage(),
+      ),
+    );
+  },
+),
           _AdminEntryCard(
             icon: Icons.history,
             title: '平台操作紀錄',

@@ -149,6 +149,7 @@ final trialShops = docs.where((doc) {
 
           return ListView(
   padding: const EdgeInsets.all(16),
+  
   children: [
     Wrap(
       spacing: 12,
@@ -207,15 +208,28 @@ final trialShops = docs.where((doc) {
               final paidUntil = data['paidUntil'];
               final createdAt = data['createdAt'];
 final lastLoginAt = data['lastLoginAt'];
+final acceptedShopOwnerPolicyVersion =
+    data['acceptedShopOwnerPolicyVersion'] ?? 0;
+    final activationCode =
+    data['activationCode']?.toString() ?? '';
+final planStatus = status == 'suspended'
+    ? '已停權'
+    : plan == 'free'
+        ? '試用中'
+        : '付費中';
 
               return Card(
-                elevation: 0,
-                color: Colors.white,
+  elevation: 0,
+  color: status == 'suspended'
+      ? const Color(0xFFFFFBFB)
+      : Colors.white,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(18),
                   side: BorderSide(
-                    color: Colors.grey.shade200,
-                  ),
+  color: status == 'suspended'
+      ? Colors.red.shade100
+      : Colors.grey.shade200,
+),
                 ),
                 child: Padding(
                   padding: const EdgeInsets.all(14),
@@ -313,12 +327,23 @@ final lastLoginAt = data['lastLoginAt'];
   ],
 ),
 
-                      const SizedBox(height: 14),
+    
 
-                      Wrap(
-  spacing: 8,
-  runSpacing: 8,
-  children: [
+const SizedBox(height: 14),
+
+                      Container(
+  padding: const EdgeInsets.all(14),
+  decoration: BoxDecoration(
+    color: const Color(0xFFF9FAFB),
+    borderRadius: BorderRadius.circular(16),
+    border: Border.all(
+      color: Colors.grey.shade200,
+    ),
+  ),
+  child: Wrap(
+    spacing: 8,
+    runSpacing: 8,
+    children: [
     PlatformShopInfoPill(
       icon: Icons.visibility,
       label: isPublic ? '前台公開' : '前台隱藏',
@@ -339,78 +364,183 @@ PlatformShopInfoPill(
   icon: Icons.login,
   label: '最後登入：${_formatDate(lastLoginAt)}',
 ),
-  ],
+PlatformShopInfoPill(
+  icon: Icons.article_outlined,
+  label: acceptedShopOwnerPolicyVersion == 0
+      ? '創店條款：未記錄'
+      : '創店條款：v$acceptedShopOwnerPolicyVersion',
+),
+if (activationCode.isNotEmpty)
+  PlatformShopInfoPill(
+    icon: Icons.key_outlined,
+    label: '激活碼：$activationCode',
+  ),
+      ],
+  ),
 ),
 
 const SizedBox(height: 12),
 
-DropdownButtonFormField<String>(
-  value: plan,
-  decoration: InputDecoration(
-    labelText: '店家方案',
-    border: OutlineInputBorder(
-      borderRadius: BorderRadius.circular(14),
+Container(
+  padding: const EdgeInsets.all(14),
+  decoration: BoxDecoration(
+    color: Colors.white,
+    borderRadius: BorderRadius.circular(16),
+    border: Border.all(
+      color: Colors.blue.shade100,
     ),
-    isDense: true,
   ),
-  items: const [
-    DropdownMenuItem(
-      value: 'free',
-      child: Text('免費版'),
-    ),
-    DropdownMenuItem(
-      value: 'basic',
-      child: Text('999｜單模板'),
-    ),
-    DropdownMenuItem(
-      value: 'pro',
-      child: Text('1999｜全功能'),
-    ),
-  ],
-  onChanged: (value) async {
-    if (value == null) return;
-
-    final normalizedModules = _normalizeModulesByPlan(
-      plan: value,
-      currentModules: enabledModules,
+  child: Row(
+    children: [
+      Container(
+        width: 36,
+        height: 36,
+        decoration: BoxDecoration(
+          color: Colors.blue.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: const Icon(
+          Icons.event_note,
+          color: Colors.blue,
+          size: 20,
+        ),
+      ),
+      const SizedBox(width: 12),
+      Expanded(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              '方案',
+              style: TextStyle(
+                fontSize: 12,
+                color: Colors.grey.shade600,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              _planLabel(plan),
+              style: const TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w900,
+                color: Color(0xFF111827),
+              ),
+            ),
+            const SizedBox(height: 4),
+Text(
+  planStatus,
+  style: TextStyle(
+    fontSize: 12,
+    color: status == 'suspended'
+        ? Colors.red
+        : plan == 'free'
+            ? Colors.orange
+            : Colors.green,
+    fontWeight: FontWeight.w800,
+  ),
+),
+          ],
+        ),
+      ),
+      OutlinedButton(
+        style: OutlinedButton.styleFrom(
+  foregroundColor: Colors.blue,
+  side: BorderSide(
+    color: Colors.blue.shade200,
+  ),
+  padding: const EdgeInsets.symmetric(
+    horizontal: 14,
+    vertical: 12,
+  ),
+  shape: RoundedRectangleBorder(
+    borderRadius: BorderRadius.circular(14),
+  ),
+),
+  onPressed: () {
+    showDialog(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text('變更方案'),
+          content: const Text(
+            '正式版建議不要直接切換方案，之後這裡會改成：延長試用、人工續約、強制降級、開通測試權限。',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pop(dialogContext);
+              },
+              child: const Text('我知道了'),
+            ),
+          ],
+        );
+      },
     );
-
-    await FirebaseFirestore.instance
-        .collection('shops')
-        .doc(doc.id)
-        .update({
-      'plan': value,
-      'enabledModules': normalizedModules,
-      'updatedAt': FieldValue.serverTimestamp(),
-    });
   },
+  child: const Text('變更方案'),
+),
+    ],
+  ),
 ),
 
 const SizedBox(height: 8),
 
-SwitchListTile(
-  contentPadding: EdgeInsets.zero,
-  value: isPublic,
-  title: const Text(
-    '前台公開',
-    style: TextStyle(
-      fontWeight: FontWeight.w700,
+Container(
+  padding: const EdgeInsets.all(14),
+  decoration: BoxDecoration(
+    color: const Color(0xFFF9FAFB),
+    borderRadius: BorderRadius.circular(16),
+    border: Border.all(
+      color: Colors.grey.shade200,
     ),
   ),
-  subtitle: Text(
-    isPublic ? '此店家目前會顯示在平台找店' : '此店家目前不會顯示在平台找店',
+  child: Row(
+    children: [
+      Icon(
+        Icons.public,
+        size: 20,
+        color: isPublic ? Colors.blue : Colors.grey,
+      ),
+      const SizedBox(width: 10),
+      Expanded(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              isPublic ? '前台已公開' : '前台已隱藏',
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w900,
+                color: isPublic ? Colors.green : Colors.red,
+              ),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              isPublic ? '此店家目前會顯示在平台找店' : '此店家目前不會顯示在平台找店',
+              style: TextStyle(
+                fontSize: 12,
+                color: Colors.grey.shade600,
+              ),
+            ),
+          ],
+        ),
+      ),
+      Switch(
+        value: isPublic,
+        onChanged: (value) async {
+          await FirebaseFirestore.instance
+              .collection('shops')
+              .doc(doc.id)
+              .update({
+            'isPublic': value,
+            'updatedAt': FieldValue.serverTimestamp(),
+          });
+        },
+      ),
+    ],
   ),
-  onChanged: (value) async {
-    await FirebaseFirestore.instance
-        .collection('shops')
-        .doc(doc.id)
-        .update({
-      'isPublic': value,
-      'updatedAt': FieldValue.serverTimestamp(),
-    });
-  },
 ),
-
                       const SizedBox(height: 12),
 
 GridView.count(
@@ -419,7 +549,7 @@ GridView.count(
   physics: const NeverScrollableScrollPhysics(),
   mainAxisSpacing: 10,
   crossAxisSpacing: 10,
-  childAspectRatio: 1.55,
+  childAspectRatio: 1.15,
   children: [
     PlatformShopMetricCard(
       icon: Icons.receipt_long,
@@ -436,12 +566,12 @@ GridView.count(
       iconColor: Colors.orange,
     ),
     PlatformShopMetricCard(
-      icon: Icons.image_outlined,
-      title: '媒體容量',
-      value: '0 MB',
-      subtitle: '已使用',
-      iconColor: Colors.purple,
-    ),
+  icon: Icons.image_outlined,
+  title: '媒體容量',
+  value: '未統計',
+  subtitle: '之後依圖片上傳紀錄計算',
+  iconColor: Colors.purple,
+),
     PlatformShopMetricCard(
       icon: Icons.public,
       title: '前台公開',
@@ -455,53 +585,101 @@ GridView.count(
 
 const SizedBox(height: 12),
 
-                      Row(
-                        children: [
-                          Expanded(
-                            child: OutlinedButton.icon(
-                              onPressed: () {},
-                              icon: const Icon(Icons.edit, size: 16),
-                              label: const Text('管理'),
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Expanded(
+                     Column(
+  children: [
+    SizedBox(
+      width: double.infinity,
       child: OutlinedButton.icon(
+        style: OutlinedButton.styleFrom(
+          foregroundColor: Colors.blue,
+          side: BorderSide(
+            color: Colors.blue.shade200,
+          ),
+          padding: const EdgeInsets.symmetric(vertical: 14),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+          ),
+        ),
         onPressed: () {},
-        icon: const Icon(Icons.dashboard_customize, size: 16),
-        label: const Text('模組'),
+        icon: const Icon(Icons.edit_outlined, size: 18),
+        label: const Text(
+          '管理',
+          style: TextStyle(fontWeight: FontWeight.w800),
+        ),
       ),
     ),
-    const SizedBox(width: 8),
 
-    Expanded(
+    const SizedBox(height: 8),
+
+    SizedBox(
+      width: double.infinity,
       child: OutlinedButton.icon(
-    onPressed: () async {
-      final nextStatus = status == 'suspended'
-          ? 'active'
-          : 'suspended';
+        style: OutlinedButton.styleFrom(
+          foregroundColor: const Color(0xFF4B5563),
+          side: BorderSide(
+            color: Colors.grey.shade300,
+          ),
+          padding: const EdgeInsets.symmetric(vertical: 14),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+          ),
+        ),
+        onPressed: () {},
+        icon: const Icon(Icons.dashboard_customize_outlined, size: 18),
+        label: const Text(
+          '模組設定',
+          style: TextStyle(fontWeight: FontWeight.w800),
+        ),
+      ),
+    ),
 
-      await FirebaseFirestore.instance
-          .collection('shops')
-          .doc(doc.id)
-          .update({
-        'status': nextStatus,
-        'updatedAt': FieldValue.serverTimestamp(),
-      });
-    },
-    icon: Icon(
-      status == 'suspended'
-          ? Icons.check_circle_outline
-          : Icons.block,
-      size: 16,
+    const SizedBox(height: 8),
+
+    SizedBox(
+      width: double.infinity,
+      child: OutlinedButton.icon(
+        style: OutlinedButton.styleFrom(
+          foregroundColor: status == 'suspended'
+              ? Colors.green
+              : Colors.red,
+          side: BorderSide(
+            color: status == 'suspended'
+                ? Colors.green.shade200
+                : Colors.red.shade200,
+          ),
+          padding: const EdgeInsets.symmetric(vertical: 14),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+          ),
+        ),
+        onPressed: () async {
+          final nextStatus = status == 'suspended'
+              ? 'active'
+              : 'suspended';
+
+          await FirebaseFirestore.instance
+              .collection('shops')
+              .doc(doc.id)
+              .update({
+            'status': nextStatus,
+            'updatedAt': FieldValue.serverTimestamp(),
+          });
+        },
+        icon: Icon(
+          status == 'suspended'
+              ? Icons.check_circle_outline
+              : Icons.block,
+          size: 18,
+        ),
+        label: Text(
+          status == 'suspended' ? '解除停權' : '停權店家',
+          style: const TextStyle(fontWeight: FontWeight.w800),
+        ),
+      ),
     ),
-    label: Text(
-      status == 'suspended' ? '恢復' : '停權',
-    ),
-  ),
+  ],
 ),
-                        ],
-                      ),
+
                     ],
                   ),
                 ),

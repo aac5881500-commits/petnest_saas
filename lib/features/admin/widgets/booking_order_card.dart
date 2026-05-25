@@ -189,6 +189,31 @@ class _BookingOrderCardState extends State<BookingOrderCard> {
     
   ),
 ),
+if (data['source'] == 'admin') ...[
+  const SizedBox(width: 8),
+
+  Container(
+    padding: const EdgeInsets.symmetric(
+      horizontal: 10,
+      vertical: 5,
+    ),
+    decoration: BoxDecoration(
+      color: Colors.blue.shade50,
+      borderRadius: BorderRadius.circular(12),
+      border: Border.all(
+        color: Colors.blue.shade200,
+      ),
+    ),
+    child: Text(
+      '手動新增',
+      style: TextStyle(
+        color: Colors.blue.shade800,
+        fontSize: 12,
+        fontWeight: FontWeight.w900,
+      ),
+    ),
+  ),
+],
 if (isDepositReview) ...[
   const SizedBox(width: 8),
   Container(

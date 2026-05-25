@@ -551,6 +551,26 @@ if (_transferEnabled)
   width: double.infinity,
   child: ElevatedButton(
     onPressed: () async {
+      
+      /// 🔥 預約前強制完整資料
+if (widget.customerNameController.text.trim().isEmpty ||
+    widget.customerPhoneController.text.trim().isEmpty ||
+    _city == null ||
+    _district == null ||
+    _detailAddressController.text.trim().isEmpty ||
+    _emergencyNameController.text.trim().isEmpty ||
+    _emergencyPhoneController.text.trim().isEmpty ||
+    _emergencyRelationController.text.trim().isEmpty ||
+    _emergencyAddressController.text.trim().isEmpty) {
+
+  ScaffoldMessenger.of(context).showSnackBar(
+    const SnackBar(
+      content: Text('送出預約前，請完整填寫會員資料'),
+    ),
+  );
+
+  return;
+}
       if (_paymentMethod == null) {
   ScaffoldMessenger.of(context).showSnackBar(
     const SnackBar(content: Text('請選擇付款方式')),
