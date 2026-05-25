@@ -4,6 +4,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:petnest_saas/features/admin/pages/admin_booking_list_page.dart';
+import 'package:petnest_saas/features/admin/pages/admin_member_link_request_page.dart';
 
 class AdminDashboardPage extends StatelessWidget {
   const AdminDashboardPage({
@@ -35,6 +36,7 @@ class AdminDashboardPage extends StatelessWidget {
 _buildCard(context, '今日入住', stats['checkIn'] ?? 0, Colors.blue, 'checkIn'),
 _buildCard(context, '今日退房', stats['checkOut'] ?? 0, Colors.orange, 'checkOut'),
 _buildCard(context, '未來訂單', stats['future'] ?? 0, Colors.green, 'future'),
+_memberLinkRequestCard(context, stats['linkRequests'] ?? 0),
               ],
             ),
           );
@@ -58,6 +60,13 @@ _buildCard(context, '未來訂單', stats['future'] ?? 0, Colors.green, 'future'
     int checkIn = 0;
     int checkOut = 0;
     int future = 0;
+    final linkRequestSnapshot = await FirebaseFirestore.instance
+    .collection('member_link_requests')
+.where('shopId', isEqualTo: shopId)
+.where('status', isEqualTo: 'pending')
+.get();
+
+final linkRequests = linkRequestSnapshot.docs.length;
 
     for (final doc in snapshot.docs) {
       final data = doc.data();
@@ -85,10 +94,11 @@ _buildCard(context, '未來訂單', stats['future'] ?? 0, Colors.green, 'future'
     }
 
     return {
-      'checkIn': checkIn,
-      'checkOut': checkOut,
-      'future': future,
-    };
+  'checkIn': checkIn,
+  'checkOut': checkOut,
+  'future': future,
+  'linkRequests': linkRequests,
+};
   }
 
   Widget _buildCard(
@@ -120,6 +130,48 @@ builder: (_) => AdminBookingListPage(
           fontSize: 20,
           fontWeight: FontWeight.bold,
           color: color,
+        ),
+      ),
+    ),
+  );
+}
+Widget _memberLinkRequestCard(BuildContext context, int value) {
+  return Card(
+    margin: const EdgeInsets.only(bottom: 12),
+    child: ListTile(
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => AdminMemberLinkRequestPage(
+              shopId: shopId,
+            ),
+          ),
+        );
+      },
+      leading: const Icon(
+        Icons.link,
+        color: Colors.purple,
+      ),
+      title: const Text('會員綁定申請'),
+      subtitle: const Text('查看等待店家確認的會員資料合併申請'),
+      trailing: value <= 0
+    ? const Icon(Icons.chevron_right)
+    : Container(
+        padding: const EdgeInsets.symmetric(
+          horizontal: 10,
+          vertical: 5,
+        ),
+        decoration: BoxDecoration(
+          color: Colors.red.shade50,
+          borderRadius: BorderRadius.circular(999),
+        ),
+        child: Text(
+          value.toString(),
+          style: TextStyle(
+            color: Colors.red.shade700,
+            fontWeight: FontWeight.bold,
+          ),
         ),
       ),
     ),

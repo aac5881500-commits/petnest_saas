@@ -35,6 +35,7 @@ import 'package:petnest_saas/features/shop/pages/shop_about_manage_page.dart';
 import 'package:petnest_saas/core/constants/shop_permission_keys.dart';
 
 
+
 class ShopDashboardPage extends StatefulWidget {
   const ShopDashboardPage({
     super.key,
@@ -520,21 +521,35 @@ enabled: currentUserRole == ShopRoles.owner,
 ),
 
 if (_can(ShopPermissionKeys.manageMembers))
-_MenuTile(
-  title: '會員管理',
-  subtitle: '查看會員資料與訂單紀錄（即將開放）',
-  icon: Icons.people,
-enabled: true,
-onTap: () {
-  Navigator.push(
-    context,
-    MaterialPageRoute(
-      builder: (_) => AdminMemberListPage(
-  shopId: shopId,
-),
-    ),
-  );
-},
+StreamBuilder<QuerySnapshot>(
+  stream: FirebaseFirestore.instance
+      .collection('member_link_requests')
+      .where('shopId', isEqualTo: shopId)
+      .where('status', isEqualTo: 'pending')
+      .snapshots(),
+  builder: (context, snapshot) {
+    final count = snapshot.data?.docs.length ?? 0;
+
+    return _MenuTile(
+      title: '會員管理',
+      subtitle: count > 0
+          ? '查看會員資料與訂單紀錄｜有 $count 筆會員綁定申請'
+          : '查看會員資料與訂單紀錄',
+      icon: Icons.people,
+      enabled: true,
+      badgeCount: count,
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => AdminMemberListPage(
+              shopId: shopId,
+            ),
+          ),
+        );
+      },
+    );
+  },
 ),
 
       ],
@@ -939,6 +954,7 @@ class _MenuTile extends StatelessWidget {
     required this.icon,
     required this.onTap,
     this.enabled = true,
+    this.badgeCount = 0,
   });
 
   final String title;
@@ -946,6 +962,7 @@ class _MenuTile extends StatelessWidget {
   final IconData icon;
   final VoidCallback onTap;
   final bool enabled;
+  final int badgeCount;
 
   @override
   Widget build(BuildContext context) {
@@ -956,7 +973,25 @@ class _MenuTile extends StatelessWidget {
           leading: Icon(icon),
           title: Text(title),
           subtitle: Text(subtitle),
-          trailing: const Icon(Icons.chevron_right),
+          trailing: badgeCount > 0
+    ? Container(
+        padding: const EdgeInsets.symmetric(
+          horizontal: 10,
+          vertical: 6,
+        ),
+        decoration: BoxDecoration(
+          color: Colors.red,
+          borderRadius: BorderRadius.circular(999),
+        ),
+        child: Text(
+          '$badgeCount',
+          style: const TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+      )
+    : const Icon(Icons.chevron_right),
           onTap: enabled ? onTap : null,
         ),
       ),

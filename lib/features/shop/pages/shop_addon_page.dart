@@ -32,13 +32,18 @@ class _ShopAddonPageState extends State<ShopAddonPage> {
   }
 
   /// 🔥 預設時間
-  List<Map<String, dynamic>> _defaultTimeOptions() {
-    return [
-      {
-        "label": "09:00 - 09:59 入住",
-        "price": 400,
-        "desc": "提早入住（早上）"
-      },
+ List<Map<String, dynamic>> _defaultTimeOptions() {
+  return [
+    {
+      "label": "正常入住",
+      "price": 0,
+      "desc": "一般營業時間內入住"
+    },
+    {
+      "label": "09:00 - 09:59 入住",
+      "price": 400,
+      "desc": "提早入住（早上）"
+    },
       {
         "label": "10:00 - 10:59 入住",
         "price": 200,

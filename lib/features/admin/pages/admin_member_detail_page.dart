@@ -51,6 +51,16 @@ final String shopId;
                 }
 
                 final tags = List<String>.from(data['tags'] ?? []);
+                final canArchiveMember =
+              
+    data['createdFrom'] == 'admin' &&
+    (data['linkedAuthUid'] ?? '').toString().isEmpty &&
+    (data['email'] ?? '').toString().isEmpty &&
+    data['status'] != 'archived';
+
+    final canRestoreMember =
+    data['createdFrom'] == 'admin' &&
+    data['status'] == 'archived';
 
                 return Container(
                   width: double.infinity,
@@ -814,6 +824,120 @@ return;
                           ),
                         ],
                       ),
+                      if (canArchiveMember)
+  Padding(
+    padding: const EdgeInsets.only(top: 12),
+    child: SizedBox(
+      width: double.infinity,
+      child: OutlinedButton.icon(
+        icon: const Icon(Icons.archive),
+        label: const Text('封存手動會員'),
+        onPressed: () async {
+          final confirm = await showDialog<bool>(
+            context: context,
+            builder: (context) {
+              return AlertDialog(
+                title: const Text('封存會員'),
+                content: const Text(
+                  '封存後會員列表將不再顯示此會員，但資料會保留，避免日後查不到紀錄。確定要封存嗎？',
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () {
+                      Navigator.pop(context, false);
+                    },
+                    child: const Text('取消'),
+                  ),
+                  ElevatedButton(
+                    onPressed: () {
+                      Navigator.pop(context, true);
+                    },
+                    child: const Text('確認封存'),
+                  ),
+                ],
+              );
+            },
+          );
+
+          if (confirm != true) return;
+
+          await FirebaseFirestore.instance
+              .collection('user_profiles')
+              .doc(userId)
+              .update({
+            'status': 'archived',
+            'archivedAt': FieldValue.serverTimestamp(),
+            'updatedAt': FieldValue.serverTimestamp(),
+          });
+
+          if (!context.mounted) return;
+
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('已封存會員')),
+          );
+
+          Navigator.pop(context);
+        },
+      ),
+    ),
+  ),
+  if (canRestoreMember)
+  Padding(
+    padding: const EdgeInsets.only(top: 12),
+    child: SizedBox(
+      width: double.infinity,
+      child: OutlinedButton.icon(
+        icon: const Icon(Icons.unarchive),
+        label: const Text('解除封存'),
+        onPressed: () async {
+          final confirm = await showDialog<bool>(
+            context: context,
+            builder: (context) {
+              return AlertDialog(
+                title: const Text('解除封存會員'),
+                content: const Text(
+                  '解除封存後，會員會重新出現在正常會員列表。確定要解除封存嗎？',
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () {
+                      Navigator.pop(context, false);
+                    },
+                    child: const Text('取消'),
+                  ),
+                  ElevatedButton(
+                    onPressed: () {
+                      Navigator.pop(context, true);
+                    },
+                    child: const Text('確認解除'),
+                  ),
+                ],
+              );
+            },
+          );
+
+          if (confirm != true) return;
+
+          await FirebaseFirestore.instance
+              .collection('user_profiles')
+              .doc(userId)
+              .update({
+            'status': FieldValue.delete(),
+            'restoredAt': FieldValue.serverTimestamp(),
+            'updatedAt': FieldValue.serverTimestamp(),
+          });
+
+          if (!context.mounted) return;
+
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('已解除封存')),
+          );
+
+          Navigator.pop(context);
+        },
+      ),
+    ),
+  ),
                     ],
                   ),
                 );

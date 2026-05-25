@@ -4,6 +4,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:petnest_saas/features/admin/pages/admin_member_detail_page.dart';
+import 'package:petnest_saas/features/admin/pages/admin_member_link_request_page.dart';
 
 class AdminMemberListPage extends StatefulWidget {
   const AdminMemberListPage({
@@ -20,6 +21,7 @@ class AdminMemberListPage extends StatefulWidget {
 
 class _AdminMemberListPageState extends State<AdminMemberListPage> {
   String keyword = '';
+  bool showArchived = false;
 
   @override
   Widget build(BuildContext context) {
@@ -45,10 +47,100 @@ class _AdminMemberListPageState extends State<AdminMemberListPage> {
               },
             ),
           ),
+         Align(
+  alignment: Alignment.centerRight,
+  child: Padding(
+    padding: const EdgeInsets.only(
+      right: 12,
+      bottom: 8,
+    ),
+    child: TextButton.icon(
+      icon: Icon(
+        showArchived
+            ? Icons.people
+            : Icons.archive,
+      ),
+      label: Text(
+        showArchived
+            ? '查看正常會員'
+            : '查看封存會員',
+      ),
+      onPressed: () {
+        setState(() {
+          showArchived = !showArchived;
+        });
+      },
+    ),
+  ),
+),
+
+StreamBuilder<QuerySnapshot>(
+  stream: FirebaseFirestore.instance
+      .collection('member_link_requests')
+      .where('shopId', isEqualTo: widget.shopId)
+      .where('status', isEqualTo: 'pending')
+      .snapshots(),
+  builder: (context, snapshot) {
+    final count = snapshot.data?.docs.length ?? 0;
+
+    if (count <= 0) {
+      return const SizedBox();
+    }
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+      child: Card(
+        color: Colors.red.shade50,
+        child: ListTile(
+          leading: const Icon(
+            Icons.link,
+            color: Colors.red,
+          ),
+          title: const Text(
+            '會員綁定申請',
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          subtitle: Text('目前有 $count 筆待確認申請'),
+          trailing: Container(
+            padding: const EdgeInsets.symmetric(
+              horizontal: 10,
+              vertical: 6,
+            ),
+            decoration: BoxDecoration(
+              color: Colors.red,
+              borderRadius: BorderRadius.circular(999),
+            ),
+            child: Text(
+              '$count',
+              style: const TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => AdminMemberLinkRequestPage(
+                  shopId: widget.shopId,
+                ),
+              ),
+            );
+          },
+        ),
+      ),
+    );
+  },
+),
 
           /// 📦 列表
           Expanded(
-            child: StreamBuilder<QuerySnapshot>(
+            child: showArchived
+    ? _buildArchivedMembers()
+    : StreamBuilder<QuerySnapshot>(
               stream: FirebaseFirestore.instance
     .collection('bookings')
     .where('shopId', isEqualTo: widget.shopId)
@@ -104,23 +196,23 @@ userMap[userId]!['bookingCount'] =
   }
 }
 
-
-
-final docs = userMap.values.where((data) {
-  final name = (data['name'] ?? '').toString();
-  final phone = (data['phone'] ?? '').toString();
-
-  if (keyword.isEmpty) return true;
-
-  return name.contains(keyword) ||
-      phone.contains(keyword);
-}).toList();
+final docs = userMap.values.toList();
 
                 if (docs.isEmpty) {
                   return const Center(child: Text('查無會員'));
                 }
 
-                return GridView.builder(
+                final visibleDocs = docs.where((data) {
+  final status = (data['status'] ?? '').toString();
+
+  if (showArchived) {
+    return status == 'archived';
+  }
+
+  return status != 'archived';
+}).toList();
+
+return GridView.builder(
                   padding: const EdgeInsets.all(12),
                   gridDelegate:
                       const SliverGridDelegateWithFixedCrossAxisCount(
@@ -129,9 +221,9 @@ crossAxisSpacing: 12,
 mainAxisSpacing: 12,
 childAspectRatio: 0.68,
                   ),
-                  itemCount: docs.length,
+                  itemCount: visibleDocs.length,
                   itemBuilder: (context, index) {
-                    final data = docs[index];
+                    final data = visibleDocs[index];
 
 final userId = data['userId']?.toString() ?? '';
 final name = data['name']?.toString().isEmpty == true
@@ -177,6 +269,7 @@ List<String> tags = [];
 String displayName = name;
 String displayPhone = phone;
 String displayEmail = email;
+String profileStatus = '';
 
     if (profileSnapshot.hasData) {
       final petsSnap =
@@ -201,6 +294,8 @@ final profilePhone =
 
 final profileEmail =
     profileData?['email']?.toString() ?? '';
+    profileStatus =
+    profileData?['status']?.toString() ?? '';
 
 displayName =
     profileName.isNotEmpty ? profileName : name;
@@ -215,6 +310,10 @@ displayEmail =
 
 note1Controller.text = profileNote;
     }
+
+if (profileStatus == 'archived') {
+  return const SizedBox();
+}
 
                         return GestureDetector(
                           onTap: () {
@@ -527,5 +626,60 @@ String _formatDate(Timestamp value) {
   final dt = value.toDate();
   String two(int n) => n.toString().padLeft(2, '0');
   return '${dt.year}-${two(dt.month)}-${two(dt.day)}';
+}
+Widget _buildArchivedMembers() {
+  return StreamBuilder<QuerySnapshot>(
+    stream: FirebaseFirestore.instance
+        .collection('user_profiles')
+        .where('status', isEqualTo: 'archived')
+        .snapshots(),
+    builder: (context, snapshot) {
+      if (!snapshot.hasData) {
+        return const Center(child: CircularProgressIndicator());
+      }
+
+      final docs = snapshot.data!.docs.where((doc) {
+        final data = doc.data() as Map<String, dynamic>;
+        final shopIds = List<String>.from(data['shopIds'] ?? []);
+        return shopIds.contains(widget.shopId);
+      }).toList();
+
+      if (docs.isEmpty) {
+        return const Center(child: Text('目前沒有封存會員'));
+      }
+
+      return ListView.builder(
+        padding: const EdgeInsets.all(12),
+        itemCount: docs.length,
+        itemBuilder: (context, index) {
+          final doc = docs[index];
+          final data = doc.data() as Map<String, dynamic>;
+
+          return Card(
+            child: ListTile(
+              leading: const Icon(Icons.archive),
+              title: Text(data['name'] ?? '未填姓名'),
+              subtitle: Text(
+                '電話：${data['phone'] ?? '未填'}\n封存會員',
+              ),
+              isThreeLine: true,
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => AdminMemberDetailPage(
+                      userId: doc.id,
+                      shopId: widget.shopId,
+                    ),
+                  ),
+                );
+              },
+            ),
+          );
+        },
+      );
+    },
+  );
 }
 }

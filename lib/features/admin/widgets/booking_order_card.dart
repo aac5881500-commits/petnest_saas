@@ -40,6 +40,13 @@ class _BookingOrderCardState extends State<BookingOrderCard> {
     final statusInfo = _statusInfo(status);
 
     final roomName = (data['roomName'] ?? '-').toString();
+
+    final assignStatus =
+    (data['assignStatus'] ?? 'assigned').toString();
+
+final isUnassigned =
+    assignStatus == 'unassigned';
+
     final roomTypeName = (data['roomTypeName'] ?? '未設定房型').toString();
 
     final customerName = (data['customerName'] ?? '未填姓名').toString();
@@ -105,7 +112,9 @@ class _BookingOrderCardState extends State<BookingOrderCard> {
                   Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      _roomBox(roomName),
+                      _roomBox(
+  isUnassigned ? '待分' : roomName,
+),
 
                       const SizedBox(width: 12),
 
@@ -232,6 +241,31 @@ if (isDepositReview) ...[
       '已回傳付款',
       style: TextStyle(
         color: Colors.red.shade700,
+        fontSize: 12,
+        fontWeight: FontWeight.w900,
+      ),
+    ),
+  ),
+],
+if (isUnassigned) ...[
+  const SizedBox(width: 8),
+
+  Container(
+    padding: const EdgeInsets.symmetric(
+      horizontal: 10,
+      vertical: 5,
+    ),
+    decoration: BoxDecoration(
+      color: Colors.orange.shade50,
+      borderRadius: BorderRadius.circular(12),
+      border: Border.all(
+        color: Colors.orange.shade200,
+      ),
+    ),
+    child: Text(
+      '待分房',
+      style: TextStyle(
+        color: Colors.orange.shade800,
         fontSize: 12,
         fontWeight: FontWeight.w900,
       ),

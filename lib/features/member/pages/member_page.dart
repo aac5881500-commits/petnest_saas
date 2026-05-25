@@ -2,6 +2,7 @@
 // 👤 會員中心頁（完整版：含電話輸入）
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:petnest_saas/core/services/pet_service.dart';
@@ -31,6 +32,7 @@ final TextEditingController _nameController = TextEditingController();
 final TextEditingController _emergencyNameController = TextEditingController();
 final TextEditingController _emergencyPhoneController = TextEditingController();
 final TextEditingController _emergencyRelationController = TextEditingController();
+String _emergencyRelation = '父母';
 final TextEditingController _emergencyAddressController = TextEditingController();
 
 
@@ -39,6 +41,41 @@ bool _editingProfile = false;
 bool _editingAddress = false;
 bool _editingEmergency = false;
 bool _hasSyncedMember = false;
+String? _validateName(String? value) {
+  final text = (value ?? '').trim();
+
+  if (text.isEmpty) {
+    return '請輸入姓名';
+  }
+
+  if (text.length < 2) {
+    return '姓名至少 2 個字';
+  }
+
+  final validNameRegex = RegExp(r'^[\u4e00-\u9fa5a-zA-Z\s．·.-]+$');
+
+  if (!validNameRegex.hasMatch(text)) {
+    return '姓名只能輸入中文、英文';
+  }
+
+  return null;
+}
+
+String? _validateTaiwanPhone(String? value) {
+  final text = (value ?? '').trim();
+
+  if (text.isEmpty) {
+    return '請輸入電話';
+  }
+
+  final phoneRegex = RegExp(r'^09\d{8}$');
+
+  if (!phoneRegex.hasMatch(text)) {
+    return '請輸入 09 開頭的 10 碼手機號碼';
+  }
+
+  return null;
+}
 
 Future<void> _syncMemberByEmail(User user) async {
   final result = await FirebaseFirestore.instance
@@ -121,6 +158,10 @@ if (exists.docs.isNotEmpty) {
   }
 }
   await FirebaseFirestore.instance.collection('member_link_requests').add({
+    'shopId': oldData['shopId'] ??
+    ((oldData['shopIds'] is List && oldData['shopIds'].isNotEmpty)
+        ? oldData['shopIds'].first
+        : ''),
     'authUid': user.uid,
     'authEmail': user.email ?? '',
     'targetUserId': oldDoc.id,
@@ -220,8 +261,9 @@ if (emergency != null && !_sameAsOwner) {
     _emergencyPhoneController.text = emergency['phone'] ?? '';
   }
   if (_emergencyRelationController.text.isEmpty) {
-    _emergencyRelationController.text = emergency['relation'] ?? '';
-  }
+  _emergencyRelationController.text = emergency['relation'] ?? '父母';
+  _emergencyRelation = _emergencyRelationController.text;
+}
   if (_emergencyAddressController.text.isEmpty) {
     _emergencyAddressController.text = emergency['address'] ?? '';
   }
@@ -236,54 +278,6 @@ if (emergency != null && !_sameAsOwner) {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
 
-                        StreamBuilder<QuerySnapshot>(
-  stream: FirebaseFirestore.instance
-      .collection('member_link_requests')
-      .where('authUid', isEqualTo: user.uid)
-      .where('status', isEqualTo: 'pending')
-      .snapshots(),
-  builder: (context, requestSnapshot) {
-    if (!requestSnapshot.hasData) {
-      return const SizedBox();
-    }
-
-    if (requestSnapshot.data!.docs.isEmpty) {
-      return const SizedBox();
-    }
-
-
-    return Container(
-      width: double.infinity,
-      margin: const EdgeInsets.only(bottom: 16),
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: Colors.blue.shade50,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(
-          color: Colors.blue.shade100,
-        ),
-      ),
-      child: Row(
-        children: [
-          Icon(
-            Icons.info_outline,
-            color: Colors.blue.shade700,
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              '已送出會員綁定申請，等待店家確認後，會自動帶入原本的寵物與訂單資料。',
-              style: TextStyle(
-                color: Colors.blue.shade800,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  },
-),
 
 if ((data?['linkedAuthUid'] ?? '').toString().isNotEmpty)
   Container(
@@ -306,7 +300,7 @@ if ((data?['linkedAuthUid'] ?? '').toString().isNotEmpty)
         const SizedBox(width: 10),
         Expanded(
           child: Text(
-            '已完成會員綁定，原本的寵物與訂單資料已帶入此帳號。',
+            '已完成會員綁定，原本的寵物與訂單資料已帶入此帳號，請留意寵物有重複記得刪除。',
             style: TextStyle(
               color: Colors.green.shade800,
               fontWeight: FontWeight.bold,
@@ -316,64 +310,6 @@ if ((data?['linkedAuthUid'] ?? '').toString().isNotEmpty)
       ],
     ),
   ),
-
-  StreamBuilder<QuerySnapshot>(
-  stream: FirebaseFirestore.instance
-      .collection('member_link_requests')
-      .where('authUid', isEqualTo: user.uid)
-      .where('status', isEqualTo: 'rejected')
-      .limit(1)
-      .snapshots(),
-  builder: (context, requestSnapshot) {
-    if (!requestSnapshot.hasData) {
-      return const SizedBox();
-    }
-
-    if (requestSnapshot.data!.docs.isEmpty) {
-  return const SizedBox();
-}
-
-final request =
-    requestSnapshot.data!.docs.first.data()
-        as Map<String, dynamic>;
-
-final rejectReason =
-    request['rejectReason']?.toString() ?? '';
-
-return Container(
-      width: double.infinity,
-      margin: const EdgeInsets.only(bottom: 16),
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: Colors.orange.shade50,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(
-          color: Colors.orange.shade200,
-        ),
-      ),
-      child: Row(
-        children: [
-          Icon(
-            Icons.info_outline,
-            color: Colors.orange.shade700,
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              rejectReason.isEmpty
-    ? '店家未通過此手機綁定申請，你仍可正常使用此帳號。如需帶入舊訂單或寵物資料，請確認手機後重新送出，或聯繫店家協助。'
-    : '店家未通過此手機綁定申請，原因：$rejectReason。你仍可正常使用此帳號，如需帶入舊資料請確認手機後重新送出。',
-              style: TextStyle(
-                color: Colors.orange.shade900,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  },
-),
 
                         if (_editingProfile ||
     _editingAddress ||
@@ -455,25 +391,30 @@ return Container(
 
       const SizedBox(height: 12),
 
-      TextFormField(
-        controller: _nameController,
-        decoration: const InputDecoration(
-          labelText: '飼主姓名',
-          border: OutlineInputBorder(),
-        ),
-        validator: (v) => v!.isEmpty ? '請輸入姓名' : null,
-      ),
-
+     TextFormField(
+  controller: _nameController,
+  decoration: const InputDecoration(
+    labelText: '飼主姓名',
+    border: OutlineInputBorder(),
+  ),
+  validator: _validateName,
+),
       const SizedBox(height: 12),
 
       TextFormField(
-        controller: _phoneController,
-        decoration: const InputDecoration(
-          labelText: '電話',
-          border: OutlineInputBorder(),
-        ),
-        validator: (v) => v!.isEmpty ? '請輸入電話' : null,
-      ),
+  controller: _phoneController,
+  keyboardType: TextInputType.phone,
+  inputFormatters: [
+    FilteringTextInputFormatter.digitsOnly,
+    LengthLimitingTextInputFormatter(10),
+  ],
+  decoration: const InputDecoration(
+    labelText: '電話',
+    hintText: '09xxxxxxxx',
+    border: OutlineInputBorder(),
+  ),
+  validator: _validateTaiwanPhone,
+),
 
       const SizedBox(height: 12),
 
@@ -635,34 +576,77 @@ _buildSectionCard(
         ),
       ),
     ] else ...[
-      TextField(
-        controller: _emergencyNameController,
-        decoration: const InputDecoration(
-          labelText: '姓名',
-          border: OutlineInputBorder(),
-        ),
-      ),
+      TextFormField(
+  controller: _emergencyNameController,
+  decoration: const InputDecoration(
+    labelText: '緊急聯絡人姓名',
+    border: OutlineInputBorder(),
+  ),
+  validator: _validateName,
+),
 
       const SizedBox(height: 16),
 
-      TextField(
-        controller: _emergencyPhoneController,
-        decoration: const InputDecoration(
-          labelText: '電話',
-          border: OutlineInputBorder(),
-        ),
-      ),
+      TextFormField(
+  controller: _emergencyPhoneController,
+  keyboardType: TextInputType.phone,
+  inputFormatters: [
+    FilteringTextInputFormatter.digitsOnly,
+    LengthLimitingTextInputFormatter(10),
+  ],
+  decoration: const InputDecoration(
+    labelText: '緊急聯絡人電話',
+    hintText: '09xxxxxxxx',
+    border: OutlineInputBorder(),
+  ),
+  validator: _validateTaiwanPhone,
+),
 
       const SizedBox(height: 16),
 
-      TextField(
-        controller: _emergencyRelationController,
-        decoration: const InputDecoration(
-          labelText: '關係',
-          border: OutlineInputBorder(),
-        ),
-      ),
+     DropdownButtonFormField<String>(
+  value: _emergencyRelation,
+  decoration: const InputDecoration(
+    labelText: '關係',
+    border: OutlineInputBorder(),
+  ),
+  items: const [
+    DropdownMenuItem(value: '父母', child: Text('父母')),
+    DropdownMenuItem(value: '夫妻', child: Text('夫妻')),
+    DropdownMenuItem(value: '兄弟姊妹', child: Text('兄弟姊妹')),
+    DropdownMenuItem(value: '情侶', child: Text('情侶')),
+    DropdownMenuItem(value: '朋友', child: Text('朋友')),
+    DropdownMenuItem(value: '其他', child: Text('其他')),
+  ],
+  onChanged: (value) {
+  setState(() {
+    _emergencyRelation = value ?? '父母';
 
+    if (_emergencyRelation == '其他') {
+      _emergencyRelationController.clear();
+    } else {
+      _emergencyRelationController.text = _emergencyRelation;
+    }
+  });
+},
+),
+if (_emergencyRelation == '其他') ...[
+  const SizedBox(height: 16),
+  TextFormField(
+    controller: _emergencyRelationController,
+    decoration: const InputDecoration(
+      labelText: '請輸入其他關係',
+      border: OutlineInputBorder(),
+    ),
+    validator: (v) {
+      if (_emergencyRelation == '其他' &&
+          (v == null || v.trim().isEmpty)) {
+        return '請輸入其他關係';
+      }
+      return null;
+    },
+  ),
+],
       const SizedBox(height: 16),
 
       Row(
@@ -786,8 +770,8 @@ await _createMemberLinkRequest(
   });
 
   ScaffoldMessenger.of(context).showSnackBar(
-    const SnackBar(
-  content: Text('已儲存，如手機曾由店家建立會員，將等待店家確認綁定'),
+   const SnackBar(
+  content: Text('已儲存，可直接新增寵物並預約'),
 ),
   );
 }

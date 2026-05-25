@@ -8,6 +8,7 @@ import 'package:petnest_saas/core/services/shop_service.dart';
 import 'package:petnest_saas/features/auth/pages/room_calendar_page.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:petnest_saas/core/constants/shop_permission_keys.dart';
+import 'package:petnest_saas/features/admin/pages/admin_booking_detail_page.dart';
 
 class RoomDashboardPage extends StatefulWidget {
   const RoomDashboardPage({
@@ -216,6 +217,13 @@ rooms.sort((a, b) {
                       .snapshots(),
                   builder: (context, bookingSnap) {
   final bookings = bookingSnap.data?.docs ?? [];
+  final unassignedBookings = bookings.where((doc) {
+  final data = doc.data() as Map<String, dynamic>;
+
+  return data['assignStatus'] == 'unassigned' &&
+      data['status'] != 'cancelled' &&
+      data['status'] != 'completed';
+}).toList();
 
   return StreamBuilder<QuerySnapshot>(
     stream: ShopService.instance
@@ -278,6 +286,110 @@ final blockedCount =
 
                     return Column(
   children: [
+    if (unassignedBookings.isNotEmpty)
+  Container(
+    width: double.infinity,
+    margin: const EdgeInsets.fromLTRB(12, 8, 12, 4),
+    padding: const EdgeInsets.all(12),
+    decoration: BoxDecoration(
+      color: Colors.orange.shade50,
+      borderRadius: BorderRadius.circular(14),
+      border: Border.all(
+        color: Colors.orange.shade200,
+      ),
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          '待分房訂單 (${unassignedBookings.length})',
+          style: TextStyle(
+            color: Colors.orange.shade800,
+            fontWeight: FontWeight.w900,
+            fontSize: 15,
+          ),
+        ),
+
+        const SizedBox(height: 10),
+
+        ...unassignedBookings.map((doc) {
+          final data = doc.data() as Map<String, dynamic>;
+
+          final customerName =
+              data['customerName'] ?? '';
+
+          final roomTypeName =
+              data['roomTypeName'] ?? '';
+
+          final start =
+              (data['startDate'] as Timestamp).toDate();
+
+          final end =
+              (data['endDate'] as Timestamp).toDate();
+
+          return InkWell(
+  onTap: () {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => AdminBookingDetailPage(
+          bookingId: doc.id,
+          canEdit: true,
+        ),
+      ),
+    );
+  },
+  child: Container(
+    margin: const EdgeInsets.only(bottom: 8),
+    padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Row(
+              children: [
+                const Icon(
+                  Icons.warning_amber_rounded,
+                  color: Colors.orange,
+                ),
+
+                const SizedBox(width: 10),
+
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment:
+                        CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        customerName,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+
+                      const SizedBox(height: 2),
+
+                      Text(
+                        '$roomTypeName ｜ '
+                        '${DateFormat('MM/dd').format(start)}'
+                        ' - '
+                        '${DateFormat('MM/dd').format(end)}',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.grey.shade700,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+                        ),
+          ),
+        );
+      }),
+      ],
+    ),
+  ),
     Padding(
   padding: const EdgeInsets.fromLTRB(12, 4, 12, 8),
   child: Column(
@@ -292,8 +404,10 @@ final blockedCount =
 ),
       ),
       const SizedBox(height: 6),
-     Row(
+    Row(
   children: [
+    _buildSummaryCard('待分房', unassignedBookings.length, Colors.orange),
+    const SizedBox(width: 8),
     _buildSummaryCard('空房', emptyCount, Colors.green),
     const SizedBox(width: 8),
     _buildSummaryCard('使用中', usingCount, Colors.blue),

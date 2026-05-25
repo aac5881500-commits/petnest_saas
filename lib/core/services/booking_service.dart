@@ -71,20 +71,6 @@ final accountName = shopData['accountName'] ?? '';
 final accountNumber = shopData['accountNumber'] ?? '';
 final depositExpireHours = shopData['depositExpireHours'] ?? 1;
 
-// 🔥 自動找房間
-final room = await findAvailableRoom(
-  shopId: shopId,
-  roomTypeId: roomId, // 👈 先暫用 roomId 當 typeId
-  startDate: normalizedStart,
-  endDate: normalizedEnd,
-);
-
-if (room == null) {
-  throw Exception('沒有可用房間');
-}
-
-final realRoomId = room['id'];
-final realRoomName = room['name'];
 
 // 🔥 取得寵物資料（快照）
 if (user == null) throw Exception('未登入');
@@ -118,18 +104,6 @@ final finalPets = petDocs.docs.map((doc) {
 }).toList();
 
 
-// 🔥 最終防呆：再次確認房間可用
-final available = await isRoomAvailable(
-  shopId: shopId,
-  roomId: realRoomId, 
-  startDate: normalizedStart,
-  endDate: normalizedEnd,
-);
-
-if (!available) {
-  throw Exception('房間已被預約');
-}
-
     await doc.set({
       'addons': (addons ?? []).isNotEmpty ? addons : [],
       'bookingId': doc.id,
@@ -138,7 +112,7 @@ if (!available) {
       'customerName': customerName.trim(),
       'customerPhone': customerPhone.trim(),
       'address': address,
-      'roomTypeName': roomName, 
+      'roomTypeName': roomTypeName, 
 'basePrice': basePrice,
 'extraPetPrice': extraPetPrice,
 'extraPetCount': extraPetCount,
@@ -154,8 +128,10 @@ if (!available) {
 },
       'petIds': petIds,
       'pets': finalPets,
-      'roomId': realRoomId,
-      'roomName': realRoomName,
+'roomTypeId': roomId,
+'roomId': null,
+'roomName': null,
+'assignStatus': 'unassigned',
       'serviceType': serviceType,
 
       /// 區間日期
@@ -203,13 +179,6 @@ if (!available) {
       'updatedAt': FieldValue.serverTimestamp(),
     });
 
-// 🔒 同步鎖房（確保不會漏）
-await blockRoomCalendar(
-  shopId: shopId,
-  roomId: realRoomId,
-  startDate: normalizedStart,
-  endDate: normalizedEnd,
-);
 
     return doc.id;
   }
@@ -266,20 +235,6 @@ final accountName = shopData['accountName'] ?? '';
 final accountNumber = shopData['accountNumber'] ?? '';
 final depositExpireHours = shopData['depositExpireHours'] ?? 1;
 
-// 🔥 自動找房間
-final room = await findAvailableRoom(
-  shopId: shopId,
-  roomTypeId: roomId, // 👈 先暫用 roomId 當 typeId
-  startDate: normalizedStart,
-  endDate: normalizedEnd,
-);
-
-if (room == null) {
-  throw Exception('沒有可用房間');
-}
-
-final realRoomId = room['id'];
-final realRoomName = room['name'];
 
 // 🔥 取得寵物資料（快照）
 if (operator == null) throw Exception('未登入');
@@ -313,18 +268,6 @@ final finalPets = petDocs.docs.map((doc) {
 }).toList();
 
 
-// 🔥 最終防呆：再次確認房間可用
-final available = await isRoomAvailable(
-  shopId: shopId,
-  roomId: realRoomId, 
-  startDate: normalizedStart,
-  endDate: normalizedEnd,
-);
-
-if (!available) {
-  throw Exception('房間已被預約');
-}
-
     await doc.set({
       'addons': (addons ?? []).isNotEmpty ? addons : [],
       'bookingId': doc.id,
@@ -336,7 +279,7 @@ if (!available) {
       'customerName': customerName.trim(),
       'customerPhone': customerPhone.trim(),
       'address': address,
-      'roomTypeName': roomName, 
+      'roomTypeName': roomTypeName, 
 'basePrice': basePrice,
 'extraPetPrice': extraPetPrice,
 'extraPetCount': extraPetCount,
@@ -352,8 +295,10 @@ if (!available) {
 },
       'petIds': petIds,
       'pets': finalPets,
-      'roomId': realRoomId,
-      'roomName': realRoomName,
+'roomTypeId': roomId,
+'roomId': null,
+'roomName': null,
+'assignStatus': 'unassigned',
       'serviceType': serviceType,
 
       /// 區間日期
@@ -400,14 +345,6 @@ if (!available) {
       'createdAt': FieldValue.serverTimestamp(),
       'updatedAt': FieldValue.serverTimestamp(),
     });
-
-// 🔒 同步鎖房（確保不會漏）
-await blockRoomCalendar(
-  shopId: shopId,
-  roomId: realRoomId,
-  startDate: normalizedStart,
-  endDate: normalizedEnd,
-);
 
     return doc.id;
   }
@@ -518,22 +455,24 @@ final cancelledAt = data['cancelledAt'];
 if (status == 'cancelled' || cancelledAt != null) return;
 
   await docRef.update({
-    'status': 'cancelled',
-    'cancelReason': cancelReason,
-    'cancelBy': cancelBy,
-    'cancelledAt': FieldValue.serverTimestamp(),
-    'updatedAt': FieldValue.serverTimestamp(),
-  });
+  'status': 'cancelled',
+  'assignStatus': data['assignStatus'] ?? 'unassigned',
+  'cancelReason': cancelReason,
+  'cancelBy': cancelBy,
+  'cancelledAt': FieldValue.serverTimestamp(),
+  'updatedAt': FieldValue.serverTimestamp(),
+});
 
   final shopId = data['shopId'];
   final roomId = data['roomId'];
   final startDate = data['startDate'];
   final endDate = data['endDate'];
 
-  if (shopId != null &&
-      roomId != null &&
-      startDate is Timestamp &&
-      endDate is Timestamp) {
+ if (shopId != null &&
+    roomId != null &&
+    roomId.toString().isNotEmpty &&
+    startDate is Timestamp &&
+    endDate is Timestamp) {
     await releaseRoomCalendar(
       shopId: shopId,
       roomId: roomId,
@@ -571,6 +510,76 @@ if (status == 'cancelled' || cancelledAt != null) return;
 });
 }
 
+/// ===============================
+/// 🔁 更換房間（預留入住中換房用）
+/// ===============================
+/// 功能：
+/// - 釋放舊房間 room_calendar
+/// - 檢查新房間是否可用
+/// - 鎖定新房間
+/// - 更新 booking 房號
+Future<void> changeAssignedRoom({
+  required String bookingId,
+  required String shopId,
+  required String oldRoomId,
+  required String oldRoomName,
+  required String newRoomId,
+  required String newRoomName,
+  required DateTime startDate,
+  required DateTime endDate,
+String reason = '',
+
+}) async {
+  final available = await isRoomAvailable(
+    shopId: shopId,
+    roomId: newRoomId,
+    startDate: startDate,
+    endDate: endDate,
+  );
+
+  if (!available) {
+    throw Exception('新房間在該日期區間已被預約');
+  }
+
+  await releaseRoomCalendar(
+    shopId: shopId,
+    roomId: oldRoomId,
+    startDate: startDate,
+    endDate: endDate,
+  );
+
+  await blockRoomCalendar(
+    shopId: shopId,
+    roomId: newRoomId,
+    startDate: startDate,
+    endDate: endDate,
+  );
+
+  await _bookings.doc(bookingId).update({
+    'roomId': newRoomId,
+    'roomName': newRoomName,
+    'assignStatus': 'assigned',
+    'roomChangedAt': FieldValue.serverTimestamp(),
+    'updatedAt': FieldValue.serverTimestamp(),
+  });
+
+  await _firestore.collection('action_logs').add({
+    'type': 'room_changed',
+    'bookingId': bookingId,
+    'bookingShortId': bookingId.substring(0, 8),
+    'shopId': shopId,
+    'oldRoomId': oldRoomId,
+    'oldRoomName': oldRoomName,
+    'newRoomId': newRoomId,
+    'newRoomName': newRoomName,
+    'reason': reason,
+    'operatorUid': _currentUser?.uid,
+    'operatorEmail': _currentUser?.email,
+    'operatorRole': 'staff',
+    'createdAt': FieldValue.serverTimestamp(),
+  });
+}
+
   /// 更新預約狀態
   Future<void> updateBookingStatus({
     required String bookingId,
@@ -581,6 +590,62 @@ if (status == 'cancelled' || cancelledAt != null) return;
       'updatedAt': FieldValue.serverTimestamp(),
     });
   }
+
+  /// ===============================
+/// 🏠 後台分配房間
+/// ===============================
+/// 功能：
+/// - 確認房間區間可用
+/// - 更新 booking 房號
+/// - assignStatus 改為 assigned
+/// - 寫入 room_calendar 鎖房
+Future<void> assignRoomToBooking({
+  required String bookingId,
+  required String shopId,
+  required String roomId,
+  required String roomName,
+  required DateTime startDate,
+  required DateTime endDate,
+}) async {
+  final available = await isRoomAvailable(
+    shopId: shopId,
+    roomId: roomId,
+    startDate: startDate,
+    endDate: endDate,
+  );
+
+  if (!available) {
+    throw Exception('此房間在該日期區間已被預約');
+  }
+
+  await _bookings.doc(bookingId).update({
+    'roomId': roomId,
+    'roomName': roomName,
+    'assignStatus': 'assigned',
+    'assignedAt': FieldValue.serverTimestamp(),
+    'updatedAt': FieldValue.serverTimestamp(),
+  });
+
+  await blockRoomCalendar(
+    shopId: shopId,
+    roomId: roomId,
+    startDate: startDate,
+    endDate: endDate,
+  );
+
+  await _firestore.collection('action_logs').add({
+    'type': 'room_assigned',
+    'bookingId': bookingId,
+    'bookingShortId': bookingId.substring(0, 8),
+    'shopId': shopId,
+    'roomId': roomId,
+    'roomName': roomName,
+    'operatorUid': _currentUser?.uid,
+    'operatorEmail': _currentUser?.email,
+    'operatorRole': 'staff',
+    'createdAt': FieldValue.serverTimestamp(),
+  });
+}
 
   /// 更新預約資料
   Future<void> updateBooking({

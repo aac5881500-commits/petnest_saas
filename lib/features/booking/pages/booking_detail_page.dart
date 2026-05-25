@@ -277,8 +277,10 @@ Container(
             children: [
 
               /// 房號（大）
-              Text(
-                data['roomName'] ?? '---',
+Text(
+  data['assignStatus'] == 'unassigned'
+      ? '待分房'
+      : (data['roomName'] ?? '---'),
                 style: const TextStyle(
                   fontSize: 34,
                   fontWeight: FontWeight.bold,
@@ -294,11 +296,34 @@ Container(
                 data['roomTypeName'] ??
                 data['roomType'] ??
                 '未設定房型',
+                
                 style: const TextStyle(
                   color: Colors.white70,
                   fontSize: 16,
                 ),
               ),
+              if (data['roomChangedAt'] != null)
+  Padding(
+    padding: const EdgeInsets.only(top: 6),
+    child: Container(
+      padding: const EdgeInsets.symmetric(
+        horizontal: 10,
+        vertical: 5,
+      ),
+      decoration: BoxDecoration(
+        color: Colors.orange.shade100,
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Text(
+        '已調整房間｜${_formatDateTime(data['roomChangedAt'])}',
+        style: TextStyle(
+          color: Colors.orange.shade900,
+          fontSize: 12,
+          fontWeight: FontWeight.bold,
+        ),
+      ),
+    ),
+  ),
             ],
           ),
 
