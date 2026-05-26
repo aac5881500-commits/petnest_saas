@@ -18,6 +18,39 @@ class BookingService {
   CollectionReference<Map<String, dynamic>> get _bookings =>
       _firestore.collection('bookings');
 
+      /// ===============================
+/// 🧾 產生店家訂單編號
+/// 格式：SHOP0001-B000001
+/// ===============================
+Future<String> _generateBookingCode(
+  String shopId,
+) async {
+  final counterRef = _firestore
+      .collection('booking_counters')
+      .doc(shopId);
+
+  return _firestore.runTransaction<String>((transaction) async {
+    final snapshot = await transaction.get(counterRef);
+
+    final current = snapshot.exists
+        ? (snapshot.data()?['current'] ?? 0) as int
+        : 0;
+
+    final next = current + 1;
+
+    transaction.set(
+      counterRef,
+      {
+        'current': next,
+        'updatedAt': FieldValue.serverTimestamp(),
+      },
+      SetOptions(merge: true),
+    );
+
+    return '$shopId-B${next.toString().padLeft(6, '0')}';
+  });
+}
+
   /// 建立預約（區間版）
   Future<String> createBooking({
   required String shopId,
@@ -55,7 +88,7 @@ List<Map<String, dynamic>>? addons,
 })async {
     final user = _currentUser;
     final doc = _bookings.doc();
-
+final bookingCode = await _generateBookingCode(shopId);
     final normalizedStart = _dateOnly(startDate);
     final normalizedEnd = _dateOnly(endDate);
     /// 🔥 取得店家付款資料快照
@@ -107,7 +140,8 @@ final finalPets = petDocs.docs.map((doc) {
     await doc.set({
       'addons': (addons ?? []).isNotEmpty ? addons : [],
       'bookingId': doc.id,
-      'shopId': shopId,
+'bookingCode': bookingCode,
+'shopId': shopId,
       'userId': user.uid,
       'customerName': customerName.trim(),
       'customerPhone': customerPhone.trim(),
@@ -219,7 +253,7 @@ List<Map<String, dynamic>>? addons,
 })async {
     final operator = _currentUser;
     final doc = _bookings.doc();
-
+final bookingCode = await _generateBookingCode(shopId);
     final normalizedStart = _dateOnly(startDate);
     final normalizedEnd = _dateOnly(endDate);
     /// 🔥 取得店家付款資料快照
@@ -271,7 +305,8 @@ final finalPets = petDocs.docs.map((doc) {
     await doc.set({
       'addons': (addons ?? []).isNotEmpty ? addons : [],
       'bookingId': doc.id,
-      'shopId': shopId,
+'bookingCode': bookingCode,
+'shopId': shopId,
       'userId': userId,
 'source': 'admin',
 'createdByUid': operator.uid,

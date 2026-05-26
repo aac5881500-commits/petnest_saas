@@ -18,6 +18,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:petnest_saas/core/services/booking_service.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:firebase_storage/firebase_storage.dart';
+import 'package:petnest_saas/features/admin/widgets/admin_booking_pet_card.dart';
 
 
 class AdminBookingDetailPage extends StatelessWidget {
@@ -37,63 +38,8 @@ class AdminBookingDetailPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
+appBar: AppBar(
   title: const Text('訂單詳細'),
-  actions: [
-    Padding(
-      padding: const EdgeInsets.only(right: 12),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        crossAxisAlignment: CrossAxisAlignment.end,
-        children: [
-
-          const Text(
-            '訂單編號',
-            style: TextStyle(
-              fontSize: 11,
-              color: Colors.grey,
-            ),
-          ),
-
-          Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-
-              Text(
-  bookingId.substring(0, 8),
-                style: const TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 15,
-                ),
-              ),
-
-              const SizedBox(width: 4),
-
-              GestureDetector(
-                onTap: () async {
-                  await Clipboard.setData(
-                    ClipboardData(text: bookingId),
-                  );
-
-                  if (context.mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('已複製訂單編號'),
-                      ),
-                    );
-                  }
-                },
-                child: const Icon(
-                  Icons.copy,
-                  size: 16,
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    ),
-  ],
 ),
       body: StreamBuilder<DocumentSnapshot>(
         stream: FirebaseFirestore.instance
@@ -113,6 +59,10 @@ class AdminBookingDetailPage extends StatelessWidget {
           final data = doc.data() as Map<String, dynamic>;
 
           final basePrice = data['basePrice'] ?? 0;
+          final displayBookingCode =
+    (data['bookingCode'] ?? '').toString().isNotEmpty
+        ? data['bookingCode'].toString()
+        : bookingId.substring(0, 8);
 final extraPetPrice = data['extraPetPrice'] ?? 0;
 final extraPetCount = data['extraPetCount'] ?? 0;
 final extraPetTotal = data['extraPetTotal'] ?? 0;
@@ -152,6 +102,7 @@ final depositRequired = data['depositRequired'] == true;
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                
                 /// 🔥 房間主卡片（取代基本資訊）
                 if (data['source'] == 'admin')
   Container(
@@ -163,7 +114,8 @@ final depositRequired = data['depositRequired'] == true;
       borderRadius: BorderRadius.circular(14),
       border: Border.all(color: Colors.blue.shade200),
     ),
-    child: Row(
+    child:
+    Row(
       children: [
         const Icon(Icons.edit_note, color: Colors.blue),
         const SizedBox(width: 8),
@@ -219,11 +171,61 @@ Container(
   child: Column(
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
+Row(
+  children: [
+    const Text(
+      '訂單編號：',
+      style: TextStyle(
+        color: Colors.white70,
+        fontSize: 12,
+      ),
+    ),
 
+    Expanded(
+      child: Text(
+        displayBookingCode,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        softWrap: false,
+        style: const TextStyle(
+          color: Colors.white,
+          fontWeight: FontWeight.bold,
+        ),
+      ),
+    ),
+
+    GestureDetector(
+      onTap: () async {
+        await Clipboard.setData(
+          ClipboardData(text: displayBookingCode),
+        );
+
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('已複製訂單編號'),
+            ),
+          );
+        }
+      },
+      child: const Padding(
+        padding: EdgeInsets.only(left: 6),
+        child: Icon(
+          Icons.copy_rounded,
+          color: Colors.white70,
+          size: 18,
+        ),
+      ),
+    ),
+  ],
+),
+
+const SizedBox(height: 12),
       /// 🔥 房號 + 房型 + 晚數
       Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
+
 
           /// 左邊：房號＋房型
           Column(
@@ -409,7 +411,7 @@ GridView.builder(
 ),
   itemBuilder: (context, index) {
     final pet = pets[index];
-    return _petCard(pet);
+    return AdminBookingPetCard(pet: pet);
   },
 ),
 
@@ -2386,144 +2388,5 @@ Widget _infoItem(String label, dynamic value) {
     ],
   );
 }
-Widget _petCard(Map<String, dynamic> pet) {
-  final medical = pet['medicalStatus'] ?? '';
-  final staffNote = pet['staffNote'] ?? '';
-  final isNeutered = pet['isNeutered'] == true;
 
-  return Container(
-    padding: const EdgeInsets.all(10),
-    decoration: BoxDecoration(
-      color: Colors.white,
-      borderRadius: BorderRadius.circular(16),
-      boxShadow: [
-        BoxShadow(
-          color: Colors.black.withOpacity(0.05),
-          blurRadius: 8,
-        ),
-      ],
-    ),
-    child: Column(
-      children: [
-
-        /// 🐱 頭像
-        CircleAvatar(
-          radius: 26,
-          backgroundColor: Colors.grey.shade200,
-          backgroundImage:
-              (pet['photoUrl'] != null && pet['photoUrl'] != '')
-                  ? NetworkImage(pet['photoUrl'])
-                  : null,
-          child: (pet['photoUrl'] == null || pet['photoUrl'] == '')
-              ? const Icon(Icons.pets)
-              : null,
-        ),
-
-        const SizedBox(height: 6),
-
-        /// 名字
-        Text(
-          pet['name'] ?? '',
-          style: const TextStyle(fontWeight: FontWeight.bold),
-        ),
-
-/// 年齡
-if ((pet['age'] ?? '').toString().isNotEmpty)
-  Text(
-    pet['age'],
-    style: const TextStyle(
-      fontSize: 11,
-      color: Colors.grey,
-    ),
-  ),
-
-        /// 品種標籤
-        Container(
-          margin: const EdgeInsets.only(top: 4),
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-          decoration: BoxDecoration(
-            color: Colors.orange.shade100,
-            borderRadius: BorderRadius.circular(10),
-          ),
-          child: Text(
-            pet['breed'] ?? '',
-            style: const TextStyle(fontSize: 11),
-          ),
-        ),
-
-        const SizedBox(height: 4),
-
-        /// ⚠️ 醫療
-        if (medical.toString().isNotEmpty)
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Icon(Icons.warning, size: 14, color: Colors.red),
-              const SizedBox(width: 2),
-              Flexible(
-                child: Text(
-                  medical,
-                  style: const TextStyle(
-                    color: Colors.red,
-                    fontSize: 11,
-                  ),
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-            ],
-          ),
-
-/// 📝 客戶備註
-if ((pet['note'] ?? '').toString().isNotEmpty)
-  Row(
-    mainAxisAlignment: MainAxisAlignment.center,
-    children: [
-      const Text('📝 ', style: TextStyle(fontSize: 12)),
-      Flexible(
-        child: Text(
-          '客戶：${pet['note']}',
-          style: const TextStyle(
-            fontSize: 11,
-            color: Colors.black87,
-          ),
-          overflow: TextOverflow.ellipsis,
-        ),
-      ),
-    ],
-  ),
-
-        /// ✏️ 員工備註
-        if (staffNote.toString().isNotEmpty)
-  Row(
-    mainAxisAlignment: MainAxisAlignment.center,
-    children: [
-      const Text('📌 ', style: TextStyle(fontSize: 12)),
-      Flexible(
-        child: Text(
-          '員工：$staffNote',
-          style: const TextStyle(
-            color: Colors.red,
-            fontSize: 11,
-          ),
-          overflow: TextOverflow.ellipsis,
-        ),
-      ),
-    ],
-  ),
-
-        const Spacer(),
-
-
-        /// 結紮
-        Text(
-          isNeutered ? '已結紮' : '未結紮',
-          style: TextStyle(
-            fontSize: 11,
-            color: isNeutered ? Colors.green : Colors.grey,
-          ),
-        ),
-      ],
-    ),
-  );
-}
 }

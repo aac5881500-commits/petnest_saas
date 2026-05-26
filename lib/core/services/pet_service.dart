@@ -107,10 +107,7 @@ class PetService {
   // 🐱 新增寵物（完整版🔥）
   // ===============================
   Future<String> createPet({
-    required String name,
-
-    /// 固定貓（之後可擴狗）
-    String type = 'cat',
+  required String name,
 
     /// 基本
     String gender = '',
@@ -149,7 +146,8 @@ class PetService {
 
       /// 基本
       'name': name,
-      'type': type,
+      'type': 'cat',
+'species': 'cat',
       'gender': gender,
       'litterType': litterType,
 

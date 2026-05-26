@@ -188,15 +188,15 @@ final isUnassigned =
     borderRadius: BorderRadius.circular(12),
   ),
   child: Text(
-    '#${widget.bookingId.substring(0, 8)}',
-    style: TextStyle(
-      color: Colors.blueGrey.shade800,
-      fontSize: 14,
-      fontWeight: FontWeight.w900,
-      letterSpacing: 0.5,
-    ),
-    
+  data['bookingCode'] ??
+      '#${widget.bookingId.substring(0, 8)}',
+  style: TextStyle(
+    color: Colors.blueGrey.shade800,
+    fontSize: 14,
+    fontWeight: FontWeight.w900,
+    letterSpacing: 0.5,
   ),
+),
 ),
 if (data['source'] == 'admin') ...[
   const SizedBox(width: 8),

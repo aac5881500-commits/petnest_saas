@@ -613,6 +613,7 @@ _buildSectionCard(
   items: const [
     DropdownMenuItem(value: '父母', child: Text('父母')),
     DropdownMenuItem(value: '夫妻', child: Text('夫妻')),
+    DropdownMenuItem(value: '配偶', child: Text('配偶')),
     DropdownMenuItem(value: '兄弟姊妹', child: Text('兄弟姊妹')),
     DropdownMenuItem(value: '情侶', child: Text('情侶')),
     DropdownMenuItem(value: '朋友', child: Text('朋友')),
@@ -630,23 +631,6 @@ _buildSectionCard(
   });
 },
 ),
-if (_emergencyRelation == '其他') ...[
-  const SizedBox(height: 16),
-  TextFormField(
-    controller: _emergencyRelationController,
-    decoration: const InputDecoration(
-      labelText: '請輸入其他關係',
-      border: OutlineInputBorder(),
-    ),
-    validator: (v) {
-      if (_emergencyRelation == '其他' &&
-          (v == null || v.trim().isEmpty)) {
-        return '請輸入其他關係';
-      }
-      return null;
-    },
-  ),
-],
       const SizedBox(height: 16),
 
       Row(

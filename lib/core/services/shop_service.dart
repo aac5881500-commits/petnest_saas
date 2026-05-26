@@ -81,6 +81,36 @@ Future<void> updateShop({
   await _firestore.collection('shops').doc(shopId).update(data);
 }
 
+/// ===============================
+/// 🏪 產生下一個店家編號
+/// ===============================
+/// 格式：SHOP0001、SHOP0002
+Future<String> _generateNextShopCode() async {
+  final counterRef =
+      _firestore.collection('platform_counters').doc('shops');
+
+  return _firestore.runTransaction<String>((transaction) async {
+    final snapshot = await transaction.get(counterRef);
+
+    final current = snapshot.exists
+        ? (snapshot.data()?['current'] ?? 0) as int
+        : 0;
+
+    final next = current + 1;
+
+    transaction.set(
+      counterRef,
+      {
+        'current': next,
+        'updatedAt': FieldValue.serverTimestamp(),
+      },
+      SetOptions(merge: true),
+    );
+
+    return 'SHOP${next.toString().padLeft(4, '0')}';
+  });
+}
+
   /// 建立店家
   Future<String> createShop({
   required String name,
@@ -120,8 +150,10 @@ if (activationCodeData == null) {
   throw Exception('找不到此激活碼');
 }
 
-    final shopRef = _shops.doc();
-    final memberRef = _shopMembers.doc('${shopRef.id}_${user.uid}');
+    final shopCode = await _generateNextShopCode();
+
+final shopRef = _shops.doc(shopCode);
+final memberRef = _shopMembers.doc('${shopCode}_${user.uid}');
 
     final activationCodeId =
     activationCodeData['id'].toString();
@@ -151,7 +183,9 @@ final policyAcceptanceRef = shopRef
     .doc('shop_owner_policy_v$acceptedShopOwnerPolicyVersion');
 
     batch.set(shopRef, {
-      'name': name.trim(),
+  'shopId': shopCode,
+  'shopCode': shopCode,
+  'name': name.trim(),
 'ownerUid': user.uid,
 
 // 🔒 建立後鎖定欄位

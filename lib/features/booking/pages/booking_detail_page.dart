@@ -194,7 +194,10 @@ if (cancelReason == null) return;
     /// 🔥 編號（放大）
     GestureDetector(
   onTap: () async {
-    final id = data['bookingNo'] ?? widget.docId.substring(0, 8);
+    final id =
+    (data['bookingCode'] ?? '').toString().isNotEmpty
+        ? data['bookingCode']
+        : widget.docId.substring(0, 8);
 
     await Clipboard.setData(ClipboardData(text: id));
 
@@ -206,7 +209,9 @@ if (cancelReason == null) return;
     mainAxisSize: MainAxisSize.min,
     children: [
       Text(
-        data['bookingNo'] ?? widget.docId.substring(0, 8),
+        (data['bookingCode'] ?? '').toString().isNotEmpty
+    ? data['bookingCode']
+    : widget.docId.substring(0, 8),
         style: const TextStyle(
           fontSize: 18, // 🔥 放大
           fontWeight: FontWeight.bold,

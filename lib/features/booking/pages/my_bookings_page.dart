@@ -256,9 +256,17 @@ final depositExpireText =
 
 final bool hasDeposit =
     depositAmount > 0;
-final shortBookingId = docs[index].id.length > 8
-    ? docs[index].id.substring(0, 8)
-    : docs[index].id;
+final bookingCode =
+    (data['bookingCode'] ?? '').toString();
+
+final shortBookingId =
+    bookingCode.isNotEmpty
+        ? bookingCode
+        : (
+            docs[index].id.length > 8
+                ? docs[index].id.substring(0, 8)
+                : docs[index].id
+          );
 
               return Card(
                 margin: const EdgeInsets.only(bottom: 12),
