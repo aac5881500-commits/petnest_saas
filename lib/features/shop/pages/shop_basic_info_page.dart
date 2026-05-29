@@ -9,16 +9,12 @@ import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/services/shop_service.dart';
 
 class ShopBasicInfoPage extends StatefulWidget {
-  const ShopBasicInfoPage({
-    super.key,
-    required this.shopId,
-  });
+  const ShopBasicInfoPage({super.key, required this.shopId});
 
   final String shopId;
 
   @override
-  State<ShopBasicInfoPage> createState() =>
-      _ShopBasicInfoPageState();
+  State<ShopBasicInfoPage> createState() => _ShopBasicInfoPageState();
 }
 
 class _ShopBasicInfoPageState extends State<ShopBasicInfoPage> {
@@ -45,29 +41,384 @@ class _ShopBasicInfoPageState extends State<ShopBasicInfoPage> {
   String _businessType = 'cat';
 
   /// 🔥 台灣縣市 + 區域
- final Map<String, List<String>> taiwanMap = {
-  '台北市': ['中正區','大同區','中山區','松山區','大安區','萬華區','信義區','士林區','北投區','內湖區','南港區','文山區'],
-  '新北市': ['板橋區','新莊區','中和區','永和區','土城區','樹林區','三重區','蘆洲區','五股區','泰山區','林口區','淡水區','汐止區','瑞芳區','三峽區','鶯歌區','深坑區','石碇區','坪林區','三芝區','石門區','八里區','平溪區','雙溪區','貢寮區','金山區','萬里區','烏來區'],
-  '桃園市': ['桃園區','中壢區','平鎮區','八德區','楊梅區','蘆竹區','龜山區','龍潭區','大溪區','大園區','觀音區','新屋區','復興區'],
-  '台中市': ['中區','東區','南區','西區','北區','西屯區','南屯區','北屯區','豐原區','東勢區','大甲區','清水區','沙鹿區','梧棲區','后里區','神岡區','潭子區','大雅區','新社區','石岡區','外埔區','大安區','烏日區','大肚區','龍井區','霧峰區','太平區','大里區','和平區'],
-  '台南市': ['中西區','東區','南區','北區','安平區','安南區','永康區','歸仁區','新化區','左鎮區','玉井區','楠西區','南化區','仁德區','關廟區','龍崎區','官田區','麻豆區','佳里區','西港區','七股區','將軍區','學甲區','北門區','新營區','後壁區','白河區','東山區','六甲區','下營區','柳營區','鹽水區','善化區','大內區','山上區','新市區','安定區'],
-  '高雄市': ['楠梓區','左營區','鼓山區','三民區','鹽埕區','前金區','新興區','苓雅區','前鎮區','旗津區','小港區','鳳山區','林園區','大寮區','大樹區','大社區','仁武區','鳥松區','岡山區','橋頭區','燕巢區','田寮區','阿蓮區','路竹區','湖內區','茄萣區','永安區','彌陀區','梓官區','旗山區','美濃區','六龜區','甲仙區','杉林區','內門區','茂林區','桃源區','那瑪夏區'],
-  '新竹縣': ['竹北市','竹東鎮','新埔鎮','關西鎮','湖口鄉','新豐鄉','芎林鄉','橫山鄉','北埔鄉','寶山鄉','峨眉鄉','尖石鄉','五峰鄉'],
-  '新竹市': ['東區','北區','香山區'],
-  '苗栗縣': ['苗栗市','頭份市','苑裡鎮','通霄鎮','竹南鎮','後龍鎮','卓蘭鎮','大湖鄉','公館鄉','銅鑼鄉','南庄鄉','頭屋鄉','三義鄉','西湖鄉','造橋鄉','三灣鄉','獅潭鄉','泰安鄉'],
-  '彰化縣': ['彰化市','鹿港鎮','和美鎮','線西鄉','伸港鄉','福興鄉','秀水鄉','花壇鄉','芬園鄉','員林市','溪湖鎮','田中鎮','大村鄉','埔鹽鄉','埔心鄉','永靖鄉','社頭鄉','二水鄉','北斗鎮','二林鎮','田尾鄉','埤頭鄉','芳苑鄉','大城鄉','竹塘鄉','溪州鄉'],
-  '南投縣': ['南投市','埔里鎮','草屯鎮','竹山鎮','集集鎮','名間鄉','鹿谷鄉','中寮鄉','魚池鄉','國姓鄉','水里鄉','信義鄉','仁愛鄉'],
-  '雲林縣': ['斗六市','斗南鎮','虎尾鎮','西螺鎮','土庫鎮','北港鎮','古坑鄉','大埤鄉','莿桐鄉','林內鄉','二崙鄉','崙背鄉','麥寮鄉','東勢鄉','褒忠鄉','台西鄉','元長鄉','四湖鄉','口湖鄉','水林鄉'],
-  '嘉義縣': ['太保市','朴子市','布袋鎮','大林鎮','民雄鄉','溪口鄉','新港鄉','六腳鄉','東石鄉','義竹鄉','鹿草鄉','水上鄉','中埔鄉','竹崎鄉','梅山鄉','番路鄉','大埔鄉','阿里山鄉'],
-  '嘉義市': ['東區','西區'],
-  '屏東縣': ['屏東市','潮州鎮','東港鎮','恆春鎮','萬丹鄉','長治鄉','麟洛鄉','九如鄉','里港鄉','鹽埔鄉','高樹鄉','萬巒鄉','內埔鄉','竹田鄉','新埤鄉','枋寮鄉','新園鄉','崁頂鄉','林邊鄉','南州鄉','佳冬鄉','琉球鄉','車城鄉','滿州鄉','枋山鄉','三地門鄉','霧台鄉','瑪家鄉','泰武鄉','來義鄉','春日鄉','獅子鄉','牡丹鄉'],
-  '宜蘭縣': ['宜蘭市','羅東鎮','蘇澳鎮','頭城鎮','礁溪鄉','壯圍鄉','員山鄉','冬山鄉','五結鄉','三星鄉','大同鄉','南澳鄉'],
-  '花蓮縣': ['花蓮市','鳳林鎮','玉里鎮','新城鄉','吉安鄉','壽豐鄉','光復鄉','豐濱鄉','瑞穗鄉','富里鄉','秀林鄉','萬榮鄉','卓溪鄉'],
-  '台東縣': ['台東市','成功鎮','關山鎮','長濱鄉','池上鄉','東河鄉','鹿野鄉','卑南鄉','大武鄉','綠島鄉','太麻里鄉','海端鄉','延平鄉','金峰鄉','達仁鄉','蘭嶼鄉'],
-  '澎湖縣': ['馬公市','湖西鄉','白沙鄉','西嶼鄉','望安鄉','七美鄉'],
-  '金門縣': ['金城鎮','金湖鎮','金沙鎮','金寧鄉','烈嶼鄉','烏坵鄉'],
-  '連江縣': ['南竿鄉','北竿鄉','莒光鄉','東引鄉'],
-};
+  final Map<String, List<String>> taiwanMap = {
+    '台北市': [
+      '中正區',
+      '大同區',
+      '中山區',
+      '松山區',
+      '大安區',
+      '萬華區',
+      '信義區',
+      '士林區',
+      '北投區',
+      '內湖區',
+      '南港區',
+      '文山區',
+    ],
+    '新北市': [
+      '板橋區',
+      '新莊區',
+      '中和區',
+      '永和區',
+      '土城區',
+      '樹林區',
+      '三重區',
+      '蘆洲區',
+      '五股區',
+      '泰山區',
+      '林口區',
+      '淡水區',
+      '汐止區',
+      '瑞芳區',
+      '三峽區',
+      '鶯歌區',
+      '深坑區',
+      '石碇區',
+      '坪林區',
+      '三芝區',
+      '石門區',
+      '八里區',
+      '平溪區',
+      '雙溪區',
+      '貢寮區',
+      '金山區',
+      '萬里區',
+      '烏來區',
+    ],
+    '桃園市': [
+      '桃園區',
+      '中壢區',
+      '平鎮區',
+      '八德區',
+      '楊梅區',
+      '蘆竹區',
+      '龜山區',
+      '龍潭區',
+      '大溪區',
+      '大園區',
+      '觀音區',
+      '新屋區',
+      '復興區',
+    ],
+    '台中市': [
+      '中區',
+      '東區',
+      '南區',
+      '西區',
+      '北區',
+      '西屯區',
+      '南屯區',
+      '北屯區',
+      '豐原區',
+      '東勢區',
+      '大甲區',
+      '清水區',
+      '沙鹿區',
+      '梧棲區',
+      '后里區',
+      '神岡區',
+      '潭子區',
+      '大雅區',
+      '新社區',
+      '石岡區',
+      '外埔區',
+      '大安區',
+      '烏日區',
+      '大肚區',
+      '龍井區',
+      '霧峰區',
+      '太平區',
+      '大里區',
+      '和平區',
+    ],
+    '台南市': [
+      '中西區',
+      '東區',
+      '南區',
+      '北區',
+      '安平區',
+      '安南區',
+      '永康區',
+      '歸仁區',
+      '新化區',
+      '左鎮區',
+      '玉井區',
+      '楠西區',
+      '南化區',
+      '仁德區',
+      '關廟區',
+      '龍崎區',
+      '官田區',
+      '麻豆區',
+      '佳里區',
+      '西港區',
+      '七股區',
+      '將軍區',
+      '學甲區',
+      '北門區',
+      '新營區',
+      '後壁區',
+      '白河區',
+      '東山區',
+      '六甲區',
+      '下營區',
+      '柳營區',
+      '鹽水區',
+      '善化區',
+      '大內區',
+      '山上區',
+      '新市區',
+      '安定區',
+    ],
+    '高雄市': [
+      '楠梓區',
+      '左營區',
+      '鼓山區',
+      '三民區',
+      '鹽埕區',
+      '前金區',
+      '新興區',
+      '苓雅區',
+      '前鎮區',
+      '旗津區',
+      '小港區',
+      '鳳山區',
+      '林園區',
+      '大寮區',
+      '大樹區',
+      '大社區',
+      '仁武區',
+      '鳥松區',
+      '岡山區',
+      '橋頭區',
+      '燕巢區',
+      '田寮區',
+      '阿蓮區',
+      '路竹區',
+      '湖內區',
+      '茄萣區',
+      '永安區',
+      '彌陀區',
+      '梓官區',
+      '旗山區',
+      '美濃區',
+      '六龜區',
+      '甲仙區',
+      '杉林區',
+      '內門區',
+      '茂林區',
+      '桃源區',
+      '那瑪夏區',
+    ],
+    '新竹縣': [
+      '竹北市',
+      '竹東鎮',
+      '新埔鎮',
+      '關西鎮',
+      '湖口鄉',
+      '新豐鄉',
+      '芎林鄉',
+      '橫山鄉',
+      '北埔鄉',
+      '寶山鄉',
+      '峨眉鄉',
+      '尖石鄉',
+      '五峰鄉',
+    ],
+    '新竹市': ['東區', '北區', '香山區'],
+    '苗栗縣': [
+      '苗栗市',
+      '頭份市',
+      '苑裡鎮',
+      '通霄鎮',
+      '竹南鎮',
+      '後龍鎮',
+      '卓蘭鎮',
+      '大湖鄉',
+      '公館鄉',
+      '銅鑼鄉',
+      '南庄鄉',
+      '頭屋鄉',
+      '三義鄉',
+      '西湖鄉',
+      '造橋鄉',
+      '三灣鄉',
+      '獅潭鄉',
+      '泰安鄉',
+    ],
+    '彰化縣': [
+      '彰化市',
+      '鹿港鎮',
+      '和美鎮',
+      '線西鄉',
+      '伸港鄉',
+      '福興鄉',
+      '秀水鄉',
+      '花壇鄉',
+      '芬園鄉',
+      '員林市',
+      '溪湖鎮',
+      '田中鎮',
+      '大村鄉',
+      '埔鹽鄉',
+      '埔心鄉',
+      '永靖鄉',
+      '社頭鄉',
+      '二水鄉',
+      '北斗鎮',
+      '二林鎮',
+      '田尾鄉',
+      '埤頭鄉',
+      '芳苑鄉',
+      '大城鄉',
+      '竹塘鄉',
+      '溪州鄉',
+    ],
+    '南投縣': [
+      '南投市',
+      '埔里鎮',
+      '草屯鎮',
+      '竹山鎮',
+      '集集鎮',
+      '名間鄉',
+      '鹿谷鄉',
+      '中寮鄉',
+      '魚池鄉',
+      '國姓鄉',
+      '水里鄉',
+      '信義鄉',
+      '仁愛鄉',
+    ],
+    '雲林縣': [
+      '斗六市',
+      '斗南鎮',
+      '虎尾鎮',
+      '西螺鎮',
+      '土庫鎮',
+      '北港鎮',
+      '古坑鄉',
+      '大埤鄉',
+      '莿桐鄉',
+      '林內鄉',
+      '二崙鄉',
+      '崙背鄉',
+      '麥寮鄉',
+      '東勢鄉',
+      '褒忠鄉',
+      '台西鄉',
+      '元長鄉',
+      '四湖鄉',
+      '口湖鄉',
+      '水林鄉',
+    ],
+    '嘉義縣': [
+      '太保市',
+      '朴子市',
+      '布袋鎮',
+      '大林鎮',
+      '民雄鄉',
+      '溪口鄉',
+      '新港鄉',
+      '六腳鄉',
+      '東石鄉',
+      '義竹鄉',
+      '鹿草鄉',
+      '水上鄉',
+      '中埔鄉',
+      '竹崎鄉',
+      '梅山鄉',
+      '番路鄉',
+      '大埔鄉',
+      '阿里山鄉',
+    ],
+    '嘉義市': ['東區', '西區'],
+    '屏東縣': [
+      '屏東市',
+      '潮州鎮',
+      '東港鎮',
+      '恆春鎮',
+      '萬丹鄉',
+      '長治鄉',
+      '麟洛鄉',
+      '九如鄉',
+      '里港鄉',
+      '鹽埔鄉',
+      '高樹鄉',
+      '萬巒鄉',
+      '內埔鄉',
+      '竹田鄉',
+      '新埤鄉',
+      '枋寮鄉',
+      '新園鄉',
+      '崁頂鄉',
+      '林邊鄉',
+      '南州鄉',
+      '佳冬鄉',
+      '琉球鄉',
+      '車城鄉',
+      '滿州鄉',
+      '枋山鄉',
+      '三地門鄉',
+      '霧台鄉',
+      '瑪家鄉',
+      '泰武鄉',
+      '來義鄉',
+      '春日鄉',
+      '獅子鄉',
+      '牡丹鄉',
+    ],
+    '宜蘭縣': [
+      '宜蘭市',
+      '羅東鎮',
+      '蘇澳鎮',
+      '頭城鎮',
+      '礁溪鄉',
+      '壯圍鄉',
+      '員山鄉',
+      '冬山鄉',
+      '五結鄉',
+      '三星鄉',
+      '大同鄉',
+      '南澳鄉',
+    ],
+    '花蓮縣': [
+      '花蓮市',
+      '鳳林鎮',
+      '玉里鎮',
+      '新城鄉',
+      '吉安鄉',
+      '壽豐鄉',
+      '光復鄉',
+      '豐濱鄉',
+      '瑞穗鄉',
+      '富里鄉',
+      '秀林鄉',
+      '萬榮鄉',
+      '卓溪鄉',
+    ],
+    '台東縣': [
+      '台東市',
+      '成功鎮',
+      '關山鎮',
+      '長濱鄉',
+      '池上鄉',
+      '東河鄉',
+      '鹿野鄉',
+      '卑南鄉',
+      '大武鄉',
+      '綠島鄉',
+      '太麻里鄉',
+      '海端鄉',
+      '延平鄉',
+      '金峰鄉',
+      '達仁鄉',
+      '蘭嶼鄉',
+    ],
+    '澎湖縣': ['馬公市', '湖西鄉', '白沙鄉', '西嶼鄉', '望安鄉', '七美鄉'],
+    '金門縣': ['金城鎮', '金湖鎮', '金沙鎮', '金寧鄉', '烈嶼鄉', '烏坵鄉'],
+    '連江縣': ['南竿鄉', '北竿鄉', '莒光鄉', '東引鄉'],
+  };
 
   @override
   void initState() {
@@ -76,8 +427,7 @@ class _ShopBasicInfoPageState extends State<ShopBasicInfoPage> {
   }
 
   Future<void> _loadShopData() async {
-    final shop =
-        await ShopService.instance.getShop(widget.shopId);
+    final shop = await ShopService.instance.getShop(widget.shopId);
 
     _nameController.text = shop?['name'] ?? '';
     _phoneController.text = shop?['phone'] ?? '';
@@ -89,16 +439,13 @@ class _ShopBasicInfoPageState extends State<ShopBasicInfoPage> {
     _igUrlController.text = shop?['igUrl'] ?? '';
     _fbUrlController.text = shop?['fbUrl'] ?? '';
 
-    _licenseController.text =
-        shop?['licenseNumber'] ?? '';
+    _licenseController.text = shop?['licenseNumber'] ?? '';
     _taxIdController.text = shop?['taxId'] ?? '';
     _showTaxId = shop?['showTaxId'] ?? true;
 
     final rawBusinessType = shop?['businessType']?.toString() ?? 'cat_hotel';
 
-_businessType = rawBusinessType == 'cat'
-    ? 'cat_hotel'
-    : rawBusinessType;
+    _businessType = rawBusinessType == 'cat' ? 'cat_hotel' : rawBusinessType;
 
     setState(() => _loading = false);
   }
@@ -128,8 +475,9 @@ _businessType = rawBusinessType == 'cat'
 
     setState(() => _saving = false);
 
-    ScaffoldMessenger.of(context)
-        .showSnackBar(const SnackBar(content: Text('已儲存')));
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('已儲存')));
   }
 
   InputDecoration _input(String label) {
@@ -139,44 +487,40 @@ _businessType = rawBusinessType == 'cat'
     );
   }
 
-  String? _validateSocialUrl({
-  required String? value,
-  required String type,
-}) {
-  final text = value?.trim() ?? '';
+  String? _validateSocialUrl({required String? value, required String type}) {
+    final text = value?.trim() ?? '';
 
-  if (text.isEmpty) return null;
+    if (text.isEmpty) return null;
 
-  final uri = Uri.tryParse(text);
+    final uri = Uri.tryParse(text);
 
-  if (uri == null || !uri.hasScheme || uri.host.isEmpty) {
-    return '請輸入完整網址，例如 https://...';
-  }
-
-  final host = uri.host.toLowerCase();
-
-  if (type == 'line') {
-    if (host == 'line.me' || host == 'lin.ee') return null;
-    return 'LINE 連結只能使用 line.me 或 lin.ee';
-  }
-
-  if (type == 'ig') {
-    if (host == 'instagram.com' || host == 'www.instagram.com') return null;
-    return 'IG 連結只能使用 instagram.com';
-  }
-
-  if (type == 'fb') {
-    if (
-        host == 'facebook.com' ||
-        host == 'www.facebook.com' ||
-        host == 'fb.me') {
-      return null;
+    if (uri == null || !uri.hasScheme || uri.host.isEmpty) {
+      return '請輸入完整網址，例如 https://...';
     }
-    return 'FB 連結只能使用 facebook.com 或 fb.me';
-  }
 
-  return null;
-}
+    final host = uri.host.toLowerCase();
+
+    if (type == 'line') {
+      if (host == 'line.me' || host == 'lin.ee') return null;
+      return 'LINE 連結只能使用 line.me 或 lin.ee';
+    }
+
+    if (type == 'ig') {
+      if (host == 'instagram.com' || host == 'www.instagram.com') return null;
+      return 'IG 連結只能使用 instagram.com';
+    }
+
+    if (type == 'fb') {
+      if (host == 'facebook.com' ||
+          host == 'www.facebook.com' ||
+          host == 'fb.me') {
+        return null;
+      }
+      return 'FB 連結只能使用 facebook.com 或 fb.me';
+    }
+
+    return null;
+  }
 
   @override
   void dispose() {
@@ -196,9 +540,6 @@ _businessType = rawBusinessType == 'cat'
 
   @override
   Widget build(BuildContext context) {
-    final districts =
-        taiwanMap[_cityController.text] ?? [];
-
     return Scaffold(
       appBar: AppBar(title: const Text('店家基本資料')),
       body: _loading
@@ -208,141 +549,203 @@ _businessType = rawBusinessType == 'cat'
               child: ListView(
                 padding: const EdgeInsets.all(16),
                 children: [
-                 TextFormField(
-  controller: _nameController,
-  readOnly: true,
-  decoration: _input('店名（建立後不可修改）').copyWith(
-    filled: true,
-    fillColor: Colors.grey.shade100,
-  ),
-),
+                  Container(
+                    margin: const EdgeInsets.only(bottom: 16),
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.orange.shade50,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: Colors.orange.shade300),
+                    ),
+                    child: const Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Icon(Icons.warning_amber_rounded, color: Colors.orange),
+                        SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            '為保障店家與消費者權益，店名、店家類型、電話、縣市、區域、地址、特寵字號、統編等重要資料若需修改，需由平台人工審核後協助處理，以避免冒用、詐騙或資料異常情形。\n\n'
+                            'LINE、IG、FB 可由店家自行更新；未來平台後台會提供對外連結快速關閉功能，避免帳號遭盜用或連結被濫用時無法即時處理。',
+                            style: TextStyle(fontSize: 13, height: 1.5),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Container(
+                    margin: const EdgeInsets.only(bottom: 16),
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.red.shade50,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: Colors.red.shade200),
+                    ),
+                    child: const Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Icon(Icons.lock_outline, color: Colors.red),
+                        SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            '重要資料需透過申請修改流程處理，平台確認資料正確後才會更新正式資料。',
+                            style: TextStyle(
+                              color: Colors.red,
+                              fontSize: 13,
+                              height: 1.5,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  TextFormField(
+                    controller: _nameController,
+                    readOnly: true,
+                    decoration: _input(
+                      '店名（建立後不可修改）',
+                    ).copyWith(filled: true, fillColor: Colors.grey.shade100),
+                  ),
                   const SizedBox(height: 16),
 
-                 DropdownButtonFormField<String>(
-  value: _businessType,
-  decoration: _input('類型（建立後不可修改）').copyWith(
-    filled: true,
-    fillColor: Colors.grey.shade100,
-  ),
-  items: const [
-    DropdownMenuItem(value: 'cat_hotel', child: Text('貓咪旅店')),
-    DropdownMenuItem(value: 'dog_hotel', child: Text('狗狗旅店')),
-    DropdownMenuItem(value: 'grooming', child: Text('美容功能')),
-    DropdownMenuItem(value: 'hospital', child: Text('動物醫院')),
-    DropdownMenuItem(value: 'shop', child: Text('賣場功能')),
-  ],
-  onChanged: null,
-),
+                  DropdownButtonFormField<String>(
+                    value: _businessType,
+                    decoration: _input(
+                      '類型（建立後不可修改）',
+                    ).copyWith(filled: true, fillColor: Colors.grey.shade100),
+                    items: const [
+                      DropdownMenuItem(value: 'cat_hotel', child: Text('貓咪旅店')),
+                      DropdownMenuItem(value: 'dog_hotel', child: Text('狗狗旅店')),
+                      DropdownMenuItem(value: 'grooming', child: Text('美容功能')),
+                      DropdownMenuItem(value: 'hospital', child: Text('動物醫院')),
+                      DropdownMenuItem(value: 'shop', child: Text('賣場功能')),
+                    ],
+                    onChanged: null,
+                  ),
 
                   const SizedBox(height: 16),
 
                   TextFormField(
                     controller: _phoneController,
-                    decoration: _input('電話'),
+                    readOnly: true,
+                    decoration: _input(
+                      '電話（需申請修改）',
+                    ).copyWith(filled: true, fillColor: Colors.grey.shade100),
                   ),
 
                   const SizedBox(height: 16),
 
                   /// 🔥 縣市
                   TextFormField(
-  controller: _cityController,
-  readOnly: true,
-  decoration: _input('縣市（建立後不可修改）').copyWith(
-    filled: true,
-    fillColor: Colors.grey.shade100,
-  ),
-),
+                    controller: _cityController,
+                    readOnly: true,
+                    decoration: _input(
+                      '縣市（需申請修改）',
+                    ).copyWith(filled: true, fillColor: Colors.grey.shade100),
+                  ),
                   const SizedBox(height: 16),
 
                   /// 🔥 區域
-                  DropdownButtonFormField(
-                    value: _districtController.text.isEmpty
-                        ? null
-                        : _districtController.text,
-                    decoration: _input('區域'),
-                    items: districts
-                        .map((e) => DropdownMenuItem(
-                              value: e,
-                              child: Text(e),
-                            ))
-                        .toList(),
-                    onChanged: (v) =>
-                        setState(() => _districtController.text = v!),
+                  TextFormField(
+                    controller: _districtController,
+                    readOnly: true,
+                    decoration: _input(
+                      '區域（需申請修改）',
+                    ).copyWith(filled: true, fillColor: Colors.grey.shade100),
                   ),
-
                   const SizedBox(height: 16),
 
                   TextFormField(
                     controller: _addressController,
-                    decoration: _input('地址'),
+                    readOnly: true,
+                    decoration: _input(
+                      '地址（需申請修改）',
+                    ).copyWith(filled: true, fillColor: Colors.grey.shade100),
                   ),
 
                   const SizedBox(height: 24),
 
                   TextFormField(
-  controller: _licenseController,
-  readOnly: true,
-  decoration: _input('特寵字號（需平台審核修改）').copyWith(
-    filled: true,
-    fillColor: Colors.grey.shade100,
-  ),
-),
+                    controller: _licenseController,
+                    readOnly: true,
+                    decoration: _input(
+                      '特寵字號（需申請修改）',
+                    ).copyWith(filled: true, fillColor: Colors.grey.shade100),
+                  ),
 
                   const SizedBox(height: 16),
 
-                 TextFormField(
-  controller: _taxIdController,
-  readOnly: true,
-  decoration: _input('統編（需平台審核修改）').copyWith(
-    filled: true,
-    fillColor: Colors.grey.shade100,
-  ),
-),
+                  TextFormField(
+                    controller: _taxIdController,
+                    readOnly: true,
+                    decoration: _input(
+                      '統編（需申請修改）',
+                    ).copyWith(filled: true, fillColor: Colors.grey.shade100),
+                  ),
 
                   SwitchListTile(
                     value: _showTaxId,
                     title: const Text('顯示統編'),
-                    onChanged: (v) =>
-                        setState(() => _showTaxId = v),
+                    onChanged: (v) => setState(() => _showTaxId = v),
                   ),
 
                   const SizedBox(height: 16),
 
                   /// 🔥 LINE / IG / FB
                   TextFormField(
-  controller: _lineUrlController,
-  decoration: _input('LINE'),
-  validator: (v) => _validateSocialUrl(
-    value: v,
-    type: 'line',
-  ),
-),
+                    controller: _lineUrlController,
+                    decoration: _input('LINE'),
+                    validator: (v) =>
+                        _validateSocialUrl(value: v, type: 'line'),
+                  ),
                   const SizedBox(height: 16),
 
                   TextFormField(
-  controller: _igUrlController,
-  decoration: _input('IG'),
-  validator: (v) => _validateSocialUrl(
-    value: v,
-    type: 'ig',
-  ),
-),
+                    controller: _igUrlController,
+                    decoration: _input('IG'),
+                    validator: (v) => _validateSocialUrl(value: v, type: 'ig'),
+                  ),
                   const SizedBox(height: 16),
 
                   TextFormField(
-  controller: _fbUrlController,
-  decoration: _input('FB'),
-  validator: (v) => _validateSocialUrl(
-    value: v,
-    type: 'fb',
-  ),
-),
+                    controller: _fbUrlController,
+                    decoration: _input('FB'),
+                    validator: (v) => _validateSocialUrl(value: v, type: 'fb'),
+                  ),
 
                   const SizedBox(height: 24),
 
                   ElevatedButton(
                     onPressed: _saving ? null : _save,
-                    child: Text(_saving ? '儲存中' : '儲存'),
+                    child: Text(_saving ? '儲存中' : '儲存社群資訊'),
+                  ),
+                  const SizedBox(height: 12),
+
+                  OutlinedButton.icon(
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: Colors.red,
+                      side: const BorderSide(color: Colors.red),
+                    ),
+                    onPressed: () {
+                      showDialog(
+                        context: context,
+                        builder: (_) => AlertDialog(
+                          title: const Text('申請修改重要資料'),
+                          content: const Text(
+                            '為保障店家與消費者權益，店名、電話、地址、特寵字號、統編等重要資料需由平台審核後才能修改。\n\n'
+                            '目前線上申請功能準備中。\n\n如需修改店名、電話、地址、特寵字號或統編等重要資料，請先聯絡平台管理員協助處理。',
+                          ),
+                          actions: [
+                            TextButton(
+                              onPressed: () => Navigator.pop(context),
+                              child: const Text('知道了'),
+                            ),
+                          ],
+                        ),
+                      );
+                    },
+                    icon: const Icon(Icons.edit_note),
+                    label: const Text('申請修改重要資料'),
                   ),
                 ],
               ),

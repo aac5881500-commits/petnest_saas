@@ -41,7 +41,6 @@ class _ShopMediaPageState extends State<ShopMediaPage> {
         banners = data.map<Map<String, dynamic>>((e) {
           return {
             'imageUrl': e['imageUrl'] ?? '',
-            'linkUrl': e['linkUrl'] ?? '',
             'isActive': e['isActive'] ?? true,
           };
         }).toList();
@@ -140,9 +139,20 @@ class _ShopMediaPageState extends State<ShopMediaPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('活動海報管理'),
-        actions: [IconButton(icon: const Icon(Icons.save), onPressed: _save)],
+      appBar: AppBar(title: const Text('活動海報管理'), actions: const []),
+      bottomNavigationBar: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: SizedBox(
+            width: double.infinity,
+            height: 48,
+            child: ElevatedButton.icon(
+              onPressed: _save,
+              icon: const Icon(Icons.save),
+              label: const Text('儲存海報設定'),
+            ),
+          ),
+        ),
       ),
       body: ListView(
         padding: const EdgeInsets.all(16),

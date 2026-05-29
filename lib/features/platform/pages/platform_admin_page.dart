@@ -7,6 +7,7 @@ import 'package:petnest_saas/features/platform/pages/platform_member_manage_page
 import 'package:petnest_saas/features/platform/pages/platform_shop_manage_page.dart';
 import 'package:petnest_saas/features/platform/pages/platform_policy_manage_page.dart';
 import 'package:petnest_saas/features/platform/pages/platform_activation_code_manage_page.dart';
+import 'package:petnest_saas/features/platform/pages/platform_shop_request_manage_page.dart';
 
 class PlatformAdminPage extends StatelessWidget {
   const PlatformAdminPage({super.key});
@@ -15,9 +16,7 @@ class PlatformAdminPage extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF6F7FB),
-      appBar: AppBar(
-        title: const Text('平台後台'),
-      ),
+      appBar: AppBar(title: const Text('平台後台')),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
@@ -36,19 +35,19 @@ class PlatformAdminPage extends StatelessWidget {
           ),
           const SizedBox(height: 12),
 
-_AdminEntryCard(
-  icon: Icons.people_alt_outlined,
-  title: '平台會員管理',
-  subtitle: '管理平台會員、封鎖狀態與平台備註',
-  onTap: () {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => const PlatformMemberManagePage(),
-      ),
-    );
-  },
-),
+          _AdminEntryCard(
+            icon: Icons.people_alt_outlined,
+            title: '平台會員管理',
+            subtitle: '管理平台會員、封鎖狀態與平台備註',
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => const PlatformMemberManagePage(),
+                ),
+              );
+            },
+          ),
           const SizedBox(height: 12),
           _AdminEntryCard(
             icon: Icons.payments,
@@ -59,36 +58,50 @@ _AdminEntryCard(
           const SizedBox(height: 12),
           const SizedBox(height: 12),
 
-const SizedBox(height: 12),
+          const SizedBox(height: 12),
 
-_AdminEntryCard(
-  icon: Icons.key_outlined,
-  title: '激活碼管理',
-  subtitle: '建立創店激活碼、查看使用次數與啟用狀態',
-  onTap: () {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) =>
-            const PlatformActivationCodeManagePage(),
-      ),
-    );
-  },
-),
+          _AdminEntryCard(
+            icon: Icons.key_outlined,
+            title: '激活碼管理',
+            subtitle: '建立創店激活碼、查看使用次數與啟用狀態',
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => const PlatformActivationCodeManagePage(),
+                ),
+              );
+            },
+          ),
 
-_AdminEntryCard(
-  icon: Icons.article_outlined,
-  title: '平台條款管理',
-  subtitle: '管理平台會員條款與創店主條款版本',
-  onTap: () {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => const PlatformPolicyManagePage(),
-      ),
-    );
-  },
-),
+          _AdminEntryCard(
+            icon: Icons.article_outlined,
+            title: '平台條款管理',
+            subtitle: '管理平台會員條款與創店主條款版本',
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => const PlatformPolicyManagePage(),
+                ),
+              );
+            },
+          ),
+          const SizedBox(height: 12),
+
+          _AdminEntryCard(
+            icon: Icons.approval_outlined,
+            title: '店家申請中心',
+            subtitle: '審核店家資料修改、認證與公開申請',
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => const PlatformShopRequestManagePage(),
+                ),
+              );
+            },
+          ),
           _AdminEntryCard(
             icon: Icons.history,
             title: '平台操作紀錄',
@@ -131,10 +144,7 @@ class _AdminEntryCard extends StatelessWidget {
         ),
         title: Text(
           title,
-          style: const TextStyle(
-            fontWeight: FontWeight.w800,
-            fontSize: 16,
-          ),
+          style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16),
         ),
         subtitle: Padding(
           padding: const EdgeInsets.only(top: 6),
