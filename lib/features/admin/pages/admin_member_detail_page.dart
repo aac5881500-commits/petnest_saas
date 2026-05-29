@@ -817,6 +817,18 @@ return;
     'blacklistReason': reason,
     'blacklistedAt': FieldValue.serverTimestamp(),
   });
+  final user = FirebaseAuth.instance.currentUser;
+
+await FirebaseFirestore.instance.collection('action_logs').add({
+  'type': 'member_blacklisted',
+  'targetUserId': userId,
+  'targetUserName': data['name'] ?? '',
+  'targetUserEmail': data['email'] ?? '',
+  'operatorUid': user?.uid,
+  'operatorEmail': user?.email,
+  'reason': reason,
+  'createdAt': FieldValue.serverTimestamp(),
+});
 },
                               icon: const Icon(Icons.block),
                               label: const Text('黑名單'),

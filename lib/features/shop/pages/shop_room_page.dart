@@ -58,15 +58,17 @@ class _ShopRoomPageState extends State<ShopRoomPage> {
       return;
     }
 
-    /// ❗ 房號重複
-    final isDuplicate = sameTypeRooms.any((r) => r['name'] == name);
+ /// ❗ 房號不可重複：不同房型也不能使用同一個房號
+final isDuplicate = rooms.any(
+  (r) => (r['name'] ?? '').toString().trim() == name,
+);
 
-    if (isDuplicate) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('此房型已有相同房號')),
-      );
-      return;
-    }
+if (isDuplicate) {
+  ScaffoldMessenger.of(context).showSnackBar(
+    const SnackBar(content: Text('此房號已存在，請使用不同房號')),
+  );
+  return;
+}
 
     /// ✅ 新增
     await ShopService.instance.createRoom(
@@ -178,6 +180,22 @@ class _ShopRoomPageState extends State<ShopRoomPage> {
                       onPressed: _createRoom,
                       child: const Text('新增房間'),
                     ),
+                    const SizedBox(height: 10),
+
+Text(
+  '1. 此頁用來建立實際房間，例如 A01、A02。\n'
+  '2. 房型管理設定幾間房，這裡就需要建立幾次房間。\n'
+  '3. 每個房號不可重複，不同房型也不能使用同一個房號。\n'
+  '4. 下方開關可永久停用或恢復該房間；關閉後，前台將不會把此房間納入可預約數量。\n'
+  '5. 房間關閉後，前台不會把此房間納入可預約數量。\n'
+  '6. 若刪除房型，該房型底下建立的房間也會一併刪除；若只是某一天維修或臨時關閉，請到房務管理的日曆設定單日關閉。',
+  style: TextStyle(
+    color: Colors.red,
+    fontSize: 14,
+    height: 1.6,
+    fontWeight: FontWeight.w700,
+  ),
+),
                   ],
                 ),
               ),
@@ -205,8 +223,23 @@ class _ShopRoomPageState extends State<ShopRoomPage> {
                       return Card(
                         child: ListTile(
 
-                          subtitle: Text(
-  '${item['name'] ?? ''}（${item['roomTypeId']}）',
+  subtitle: FutureBuilder<List<Map<String, dynamic>>>(
+  future: ShopService.instance.getRoomTypes(widget.shopId),
+  builder: (context, typeSnapshot) {
+    final types = typeSnapshot.data ?? [];
+
+    final roomType = types.where(
+      (type) => type['id'] == item['roomTypeId'],
+    );
+
+    final roomTypeName = roomType.isEmpty
+        ? '未找到房型'
+        : roomType.first['name'] ?? '未命名房型';
+
+    return Text(
+      '${item['name'] ?? ''}（$roomTypeName）',
+    );
+  },
 ),
 
                           /// 🔥 開關

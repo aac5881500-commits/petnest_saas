@@ -3,20 +3,49 @@
 
 import 'package:image_picker/image_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:petnest_saas/core/services/shop_service.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:petnest_saas/core/services/action_log_service.dart';
 import 'dart:ui' as ui;
 
 class ShopRoomTypePage extends StatefulWidget {
-  const ShopRoomTypePage({
-    super.key,
-    required this.shopId,
-  });
+  const ShopRoomTypePage({super.key, required this.shopId});
 
   final String shopId;
 
   @override
   State<ShopRoomTypePage> createState() => _ShopRoomTypePageState();
+}
+
+/// 🔥 限制最大數字 Formatter
+class MaxValueInputFormatter extends TextInputFormatter {
+  MaxValueInputFormatter(this.max);
+
+  final int max;
+
+  @override
+  TextEditingValue formatEditUpdate(
+    TextEditingValue oldValue,
+    TextEditingValue newValue,
+  ) {
+    if (newValue.text.isEmpty) {
+      return newValue;
+    }
+
+    final value = int.tryParse(newValue.text);
+
+    if (value == null) {
+      return oldValue;
+    }
+
+    if (value > max) {
+      return oldValue;
+    }
+
+    return newValue;
+  }
 }
 
 class _ShopRoomTypePageState extends State<ShopRoomTypePage> {
@@ -26,9 +55,9 @@ class _ShopRoomTypePageState extends State<ShopRoomTypePage> {
   final _totalRoomsController = TextEditingController();
   final _descriptionController = TextEditingController();
   final _extraPriceController = TextEditingController(); // 每隻加價
-final _widthController = TextEditingController(); // 寬
-final _depthController = TextEditingController(); // 深
-final _heightController = TextEditingController(); // 高
+  final _widthController = TextEditingController(); // 寬
+  final _depthController = TextEditingController(); // 深
+  final _heightController = TextEditingController(); // 高
 
   bool _loading = false;
 
@@ -56,34 +85,84 @@ final _heightController = TextEditingController(); // 高
     final description = _descriptionController.text.trim();
 
     if (name.isEmpty || capacity <= 0 || price <= 0 || totalRooms <= 0) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('請填寫完整資料')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('請填寫完整資料')));
+      return;
+    }
+
+    if (price > 9999) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('每晚價格不可超過 9999')));
+      return;
+    }
+
+    if (capacity > 10) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('房間最高可住不可超過 10')));
+      return;
+    }
+
+    final extraPrice = int.tryParse(_extraPriceController.text) ?? 0;
+
+    if (extraPrice > 999) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('每隻加購價格不可超過 999')));
+      return;
+    }
+
+    if (totalRooms > 30) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('房間數量不可超過 30')));
+      return;
+    }
+
+    final width = int.tryParse(_widthController.text) ?? 0;
+    final depth = int.tryParse(_depthController.text) ?? 0;
+    final height = int.tryParse(_heightController.text) ?? 0;
+
+    if (width > 999 || depth > 999 || height > 999) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('房間尺寸不可超過 999 cm')));
       return;
     }
 
     setState(() => _loading = true);
 
     try {
+      final user = FirebaseAuth.instance.currentUser;
+
       await ShopService.instance.createRoomType(
-  shopId: widget.shopId,
-  name: name,
-  capacity: capacity,
-  price: price,
-  totalRooms: totalRooms,
-  description: description,
+        shopId: widget.shopId,
+        name: name,
+        capacity: capacity,
+        price: price,
+        totalRooms: totalRooms,
+        description: description,
 
-  /// 🔥 這些現在會正常了
-  extraPrice: int.tryParse(_extraPriceController.text) ?? 0,
-  width: int.tryParse(_widthController.text) ?? 0,
-  depth: int.tryParse(_depthController.text) ?? 0,
-  height: int.tryParse(_heightController.text) ?? 0,
+        extraPrice: int.tryParse(_extraPriceController.text) ?? 0,
+        width: int.tryParse(_widthController.text) ?? 0,
+        depth: int.tryParse(_depthController.text) ?? 0,
+        height: int.tryParse(_heightController.text) ?? 0,
 
-  extraData: {
-    'features': _selectedFeatures,
-  },
-);
+        extraData: {'features': _selectedFeatures},
+      );
 
+      /// 📝 操作紀錄
+      await ActionLogService.instance.logAction(
+        shopId: widget.shopId,
+        targetType: 'room_type',
+        targetId: name,
+        action: '新增房型',
+        operatorUid: user?.uid ?? '',
+        operatorRole: 'owner',
+        payload: {'roomTypeName': name},
+      );
       _nameController.clear();
       _capacityController.clear();
       _priceController.clear();
@@ -91,20 +170,87 @@ final _heightController = TextEditingController(); // 高
       _descriptionController.clear();
       _selectedFeatures.clear();
       _extraPriceController.clear();
-_widthController.clear();
-_depthController.clear();
-_heightController.clear();
+      _widthController.clear();
+      _depthController.clear();
+      _heightController.clear();
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('新增成功')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('新增成功')));
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('錯誤：$e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('錯誤：$e')));
     } finally {
       setState(() => _loading = false);
     }
+  }
+
+  Future<void> _deleteRoomTypeWithRooms(Map<String, dynamic> item) async {
+    final roomTypeId = item['id'];
+    final roomTypeName = item['name'] ?? '此房型';
+
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('確認刪除房型'),
+        content: Text(
+          '確定要刪除「$roomTypeName」嗎？\n\n'
+          '刪除後，這個房型底下建立的房間也會一併刪除。\n'
+          '此動作無法復原。',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('取消'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('確認刪除'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true) return;
+
+    final rooms = await ShopService.instance.getRooms(widget.shopId);
+
+    final targetRooms = rooms.where((room) => room['roomTypeId'] == roomTypeId);
+
+    for (final room in targetRooms) {
+      await ShopService.instance.deleteRoom(
+        shopId: widget.shopId,
+        roomId: room['id'],
+      );
+    }
+
+    await ShopService.instance.deleteRoomType(
+      shopId: widget.shopId,
+      roomTypeId: roomTypeId,
+    );
+
+    final user = FirebaseAuth.instance.currentUser;
+
+    /// 📝 操作紀錄
+    await ActionLogService.instance.logAction(
+      shopId: widget.shopId,
+      targetType: 'room_type',
+      targetId: roomTypeId,
+      action: '刪除房型',
+      operatorUid: user?.uid ?? '',
+      operatorRole: 'owner',
+      payload: {
+        'roomTypeName': roomTypeName,
+        'deletedRoomCount': targetRooms.length,
+      },
+    );
+
+    if (!mounted) return;
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('已刪除房型與其底下房間')));
   }
 
   @override
@@ -115,9 +261,9 @@ _heightController.clear();
     _totalRoomsController.dispose();
     _descriptionController.dispose();
     _extraPriceController.dispose();
-_widthController.dispose();
-_depthController.dispose();
-_heightController.dispose();
+    _widthController.dispose();
+    _depthController.dispose();
+    _heightController.dispose();
     super.dispose();
   }
 
@@ -148,7 +294,11 @@ _heightController.dispose();
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(item['icon'], size: 16, color: selected ? Colors.white : Colors.black),
+                Icon(
+                  item['icon'],
+                  size: 16,
+                  color: selected ? Colors.white : Colors.black,
+                ),
                 const SizedBox(width: 4),
                 Text(
                   item['name'],
@@ -197,16 +347,95 @@ _heightController.dispose();
     );
   }
 
+  /// 📝 房型操作紀錄
+  Widget _buildRoomTypeActionLogs() {
+    return StreamBuilder<List<Map<String, dynamic>>>(
+      stream: ActionLogService.instance.streamShopLogs(widget.shopId),
+      builder: (context, snapshot) {
+        final logs = (snapshot.data ?? []).where((log) {
+          return log['targetType'] == 'room_type' &&
+              (log['action'] == '新增房型' ||
+                  log['action'] == '編輯房型' ||
+                  log['action'] == '刪除房型');
+        }).toList();
+
+        if (logs.isEmpty) {
+          return const SizedBox();
+        }
+
+        return Card(
+          child: Padding(
+            padding: const EdgeInsets.all(12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  '操作紀錄',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                ),
+
+                const SizedBox(height: 8),
+
+                ...logs.map((log) {
+                  final payload = Map<String, dynamic>.from(
+                    log['payload'] ?? {},
+                  );
+                  final roomTypeName = payload['roomTypeName'] ?? '未命名房型';
+                  final operatorEmail = log['operatorEmail'] ?? '';
+                  final createdAt = log['createdAt'];
+
+                  String timeText = '';
+                  if (createdAt is Timestamp) {
+                    final date = createdAt.toDate();
+                    timeText =
+                        '${date.year}/${date.month}/${date.day} ${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
+                  }
+
+                  return Container(
+                    width: double.infinity,
+                    margin: const EdgeInsets.only(top: 8),
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade100,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Text(
+                      '${log['action']}：$roomTypeName\n'
+                      '操作信箱：$operatorEmail\n'
+                      '操作時間：$timeText',
+                      style: const TextStyle(fontSize: 13, height: 1.5),
+                    ),
+                  );
+                }),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('房型管理'),
-      ),
+      appBar: AppBar(title: const Text('房型管理')),
       body: Padding(
         padding: const EdgeInsets.all(16),
-        child: Column(
+        child: ListView(
           children: [
+            const Text(
+              '提醒：刪除房型時，房間管理內該房型底下的房間也會一併刪除。\n'
+              '若只是暫時不開放某間房，請到房間管理關閉房間，或到房務管理關閉單日。',
+              style: TextStyle(
+                color: Colors.red,
+                fontSize: 14,
+                fontWeight: FontWeight.w700,
+                height: 1.5,
+              ),
+            ),
+
+            const SizedBox(height: 12),
+
             Card(
               child: Padding(
                 padding: const EdgeInsets.all(12),
@@ -217,32 +446,34 @@ _heightController.dispose();
                       decoration: const InputDecoration(labelText: '房型名稱'),
                     ),
 
-TextField(
+                    TextField(
                       controller: _priceController,
                       keyboardType: TextInputType.number,
+                      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                       decoration: const InputDecoration(labelText: '每晚價格'),
                     ),
 
                     TextField(
                       controller: _capacityController,
                       keyboardType: TextInputType.number,
+                      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                       decoration: const InputDecoration(labelText: '房間最高可住'),
                     ),
                     const SizedBox(height: 12),
 
                     TextField(
-  controller: _extraPriceController,
-  keyboardType: TextInputType.number,
-  decoration: const InputDecoration(
-    labelText: '每隻加購價格（例：200）',
-  ),
-),
+                      controller: _extraPriceController,
+                      keyboardType: TextInputType.number,
+                      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                      decoration: const InputDecoration(
+                        labelText: '每隻加購價格（例：200）',
+                      ),
+                    ),
 
-
-                    
                     TextField(
                       controller: _totalRoomsController,
                       keyboardType: TextInputType.number,
+                      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                       decoration: const InputDecoration(labelText: '房間數量'),
                     ),
                     TextField(
@@ -252,34 +483,49 @@ TextField(
                     ),
                     const SizedBox(height: 12),
 
-/// 🔥 房間尺寸（寬 深 高）
-Row(
-  children: [
-    Expanded(
-      child: TextField(
-        controller: _widthController,
-        keyboardType: TextInputType.number,
-        decoration: const InputDecoration(labelText: '寬(cm)'),
-      ),
-    ),
-    const SizedBox(width: 8),
-    Expanded(
-      child: TextField(
-        controller: _depthController,
-        keyboardType: TextInputType.number,
-        decoration: const InputDecoration(labelText: '深(cm)'),
-      ),
-    ),
-    const SizedBox(width: 8),
-    Expanded(
-      child: TextField(
-        controller: _heightController,
-        keyboardType: TextInputType.number,
-        decoration: const InputDecoration(labelText: '高(cm)'),
-      ),
-    ),
-  ],
-),
+                    /// 🔥 房間尺寸（寬 深 高）
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextField(
+                            controller: _widthController,
+                            keyboardType: TextInputType.number,
+                            inputFormatters: [
+                              FilteringTextInputFormatter.digitsOnly,
+                            ],
+                            decoration: const InputDecoration(
+                              labelText: '寬(cm)',
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: TextField(
+                            controller: _depthController,
+                            keyboardType: TextInputType.number,
+                            inputFormatters: [
+                              FilteringTextInputFormatter.digitsOnly,
+                            ],
+                            decoration: const InputDecoration(
+                              labelText: '深(cm)',
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: TextField(
+                            controller: _heightController,
+                            keyboardType: TextInputType.number,
+                            inputFormatters: [
+                              FilteringTextInputFormatter.digitsOnly,
+                            ],
+                            decoration: const InputDecoration(
+                              labelText: '高(cm)',
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
 
                     const SizedBox(height: 12),
 
@@ -299,185 +545,194 @@ Row(
 
             const SizedBox(height: 16),
 
-            Expanded(
-              child: StreamBuilder<List<Map<String, dynamic>>>(
-                stream: ShopService.instance.streamRoomTypes(widget.shopId),
-                builder: (context, snapshot) {
-                  final list = snapshot.data ?? [];
+            StreamBuilder<List<Map<String, dynamic>>>(
+              stream: ShopService.instance.streamRoomTypes(widget.shopId),
+              builder: (context, snapshot) {
+                final list = snapshot.data ?? [];
 
-                  if (list.isEmpty) {
-                    return const Center(child: Text('尚未建立房型'));
-                  }
+                if (list.isEmpty) {
+                  return const Center(child: Text('尚未建立房型'));
+                }
 
-                  return ListView.builder(
-                    itemCount: list.length,
-                    itemBuilder: (context, index) {
-                      final item = list[index];
-                      final features = item['features'] ?? [];
+                return ListView.builder(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  itemCount: list.length,
+                  itemBuilder: (context, index) {
+                    final item = list[index];
+                    final features = item['features'] ?? [];
 
-                      return Card(
-                        child: ListTile(
-                          title: Text(item['name'] ?? ''),
+                    return Card(
+                      child: ListTile(
+                        title: Text(item['name'] ?? ''),
 
-                          subtitle: Column(
-  crossAxisAlignment: CrossAxisAlignment.start,
-  children: [
+                        subtitle: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              '每晚 \$${item['price']}',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
 
-    Text(
-      '每晚 \$${item['price']}',
-      style: const TextStyle(fontWeight: FontWeight.bold),
-    ),
+                            Text(
+                              '可住 ${item['capacity']} 隻｜房間 ${item['totalRooms']} 間',
+                            ),
 
-    Text(
-      '可住 ${item['capacity']} 隻｜房間 ${item['totalRooms']} 間',
-    ),
+                            if ((item['extraPrice'] ?? 0) > 0)
+                              Text(
+                                '每隻加購 +${item['extraPrice']}',
+                                style: const TextStyle(color: Colors.red),
+                              ),
 
-    if ((item['extraPrice'] ?? 0) > 0)
-      Text(
-        '每隻加購 +${item['extraPrice']}',
-        style: const TextStyle(color: Colors.red),
-      ),
+                            Text(
+                              '尺寸：${item['width']} x ${item['depth']} x ${item['height']} cm',
+                              style: const TextStyle(color: Colors.grey),
+                            ),
 
-    Text(
-      '尺寸：${item['width']} x ${item['depth']} x ${item['height']} cm',
-      style: const TextStyle(color: Colors.grey),
-    ),
+                            const SizedBox(height: 6),
 
-    const SizedBox(height: 6),
+                            /// 🔥 小卡
+                            _buildFeatureTags(features),
 
-    /// 🔥 小卡
-    _buildFeatureTags(features),
+                            /// 🔥 圖片
+                            if ((item['images'] ?? []).isNotEmpty)
+                              SizedBox(
+                                height: 60,
+                                child: ListView.builder(
+                                  scrollDirection: Axis.horizontal,
+                                  itemCount: item['images'].length,
+                                  itemBuilder: (context, i) {
+                                    final url = item['images'][i];
 
-    /// 🔥 圖片
-    if ((item['images'] ?? []).isNotEmpty)
-      SizedBox(
-        height: 60,
-        child: ListView.builder(
-          scrollDirection: Axis.horizontal,
-          itemCount: item['images'].length,
-          itemBuilder: (context, i) {
-            final url = item['images'][i];
+                                    return Stack(
+                                      children: [
+                                        Container(
+                                          margin: const EdgeInsets.only(
+                                            right: 8,
+                                          ),
+                                          child: Image.network(
+                                            url,
+                                            width: 60,
+                                            height: 60,
+                                          ),
+                                        ),
 
-            return Stack(
-              children: [
-                Container(
-                  margin: const EdgeInsets.only(right: 8),
-                  child: Image.network(
-                    url,
-                    width: 60,
-                    height: 60,
-                  ),
-                ),
-
-                Positioned(
-                  right: 0,
-                  top: 0,
-                  child: GestureDetector(
-                    onTap: () async {
-                      await ShopService.instance.deleteRoomTypeImage(
-                        shopId: widget.shopId,
-                        roomTypeId: item['id'],
-                        imageUrl: url,
-                      );
-                    },
-                    child: Container(
-                      color: Colors.black54,
-                      child: const Icon(
-                        Icons.close,
-                        color: Colors.white,
-                        size: 16,
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            );
-          },
-        ),
-      ),
-  ],
-),
-
-                          trailing: Row(
-  mainAxisSize: MainAxisSize.min,
-  children: [
-
-    /// 📷 上傳圖片（新）
-    IconButton(
-      icon: const Icon(Icons.add_photo_alternate, color: Colors.blue),
-      onPressed: () async {
-
-        final images = List<String>.from(item['images'] ?? []);
-
-        /// 🔥 限制最多5張
-        if (images.length >= 5) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('最多只能上傳5張圖片')),
-          );
-          return;
-        }
-
-        final picker = ImagePicker();
-        final file = await picker.pickImage(source: ImageSource.gallery);
-        if (file == null) return;
-
-        final rawBytes = await file.readAsBytes();
-
-        /// 🔥 壓縮圖片（限制大小）
-        final codec = await ui.instantiateImageCodec(
-          rawBytes,
-          targetWidth: 1280,
-        );
-
-        final frame = await codec.getNextFrame();
-
-        final byteData = await frame.image.toByteData(
-          format: ui.ImageByteFormat.png,
-        );
-
-        final bytes = byteData!.buffer.asUint8List();
-
-        await ShopService.instance.uploadRoomTypeImage(
-          shopId: widget.shopId,
-          roomTypeId: item['id'],
-          bytes: bytes,
-        );
-
-        if (!mounted) return;
-
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('圖片上傳成功')),
-        );
-      },
-    ),
-
-    /// ✏️ 編輯
-    IconButton(
-      icon: const Icon(Icons.edit),
-      onPressed: () {
-        _showEditDialog(item);
-      },
-    ),
-
-    /// 🗑️ 刪除
-    IconButton(
-      icon: const Icon(Icons.delete, color: Colors.red),
-      onPressed: () async {
-        await ShopService.instance.deleteRoomType(
-          shopId: widget.shopId,
-          roomTypeId: item['id'],
-        );
-      },
-    ),
-  ],
-),
+                                        Positioned(
+                                          right: 0,
+                                          top: 0,
+                                          child: GestureDetector(
+                                            onTap: () async {
+                                              await ShopService.instance
+                                                  .deleteRoomTypeImage(
+                                                    shopId: widget.shopId,
+                                                    roomTypeId: item['id'],
+                                                    imageUrl: url,
+                                                  );
+                                            },
+                                            child: Container(
+                                              color: Colors.black54,
+                                              child: const Icon(
+                                                Icons.close,
+                                                color: Colors.white,
+                                                size: 16,
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    );
+                                  },
+                                ),
+                              ),
+                          ],
                         ),
-                      );
-                    },
-                  );
-                },
-              ),
+
+                        trailing: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            /// 📷 上傳圖片（新）
+                            IconButton(
+                              icon: const Icon(
+                                Icons.add_photo_alternate,
+                                color: Colors.blue,
+                              ),
+                              onPressed: () async {
+                                final images = List<String>.from(
+                                  item['images'] ?? [],
+                                );
+
+                                /// 🔥 限制最多5張
+                                if (images.length >= 5) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(content: Text('最多只能上傳5張圖片')),
+                                  );
+                                  return;
+                                }
+
+                                final picker = ImagePicker();
+                                final file = await picker.pickImage(
+                                  source: ImageSource.gallery,
+                                );
+                                if (file == null) return;
+
+                                final rawBytes = await file.readAsBytes();
+
+                                /// 🔥 壓縮圖片（限制大小）
+                                final codec = await ui.instantiateImageCodec(
+                                  rawBytes,
+                                  targetWidth: 1280,
+                                );
+
+                                final frame = await codec.getNextFrame();
+
+                                final byteData = await frame.image.toByteData(
+                                  format: ui.ImageByteFormat.png,
+                                );
+
+                                final bytes = byteData!.buffer.asUint8List();
+
+                                await ShopService.instance.uploadRoomTypeImage(
+                                  shopId: widget.shopId,
+                                  roomTypeId: item['id'],
+                                  bytes: bytes,
+                                );
+
+                                if (!mounted) return;
+
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(content: Text('圖片上傳成功')),
+                                );
+                              },
+                            ),
+
+                            /// ✏️ 編輯
+                            IconButton(
+                              icon: const Icon(Icons.edit),
+                              onPressed: () {
+                                _showEditDialog(item);
+                              },
+                            ),
+
+                            /// 🗑️ 刪除
+                            IconButton(
+                              icon: const Icon(Icons.delete, color: Colors.red),
+                              onPressed: () async {
+                                await _deleteRoomTypeWithRooms(item);
+                              },
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                );
+              },
             ),
+            const SizedBox(height: 12),
+
+            _buildRoomTypeActionLogs(),
           ],
         ),
       ),
@@ -485,8 +740,9 @@ Row(
   }
 
   void _showEditDialog(Map<String, dynamic> item) {
-    final descriptionController =
-        TextEditingController(text: item['description'] ?? '');
+    final descriptionController = TextEditingController(
+      text: item['description'] ?? '',
+    );
 
     showDialog(
       context: context,
@@ -516,9 +772,25 @@ Row(
                     .doc(widget.shopId)
                     .collection('room_types')
                     .doc(item['id'])
-                    .update({
-                  'description': descriptionController.text.trim(),
-                });
+                    .update({'description': descriptionController.text.trim()});
+
+                final user = FirebaseAuth.instance.currentUser;
+
+                /// 📝 操作紀錄
+                await ActionLogService.instance.logAction(
+                  shopId: widget.shopId,
+                  targetType: 'room_type',
+                  targetId: item['id'],
+                  action: '編輯房型',
+                  operatorUid: user?.uid ?? '',
+                  operatorRole: 'owner',
+                  payload: {
+                    'roomTypeName': item['name'] ?? '',
+                    'field': 'description',
+                    'oldDescription': item['description'] ?? '',
+                    'newDescription': descriptionController.text.trim(),
+                  },
+                );
 
                 Navigator.pop(context);
               },

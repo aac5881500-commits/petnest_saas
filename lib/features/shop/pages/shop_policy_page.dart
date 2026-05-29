@@ -4,6 +4,8 @@
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/services/shop_service.dart';
 import 'package:petnest_saas/features/shop/pages/policy_version_history_page.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:petnest_saas/core/services/action_log_service.dart';
 
 class ShopPolicyPage extends StatefulWidget {
   const ShopPolicyPage({
@@ -148,6 +150,22 @@ final customPoliciesPage2 = _customControllersPage2
   enabled: _enabled,
   customPoliciesPage1: customPoliciesPage1,
   customPoliciesPage2: customPoliciesPage2,
+);
+
+final user = FirebaseAuth.instance.currentUser;
+
+/// 📝 操作紀錄：條款版本更新
+await ActionLogService.instance.logAction(
+  shopId: widget.shopId,
+  targetType: 'policy',
+  targetId: 'checkin_policy',
+  action: '更新入住條款版本',
+  operatorUid: user?.uid ?? '',
+  operatorRole: 'owner',
+  payload: {
+    'oldVersion': _version,
+    'newVersion': _version + 1,
+  },
 );
     if (!mounted) return;
 
@@ -332,6 +350,47 @@ _customControllersPage1 = [
       ),
     );
   }
+
+/// 📝 條款版本操作紀錄
+Widget _buildPolicyActionLogs() {
+  return StreamBuilder<List<Map<String, dynamic>>>(
+    stream: ActionLogService.instance.streamShopLogs(widget.shopId),
+    builder: (context, snapshot) {
+      final logs = (snapshot.data ?? []).where((log) {
+        return log['targetType'] == 'policy' &&
+            log['action'] == '更新入住條款版本';
+      }).toList();
+
+      if (logs.isEmpty) return const SizedBox();
+
+      return Card(
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                '版本操作紀錄',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 8),
+              ...logs.map((log) {
+                final payload = Map<String, dynamic>.from(log['payload'] ?? {});
+                final operatorEmail = log['operatorEmail'] ?? '';
+
+                return Text(
+                  '更新入住條款版本：v${payload['oldVersion']} → v${payload['newVersion']}\n'
+                  '操作信箱：$operatorEmail',
+                  style: const TextStyle(fontSize: 13, height: 1.5),
+                );
+              }),
+            ],
+          ),
+        ),
+      );
+    },
+  );
+}
 
   @override
   Widget build(BuildContext context) {
@@ -518,6 +577,9 @@ ElevatedButton(
 },
                           child: const Text('新增條款'),
                         ),
+                        const SizedBox(height: 20),
+
+_buildPolicyActionLogs(),
                       ],
                     ),
                   ),

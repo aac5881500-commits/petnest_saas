@@ -301,8 +301,21 @@ String _permissionLabel(String key) {
     return StreamBuilder<List<Map<String, dynamic>>>(
       stream: ActionLogService.instance.streamShopLogs(widget.shopId),
       builder: (context, snapshot) {
-        final logs = (snapshot.data ?? []).take(20).toList();
+final logs = (snapshot.data ?? [])
+    .where((log) {
+      final action = log['action']?.toString() ?? '';
 
+      return [
+        'create_invite',
+        'invite_accepted',
+        'update_member_permission',
+        'update_permission',
+        'remove_member_invite',
+        'remove_member',
+      ].contains(action);
+    })
+    .take(20)
+    .toList();
         return Card(
           child: Padding(
             padding: const EdgeInsets.all(12),

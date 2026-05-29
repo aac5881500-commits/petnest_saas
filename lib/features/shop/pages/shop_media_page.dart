@@ -11,10 +11,7 @@ import 'package:image/image.dart' as img;
 // ❌ 已移除 image_cropper（Web會爆）
 
 class ShopMediaPage extends StatefulWidget {
-  const ShopMediaPage({
-    super.key,
-    required this.shopId,
-  });
+  const ShopMediaPage({super.key, required this.shopId});
 
   final String shopId;
 
@@ -77,10 +74,7 @@ class _ShopMediaPageState extends State<ShopMediaPage> {
       }
 
       /// 🔥 自動縮放
-      final resized = img.copyResize(
-        decoded,
-        width: 1200,
-      );
+      final resized = img.copyResize(decoded, width: 1200);
 
       /// 🔥 轉 JPG
       final jpg = img.encodeJpg(resized, quality: 85);
@@ -88,9 +82,9 @@ class _ShopMediaPageState extends State<ShopMediaPage> {
 
       /// 🔥 限制大小
       if (bytes.length > _maxImageBytes) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('圖片需小於5MB')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('圖片需小於5MB')));
         return;
       }
 
@@ -109,11 +103,10 @@ class _ShopMediaPageState extends State<ShopMediaPage> {
       setState(() {
         banners[index]['imageUrl'] = url;
       });
-
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('上傳失敗：$e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('上傳失敗：$e')));
     } finally {
       setState(() => _uploading = false);
     }
@@ -122,21 +115,16 @@ class _ShopMediaPageState extends State<ShopMediaPage> {
   Future<void> _save() async {
     await ShopService.instance.updateShop(
       shopId: widget.shopId,
-      data: {
-        'banners': banners,
-      },
+      data: {'banners': banners},
     );
 
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('儲存成功')),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('儲存成功')));
   }
 
-  Widget _buildHintCard({
-    required String title,
-    required String desc,
-  }) {
+  Widget _buildHintCard({required String title, required String desc}) {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(12),
@@ -145,10 +133,7 @@ class _ShopMediaPageState extends State<ShopMediaPage> {
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: Colors.grey.shade300),
       ),
-      child: Text(
-        '$title\n$desc',
-        style: const TextStyle(height: 1.5),
-      ),
+      child: Text('$title\n$desc', style: const TextStyle(height: 1.5)),
     );
   }
 
@@ -157,21 +142,12 @@ class _ShopMediaPageState extends State<ShopMediaPage> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('活動海報管理'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.save),
-            onPressed: _save,
-          )
-        ],
+        actions: [IconButton(icon: const Icon(Icons.save), onPressed: _save)],
       ),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-
-          _buildHintCard(
-            title: '海報說明',
-            desc: '建議使用橫式16:9圖片（系統會自動處理比例）',
-          ),
+          _buildHintCard(title: '海報說明', desc: '建議使用橫式16:9圖片（系統會自動處理比例）'),
 
           const SizedBox(height: 16),
 
@@ -197,12 +173,14 @@ class _ShopMediaPageState extends State<ShopMediaPage> {
                   padding: const EdgeInsets.all(12),
                   child: Column(
                     children: [
-
                       Align(
                         alignment: Alignment.centerRight,
                         child: ReorderableDragStartListener(
                           index: index,
-                          child: const Icon(Icons.drag_handle, color: Colors.grey),
+                          child: const Icon(
+                            Icons.drag_handle,
+                            color: Colors.grey,
+                          ),
                         ),
                       ),
 
@@ -226,18 +204,6 @@ class _ShopMediaPageState extends State<ShopMediaPage> {
                         child: const Text('上傳圖片'),
                       ),
 
-                      const SizedBox(height: 8),
-
-                      TextFormField(
-                        initialValue: banner['linkUrl'],
-                        decoration: const InputDecoration(
-                          labelText: '點擊連結（可空）',
-                        ),
-                        onChanged: (value) {
-                          banner['linkUrl'] = value;
-                        },
-                      ),
-
                       SwitchListTile(
                         title: const Text('啟用'),
                         value: banner['isActive'],
@@ -254,8 +220,11 @@ class _ShopMediaPageState extends State<ShopMediaPage> {
                           onPressed: () async {
                             final oldUrl = banners[index]['imageUrl'];
 
-                            if (oldUrl != null && oldUrl.toString().isNotEmpty) {
-                              await ShopService.instance.deleteImageByUrl(oldUrl);
+                            if (oldUrl != null &&
+                                oldUrl.toString().isNotEmpty) {
+                              await ShopService.instance.deleteImageByUrl(
+                                oldUrl,
+                              );
                             }
 
                             setState(() {
@@ -275,18 +244,14 @@ class _ShopMediaPageState extends State<ShopMediaPage> {
           ElevatedButton(
             onPressed: () {
               if (banners.length >= 5) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('最多只能5張海報')),
-                );
+                ScaffoldMessenger.of(
+                  context,
+                ).showSnackBar(const SnackBar(content: Text('最多只能5張海報')));
                 return;
               }
 
               setState(() {
-                banners.add({
-                  'imageUrl': '',
-                  'linkUrl': '',
-                  'isActive': true,
-                });
+                banners.add({'imageUrl': '', 'isActive': true});
               });
             },
             child: const Text('新增海報'),

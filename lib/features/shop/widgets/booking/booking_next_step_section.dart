@@ -3,6 +3,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/features/booking/pages/booking_form_page.dart';
+import 'package:petnest_saas/features/shop/widgets/booking/booking_submit_helper.dart';
 
 class BookingNextStepSection extends StatelessWidget {
   const BookingNextStepSection({
@@ -13,6 +14,9 @@ class BookingNextStepSection extends StatelessWidget {
     required this.selectedRoomType,
     required this.nights,
     required this.totalPrice,
+    required this.selectedPetIds,
+    required this.startDate,
+    required this.endDate,
     required this.valueServices,
     required this.formKey,
     required this.shopId,
@@ -33,7 +37,9 @@ class BookingNextStepSection extends StatelessWidget {
   final int nights;
   final int totalPrice;
   final List<Map<String, dynamic>> valueServices;
-
+  final List<String> selectedPetIds;
+  final DateTime? startDate;
+  final DateTime? endDate;
   final GlobalKey<FormState> formKey;
   final String shopId;
   final List<String> serviceTypes;
@@ -55,7 +61,8 @@ class BookingNextStepSection extends StatelessWidget {
     int depositAmount,
     String paymentMethod,
     String payAmountType,
-  ) onSubmitWithData;
+  )
+  onSubmitWithData;
 
   @override
   Widget build(BuildContext context) {
@@ -63,8 +70,7 @@ class BookingNextStepSection extends StatelessWidget {
       return const SizedBox();
     }
 
-    final enabled =
-        canSubmit && !isBlacklisted && selectedRoomType != null;
+    final enabled = canSubmit && !isBlacklisted && selectedRoomType != null;
 
     return Column(
       children: [
@@ -76,18 +82,42 @@ class BookingNextStepSection extends StatelessWidget {
           width: double.infinity,
           child: ElevatedButton(
             onPressed: enabled
-                ? () {
-                    final basePrice =
-                        (selectedRoomType!['price'] ?? 0).toInt();
+                ? () async {
+                    if (startDate != null &&
+                        endDate != null &&
+                        selectedPetIds.isNotEmpty) {
+                      try {
+                        await BookingSubmitHelper.checkDuplicatePetBooking(
+                          shopId: shopId,
+                          selectedPetIds: selectedPetIds,
+                          startDate: startDate!,
+                          endDate: endDate!,
+                        );
+                      } catch (e) {
+                        final message = e.toString().replaceFirst(
+                          'Exception: ',
+                          '',
+                        );
 
-                    final extraPrice =
-                        (selectedRoomType!['extraPrice'] ?? 0).toInt();
+                        if (!context.mounted) return;
+
+                        ScaffoldMessenger.of(
+                          context,
+                        ).showSnackBar(SnackBar(content: Text(message)));
+
+                        return;
+                      }
+                    }
+
+                    final basePrice = (selectedRoomType!['price'] ?? 0).toInt();
+
+                    final extraPrice = (selectedRoomType!['extraPrice'] ?? 0)
+                        .toInt();
 
                     final petCount =
                         (selectedRoomType!['selectedPetCount'] ?? 1).toInt();
 
-                    final extraPetCount =
-                        petCount > 1 ? petCount - 1 : 0;
+                    final extraPetCount = petCount > 1 ? petCount - 1 : 0;
 
                     final int roomSubtotal =
                         (basePrice * nights) +

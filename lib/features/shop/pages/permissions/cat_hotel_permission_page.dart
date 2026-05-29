@@ -62,6 +62,22 @@ class _CatHotelPermissionPageState
           ),
 
           PermissionSwitchTile(
+  title: '預約管理',
+  subtitle: '可開關前台預約、管理可預約日期',
+  value:
+      widget.permissions[
+          ShopPermissionKeys.manageBookingSettings] ??
+      false,
+  enabled: widget.isOwner,
+  onChanged: (value) {
+    _updatePermission(
+      ShopPermissionKeys.manageBookingSettings,
+      value,
+    );
+  },
+),
+
+          PermissionSwitchTile(
             title: '房務管理',
             subtitle: '可操作入住、退房、房間狀態',
             value:

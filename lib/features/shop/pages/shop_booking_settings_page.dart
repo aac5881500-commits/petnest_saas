@@ -10,8 +10,8 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import 'package:petnest_saas/core/services/action_log_service.dart';
-import 'package:petnest_saas/core/services/booking_service.dart';
 import 'package:petnest_saas/core/services/shop_service.dart';
 import 'package:petnest_saas/shared/widgets/booking_calendar.dart';
 import 'package:petnest_saas/core/constants/shop_permission_keys.dart';
@@ -29,7 +29,6 @@ State<ShopBookingSettingsPage> createState() => _ShopBookingSettingsPageState();
 }
 
 class _ShopBookingSettingsPageState extends State<ShopBookingSettingsPage> {
-  String _selectedStatus = 'all';
 
   final _maxAdvanceBookingDaysController = TextEditingController();
 
@@ -43,6 +42,7 @@ class _ShopBookingSettingsPageState extends State<ShopBookingSettingsPage> {
   Map<String, dynamic>? _memberData;
 
   DateTime? _selectedCalendarDate;
+
 
   @override
   void initState() {
@@ -113,7 +113,7 @@ final role = memberData?['role']?.toString();
    final canManageBookings =
     ShopService.instance.hasPermission(
   _memberData,
-  ShopPermissionKeys.manageBookings,
+  ShopPermissionKeys.manageBookingSettings,
 );
 
 if (!canManageBookings) {
@@ -170,11 +170,6 @@ if (!canManageBookings) {
               _toInt(shop['maxAdvanceBookingDays'], fallback: 30);
           final lastDate = today.add(Duration(days: maxAdvanceBookingDays));
 
-          final selectedDate = _selectedCalendarDate ?? today;
-          final normalizedSelectedDate = _dateOnly(selectedDate);
-          final selectedDateKey =
-              ShopService.instance.formatDateKey(normalizedSelectedDate);
-
           return FutureBuilder<_CalendarPayload>(
             future: _buildCalendarPayload(
               shop: shop,
@@ -191,13 +186,15 @@ if (!canManageBookings) {
                   children: [
                     _buildBookingSettingsCard(),
                     const SizedBox(height: 16),
-                    _buildCalendarSection(
-                      shop: shop,
-                      firstDate: today,
-                      lastDate: lastDate,
-                      payload: payload,
-                    ),
-                    const SizedBox(height: 16),
+                   _buildCalendarSection(
+  shop: shop,
+  firstDate: today,
+  lastDate: lastDate,
+  payload: payload,
+),
+const SizedBox(height: 16),
+_buildBookingActionLogs(),
+const SizedBox(height: 16),
                   ],
                 ),
               );
@@ -285,10 +282,19 @@ if (!canManageBookings) {
           ),
         ),
         const SizedBox(height: 8),
-        const Text(
-          '紅色代表關閉或不可預約。點日期可切換開放/關閉並設定原因。',
-          style: TextStyle(color: Colors.grey),
-        ),
+        Text(
+  '1. 可開啟或關閉前台預約功能。\n'
+  '2. 可設定客戶最遠可預約天數。\n'
+  '3. 可點擊日期關閉單日預約，並設定原因（例如：休假、清潔、維修）。\n'
+  '4. 關閉日期後，前台將無法選擇該日期預約。\n'
+  '5. 若只是單一房間維修或臨時關閉，請至房務管理設定個別房間日期。',
+  style: TextStyle(
+    color: Colors.red,
+    fontSize: 13,
+    height: 1.6,
+    fontWeight: FontWeight.w700,
+  ),
+),
         const SizedBox(height: 12),
         if (loading)
           const Card(
@@ -326,177 +332,114 @@ if (!canManageBookings) {
     );
   }
 
+Widget _buildBookingActionLogs() {
+  return StreamBuilder<List<Map<String, dynamic>>>(
+    stream: ActionLogService.instance.streamShopLogs(widget.shopId),
+    builder: (context, snapshot) {
+      final logs = (snapshot.data ?? [])
+          .where((log) {
+            final action = log['action']?.toString() ?? '';
 
-  Widget _buildFilterBar() {
-    return Row(
-      children: [
-        const Text(
-          '篩選狀態：',
-          style: TextStyle(fontWeight: FontWeight.bold),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: DropdownButtonFormField<String>(
-            value: _selectedStatus,
-            items: const [
-              DropdownMenuItem(value: 'all', child: Text('全部')),
-              DropdownMenuItem(value: 'pending', child: Text('待確認')),
-              DropdownMenuItem(value: 'confirmed', child: Text('已確認')),
-              DropdownMenuItem(value: 'completed', child: Text('已完成')),
-              DropdownMenuItem(value: 'cancelled', child: Text('已取消')),
-            ],
-            onChanged: (value) {
-              if (value == null) return;
-              setState(() {
-                _selectedStatus = value;
-              });
-            },
-            decoration: const InputDecoration(
-              border: OutlineInputBorder(),
-              isDense: true,
-            ),
-          ),
-        ),
-      ],
-    );
-  }
+            return [
+              'update_booking_settings',
+              'block_date',
+              'unblock_date',
+            ].contains(action);
+          })
+          .take(20)
+          .toList();
 
-  Widget _buildBookingList(
-    AsyncSnapshot<List<Map<String, dynamic>>> snapshot,
-  ) {
-    if (snapshot.connectionState == ConnectionState.waiting) {
-      return const Center(child: CircularProgressIndicator());
-    }
-
-    if (snapshot.hasError) {
-      return Center(
-        child: Text('載入失敗：${snapshot.error}'),
-      );
-    }
-
-    final bookings = snapshot.data ?? [];
-
-    if (bookings.isEmpty) {
-      return Container(
-        alignment: Alignment.topCenter,
-        padding: const EdgeInsets.only(top: 24),
-        child: const Text('目前沒有預約資料'),
-      );
-    }
-
-    return ListView.separated(
-      itemCount: bookings.length,
-      separatorBuilder: (_, __) => const SizedBox(height: 12),
-      itemBuilder: (context, index) {
-        final booking = bookings[index];
-
-        final Timestamp? startTimestamp = booking['startDate'];
-        final Timestamp? endTimestamp = booking['endDate'];
-
-        final DateTime? startDate = startTimestamp?.toDate();
-        final DateTime? endDate = endTimestamp?.toDate();
-
-        final int nights = _toInt(booking['nights']);
-
-        final pets = (booking['pets'] as List?)
-          ?.map((e) => e as Map<String, dynamic>)
-          .toList() ??
-      [];
-
-        return Card(
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  booking['customerName'] ?? '未填姓名',
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                  ),
+      return Card(
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                '預約管理操作紀錄',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
                 ),
-                const SizedBox(height: 8),
-                Text('電話：${booking['customerPhone'] ?? '-'}'),
-              
-Text(
-  '寵物：${pets.isEmpty ? '-' : pets.map((p) => p['name']).join(', ')}',
+              ),
+
+              const SizedBox(height: 8),
+
+              if (logs.isEmpty)
+                const Text('目前沒有預約管理操作紀錄'),
+
+              ...logs.map((log) {
+                final action = log['action']?.toString() ?? '';
+                final operatorEmail =
+                    log['operatorEmail']?.toString() ?? '-';
+                final operatorRole =
+                    log['operatorRole']?.toString() ?? '-';
+                    String displayRole = operatorRole;
+
+if (operatorRole == 'owner') {
+  displayRole = '老闆';
+} else if (operatorRole == 'staff') {
+  displayRole = '員工';
+}
+
+                final payload =
+    Map<String, dynamic>.from(log['payload'] ?? {});
+
+final dateKey =
+    payload['dateKey']?.toString() ?? '-';
+
+final createdAt = log['createdAt'];
+
+String formattedTime = '-';
+
+if (createdAt is Timestamp) {
+  formattedTime = DateFormat(
+    'yyyy-MM-dd HH:mm',
+  ).format(createdAt.toDate());
+}
+
+String title = action;
+
+String settingDetail = '';
+
+if (action == 'update_booking_settings') {
+  title = '更新預約設定';
+
+  final bookingEnabled =
+      payload['bookingEnabled'] == true;
+
+  final maxDays =
+      payload['maxAdvanceBookingDays'];
+
+  settingDetail =
+      '前台預約：${bookingEnabled ? '開啟' : '關閉'}\n'
+      '最遠預約天數：$maxDays 天';
+} else if (action == 'block_date') {
+                  title = '關閉預約日期';
+                } else if (action == 'unblock_date') {
+                  title = '恢復預約日期';
+                }
+
+                return ListTile(
+                  dense: true,
+                  leading: const Icon(Icons.history),
+                  title: Text(title),
+                subtitle: Text(
+  '${settingDetail.isNotEmpty ? '$settingDetail\n' : ''}'
+  '異動日期：$dateKey\n'
+  '操作時間：$formattedTime\n'
+  '操作人：$operatorEmail\n',
 ),
-                Text('服務類型：${booking['serviceType'] ?? '-'}'),
-                Text('入住日：${_formatDateNullable(startDate)}'),
-                Text('退房日：${_formatDateNullable(endDate)}'),
-                Text('晚數：$nights 晚'),
-                Text('總價：NT\$ ${_toInt(booking['totalPrice'])}'),
-                Text('備註：${booking['note'] ?? ''}'),
-                const SizedBox(height: 8),
-                Row(
-                  children: [
-                    const Text(
-                      '目前狀態：',
-                      style: TextStyle(fontWeight: FontWeight.bold),
-                    ),
-                    const SizedBox(width: 8),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 4,
-                      ),
-                      decoration: BoxDecoration(
-                        color: _statusColor(booking['status']).withOpacity(0.12),
-                        borderRadius: BorderRadius.circular(999),
-                      ),
-                      child: Text(
-                        _statusText(booking['status']),
-                        style: TextStyle(
-                          color: _statusColor(booking['status']),
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: [
-                    OutlinedButton(
-                      onPressed: () => _updateStatus(
-                        bookingId: booking['bookingId'],
-                        status: 'pending',
-                      ),
-                      child: const Text('待確認'),
-                    ),
-                    OutlinedButton(
-                      onPressed: () => _updateStatus(
-                        bookingId: booking['bookingId'],
-                        status: 'confirmed',
-                      ),
-                      child: const Text('確認'),
-                    ),
-                    OutlinedButton(
-                      onPressed: () => _updateStatus(
-                        bookingId: booking['bookingId'],
-                        status: 'completed',
-                      ),
-                      child: const Text('完成'),
-                    ),
-                    OutlinedButton(
-                      onPressed: () => _updateStatus(
-                        bookingId: booking['bookingId'],
-                        status: 'cancelled',
-                      ),
-                      child: const Text('取消'),
-                    ),
-                  ],
-                ),
-              ],
-            ),
+                );
+              }),
+            ],
           ),
-        );
-      },
-    );
-  }
+        ),
+      );
+    },
+  );
+}
+
 
   Future<_CalendarPayload> _buildCalendarPayload({
     required Map<String, dynamic> shop,
@@ -610,42 +553,6 @@ remainingRoomsMap[key] = 0;
     final dateKey = ShopService.instance.formatDateKey(date);
     final blocked = ShopService.instance.isBlockedDate(shop, date);
 
-String? reason;
-
-if (!blocked) {
-  final controller = TextEditingController();
-
-  reason = await showDialog<String>(
-    context: context,
-    builder: (context) {
-      return AlertDialog(
-        title: Text('設定關閉原因：$dateKey'),
-        content: TextField(
-          controller: controller,
-          decoration: const InputDecoration(
-            labelText: '原因（例如：店休 / 清潔 / 客滿）',
-            border: OutlineInputBorder(),
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('取消'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(context, controller.text.trim());
-            },
-            child: const Text('確認'),
-          ),
-        ],
-      );
-    },
-  );
-
-  if (reason == null || reason.isEmpty) return;
-}
-
     try {
       final user = FirebaseAuth.instance.currentUser;
 
@@ -664,8 +571,8 @@ if (!blocked) {
             operatorUid: user.uid,
             operatorRole: _currentUserRole!,
             payload: {
-              'dateKey': dateKey,
-            },
+  'dateKey': dateKey,
+},
           );
         }
 
@@ -677,8 +584,7 @@ if (!blocked) {
       .doc(widget.shopId)
       .update({
     'blockedDates': FieldValue.arrayUnion([dateKey]),
-    'blockedDateReasons.$dateKey': reason,
-  });
+'blockedDateReasons.$dateKey': FieldValue.delete(),  });
 
 
         if (user != null && _currentUserRole != null) {
@@ -690,8 +596,8 @@ if (!blocked) {
             operatorUid: user.uid,
             operatorRole: _currentUserRole!,
             payload: {
-              'dateKey': dateKey,
-            },
+  'dateKey': dateKey,
+},
           );
         }
 
@@ -702,56 +608,6 @@ if (!blocked) {
       if (!mounted) return;
       _showSnackBar('更新失敗：$e');
     }
-  }
-
-  Future<void> _updateStatus({
-    required String bookingId,
-    required String status,
-  }) async {
-    try {
-      await BookingService.instance.updateBookingStatus(
-        bookingId: bookingId,
-        status: status,
-      );
-
-      final user = FirebaseAuth.instance.currentUser;
-      if (user != null && _currentUserRole != null) {
-        await ActionLogService.instance.logAction(
-          shopId: widget.shopId,
-          targetType: 'booking',
-          targetId: bookingId,
-          action: 'update_booking_status',
-          operatorUid: user.uid,
-          operatorRole: _currentUserRole!,
-          payload: {
-            'bookingId': bookingId,
-            'status': status,
-          },
-        );
-      }
-
-      if (!mounted) return;
-      _showSnackBar('狀態已更新為：${_statusText(status)}');
-    } catch (e) {
-      if (!mounted) return;
-      _showSnackBar('更新失敗：$e');
-    }
-  }
-
-  Widget _infoRow(String label, String value) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        SizedBox(
-          width: 120,
-          child: Text(
-            label,
-            style: const TextStyle(fontWeight: FontWeight.bold),
-          ),
-        ),
-        Expanded(child: Text(value)),
-      ],
-    );
   }
 
   void _showSnackBar(String text) {
@@ -771,47 +627,10 @@ if (!blocked) {
     return fallback;
   }
 
-  String _formatDate(DateTime date) {
-    final y = date.year.toString().padLeft(4, '0');
-    final m = date.month.toString().padLeft(2, '0');
-    final d = date.day.toString().padLeft(2, '0');
-    return '$y-$m-$d';
-  }
 
-  String _formatDateNullable(DateTime? date) {
-    if (date == null) return '-';
-    return _formatDate(date);
-  }
 
-  String _statusText(String? status) {
-    switch (status) {
-      case 'pending':
-        return '待確認';
-      case 'confirmed':
-        return '已確認';
-      case 'completed':
-        return '已完成';
-      case 'cancelled':
-        return '已取消';
-      default:
-        return '未知狀態';
-    }
-  }
 
-  Color _statusColor(String? status) {
-    switch (status) {
-      case 'pending':
-        return Colors.orange;
-      case 'confirmed':
-        return Colors.blue;
-      case 'completed':
-        return Colors.green;
-      case 'cancelled':
-        return Colors.red;
-      default:
-        return Colors.grey;
-    }
-  }
+
 }
 
 class _CalendarPayload {

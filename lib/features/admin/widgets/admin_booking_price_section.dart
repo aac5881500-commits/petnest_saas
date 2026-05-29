@@ -1,0 +1,468 @@
+// lib/features/admin/widgets/admin_booking_price_section.dart
+// 💰 後台訂單詳細頁：價格與付款區塊
+// 功能：顯示房費、寵物加價、加值服務、總價、訂金、付款方式、轉帳後五碼與轉帳截圖
+
+import 'package:flutter/material.dart';
+import 'package:petnest_saas/features/admin/widgets/admin_booking_date_helpers.dart';
+import 'package:petnest_saas/features/admin/widgets/admin_booking_text_helpers.dart';
+
+class AdminBookingPriceSection extends StatelessWidget {
+  const AdminBookingPriceSection({
+    super.key,
+    required this.data,
+    required this.pets,
+  });
+
+  final Map<String, dynamic> data;
+  final List<Map<String, dynamic>> pets;
+
+  @override
+  Widget build(BuildContext context) {
+    final basePrice = data['basePrice'] ?? 0;
+    final extraPetPrice = data['extraPetPrice'] ?? 0;
+    final extraPetCount = data['extraPetCount'] ?? 0;
+    final extraPetTotal = data['extraPetTotal'] ?? 0;
+
+    final nights = data['nights'] ?? 1;
+    final roomPriceTotal = basePrice * nights;
+    final petPriceTotal = extraPetTotal;
+    final correctSubtotal = roomPriceTotal + petPriceTotal;
+
+    final depositPaid = data['depositPaid'] == true;
+    final depositAmount = data['depositAmount'] ?? 0;
+    final paymentMethodText =
+        adminBookingPaymentMethodText(data['paymentMethod']);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.grey.shade50,
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.05),
+                blurRadius: 10,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Column(
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text('房費'),
+                  Text(
+                    'NT\$ $basePrice × $nights 晚',
+                    style: const TextStyle(color: Colors.grey),
+                  ),
+                  Text(
+                    'NT\$ $roomPriceTotal',
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                ],
+              ),
+
+              const SizedBox(height: 8),
+
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text('寵物加價'),
+                  Text(
+                    extraPetCount > 0
+                        ? 'NT\$ $extraPetPrice × $extraPetCount 隻 × $nights 晚'
+                        : '-',
+                    style: const TextStyle(color: Colors.grey),
+                  ),
+                  Text(
+                    'NT\$ $petPriceTotal',
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                ],
+              ),
+
+              const Divider(height: 24),
+
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text(
+                    '小計',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  Text(
+                    'NT\$ $correctSubtotal',
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+
+        const SizedBox(height: 10),
+
+        if ((data['addons'] ?? []).isNotEmpty)
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                '加值服務',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 6),
+
+              ...List.generate(
+                (data['addons'] as List).length,
+                (index) {
+                  final item = data['addons'][index];
+
+                  final price = item['price'] ?? 0;
+                  final count = item['count'] ?? 1;
+                  final total = item['total'] ?? (price * count);
+
+                  final List<dynamic> petIds = item['petNames'] ?? [];
+
+                 final List<String> petNames = petIds
+    .map<String>((id) {
+      final match = pets.cast<Map<String, dynamic>?>().firstWhere(
+            (p) => p?['name'] == id || p?['petId'] == id,
+            orElse: () => null,
+          );
+
+      final name = match != null ? match['name'] : id;
+      return name?.toString() ?? '';
+    })
+    .where((name) => name.isNotEmpty)
+    .toList();
+
+                  return Container(
+                    margin: const EdgeInsets.only(bottom: 12),
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: Colors.orange.shade50,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: Colors.orange.shade200),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Row(
+                              children: [
+                                const Text(
+                                  '🐾 ',
+                                  style: TextStyle(fontSize: 16),
+                                ),
+                                Text(
+                                  item['name'] ?? '',
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 16,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            Text(
+                              '+NT\$ $total',
+                              style: const TextStyle(
+                                color: Colors.blue,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 16,
+                              ),
+                            ),
+                          ],
+                        ),
+
+                        const SizedBox(height: 8),
+
+                        if (count > 1)
+                          Text(
+                            '$price x $count = $total',
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: Colors.grey,
+                            ),
+                          ),
+
+                        if (item['type'] == 'custom' && petNames.isNotEmpty)
+                          Container(
+                            margin: const EdgeInsets.only(top: 8),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 6,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.orange.shade100,
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Text(
+                              '👉 指定寵物：${petNames.join('、')}',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                                color: Colors.deepOrange,
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                  );
+                },
+              ),
+            ],
+          ),
+
+        const SizedBox(height: 10),
+
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(16),
+          margin: const EdgeInsets.only(top: 10),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.05),
+                blurRadius: 10,
+              ),
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text(
+                    '總價',
+                    style: TextStyle(
+                      fontSize: 16,
+                      color: Colors.grey,
+                    ),
+                  ),
+                  Text(
+                    'NT\$ ${data['totalPrice'] ?? 0}',
+                    style: const TextStyle(
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.red,
+                    ),
+                  ),
+                ],
+              ),
+
+              const SizedBox(height: 10),
+
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text(
+                    '訂金',
+                    style: TextStyle(color: Colors.grey),
+                  ),
+                  Text(
+                    'NT\$ ${data['depositAmount'] ?? 0}',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: depositPaid ? Colors.green : Colors.grey,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+
+        if (depositAmount > 0)
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color:
+                  depositPaid ? Colors.green.shade100 : Colors.red.shade100,
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    depositPaid ? '✅ 已收到訂金' : '❌ 尚未確認訂金',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: depositPaid ? Colors.green : Colors.red,
+                    ),
+                  ),
+                ),
+                if (!depositPaid && data['depositExpireAt'] != null)
+                  Text(
+                    adminBookingFormatDateTime(data['depositExpireAt']),
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.red.shade700,
+                    ),
+                  ),
+              ],
+            ),
+          )
+        else
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: Colors.grey.shade200,
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: const Text(
+              '💡 本訂單無需訂金',
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                color: Colors.grey,
+              ),
+            ),
+          ),
+
+        const SizedBox(height: 10),
+
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: Colors.blue.shade50,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Colors.blue.shade200),
+          ),
+          child: Row(
+            children: [
+              const Icon(Icons.payment, color: Colors.blue),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      '付款方式',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.grey,
+                      ),
+                    ),
+                    Text(
+                      paymentMethodText,
+                      style: const TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+
+        if (data['paymentMethod'] == 'transfer') ...[
+          const SizedBox(height: 10),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.yellow.shade100,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: Colors.orange),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  '⚠️ 客戶轉帳後五碼',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: Colors.orange,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  (data['transferLast5'] ?? '').toString().isEmpty
+                      ? '未填寫'
+                      : data['transferLast5'].toString(),
+                  style: const TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+
+        const SizedBox(height: 8),
+
+        if (data['transferImageUrl'] != null)
+          Container(
+            margin: const EdgeInsets.only(top: 10),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.orange),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.orange.shade100,
+                    borderRadius: const BorderRadius.vertical(
+                      top: Radius.circular(12),
+                    ),
+                  ),
+                  child: const Text(
+                    '📷 客戶轉帳截圖',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: Colors.deepOrange,
+                    ),
+                  ),
+                ),
+
+                GestureDetector(
+                  onTap: () {
+                    showDialog(
+                      context: context,
+                      builder: (_) => Dialog(
+                        child: InteractiveViewer(
+                          minScale: 0.8,
+                          maxScale: 5,
+                          child: Image.network(
+                            data['transferImageUrl'],
+                            fit: BoxFit.contain,
+                          ),
+                        ),
+                      ),
+                    );
+                  },
+                  child: ClipRRect(
+                    borderRadius: const BorderRadius.vertical(
+                      bottom: Radius.circular(12),
+                    ),
+                    child: Image.network(
+                      data['transferImageUrl'],
+                      height: 200,
+                      width: double.infinity,
+                      fit: BoxFit.cover,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+      ],
+    );
+  }
+}
