@@ -135,6 +135,28 @@ class BookingSubmitHelper {
           'updatedAt': FieldValue.serverTimestamp(),
         }, SetOptions(merge: true));
 
+    final policyAcceptanceDoc = await FirebaseFirestore.instance
+        .collection('users')
+        .doc(user.uid)
+        .collection('policy_acceptances')
+        .doc(shopId)
+        .get();
+
+    final policyAcceptance = policyAcceptanceDoc.data() ?? {};
+
+    final rawPolicyVersion = policyAcceptance['acceptedVersion'];
+
+    final int policyVersion = rawPolicyVersion is int
+        ? rawPolicyVersion
+        : int.tryParse(rawPolicyVersion?.toString() ?? '') ?? 0;
+
+    final policyTitle = '入住須知';
+
+    final Timestamp? policyAcceptedAt =
+        policyAcceptance['acceptedAt'] is Timestamp
+        ? policyAcceptance['acceptedAt'] as Timestamp
+        : null;
+
     final basePrice = (selectedRoomType['price'] ?? 0).toInt();
     final petCount = selectedPetIds.length;
     final extraPrice = (selectedRoomType['extraPrice'] ?? 0).toInt();
@@ -189,6 +211,9 @@ class BookingSubmitHelper {
       paymentMethod: paymentMethod,
       payAmountType: payAmountType,
       addons: addons,
+      policyVersion: policyVersion,
+      policyTitle: policyTitle,
+      policyAcceptedAt: policyAcceptedAt,
     );
 
     await BookingService.instance.updateBooking(

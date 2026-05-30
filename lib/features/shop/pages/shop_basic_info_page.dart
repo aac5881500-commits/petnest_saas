@@ -747,6 +747,18 @@ class _ShopBasicInfoPageState extends State<ShopBasicInfoPage> {
                     icon: const Icon(Icons.edit_note),
                     label: const Text('申請修改重要資料'),
                   ),
+                  const SizedBox(height: 8),
+
+                  Text(
+                    '重要資料修改申請功能即將推出。\n'
+                    '未來送出申請後，平台確認資料正確性後才會更新正式資料。',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.grey,
+                      height: 1.5,
+                    ),
+                  ),
                 ],
               ),
             ),

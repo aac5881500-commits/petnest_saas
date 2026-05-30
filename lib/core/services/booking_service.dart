@@ -5,6 +5,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:petnest_saas/core/services/shop_service.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class BookingService {
   BookingService._();
@@ -18,154 +19,146 @@ class BookingService {
   CollectionReference<Map<String, dynamic>> get _bookings =>
       _firestore.collection('bookings');
 
-      /// ===============================
-/// 🧾 產生店家訂單編號
-/// 格式：SHOP0001-B000001
-/// ===============================
-Future<String> _generateBookingCode(
-  String shopId,
-) async {
-  final counterRef = _firestore
-      .collection('booking_counters')
-      .doc(shopId);
+  /// ===============================
+  /// 🧾 產生店家訂單編號
+  /// 格式：SHOP0001-B000001
+  /// ===============================
+  Future<String> _generateBookingCode(String shopId) async {
+    final counterRef = _firestore.collection('booking_counters').doc(shopId);
 
-  return _firestore.runTransaction<String>((transaction) async {
-    final snapshot = await transaction.get(counterRef);
+    return _firestore.runTransaction<String>((transaction) async {
+      final snapshot = await transaction.get(counterRef);
 
-    final current = snapshot.exists
-        ? (snapshot.data()?['current'] ?? 0) as int
-        : 0;
+      final current = snapshot.exists
+          ? (snapshot.data()?['current'] ?? 0) as int
+          : 0;
 
-    final next = current + 1;
+      final next = current + 1;
 
-    transaction.set(
-      counterRef,
-      {
+      transaction.set(counterRef, {
         'current': next,
         'updatedAt': FieldValue.serverTimestamp(),
-      },
-      SetOptions(merge: true),
-    );
+      }, SetOptions(merge: true));
 
-    return '$shopId-B${next.toString().padLeft(6, '0')}';
-  });
-}
+      return '$shopId-B${next.toString().padLeft(6, '0')}';
+    });
+  }
 
   /// 建立預約（區間版）
   Future<String> createBooking({
-  required String shopId,
-  required String customerName,
-  required String customerPhone,
-  required List<String> petIds,
-  required String serviceType,
-  required DateTime startDate,
-  required DateTime endDate,
-  required int nights,
-  required String roomId,
-  required String roomName,
-  required String roomTypeName, 
-required int basePrice,
-required int extraPetPrice,
-required int extraPetCount,
-required int extraPetTotal,
-required int roomSubtotal,
-required List<dynamic> roomImages,
-  String note = '',
-String address = '',
-String emergencyName = '',
-String emergencyPhone = '',
-String emergencyRelation = '',
-String emergencyAddress = '',
-String emergencyPhone2 = '',
-int totalPrice = 0,
-int depositAmount = 0,
-String paymentMethod = '',
-String payAmountType = '', // deposit / full
-List<Map<String, dynamic>>? pets,
-List<Map<String, dynamic>>? addons,
-
-
-})async {
+    required String shopId,
+    required String customerName,
+    required String customerPhone,
+    required List<String> petIds,
+    required String serviceType,
+    required DateTime startDate,
+    required DateTime endDate,
+    required int nights,
+    required String roomId,
+    required String roomName,
+    required String roomTypeName,
+    required int basePrice,
+    required int extraPetPrice,
+    required int extraPetCount,
+    required int extraPetTotal,
+    required int roomSubtotal,
+    required List<dynamic> roomImages,
+    String note = '',
+    String address = '',
+    String emergencyName = '',
+    String emergencyPhone = '',
+    String emergencyRelation = '',
+    String emergencyAddress = '',
+    String emergencyPhone2 = '',
+    int totalPrice = 0,
+    int depositAmount = 0,
+    String paymentMethod = '',
+    String payAmountType = '', // deposit / full
+    List<Map<String, dynamic>>? pets,
+    List<Map<String, dynamic>>? addons,
+    int policyVersion = 0,
+    String policyTitle = '入住須知',
+    Timestamp? policyAcceptedAt,
+  }) async {
     final user = _currentUser;
     final doc = _bookings.doc();
-final bookingCode = await _generateBookingCode(shopId);
+    final bookingCode = await _generateBookingCode(shopId);
     final normalizedStart = _dateOnly(startDate);
     final normalizedEnd = _dateOnly(endDate);
+
     /// 🔥 取得店家付款資料快照
-final shopDoc = await _firestore
-    .collection('shops')
-    .doc(shopId)
-    .get();
+    final shopDoc = await _firestore.collection('shops').doc(shopId).get();
 
-final shopData = shopDoc.data() ?? {};
+    final shopData = shopDoc.data() ?? {};
 
-final bankName = shopData['bankName'] ?? '';
-final accountName = shopData['accountName'] ?? '';
-final accountNumber = shopData['accountNumber'] ?? '';
-final depositExpireHours = shopData['depositExpireHours'] ?? 1;
+    final bankName = shopData['bankName'] ?? '';
+    final accountName = shopData['accountName'] ?? '';
+    final accountNumber = shopData['accountNumber'] ?? '';
+    final depositExpireHours = shopData['depositExpireHours'] ?? 1;
 
+    // 🔥 取得寵物資料（快照）
+    if (user == null) throw Exception('未登入');
 
-// 🔥 取得寵物資料（快照）
-if (user == null) throw Exception('未登入');
+    final petDocs = await _firestore
+        .collection('user_profiles')
+        .doc(user.uid)
+        .collection('pets')
+        .where(FieldPath.documentId, whereIn: petIds)
+        .get();
 
-final petDocs = await _firestore
-    .collection('user_profiles')
-    .doc(user.uid)
-    .collection('pets')
-    .where(FieldPath.documentId, whereIn: petIds)
-    .get();
+    final finalPets = petDocs.docs.map((doc) {
+      final p = doc.data();
 
-final finalPets = petDocs.docs.map((doc) {
-  final p = doc.data();
+      return {
+        'name': p['name'],
+        'breed': p['breed'],
+        'gender': p['gender'],
+        'age': p['age'],
+        'isNeutered': p['isNeutered'],
 
-  return {
-    'name': p['name'],
-    'breed': p['breed'],
-    'gender': p['gender'],
-    'age': p['age'],
-    'isNeutered': p['isNeutered'],
+        /// 🔥 修正這裡
+        'photoUrl': p['photoUrl'] ?? '',
 
-    /// 🔥 修正這裡
-    'photoUrl': p['photoUrl'] ?? '',
+        'medicalStatus': p['vaccine'],
+        'litterType': p['litterType'],
 
-    'medicalStatus': p['vaccine'],
-    'litterType': p['litterType'],
-
-    'note': p['note'],
-    'staffNote': p['adminNote'] ?? '',
-  };
-}).toList();
-
+        'note': p['note'],
+        'staffNote': p['adminNote'] ?? '',
+      };
+    }).toList();
 
     await doc.set({
       'addons': (addons ?? []).isNotEmpty ? addons : [],
       'bookingId': doc.id,
-'bookingCode': bookingCode,
-'shopId': shopId,
+      'bookingCode': bookingCode,
+      'shopId': shopId,
       'userId': user.uid,
+      'policyVersion': policyVersion,
+      'policyTitle': policyTitle,
+      'policyAcceptedAt': policyAcceptedAt ?? FieldValue.serverTimestamp(),
       'customerName': customerName.trim(),
       'customerPhone': customerPhone.trim(),
       'address': address,
-      'roomTypeName': roomTypeName, 
-'basePrice': basePrice,
-'extraPetPrice': extraPetPrice,
-'extraPetCount': extraPetCount,
-'extraPetTotal': extraPetTotal,
-'roomSubtotal': roomSubtotal,
-'roomImages': roomImages,
-'emergencyContact': {
-  'name': emergencyName,
-  'phone': emergencyPhone,
-  'relation': emergencyRelation,
-  'address': emergencyAddress,
-  'phone2': emergencyPhone2,
-},
+      'roomTypeName': roomTypeName,
+      'basePrice': basePrice,
+      'extraPetPrice': extraPetPrice,
+      'extraPetCount': extraPetCount,
+      'extraPetTotal': extraPetTotal,
+      'roomSubtotal': roomSubtotal,
+      'roomImages': roomImages,
+      'emergencyContact': {
+        'name': emergencyName,
+        'phone': emergencyPhone,
+        'relation': emergencyRelation,
+        'address': emergencyAddress,
+        'phone2': emergencyPhone2,
+      },
       'petIds': petIds,
       'pets': finalPets,
-'roomTypeId': roomId,
-'roomId': null,
-'roomName': null,
-'assignStatus': 'unassigned',
+      'roomTypeId': roomId,
+      'roomId': null,
+      'roomName': null,
+      'assignStatus': 'unassigned',
       'serviceType': serviceType,
 
       /// 區間日期
@@ -173,35 +166,32 @@ final finalPets = petDocs.docs.map((doc) {
       'endDate': Timestamp.fromDate(normalizedEnd),
       'nights': nights,
 
-
       /// 狀態
       'status': 'pending', // pending / confirmed / completed / cancelled
-
       /// 備註
       'note': note.trim(),
-      
 
       /// 價格欄位
-'totalPrice': totalPrice,
-'depositAmount': depositAmount,
-'paymentMethod': paymentMethod,
-'payAmountType': payAmountType,
+      'totalPrice': totalPrice,
+      'depositAmount': depositAmount,
+      'paymentMethod': paymentMethod,
+      'payAmountType': payAmountType,
 
-/// 🔥 店家轉帳資訊快照
-'bankName': bankName,
-'accountName': accountName,
-'accountNumber': accountNumber,
-'depositExpireHours': depositExpireHours,
-'depositExpireAt': paymentMethod == 'transfer' ||
-        paymentMethod == 'cash'
-    ? Timestamp.fromDate(
-        DateTime.now().add(
-          depositExpireHours == 0
-              ? const Duration(minutes: 1)
-              : Duration(hours: depositExpireHours),
-        ),
-      )
-    : null,
+      /// 🔥 店家轉帳資訊快照
+      'bankName': bankName,
+      'accountName': accountName,
+      'accountNumber': accountNumber,
+      'depositExpireHours': depositExpireHours,
+      'depositExpireAt': paymentMethod == 'transfer' || paymentMethod == 'cash'
+          ? Timestamp.fromDate(
+              DateTime.now().add(
+                depositExpireHours == 0
+                    ? const Duration(minutes: 1)
+                    : Duration(hours: depositExpireHours),
+              ),
+            )
+          : null,
+
       /// 未來預留
       'checkedInAt': null,
       'checkedOutAt': null,
@@ -213,127 +203,121 @@ final finalPets = petDocs.docs.map((doc) {
       'updatedAt': FieldValue.serverTimestamp(),
     });
 
-
     return doc.id;
   }
-    Future<String> createAdminBooking({
-  required String shopId,
-  required String userId,
-  required String customerName,
-  required String customerPhone,
-  required List<String> petIds,
-  required String serviceType,
-  required DateTime startDate,
-  required DateTime endDate,
-  required int nights,
-  required String roomId,
-  required String roomName,
-  required String roomTypeName, 
-required int basePrice,
-required int extraPetPrice,
-required int extraPetCount,
-required int extraPetTotal,
-required int roomSubtotal,
-required List<dynamic> roomImages,
-  String note = '',
-String address = '',
-String emergencyName = '',
-String emergencyPhone = '',
-String emergencyRelation = '',
-String emergencyAddress = '',
-String emergencyPhone2 = '',
-int totalPrice = 0,
-int depositAmount = 0,
-String paymentMethod = '',
-String payAmountType = '', // deposit / full
-List<Map<String, dynamic>>? pets,
-List<Map<String, dynamic>>? addons,
 
-
-})async {
+  Future<String> createAdminBooking({
+    required String shopId,
+    required String userId,
+    required String customerName,
+    required String customerPhone,
+    required List<String> petIds,
+    required String serviceType,
+    required DateTime startDate,
+    required DateTime endDate,
+    required int nights,
+    required String roomId,
+    required String roomName,
+    required String roomTypeName,
+    required int basePrice,
+    required int extraPetPrice,
+    required int extraPetCount,
+    required int extraPetTotal,
+    required int roomSubtotal,
+    required List<dynamic> roomImages,
+    String note = '',
+    String address = '',
+    String emergencyName = '',
+    String emergencyPhone = '',
+    String emergencyRelation = '',
+    String emergencyAddress = '',
+    String emergencyPhone2 = '',
+    int totalPrice = 0,
+    int depositAmount = 0,
+    String paymentMethod = '',
+    String payAmountType = '', // deposit / full
+    List<Map<String, dynamic>>? pets,
+    List<Map<String, dynamic>>? addons,
+  }) async {
     final operator = _currentUser;
     final doc = _bookings.doc();
-final bookingCode = await _generateBookingCode(shopId);
+    final bookingCode = await _generateBookingCode(shopId);
     final normalizedStart = _dateOnly(startDate);
     final normalizedEnd = _dateOnly(endDate);
+
     /// 🔥 取得店家付款資料快照
-final shopDoc = await _firestore
-    .collection('shops')
-    .doc(shopId)
-    .get();
+    final shopDoc = await _firestore.collection('shops').doc(shopId).get();
 
-final shopData = shopDoc.data() ?? {};
+    final shopData = shopDoc.data() ?? {};
 
-final bankName = shopData['bankName'] ?? '';
-final accountName = shopData['accountName'] ?? '';
-final accountNumber = shopData['accountNumber'] ?? '';
-final depositExpireHours = shopData['depositExpireHours'] ?? 1;
+    final bankName = shopData['bankName'] ?? '';
+    final accountName = shopData['accountName'] ?? '';
+    final accountNumber = shopData['accountNumber'] ?? '';
+    final depositExpireHours = shopData['depositExpireHours'] ?? 1;
 
+    // 🔥 取得寵物資料（快照）
+    if (operator == null) throw Exception('未登入');
 
-// 🔥 取得寵物資料（快照）
-if (operator == null) throw Exception('未登入');
+    final petDocs = await _firestore
+        .collection('user_profiles')
+        .doc(userId)
+        .collection('pets')
+        .where(FieldPath.documentId, whereIn: petIds)
+        .get();
 
-final petDocs = await _firestore
-    .collection('user_profiles')
-    .doc(userId)
-    .collection('pets')
-    .where(FieldPath.documentId, whereIn: petIds)
-    .get();
+    final finalPets = petDocs.docs.map((doc) {
+      final p = doc.data();
 
-final finalPets = petDocs.docs.map((doc) {
-  final p = doc.data();
+      return {
+        'name': p['name'],
+        'breed': p['breed'],
+        'gender': p['gender'],
+        'age': p['age'],
+        'isNeutered': p['isNeutered'],
 
-  return {
-    'name': p['name'],
-    'breed': p['breed'],
-    'gender': p['gender'],
-    'age': p['age'],
-    'isNeutered': p['isNeutered'],
+        /// 🔥 修正這裡
+        'photoUrl': p['photoUrl'] ?? '',
 
-    /// 🔥 修正這裡
-    'photoUrl': p['photoUrl'] ?? '',
+        'medicalStatus': p['vaccine'],
+        'litterType': p['litterType'],
 
-    'medicalStatus': p['vaccine'],
-    'litterType': p['litterType'],
-
-    'note': p['note'],
-    'staffNote': p['adminNote'] ?? '',
-  };
-}).toList();
-
+        'note': p['note'],
+        'staffNote': p['adminNote'] ?? '',
+      };
+    }).toList();
 
     await doc.set({
       'addons': (addons ?? []).isNotEmpty ? addons : [],
       'bookingId': doc.id,
-'bookingCode': bookingCode,
-'shopId': shopId,
+      'bookingCode': bookingCode,
+      'shopId': shopId,
       'userId': userId,
-'source': 'admin',
-'createdByUid': operator.uid,
-'createdByEmail': operator.email,
+      'source': 'admin',
+      'createdByUid': operator.uid,
+      'createdByEmail': operator.email,
       'customerName': customerName.trim(),
       'customerPhone': customerPhone.trim(),
       'address': address,
-      'roomTypeName': roomTypeName, 
-'basePrice': basePrice,
-'extraPetPrice': extraPetPrice,
-'extraPetCount': extraPetCount,
-'extraPetTotal': extraPetTotal,
-'roomSubtotal': roomSubtotal,
-'roomImages': roomImages,
-'emergencyContact': {
-  'name': emergencyName,
-  'phone': emergencyPhone,
-  'relation': emergencyRelation,
-  'address': emergencyAddress,
-  'phone2': emergencyPhone2,
-},
+      'roomTypeName': roomTypeName,
+      'basePrice': basePrice,
+      'extraPetPrice': extraPetPrice,
+      'extraPetCount': extraPetCount,
+      'extraPetTotal': extraPetTotal,
+      'roomSubtotal': roomSubtotal,
+      'roomImages': roomImages,
+      'emergencyContact': {
+        'name': emergencyName,
+        'phone': emergencyPhone,
+        'relation': emergencyRelation,
+        'address': emergencyAddress,
+        'phone2': emergencyPhone2,
+      },
       'petIds': petIds,
       'pets': finalPets,
-'roomTypeId': roomId,
-'roomId': null,
-'roomName': null,
-'assignStatus': 'unassigned',
+      'roomTypeId': roomId,
+      'roomId': null,
+      'roomName': null,
+      'assignStatus': 'unassigned',
       'serviceType': serviceType,
 
       /// 區間日期
@@ -341,35 +325,32 @@ final finalPets = petDocs.docs.map((doc) {
       'endDate': Timestamp.fromDate(normalizedEnd),
       'nights': nights,
 
-
       /// 狀態
       'status': 'pending', // pending / confirmed / completed / cancelled
-
       /// 備註
       'note': note.trim(),
-      
 
       /// 價格欄位
-'totalPrice': totalPrice,
-'depositAmount': depositAmount,
-'paymentMethod': paymentMethod,
-'payAmountType': payAmountType,
+      'totalPrice': totalPrice,
+      'depositAmount': depositAmount,
+      'paymentMethod': paymentMethod,
+      'payAmountType': payAmountType,
 
-/// 🔥 店家轉帳資訊快照
-'bankName': bankName,
-'accountName': accountName,
-'accountNumber': accountNumber,
-'depositExpireHours': depositExpireHours,
-'depositExpireAt': paymentMethod == 'transfer' ||
-        paymentMethod == 'cash'
-    ? Timestamp.fromDate(
-        DateTime.now().add(
-          depositExpireHours == 0
-              ? const Duration(minutes: 1)
-              : Duration(hours: depositExpireHours),
-        ),
-      )
-    : null,
+      /// 🔥 店家轉帳資訊快照
+      'bankName': bankName,
+      'accountName': accountName,
+      'accountNumber': accountNumber,
+      'depositExpireHours': depositExpireHours,
+      'depositExpireAt': paymentMethod == 'transfer' || paymentMethod == 'cash'
+          ? Timestamp.fromDate(
+              DateTime.now().add(
+                depositExpireHours == 0
+                    ? const Duration(minutes: 1)
+                    : Duration(hours: depositExpireHours),
+              ),
+            )
+          : null,
+
       /// 未來預留
       'checkedInAt': null,
       'checkedOutAt': null,
@@ -390,10 +371,7 @@ final finalPets = petDocs.docs.map((doc) {
 
     if (!doc.exists) return null;
 
-    return {
-      'bookingId': doc.id,
-      ...doc.data()!,
-    };
+    return {'bookingId': doc.id, ...doc.data()!};
   }
 
   /// 監聽單筆預約
@@ -401,10 +379,7 @@ final finalPets = petDocs.docs.map((doc) {
     return _bookings.doc(bookingId).snapshots().map((doc) {
       if (!doc.exists) return null;
 
-      return {
-        'bookingId': doc.id,
-        ...doc.data()!,
-      };
+      return {'bookingId': doc.id, ...doc.data()!};
     });
   }
 
@@ -415,13 +390,10 @@ final finalPets = petDocs.docs.map((doc) {
         .orderBy('createdAt', descending: true)
         .snapshots()
         .map((snapshot) {
-      return snapshot.docs.map((doc) {
-        return {
-          'bookingId': doc.id,
-          ...doc.data(),
-        };
-      }).toList();
-    });
+          return snapshot.docs.map((doc) {
+            return {'bookingId': doc.id, ...doc.data()};
+          }).toList();
+        });
   }
 
   /// 依狀態監聽某店家預約
@@ -435,13 +407,10 @@ final finalPets = petDocs.docs.map((doc) {
         .orderBy('createdAt', descending: true)
         .snapshots()
         .map((snapshot) {
-      return snapshot.docs.map((doc) {
-        return {
-          'bookingId': doc.id,
-          ...doc.data(),
-        };
-      }).toList();
-    });
+          return snapshot.docs.map((doc) {
+            return {'bookingId': doc.id, ...doc.data()};
+          }).toList();
+        });
   }
 
   /// 取得某店家全部預約（一次性）
@@ -452,168 +421,163 @@ final finalPets = petDocs.docs.map((doc) {
         .get();
 
     return snapshot.docs.map((doc) {
-      return {
-        'bookingId': doc.id,
-        ...doc.data(),
-      };
+      return {'bookingId': doc.id, ...doc.data()};
     }).toList();
   }
 
-/// ===============================
-/// ❌ 統一取消訂單
-/// ===============================
-/// 功能：
-/// - 更新 bookings 狀態為 cancelled
-/// - 寫入取消原因 / 取消來源
-/// - 釋放 room_calendar 房間
-Future<void> cancelBooking({
-  required String bookingId,
-  required String cancelReason,
-  required String cancelBy, // customer / admin / system
-}) async {
-  final docRef = _bookings.doc(bookingId);
-  final doc = await docRef.get();
+  /// ===============================
+  /// ❌ 統一取消訂單
+  /// ===============================
+  /// 功能：
+  /// - 更新 bookings 狀態為 cancelled
+  /// - 寫入取消原因 / 取消來源
+  /// - 釋放 room_calendar 房間
+  Future<void> cancelBooking({
+    required String bookingId,
+    required String cancelReason,
+    required String cancelBy, // customer / admin / system
+  }) async {
+    final docRef = _bookings.doc(bookingId);
+    final doc = await docRef.get();
 
-  if (!doc.exists) {
-    throw Exception('訂單不存在');
+    if (!doc.exists) {
+      throw Exception('訂單不存在');
+    }
+
+    final data = doc.data();
+    if (data == null) {
+      throw Exception('訂單資料不存在');
+    }
+
+    final status = data['status']?.toString() ?? '';
+    final cancelledAt = data['cancelledAt'];
+
+    /// 已取消就不重複處理
+    if (status == 'cancelled' || cancelledAt != null) return;
+
+    await docRef.update({
+      'status': 'cancelled',
+      'assignStatus': data['assignStatus'] ?? 'unassigned',
+      'cancelReason': cancelReason,
+      'cancelBy': cancelBy,
+      'cancelledAt': FieldValue.serverTimestamp(),
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+
+    final shopId = data['shopId'];
+    final roomId = data['roomId'];
+    final startDate = data['startDate'];
+    final endDate = data['endDate'];
+
+    if (shopId != null &&
+        roomId != null &&
+        roomId.toString().isNotEmpty &&
+        startDate is Timestamp &&
+        endDate is Timestamp) {
+      await releaseRoomCalendar(
+        shopId: shopId,
+        roomId: roomId,
+        startDate: startDate.toDate(),
+        endDate: endDate.toDate(),
+      );
+    }
+
+    await _firestore.collection('action_logs').add({
+      'type': 'booking_cancelled',
+
+      /// 訂單資訊
+      'bookingId': bookingId,
+      'bookingShortId': bookingId.substring(0, 8),
+      'shopId': data['shopId'],
+      'roomId': data['roomId'],
+      'roomName': data['roomName'],
+      'roomTypeName': data['roomTypeName'],
+
+      /// 狀態變化
+      'fromStatus': status,
+      'toStatus': 'cancelled',
+
+      /// 取消資訊
+      'cancelReason': cancelReason,
+      'cancelBy': cancelBy, // customer / admin / system
+      /// 操作者
+      'operatorUid': _currentUser?.uid,
+      'operatorRole': cancelBy,
+      'operatorEmail': _currentUser?.email,
+
+      /// 時間
+      'createdAt': FieldValue.serverTimestamp(),
+    });
   }
 
-  final data = doc.data();
-  if (data == null) {
-    throw Exception('訂單資料不存在');
-  }
+  /// ===============================
+  /// 🔁 更換房間（預留入住中換房用）
+  /// ===============================
+  /// 功能：
+  /// - 釋放舊房間 room_calendar
+  /// - 檢查新房間是否可用
+  /// - 鎖定新房間
+  /// - 更新 booking 房號
+  Future<void> changeAssignedRoom({
+    required String bookingId,
+    required String shopId,
+    required String oldRoomId,
+    required String oldRoomName,
+    required String newRoomId,
+    required String newRoomName,
+    required DateTime startDate,
+    required DateTime endDate,
+    String reason = '',
+  }) async {
+    final available = await isRoomAvailable(
+      shopId: shopId,
+      roomId: newRoomId,
+      startDate: startDate,
+      endDate: endDate,
+    );
 
-  final status = data['status']?.toString() ?? '';
-final cancelledAt = data['cancelledAt'];
+    if (!available) {
+      throw Exception('新房間在該日期區間已被預約');
+    }
 
-/// 已取消就不重複處理
-if (status == 'cancelled' || cancelledAt != null) return;
-
-  await docRef.update({
-  'status': 'cancelled',
-  'assignStatus': data['assignStatus'] ?? 'unassigned',
-  'cancelReason': cancelReason,
-  'cancelBy': cancelBy,
-  'cancelledAt': FieldValue.serverTimestamp(),
-  'updatedAt': FieldValue.serverTimestamp(),
-});
-
-  final shopId = data['shopId'];
-  final roomId = data['roomId'];
-  final startDate = data['startDate'];
-  final endDate = data['endDate'];
-
- if (shopId != null &&
-    roomId != null &&
-    roomId.toString().isNotEmpty &&
-    startDate is Timestamp &&
-    endDate is Timestamp) {
     await releaseRoomCalendar(
       shopId: shopId,
-      roomId: roomId,
-      startDate: startDate.toDate(),
-      endDate: endDate.toDate(),
+      roomId: oldRoomId,
+      startDate: startDate,
+      endDate: endDate,
     );
+
+    await blockRoomCalendar(
+      shopId: shopId,
+      roomId: newRoomId,
+      startDate: startDate,
+      endDate: endDate,
+    );
+
+    await _bookings.doc(bookingId).update({
+      'roomId': newRoomId,
+      'roomName': newRoomName,
+      'assignStatus': 'assigned',
+      'roomChangedAt': FieldValue.serverTimestamp(),
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+
+    await _firestore.collection('action_logs').add({
+      'type': 'room_changed',
+      'bookingId': bookingId,
+      'bookingShortId': bookingId.substring(0, 8),
+      'shopId': shopId,
+      'oldRoomId': oldRoomId,
+      'oldRoomName': oldRoomName,
+      'newRoomId': newRoomId,
+      'newRoomName': newRoomName,
+      'reason': reason,
+      'operatorUid': _currentUser?.uid,
+      'operatorEmail': _currentUser?.email,
+      'operatorRole': 'staff',
+      'createdAt': FieldValue.serverTimestamp(),
+    });
   }
-
-  await _firestore.collection('action_logs').add({
-  'type': 'booking_cancelled',
-
-  /// 訂單資訊
-  'bookingId': bookingId,
-  'bookingShortId': bookingId.substring(0, 8),
-  'shopId': data['shopId'],
-  'roomId': data['roomId'],
-  'roomName': data['roomName'],
-  'roomTypeName': data['roomTypeName'],
-
-  /// 狀態變化
-  'fromStatus': status,
-  'toStatus': 'cancelled',
-
-  /// 取消資訊
-  'cancelReason': cancelReason,
-  'cancelBy': cancelBy, // customer / admin / system
-
-  /// 操作者
-  'operatorUid': _currentUser?.uid,
-  'operatorRole': cancelBy,
-  'operatorEmail': _currentUser?.email,
-
-  /// 時間
-  'createdAt': FieldValue.serverTimestamp(),
-});
-}
-
-/// ===============================
-/// 🔁 更換房間（預留入住中換房用）
-/// ===============================
-/// 功能：
-/// - 釋放舊房間 room_calendar
-/// - 檢查新房間是否可用
-/// - 鎖定新房間
-/// - 更新 booking 房號
-Future<void> changeAssignedRoom({
-  required String bookingId,
-  required String shopId,
-  required String oldRoomId,
-  required String oldRoomName,
-  required String newRoomId,
-  required String newRoomName,
-  required DateTime startDate,
-  required DateTime endDate,
-String reason = '',
-
-}) async {
-  final available = await isRoomAvailable(
-    shopId: shopId,
-    roomId: newRoomId,
-    startDate: startDate,
-    endDate: endDate,
-  );
-
-  if (!available) {
-    throw Exception('新房間在該日期區間已被預約');
-  }
-
-  await releaseRoomCalendar(
-    shopId: shopId,
-    roomId: oldRoomId,
-    startDate: startDate,
-    endDate: endDate,
-  );
-
-  await blockRoomCalendar(
-    shopId: shopId,
-    roomId: newRoomId,
-    startDate: startDate,
-    endDate: endDate,
-  );
-
-  await _bookings.doc(bookingId).update({
-    'roomId': newRoomId,
-    'roomName': newRoomName,
-    'assignStatus': 'assigned',
-    'roomChangedAt': FieldValue.serverTimestamp(),
-    'updatedAt': FieldValue.serverTimestamp(),
-  });
-
-  await _firestore.collection('action_logs').add({
-    'type': 'room_changed',
-    'bookingId': bookingId,
-    'bookingShortId': bookingId.substring(0, 8),
-    'shopId': shopId,
-    'oldRoomId': oldRoomId,
-    'oldRoomName': oldRoomName,
-    'newRoomId': newRoomId,
-    'newRoomName': newRoomName,
-    'reason': reason,
-    'operatorUid': _currentUser?.uid,
-    'operatorEmail': _currentUser?.email,
-    'operatorRole': 'staff',
-    'createdAt': FieldValue.serverTimestamp(),
-  });
-}
 
   /// 更新預約狀態
   Future<void> updateBookingStatus({
@@ -627,60 +591,60 @@ String reason = '',
   }
 
   /// ===============================
-/// 🏠 後台分配房間
-/// ===============================
-/// 功能：
-/// - 確認房間區間可用
-/// - 更新 booking 房號
-/// - assignStatus 改為 assigned
-/// - 寫入 room_calendar 鎖房
-Future<void> assignRoomToBooking({
-  required String bookingId,
-  required String shopId,
-  required String roomId,
-  required String roomName,
-  required DateTime startDate,
-  required DateTime endDate,
-}) async {
-  final available = await isRoomAvailable(
-    shopId: shopId,
-    roomId: roomId,
-    startDate: startDate,
-    endDate: endDate,
-  );
+  /// 🏠 後台分配房間
+  /// ===============================
+  /// 功能：
+  /// - 確認房間區間可用
+  /// - 更新 booking 房號
+  /// - assignStatus 改為 assigned
+  /// - 寫入 room_calendar 鎖房
+  Future<void> assignRoomToBooking({
+    required String bookingId,
+    required String shopId,
+    required String roomId,
+    required String roomName,
+    required DateTime startDate,
+    required DateTime endDate,
+  }) async {
+    final available = await isRoomAvailable(
+      shopId: shopId,
+      roomId: roomId,
+      startDate: startDate,
+      endDate: endDate,
+    );
 
-  if (!available) {
-    throw Exception('此房間在該日期區間已被預約');
+    if (!available) {
+      throw Exception('此房間在該日期區間已被預約');
+    }
+
+    await _bookings.doc(bookingId).update({
+      'roomId': roomId,
+      'roomName': roomName,
+      'assignStatus': 'assigned',
+      'assignedAt': FieldValue.serverTimestamp(),
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+
+    await blockRoomCalendar(
+      shopId: shopId,
+      roomId: roomId,
+      startDate: startDate,
+      endDate: endDate,
+    );
+
+    await _firestore.collection('action_logs').add({
+      'type': 'room_assigned',
+      'bookingId': bookingId,
+      'bookingShortId': bookingId.substring(0, 8),
+      'shopId': shopId,
+      'roomId': roomId,
+      'roomName': roomName,
+      'operatorUid': _currentUser?.uid,
+      'operatorEmail': _currentUser?.email,
+      'operatorRole': 'staff',
+      'createdAt': FieldValue.serverTimestamp(),
+    });
   }
-
-  await _bookings.doc(bookingId).update({
-    'roomId': roomId,
-    'roomName': roomName,
-    'assignStatus': 'assigned',
-    'assignedAt': FieldValue.serverTimestamp(),
-    'updatedAt': FieldValue.serverTimestamp(),
-  });
-
-  await blockRoomCalendar(
-    shopId: shopId,
-    roomId: roomId,
-    startDate: startDate,
-    endDate: endDate,
-  );
-
-  await _firestore.collection('action_logs').add({
-    'type': 'room_assigned',
-    'bookingId': bookingId,
-    'bookingShortId': bookingId.substring(0, 8),
-    'shopId': shopId,
-    'roomId': roomId,
-    'roomName': roomName,
-    'operatorUid': _currentUser?.uid,
-    'operatorEmail': _currentUser?.email,
-    'operatorRole': 'staff',
-    'createdAt': FieldValue.serverTimestamp(),
-  });
-}
 
   /// 更新預約資料
   Future<void> updateBooking({
@@ -730,7 +694,6 @@ Future<void> assignRoomToBooking({
     await _bookings.doc(bookingId).update(data);
   }
 
-
   bool _isOccupyingBooking(Map<String, dynamic> booking) {
     final status = booking['status']?.toString() ?? '';
     return status != 'cancelled';
@@ -766,159 +729,149 @@ Future<void> assignRoomToBooking({
     return fallback;
   }
 
-/// ===============================
-/// 🔒 檢查房間在區間是否可用
-/// ===============================
-Future<bool> isRoomAvailable({
-  required String shopId,
-  required String roomId,
-  required DateTime startDate,
-  required DateTime endDate,
-}) async {
-  final bookings = await getShopBookings(shopId);
+  /// ===============================
+  /// 🔒 檢查房間在區間是否可用
+  /// ===============================
+  Future<bool> isRoomAvailable({
+    required String shopId,
+    required String roomId,
+    required DateTime startDate,
+    required DateTime endDate,
+  }) async {
+    final bookings = await getShopBookings(shopId);
 
-  final start = _dateOnly(startDate);
-  final end = _dateOnly(endDate);
+    final start = _dateOnly(startDate);
+    final end = _dateOnly(endDate);
 
-  for (final booking in bookings) {
-    if (booking['status'] == 'cancelled') continue;
+    for (final booking in bookings) {
+      if (booking['status'] == 'cancelled') continue;
 
-    if (booking['roomId'] != roomId) continue;
+      if (booking['roomId'] != roomId) continue;
 
-    final bStart = _timestampToDate(booking['startDate']);
-    final bEnd = _timestampToDate(booking['endDate']);
+      final bStart = _timestampToDate(booking['startDate']);
+      final bEnd = _timestampToDate(booking['endDate']);
 
-    if (bStart == null || bEnd == null) continue;
+      if (bStart == null || bEnd == null) continue;
 
-    // 👉 區間重疊檢查
-    final overlap =
-        start.isBefore(bEnd) && end.isAfter(bStart);
+      // 👉 區間重疊檢查
+      final overlap = start.isBefore(bEnd) && end.isAfter(bStart);
 
-    if (overlap) {
-      return false;
+      if (overlap) {
+        return false;
+      }
     }
+
+    return true;
   }
 
-  return true;
-}
+  /// ===============================
+  /// 🔒 將房間寫入日曆（鎖房）
+  /// ===============================
+  Future<void> blockRoomCalendar({
+    required String shopId,
+    required String roomId,
+    required DateTime startDate,
+    required DateTime endDate,
+  }) async {
+    final stayDates = getStayDates(startDate: startDate, endDate: endDate);
 
-/// ===============================
-/// 🔒 將房間寫入日曆（鎖房）
-/// ===============================
-Future<void> blockRoomCalendar({
-  required String shopId,
-  required String roomId,
-  required DateTime startDate,
-  required DateTime endDate,
-}) async {
-  final stayDates = getStayDates(
-    startDate: startDate,
-    endDate: endDate,
-  );
+    final batch = _firestore.batch();
 
-  final batch = _firestore.batch();
+    for (final date in stayDates) {
+      final dateKey = ShopService.instance.formatDateKey(date);
 
-  for (final date in stayDates) {
-    final dateKey = ShopService.instance.formatDateKey(date);
+      final docRef = _firestore
+          .collection('shops')
+          .doc(shopId)
+          .collection('room_calendar')
+          .doc('${roomId}_$dateKey');
 
-    final docRef = _firestore
-        .collection('shops')
-        .doc(shopId)
-        .collection('room_calendar')
-        .doc('${roomId}_$dateKey');
+      batch.set(docRef, {
+        'roomId': roomId,
+        'date': dateKey,
+        'status': 'booked',
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+    }
 
-    batch.set(docRef, {
-      'roomId': roomId,
-      'date': dateKey,
-      'status': 'booked',
-      'updatedAt': FieldValue.serverTimestamp(),
-    });
+    await batch.commit();
   }
 
-  await batch.commit();
-}
+  /// ===============================
+  /// 🔓 釋放房間（取消訂單）
+  /// ===============================
+  Future<void> releaseRoomCalendar({
+    required String shopId,
+    required String roomId,
+    required DateTime startDate,
+    required DateTime endDate,
+  }) async {
+    final stayDates = getStayDates(startDate: startDate, endDate: endDate);
 
-/// ===============================
-/// 🔓 釋放房間（取消訂單）
-/// ===============================
-Future<void> releaseRoomCalendar({
-  required String shopId,
-  required String roomId,
-  required DateTime startDate,
-  required DateTime endDate,
-}) async {
-  final stayDates = getStayDates(
-    startDate: startDate,
-    endDate: endDate,
-  );
+    final batch = _firestore.batch();
 
-  final batch = _firestore.batch();
+    for (final date in stayDates) {
+      final dateKey = ShopService.instance.formatDateKey(date);
 
-  for (final date in stayDates) {
-    final dateKey = ShopService.instance.formatDateKey(date);
+      final docRef = _firestore
+          .collection('shops')
+          .doc(shopId)
+          .collection('room_calendar')
+          .doc('${roomId}_$dateKey');
 
-    final docRef = _firestore
-        .collection('shops')
-        .doc(shopId)
-        .collection('room_calendar')
-        .doc('${roomId}_$dateKey');
+      batch.delete(docRef); // 🔥 直接刪掉
+    }
 
-    batch.delete(docRef); // 🔥 直接刪掉
+    await batch.commit();
   }
 
-  await batch.commit();
-}
+  /// ===============================
+  /// 📅 取得入住日期區間
+  /// ===============================
+  List<DateTime> getStayDates({
+    required DateTime startDate,
+    required DateTime endDate,
+  }) {
+    final start = _dateOnly(startDate);
+    final end = _dateOnly(endDate);
 
-/// ===============================
-/// 📅 取得入住日期區間
-/// ===============================
-List<DateTime> getStayDates({
-  required DateTime startDate,
-  required DateTime endDate,
-}) {
-  final start = _dateOnly(startDate);
-  final end = _dateOnly(endDate);
+    final List<DateTime> result = [];
 
-  final List<DateTime> result = [];
+    DateTime cursor = start;
+    while (cursor.isBefore(end)) {
+      result.add(cursor);
+      cursor = cursor.add(const Duration(days: 1));
+    }
 
-  DateTime cursor = start;
-  while (cursor.isBefore(end)) {
-    result.add(cursor);
-    cursor = cursor.add(const Duration(days: 1));
+    return result;
   }
 
-  return result;
-}
+  /// ===============================
+  /// 🌙 計算晚數
+  /// ===============================
+  int calculateNights({
+    required DateTime startDate,
+    required DateTime endDate,
+  }) {
+    final start = _dateOnly(startDate);
+    final end = _dateOnly(endDate);
+    return end.difference(start).inDays;
+  }
 
-/// ===============================
-/// 🌙 計算晚數
-/// ===============================
-int calculateNights({
-  required DateTime startDate,
-  required DateTime endDate,
-}) {
-  final start = _dateOnly(startDate);
-  final end = _dateOnly(endDate);
-  return end.difference(start).inDays;
-}
+  /// ===============================
+  /// 💰 計算總價
+  /// ===============================
+  int calculateTotalPrice({
+    required Map<String, dynamic> roomType,
+    required DateTime startDate,
+    required DateTime endDate,
+  }) {
+    final stayDates = getStayDates(startDate: startDate, endDate: endDate);
 
-/// ===============================
-/// 💰 計算總價
-/// ===============================
-int calculateTotalPrice({
-  required Map<String, dynamic> roomType,
-  required DateTime startDate,
-  required DateTime endDate,
-}) {
-  final stayDates = getStayDates(
-    startDate: startDate,
-    endDate: endDate,
-  );
+    final pricePerNight = _toInt(roomType['price']);
 
-  final pricePerNight = _toInt(roomType['price']);
-
-  return stayDates.length * pricePerNight;
-}
+    return stayDates.length * pricePerNight;
+  }
 
   String _formatDate(DateTime date) {
     final y = date.year.toString().padLeft(4, '0');
@@ -926,117 +879,112 @@ int calculateTotalPrice({
     final d = date.day.toString().padLeft(2, '0');
     return '$y-$m-$d';
   }
+
   /// ===============================
-/// 🔍 找可用房間（自動分配）
-/// ===============================
-Future<Map<String, dynamic>?> findAvailableRoom({
-  required String shopId,
-  required String roomTypeId,
-  required DateTime startDate,
-  required DateTime endDate,
-}) async {
-  final roomsSnapshot = await _firestore
-      .collection('shops')
-      .doc(shopId)
-      .collection('rooms')
-      .where('roomTypeId', isEqualTo: roomTypeId)
-      .where('enabled', isEqualTo: true)
-      .get();
+  /// 🔍 找可用房間（自動分配）
+  /// ===============================
+  Future<Map<String, dynamic>?> findAvailableRoom({
+    required String shopId,
+    required String roomTypeId,
+    required DateTime startDate,
+    required DateTime endDate,
+  }) async {
+    final roomsSnapshot = await _firestore
+        .collection('shops')
+        .doc(shopId)
+        .collection('rooms')
+        .where('roomTypeId', isEqualTo: roomTypeId)
+        .where('enabled', isEqualTo: true)
+        .get();
 
-  for (final roomDoc in roomsSnapshot.docs) {
-    final roomId = roomDoc.id;
+    for (final roomDoc in roomsSnapshot.docs) {
+      final roomId = roomDoc.id;
 
-// 🔥 檢查房間是否被手動關閉
-bool blocked = false;
+      // 🔥 檢查房間是否被手動關閉
+      bool blocked = false;
 
-final stayDates = getStayDates(
-  startDate: startDate,
-  endDate: endDate,
-);
+      final stayDates = getStayDates(startDate: startDate, endDate: endDate);
 
-for (final date in stayDates) {
-  final dateKey = ShopService.instance.formatDateKey(date);
+      for (final date in stayDates) {
+        final dateKey = ShopService.instance.formatDateKey(date);
 
-  final calendarDoc = await _firestore
-      .collection('shops')
-      .doc(shopId)
-      .collection('room_calendar')
-      .doc('${roomId}_$dateKey')
-      .get();
+        final calendarDoc = await _firestore
+            .collection('shops')
+            .doc(shopId)
+            .collection('room_calendar')
+            .doc('${roomId}_$dateKey')
+            .get();
 
-  if (calendarDoc.exists) {
-    final data = calendarDoc.data();
+        if (calendarDoc.exists) {
+          final data = calendarDoc.data();
 
-    if (data?['status'] == 'blocked') {
-      blocked = true;
-      break;
-    }
-  }
-}
-
-if (blocked) {
-  continue;
-}
-
-    final available = await isRoomAvailable(
-      shopId: shopId,
-      roomId: roomId,
-      startDate: startDate,
-      endDate: endDate,
-    );
-
-    if (available) {
-      return {
-        'id': roomId,
-        ...roomDoc.data(),
-      };
-    }
-  }
-
-  return null;
-}
-
-/// 🔥 計算某一天被佔用幾間房
-Future<int> countRoomsByDate({
-  required String shopId,
-  required String date,
-}) async {
-  final snapshot = await _firestore
-      .collection('bookings')
-      .where('shopId', isEqualTo: shopId)
-      .where('status', whereIn: ['pending', 'confirmed'])
-      .get();
-
-  int count = 0;
-
-  for (final doc in snapshot.docs) {
-    final data = doc.data();
-
-    final start = (data['startDate'] as Timestamp).toDate();
-    final end = (data['endDate'] as Timestamp).toDate();
-
-    DateTime cursor = DateTime(start.year, start.month, start.day);
-
-    while (!cursor.isAfter(end.subtract(const Duration(days: 1)))) {
-      final key = _formatDateKey(cursor);
-
-      if (key == date) {
-        count++;
-        break;
+          if (data?['status'] == 'blocked') {
+            blocked = true;
+            break;
+          }
+        }
       }
 
-      cursor = cursor.add(const Duration(days: 1));
+      if (blocked) {
+        continue;
+      }
+
+      final available = await isRoomAvailable(
+        shopId: shopId,
+        roomId: roomId,
+        startDate: startDate,
+        endDate: endDate,
+      );
+
+      if (available) {
+        return {'id': roomId, ...roomDoc.data()};
+      }
     }
+
+    return null;
   }
 
-  return count;
-}
+  /// 🔥 計算某一天被佔用幾間房
+  Future<int> countRoomsByDate({
+    required String shopId,
+    required String date,
+  }) async {
+    final snapshot = await _firestore
+        .collection('bookings')
+        .where('shopId', isEqualTo: shopId)
+        .where('status', whereIn: ['pending', 'confirmed'])
+        .get();
 
-/// 日期轉 key（yyyy-MM-dd）
-String _formatDateKey(DateTime date) {
-  final y = date.year.toString().padLeft(4, '0');
-  final m = date.month.toString().padLeft(2, '0');
-  final d = date.day.toString().padLeft(2, '0');
-  return '$y-$m-$d';
-}
+    int count = 0;
+
+    for (final doc in snapshot.docs) {
+      final data = doc.data();
+
+      final start = (data['startDate'] as Timestamp).toDate();
+      final end = (data['endDate'] as Timestamp).toDate();
+
+      DateTime cursor = DateTime(start.year, start.month, start.day);
+
+      while (!cursor.isAfter(end.subtract(const Duration(days: 1)))) {
+        final key = _formatDateKey(cursor);
+
+        if (key == date) {
+          count++;
+          break;
+        }
+
+        cursor = cursor.add(const Duration(days: 1));
+      }
+    }
+
+    return count;
+  }
+
+  /// 日期轉 key（yyyy-MM-dd）
+  String _formatDateKey(DateTime date) {
+    final y = date.year.toString().padLeft(4, '0');
+    final m = date.month.toString().padLeft(2, '0');
+    final d = date.day.toString().padLeft(2, '0');
+    return '$y-$m-$d';
+  }
 }

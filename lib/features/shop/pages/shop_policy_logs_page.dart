@@ -7,20 +7,15 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:petnest_saas/features/shop/pages/policy_version_detail_page.dart';
 
 class ShopPolicyLogsPage extends StatefulWidget {
-  const ShopPolicyLogsPage({
-    super.key,
-    required this.shopId,
-  });
+  const ShopPolicyLogsPage({super.key, required this.shopId});
 
   final String shopId;
 
   @override
-  State<ShopPolicyLogsPage> createState() =>
-      _ShopPolicyLogsPageState();
+  State<ShopPolicyLogsPage> createState() => _ShopPolicyLogsPageState();
 }
 
-class _ShopPolicyLogsPageState
-    extends State<ShopPolicyLogsPage> {
+class _ShopPolicyLogsPageState extends State<ShopPolicyLogsPage> {
   bool _loading = true;
 
   List<Map<String, dynamic>> _logs = [];
@@ -35,8 +30,7 @@ class _ShopPolicyLogsPageState
   }
 
   Future<void> _load() async {
-    final data = await ShopService.instance
-        .getPolicyAcceptances(widget.shopId);
+    final data = await ShopService.instance.getPolicyAcceptances(widget.shopId);
 
     /// 🔥 排序（最新在上）
     data.sort((a, b) {
@@ -62,13 +56,10 @@ class _ShopPolicyLogsPageState
 
     setState(() {
       _filteredLogs = _logs.where((item) {
-        final email =
-            (item['email'] ?? '').toString().toLowerCase();
-        final userId =
-            (item['userId'] ?? '').toString().toLowerCase();
+        final email = (item['email'] ?? '').toString().toLowerCase();
+        final userId = (item['userId'] ?? '').toString().toLowerCase();
 
-        return email.contains(lower) ||
-            userId.contains(lower);
+        return email.contains(lower) || userId.contains(lower);
       }).toList();
     });
   }
@@ -87,9 +78,7 @@ class _ShopPolicyLogsPageState
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('條款同意紀錄'),
-      ),
+      appBar: AppBar(title: const Text('條款同意紀錄')),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : Column(
@@ -115,67 +104,63 @@ class _ShopPolicyLogsPageState
                           itemCount: _filteredLogs.length,
                           itemBuilder: (context, index) {
                             final item = _filteredLogs[index];
-
-                            final email = item['email'];
                             final userId = item['userId'];
-
-                            final displayUser =
-                                (email != null &&
-                                        email.toString().isNotEmpty)
-                                    ? email
-                                    : userId;
 
                             return Card(
                               margin: const EdgeInsets.all(8),
                               child: ListTile(
                                 title: FutureBuilder<Map<String, dynamic>?>(
-  future: ShopService.instance.getUserProfile(userId),
-  builder: (context, snapshot) {
-    if (!snapshot.hasData) {
-  return Text('會員：載入中...');
-}
-    final data = snapshot.data ?? <String, dynamic>{};
+                                  future: ShopService.instance.getUserProfile(
+                                    userId,
+                                  ),
+                                  builder: (context, snapshot) {
+                                    if (!snapshot.hasData) {
+                                      return Text('會員：載入中...');
+                                    }
+                                    final data =
+                                        snapshot.data ?? <String, dynamic>{};
 
-final name =
-    data['displayName']?.toString() ??
-    data['name']?.toString() ??
-    data['customerName']?.toString() ??
-    '';
-final email = data['email']?.toString() ?? '';
-final phone = data['phone']?.toString() ?? '';
-    final display =
-        (name != null && name.toString().isNotEmpty)
-            ? '$name（${email ?? ''}）'
-            : (email ?? userId);
+                                    final name =
+                                        data['displayName']?.toString() ??
+                                        data['name']?.toString() ??
+                                        data['customerName']?.toString() ??
+                                        '';
+                                    final email =
+                                        data['email']?.toString() ?? '';
+                                    final phone =
+                                        data['phone']?.toString() ?? '';
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text('會員：$display'),
-        if (phone != null && phone.toString().isNotEmpty)
-          Text('電話：$phone'),
-      ],
-    );
-  },
-),
+                                    final display = name.isNotEmpty
+                                        ? '$name（$email）'
+                                        : email.isNotEmpty
+                                        ? email
+                                        : userId;
+
+                                    return Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text('會員：$display'),
+                                        if (phone.isNotEmpty) Text('電話：$phone'),
+                                      ],
+                                    );
+                                  },
+                                ),
                                 subtitle: Column(
-                                  crossAxisAlignment:
-                                      CrossAxisAlignment.start,
+                                  crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     Row(
                                       children: [
-                                        Text(
-                                            '版本：v${item['acceptedVersion']}'),
+                                        Text('版本：v${item['acceptedVersion']}'),
                                         const SizedBox(width: 8),
 
                                         /// 🔥 最新標籤
-                                        if (index == 0 &&
-                                            _search.isEmpty)
+                                        if (index == 0 && _search.isEmpty)
                                           Container(
-                                            padding:
-                                                const EdgeInsets.symmetric(
-                                                    horizontal: 6,
-                                                    vertical: 2),
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 6,
+                                              vertical: 2,
+                                            ),
                                             decoration: BoxDecoration(
                                               color: Colors.green,
                                               borderRadius:
@@ -192,50 +177,54 @@ final phone = data['phone']?.toString() ?? '';
                                       ],
                                     ),
                                     Text(
-                                        '時間：${_formatTime(item['acceptedAt'])}'
+                                      '時間：${_formatTime(item['acceptedAt'])}',
+                                    ),
+                                    const SizedBox(height: 6),
+
+                                    InkWell(
+                                      onTap: () async {
+                                        final version =
+                                            item['acceptedVersion'] ?? 1;
+
+                                        final doc = await FirebaseFirestore
+                                            .instance
+                                            .collection('shops')
+                                            .doc(widget.shopId)
+                                            .collection('policy_versions')
+                                            .doc('v$version')
+                                            .get();
+
+                                        if (!context.mounted) return;
+
+                                        if (!doc.exists) {
+                                          ScaffoldMessenger.of(
+                                            context,
+                                          ).showSnackBar(
+                                            const SnackBar(
+                                              content: Text('找不到該版本條款'),
+                                            ),
+                                          );
+                                          return;
+                                        }
+
+                                        Navigator.push(
+                                          context,
+                                          MaterialPageRoute(
+                                            builder: (_) =>
+                                                PolicyVersionDetailPage(
+                                                  data: doc.data()!,
+                                                ),
+                                          ),
+                                        );
+                                      },
+                                      child: const Text(
+                                        '查看當時條款',
+                                        style: TextStyle(
+                                          color: Colors.blue,
+                                          fontWeight: FontWeight.bold,
                                         ),
-const SizedBox(height: 6),
-
-InkWell(
-  onTap: () async {
-    final version =
-        item['acceptedVersion'] ?? 1;
-
-    final doc = await FirebaseFirestore.instance
-        .collection('shops')
-        .doc(widget.shopId)
-        .collection('policy_versions')
-        .doc('v$version')
-        .get();
-
-    if (!context.mounted) return;
-
-    if (!doc.exists) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('找不到該版本條款'),
-        ),
-      );
-      return;
-    }
-
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => PolicyVersionDetailPage(
-          data: doc.data()!,
-        ),
-      ),
-    );
-  },
-  child: const Text(
-    '查看當時條款',
-    style: TextStyle(
-      color: Colors.blue,
-      fontWeight: FontWeight.bold,
-    ),
-  ),
-),
+                                      ),
+                                    ),
                                   ],
                                 ),
                               ),

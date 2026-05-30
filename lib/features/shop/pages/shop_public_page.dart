@@ -45,6 +45,25 @@ class _ShopPublicPageState extends State<ShopPublicPage> {
     await launchUrl(uri, mode: LaunchMode.externalApplication);
   }
 
+  Future<void> _callPhone(String phone) async {
+    final cleanPhone = phone.trim();
+    if (cleanPhone.isEmpty) return;
+
+    final uri = Uri.parse('tel:$cleanPhone');
+    await launchUrl(uri);
+  }
+
+  Future<void> _openMap(String address) async {
+    final cleanAddress = address.trim();
+    if (cleanAddress.isEmpty) return;
+
+    final uri = Uri.parse(
+      'https://www.google.com/maps/search/?api=1&query=${Uri.encodeComponent(cleanAddress)}',
+    );
+
+    await launchUrl(uri, mode: LaunchMode.externalApplication);
+  }
+
   @override
   Widget build(BuildContext context) {
     return StreamBuilder<Map<String, dynamic>?>(
@@ -397,11 +416,23 @@ class _ShopPublicPageState extends State<ShopPublicPage> {
                       '營業時間',
                       shop['businessHours'] ?? '',
                     ),
-                    _buildInfoRow(Icons.phone, '電話', shop['phone'] ?? ''),
-                    _buildInfoRow(
-                      Icons.location_on,
-                      '地址',
-                      shop['address'] ?? '',
+                    GestureDetector(
+                      onTap: () => _callPhone(shop['phone'] ?? ''),
+                      child: _buildInfoRow(
+                        Icons.phone,
+                        '電話',
+                        shop['phone'] ?? '',
+                      ),
+                    ),
+                    GestureDetector(
+                      onTap: () => _openMap(
+                        '${shop['city'] ?? ''}${shop['district'] ?? ''}${shop['address'] ?? ''}',
+                      ),
+                      child: _buildInfoRow(
+                        Icons.location_on,
+                        '地址',
+                        '${shop['city'] ?? ''}${shop['district'] ?? ''}${shop['address'] ?? ''}',
+                      ),
                     ),
 
                     const SizedBox(height: 8),

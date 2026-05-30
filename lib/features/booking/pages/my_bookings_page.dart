@@ -14,10 +14,7 @@ import 'package:petnest_saas/features/shop/pages/shop_public_page.dart';
 import 'booking_detail_page.dart';
 
 class MyBookingsPage extends StatefulWidget {
-  const MyBookingsPage({
-    super.key,
-    this.returnShopId,
-  });
+  const MyBookingsPage({super.key, this.returnShopId});
 
   final String? returnShopId;
 
@@ -26,59 +23,57 @@ class MyBookingsPage extends StatefulWidget {
 }
 
 class _MyBookingsPageState extends State<MyBookingsPage> {
-  int _limit = 10;
+  int _limit = 5;
 
- String _bookingStatusText(Map<String, dynamic> data) {
-  final status = (data['status'] ?? '').toString();
-  final depositStatus = (data['depositStatus'] ?? '').toString();
-  final paymentMethod = (data['paymentMethod'] ?? '').toString();
+  String _bookingStatusText(Map<String, dynamic> data) {
+    final status = (data['status'] ?? '').toString();
+    final depositStatus = (data['depositStatus'] ?? '').toString();
+    final paymentMethod = (data['paymentMethod'] ?? '').toString();
 
-  
+    final depositAmountRaw = data['depositAmount'];
+    final int depositAmount = depositAmountRaw is int
+        ? depositAmountRaw
+        : depositAmountRaw is double
+        ? depositAmountRaw.round()
+        : 0;
 
-  final depositAmountRaw = data['depositAmount'];
-  final int depositAmount = depositAmountRaw is int
-      ? depositAmountRaw
-      : depositAmountRaw is double
-          ? depositAmountRaw.round()
-          : 0;
+    final bool hasDeposit = depositAmount > 0;
+    final bool isBankTransfer =
+        paymentMethod == 'transfer' ||
+        paymentMethod == 'bank_transfer' ||
+        paymentMethod == 'bankTransfer' ||
+        paymentMethod == '銀行轉帳';
 
-  final bool hasDeposit = depositAmount > 0;
-  final bool isBankTransfer =
-    paymentMethod == 'transfer' ||
-    paymentMethod == 'bank_transfer' ||
-    paymentMethod == 'bankTransfer' ||
-    paymentMethod == '銀行轉帳';
+    if (status == 'completed') {
+      return '已完成';
+    }
 
-  if (status == 'completed') {
-    return '已完成';
+    if (status == 'cancelled') {
+      return '已取消';
+    }
+
+    if (status == 'checked_in') {
+      return '入住中';
+    }
+
+    if (status == 'confirmed') {
+      return '已確認';
+    }
+
+    if (depositStatus == 'pending_review') {
+      return hasDeposit ? '已付款・待確認' : '已回傳轉帳';
+    }
+
+    if (hasDeposit) {
+      return '需支付訂金';
+    }
+
+    if (isBankTransfer) {
+      return '尚未轉帳';
+    }
+
+    return '待店家確認';
   }
-
-  if (status == 'cancelled') {
-    return '已取消';
-  }
-
-  if (status == 'checked_in') {
-    return '入住中';
-  }
-
-  if (status == 'confirmed') {
-    return '已確認';
-  }
-
-  if (depositStatus == 'pending_review') {
-    return hasDeposit ? '已付款・待確認' : '已回傳轉帳';
-  }
-
-  if (hasDeposit) {
-    return '需支付訂金';
-  }
-
-  if (isBankTransfer) {
-    return '尚未轉帳';
-  }
-
-  return '待店家確認';
-}
 
   String _formatDate(DateTime date) {
     final y = date.year.toString().padLeft(4, '0');
@@ -87,27 +82,27 @@ class _MyBookingsPageState extends State<MyBookingsPage> {
     return '$y-$m-$d';
   }
 
-String _formatDateTime(dynamic value) {
-  if (value == null) return '';
+  String _formatDateTime(dynamic value) {
+    if (value == null) return '';
 
-  DateTime? date;
+    DateTime? date;
 
-  if (value is Timestamp) {
-    date = value.toDate();
-  } else if (value is DateTime) {
-    date = value;
+    if (value is Timestamp) {
+      date = value.toDate();
+    } else if (value is DateTime) {
+      date = value;
+    }
+
+    if (date == null) return '';
+
+    final y = date.year.toString().padLeft(4, '0');
+    final m = date.month.toString().padLeft(2, '0');
+    final d = date.day.toString().padLeft(2, '0');
+    final hh = date.hour.toString().padLeft(2, '0');
+    final mm = date.minute.toString().padLeft(2, '0');
+
+    return '$y-$m-$d $hh:$mm';
   }
-
-  if (date == null) return '';
-
-  final y = date.year.toString().padLeft(4, '0');
-  final m = date.month.toString().padLeft(2, '0');
-  final d = date.day.toString().padLeft(2, '0');
-  final hh = date.hour.toString().padLeft(2, '0');
-  final mm = date.minute.toString().padLeft(2, '0');
-
-  return '$y-$m-$d $hh:$mm';
-}
 
   int _getPetCount(Map<String, dynamic> data) {
     final petIds = data['petIds'];
@@ -136,39 +131,37 @@ String _formatDateTime(dynamic value) {
     final user = FirebaseAuth.instance.currentUser;
 
     if (user == null) {
-      return const Scaffold(
-        body: Center(child: Text('請先登入')),
-      );
+      return const Scaffold(body: Center(child: Text('請先登入')));
     }
 
     return Scaffold(
       appBar: AppBar(
-  title: const Text('我的訂單'),
-  leading: IconButton(
-    icon: const Icon(Icons.home),
-    onPressed: () {
-      final shopId = widget.returnShopId;
+        title: const Text('我的訂單'),
+        leading: IconButton(
+          icon: const Icon(Icons.home),
+          onPressed: () {
+            final shopId = widget.returnShopId;
 
-      if (shopId != null && shopId.isNotEmpty) {
-        Navigator.pushAndRemoveUntil(
-          context,
-          MaterialPageRoute(
-            builder: (_) => ShopPublicPage(shopId: shopId),
-          ),
-          (route) => false,
-        );
-      } else {
-        Navigator.pop(context);
-      }
-    },
-  ),
-),
+            if (shopId != null && shopId.isNotEmpty) {
+              Navigator.pushAndRemoveUntil(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => ShopPublicPage(shopId: shopId),
+                ),
+                (route) => false,
+              );
+            } else {
+              Navigator.pop(context);
+            }
+          },
+        ),
+      ),
       body: StreamBuilder<QuerySnapshot>(
         stream: FirebaseFirestore.instance
-    .collection('bookings')
-    .where('userId', isEqualTo: user.uid)
-    .limit(_limit)
-    .snapshots(),
+            .collection('bookings')
+            .where('userId', isEqualTo: user.uid)
+            .limit(30)
+            .snapshots(),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
@@ -178,52 +171,44 @@ String _formatDateTime(dynamic value) {
             return const Center(child: Text('目前沒有訂單'));
           }
 
-          final docs = snapshot.data!.docs;
+          final docs = snapshot.data!.docs.toList();
 
           docs.sort((a, b) {
             final aData = a.data() as Map<String, dynamic>;
             final bData = b.data() as Map<String, dynamic>;
 
-            final aCreatedAt = aData['createdAt'];
-            final bCreatedAt = bData['createdAt'];
+            final aCode = (aData['bookingCode'] ?? '').toString();
+            final bCode = (bData['bookingCode'] ?? '').toString();
 
-            if (aCreatedAt is Timestamp && bCreatedAt is Timestamp) {
-              return bCreatedAt.compareTo(aCreatedAt);
-            }
+            final aNumber = int.tryParse(aCode.split('B').last) ?? 0;
+            final bNumber = int.tryParse(bCode.split('B').last) ?? 0;
 
-            final aStart = aData['startDate'];
-            final bStart = bData['startDate'];
-
-            if (aStart is Timestamp && bStart is Timestamp) {
-              return bStart.compareTo(aStart);
-            }
-
-            return 0;
+            return bNumber.compareTo(aNumber);
           });
 
+          final visibleDocs = docs.take(_limit).toList();
+
           return ListView.builder(
-  padding: const EdgeInsets.all(12),
-  itemCount: docs.length + 1,
-  itemBuilder: (context, index) {
-    if (index == docs.length) {
-      return Padding(
-        padding: const EdgeInsets.only(bottom: 24),
-        child: OutlinedButton.icon(
-          onPressed: docs.length < _limit
-              ? null
-              : () {
-                  setState(() {
-                    _limit += 10;
-                  });
-                },
-          icon: const Icon(Icons.expand_more),
-          label: Text(
-  docs.length < _limit ? '沒有更多訂單了' : '載入更多訂單',
-),
-        ),
-      );
-    }
-              final data = docs[index].data() as Map<String, dynamic>;
+            padding: const EdgeInsets.all(12),
+            itemCount: visibleDocs.length + 1,
+            itemBuilder: (context, index) {
+              if (index == visibleDocs.length) {
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 24),
+                  child: OutlinedButton.icon(
+                    onPressed: docs.length < _limit
+                        ? null
+                        : () {
+                            setState(() {
+                              _limit += 10;
+                            });
+                          },
+                    icon: const Icon(Icons.expand_more),
+                    label: Text(docs.length < _limit ? '沒有更多訂單了' : '載入更多訂單'),
+                  ),
+                );
+              }
+              final data = visibleDocs[index].data() as Map<String, dynamic>;
 
               final start = (data['startDate'] as Timestamp).toDate();
               final end = (data['endDate'] as Timestamp).toDate();
@@ -234,39 +219,28 @@ String _formatDateTime(dynamic value) {
                       .toString();
 
               final statusText = _bookingStatusText(data);
-final petCount = _getPetCount(data);
-final totalPrice = _getTotalPrice(data);
-final paymentMethod =
+              final petCount = _getPetCount(data);
+              final totalPrice = _getTotalPrice(data);
+              final paymentMethod = (data['paymentMethod'] ?? '').toString();
 
-    (data['paymentMethod'] ?? '').toString();
+              final depositAmount = (data['depositAmount'] ?? 0) as num;
 
-final depositAmount =
-    (data['depositAmount'] ?? 0) as num;
+              final depositExpireAt = data['depositExpireAt'];
 
-final depositExpireAt =
-    data['depositExpireAt'];
+              final paymentMethodText = paymentMethod == 'transfer'
+                  ? '銀行轉帳'
+                  : '現場付款';
 
-final paymentMethodText =
-    paymentMethod == 'transfer'
-        ? '銀行轉帳'
-        : '現場付款';
+              final depositExpireText = _formatDateTime(depositExpireAt);
 
-final depositExpireText =
-    _formatDateTime(depositExpireAt);
+              final bool hasDeposit = depositAmount > 0;
+              final bookingCode = (data['bookingCode'] ?? '').toString();
 
-final bool hasDeposit =
-    depositAmount > 0;
-final bookingCode =
-    (data['bookingCode'] ?? '').toString();
-
-final shortBookingId =
-    bookingCode.isNotEmpty
-        ? bookingCode
-        : (
-            docs[index].id.length > 8
-                ? docs[index].id.substring(0, 8)
-                : docs[index].id
-          );
+              final shortBookingId = bookingCode.isNotEmpty
+                  ? bookingCode
+                  : (visibleDocs[index].id.length > 8
+                        ? visibleDocs[index].id.substring(0, 8)
+                        : visibleDocs[index].id);
 
               return Card(
                 margin: const EdgeInsets.only(bottom: 12),
@@ -281,7 +255,7 @@ final shortBookingId =
                       MaterialPageRoute(
                         builder: (_) => BookingDetailPage(
                           data: data,
-                          docId: docs[index].id,
+                          docId: visibleDocs[index].id,
                         ),
                       ),
                     );
@@ -335,40 +309,33 @@ final shortBookingId =
 
                               const SizedBox(height: 6),
 
-                             Wrap(
-  spacing: 6,
-  runSpacing: 6,
-  children: [
-    _SmallInfoChip(
-      text: '#$shortBookingId',
-    ),
-    _SmallInfoChip(
-      text: '寵物 $petCount 隻',
-    ),
-    _SmallInfoChip(
-      text: paymentMethodText,
-    ),
-    if (hasDeposit)
-      _SmallInfoChip(
-        text: '訂金 NT\$ ${depositAmount.toInt()}',
-      ),
-    _StatusChip(
-      text: statusText,
-    ),
-  ],
-),
+                              Wrap(
+                                spacing: 6,
+                                runSpacing: 6,
+                                children: [
+                                  _SmallInfoChip(text: '#$shortBookingId'),
+                                  _SmallInfoChip(text: '寵物 $petCount 隻'),
+                                  _SmallInfoChip(text: paymentMethodText),
+                                  if (hasDeposit)
+                                    _SmallInfoChip(
+                                      text: '訂金 NT\$ ${depositAmount.toInt()}',
+                                    ),
+                                  _StatusChip(text: statusText),
+                                ],
+                              ),
 
-if (hasDeposit && depositExpireText.isNotEmpty) ...[
-  const SizedBox(height: 6),
-  Text(
-    '付款期限：$depositExpireText',
-    style: const TextStyle(
-      fontSize: 12,
-      color: Colors.red,
-      fontWeight: FontWeight.w600,
-    ),
-  ),
-],
+                              if (hasDeposit &&
+                                  depositExpireText.isNotEmpty) ...[
+                                const SizedBox(height: 6),
+                                Text(
+                                  '付款期限：$depositExpireText',
+                                  style: const TextStyle(
+                                    fontSize: 12,
+                                    color: Colors.red,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ],
                             ],
                           ),
                         ),
@@ -385,10 +352,7 @@ if (hasDeposit && depositExpireText.isNotEmpty) ...[
                               ),
                             ),
                             const SizedBox(height: 10),
-                            const Icon(
-                              Icons.chevron_right,
-                              size: 22,
-                            ),
+                            const Icon(Icons.chevron_right, size: 22),
                           ],
                         ),
                       ],
@@ -405,25 +369,23 @@ if (hasDeposit && depositExpireText.isNotEmpty) ...[
 }
 
 class _StatusChip extends StatelessWidget {
-  const _StatusChip({
-    required this.text,
-  });
+  const _StatusChip({required this.text});
 
   final String text;
 
   Color get backgroundColor {
     switch (text) {
       case '需支付訂金':
-  return Colors.amber.shade100;
+        return Colors.amber.shade100;
 
-case '尚未轉帳':
-  return Colors.deepOrange.shade50;
+      case '尚未轉帳':
+        return Colors.deepOrange.shade50;
 
-case '已回傳轉帳':
-  return Colors.lightBlue.shade100;
+      case '已回傳轉帳':
+        return Colors.lightBlue.shade100;
 
-case '已付款・待確認':
-  return Colors.orange.shade100;
+      case '已付款・待確認':
+        return Colors.orange.shade100;
 
       case '待店家確認':
         return Colors.blueGrey.shade100;
@@ -448,16 +410,16 @@ case '已付款・待確認':
   Color get textColor {
     switch (text) {
       case '需支付訂金':
-  return Colors.amber.shade900;
+        return Colors.amber.shade900;
 
-case '尚未轉帳':
-  return Colors.deepOrange.shade700;
+      case '尚未轉帳':
+        return Colors.deepOrange.shade700;
 
-case '已回傳轉帳':
-  return Colors.lightBlue.shade800;
+      case '已回傳轉帳':
+        return Colors.lightBlue.shade800;
 
-case '已付款・待確認':
-  return Colors.orange.shade800;
+      case '已付款・待確認':
+        return Colors.orange.shade800;
 
       case '待店家確認':
         return Colors.blueGrey.shade800;
@@ -482,10 +444,7 @@ case '已付款・待確認':
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: 8,
-        vertical: 4,
-      ),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
         color: backgroundColor,
         borderRadius: BorderRadius.circular(999),
@@ -503,29 +462,21 @@ case '已付款・待確認':
 }
 
 class _SmallInfoChip extends StatelessWidget {
-  const _SmallInfoChip({
-    required this.text,
-  });
+  const _SmallInfoChip({required this.text});
 
   final String text;
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: 8,
-        vertical: 4,
-      ),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
         color: Colors.grey.shade100,
         borderRadius: BorderRadius.circular(999),
       ),
       child: Text(
         text,
-        style: const TextStyle(
-          fontSize: 12,
-          fontWeight: FontWeight.w600,
-        ),
+        style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
       ),
     );
   }

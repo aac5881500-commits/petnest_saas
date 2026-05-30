@@ -17,14 +17,13 @@ class FrontCalendarHelper {
       print('🔥 抓資料了：$firstDate ~ $lastDate');
     }
 
-    final blockedDateKeys = List<String>.from(shop['blockedDates'] ?? [])
-        .map((e) => e.toString())
-        .toSet();
+    final blockedDateKeys = List<String>.from(
+      shop['blockedDates'] ?? [],
+    ).map((e) => e.toString()).toSet();
 
-    final Map<String, String> blockedDateReasons =
-        Map<String, dynamic>.from(shop['blockedDateReasons'] ?? {}).map(
-      (key, value) => MapEntry(key, value.toString()),
-    );
+    final Map<String, String> blockedDateReasons = Map<String, dynamic>.from(
+      shop['blockedDateReasons'] ?? {},
+    ).map((key, value) => MapEntry(key, value.toString()));
 
     final Map<String, int> priceMap = {};
     final Map<String, int> remainingRoomsMap = {};
@@ -40,58 +39,42 @@ class FrontCalendarHelper {
     final totalRooms = roomsSnapshot.docs.length;
 
     final calendarSnapshot = await FirebaseFirestore.instance
-    .collection('shops')
-    .doc(shopId)
-    .collection('room_calendar')
-    .get();
+        .collection('shops')
+        .doc(shopId)
+        .collection('room_calendar')
+        .get();
 
-final blockedRoomDateSet = <String>{};
+    final blockedRoomDateSet = <String>{};
 
-for (final doc in calendarSnapshot.docs) {
-  final data = doc.data();
+    for (final doc in calendarSnapshot.docs) {
+      final data = doc.data();
 
-  if (data['status'] != 'blocked') continue;
+      if (data['status'] != 'blocked') continue;
 
-  final roomId = (data['roomId'] ?? '').toString();
-  final date = (data['date'] ?? '').toString();
+      final roomId = (data['roomId'] ?? '').toString();
+      final date = (data['date'] ?? '').toString();
 
-  if (roomId.isEmpty || date.isEmpty) continue;
+      if (roomId.isEmpty || date.isEmpty) continue;
 
-  blockedRoomDateSet.add('$roomId|$date');
-}
+      blockedRoomDateSet.add('$roomId|$date');
+    }
 
-    DateTime cursor = DateTime(
-      firstDate.year,
-      firstDate.month,
-      firstDate.day,
-    );
+    DateTime cursor = DateTime(firstDate.year, firstDate.month, firstDate.day);
 
-    final last = DateTime(
-      lastDate.year,
-      lastDate.month,
-      lastDate.day,
-    );
+    final last = DateTime(lastDate.year, lastDate.month, lastDate.day);
 
-    final monthStart = DateTime(
-      firstDate.year,
-      firstDate.month,
-      firstDate.day,
-    );
+    final monthStart = DateTime(firstDate.year, firstDate.month, firstDate.day);
 
-    final monthEnd = DateTime(
-      lastDate.year,
-      lastDate.month,
-      lastDate.day,
-    );
+    final monthEnd = DateTime(lastDate.year, lastDate.month, lastDate.day);
 
     final snapshot = await FirebaseFirestore.instance
         .collection('bookings')
         .where('shopId', isEqualTo: shop['shopId'])
-        .where('status', whereIn: ['pending', 'confirmed'])
         .where(
-          'startDate',
-          isLessThanOrEqualTo: Timestamp.fromDate(monthEnd),
+          'status',
+          whereIn: ['pending', 'confirmed', 'occupied', 'checked_in'],
         )
+        .where('startDate', isLessThanOrEqualTo: Timestamp.fromDate(monthEnd))
         .get();
 
     final bookings = snapshot.docs
@@ -114,22 +97,19 @@ for (final doc in calendarSnapshot.docs) {
     while (!cursor.isAfter(last)) {
       final key = ShopService.instance.formatDateKey(cursor);
 
-      priceMap[key] = ShopService.instance.getPriceForDate(
-        shop,
-        cursor,
-      );
+      priceMap[key] = ShopService.instance.getPriceForDate(shop, cursor);
 
       int occupied = 0;
 
       int blockedRooms = 0;
 
-for (final roomDoc in roomsSnapshot.docs) {
-  final roomId = roomDoc.id;
+      for (final roomDoc in roomsSnapshot.docs) {
+        final roomId = roomDoc.id;
 
-  if (blockedRoomDateSet.contains('$roomId|$key')) {
-    blockedRooms++;
-  }
-}
+        if (blockedRoomDateSet.contains('$roomId|$key')) {
+          blockedRooms++;
+        }
+      }
 
       for (final booking in bookings) {
         final start = (booking['startDate'] as Timestamp).toDate();
@@ -139,11 +119,7 @@ for (final roomDoc in roomsSnapshot.docs) {
           continue;
         }
 
-        DateTime temp = DateTime(
-          start.year,
-          start.month,
-          start.day,
-        );
+        DateTime temp = DateTime(start.year, start.month, start.day);
 
         while (!temp.isAfter(end.subtract(const Duration(days: 1)))) {
           final dKey = ShopService.instance.formatDateKey(temp);

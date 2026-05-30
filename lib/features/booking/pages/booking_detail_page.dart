@@ -26,6 +26,7 @@ import 'package:petnest_saas/features/booking/widgets/booking_detail/booking_det
 import 'package:petnest_saas/features/booking/widgets/booking_detail/booking_detail_customer_pet_section.dart';
 import 'package:petnest_saas/features/booking/widgets/booking_detail/booking_detail_payment_section.dart';
 import 'package:petnest_saas/features/booking/widgets/booking_detail/booking_detail_after_checkout_section.dart';
+import 'package:petnest_saas/features/shop/pages/policy_version_detail_page.dart';
 
 class BookingDetailPage extends StatefulWidget {
   final Map<String, dynamic> data;
@@ -271,6 +272,114 @@ class _BookingDetailPageState extends State<BookingDetailPage> {
                   correctSubtotal: correctSubtotal,
                   addonTotal: addonTotal,
                   finalTotal: finalTotal,
+                ),
+
+                const SizedBox(height: 16),
+
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: Colors.teal.shade100),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(10),
+                            decoration: BoxDecoration(
+                              color: Colors.teal.shade50,
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: const Icon(
+                              Icons.gavel_rounded,
+                              color: Colors.teal,
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  data['policyTitle'] ?? '入住須知',
+                                  style: const TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w900,
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  '版本：v${data['policyVersion'] ?? '-'}',
+                                  style: TextStyle(
+                                    color: Colors.grey.shade700,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  '同意時間：${_formatDateTime(data['policyAcceptedAt']) ?? '未記錄'}',
+                                  style: TextStyle(
+                                    color: Colors.grey.shade600,
+                                    fontSize: 13,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+
+                      const SizedBox(height: 12),
+
+                      SizedBox(
+                        width: double.infinity,
+                        child: OutlinedButton.icon(
+                          onPressed: () async {
+                            final shopId = (data['shopId'] ?? '').toString();
+                            final version = data['policyVersion'];
+
+                            if (shopId.isEmpty || version == null) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(content: Text('找不到條款版本資料')),
+                              );
+                              return;
+                            }
+
+                            final doc = await FirebaseFirestore.instance
+                                .collection('shops')
+                                .doc(shopId)
+                                .collection('policy_versions')
+                                .doc('v$version')
+                                .get();
+
+                            if (!context.mounted) return;
+
+                            if (!doc.exists) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(content: Text('找不到該版本條款')),
+                              );
+                              return;
+                            }
+
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) =>
+                                    PolicyVersionDetailPage(data: doc.data()!),
+                              ),
+                            );
+                          },
+                          icon: const Icon(Icons.history, size: 18),
+                          label: const Text('查看當時條款內容'),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
 
                 /// 💰 訂金提示

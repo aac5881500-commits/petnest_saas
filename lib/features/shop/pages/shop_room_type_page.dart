@@ -8,7 +8,6 @@ import 'package:petnest_saas/core/services/shop_service.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:petnest_saas/core/services/action_log_service.dart';
-import 'dart:ui' as ui;
 
 class ShopRoomTypePage extends StatefulWidget {
   const ShopRoomTypePage({super.key, required this.shopId});
@@ -612,10 +611,30 @@ class _ShopRoomTypePageState extends State<ShopRoomTypePage> {
                                           margin: const EdgeInsets.only(
                                             right: 8,
                                           ),
-                                          child: Image.network(
-                                            url,
+                                          child: SizedBox(
                                             width: 60,
                                             height: 60,
+                                            child: Image.network(
+                                              url,
+                                              width: 60,
+                                              height: 60,
+                                              fit: BoxFit.cover,
+                                              errorBuilder:
+                                                  (context, error, stackTrace) {
+                                                    return Container(
+                                                      width: 60,
+                                                      height: 60,
+                                                      color:
+                                                          Colors.grey.shade300,
+                                                      alignment:
+                                                          Alignment.center,
+                                                      child: const Icon(
+                                                        Icons.broken_image,
+                                                        size: 22,
+                                                      ),
+                                                    );
+                                                  },
+                                            ),
                                           ),
                                         ),
 
@@ -677,26 +696,52 @@ class _ShopRoomTypePageState extends State<ShopRoomTypePage> {
                                 );
                                 if (file == null) return;
 
-                                final rawBytes = await file.readAsBytes();
+                                final bytes = await file.readAsBytes();
 
-                                /// 🔥 壓縮圖片（限制大小）
-                                final codec = await ui.instantiateImageCodec(
-                                  rawBytes,
-                                  targetWidth: 1280,
-                                );
+                                if (bytes.length > 5 * 1024 * 1024) {
+                                  if (!mounted) return;
 
-                                final frame = await codec.getNextFrame();
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(content: Text('圖片不可超過 5MB')),
+                                  );
+                                  return;
+                                }
 
-                                final byteData = await frame.image.toByteData(
-                                  format: ui.ImageByteFormat.png,
-                                );
+                                final mimeType = file.mimeType ?? '';
 
-                                final bytes = byteData!.buffer.asUint8List();
+                                String contentType = mimeType;
+
+                                if (contentType.isEmpty) {
+                                  final fileName = file.name.toLowerCase();
+
+                                  if (fileName.endsWith('.png')) {
+                                    contentType = 'image/png';
+                                  } else if (fileName.endsWith('.webp')) {
+                                    contentType = 'image/webp';
+                                  } else if (fileName.endsWith('.jpg') ||
+                                      fileName.endsWith('.jpeg')) {
+                                    contentType = 'image/jpeg';
+                                  }
+                                }
+
+                                if (contentType != 'image/jpeg' &&
+                                    contentType != 'image/png' &&
+                                    contentType != 'image/webp') {
+                                  if (!mounted) return;
+
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text('目前只支援 JPG、PNG、WEBP'),
+                                    ),
+                                  );
+                                  return;
+                                }
 
                                 await ShopService.instance.uploadRoomTypeImage(
                                   shopId: widget.shopId,
                                   roomTypeId: item['id'],
                                   bytes: bytes,
+                                  contentType: contentType,
                                 );
 
                                 if (!mounted) return;

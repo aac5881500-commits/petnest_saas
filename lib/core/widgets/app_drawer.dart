@@ -12,13 +12,10 @@ import 'package:petnest_saas/features/shop/pages/shop_public_page.dart';
 import 'package:petnest_saas/features/booking/pages/my_bookings_page.dart';
 import 'package:petnest_saas/features/auth/pages/login_page.dart';
 import 'package:petnest_saas/core/constants/shop_permission_keys.dart';
-
+import 'package:petnest_saas/features/booking/pages/booking_detail_page.dart';
 
 class AppDrawer extends StatelessWidget {
-  const AppDrawer({
-    super.key,
-    required this.shopId,
-  });
+  const AppDrawer({super.key, required this.shopId});
 
   final String shopId;
 
@@ -49,39 +46,33 @@ class AppDrawer extends StatelessWidget {
                     onTap: () {
                       Navigator.pop(context);
                       if (user == null) {
-  Navigator.push(
-    context,
-    MaterialPageRoute(
-      builder: (_) => LoginPage(
-        redirectShopId: shopId,
-      ),
-    ),
-  );
-} else {
-  Navigator.pushNamed(context, '/member');
-}
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => LoginPage(redirectShopId: shopId),
+                          ),
+                        );
+                      } else {
+                        Navigator.pushNamed(context, '/member');
+                      }
                     },
                   ),
                   _menuItem(
-  icon: Icons.receipt_long,
-  title: '我的訂單',
-  onTap: () {
-    Navigator.pop(context);
+                    icon: Icons.receipt_long,
+                    title: '我的訂單',
+                    onTap: () {
+                      Navigator.pop(context);
 
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => MyBookingsPage(
-  returnShopId: shopId,
-),
-      ),
-    );
-  },
-),
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => MyBookingsPage(returnShopId: shopId),
+                        ),
+                      );
+                    },
+                  ),
 
-if (user != null)
-  _latestBookingCard(context, user.uid),
-
+                  if (user != null) _latestBookingCard(context, user.uid),
 
                   _divider(),
 
@@ -109,76 +100,78 @@ if (user != null)
                   _divider(),
 
                   if (user != null)
-  FutureBuilder<Map<String, dynamic>?>(
-    future: ShopService.instance.getUserMemberInShop(
-      shopId: shopId,
-      uid: user.uid,
-    ),
-  builder: (context, snapshot) {
-    final memberData = snapshot.data;
+                    FutureBuilder<Map<String, dynamic>?>(
+                      future: ShopService.instance.getUserMemberInShop(
+                        shopId: shopId,
+                        uid: user.uid,
+                      ),
+                      builder: (context, snapshot) {
+                        final memberData = snapshot.data;
 
-    bool hasAnyPermission = false;
+                        bool hasAnyPermission = false;
 
-    for (final key in ShopPermissionKeys.all) {
-      if (ShopService.instance.hasPermission(memberData, key)) {
-        hasAnyPermission = true;
-        break;
-      }
-    }
+                        for (final key in ShopPermissionKeys.all) {
+                          if (ShopService.instance.hasPermission(
+                            memberData,
+                            key,
+                          )) {
+                            hasAnyPermission = true;
+                            break;
+                          }
+                        }
 
-    if (!hasAnyPermission) {
-      return const SizedBox();
-    }
+                        if (!hasAnyPermission) {
+                          return const SizedBox();
+                        }
 
-                      return Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          _sectionTitle('系統'),
-                          _menuItem(
-  icon: Icons.home_work_outlined,
-  title: '回平台首頁',
-  onTap: () {
-    Navigator.pushNamedAndRemoveUntil(
-      context,
-      '/home',
-      (route) => false,
-    );
-  },
-),
-                          _menuItem(
-                            icon: Icons.desktop_windows,
-                            title: '回後台',
-                            onTap: () {
-                              Navigator.pushAndRemoveUntil(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (_) => ShopDashboardPage(
-                                    shopId: shopId,
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            _sectionTitle('系統'),
+                            _menuItem(
+                              icon: Icons.home_work_outlined,
+                              title: '回平台首頁',
+                              onTap: () {
+                                Navigator.pushNamedAndRemoveUntil(
+                                  context,
+                                  '/home',
+                                  (route) => false,
+                                );
+                              },
+                            ),
+                            _menuItem(
+                              icon: Icons.desktop_windows,
+                              title: '回後台',
+                              onTap: () {
+                                Navigator.pushAndRemoveUntil(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) =>
+                                        ShopDashboardPage(shopId: shopId),
                                   ),
-                                ),
-                                (route) => false,
-                              );
-                            },
-                          ),
-                          _menuItem(
-                            icon: Icons.settings,
-                            title: '功能設定',
-                            onTap: () {
-                              Navigator.pop(context);
-                            },
-                          ),
-                          _menuItem(
-                            icon: Icons.error_outline,
-                            title: '客戶申訴',
-                            onTap: () {
-                              Navigator.pop(context);
-                            },
-                          ),
-                          _divider(),
-                        ],
-                      );
-                    },
-                  ),
+                                  (route) => false,
+                                );
+                              },
+                            ),
+                            _menuItem(
+                              icon: Icons.settings,
+                              title: '功能設定',
+                              onTap: () {
+                                Navigator.pop(context);
+                              },
+                            ),
+                            _menuItem(
+                              icon: Icons.error_outline,
+                              title: '客戶申訴',
+                              onTap: () {
+                                Navigator.pop(context);
+                              },
+                            ),
+                            _divider(),
+                          ],
+                        );
+                      },
+                    ),
 
                   if (user != null)
                     _menuItem(
@@ -211,10 +204,7 @@ if (user != null)
       padding: const EdgeInsets.fromLTRB(24, 26, 24, 24),
       decoration: const BoxDecoration(
         gradient: LinearGradient(
-          colors: [
-            Color(0xFFFFF5E8),
-            Color(0xFFFFFFFF),
-          ],
+          colors: [Color(0xFFFFF5E8), Color(0xFFFFFFFF)],
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
         ),
@@ -256,13 +246,11 @@ if (user != null)
                     onPressed: () {
                       Navigator.pop(context);
                       Navigator.push(
-  context,
-  MaterialPageRoute(
-    builder: (_) => LoginPage(
-      redirectShopId: shopId,
-    ),
-  ),
-);
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => LoginPage(redirectShopId: shopId),
+                        ),
+                      );
                     },
                     child: const Text('登入 / 註冊'),
                   ),
@@ -280,85 +268,78 @@ if (user != null)
                 final phone = data?['phone'] ?? '';
 
                 return Stack(
- children: [
-  Row(
-    children: [
-      CircleAvatar(
-        radius: 38,
-        backgroundColor: const Color(0xFFFFE5C8),
-        child: Icon(
-          Icons.pets,
-          color: _orange,
-          size: 34,
-        ),
-      ),
+                  children: [
+                    Row(
+                      children: [
+                        CircleAvatar(
+                          radius: 38,
+                          backgroundColor: const Color(0xFFFFE5C8),
+                          child: Icon(Icons.pets, color: _orange, size: 34),
+                        ),
 
-      const SizedBox(width: 16),
+                        const SizedBox(width: 16),
 
-      Expanded(
-        child: Column(
-          crossAxisAlignment:
-              CrossAxisAlignment.start,
-          children: [
-            Text(
-              name.isNotEmpty ? name : '會員',
-              style: TextStyle(
-                fontSize: 19,
-                fontWeight: FontWeight.bold,
-                color: _brown,
-              ),
-            ),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                name.isNotEmpty ? name : '會員',
+                                style: TextStyle(
+                                  fontSize: 19,
+                                  fontWeight: FontWeight.bold,
+                                  color: _brown,
+                                ),
+                              ),
 
-            const SizedBox(height: 5),
+                              const SizedBox(height: 5),
 
-            if (phone.toString().isNotEmpty)
-              Text(
-                phone,
-                style: const TextStyle(
-                  fontSize: 14,
-                  color: Colors.black87,
-                ),
-              ),
+                              if (phone.toString().isNotEmpty)
+                                Text(
+                                  phone,
+                                  style: const TextStyle(
+                                    fontSize: 14,
+                                    color: Colors.black87,
+                                  ),
+                                ),
 
-            const SizedBox(height: 4),
+                              const SizedBox(height: 4),
 
-            Text(
-              user.email ?? '',
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                fontSize: 13,
-                color: Colors.black54,
-              ),
-            ),
-          ],
-        ),
-      ),
-    ],
-  ),
+                              Text(
+                                user.email ?? '',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  fontSize: 13,
+                                  color: Colors.black54,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
 
-  Positioned(
-    top: 0,
-    right: 0,
-    child: IconButton(
-      icon: const Icon(Icons.home_rounded),
-      color: _orange,
-      tooltip: '回首頁',
-      onPressed: () {
-        Navigator.pop(context);
+                    Positioned(
+                      top: 0,
+                      right: 0,
+                      child: IconButton(
+                        icon: const Icon(Icons.home_rounded),
+                        color: _orange,
+                        tooltip: '回首頁',
+                        onPressed: () {
+                          Navigator.pop(context);
 
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(
-            builder: (_) => ShopPublicPage(
-              shopId: shopId,
-            ),
-          ),
-        );
-      },
-    ),
-  ),
-],
+                          Navigator.pushReplacement(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => ShopPublicPage(shopId: shopId),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                  ],
                 );
               },
             ),
@@ -395,11 +376,7 @@ if (user != null)
   }) {
     return ListTile(
       contentPadding: EdgeInsets.zero,
-      leading: Icon(
-        icon,
-        color: iconColor ?? Colors.black54,
-        size: 24,
-      ),
+      leading: Icon(icon, color: iconColor ?? Colors.black54, size: 24),
       title: Text(
         title,
         style: TextStyle(
@@ -409,467 +386,416 @@ if (user != null)
         ),
       ),
       trailing: showArrow
-          ? const Icon(
-              Icons.chevron_right,
-              color: Colors.black38,
-            )
+          ? const Icon(Icons.chevron_right, color: Colors.black38)
           : null,
       onTap: onTap,
     );
   }
 
-Widget _latestBookingCard(BuildContext context, String userId) {
-  return StreamBuilder<QuerySnapshot>(
-    stream: FirebaseFirestore.instance
-        .collection('bookings')
-        .where('shopId', isEqualTo: shopId)
-        .where('userId', isEqualTo: userId)
-        .orderBy('createdAt', descending: true)
-        .limit(1)
-        .snapshots(),
-    builder: (context, snapshot) {
-
-
-
-  if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-        return Container(
-          margin: const EdgeInsets.only(top: 6, bottom: 10),
-          padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(
-            color: const Color(0xFFFFF7EF),
-            borderRadius: BorderRadius.circular(18),
-            border: Border.all(
-              color: const Color(0xFFFFD8B0),
+  Widget _latestBookingCard(BuildContext context, String userId) {
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('bookings')
+          .where('shopId', isEqualTo: shopId)
+          .where('userId', isEqualTo: userId)
+          .orderBy('createdAt', descending: true)
+          .limit(1)
+          .snapshots(),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+          return Container(
+            margin: const EdgeInsets.only(top: 6, bottom: 10),
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: const Color(0xFFFFF7EF),
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(color: const Color(0xFFFFD8B0)),
             ),
-          ),
-          child: const Text(
-            '目前沒有最新訂單',
-            style: TextStyle(
-              fontSize: 13,
-              color: Colors.black54,
-            ),
-          ),
-        );
-      }
-
-      final doc = snapshot.data!.docs.first;
-
-      final data = doc.data() as Map<String, dynamic>;
-
-      String status = data['status'] ?? 'pending';
-
-final rawPaymentMethod =
-    (data['paymentMethod'] ?? '').toString();
-
-final rawDepositAmount =
-    (data['depositAmount'] ?? 0).toInt();
-
-final rawDepositStatus =
-    (data['depositStatus'] ?? '').toString();
-
-if (status == 'cancelled') {
-  status = '已取消';
-} else if (status == 'completed') {
-  status = '已完成';
-} else if (status == 'checked_in') {
-  status = '已入住';
-} else if (status == 'confirmed') {
-  status = '已確認';
-} else if (rawDepositStatus == 'pending_review') {
-  status = '待店家確認付款';
-} else if (rawDepositAmount > 0) {
-  status = '需支付訂金';
-} else if (rawPaymentMethod == 'transfer') {
-  status = '尚未轉帳';
-} else {
-  status = '待確認';
-}
-
-      final roomTypeName =
-          data['roomTypeName'] ?? '未指定房型';
-
-      final roomName =
-          data['roomName'] ??
-          data['roomNumber'] ??
-          '';
-
-          final roomImages =
-    data['roomImages'] ?? [];
-
-String? roomImage;
-
-if (roomImages is List && roomImages.isNotEmpty) {
-  final firstImage = roomImages.first;
-
-  if (firstImage != null &&
-      firstImage.toString().isNotEmpty) {
-    roomImage = firstImage.toString();
-  }
-}
-
-      final totalPrice =
-          (data['totalPrice'] ?? 0).toInt();
-
-          final paymentMethod =
-    (data['paymentMethod'] ?? '').toString();
-
-final paymentMethodText =
-    paymentMethod == 'transfer'
-        ? '銀行轉帳'
-        : '現場付款';
-
-final depositAmount =
-    (data['depositAmount'] ?? 0).toInt();
-
-final depositExpireText =
-    _formatDateTime(
-      data['depositExpireAt'],
-    );
-
-final hasDeposit =
-    depositAmount > 0;
-
-final canShowDepositExpire =
-    depositExpireText.isNotEmpty &&
-    status != '已確認' &&
-    status != '已入住' &&
-    status != '已完成' &&
-    status != '已取消';
-
-      final startDate =
-          _formatDate(data['startDate']);
-
-      final endDate =
-          _formatDate(data['endDate']);
-
-      final nights =
-          data['nights'] ?? 1;
-
-      Color statusColor = const Color(0xFFFF8A3D);
-
-      if (status == '已完成') {
-        statusColor = Colors.green;
-      } else if (status == '已取消') {
-        statusColor = Colors.red;
-      } else if (status == '已入住') {
-        statusColor = Colors.blue;
-      }
-
-      return GestureDetector(
-        onTap: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (_) => MyBookingsPage(
-  returnShopId: shopId,
-),
+            child: const Text(
+              '目前沒有最新訂單',
+              style: TextStyle(fontSize: 13, color: Colors.black54),
             ),
           );
-        },
-        child: Container(
-          margin: const EdgeInsets.only(
-            top: 8,
-            bottom: 14,
-          ),
-          padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(
-            gradient: const LinearGradient(
-              colors: [
-                Color(0xFFFFF8F1),
-                Colors.white,
-              ],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(
-              color: const Color(0xFFFFD2AA),
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.orange.withOpacity(0.08),
-                blurRadius: 10,
-                offset: const Offset(0, 4),
+        }
+
+        final doc = snapshot.data!.docs.first;
+
+        final data = doc.data() as Map<String, dynamic>;
+
+        String status = data['status'] ?? 'pending';
+
+        final rawPaymentMethod = (data['paymentMethod'] ?? '').toString();
+
+        final rawDepositAmount = (data['depositAmount'] ?? 0).toInt();
+
+        final rawDepositStatus = (data['depositStatus'] ?? '').toString();
+
+        if (status == 'cancelled') {
+          status = '已取消';
+        } else if (status == 'completed') {
+          status = '已完成';
+        } else if (status == 'checked_in') {
+          status = '已入住';
+        } else if (status == 'confirmed') {
+          status = '已確認';
+        } else if (rawDepositStatus == 'pending_review') {
+          status = '待店家確認付款';
+        } else if (rawDepositAmount > 0) {
+          status = '需支付訂金';
+        } else if (rawPaymentMethod == 'transfer') {
+          status = '尚未轉帳';
+        } else {
+          status = '待確認';
+        }
+
+        final roomTypeName = data['roomTypeName'] ?? '未指定房型';
+
+        final roomName = data['roomName'] ?? data['roomNumber'] ?? '';
+
+        final roomImages = data['roomImages'] ?? [];
+
+        String? roomImage;
+
+        if (roomImages is List && roomImages.isNotEmpty) {
+          final firstImage = roomImages.first;
+
+          if (firstImage != null && firstImage.toString().isNotEmpty) {
+            roomImage = firstImage.toString();
+          }
+        }
+
+        final totalPrice = (data['totalPrice'] ?? 0).toInt();
+
+        final paymentMethod = (data['paymentMethod'] ?? '').toString();
+
+        final paymentMethodText = paymentMethod == 'transfer' ? '銀行轉帳' : '現場付款';
+
+        final depositAmount = (data['depositAmount'] ?? 0).toInt();
+
+        final depositExpireText = _formatDateTime(data['depositExpireAt']);
+
+        final hasDeposit = depositAmount > 0;
+
+        final canShowDepositExpire =
+            depositExpireText.isNotEmpty &&
+            status != '已確認' &&
+            status != '已入住' &&
+            status != '已完成' &&
+            status != '已取消';
+
+        final startDate = _formatDate(data['startDate']);
+
+        final endDate = _formatDate(data['endDate']);
+
+        final nights = data['nights'] ?? 1;
+
+        Color statusColor = const Color(0xFFFF8A3D);
+
+        if (status == '已完成') {
+          statusColor = Colors.green;
+        } else if (status == '已取消') {
+          statusColor = Colors.red;
+        } else if (status == '已入住') {
+          statusColor = Colors.blue;
+        }
+
+        return GestureDetector(
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => BookingDetailPage(docId: doc.id, data: data),
               ),
-            ],
-          ),
-          child: Column(
-            crossAxisAlignment:
-                CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Text(
-                    '最新訂單',
-                    style: TextStyle(
-                      color: _orange,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 15,
-                    ),
-                  ),
-
-                  const Spacer(),
-
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 4,
-                    ),
-                    decoration: BoxDecoration(
-                      color: statusColor.withOpacity(0.12),
-                      borderRadius:
-                          BorderRadius.circular(30),
-                    ),
-                    child: Text(
-                      status,
+            );
+          },
+          child: Container(
+            margin: const EdgeInsets.only(top: 8, bottom: 14),
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                colors: [Color(0xFFFFF8F1), Colors.white],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: const Color(0xFFFFD2AA)),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.orange.withOpacity(0.08),
+                  blurRadius: 10,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Text(
+                      '最新訂單',
                       style: TextStyle(
-                        color: statusColor,
+                        color: _orange,
                         fontWeight: FontWeight.bold,
-                        fontSize: 12,
+                        fontSize: 15,
                       ),
                     ),
-                  ),
-                ],
-              ),
 
-              const SizedBox(height: 14),
+                    const Spacer(),
 
-              Row(
-                children: [
-                  Container(
-  width: 76,
-  height: 76,
-  decoration: BoxDecoration(
-    color: Colors.grey.shade200,
-    borderRadius:
-        BorderRadius.circular(14),
-    image: roomImage != null
-        ? DecorationImage(
-            image: NetworkImage(roomImage),
-            fit: BoxFit.cover,
-          )
-        : null,
-  ),
-  child: roomImage == null
-      ? const Icon(
-          Icons.home_work_rounded,
-          color: Colors.black26,
-          size: 34,
-        )
-      : null,
-),
-                  const SizedBox(width: 14),
-
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment:
-                          CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          '$roomTypeName $roomName',
-                          maxLines: 1,
-                          overflow:
-                              TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            fontSize: 18,
-                            fontWeight:
-                                FontWeight.bold,
-                          ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: statusColor.withOpacity(0.12),
+                        borderRadius: BorderRadius.circular(30),
+                      ),
+                      child: Text(
+                        status,
+                        style: TextStyle(
+                          color: statusColor,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 12,
                         ),
+                      ),
+                    ),
+                  ],
+                ),
 
-                        const SizedBox(height: 8),
+                const SizedBox(height: 14),
 
-                        Row(
-                          children: [
-                            const Icon(
-                              Icons.calendar_month,
-                              size: 17,
-                              color: Colors.black45,
+                Row(
+                  children: [
+                    Container(
+                      width: 76,
+                      height: 76,
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade200,
+                        borderRadius: BorderRadius.circular(14),
+                        image: roomImage != null
+                            ? DecorationImage(
+                                image: NetworkImage(roomImage),
+                                fit: BoxFit.cover,
+                              )
+                            : null,
+                      ),
+                      child: roomImage == null
+                          ? const Icon(
+                              Icons.home_work_rounded,
+                              color: Colors.black26,
+                              size: 34,
+                            )
+                          : null,
+                    ),
+                    const SizedBox(width: 14),
+
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            '$roomTypeName $roomName',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
                             ),
-                            const SizedBox(width: 6),
-                            Expanded(
-                              child: Text(
-                                '$startDate - $endDate ($nights晚)',
-                                style: const TextStyle(
-                                  fontSize: 13,
-                                  color:
-                                      Colors.black87,
+                          ),
+
+                          const SizedBox(height: 8),
+
+                          Row(
+                            children: [
+                              const Icon(
+                                Icons.calendar_month,
+                                size: 17,
+                                color: Colors.black45,
+                              ),
+                              const SizedBox(width: 6),
+                              Expanded(
+                                child: Text(
+                                  '$startDate - $endDate ($nights晚)',
+                                  style: const TextStyle(
+                                    fontSize: 13,
+                                    color: Colors.black87,
+                                  ),
                                 ),
+                              ),
+                            ],
+                          ),
+
+                          const SizedBox(height: 6),
+
+                          Row(
+                            children: [
+                              const Icon(
+                                Icons.payments_outlined,
+                                size: 17,
+                                color: Colors.black45,
+                              ),
+                              const SizedBox(width: 6),
+
+                              Text(
+                                'NT\$ $totalPrice',
+                                style: const TextStyle(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ],
+                          ),
+
+                          const SizedBox(height: 10),
+
+                          Wrap(
+                            spacing: 6,
+                            runSpacing: 6,
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 10,
+                                  vertical: 5,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: Colors.blue.shade50,
+                                  borderRadius: BorderRadius.circular(30),
+                                ),
+                                child: Text(
+                                  paymentMethodText,
+                                  style: TextStyle(
+                                    color: Colors.blue.shade800,
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 12,
+                                  ),
+                                ),
+                              ),
+
+                              if (hasDeposit)
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 10,
+                                    vertical: 5,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: Colors.orange.shade50,
+                                    borderRadius: BorderRadius.circular(30),
+                                  ),
+                                  child: Text(
+                                    '訂金 NT\$ $depositAmount',
+                                    style: TextStyle(
+                                      color: Colors.orange.shade800,
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 12,
+                                    ),
+                                  ),
+                                ),
+                            ],
+                          ),
+
+                          if (canShowDepositExpire) ...[
+                            const SizedBox(height: 8),
+
+                            Text(
+                              '付款期限：$depositExpireText',
+                              style: const TextStyle(
+                                fontSize: 12,
+                                color: Colors.red,
+                                fontWeight: FontWeight.w600,
                               ),
                             ),
                           ],
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+
+                const SizedBox(height: 14),
+
+                Container(height: 1, color: Colors.orange.shade100),
+
+                const SizedBox(height: 12),
+
+                InkWell(
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => MyBookingsPage(returnShopId: shopId),
+                      ),
+                    );
+                  },
+                  child: Row(
+                    children: [
+                      Text(
+                        '查看全部訂單',
+                        style: TextStyle(
+                          color: _orange,
+                          fontWeight: FontWeight.bold,
                         ),
-
-                        const SizedBox(height: 6),
-
-Row(
-  children: [
-    const Icon(
-      Icons.payments_outlined,
-      size: 17,
-      color: Colors.black45,
-    ),
-    const SizedBox(width: 6),
-
-    Text(
-      'NT\$ $totalPrice',
-      style: const TextStyle(
-        fontSize: 15,
-        fontWeight: FontWeight.bold,
-      ),
-    ),
-  ],
-),
-
-const SizedBox(height: 10),
-
-Wrap(
-  spacing: 6,
-  runSpacing: 6,
-  children: [
-    Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: 10,
-        vertical: 5,
-      ),
-      decoration: BoxDecoration(
-        color: Colors.blue.shade50,
-        borderRadius:
-            BorderRadius.circular(30),
-      ),
-      child: Text(
-        paymentMethodText,
-        style: TextStyle(
-          color: Colors.blue.shade800,
-          fontWeight: FontWeight.bold,
-          fontSize: 12,
-        ),
-      ),
-    ),
-
-    if (hasDeposit)
-      Container(
-        padding: const EdgeInsets.symmetric(
-          horizontal: 10,
-          vertical: 5,
-        ),
-        decoration: BoxDecoration(
-          color: Colors.orange.shade50,
-          borderRadius:
-              BorderRadius.circular(30),
-        ),
-        child: Text(
-          '訂金 NT\$ $depositAmount',
-          style: TextStyle(
-            color: Colors.orange.shade800,
-            fontWeight: FontWeight.bold,
-            fontSize: 12,
+                      ),
+                      const Spacer(),
+                      Icon(Icons.chevron_right, color: _orange),
+                    ],
+                  ),
+                ),
+              ],
+            ),
           ),
-        ),
-      ),
-  ],
-),
-
-if (canShowDepositExpire) ...[
-  const SizedBox(height: 8),
-
-  Text(
-    '付款期限：$depositExpireText',
-    style: const TextStyle(
-      fontSize: 12,
-      color: Colors.red,
-      fontWeight: FontWeight.w600,
-    ),
-  ),
-],
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-
-              const SizedBox(height: 14),
-
-              Container(
-                height: 1,
-                color: Colors.orange.shade100,
-              ),
-
-              const SizedBox(height: 12),
-
-              Row(
-                children: [
-                  Text(
-                    '查看全部訂單',
-                    style: TextStyle(
-                      color: _orange,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const Spacer(),
-                  Icon(
-                    Icons.chevron_right,
-                    color: _orange,
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
-      );
-    },
-  );
-}
-
-String _formatDate(dynamic value) {
-  if (value == null) return '未設定';
-
-  DateTime? date;
-
-  if (value is Timestamp) {
-    date = value.toDate();
-  } else if (value is DateTime) {
-    date = value;
-  } else if (value is String) {
-    date = DateTime.tryParse(value);
+        );
+      },
+    );
   }
 
-  if (date == null) return '未設定';
+  String _formatDate(dynamic value) {
+    if (value == null) return '未設定';
 
-  return '${date.month}/${date.day}';
-}
+    DateTime? date;
+
+    if (value is Timestamp) {
+      date = value.toDate();
+    } else if (value is DateTime) {
+      date = value;
+    } else if (value is String) {
+      date = DateTime.tryParse(value);
+    }
+
+    if (date == null) return '未設定';
+
+    return '${date.month}/${date.day}';
+  }
 
   Widget _divider() {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 10),
-      child: Divider(
-        color: Colors.grey.shade200,
-        thickness: 1,
-      ),
+      child: Divider(color: Colors.grey.shade200, thickness: 1),
     );
   }
 
   String _formatDateTime(dynamic value) {
-  if (value == null) return '';
+    if (value == null) return '';
 
-  DateTime? date;
+    DateTime? date;
 
-  if (value is Timestamp) {
-    date = value.toDate();
-  } else if (value is DateTime) {
-    date = value;
+    if (value is Timestamp) {
+      date = value.toDate();
+    } else if (value is DateTime) {
+      date = value;
+    }
+
+    if (date == null) return '';
+
+    final y = date.year.toString().padLeft(4, '0');
+    final m = date.month.toString().padLeft(2, '0');
+    final d = date.day.toString().padLeft(2, '0');
+    final hh = date.hour.toString().padLeft(2, '0');
+    final mm = date.minute.toString().padLeft(2, '0');
+
+    return '$y-$m-$d $hh:$mm';
   }
-
-  if (date == null) return '';
-
-  final y = date.year.toString().padLeft(4, '0');
-  final m = date.month.toString().padLeft(2, '0');
-  final d = date.day.toString().padLeft(2, '0');
-  final hh = date.hour.toString().padLeft(2, '0');
-  final mm = date.minute.toString().padLeft(2, '0');
-
-  return '$y-$m-$d $hh:$mm';
-}
 
   Widget _buildFooter() {
     return Padding(
@@ -884,18 +810,12 @@ String _formatDate(dynamic value) {
               children: [
                 Text(
                   'PetNest 寵物旅社',
-                  style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 15,
-                  ),
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
                 ),
                 SizedBox(height: 3),
                 Text(
                   '用心・專業・愛護每一位毛孩 ❤',
-                  style: TextStyle(
-                    color: Colors.black54,
-                    fontSize: 12,
-                  ),
+                  style: TextStyle(color: Colors.black54, fontSize: 12),
                 ),
               ],
             ),
@@ -911,16 +831,12 @@ String _formatDate(dynamic value) {
     final user = FirebaseAuth.instance.currentUser;
 
     if (user == null) {
-  Navigator.push(
-    context,
-    MaterialPageRoute(
-      builder: (_) => LoginPage(
-        redirectShopId: shopId,
-      ),
-    ),
-  );
-  return;
-}
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => LoginPage(redirectShopId: shopId)),
+      );
+      return;
+    }
 
     final hasAccepted = await ShopService.instance.hasAcceptedPolicy(
       shopId: shopId,
@@ -930,11 +846,7 @@ String _formatDate(dynamic value) {
     if (!hasAccepted) {
       final result = await Navigator.push(
         context,
-        MaterialPageRoute(
-          builder: (_) => ShopPolicyViewPage(
-            shopId: shopId,
-          ),
-        ),
+        MaterialPageRoute(builder: (_) => ShopPolicyViewPage(shopId: shopId)),
       );
 
       if (result != true) return;
@@ -944,10 +856,7 @@ String _formatDate(dynamic value) {
 
     Navigator.push(
       context,
-      MaterialPageRoute(
-        builder: (_) => ShopBookingPage(shopId: shopId),
-      ),
+      MaterialPageRoute(builder: (_) => ShopBookingPage(shopId: shopId)),
     );
   }
-  
 }
