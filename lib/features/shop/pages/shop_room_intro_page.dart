@@ -7,17 +7,11 @@ import 'package:petnest_saas/core/services/shop_service.dart';
 import 'package:petnest_saas/features/shop/pages/room_type_detail_page.dart';
 
 class ShopRoomIntroPage extends StatelessWidget {
-  const ShopRoomIntroPage({
-    super.key,
-    required this.shopId,
-  });
+  const ShopRoomIntroPage({super.key, required this.shopId});
 
   final String shopId;
 
-  void _openRoomDetail(
-    BuildContext context,
-    Map<String, dynamic> roomType,
-  ) {
+  void _openRoomDetail(BuildContext context, Map<String, dynamic> roomType) {
     Navigator.push(
       context,
       MaterialPageRoute(
@@ -25,9 +19,7 @@ class ShopRoomIntroPage extends StatelessWidget {
           shopId: shopId,
           roomType: roomType,
           startDate: DateTime.now(),
-          endDate: DateTime.now().add(
-            const Duration(days: 1),
-          ),
+          endDate: DateTime.now().add(const Duration(days: 1)),
           isIntroMode: true,
         ),
       ),
@@ -65,10 +57,7 @@ class ShopRoomIntroPage extends StatelessWidget {
           const SizedBox(height: 6),
           const Text(
             '每個房型都會顯示可入住數量、價格與特色，方便快速了解。',
-            style: TextStyle(
-              fontSize: 13,
-              color: Color(0xFF8A6A45),
-            ),
+            style: TextStyle(fontSize: 13, color: Color(0xFF8A6A45)),
           ),
           const SizedBox(height: 20),
 
@@ -108,7 +97,7 @@ class ShopRoomIntroPage extends StatelessWidget {
                   crossAxisCount: crossAxisCount,
                   mainAxisSpacing: 14,
                   crossAxisSpacing: 14,
-                  childAspectRatio: crossAxisCount == 1 ? 1.65 : 0.78,
+                  childAspectRatio: crossAxisCount == 1 ? 1.45 : 0.78,
                 ),
                 itemBuilder: (context, index) {
                   final roomType = roomTypes[index];
@@ -146,17 +135,14 @@ class _RoomIntroGridCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final imageHeight = isFullWidth ? 190.0 : 115.0;
-
+    final imageHeight = isFullWidth ? 170.0 : 115.0;
     return GestureDetector(
       onTap: onTap,
       child: Container(
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(22),
-          border: Border.all(
-            color: const Color(0xFFF0E0CC),
-          ),
+          border: Border.all(color: const Color(0xFFF0E0CC)),
           boxShadow: [
             BoxShadow(
               color: Colors.black.withValues(alpha: 0.04),

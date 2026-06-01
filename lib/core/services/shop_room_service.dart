@@ -351,6 +351,16 @@ class ShopRoomService {
       stayDates.add(formatDateKey(cursor));
       cursor = cursor.add(const Duration(days: 1));
     }
+    final bookingsSnapshot = await _firestore
+        .collection('bookings')
+        .where('shopId', isEqualTo: shopId)
+        .where(
+          'status',
+          whereIn: ['pending', 'confirmed', 'occupied', 'checked_in'],
+        )
+        .get();
+
+    final bookings = bookingsSnapshot.docs.map((e) => e.data()).toList();
 
     final result = <Map<String, dynamic>>[];
 
@@ -366,6 +376,30 @@ class ShopRoomService {
       for (final date in stayDates) {
         int availableCount = 0;
 
+        int bookedCount = 0;
+
+        for (final booking in bookings) {
+          final bookingRoomTypeId = (booking['roomTypeId'] ?? '').toString();
+
+          if (bookingRoomTypeId != typeId) continue;
+
+          final start = (booking['startDate'] as Timestamp).toDate();
+          final end = (booking['endDate'] as Timestamp).toDate();
+
+          DateTime temp = DateTime(start.year, start.month, start.day);
+
+          while (temp.isBefore(end)) {
+            final bookingDateKey = formatDateKey(temp);
+
+            if (bookingDateKey == date) {
+              bookedCount++;
+              break;
+            }
+
+            temp = temp.add(const Duration(days: 1));
+          }
+        }
+
         final calendarSnapshot = await roomCalendarRef(
           shopId,
         ).where('date', isEqualTo: date).get();
@@ -379,7 +413,9 @@ class ShopRoomService {
           final cal = calendarMap[roomId];
           final status = cal?['status'] ?? 'available';
 
-          if (status == 'booked' || status == 'blocked') {
+          // 🔥 前台庫存已經用 bookings 扣掉訂單
+          // 這裡只扣後台手動關閉 / 維修的房間
+          if (status == 'blocked') {
             continue;
           }
 
@@ -393,8 +429,10 @@ class ShopRoomService {
           availableCount++;
         }
 
-        if (availableCount < minAvailableRooms) {
-          minAvailableRooms = availableCount;
+        final realAvailableCount = availableCount - bookedCount;
+
+        if (realAvailableCount < minAvailableRooms) {
+          minAvailableRooms = realAvailableCount;
         }
       }
 

@@ -4,27 +4,22 @@
 import 'dart:typed_data';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:firebase_storage/firebase_storage.dart';
 import 'package:petnest_saas/core/constants/shop_roles.dart';
 import 'package:petnest_saas/core/constants/shop_modules.dart';
 import 'package:petnest_saas/core/services/platform_activation_code_service.dart';
 import 'package:petnest_saas/core/services/shop_member_permission_service.dart';
 import 'package:petnest_saas/core/services/shop_room_service.dart';
+import 'package:petnest_saas/core/services/shop_policy_service.dart';
+import 'package:petnest_saas/core/services/shop_profile_service.dart';
 
 class ShopService {
   ShopService._();
   static final instance = ShopService._();
 
   Future<void> deleteImageByUrl(String url) async {
-    try {
-      final ref = FirebaseStorage.instance.refFromURL(url);
-      await ref.delete();
-    } catch (e) {
-      print('刪除圖片失敗: $e');
-    }
+    return ShopProfileService.instance.deleteImageByUrl(url);
   }
 
-  final FirebaseStorage _storage = FirebaseStorage.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
 
@@ -77,7 +72,7 @@ class ShopService {
     required String shopId,
     required Map<String, dynamic> data,
   }) async {
-    await _firestore.collection('shops').doc(shopId).update(data);
+    return ShopProfileService.instance.updateShop(shopId: shopId, data: data);
   }
 
   /// ===============================
@@ -359,21 +354,12 @@ class ShopService {
 
   /// 取得單一店家
   Future<Map<String, dynamic>?> getShop(String shopId) async {
-    final doc = await _shops.doc(shopId).get();
-    if (!doc.exists) return null;
-
-    final data = doc.data() ?? {};
-
-    return {'shopId': doc.id, ...data};
+    return ShopProfileService.instance.getShop(shopId);
   }
 
   /// 監聽單一店家
   Stream<Map<String, dynamic>?> streamShop(String shopId) {
-    return _shops.doc(shopId).snapshots().map((doc) {
-      if (!doc.exists) return null;
-
-      return {'shopId': doc.id, ...doc.data()!};
-    });
+    return ShopProfileService.instance.streamShop(shopId);
   }
 
   /// 取得某使用者在該店的角色
@@ -434,52 +420,46 @@ class ShopService {
     String taxId = '',
     bool showTaxId = true,
   }) async {
-    await _shops.doc(shopId).update({
-      'name': name.trim(),
-      'businessType': businessType,
-      'phone': phone.trim(),
-      'address': address.trim(),
-      'description': description.trim(),
-      'city': city.trim(),
-      'district': district.trim(),
-      'lineUrl': lineUrl.trim(),
-      'igUrl': igUrl.trim(),
-      'fbUrl': fbUrl.trim(),
-
-      /// 🔥 新增
-      'businessHours': businessHours.trim(),
-      'licenseNumber': licenseNumber.trim(),
-      'taxId': taxId.trim(),
-      'showTaxId': showTaxId,
-
-      'updatedAt': FieldValue.serverTimestamp(),
-    });
+    return ShopProfileService.instance.updateShopBasicInfo(
+      shopId: shopId,
+      name: name,
+      businessType: businessType,
+      phone: phone,
+      address: address,
+      description: description,
+      city: city,
+      district: district,
+      lineUrl: lineUrl,
+      igUrl: igUrl,
+      fbUrl: fbUrl,
+      businessHours: businessHours,
+      licenseNumber: licenseNumber,
+      taxId: taxId,
+      showTaxId: showTaxId,
+    );
   }
 
   /// 更新營業資訊
   Future<void> updateBusinessInfo({
     required String shopId,
     required bool isOpen,
-
     String businessHours = '',
-
     String openTime = '',
     String closeTime = '',
-
     List<String> closedDays = const [],
     List<String> serviceTypes = const [],
     bool isPublic = false,
   }) async {
-    await _shops.doc(shopId).update({
-      'isOpen': isOpen,
-      'businessHours': businessHours,
-      'openTime': openTime,
-      'closeTime': closeTime,
-      'closedDays': closedDays,
-      'serviceTypes': serviceTypes,
-      'isPublic': isPublic,
-      'updatedAt': FieldValue.serverTimestamp(),
-    });
+    return ShopProfileService.instance.updateBusinessInfo(
+      shopId: shopId,
+      isOpen: isOpen,
+      businessHours: businessHours,
+      openTime: openTime,
+      closeTime: closeTime,
+      closedDays: closedDays,
+      serviceTypes: serviceTypes,
+      isPublic: isPublic,
+    );
   }
 
   /// 更新預約基本設定
@@ -627,16 +607,10 @@ class ShopService {
     required String shopId,
     required Uint8List bytes,
   }) async {
-    final ref = _storage.ref().child('shops/$shopId/logo.jpg');
-    await ref.putData(bytes);
-    final url = await ref.getDownloadURL();
-
-    await _shops.doc(shopId).update({
-      'logoUrl': url,
-      'updatedAt': FieldValue.serverTimestamp(),
-    });
-
-    return url;
+    return ShopProfileService.instance.uploadShopLogo(
+      shopId: shopId,
+      bytes: bytes,
+    );
   }
 
   /// 上傳店家 Cover
@@ -644,15 +618,10 @@ class ShopService {
     required String shopId,
     required Uint8List bytes,
   }) async {
-    /// 🔥 每次用新檔名（避免快取＆壞檔）
-    final fileName = 'banner_${DateTime.now().millisecondsSinceEpoch}.jpg';
-
-    final ref = _storage.ref().child('shops/$shopId/$fileName');
-
-    /// 🔥 強制指定圖片格式（關鍵）
-    await ref.putData(bytes, SettableMetadata(contentType: 'image/jpeg'));
-
-    return await ref.getDownloadURL();
+    return ShopProfileService.instance.uploadShopCover(
+      shopId: shopId,
+      bytes: bytes,
+    );
   }
 
   int _toInt(dynamic value, {int fallback = 0}) {
@@ -1012,20 +981,12 @@ class ShopService {
   }
 
   // ===============================
-  // 📜 入住條款（版本控管）
+  // 📜 入住條款
+  // 已搬到 ShopPolicyService，這裡只保留代理
   // ===============================
 
   Future<Map<String, dynamic>?> getCheckinPolicy(String shopId) async {
-    final doc = await _firestore
-        .collection('shops')
-        .doc(shopId)
-        .collection('policies')
-        .doc('checkin_policy')
-        .get();
-
-    if (!doc.exists) return null;
-
-    return doc.data();
+    return ShopPolicyService.instance.getCheckinPolicy(shopId);
   }
 
   Future<void> updateCheckinPolicy({
@@ -1035,132 +996,40 @@ class ShopService {
     required List<String> customPoliciesPage1,
     required List<String> customPoliciesPage2,
   }) async {
-    final user = _currentUser;
-
-    final docRef = _firestore
-        .collection('shops')
-        .doc(shopId)
-        .collection('policies')
-        .doc('checkin_policy');
-
-    final doc = await docRef.get();
-
-    int newVersion = 1;
-
-    if (doc.exists) {
-      final oldVersion = doc.data()?['version'] ?? 1;
-      newVersion = oldVersion + 1;
-    }
-
-    final policyData = {
-      'version': newVersion,
-      'sections': sections,
-      'enabled': enabled,
-      'customPoliciesPage1': customPoliciesPage1,
-      'customPoliciesPage2': customPoliciesPage2,
-      'updatedAt': FieldValue.serverTimestamp(),
-      'updatedByUid': user?.uid ?? '',
-      'updatedByEmail': user?.email ?? '',
-    };
-
-    await docRef.set(policyData);
-
-    await _firestore
-        .collection('shops')
-        .doc(shopId)
-        .collection('policy_versions')
-        .doc('v$newVersion')
-        .set(policyData);
+    return ShopPolicyService.instance.updateCheckinPolicy(
+      shopId: shopId,
+      sections: sections,
+      enabled: enabled,
+      customPoliciesPage1: customPoliciesPage1,
+      customPoliciesPage2: customPoliciesPage2,
+    );
   }
 
   Future<bool> hasAcceptedPolicy({
     required String shopId,
     required String userId,
   }) async {
-    final policy = await getCheckinPolicy(shopId);
-    if (policy == null) return true;
-
-    final currentVersion = policy['version'] ?? 1;
-
-    final doc = await _firestore
-        .collection('users')
-        .doc(userId)
-        .collection('policy_acceptances')
-        .doc(shopId)
-        .get();
-
-    if (!doc.exists) return false;
-
-    final acceptedVersion = doc.data()?['acceptedVersion'] ?? 0;
-
-    return acceptedVersion == currentVersion;
+    return ShopPolicyService.instance.hasAcceptedPolicy(
+      shopId: shopId,
+      userId: userId,
+    );
   }
 
   Future<void> acceptPolicy({
     required String shopId,
     required String userId,
   }) async {
-    final policy = await getCheckinPolicy(shopId);
-    if (policy == null) return;
-
-    final version = policy['version'] ?? 1;
-
-    await _firestore
-        .collection('users')
-        .doc(userId)
-        .collection('policy_acceptances')
-        .doc(shopId)
-        .set({
-          'acceptedVersion': version,
-          'acceptedAt': FieldValue.serverTimestamp(),
-          'email': _currentUser?.email ?? '',
-        });
+    return ShopPolicyService.instance.acceptPolicy(
+      shopId: shopId,
+      userId: userId,
+    );
   }
 
   Future<List<Map<String, dynamic>>> getPolicyAcceptances(String shopId) async {
-    final usersSnapshot = await _firestore.collection('users').get();
-
-    final result = <Map<String, dynamic>>[];
-
-    for (final userDoc in usersSnapshot.docs) {
-      final userId = userDoc.id;
-
-      final doc = await _firestore
-          .collection('users')
-          .doc(userId)
-          .collection('policy_acceptances')
-          .doc(shopId)
-          .get();
-
-      if (!doc.exists) continue;
-
-      result.add({'userId': userId, ...doc.data()!});
-    }
-
-    return result;
+    return ShopPolicyService.instance.getPolicyAcceptances(shopId);
   }
 
   Future<Map<String, dynamic>?> getUserProfile(String userId) async {
-    final doc = await _firestore.collection('user_profiles').doc(userId).get();
-
-    if (!doc.exists) return null;
-
-    return doc.data();
-  }
-
-  /// 🔥 判斷是否為員工（含 owner / manager / staff）
-  Future<bool> isEmployee({
-    required String shopId,
-    required String userId,
-  }) async {
-    if (userId.isEmpty) return false;
-
-    final snapshot = await _shopMembers
-        .where('shopId', isEqualTo: shopId)
-        .where('uid', isEqualTo: userId)
-        .limit(1)
-        .get();
-
-    return snapshot.docs.isNotEmpty;
+    return ShopPolicyService.instance.getUserProfile(userId);
   }
 }

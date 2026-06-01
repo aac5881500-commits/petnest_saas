@@ -36,7 +36,18 @@ class FrontCalendarHelper {
         .where('enabled', isEqualTo: true)
         .get();
 
-    final totalRooms = roomsSnapshot.docs.length;
+    // 🔥 依房型統計可用房間數
+    final Map<String, int> totalRoomsByRoomType = {};
+
+    for (final roomDoc in roomsSnapshot.docs) {
+      final room = roomDoc.data();
+      final roomTypeId = (room['roomTypeId'] ?? '').toString();
+
+      if (roomTypeId.isEmpty) continue;
+
+      totalRoomsByRoomType[roomTypeId] =
+          (totalRoomsByRoomType[roomTypeId] ?? 0) + 1;
+    }
 
     final calendarSnapshot = await FirebaseFirestore.instance
         .collection('shops')
@@ -99,18 +110,21 @@ class FrontCalendarHelper {
 
       priceMap[key] = ShopService.instance.getPriceForDate(shop, cursor);
 
-      int occupied = 0;
-
-      int blockedRooms = 0;
+      final Map<String, int> occupiedByRoomType = {};
+      final Map<String, int> blockedRoomsByRoomType = {};
 
       for (final roomDoc in roomsSnapshot.docs) {
         final roomId = roomDoc.id;
+        final room = roomDoc.data();
+        final roomTypeId = (room['roomTypeId'] ?? '').toString();
+
+        if (roomTypeId.isEmpty) continue;
 
         if (blockedRoomDateSet.contains('$roomId|$key')) {
-          blockedRooms++;
+          blockedRoomsByRoomType[roomTypeId] =
+              (blockedRoomsByRoomType[roomTypeId] ?? 0) + 1;
         }
       }
-
       for (final booking in bookings) {
         final start = (booking['startDate'] as Timestamp).toDate();
         final end = (booking['endDate'] as Timestamp).toDate();
@@ -125,7 +139,13 @@ class FrontCalendarHelper {
           final dKey = ShopService.instance.formatDateKey(temp);
 
           if (dKey == key) {
-            occupied++;
+            final roomTypeId = (booking['roomTypeId'] ?? '').toString();
+
+            if (roomTypeId.isNotEmpty) {
+              occupiedByRoomType[roomTypeId] =
+                  (occupiedByRoomType[roomTypeId] ?? 0) + 1;
+            }
+
             break;
           }
 
@@ -133,11 +153,29 @@ class FrontCalendarHelper {
         }
       }
 
-      final remaining = totalRooms - occupied - blockedRooms;
+      int minRemaining = 999999;
 
-      remainingRoomsMap[key] = remaining;
+      for (final entry in totalRoomsByRoomType.entries) {
+        final roomTypeId = entry.key;
+        final total = entry.value;
 
-      if (remaining <= 0) {
+        final occupied = occupiedByRoomType[roomTypeId] ?? 0;
+        final blockedRooms = blockedRoomsByRoomType[roomTypeId] ?? 0;
+
+        final remaining = total - occupied - blockedRooms;
+
+        if (remaining < minRemaining) {
+          minRemaining = remaining;
+        }
+      }
+
+      if (minRemaining == 999999) {
+        minRemaining = 0;
+      }
+
+      remainingRoomsMap[key] = minRemaining;
+
+      if (minRemaining <= 0) {
         unbookableDateKeys.add(key);
       }
 
