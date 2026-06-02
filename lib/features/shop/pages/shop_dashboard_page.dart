@@ -34,13 +34,8 @@ import 'package:petnest_saas/features/shop/pages/shop_environment_manage_page.da
 import 'package:petnest_saas/features/shop/pages/shop_about_manage_page.dart';
 import 'package:petnest_saas/core/constants/shop_permission_keys.dart';
 
-
-
 class ShopDashboardPage extends StatefulWidget {
-  const ShopDashboardPage({
-    super.key,
-    required this.shopId,
-  });
+  const ShopDashboardPage({super.key, required this.shopId});
 
   final String shopId;
 
@@ -50,8 +45,8 @@ class ShopDashboardPage extends StatefulWidget {
 
 class _ShopDashboardPageState extends State<ShopDashboardPage> {
   String? _currentUserRole;
-Map<String, dynamic>? _currentMemberData;
-bool _roleLoaded = false;
+  Map<String, dynamic>? _currentMemberData;
+  bool _roleLoaded = false;
 
   @override
   void initState() {
@@ -73,16 +68,16 @@ bool _roleLoaded = false;
 
     try {
       final memberData = await ShopService.instance.getUserMemberInShop(
-  shopId: widget.shopId,
-  uid: user.uid,
-);
+        shopId: widget.shopId,
+        uid: user.uid,
+      );
 
-if (!mounted) return;
-setState(() {
-  _currentMemberData = memberData;
-  _currentUserRole = memberData?['role']?.toString();
-  _roleLoaded = true;
-});
+      if (!mounted) return;
+      setState(() {
+        _currentMemberData = memberData;
+        _currentUserRole = memberData?['role']?.toString();
+        _roleLoaded = true;
+      });
     } catch (_) {
       if (!mounted) return;
       setState(() {
@@ -100,63 +95,61 @@ setState(() {
   }
 
   bool _can(String permissionKey) {
-  return ShopService.instance.hasPermission(
-    _currentMemberData,
-    permissionKey,
-  );
-}
-
-bool get _hasAnyDashboardPermission {
-  if (_currentUserRole == ShopRoles.owner) return true;
-
-  for (final key in ShopPermissionKeys.all) {
-    if (_can(key)) return true;
+    return ShopService.instance.hasPermission(
+      _currentMemberData,
+      permissionKey,
+    );
   }
 
-  return false;
-}
+  bool get _hasAnyDashboardPermission {
+    if (_currentUserRole == ShopRoles.owner) return true;
 
-  List<String> _buildVisibleModules({
-  required List<String> enabledModules,
-}) {
-  final result = <String>[];
+    for (final key in ShopPermissionKeys.all) {
+      if (_can(key)) return true;
+    }
 
-  final canSeeBasicInfo =
-      _can(ShopPermissionKeys.editBasicInfo) ||
-      _can(ShopPermissionKeys.editBusinessInfo) ||
-      _can(ShopPermissionKeys.editMedia) ||
-      _can(ShopPermissionKeys.manageEnvironment) ||
-      _can(ShopPermissionKeys.manageAbout) ||
-      _can(ShopPermissionKeys.manageModules) ||
-      _can(ShopPermissionKeys.manageMembers);
-
-  final canSeeCatHotel =
-      _can(ShopPermissionKeys.manageBookings) ||
-      _can(ShopPermissionKeys.manageBookingSettings) ||
-      _can(ShopPermissionKeys.manageRoomDashboard) ||
-      _can(ShopPermissionKeys.manageRoomTypes) ||
-      _can(ShopPermissionKeys.manageRooms) ||
-      _can(ShopPermissionKeys.managePaymentSettings) ||
-      _can(ShopPermissionKeys.managePolicy);
-
-  final canSeeReports =
-      _can(ShopPermissionKeys.viewReports) ||
-      _can(ShopPermissionKeys.viewActionLogs);
-
-  if (enabledModules.contains(ShopModules.basicInfo) && canSeeBasicInfo) {
-    result.add(ShopModules.basicInfo);
+    return false;
   }
 
-  if (enabledModules.contains(ShopModules.catHotel) && canSeeCatHotel) {
-    result.add(ShopModules.catHotel);
-  }
+  List<String> _buildVisibleModules({required List<String> enabledModules}) {
+    final result = <String>[];
 
-  if (enabledModules.contains(ShopModules.reports) && canSeeReports) {
-    result.add(ShopModules.reports);
-  }
+    final canSeeBasicInfo =
+        _can(ShopPermissionKeys.editBasicInfo) ||
+        _can(ShopPermissionKeys.editBusinessInfo) ||
+        _can(ShopPermissionKeys.editMedia) ||
+        _can(ShopPermissionKeys.manageEnvironment) ||
+        _can(ShopPermissionKeys.manageAbout) ||
+        _can(ShopPermissionKeys.manageModules) ||
+        _can(ShopPermissionKeys.manageMembers);
 
-  return result;
-}
+    final canSeeCatHotel =
+        _can(ShopPermissionKeys.manageBookings) ||
+        _can(ShopPermissionKeys.manageBookingSettings) ||
+        _can(ShopPermissionKeys.manageRoomDashboard) ||
+        _can(ShopPermissionKeys.manageRoomTypes) ||
+        _can(ShopPermissionKeys.manageRooms) ||
+        _can(ShopPermissionKeys.managePaymentSettings) ||
+        _can(ShopPermissionKeys.managePolicy);
+
+    final canSeeReports =
+        _can(ShopPermissionKeys.viewReports) ||
+        _can(ShopPermissionKeys.viewActionLogs);
+
+    if (enabledModules.contains(ShopModules.basicInfo) && canSeeBasicInfo) {
+      result.add(ShopModules.basicInfo);
+    }
+
+    if (enabledModules.contains(ShopModules.catHotel) && canSeeCatHotel) {
+      result.add(ShopModules.catHotel);
+    }
+
+    if (enabledModules.contains(ShopModules.reports) && canSeeReports) {
+      result.add(ShopModules.reports);
+    }
+
+    return result;
+  }
 
   String _moduleLabel(String module) {
     switch (module) {
@@ -203,43 +196,34 @@ bool get _hasAnyDashboardPermission {
   @override
   Widget build(BuildContext context) {
     if (!_roleLoaded) {
-      return const Scaffold(
-        body: Center(child: CircularProgressIndicator()),
-      );
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
 
     if (_currentUserRole == null) {
-      return const Scaffold(
-        body: Center(child: Text('查無店家權限')),
-      );
+      return const Scaffold(body: Center(child: Text('查無店家權限')));
     }
 
     if (!_hasAnyDashboardPermission) {
-  return Scaffold(
-    appBar: AppBar(
-  backgroundColor: Colors.white,
-  foregroundColor: Colors.black,
-  elevation: 1,
-  title: const Text('權限限制'),
-  leading: IconButton(
-    icon: const Icon(Icons.arrow_back),
-    onPressed: () {
-      if (Navigator.canPop(context)) {
-        Navigator.pop(context);
-      } else {
-        Navigator.pushReplacementNamed(
-          context,
-          '/home',
-        );
-      }
-    },
-  ),
-),
-    body: const Center(
-      child: Text('你沒有任何後台功能權限'),
-    ),
-  );
-}
+      return Scaffold(
+        appBar: AppBar(
+          backgroundColor: Colors.white,
+          foregroundColor: Colors.black,
+          elevation: 1,
+          title: const Text('權限限制'),
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back),
+            onPressed: () {
+              if (Navigator.canPop(context)) {
+                Navigator.pop(context);
+              } else {
+                Navigator.pushReplacementNamed(context, '/home');
+              }
+            },
+          ),
+        ),
+        body: const Center(child: Text('你沒有任何後台功能權限')),
+      );
+    }
     return StreamBuilder<Map<String, dynamic>?>(
       stream: ShopService.instance.streamShop(widget.shopId),
       builder: (context, snapshot) {
@@ -258,17 +242,16 @@ bool get _hasAnyDashboardPermission {
 
         final shop = snapshot.data;
         if (shop == null) {
-          return const Scaffold(
-            body: Center(child: Text('找不到店家資料')),
-          );
+          return const Scaffold(body: Center(child: Text('找不到店家資料')));
         }
 
         final isComplete = _isProfileComplete(shop);
-        final enabledModules =
-            ShopService.instance.normalizeEnabledModules(shop['enabledModules']);
+        final enabledModules = ShopService.instance.normalizeEnabledModules(
+          shop['enabledModules'],
+        );
         final visibleModules = _buildVisibleModules(
-  enabledModules: enabledModules,
-);
+          enabledModules: enabledModules,
+        );
         return DefaultTabController(
           length: visibleModules.length,
           child: Scaffold(
@@ -308,10 +291,10 @@ bool get _hasAnyDashboardPermission {
                       switch (module) {
                         case ShopModules.basicInfo:
                           return _BasicInfoTab(
-  shopId: widget.shopId,
-  currentUserRole: _currentUserRole,
-  memberData: _currentMemberData,
-);
+                            shopId: widget.shopId,
+                            currentUserRole: _currentUserRole,
+                            memberData: _currentMemberData,
+                          );
                         case ShopModules.catHotel:
                           return _CatHotelTab(
                             shopId: widget.shopId,
@@ -339,9 +322,7 @@ bool get _hasAnyDashboardPermission {
                             description: '這裡先保留給商品管理、訂單、上下架、曝光位模板。',
                           );
                         case ShopModules.reports:
-                          return _ReportsTab(
-                            currentUserRole: _currentUserRole,
-                          );
+                          return _ReportsTab(currentUserRole: _currentUserRole);
                         default:
                           return const Center(child: Text('模組尚未定義'));
                       }
@@ -368,102 +349,93 @@ class _BasicInfoTab extends StatelessWidget {
   final String shopId;
   final String? currentUserRole;
   final Map<String, dynamic>? memberData;
-bool _can(String permissionKey) {
-  return ShopService.instance.hasPermission(
-    memberData,
-    permissionKey,
-  );
-}
-    
+  bool _can(String permissionKey) {
+    return ShopService.instance.hasPermission(memberData, permissionKey);
+  }
 
   @override
   Widget build(BuildContext context) {
     return ListView(
       padding: const EdgeInsets.all(16),
-     children: [
-  const _MenuSectionTitle('店家資料'),
+      children: [
+        const _MenuSectionTitle('店家資料'),
 
-if (currentUserRole == ShopRoles.owner)
-  _MenuTile(
-    title: '店家基本資料',
-          subtitle: '設定店名、類型、地址、電話與介紹',
-          icon: Icons.store,
-          onTap: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (_) => ShopBasicInfoPage(shopId: shopId),
-              ),
-            );
-          },
-        ),
+        if (currentUserRole == ShopRoles.owner)
+          _MenuTile(
+            title: '店家基本資料',
+            subtitle: '設定店名、類型、地址、電話與介紹',
+            icon: Icons.store,
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => ShopBasicInfoPage(shopId: shopId),
+                ),
+              );
+            },
+          ),
 
         if (_can(ShopPermissionKeys.editBusinessInfo))
-        _MenuTile(
-          title: '營業資訊',
-          subtitle: '設定營業時間與服務項目',
-          icon: Icons.schedule,
-          onTap: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (_) => ShopBusinessInfoPage(shopId: shopId),
-              ),
-            );
-          },
-        ),
+          _MenuTile(
+            title: '營業資訊',
+            subtitle: '設定營業時間與服務項目',
+            icon: Icons.schedule,
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => ShopBusinessInfoPage(shopId: shopId),
+                ),
+              );
+            },
+          ),
 
         if (_can(ShopPermissionKeys.editMedia))
-        _MenuTile(
-          title: '店家封面 ',
-          subtitle: '上傳封面圖片',
-          icon: Icons.image,
-          onTap: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (_) => ShopMediaPage(shopId: shopId),
-              ),
-            );
-          },
-        ),
+          _MenuTile(
+            title: '店家封面 ',
+            subtitle: '上傳封面圖片',
+            icon: Icons.image,
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => ShopMediaPage(shopId: shopId),
+                ),
+              );
+            },
+          ),
 
         const _MenuSectionTitle('前台內容'),
 
-if (_can(ShopPermissionKeys.manageEnvironment))
-_MenuTile(
-  title: '環境介紹管理',
-  subtitle: '設定環境照片、介紹文案與展示內容',
-  icon: Icons.apartment_rounded,
-  onTap: () {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => ShopEnvironmentManagePage(
-          shopId: shopId,
-        ),
-      ),
-    );
-  },
-),
+        if (_can(ShopPermissionKeys.manageEnvironment))
+          _MenuTile(
+            title: '環境介紹管理',
+            subtitle: '設定環境照片、介紹文案與展示內容',
+            icon: Icons.apartment_rounded,
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => ShopEnvironmentManagePage(shopId: shopId),
+                ),
+              );
+            },
+          ),
 
-if (_can(ShopPermissionKeys.manageAbout))
-_MenuTile(
-  title: '關於我們管理',
-  subtitle: '設定品牌故事、理念與介紹內容',
-  icon: Icons.favorite_border,
-  onTap: () {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => ShopAboutManagePage(
-  shopId: shopId,
-),
-      ),
-    );
-  },
-),
-
+        if (_can(ShopPermissionKeys.manageAbout))
+          _MenuTile(
+            title: '關於我們管理',
+            subtitle: '設定品牌故事、理念與介紹內容',
+            icon: Icons.favorite_border,
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => ShopAboutManagePage(shopId: shopId),
+                ),
+              );
+            },
+          ),
 
         _MenuTile(
           title: '前台預覽',
@@ -472,22 +444,20 @@ _MenuTile(
           onTap: () {
             Navigator.push(
               context,
-              MaterialPageRoute(
-                builder: (_) => ShopPublicPage(shopId: shopId),
-              ),
+              MaterialPageRoute(builder: (_) => ShopPublicPage(shopId: shopId)),
             );
           },
         ),
 
         const _MenuSectionTitle('後台管理'),
-        
+
         _MenuTile(
           title: '模組設定',
-         subtitle: currentUserRole == ShopRoles.owner
-    ? '控制哪些模組顯示在後台'
-    : '目前只有老闆可修改',
-icon: Icons.dashboard_customize,
-enabled: currentUserRole == ShopRoles.owner,
+          subtitle: currentUserRole == ShopRoles.owner
+              ? '控制哪些模組顯示在後台'
+              : '目前只有老闆可修改',
+          icon: Icons.dashboard_customize,
+          enabled: currentUserRole == ShopRoles.owner,
           onTap: () {
             Navigator.push(
               context,
@@ -501,57 +471,54 @@ enabled: currentUserRole == ShopRoles.owner,
           },
         ),
         _MenuTile(
-  title: '權限設定',
- subtitle: currentUserRole == ShopRoles.owner
-    ? '用 Email 指定員工，並設定功能開關'
-    : '目前只有老闆可修改',
-icon: Icons.admin_panel_settings,
-enabled: currentUserRole == ShopRoles.owner,
-  onTap: () {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => ShopPermissionSettingsPage(
-          shopId: shopId,
-          currentUserRole: currentUserRole,
+          title: '權限設定',
+          subtitle: currentUserRole == ShopRoles.owner
+              ? '用 Email 指定員工，並設定功能開關'
+              : '目前只有老闆可修改',
+          icon: Icons.admin_panel_settings,
+          enabled: currentUserRole == ShopRoles.owner,
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => ShopPermissionSettingsPage(
+                  shopId: shopId,
+                  currentUserRole: currentUserRole,
+                ),
+              ),
+            );
+          },
         ),
-      ),
-    );
-  },
-),
 
-if (_can(ShopPermissionKeys.manageMembers))
-StreamBuilder<QuerySnapshot>(
-  stream: FirebaseFirestore.instance
-      .collection('member_link_requests')
-      .where('shopId', isEqualTo: shopId)
-      .where('status', isEqualTo: 'pending')
-      .snapshots(),
-  builder: (context, snapshot) {
-    final count = snapshot.data?.docs.length ?? 0;
+        if (_can(ShopPermissionKeys.manageMembers))
+          StreamBuilder<QuerySnapshot>(
+            stream: FirebaseFirestore.instance
+                .collection('member_link_requests')
+                .where('shopId', isEqualTo: shopId)
+                .where('status', isEqualTo: 'pending')
+                .snapshots(),
+            builder: (context, snapshot) {
+              final count = snapshot.data?.docs.length ?? 0;
 
-    return _MenuTile(
-      title: '會員管理',
-      subtitle: count > 0
-          ? '查看會員資料與訂單紀錄｜有 $count 筆會員綁定申請'
-          : '查看會員資料與訂單紀錄',
-      icon: Icons.people,
-      enabled: true,
-      badgeCount: count,
-      onTap: () {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (_) => AdminMemberListPage(
-              shopId: shopId,
-            ),
+              return _MenuTile(
+                title: '會員管理',
+                subtitle: count > 0
+                    ? '查看會員資料與訂單紀錄｜有 $count 筆會員綁定申請'
+                    : '查看會員資料與訂單紀錄',
+                icon: Icons.people,
+                enabled: true,
+                badgeCount: count,
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => AdminMemberListPage(shopId: shopId),
+                    ),
+                  );
+                },
+              );
+            },
           ),
-        );
-      },
-    );
-  },
-),
-
       ],
     );
   }
@@ -570,10 +537,7 @@ class _CatHotelTab extends StatelessWidget {
   final Map<String, dynamic>? memberData;
 
   bool _can(String permissionKey) {
-    return ShopService.instance.hasPermission(
-      memberData,
-      permissionKey,
-    );
+    return ShopService.instance.hasPermission(memberData, permissionKey);
   }
 
   @override
@@ -583,160 +547,140 @@ class _CatHotelTab extends StatelessWidget {
       children: [
         const _MenuSectionTitle('今日營運'),
 
-if (_can(ShopPermissionKeys.manageBookings))
-        _BookingManageTile(
-  shopId: shopId,
-  onTap: () {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => AdminBookingListPage(
-          shopId: shopId,
-        ),
-      ),
-    );
-  },
-),
+        if (_can(ShopPermissionKeys.manageBookings))
+          _BookingManageTile(
+            shopId: shopId,
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => AdminBookingListPage(shopId: shopId),
+                ),
+              );
+            },
+          ),
 
-if (_can(ShopPermissionKeys.manageRoomDashboard))
-_MenuTile(
-  title: '房務管理',
-  subtitle: '查看所有房間狀態（入住 / 清潔 / 關閉）',
-  icon: Icons.grid_view,
-  onTap: () {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => RoomDashboardPage(
-          shopId: shopId,
-        ),
-      ),
-    );
-  },
-),
+        if (_can(ShopPermissionKeys.manageRoomDashboard))
+          _RoomDashboardTile(
+            shopId: shopId,
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => RoomDashboardPage(shopId: shopId),
+                ),
+              );
+            },
+          ),
 
-const _MenuSectionTitle('預約與房型設定'),
+        const _MenuSectionTitle('預約與房型設定'),
 
-if (_can(ShopPermissionKeys.manageBookingSettings))
-_MenuTile(
-  title: '預約管理',
-          subtitle: isProfileComplete ? '管理房數開放預約時間設定' : '請先完成基本資料',
-          icon: Icons.calendar_month,
-          enabled: isProfileComplete,
+        if (_can(ShopPermissionKeys.manageBookingSettings))
+          _MenuTile(
+            title: '預約管理',
+            subtitle: isProfileComplete ? '管理房數開放預約時間設定' : '請先完成基本資料',
+            icon: Icons.calendar_month,
+            enabled: isProfileComplete,
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => ShopBookingSettingsPage(shopId: shopId),
+                ),
+              );
+            },
+          ),
+
+        if (_can(ShopPermissionKeys.manageRoomTypes))
+          _MenuTile(
+            title: '房型管理',
+            subtitle: '設定房型、容量、價格與介紹內容',
+            icon: Icons.home_work,
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => ShopRoomTypePage(shopId: shopId),
+                ),
+              );
+            },
+          ),
+
+        if (_can(ShopPermissionKeys.manageRooms))
+          _MenuTile(
+            title: '房間管理',
+            subtitle: '管理實際房號與房間開關',
+            icon: Icons.meeting_room,
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => ShopRoomPage(shopId: shopId)),
+              );
+            },
+          ),
+
+        const _MenuSectionTitle('付款與加購'),
+
+        if (_can(ShopPermissionKeys.managePaymentSettings))
+          _MenuTile(
+            title: '住宿加購 / 附加服務',
+            subtitle: '設定時間加購、額外服務、價格與開關',
+            icon: Icons.add_box,
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => ShopAddonPage(shopId: shopId),
+                ),
+              );
+            },
+          ),
+
+        if (_can(ShopPermissionKeys.managePaymentSettings))
+          _MenuTile(
+            title: '付款 / 訂金設定',
+            subtitle: '設定是否需要訂金、付款方式與收款資訊',
+            icon: Icons.payments,
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => ShopPaymentSettingPage(shopId: shopId),
+                ),
+              );
+            },
+          ),
+
+        const _MenuSectionTitle('規則與紀錄'),
+
+        if (_can(ShopPermissionKeys.managePolicy))
+          _MenuTile(
+            title: '入住規則 / 貓咪條件',
+            subtitle: '設定入住條款與貓咪入住條件',
+            icon: Icons.rule,
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => ShopPolicyPage(shopId: shopId),
+                ),
+              );
+            },
+          ),
+
+        _MenuTile(
+          title: '條款同意紀錄',
+          subtitle: '查看會員條款同意與簽署紀錄',
+          icon: Icons.list_alt,
           onTap: () {
             Navigator.push(
               context,
               MaterialPageRoute(
-               builder: (_) => ShopBookingSettingsPage(shopId: shopId),
+                builder: (_) => ShopPolicyLogsPage(shopId: shopId),
               ),
             );
           },
         ),
-
-
-if (_can(ShopPermissionKeys.manageRoomTypes))
-        _MenuTile(
-  title: '房型管理',
-  subtitle: '設定不同房型、可住數量與價格',
-  icon: Icons.home_work,
-  onTap: () {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => ShopRoomTypePage(
-  shopId: shopId,
-),
-      ),
-    );
-  },
-),
-
-if (_can(ShopPermissionKeys.manageRooms))
-_MenuTile(
-  title: '房間管理',
-  subtitle: '建立實際房間（A1 / A2 / B1）',
-  icon: Icons.meeting_room,
-  onTap: () {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => ShopRoomPage(
-          shopId: shopId,
-        ),
-      ),
-    );
-  },
-),
-
-const _MenuSectionTitle('付款與加購'),
-
-if (_can(ShopPermissionKeys.managePaymentSettings))
-_MenuTile(
-  title: '住宿加購 / 附加服務',
-  subtitle: '設定時間加購、額外服務、價格與開關',
-  icon: Icons.add_box,
-  onTap: () {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => ShopAddonPage(shopId: shopId),
-      ),
-    );
-  },
-),
-
-if (_can(ShopPermissionKeys.managePaymentSettings))
-_MenuTile(
-  title: '付款 / 訂金設定',
-  subtitle: '設定是否需要訂金、付款方式與收款資訊',
-  icon: Icons.payments,
-  onTap: () {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => ShopPaymentSettingPage(
-          shopId: shopId,
-        ),
-      ),
-    );
-  },
-),
-
-const _MenuSectionTitle('規則與紀錄'),
-
-if (_can(ShopPermissionKeys.managePolicy))
-        _MenuTile(
-  title: '入住規則 / 貓咪條件',
-  subtitle: '設定入住條款（客戶預約前需同意）',
-  icon: Icons.rule,
-  onTap: () {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => ShopPolicyPage(
-          shopId: shopId,
-        ),
-      ),
-    );
-  },
-),
-
-_MenuTile(
-  title: '條款同意紀錄',
-  subtitle: '查看哪些會員已同意條款',
-  icon: Icons.list_alt,
-  onTap: () {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => ShopPolicyLogsPage(
-          shopId: shopId,
-        ),
-      ),
-    );
-  },
-),
-
       ],
     );
   }
@@ -744,9 +688,7 @@ _MenuTile(
 
 /// ===== 表格統計分頁 =====
 class _ReportsTab extends StatelessWidget {
-  const _ReportsTab({
-    required this.currentUserRole,
-  });
+  const _ReportsTab({required this.currentUserRole});
 
   final String? currentUserRole;
 
@@ -761,10 +703,7 @@ class _ReportsTab extends StatelessWidget {
           title: '營運總覽',
           description: '先預留給訂單數、入住率、營業額、常用報表。',
         ),
-        const _TemplateCard(
-          title: '日期統計表',
-          description: '先預留給每日預約、每日營收、房況統計。',
-        ),
+        const _TemplateCard(title: '日期統計表', description: '先預留給每日預約、每日營收、房況統計。'),
         const _TemplateCard(
           title: '會員 / 客戶統計',
           description: '先預留給客戶回訪率、新舊客比例、來源分析。',
@@ -783,10 +722,7 @@ class _ReportsTab extends StatelessWidget {
 
 /// ===== 未開發模組模板 =====
 class _ModuleTemplateTab extends StatelessWidget {
-  const _ModuleTemplateTab({
-    required this.title,
-    required this.description,
-  });
+  const _ModuleTemplateTab({required this.title, required this.description});
 
   final String title;
   final String description;
@@ -796,10 +732,7 @@ class _ModuleTemplateTab extends StatelessWidget {
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
-        _TemplateCard(
-          title: title,
-          description: description,
-        ),
+        _TemplateCard(title: title, description: description),
         const _TemplateCard(
           title: '功能清單預留',
           description: '這個模組目前先留位置，不一定顯示，不重做資料結構。',
@@ -856,11 +789,8 @@ class _TemplateCard extends StatelessWidget {
   }
 }
 
-class _BookingManageTile extends StatelessWidget {
-  const _BookingManageTile({
-    required this.shopId,
-    required this.onTap,
-  });
+class _RoomDashboardTile extends StatelessWidget {
+  const _RoomDashboardTile({required this.shopId, required this.onTap});
 
   final String shopId;
   final VoidCallback onTap;
@@ -873,11 +803,53 @@ class _BookingManageTile extends StatelessWidget {
           .where('shopId', isEqualTo: shopId)
           .where(
             'status',
-            whereIn: [
-              'pending',
-              'payment_uploaded',
-            ],
+            whereIn: ['pending', 'payment_uploaded', 'confirmed', 'checked_in'],
           )
+          .snapshots(),
+      builder: (context, snapshot) {
+        int unassignedCount = 0;
+
+        if (snapshot.hasData) {
+          for (final doc in snapshot.data!.docs) {
+            final data = doc.data() as Map<String, dynamic>;
+
+            final assignStatus = (data['assignStatus'] ?? '').toString();
+
+            final roomId = (data['roomId'] ?? '').toString();
+
+            if (assignStatus == 'unassigned' || roomId.isEmpty) {
+              unassignedCount++;
+            }
+          }
+        }
+
+        return _MenuTile(
+          title: '房務管理',
+          subtitle: unassignedCount > 0
+              ? '待分房 $unassignedCount 間 ・ 查看所有房間狀態'
+              : '查看房況、待分房與入住狀態',
+          icon: Icons.grid_view,
+          badgeCount: unassignedCount,
+          onTap: onTap,
+        );
+      },
+    );
+  }
+}
+
+class _BookingManageTile extends StatelessWidget {
+  const _BookingManageTile({required this.shopId, required this.onTap});
+
+  final String shopId;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('bookings')
+          .where('shopId', isEqualTo: shopId)
+          .where('status', whereIn: ['pending', 'payment_uploaded'])
           .snapshots(),
       builder: (context, snapshot) {
         int pendingCount = 0;
@@ -887,27 +859,23 @@ class _BookingManageTile extends StatelessWidget {
           for (final doc in snapshot.data!.docs) {
             final data = doc.data() as Map<String, dynamic>;
 
-           final status =
-    (data['status'] ?? '').toString();
+            final status = (data['status'] ?? '').toString();
 
-final depositStatus =
-    (data['depositStatus'] ?? '').toString();
+            final depositStatus = (data['depositStatus'] ?? '').toString();
 
-if (status == 'pending' ||
-    status == 'unpaid') {
-  pendingCount++;
-}
+            if (status == 'pending' || status == 'unpaid') {
+              pendingCount++;
+            }
 
-if (depositStatus == 'pending_review' &&
-    status != 'completed' &&
-    status != 'cancelled') {
-  paymentUploadedCount++;
-}
+            if (depositStatus == 'pending_review' &&
+                status != 'completed' &&
+                status != 'cancelled') {
+              paymentUploadedCount++;
+            }
           }
         }
 
-        final totalCount =
-            pendingCount + paymentUploadedCount;
+        final totalCount = pendingCount + paymentUploadedCount;
 
         return Card(
           child: ListTile(
@@ -974,24 +942,24 @@ class _MenuTile extends StatelessWidget {
           title: Text(title),
           subtitle: Text(subtitle),
           trailing: badgeCount > 0
-    ? Container(
-        padding: const EdgeInsets.symmetric(
-          horizontal: 10,
-          vertical: 6,
-        ),
-        decoration: BoxDecoration(
-          color: Colors.red,
-          borderRadius: BorderRadius.circular(999),
-        ),
-        child: Text(
-          '$badgeCount',
-          style: const TextStyle(
-            color: Colors.white,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-      )
-    : const Icon(Icons.chevron_right),
+              ? Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 6,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.red,
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: Text(
+                    '$badgeCount',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                )
+              : const Icon(Icons.chevron_right),
           onTap: enabled ? onTap : null,
         ),
       ),

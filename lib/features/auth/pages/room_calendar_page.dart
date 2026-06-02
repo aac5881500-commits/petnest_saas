@@ -32,6 +32,7 @@ class _RoomCalendarPageState extends State<RoomCalendarPage> {
   String _selectedStatus = 'available';
   Map<String, dynamic>? _selectedBooking;
   String? _selectedBookingId;
+  final Map<String, String> _calendarStatusCache = {};
 
   int bookingRangeDays = 30;
 
@@ -85,12 +86,29 @@ class _RoomCalendarPageState extends State<RoomCalendarPage> {
         builder: (context, snapshot) {
           final docs = snapshot.data?.docs ?? [];
 
-          final map = <String, String>{};
+          final map = Map<String, String>.from(_calendarStatusCache);
 
           for (var doc in docs) {
             final data = doc.data() as Map<String, dynamic>;
-            map[data['date']] = data['status'];
+
+            final dateKey = data['date']?.toString() ?? '';
+            final status = data['status']?.toString() ?? 'available';
+
+            if (dateKey.isEmpty) continue;
+
+            final oldStatus = map[dateKey];
+
+            // 維修中優先，但如果新狀態是恢復開放 available，要允許覆蓋
+            if (_isBlockedStatus(oldStatus ?? '') && status != 'available') {
+              continue;
+            }
+
+            map[dateKey] = status;
           }
+
+          _calendarStatusCache
+            ..clear()
+            ..addAll(map);
 
           /// 🔥 訂單監聽
           return StreamBuilder<QuerySnapshot>(
@@ -305,31 +323,35 @@ class _RoomCalendarPageState extends State<RoomCalendarPage> {
                           String? dayBookingId;
 
                           /// 🔥 訂單覆蓋（紅色）
-                          for (var doc in bookings) {
-                            final data = doc.data() as Map<String, dynamic>;
+                          /// 維修中 / 關閉日優先，不讓訂單狀態蓋掉黑點
+                          if (!_isBlockedStatus(status)) {
+                            for (var doc in bookings) {
+                              final data = doc.data() as Map<String, dynamic>;
 
-                            final start = (data['startDate'] as Timestamp)
-                                .toDate();
-                            final end = (data['endDate'] as Timestamp).toDate();
+                              final start = (data['startDate'] as Timestamp)
+                                  .toDate();
+                              final end = (data['endDate'] as Timestamp)
+                                  .toDate();
 
-                            final dateObj = DateTime.parse(key);
+                              final dateObj = DateTime.parse(key);
 
-                            if (dateObj.isAfter(
-                                  start.subtract(const Duration(days: 1)),
-                                ) &&
-                                dateObj.isBefore(end)) {
-                              if (data['status'] == 'checked_in') {
-                                status = 'occupied';
-                              } else if (data['status'] == 'completed') {
-                                status = 'completed';
-                              } else {
-                                status = 'booked';
+                              if (dateObj.isAfter(
+                                    start.subtract(const Duration(days: 1)),
+                                  ) &&
+                                  dateObj.isBefore(end)) {
+                                if (data['status'] == 'checked_in') {
+                                  status = 'occupied';
+                                } else if (data['status'] == 'completed') {
+                                  status = 'completed';
+                                } else {
+                                  status = 'booked';
+                                }
+
+                                dayBooking = data;
+                                dayBookingId = doc.id;
+
+                                break;
                               }
-
-                              dayBooking = data;
-                              dayBookingId = doc.id;
-
-                              break;
                             }
                           }
 
@@ -343,7 +365,7 @@ class _RoomCalendarPageState extends State<RoomCalendarPage> {
                           );
 
                           final hasBooking = dayBooking != null;
-                          final isBlocked = status == 'blocked';
+                          final isBlocked = _isBlockedStatus(status);
 
                           /// 過去日期如果有訂單或維修紀錄，要能顯示出來
                           final isDisabled =
@@ -358,6 +380,7 @@ class _RoomCalendarPageState extends State<RoomCalendarPage> {
 
                           /// 🎨 顏色
                           Color color;
+
                           switch (status) {
                             case 'booked':
                               color = Colors.deepOrange;
@@ -371,6 +394,10 @@ class _RoomCalendarPageState extends State<RoomCalendarPage> {
                               break;
 
                             case 'blocked':
+                            case 'maintenance':
+                            case 'closed':
+                            case 'cleaning':
+                            case 'unavailable':
                               color = Colors.black;
                               break;
 
@@ -403,7 +430,7 @@ class _RoomCalendarPageState extends State<RoomCalendarPage> {
                                     ? Colors.deepOrange.withOpacity(0.05)
                                     : status == 'occupied'
                                     ? Colors.blue.withOpacity(0.06)
-                                    : status == 'blocked'
+                                    : _isBlockedStatus(status)
                                     ? Colors.black.withOpacity(0.04)
                                     : Colors.white,
                                 borderRadius: BorderRadius.circular(12),
@@ -466,7 +493,7 @@ class _RoomCalendarPageState extends State<RoomCalendarPage> {
                           : _selectedStatus,
                     ),
 
-                  SizedBox(height: 180, child: _roomActionLogsPanel()),
+                  SizedBox(height: 260, child: _roomActionLogsPanel()),
 
                   /// 🔥 圖例
                   Container(
@@ -715,7 +742,8 @@ class _RoomCalendarPageState extends State<RoomCalendarPage> {
                 );
               }
 
-              return Expanded(
+              return SizedBox(
+                height: 120,
                 child: ListView(
                   padding: EdgeInsets.zero,
                   children: logs.map((doc) {
@@ -794,6 +822,12 @@ class _RoomCalendarPageState extends State<RoomCalendarPage> {
                 date: dateKey,
                 status: status,
               );
+
+              if (!mounted) return;
+
+              setState(() {
+                _selectedStatus = status;
+              });
             }
           : null,
       child: Text(
@@ -801,6 +835,14 @@ class _RoomCalendarPageState extends State<RoomCalendarPage> {
         style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
       ),
     );
+  }
+
+  bool _isBlockedStatus(String status) {
+    return status == 'blocked' ||
+        status == 'maintenance' ||
+        status == 'closed' ||
+        status == 'cleaning' ||
+        status == 'unavailable';
   }
 
   /// 🔥 狀態文字
@@ -827,6 +869,10 @@ class _RoomCalendarPageState extends State<RoomCalendarPage> {
         return '退房/完成';
 
       case 'blocked':
+      case 'maintenance':
+      case 'closed':
+      case 'cleaning':
+      case 'unavailable':
         return '維修中';
 
       case 'available':

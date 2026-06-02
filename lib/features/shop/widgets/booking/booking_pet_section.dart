@@ -24,10 +24,7 @@ class BookingPetSection extends StatelessWidget {
       children: [
         Text(
           '選擇入住寵物（已選 ${selectedPetIds.length} 隻）',
-          style: const TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.bold,
-          ),
+          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
         ),
 
         const SizedBox(height: 8),
@@ -35,8 +32,15 @@ class BookingPetSection extends StatelessWidget {
         StreamBuilder<List<Map<String, dynamic>>>(
           stream: PetService.instance.streamMyPets(),
           builder: (context, snapshot) {
-            final pets = snapshot.data ?? [];
-            final isLimitReached = pets.length >= 5;
+            final allPets = snapshot.data ?? [];
+            final cats = allPets.where((pet) {
+              final type = (pet['type'] ?? '').toString();
+              final species = (pet['species'] ?? '').toString();
+
+              return type == 'cat' || species == 'cat';
+            }).toList();
+
+            final isLimitReached = allPets.length >= 5;
 
             return Align(
               alignment: Alignment.centerRight,
@@ -46,16 +50,12 @@ class BookingPetSection extends StatelessWidget {
                     : () async {
                         await Navigator.push(
                           context,
-                          MaterialPageRoute(
-                            builder: (_) => const AddPetPage(),
-                          ),
+                          MaterialPageRoute(builder: (_) => const AddPetPage()),
                         );
                       },
                 child: Text(
                   isLimitReached ? '已達上限（5隻）' : '+ 新增寵物',
-                  style: TextStyle(
-                    color: isLimitReached ? Colors.grey : null,
-                  ),
+                  style: TextStyle(color: isLimitReached ? Colors.grey : null),
                 ),
               ),
             );
@@ -71,9 +71,15 @@ class BookingPetSection extends StatelessWidget {
               return const CircularProgressIndicator();
             }
 
-            final pets = snapshot.data!;
-            onPetsLoaded(pets);
+            final allPets = snapshot.data!;
+            final pets = allPets.where((pet) {
+              final type = (pet['type'] ?? '').toString();
+              final species = (pet['species'] ?? '').toString();
 
+              return type == 'cat' || species == 'cat';
+            }).toList();
+
+            onPetsLoaded(pets);
             if (pets.isEmpty) {
               return const Text('尚未新增寵物');
             }
@@ -87,11 +93,13 @@ class BookingPetSection extends StatelessWidget {
                 return FilterChip(
                   avatar: CircleAvatar(
                     backgroundColor: Colors.grey.shade200,
-                    backgroundImage: (pet['photoUrl'] != null &&
+                    backgroundImage:
+                        (pet['photoUrl'] != null &&
                             pet['photoUrl'].toString().isNotEmpty)
                         ? NetworkImage(pet['photoUrl'])
                         : null,
-                    child: (pet['photoUrl'] == null ||
+                    child:
+                        (pet['photoUrl'] == null ||
                             pet['photoUrl'].toString().isEmpty)
                         ? const Icon(Icons.pets, size: 16)
                         : null,

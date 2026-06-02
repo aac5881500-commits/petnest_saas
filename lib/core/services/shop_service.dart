@@ -298,6 +298,8 @@ class ShopService {
 
   /// 取得我的店家
   Future<List<Map<String, dynamic>>> getMyShops() async {
+    print('🔥🔥🔥 getMyShops 開始執行');
+
     final user = _currentUser;
     if (user == null) throw Exception('未登入');
 
@@ -305,6 +307,10 @@ class ShopService {
         .where('uid', isEqualTo: user.uid)
         .get();
 
+    print('========');
+    print('登入UID: ${user.uid}');
+    print('店家數量: ${memberSnapshot.docs.length}');
+    print('========');
     final List<Map<String, dynamic>> result = [];
 
     for (final doc in memberSnapshot.docs) {

@@ -22,8 +22,6 @@ import 'package:petnest_saas/features/auth/widgets/my_shop_open_status_helper.da
 import 'package:petnest_saas/features/auth/pages/my_shop_card_media_page.dart';
 import 'package:petnest_saas/features/auth/widgets/my_shop_meta_info.dart';
 
-
-
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
 
@@ -35,60 +33,58 @@ class _HomePageState extends State<HomePage> {
   Future<List<Map<String, dynamic>>>? _shopsFuture;
 
   @override
-void initState() {
-  super.initState();
+  void initState() {
+    super.initState();
 
-  _shopsFuture = ShopService.instance.getMyShops();
-}
+    _shopsFuture = ShopService.instance.getMyShops();
+  }
 
   Future<void> _reloadShops() async {
-  setState(() {
-    _shopsFuture = ShopService.instance.getMyShops();
-  });
-}
+    setState(() {
+      _shopsFuture = ShopService.instance.getMyShops();
+    });
+  }
 
   Future<void> _openCreateShopPage() async {
     await Navigator.push(
       context,
-      MaterialPageRoute(
-        builder: (_) => const CreateShopPage(),
-      ),
+      MaterialPageRoute(builder: (_) => const CreateShopPage()),
     );
 
     if (!mounted) return;
 
-   await _reloadShops();
+    await _reloadShops();
   }
 
-String _businessTypeLabel(String value) {
-  switch (value) {
-    case 'cat_hotel':
-      return '貓咪旅館';
-    case 'dog_hotel':
-      return '狗狗旅館';
-    case 'grooming':
-      return '寵物美容';
-    case 'hospital':
-      return '動物醫院';
-    case 'shop':
-      return '寵物賣場';
-    default:
-      return '其他服務';
+  String _businessTypeLabel(String value) {
+    switch (value) {
+      case 'cat_hotel':
+        return '貓咪旅館';
+      case 'dog_hotel':
+        return '狗狗旅館';
+      case 'grooming':
+        return '寵物美容';
+      case 'hospital':
+        return '動物醫院';
+      case 'shop':
+        return '寵物賣場';
+      default:
+        return '其他服務';
+    }
   }
-}
 
-String _roleLabel(String value) {
-  switch (value) {
-    case 'owner':
-      return '店主';
-    case 'manager':
-      return '主管';
-    case 'staff':
-      return '員工';
-    default:
-      return value;
+  String _roleLabel(String value) {
+    switch (value) {
+      case 'owner':
+        return '店主';
+      case 'manager':
+        return '主管';
+      case 'staff':
+        return '員工';
+      default:
+        return value;
+    }
   }
-}
 
   Future<void> _logout() async {
     await AuthService.instance.logout();
@@ -97,9 +93,7 @@ String _roleLabel(String value) {
 
     Navigator.pushAndRemoveUntil(
       context,
-      MaterialPageRoute(
-        builder: (_) => const LoginPage(),
-      ),
+      MaterialPageRoute(builder: (_) => const LoginPage()),
       (route) => false,
     );
   }
@@ -107,12 +101,18 @@ String _roleLabel(String value) {
   @override
   Widget build(BuildContext context) {
     final User? user = FirebaseAuth.instance.currentUser;
-    final isPlatformAdmin =
-    user?.email == 'aac5881500@gmail.com';
+    final isPlatformAdmin = user?.email == 'aac5881500@gmail.com';
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('PetNest SaaS'),
+        title: Padding(
+          padding: const EdgeInsets.only(top: 10),
+          child: Image.asset(
+            'assets/images/petnest_logo.png',
+            height: 150,
+            fit: BoxFit.contain,
+          ),
+        ),
         actions: [
           PopupMenuButton<String>(
             icon: const CircleAvatar(
@@ -132,17 +132,12 @@ String _roleLabel(String value) {
                   children: [
                     const Text(
                       '目前登入',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Colors.grey,
-                      ),
+                      style: TextStyle(fontSize: 12, color: Colors.grey),
                     ),
                     const SizedBox(height: 4),
                     Text(
                       user?.email ?? '',
-                      style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                      ),
+                      style: const TextStyle(fontWeight: FontWeight.bold),
                     ),
                   ],
                 ),
@@ -170,67 +165,57 @@ String _roleLabel(String value) {
             child: Column(
               children: [
                 PlatformHomeHeroCard(
-  onFindShopTap: () {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => const PlatformShopListPage(),
-      ),
-    );
-  },
-  onCreateShopTap: _openCreateShopPage,
-),
+                  onFindShopTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const PlatformShopListPage(),
+                      ),
+                    );
+                  },
+                  onCreateShopTap: _openCreateShopPage,
+                ),
 
-                PlatformAccountCard(
-  email: user?.email ?? '',
-),
-if (isPlatformAdmin) ...[
-  const SizedBox(height: 12),
+                PlatformAccountCard(email: user?.email ?? ''),
+                if (isPlatformAdmin) ...[
+                  const SizedBox(height: 12),
 
-  Card(
-    elevation: 0,
-    color: Colors.white,
-    shape: RoundedRectangleBorder(
-      borderRadius: BorderRadius.circular(18),
-      side: BorderSide(
-        color: Colors.grey.shade200,
-      ),
-    ),
-    child: ListTile(
-      leading: CircleAvatar(
-        backgroundColor: const Color(0xFFEAF3FF),
-        child: const Icon(
-          Icons.admin_panel_settings,
-          color: Color(0xFF1565C0),
-        ),
-      ),
-      title: const Text(
-        '平台後台',
-        style: TextStyle(
-          fontWeight: FontWeight.w800,
-        ),
-      ),
-      subtitle: const Text(
-        '管理店家、方案、付款期限與平台紀錄',
-      ),
-      trailing: const Icon(Icons.chevron_right),
-      onTap: () {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (_) => const PlatformAdminPage(),
-          ),
-        );
-      },
-    ),
-  ),
-],
+                  Card(
+                    elevation: 0,
+                    color: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(18),
+                      side: BorderSide(color: Colors.grey.shade200),
+                    ),
+                    child: ListTile(
+                      leading: CircleAvatar(
+                        backgroundColor: const Color(0xFFEAF3FF),
+                        child: const Icon(
+                          Icons.admin_panel_settings,
+                          color: Color(0xFF1565C0),
+                        ),
+                      ),
+                      title: const Text(
+                        '平台後台',
+                        style: TextStyle(fontWeight: FontWeight.w800),
+                      ),
+                      subtitle: const Text('管理店家、方案、付款期限與平台紀錄'),
+                      trailing: const Icon(Icons.chevron_right),
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const PlatformAdminPage(),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ],
 
                 const SizedBox(height: 20),
 
-                const PlatformSectionTitle(
-  title: '我的店家',
-),
+                const PlatformSectionTitle(title: '我的店家'),
 
                 const SizedBox(height: 12),
 
@@ -238,11 +223,8 @@ if (isPlatformAdmin) ...[
                   child: FutureBuilder<List<Map<String, dynamic>>>(
                     future: _shopsFuture,
                     builder: (context, snapshot) {
-                      if (snapshot.connectionState ==
-                          ConnectionState.waiting) {
-                        return const Center(
-                          child: CircularProgressIndicator(),
-                        );
+                      if (snapshot.connectionState == ConnectionState.waiting) {
+                        return const Center(child: CircularProgressIndicator());
                       }
 
                       final shops = snapshot.data ?? [];
@@ -255,237 +237,249 @@ if (isPlatformAdmin) ...[
                         itemCount: shops.length,
                         itemBuilder: (context, index) {
                           final shop = shops[index];
-final coverUrl =
-    shop['platformHomeCoverUrl']
-        ?.toString() ??
-    '';
-final logoUrl =
-    shop['platformHomeLogoUrl']
-        ?.toString() ??
-    '';
-final city = shop['city']?.toString() ?? '';
-final district = shop['district']?.toString() ?? '';
-final enabledModules = List<String>.from(
-  shop['enabledModules'] ?? [],
-);
+                          final coverUrl =
+                              shop['platformHomeCoverUrl']?.toString() ?? '';
+                          final logoUrl =
+                              shop['platformHomeLogoUrl']?.toString() ?? '';
+                          final city = shop['city']?.toString() ?? '';
+                          final district = shop['district']?.toString() ?? '';
+                          final enabledModules = List<String>.from(
+                            shop['enabledModules'] ?? [],
+                          );
 
-final licenseNumber =
-    shop['licenseNumber']?.toString() ?? '';
+                          final licenseNumber =
+                              shop['licenseNumber']?.toString() ?? '';
 
-final taxId =
-    shop['taxId']?.toString() ?? '';
+                          final taxId = shop['taxId']?.toString() ?? '';
 
-final updatedAt = shop['updatedAt'];
-final isOpen = shop['isOpen'] == true;
-final openTime = shop['openTime']?.toString() ?? '';
-final closeTime = shop['closeTime']?.toString() ?? '';
+                          final updatedAt = shop['updatedAt'];
+                          final isOpen = shop['isOpen'] == true;
+                          final openTime = shop['openTime']?.toString() ?? '';
+                          final closeTime = shop['closeTime']?.toString() ?? '';
 
-final isOpenNow = isShopOpenNow(
-  isOpen: isOpen,
-  openTime: openTime,
-  closeTime: closeTime,
-);
-final isPublic = shop['isPublic'] == true;
+                          final isOpenNow = isShopOpenNow(
+                            isOpen: isOpen,
+                            openTime: openTime,
+                            closeTime: closeTime,
+                          );
+                          final isPublic = shop['isPublic'] == true;
 
-final businessType = _businessTypeLabel(
-  shop['businessType']?.toString() ?? '',
-);
+                          final businessType = _businessTypeLabel(
+                            shop['businessType']?.toString() ?? '',
+                          );
 
-final role = _roleLabel(
-  shop['role']?.toString() ?? '',
-);
-return MyShopCard(
-  shop: shop,
-  onTap: () {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => ShopDashboardPage(
-          shopId: shop['shopId'],
-        ),
-      ),
-    );
-  },
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Stack(
-          children: [
-            Container(
-              height: 175,
-              decoration: BoxDecoration(
-                color: Colors.grey.shade200,
-                borderRadius: const BorderRadius.vertical(
-                  top: Radius.circular(22),
-                ),
-                image: coverUrl.isNotEmpty
-                    ? DecorationImage(
-                        image: NetworkImage(coverUrl),
-                        fit: BoxFit.cover,
-                      )
-                    : null,
-              ),
-              child: coverUrl.isEmpty
-                  ? const Center(
-                      child: Icon(
-                        Icons.storefront,
-                        size: 44,
-                        color: Colors.black26,
-                      ),
-                    )
-                  : null,
-            ),
+                          final role = _roleLabel(
+                            shop['role']?.toString() ?? '',
+                          );
+                          return MyShopCard(
+                            shop: shop,
+                            onTap: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) =>
+                                      ShopDashboardPage(shopId: shop['shopId']),
+                                ),
+                              );
+                            },
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Stack(
+                                  children: [
+                                    Container(
+                                      height: 175,
+                                      decoration: BoxDecoration(
+                                        color: Colors.grey.shade200,
+                                        borderRadius:
+                                            const BorderRadius.vertical(
+                                              top: Radius.circular(22),
+                                            ),
+                                        image: coverUrl.isNotEmpty
+                                            ? DecorationImage(
+                                                image: NetworkImage(coverUrl),
+                                                fit: BoxFit.cover,
+                                              )
+                                            : null,
+                                      ),
+                                      child: coverUrl.isEmpty
+                                          ? const Center(
+                                              child: Icon(
+                                                Icons.storefront,
+                                                size: 44,
+                                                color: Colors.black26,
+                                              ),
+                                            )
+                                          : null,
+                                    ),
 
-            Positioned(
-              left: 14,
-              top: 14,
-              child: _HomeBadge(
-  text: isOpenNow ? '營業中' : '休息中',
-  icon: Icons.circle,
-),
-            ),
-            Positioned(
-  right: 14,
-  top: 14,
-  child: InkWell(
-    borderRadius: BorderRadius.circular(999),
-    onTap: () {
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (_) => MyShopCardMediaPage(
-            shopId: shop['shopId'].toString(),
-          ),
-        ),
-      ).then((_) {
-        _reloadShops();
-      });
-    },
-    child: Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: 10,
-        vertical: 6,
-      ),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(999),
-      ),
-      child: const Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(
-            Icons.image,
-            size: 15,
-            color: Colors.blue,
-          ),
-          SizedBox(width: 4),
-          Text(
-            '圖片',
-            style: TextStyle(
-              fontSize: 12,
-              color: Colors.blue,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-        ],
-      ),
-    ),
-  ),
-),
-          ],
-        ),
+                                    Positioned(
+                                      left: 14,
+                                      top: 14,
+                                      child: _HomeBadge(
+                                        text: isOpenNow ? '營業中' : '休息中',
+                                        icon: Icons.circle,
+                                      ),
+                                    ),
+                                    Positioned(
+                                      right: 14,
+                                      top: 14,
+                                      child: InkWell(
+                                        borderRadius: BorderRadius.circular(
+                                          999,
+                                        ),
+                                        onTap: () {
+                                          Navigator.push(
+                                            context,
+                                            MaterialPageRoute(
+                                              builder: (_) =>
+                                                  MyShopCardMediaPage(
+                                                    shopId: shop['shopId']
+                                                        .toString(),
+                                                  ),
+                                            ),
+                                          ).then((_) {
+                                            _reloadShops();
+                                          });
+                                        },
+                                        child: Container(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 10,
+                                            vertical: 6,
+                                          ),
+                                          decoration: BoxDecoration(
+                                            color: Colors.white,
+                                            borderRadius: BorderRadius.circular(
+                                              999,
+                                            ),
+                                          ),
+                                          child: const Row(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              Icon(
+                                                Icons.image,
+                                                size: 15,
+                                                color: Colors.blue,
+                                              ),
+                                              SizedBox(width: 4),
+                                              Text(
+                                                '圖片',
+                                                style: TextStyle(
+                                                  fontSize: 12,
+                                                  color: Colors.blue,
+                                                  fontWeight: FontWeight.bold,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
 
-        Padding(
-  padding: const EdgeInsets.all(16),
-  child: Column(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: [
-      Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          Container(
-            width: 96,
-            height: 96,
-            margin: const EdgeInsets.only(right: 14),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(28),
-              border: Border.all(
-                color: Colors.grey.shade200,
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.06),
-                  blurRadius: 10,
-                  offset: const Offset(0, 4),
-                ),
-              ],
-              image: logoUrl.isNotEmpty
-                  ? DecorationImage(
-                      image: NetworkImage(logoUrl),
-                      fit: BoxFit.cover,
-                    )
-                  : null,
-            ),
-            child: logoUrl.isEmpty
-                ? const Icon(
-                    Icons.storefront,
-                    size: 36,
-                    color: Colors.black26,
-                  )
-                : null,
-          ),
+                                Padding(
+                                  padding: const EdgeInsets.all(16),
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Row(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.center,
+                                        children: [
+                                          Container(
+                                            width: 96,
+                                            height: 96,
+                                            margin: const EdgeInsets.only(
+                                              right: 14,
+                                            ),
+                                            decoration: BoxDecoration(
+                                              color: Colors.white,
+                                              borderRadius:
+                                                  BorderRadius.circular(28),
+                                              border: Border.all(
+                                                color: Colors.grey.shade200,
+                                              ),
+                                              boxShadow: [
+                                                BoxShadow(
+                                                  color: Colors.black
+                                                      .withOpacity(0.06),
+                                                  blurRadius: 10,
+                                                  offset: const Offset(0, 4),
+                                                ),
+                                              ],
+                                              image: logoUrl.isNotEmpty
+                                                  ? DecorationImage(
+                                                      image: NetworkImage(
+                                                        logoUrl,
+                                                      ),
+                                                      fit: BoxFit.cover,
+                                                    )
+                                                  : null,
+                                            ),
+                                            child: logoUrl.isEmpty
+                                                ? const Icon(
+                                                    Icons.storefront,
+                                                    size: 36,
+                                                    color: Colors.black26,
+                                                  )
+                                                : null,
+                                          ),
 
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                MyShopInfo(
-  shopName: shop['name'] ?? '未命名店家',
-  businessType: businessType,
-  city: city,
-  district: district,
-  shopId: shop['shopId'].toString(),
-),
+                                          Expanded(
+                                            child: Column(
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.start,
+                                              children: [
+                                                MyShopInfo(
+                                                  shopName:
+                                                      shop['name'] ?? '未命名店家',
+                                                  businessType: businessType,
+                                                  city: city,
+                                                  district: district,
+                                                  shopId: shop['shopId']
+                                                      .toString(),
+                                                ),
 
-                const SizedBox(height: 10),
+                                                const SizedBox(height: 10),
 
-                MyShopBadges(
-                  role: role,
-                  isPublic: isPublic,
-                ),
-              ],
-            ),
-          ),
+                                                MyShopBadges(
+                                                  role: role,
+                                                  isPublic: isPublic,
+                                                ),
+                                              ],
+                                            ),
+                                          ),
 
-          const Icon(
-            Icons.chevron_right,
-            size: 34,
-            color: Colors.black45,
-          ),
-        ],
-      ),
+                                          const Icon(
+                                            Icons.chevron_right,
+                                            size: 34,
+                                            color: Colors.black45,
+                                          ),
+                                        ],
+                                      ),
 
-      const SizedBox(height: 16),
+                                      const SizedBox(height: 16),
 
-      MyShopStatRow(
-        shopId: shop['shopId'].toString(),
-      ),
-      MyShopMetaInfo(
-  enabledModules: enabledModules,
-  openTime: openTime,
-  closeTime: closeTime,
-  isPublic: isPublic,
-  licenseNumber: licenseNumber,
-  taxId: taxId,
-  updatedAt: updatedAt,
-),
-    ],
-  ),
-),
-      ],
-    ),
-);
+                                      MyShopStatRow(
+                                        shopId: shop['shopId'].toString(),
+                                      ),
+                                      MyShopMetaInfo(
+                                        enabledModules: enabledModules,
+                                        openTime: openTime,
+                                        closeTime: closeTime,
+                                        isPublic: isPublic,
+                                        licenseNumber: licenseNumber,
+                                        taxId: taxId,
+                                        updatedAt: updatedAt,
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          );
                         },
                       );
                     },
@@ -501,10 +495,7 @@ return MyShopCard(
 }
 
 class _HomeBadge extends StatelessWidget {
-  const _HomeBadge({
-    required this.text,
-    required this.icon,
-  });
+  const _HomeBadge({required this.text, required this.icon});
 
   final String text;
   final IconData icon;
@@ -512,10 +503,7 @@ class _HomeBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: 10,
-        vertical: 5,
-      ),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
       decoration: BoxDecoration(
         color: Colors.grey.shade100,
         borderRadius: BorderRadius.circular(999),
@@ -523,22 +511,19 @@ class _HomeBadge extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-
           Icon(
-  icon,
-  size: 14,
-  color: text == '營業中'
-      ? Colors.green.shade600
-      : Colors.grey.shade500,
-),
+            icon,
+            size: 14,
+            color: text == '營業中' ? Colors.green.shade600 : Colors.grey.shade500,
+          ),
           const SizedBox(width: 4),
           Text(
             text,
             style: TextStyle(
               fontSize: 12,
               color: text == '營業中'
-    ? Colors.green.shade700
-    : Colors.grey.shade800,
+                  ? Colors.green.shade700
+                  : Colors.grey.shade800,
               fontWeight: FontWeight.w600,
             ),
           ),
