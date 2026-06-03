@@ -29,7 +29,7 @@ class AdminMemberDetailPage extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            AdminMemberProfileSection(userId: userId),
+            AdminMemberProfileSection(userId: userId, shopId: shopId),
 
             /// ===============================
             /// 🐾 寵物
@@ -426,6 +426,7 @@ class AdminMemberDetailPage extends StatelessWidget {
             StreamBuilder<QuerySnapshot>(
               stream: FirebaseFirestore.instance
                   .collection('action_logs')
+                  .where('shopId', isEqualTo: shopId)
                   .where('targetUserId', isEqualTo: userId)
                   .limit(20)
                   .snapshots(),

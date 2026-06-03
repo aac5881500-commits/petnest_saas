@@ -332,7 +332,10 @@ class AdminBookingDetailPage extends StatelessWidget {
 
                 _sectionTitle('操作紀錄'),
 
-                AdminBookingActionLogSection(bookingId: bookingId),
+                AdminBookingActionLogSection(
+                  shopId: data['shopId'] ?? '',
+                  bookingId: bookingId,
+                ),
                 if (canEdit)
                   AdminBookingActionSection(
                     data: data,

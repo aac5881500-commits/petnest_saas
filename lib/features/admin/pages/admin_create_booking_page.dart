@@ -20,10 +20,7 @@ import 'package:petnest_saas/features/admin/widgets/admin_booking_date_section.d
 import 'package:petnest_saas/features/admin/widgets/admin_booking_room_type_section.dart';
 
 class AdminCreateBookingPage extends StatefulWidget {
-  const AdminCreateBookingPage({
-    super.key,
-    required this.shopId,
-  });
+  const AdminCreateBookingPage({super.key, required this.shopId});
 
   final String shopId;
 
@@ -38,33 +35,32 @@ class _AdminCreateBookingPageState extends State<AdminCreateBookingPage> {
   String _keyword = '';
   Map<String, dynamic>? _selectedMember;
   int _step = 0;
-final Set<String> _selectedPetIds = <String>{};
-DateTime? _startDate;
-DateTime? _endDate;
-DateTime? _tempStartDate;
-DateTime? _tempEndDate;
+  final Set<String> _selectedPetIds = <String>{};
+  DateTime? _startDate;
+  DateTime? _endDate;
+  DateTime? _tempStartDate;
+  DateTime? _tempEndDate;
 
-DateTime _calendarMonth = DateTime.now();
-Future<FrontCalendarPayload>? _calendarFuture;
+  DateTime _calendarMonth = DateTime.now();
+  Future<FrontCalendarPayload>? _calendarFuture;
 
-String _rangeMessage = '';
-String _adminOrderSource = '電話預約';
-Map<String, dynamic>? _selectedRoomType;
-bool _addonLoading = true;
-Map<String, dynamic>? _addonData;
+  String _rangeMessage = '';
+  String _adminOrderSource = '電話預約';
+  Map<String, dynamic>? _selectedRoomType;
+  bool _addonLoading = true;
+  Map<String, dynamic>? _addonData;
 
-Map<String, dynamic>? _selectedTimeAddon;
-List<Map<String, dynamic>> _selectedValueServices = [];
-final Set<String> _selectedAddonNames = <String>{};
-Map<String, List<String>> _selectedCustomServices = {};
-List<Map<String, dynamic>> _pets = [];
+  Map<String, dynamic>? _selectedTimeAddon;
+  List<Map<String, dynamic>> _selectedValueServices = [];
+  final Set<String> _selectedAddonNames = <String>{};
+  Map<String, List<String>> _selectedCustomServices = {};
+  List<Map<String, dynamic>> _pets = [];
 
-
-@override
-void initState() {
-  super.initState();
-  _loadAddons();
-}
+  @override
+  void initState() {
+    super.initState();
+    _loadAddons();
+  }
 
   @override
   void dispose() {
@@ -73,21 +69,21 @@ void initState() {
     super.dispose();
   }
 
-Future<void> _loadAddons() async {
-  final doc = await FirebaseFirestore.instance
-      .collection('shops')
-      .doc(widget.shopId)
-      .collection('addons')
-.doc('main')
-      .get();
+  Future<void> _loadAddons() async {
+    final doc = await FirebaseFirestore.instance
+        .collection('shops')
+        .doc(widget.shopId)
+        .collection('addons')
+        .doc('main')
+        .get();
 
-  final data = doc.data();
+    final data = doc.data();
 
-  setState(() {
-    _addonData = data;
-    _addonLoading = false;
-  });
-}
+    setState(() {
+      _addonData = data;
+      _addonLoading = false;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -104,10 +100,7 @@ Future<void> _loadAddons() async {
         children: [
           const Text(
             '第一步：選擇會員',
-            style: TextStyle(
-              fontSize: 22,
-              fontWeight: FontWeight.w900,
-            ),
+            style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900),
           ),
 
           const SizedBox(height: 8),
@@ -133,8 +126,8 @@ Future<void> _loadAddons() async {
                           _keywordController.clear();
                           _keyword = '';
                           _selectedMember = null;
-_selectedPetIds.clear();
-_step = 0;
+                          _selectedPetIds.clear();
+                          _step = 0;
                         });
                       },
                     ),
@@ -151,99 +144,99 @@ _step = 0;
 
           const SizedBox(height: 12),
 
-SizedBox(
-  width: double.infinity,
-  child: OutlinedButton.icon(
-    onPressed: _quickCreateMember,
-    icon: const Icon(Icons.person_add_alt_1),
-    label: const Text('沒有會員？快速建立會員'),
-  ),
-),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: _quickCreateMember,
+              icon: const Icon(Icons.person_add_alt_1),
+              label: const Text('沒有會員？快速建立會員'),
+            ),
+          ),
 
-const SizedBox(height: 16),
+          const SizedBox(height: 16),
 
-if (_selectedMember != null) _selectedMemberCard(),
+          if (_selectedMember != null) _selectedMemberCard(),
           const SizedBox(height: 16),
 
           if (_step == 0) _memberSearchResult(),
 
-if (_step == 1) _petSection(),
-if (_step == 2) _dateSection(),
-if (_step == 3) _roomTypeSection(),
-if (_step == 4) _addonSection(),
-if (_step == 5) _confirmSection(),
+          if (_step == 1) _petSection(),
+          if (_step == 2) _dateSection(),
+          if (_step == 3) _roomTypeSection(),
+          if (_step == 4) _addonSection(),
+          if (_step == 5) _confirmSection(),
 
-const SizedBox(height: 24),
+          const SizedBox(height: 24),
 
           SizedBox(
             width: double.infinity,
             child: ElevatedButton(
-            onPressed: _selectedMember == null
-    ? null
-    : () {
-        if (_step == 0) {
-          setState(() {
-            _step = 1;
-          });
-          return;
-        }
+              onPressed: _selectedMember == null
+                  ? null
+                  : () {
+                      if (_step == 0) {
+                        setState(() {
+                          _step = 1;
+                        });
+                        return;
+                      }
 
-        if (_step == 1) {
-          if (_selectedPetIds.isEmpty) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('請至少選擇一隻寵物')),
-            );
-            return;
-          }
+                      if (_step == 1) {
+                        if (_selectedPetIds.isEmpty) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('請至少選擇一隻寵物')),
+                          );
+                          return;
+                        }
 
-          setState(() {
-            _step = 2;
-            _selectedRoomType = null;
-          });
-          return;
-        }
+                        setState(() {
+                          _step = 2;
+                          _selectedRoomType = null;
+                        });
+                        return;
+                      }
 
-        if (_step == 2) {
-          if (_startDate == null || _endDate == null) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('請先選擇日期')),
-            );
-            return;
-          }
+                      if (_step == 2) {
+                        if (_startDate == null || _endDate == null) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('請先選擇日期')),
+                          );
+                          return;
+                        }
 
-          setState(() {
-            _step = 3;
-          });
-          return;
-        }
+                        setState(() {
+                          _step = 3;
+                        });
+                        return;
+                      }
 
-        if (_step == 3) {
-  if (_selectedRoomType == null) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('請先選擇房型')),
-    );
-    return;
-  }
+                      if (_step == 3) {
+                        if (_selectedRoomType == null) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('請先選擇房型')),
+                          );
+                          return;
+                        }
 
-  setState(() {
-    _step = 4;
-  });
+                        setState(() {
+                          _step = 4;
+                        });
 
-  return;
-}
+                        return;
+                      }
 
-if (_step == 4) {
-  setState(() {
-    _step = 5;
-  });
+                      if (_step == 4) {
+                        setState(() {
+                          _step = 5;
+                        });
 
-  return;
-}
-if (_step == 5) {
-  _submitBooking();
-  return;
-}
-      },
+                        return;
+                      }
+                      if (_step == 5) {
+                        _submitBooking();
+                        return;
+                      }
+                    },
               child: const Text('下一步'),
             ),
           ),
@@ -252,642 +245,615 @@ if (_step == 5) {
     );
   }
 
- Widget _selectedMemberCard() {
-  final member = _selectedMember;
+  Widget _selectedMemberCard() {
+    final member = _selectedMember;
 
-  if (member == null) {
-    return const SizedBox();
+    if (member == null) {
+      return const SizedBox();
+    }
+
+    return AdminSelectedMemberCard(member: member);
   }
 
-  return AdminSelectedMemberCard(
-    member: member,
-  );
-}
-Future<void> _quickCreateMember() async {
-  final result = await showDialog<Map<String, String>>(
-    context: context,
-    builder: (_) => AdminQuickCreateMemberDialog(
-      defaultPhone: _keyword,
-    ),
-  );
-
-  if (result == null) return;
-
-  final phone = result['phone'] ?? '';
-
-  final exists = await FirebaseFirestore.instance
-      .collection('user_profiles')
-      .where('phone', isEqualTo: phone)
-      .limit(1)
-      .get();
-
-  if (exists.docs.isNotEmpty) {
-    if (!mounted) return;
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('此手機號碼已存在會員'),
-      ),
+  Future<void> _quickCreateMember() async {
+    final result = await showDialog<Map<String, String>>(
+      context: context,
+      builder: (_) => AdminQuickCreateMemberDialog(defaultPhone: _keyword),
     );
 
-    return;
+    if (result == null) return;
+
+    final phone = result['phone'] ?? '';
+
+    final exists = await FirebaseFirestore.instance
+        .collection('user_profiles')
+        .where('phone', isEqualTo: phone)
+        .limit(1)
+        .get();
+
+    if (exists.docs.isNotEmpty) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('此手機號碼已存在會員')));
+
+      return;
+    }
+
+    final doc = FirebaseFirestore.instance.collection('user_profiles').doc();
+
+    await doc.set({
+      'name': result['name'],
+      'phone': result['phone'],
+      'email': '',
+      'address': result['address'],
+      'emergencyContact': {
+        'name': result['emergencyName'],
+        'phone': result['emergencyPhone'],
+        'relation': result['emergencyRelation'],
+        'address': result['emergencyAddress'],
+      },
+      'createdFrom': 'admin',
+      'linkedAuthUid': null,
+      'shopIds': [widget.shopId],
+      'createdAt': FieldValue.serverTimestamp(),
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+
+    setState(() {
+      _selectedMember = {
+        'userId': doc.id,
+        'name': result['name'],
+        'phone': result['phone'],
+        'email': '',
+        'address': result['address'],
+        'emergencyContact': {
+          'name': result['emergencyName'],
+          'phone': result['emergencyPhone'],
+          'relation': result['emergencyRelation'],
+          'address': result['emergencyAddress'],
+        },
+      };
+
+      _keywordController.text = result['phone'] ?? '';
+      _keyword = result['phone'] ?? '';
+    });
+
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('已建立會員')));
   }
 
-  final doc = FirebaseFirestore.instance.collection('user_profiles').doc();
+  Widget _memberSearchResult() {
+    return AdminMemberSearchSection(
+      keyword: _keyword,
+      onSelectMember: (userId, data) {
+        setState(() {
+          _selectedMember = {'userId': userId, ...data};
 
-  await doc.set({
-   'name': result['name'],
-'phone': result['phone'],
-'email': '',
-'address': result['address'],
-'emergencyContact': {
-  'name': result['emergencyName'],
-  'phone': result['emergencyPhone'],
-  'relation': result['emergencyRelation'],
-  'address': result['emergencyAddress'],
-},
-    'createdFrom': 'admin',
-    'linkedAuthUid': null,
-    'shopIds': [widget.shopId],
-    'createdAt': FieldValue.serverTimestamp(),
-    'updatedAt': FieldValue.serverTimestamp(),
-  });
+          _selectedPetIds.clear();
+          _pets.clear();
+          _step = 0;
+        });
+      },
+    );
+  }
 
-setState(() {
-  _selectedMember = {
-  'userId': doc.id,
-  'name': result['name'],
-  'phone': result['phone'],
-  'email': '',
-  'address': result['address'],
-  'emergencyContact': {
-    'name': result['emergencyName'],
-    'phone': result['emergencyPhone'],
-    'relation': result['emergencyRelation'],
-    'address': result['emergencyAddress'],
-  },
-  };
+  Future<void> _quickCreatePet() async {
+    final member = _selectedMember;
+    if (member == null) return;
 
+    final userId = member['userId']?.toString() ?? '';
+    if (userId.isEmpty) return;
 
-    _keywordController.text = result['phone'] ?? '';
-    _keyword = result['phone'] ?? '';
-  });
+    final result = await showDialog<Map<String, dynamic>>(
+      context: context,
+      builder: (_) => const AdminQuickCreatePetDialog(),
+    );
 
-  if (!mounted) return;
+    if (result == null) return;
 
-  ScaffoldMessenger.of(context).showSnackBar(
-    const SnackBar(content: Text('已建立會員')),
-  );
-}
-Widget _memberSearchResult() {
-  return AdminMemberSearchSection(
-    keyword: _keyword,
-    onSelectMember: (userId, data) {
-      setState(() {
-        _selectedMember = {
-          'userId': userId,
-          ...data,
-        };
+    final doc = FirebaseFirestore.instance
+        .collection('user_profiles')
+        .doc(userId)
+        .collection('pets')
+        .doc();
 
-        _selectedPetIds.clear();
-        _pets.clear();
-        _step = 0;
+    await doc.set({
+      'name': result['name'],
+      'type': result['type'],
+      'breed': result['breed'],
+      'gender': result['gender'],
+      'age': result['age'],
+      'isNeutered': result['isNeutered'],
+      'vaccine': result['vaccine'],
+      'litterType': result['litterType'],
+      'note': result['note'],
+      'createdFrom': 'admin',
+      'createdAt': FieldValue.serverTimestamp(),
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+
+    setState(() {
+      _selectedPetIds.add(doc.id);
+      _pets.add({
+        'petId': doc.id,
+        'name': result['name'],
+        'type': result['type'],
+        'breed': result['breed'],
+        'gender': result['gender'],
+        'age': result['age'],
+        'isNeutered': result['isNeutered'],
+        'vaccine': result['vaccine'],
+        'litterType': result['litterType'],
+        'note': result['note'],
       });
-    },
-  );
-}
-Future<void> _quickCreatePet() async {
-  final member = _selectedMember;
-  if (member == null) return;
+    });
 
-  final userId = member['userId']?.toString() ?? '';
-  if (userId.isEmpty) return;
+    if (!mounted) return;
 
-  final result = await showDialog<Map<String, dynamic>>(
-    context: context,
-    builder: (_) => const AdminQuickCreatePetDialog(),
-  );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('已建立寵物')));
+  }
 
-  if (result == null) return;
+  Widget _petSection() {
+    return AdminPetSection(
+      member: _selectedMember,
+      selectedPetIds: _selectedPetIds,
+      onCreatePet: _quickCreatePet,
+      onTogglePet: ({required petId, required petData, required selected}) {
+        setState(() {
+          if (selected) {
+            _selectedPetIds.add(petId);
 
-  final doc = FirebaseFirestore.instance
-      .collection('user_profiles')
-      .doc(userId)
-      .collection('pets')
-      .doc();
+            final exists = _pets.any((p) => p['petId'] == petId);
 
-  await doc.set({
-  'name': result['name'],
-  'type': result['type'],
-  'breed': result['breed'],
-  'gender': result['gender'],
-  'age': result['age'],
-  'isNeutered': result['isNeutered'],
-  'vaccine': result['vaccine'],
-  'litterType': result['litterType'],
-  'note': result['note'],
-    'createdFrom': 'admin',
-    'createdAt': FieldValue.serverTimestamp(),
-    'updatedAt': FieldValue.serverTimestamp(),
-  });
-
-  setState(() {
-  _selectedPetIds.add(doc.id);
-  _pets.add({
-  'petId': doc.id,
-  'name': result['name'],
-  'type': result['type'],
-  'breed': result['breed'],
-  'gender': result['gender'],
-  'age': result['age'],
-  'isNeutered': result['isNeutered'],
-  'vaccine': result['vaccine'],
-  'litterType': result['litterType'],
-  'note': result['note'],
-});
-});
-
-  if (!mounted) return;
-
-  ScaffoldMessenger.of(context).showSnackBar(
-    const SnackBar(content: Text('已建立寵物')),
-  );
-}
- Widget _petSection() {
-  return AdminPetSection(
-    member: _selectedMember,
-    selectedPetIds: _selectedPetIds,
-    onCreatePet: _quickCreatePet,
-    onTogglePet: ({
-      required petId,
-      required petData,
-      required selected,
-    }) {
-      setState(() {
-        if (selected) {
-          _selectedPetIds.add(petId);
-
-          final exists = _pets.any(
-            (p) => p['petId'] == petId,
-          );
-
-          if (!exists) {
-            _pets.add({
-              'petId': petId,
-              ...petData,
-            });
+            if (!exists) {
+              _pets.add({'petId': petId, ...petData});
+            }
+          } else {
+            _selectedPetIds.remove(petId);
+            _pets.removeWhere((p) => p['petId'] == petId);
           }
-        } else {
-          _selectedPetIds.remove(petId);
-          _pets.removeWhere(
-            (p) => p['petId'] == petId,
-          );
-        }
-      });
-    },
-  );
-}
-String _formatDate(DateTime date) {
-  String two(int n) => n.toString().padLeft(2, '0');
-  return '${date.year}-${two(date.month)}-${two(date.day)}';
-}
+        });
+      },
+    );
+  }
 
-DateTime _dateOnly(DateTime date) {
-  return DateTime(date.year, date.month, date.day);
-}
+  String _formatDate(DateTime date) {
+    String two(int n) => n.toString().padLeft(2, '0');
+    return '${date.year}-${two(date.month)}-${two(date.day)}';
+  }
 
-Future<FrontCalendarPayload> _buildFrontCalendarPayload({
-  required Map<String, dynamic> shop,
-  required DateTime firstDate,
-  required DateTime lastDate,
-}) {
-  return FrontCalendarHelper.buildPayload(
-    shopId: widget.shopId,
-    shop: shop,
-    firstDate: firstDate,
-    lastDate: lastDate,
-  );
-}
+  DateTime _dateOnly(DateTime date) {
+    return DateTime(date.year, date.month, date.day);
+  }
 
-Future<void> _openCalendarDialog(Map<String, dynamic> shop) async {
-  final today = _dateOnly(DateTime.now());
+  Future<FrontCalendarPayload> _buildFrontCalendarPayload({
+    required Map<String, dynamic> shop,
+    required DateTime firstDate,
+    required DateTime lastDate,
+  }) {
+    return FrontCalendarHelper.buildPayload(
+      shopId: widget.shopId,
+      shop: shop,
+      firstDate: firstDate,
+      lastDate: lastDate,
+    );
+  }
 
-  _tempStartDate = _startDate;
-  _tempEndDate = _endDate;
+  Future<void> _openCalendarDialog(Map<String, dynamic> shop) async {
+    final today = _dateOnly(DateTime.now());
 
-  final firstDay = DateTime(_calendarMonth.year, _calendarMonth.month, 1);
-  final lastDay = DateTime(_calendarMonth.year, _calendarMonth.month + 1, 0);
+    _tempStartDate = _startDate;
+    _tempEndDate = _endDate;
 
-  _calendarFuture = _buildFrontCalendarPayload(
-    shop: shop,
-    firstDate: firstDay,
-    lastDate: lastDay,
-  );
+    final firstDay = DateTime(_calendarMonth.year, _calendarMonth.month, 1);
+    final lastDay = DateTime(_calendarMonth.year, _calendarMonth.month + 1, 0);
 
-  showDialog(
-    context: context,
-    builder: (_) {
-      return StatefulBuilder(
-        builder: (context, setInnerState) {
-          return FutureBuilder<FrontCalendarPayload>(
-            future: _calendarFuture,
-            builder: (context, snapshot) {
-              if (snapshot.connectionState == ConnectionState.waiting) {
-                return const Center(child: CircularProgressIndicator());
-              }
+    _calendarFuture = _buildFrontCalendarPayload(
+      shop: shop,
+      firstDate: firstDay,
+      lastDate: lastDay,
+    );
 
-              if (snapshot.hasError) {
-                return Center(
-                  child: Text('日曆載入失敗：${snapshot.error}'),
-                );
-              }
+    showDialog(
+      context: context,
+      builder: (_) {
+        return StatefulBuilder(
+          builder: (context, setInnerState) {
+            return FutureBuilder<FrontCalendarPayload>(
+              future: _calendarFuture,
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(child: CircularProgressIndicator());
+                }
 
-              if (!snapshot.hasData) {
-                return const Center(child: Text('沒有資料'));
-              }
+                if (snapshot.hasError) {
+                  return Center(child: Text('日曆載入失敗：${snapshot.error}'));
+                }
 
-              final payload = snapshot.data!;
+                if (!snapshot.hasData) {
+                  return const Center(child: Text('沒有資料'));
+                }
 
-              return BookingCalendarDialog(
-                payload: payload,
-                calendarMonth: _calendarMonth,
-                today: today,
-                maxDays: 365,
-                tempStartDate: _tempStartDate,
-                tempEndDate: _tempEndDate,
-                rangeMessage: _rangeMessage,
-                onMonthChanged: (newMonth) {
-                  final firstDay = DateTime(
-                    newMonth.year,
-                    newMonth.month,
-                    1,
-                  );
+                final payload = snapshot.data!;
 
-                  final lastDay = DateTime(
-                    newMonth.year,
-                    newMonth.month + 1,
-                    0,
-                  );
+                return BookingCalendarDialog(
+                  payload: payload,
+                  calendarMonth: _calendarMonth,
+                  today: today,
+                  maxDays: 365,
+                  tempStartDate: _tempStartDate,
+                  tempEndDate: _tempEndDate,
+                  rangeMessage: _rangeMessage,
+                  onMonthChanged: (newMonth) {
+                    final firstDay = DateTime(newMonth.year, newMonth.month, 1);
 
-                  setState(() {
-                    _calendarMonth = newMonth;
-                    _calendarFuture = _buildFrontCalendarPayload(
-                      shop: shop,
-                      firstDate: firstDay,
-                      lastDate: lastDay,
+                    final lastDay = DateTime(
+                      newMonth.year,
+                      newMonth.month + 1,
+                      0,
                     );
-                  });
 
-                  setInnerState(() {});
-                },
-                onDayTap: (date) async {
-                  _handleCalendarTap(date);
-                  setInnerState(() {});
-                },
-                onCancel: () {
-                  Navigator.pop(context);
-                },
-                onConfirm: () {
-                  if (_tempStartDate == null || _tempEndDate == null) {
                     setState(() {
-                      _rangeMessage = '請選擇入住日與退房日';
+                      _calendarMonth = newMonth;
+                      _calendarFuture = _buildFrontCalendarPayload(
+                        shop: shop,
+                        firstDate: firstDay,
+                        lastDate: lastDay,
+                      );
                     });
+
                     setInnerState(() {});
-                    return;
-                  }
+                  },
+                  onDayTap: (date) async {
+                    _handleCalendarTap(date);
+                    setInnerState(() {});
+                  },
+                  onCancel: () {
+                    Navigator.pop(context);
+                  },
+                  onConfirm: () {
+                    if (_tempStartDate == null || _tempEndDate == null) {
+                      setState(() {
+                        _rangeMessage = '請選擇入住日與退房日';
+                      });
+                      setInnerState(() {});
+                      return;
+                    }
 
-                  setState(() {
-                    _startDate = _tempStartDate;
-                    _endDate = _tempEndDate;
-                    _rangeMessage = '';
-                  });
+                    setState(() {
+                      _startDate = _tempStartDate;
+                      _endDate = _tempEndDate;
+                      _rangeMessage = '';
+                    });
 
-                  Navigator.pop(context);
-                },
-              );
-            },
-          );
-        },
-      );
-    },
-  );
-}
-
-void _handleCalendarTap(DateTime date) {
-  final tapped = _dateOnly(date);
-
-  if (_tempStartDate == null ||
-      (_tempStartDate != null && _tempEndDate != null)) {
-    setState(() {
-      _tempStartDate = tapped;
-      _tempEndDate = null;
-      _rangeMessage = '';
-    });
-    return;
+                    Navigator.pop(context);
+                  },
+                );
+              },
+            );
+          },
+        );
+      },
+    );
   }
 
-  if (!tapped.isAfter(_tempStartDate!)) {
+  void _handleCalendarTap(DateTime date) {
+    final tapped = _dateOnly(date);
+
+    if (_tempStartDate == null ||
+        (_tempStartDate != null && _tempEndDate != null)) {
+      setState(() {
+        _tempStartDate = tapped;
+        _tempEndDate = null;
+        _rangeMessage = '';
+      });
+      return;
+    }
+
+    if (!tapped.isAfter(_tempStartDate!)) {
+      setState(() {
+        _tempStartDate = tapped;
+        _tempEndDate = null;
+        _rangeMessage = '';
+      });
+      return;
+    }
+
     setState(() {
-      _tempStartDate = tapped;
-      _tempEndDate = null;
+      _tempEndDate = tapped;
       _rangeMessage = '';
     });
-    return;
   }
 
-  setState(() {
-    _tempEndDate = tapped;
-    _rangeMessage = '';
-  });
-}
+  Widget _dateSection() {
+    return StreamBuilder<Map<String, dynamic>?>(
+      stream: ShopService.instance.streamShop(widget.shopId),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData) {
+          return const Center(child: CircularProgressIndicator());
+        }
 
-Widget _dateSection() {
-  return StreamBuilder<Map<String, dynamic>?>(
-    stream: ShopService.instance.streamShop(widget.shopId),
-    builder: (context, snapshot) {
-      if (!snapshot.hasData) {
-        return const Center(child: CircularProgressIndicator());
-      }
+        final shop = snapshot.data;
+        if (shop == null) {
+          return const Text('找不到店家資料');
+        }
 
-      final shop = snapshot.data;
-      if (shop == null) {
-        return const Text('找不到店家資料');
-      }
+        return AdminBookingDateSection(
+          startDate: _startDate,
+          endDate: _endDate,
+          formatDate: _formatDate,
+          onOpenCalendar: () {
+            _openCalendarDialog(shop);
+          },
+        );
+      },
+    );
+  }
 
-      return AdminBookingDateSection(
-        startDate: _startDate,
-        endDate: _endDate,
-        formatDate: _formatDate,
-        onOpenCalendar: () {
-          _openCalendarDialog(shop);
-        },
-      );
-    },
-  );
-}
-Widget _roomTypeSection() {
-  return AdminBookingRoomTypeSection(
-    shopId: widget.shopId,
-    startDate: _startDate,
-    endDate: _endDate,
-    selectedPetIds: _selectedPetIds.toList(),
-    selectedRoomType: _selectedRoomType,
-    onSelectRoomType: (roomType) {
-      setState(() {
-        _selectedRoomType = roomType;
-      });
-    },
-  );
-}
-Widget _addonSection() {
-  return AdminCreateBookingAddonSection(
-    addonLoading: _addonLoading,
-    addonData: _addonData,
-    pets: _pets,
-    selectedTimeAddon: _selectedTimeAddon,
-    selectedAddonNames: _selectedAddonNames,
-    selectedCustomServices: _selectedCustomServices,
-    onSelectTimeAddon: (item) {
-      final label = item['label']?.toString() ?? '';
-      final price = item['price'] ?? 0;
+  Widget _roomTypeSection() {
+    return AdminBookingRoomTypeSection(
+      shopId: widget.shopId,
+      startDate: _startDate,
+      endDate: _endDate,
+      selectedPetIds: _selectedPetIds.toList(),
+      selectedRoomType: _selectedRoomType,
+      onSelectRoomType: (roomType) {
+        setState(() {
+          _selectedRoomType = roomType;
+        });
+      },
+    );
+  }
 
-      setState(() {
-        _selectedTimeAddon = {
-          ...item,
-          'name': label,
-          'type': 'time',
-          'count': 1,
-          'total': price,
-        };
-      });
-    },
-    onToggleValueService: (item, selected) {
-      final name = item['name']?.toString() ?? '';
-      final price = item['price'] ?? 0;
+  Widget _addonSection() {
+    return AdminCreateBookingAddonSection(
+      addonLoading: _addonLoading,
+      addonData: _addonData,
+      pets: _pets,
+      selectedTimeAddon: _selectedTimeAddon,
+      selectedAddonNames: _selectedAddonNames,
+      selectedCustomServices: _selectedCustomServices,
+      onSelectTimeAddon: (item) {
+        final label = item['label']?.toString() ?? '';
+        final price = item['price'] ?? 0;
 
-      setState(() {
-        if (selected) {
-          _selectedAddonNames.add(name);
-          _selectedValueServices.add({
+        setState(() {
+          _selectedTimeAddon = {
             ...item,
-            'type': 'value',
+            'name': label,
+            'type': 'time',
             'count': 1,
             'total': price,
-          });
-        } else {
-          _selectedAddonNames.remove(name);
-          _selectedValueServices.removeWhere(
-            (e) => e['name'] == name,
-          );
-        }
-      });
-    },
-    onToggleCustomPet: ({
-      required serviceName,
-      required petId,
-      required selected,
-    }) {
-      setState(() {
-        _selectedCustomServices.putIfAbsent(
-          serviceName,
-          () => [],
-        );
+          };
+        });
+      },
+      onToggleValueService: (item, selected) {
+        final name = item['name']?.toString() ?? '';
+        final price = item['price'] ?? 0;
 
-        if (selected) {
-          if (!_selectedCustomServices[serviceName]!.contains(petId)) {
-            _selectedCustomServices[serviceName]!.add(petId);
+        setState(() {
+          if (selected) {
+            _selectedAddonNames.add(name);
+            _selectedValueServices.add({
+              ...item,
+              'type': 'value',
+              'count': 1,
+              'total': price,
+            });
+          } else {
+            _selectedAddonNames.remove(name);
+            _selectedValueServices.removeWhere((e) => e['name'] == name);
           }
-        } else {
-          _selectedCustomServices[serviceName]!.remove(petId);
-        }
-      });
-    },
-  );
-}
+        });
+      },
+      onToggleCustomPet:
+          ({required serviceName, required petId, required selected}) {
+            setState(() {
+              _selectedCustomServices.putIfAbsent(serviceName, () => []);
 
-List<Map<String, dynamic>> _buildAdminAddons() {
-  final addons = <Map<String, dynamic>>[];
+              if (selected) {
+                if (!_selectedCustomServices[serviceName]!.contains(petId)) {
+                  _selectedCustomServices[serviceName]!.add(petId);
+                }
+              } else {
+                _selectedCustomServices[serviceName]!.remove(petId);
+              }
+            });
+          },
+    );
+  }
 
-if (_selectedTimeAddon != null) {
-  addons.add({
-    ..._selectedTimeAddon!,
-  });
-}
+  List<Map<String, dynamic>> _buildAdminAddons() {
+    final addons = <Map<String, dynamic>>[];
 
-addons.addAll(
-  _selectedValueServices.map((item) {
-    final price = item['price'] ?? 0;
+    if (_selectedTimeAddon != null) {
+      addons.add({..._selectedTimeAddon!});
+    }
 
-    return {
-      'name': item['name'],
-      'type': 'value',
-      'price': price,
-      'count': 1,
-      'total': item['total'] ?? price,
-    };
-  }),
-);
+    addons.addAll(
+      _selectedValueServices.map((item) {
+        final price = item['price'] ?? 0;
 
-_selectedCustomServices.forEach((serviceName, petIds) {
-  if (petIds.isEmpty) return;
+        return {
+          'name': item['name'],
+          'type': 'value',
+          'price': price,
+          'count': 1,
+          'total': item['total'] ?? price,
+        };
+      }),
+    );
 
-  final service = List<Map<String, dynamic>>.from(
-    _addonData?['customServices'] ?? [],
-  ).firstWhere(
-    (item) => item['name'] == serviceName,
-    orElse: () => {},
-  );
+    _selectedCustomServices.forEach((serviceName, petIds) {
+      if (petIds.isEmpty) return;
 
-  final price = service['price'] ?? 0;
-
-  addons.add({
-    'name': serviceName,
-    'type': 'custom',
-    'price': price,
-    'count': petIds.length,
-    'total': price * petIds.length,
-    'petNames': petIds.map((petId) {
-  final pet = _pets.firstWhere(
-    (p) => p['petId'] == petId,
-    orElse: () => {},
-  );
-
-  return pet['name'] ?? petId;
-}).toList(),
-  });
-});
-
-return addons;
-}
-
-int _calculateAdminTotalPrice({
-  required Map<String, dynamic> roomType,
-  required int nights,
-}) {
-  final basePrice = (roomType['price'] ?? 0) as int;
-
-  final extraPetPrice = (roomType['extraPrice'] ?? 0) as int;
-  final extraPetCount =
-      _selectedPetIds.length > 1 ? _selectedPetIds.length - 1 : 0;
-  final extraPetTotal = extraPetPrice * extraPetCount * nights;
-
-  final timeTotal = (_selectedTimeAddon?['total'] ?? 0) as int;
-
-  final valueTotal = _selectedValueServices.fold<int>(
-    0,
-    (sum, item) => sum + ((item['total'] ?? 0) as int),
-  );
-
-  final customTotal = _selectedCustomServices.entries.fold<int>(
-    0,
-    (sum, entry) {
       final service = List<Map<String, dynamic>>.from(
         _addonData?['customServices'] ?? [],
-      ).firstWhere(
-        (item) => item['name'] == entry.key,
-        orElse: () => {},
-      );
+      ).firstWhere((item) => item['name'] == serviceName, orElse: () => {});
+
+      final price = service['price'] ?? 0;
+
+      addons.add({
+        'name': serviceName,
+        'type': 'custom',
+        'price': price,
+        'count': petIds.length,
+        'total': price * petIds.length,
+        'petNames': petIds.map((petId) {
+          final pet = _pets.firstWhere(
+            (p) => p['petId'] == petId,
+            orElse: () => {},
+          );
+
+          return pet['name'] ?? petId;
+        }).toList(),
+      });
+    });
+
+    return addons;
+  }
+
+  int _calculateAdminTotalPrice({
+    required Map<String, dynamic> roomType,
+    required int nights,
+  }) {
+    final basePrice = (roomType['price'] ?? 0) as int;
+
+    final extraPetPrice = (roomType['extraPrice'] ?? 0) as int;
+    final extraPetCount = _selectedPetIds.length > 1
+        ? _selectedPetIds.length - 1
+        : 0;
+    final extraPetTotal = extraPetPrice * extraPetCount * nights;
+
+    final timeTotal = (_selectedTimeAddon?['total'] ?? 0) as int;
+
+    final valueTotal = _selectedValueServices.fold<int>(
+      0,
+      (sum, item) => sum + ((item['total'] ?? 0) as int),
+    );
+
+    final customTotal = _selectedCustomServices.entries.fold<int>(0, (
+      sum,
+      entry,
+    ) {
+      final service = List<Map<String, dynamic>>.from(
+        _addonData?['customServices'] ?? [],
+      ).firstWhere((item) => item['name'] == entry.key, orElse: () => {});
 
       final price = (service['price'] ?? 0) as int;
       return sum + (price * entry.value.length);
-    },
-  );
+    });
 
-  return (basePrice * nights) +
-      extraPetTotal +
-      timeTotal +
-      valueTotal +
-      customTotal;
-}
-
-Future<void> _submitBooking() async {
-  final member = _selectedMember;
-  final roomType = _selectedRoomType;
-
-  if (member == null ||
-      roomType == null ||
-      _startDate == null ||
-      _endDate == null) {
-    return;
+    return (basePrice * nights) +
+        extraPetTotal +
+        timeTotal +
+        valueTotal +
+        customTotal;
   }
 
-  try {
-    final nights = _endDate!.difference(_startDate!).inDays;
+  Future<void> _submitBooking() async {
+    final member = _selectedMember;
+    final roomType = _selectedRoomType;
 
-    await BookingService.instance.createAdminBooking(
-      shopId: widget.shopId,
-      userId: member['userId'] ?? '',
-      customerName: member['name'] ?? '',
-      customerPhone: member['phone'] ?? '',
-      petIds: _selectedPetIds.toList(),
+    if (member == null ||
+        roomType == null ||
+        _startDate == null ||
+        _endDate == null) {
+      return;
+    }
 
-      serviceType: '住宿',
+    try {
+      final nights = _endDate!.difference(_startDate!).inDays;
 
-      startDate: _startDate!,
-      endDate: _endDate!,
-      nights: nights,
+      await BookingService.instance.createAdminBooking(
+        shopId: widget.shopId,
+        userId: member['userId'] ?? '',
+        customerName: member['name'] ?? '',
+        customerPhone: member['phone'] ?? '',
+        petIds: _selectedPetIds.toList(),
 
-      roomId: roomType['roomTypeId'] ?? roomType['id'] ?? '',
-      roomName: roomType['name'] ?? '',
-      roomTypeName: roomType['name'] ?? '',
+        serviceType: '住宿',
 
-      basePrice: (roomType['price'] ?? 0) as int,
-     extraPetPrice: (roomType['extraPrice'] ?? 0) as int,
-extraPetCount: _selectedPetIds.length > 1
-    ? _selectedPetIds.length - 1
-    : 0,
-extraPetTotal: ((roomType['extraPrice'] ?? 0) as int) *
-    (_selectedPetIds.length > 1 ? _selectedPetIds.length - 1 : 0) *
-    nights, 
-      roomSubtotal: (roomType['price'] ?? 0) * nights,
+        startDate: _startDate!,
+        endDate: _endDate!,
+        nights: nights,
 
-      roomImages: roomType['images'] ?? [],
+        roomId: roomType['roomTypeId'] ?? roomType['id'] ?? '',
+        roomName: roomType['name'] ?? '',
+        roomTypeName: roomType['name'] ?? '',
 
-      totalPrice: _calculateAdminTotalPrice(
-  roomType: roomType,
-  nights: nights,
-),
+        basePrice: (roomType['price'] ?? 0) as int,
+        extraPetPrice: (roomType['extraPrice'] ?? 0) as int,
+        extraPetCount: _selectedPetIds.length > 1
+            ? _selectedPetIds.length - 1
+            : 0,
+        extraPetTotal:
+            ((roomType['extraPrice'] ?? 0) as int) *
+            (_selectedPetIds.length > 1 ? _selectedPetIds.length - 1 : 0) *
+            nights,
+        roomSubtotal: (roomType['price'] ?? 0) * nights,
 
-addons: _buildAdminAddons(),
-note: '手動新增訂單｜$_adminOrderSource'
-    '${_noteController.text.trim().isEmpty ? '' : '｜${_noteController.text.trim()}'}',
-    );
+        roomImages: roomType['images'] ?? [],
 
-    if (!mounted) return;
+        totalPrice: _calculateAdminTotalPrice(
+          roomType: roomType,
+          nights: nights,
+        ),
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('訂單建立成功')),
-    );
+        addons: _buildAdminAddons(),
+        note:
+            '手動新增訂單｜$_adminOrderSource'
+            '${_noteController.text.trim().isEmpty ? '' : '｜${_noteController.text.trim()}'}',
+      );
 
-    Navigator.pop(context);
-  } catch (e) {
-    if (!mounted) return;
+      if (!mounted) return;
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('建立失敗：$e')),
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('訂單建立成功')));
+
+      Navigator.pop(context);
+    } catch (e, stackTrace) {
+      debugPrint('====================');
+      debugPrint('建立訂單失敗');
+      debugPrint(e.toString());
+      debugPrint(stackTrace.toString());
+      debugPrint('====================');
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('建立失敗：$e')));
+    }
+  }
+
+  Widget _confirmSection() {
+    return AdminCreateBookingConfirmSection(
+      member: _selectedMember,
+      roomType: _selectedRoomType,
+      startDate: _startDate,
+      endDate: _endDate,
+      selectedPetIds: _selectedPetIds,
+      selectedTimeAddon: _selectedTimeAddon,
+      selectedValueServices: _selectedValueServices,
+      selectedCustomServices: _selectedCustomServices,
+      addonData: _addonData,
+      adminOrderSource: _adminOrderSource,
+      noteController: _noteController,
+      formatDate: _formatDate,
+      onOrderSourceChanged: (value) {
+        setState(() {
+          _adminOrderSource = value;
+        });
+      },
     );
   }
-}
-
-Widget _confirmSection() {
-  return AdminCreateBookingConfirmSection(
-    member: _selectedMember,
-    roomType: _selectedRoomType,
-    startDate: _startDate,
-    endDate: _endDate,
-    selectedPetIds: _selectedPetIds,
-    selectedTimeAddon: _selectedTimeAddon,
-    selectedValueServices: _selectedValueServices,
-    selectedCustomServices: _selectedCustomServices,
-    addonData: _addonData,
-    adminOrderSource: _adminOrderSource,
-    noteController: _noteController,
-    formatDate: _formatDate,
-    onOrderSourceChanged: (value) {
-      setState(() {
-        _adminOrderSource = value;
-      });
-    },
-  );
-}
 }

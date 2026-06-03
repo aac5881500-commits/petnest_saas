@@ -9,9 +9,11 @@ import 'package:petnest_saas/features/admin/widgets/admin_booking_action_log_car
 class AdminBookingActionLogSection extends StatelessWidget {
   const AdminBookingActionLogSection({
     super.key,
+    required this.shopId,
     required this.bookingId,
   });
 
+  final String shopId;
   final String bookingId;
 
   @override
@@ -24,31 +26,31 @@ class AdminBookingActionLogSection extends StatelessWidget {
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 10,
-          ),
+          BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10),
         ],
       ),
       child: StreamBuilder<QuerySnapshot>(
         stream: FirebaseFirestore.instance
             .collection('action_logs')
+            .where('shopId', isEqualTo: shopId)
             .where('bookingId', isEqualTo: bookingId)
             .snapshots(),
         builder: (context, snapshot) {
-          if (!snapshot.hasData) {
-            return const Center(
-              child: CircularProgressIndicator(),
+          if (snapshot.hasError) {
+            return Text(
+              '操作紀錄讀取失敗：${snapshot.error}',
+              style: const TextStyle(color: Colors.red, fontSize: 13),
             );
           }
 
-          final logs = snapshot.data!.docs;
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
+
+          final logs = snapshot.data?.docs ?? [];
 
           if (logs.isEmpty) {
-            return const Text(
-              '目前無操作紀錄',
-              style: TextStyle(color: Colors.grey),
-            );
+            return const Text('目前無操作紀錄', style: TextStyle(color: Colors.grey));
           }
 
           return Column(

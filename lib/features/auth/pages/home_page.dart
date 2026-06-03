@@ -21,6 +21,7 @@ import 'package:petnest_saas/features/auth/widgets/my_shop_info.dart';
 import 'package:petnest_saas/features/auth/widgets/my_shop_open_status_helper.dart';
 import 'package:petnest_saas/features/auth/pages/my_shop_card_media_page.dart';
 import 'package:petnest_saas/features/auth/widgets/my_shop_meta_info.dart';
+import 'package:petnest_saas/features/auth/widgets/platform_admin_entry_card.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -101,7 +102,7 @@ class _HomePageState extends State<HomePage> {
   @override
   Widget build(BuildContext context) {
     final User? user = FirebaseAuth.instance.currentUser;
-    final isPlatformAdmin = user?.email == 'aac5881500@gmail.com';
+    final String? uid = user?.uid;
 
     return Scaffold(
       appBar: AppBar(
@@ -138,6 +139,12 @@ class _HomePageState extends State<HomePage> {
                     Text(
                       user?.email ?? '',
                       style: const TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(height: 4),
+
+                    SelectableText(
+                      uid ?? '',
+                      style: const TextStyle(fontSize: 10, color: Colors.grey),
                     ),
                   ],
                 ),
@@ -177,41 +184,8 @@ class _HomePageState extends State<HomePage> {
                 ),
 
                 PlatformAccountCard(email: user?.email ?? ''),
-                if (isPlatformAdmin) ...[
-                  const SizedBox(height: 12),
 
-                  Card(
-                    elevation: 0,
-                    color: Colors.white,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(18),
-                      side: BorderSide(color: Colors.grey.shade200),
-                    ),
-                    child: ListTile(
-                      leading: CircleAvatar(
-                        backgroundColor: const Color(0xFFEAF3FF),
-                        child: const Icon(
-                          Icons.admin_panel_settings,
-                          color: Color(0xFF1565C0),
-                        ),
-                      ),
-                      title: const Text(
-                        '平台後台',
-                        style: TextStyle(fontWeight: FontWeight.w800),
-                      ),
-                      subtitle: const Text('管理店家、方案、付款期限與平台紀錄'),
-                      trailing: const Icon(Icons.chevron_right),
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => const PlatformAdminPage(),
-                          ),
-                        );
-                      },
-                    ),
-                  ),
-                ],
+                PlatformAdminEntryCard(uid: uid),
 
                 const SizedBox(height: 20),
 

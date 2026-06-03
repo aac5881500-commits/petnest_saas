@@ -8,10 +8,14 @@ import 'package:flutter/material.dart';
 import 'package:petnest_saas/features/admin/widgets/admin_member_detail_badges.dart';
 
 class AdminMemberProfileSection extends StatelessWidget {
-  const AdminMemberProfileSection({super.key, required this.userId});
+  const AdminMemberProfileSection({
+    super.key,
+    required this.userId,
+    required this.shopId,
+  });
 
   final String userId;
-
+  final String shopId;
   @override
   Widget build(BuildContext context) {
     return StreamBuilder<DocumentSnapshot>(
@@ -65,11 +69,11 @@ class AdminMemberProfileSection extends StatelessWidget {
               const SizedBox(height: 16),
               _MemberTags(data: data, tags: tags),
               const SizedBox(height: 12),
-              _MemberLinkRequests(userId: userId, data: data),
+              _MemberLinkRequests(userId: userId, shopId: shopId, data: data),
               const SizedBox(height: 12),
               _AdminNoteBox(userId: userId, data: data),
               const SizedBox(height: 12),
-              _MemberActionButtons(userId: userId, data: data),
+              _MemberActionButtons(userId: userId, shopId: shopId, data: data),
               if (canArchiveMember) _ArchiveButton(userId: userId),
               if (canRestoreMember) _RestoreButton(userId: userId),
             ],
@@ -384,9 +388,14 @@ class _MemberTags extends StatelessWidget {
 }
 
 class _MemberLinkRequests extends StatelessWidget {
-  const _MemberLinkRequests({required this.userId, required this.data});
+  const _MemberLinkRequests({
+    required this.userId,
+    required this.shopId,
+    required this.data,
+  });
 
   final String userId;
+  final String shopId;
   final Map<String, dynamic> data;
 
   @override
@@ -528,6 +537,7 @@ class _MemberLinkRequests extends StatelessWidget {
 
     await FirebaseFirestore.instance.collection('action_logs').add({
       'type': 'member_link_approved',
+      'shopId': shopId,
       'targetUserId': userId,
       'targetUserName': data['name'] ?? '',
       'targetUserEmail': data['email'] ?? '',
@@ -597,6 +607,7 @@ class _MemberLinkRequests extends StatelessWidget {
 
     await FirebaseFirestore.instance.collection('action_logs').add({
       'type': 'member_link_rejected',
+      'shopId': shopId,
       'targetUserId': userId,
       'targetUserName': data['name'] ?? '',
       'targetUserEmail': data['email'] ?? '',
@@ -667,9 +678,14 @@ class _AdminNoteBox extends StatelessWidget {
 }
 
 class _MemberActionButtons extends StatelessWidget {
-  const _MemberActionButtons({required this.userId, required this.data});
+  const _MemberActionButtons({
+    required this.userId,
+    required this.shopId,
+    required this.data,
+  });
 
   final String userId;
+  final String shopId;
   final Map<String, dynamic> data;
 
   @override
@@ -717,18 +733,6 @@ class _MemberActionButtons extends StatelessWidget {
     }
 
     await ref.update({'tags': tags});
-
-    final user = FirebaseAuth.instance.currentUser;
-
-    await FirebaseFirestore.instance.collection('action_logs').add({
-      'type': wasVip ? 'member_vip_removed' : 'member_vip_added',
-      'targetUserId': userId,
-      'targetUserName': data['name'] ?? '',
-      'targetUserEmail': data['email'] ?? '',
-      'operatorUid': user?.uid,
-      'operatorEmail': user?.email,
-      'createdAt': FieldValue.serverTimestamp(),
-    });
   }
 
   Future<void> _toggleBlacklist(BuildContext context) async {
@@ -752,6 +756,7 @@ class _MemberActionButtons extends StatelessWidget {
 
       await FirebaseFirestore.instance.collection('action_logs').add({
         'type': 'member_blacklist_removed',
+        'shopId': shopId,
         'targetUserId': userId,
         'targetUserName': data['name'] ?? '',
         'targetUserEmail': data['email'] ?? '',
@@ -810,6 +815,7 @@ class _MemberActionButtons extends StatelessWidget {
 
     await FirebaseFirestore.instance.collection('action_logs').add({
       'type': 'member_blacklisted',
+      'shopId': shopId,
       'targetUserId': userId,
       'targetUserName': data['name'] ?? '',
       'targetUserEmail': data['email'] ?? '',
@@ -932,7 +938,7 @@ class _RestoreButton extends StatelessWidget {
                 .collection('user_profiles')
                 .doc(userId)
                 .update({
-                  'status': FieldValue.delete(),
+                  'status': 'active',
                   'restoredAt': FieldValue.serverTimestamp(),
                   'updatedAt': FieldValue.serverTimestamp(),
                 });

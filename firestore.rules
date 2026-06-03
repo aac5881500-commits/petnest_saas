@@ -3,139 +3,209 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
+    // 🔐 登入判斷
     function signedIn() {
       return request.auth != null;
     }
 
+    // 👑 平台最高權限
+    function isRootAdmin() {
+      return signedIn()
+        && request.auth.uid in [
+          'LTk2AdDOAIVGhlkt97fnbD5TXIf1',
+          '7FNrECQeqAca9Vu8lBBzTSdcJcg1'
+        ];
+    }
+
+    // 👤 是否本人
     function isSelf(uid) {
       return signedIn() && request.auth.uid == uid;
     }
 
+    // 🏪 是否店家成員
     function isShopMember(shopId) {
-  return signedIn()
-    && exists(/databases/$(database)/documents/shop_members/$(shopId + '_' + request.auth.uid));
-}
+      return signedIn()
+        && exists(/databases/$(database)/documents/shop_members/$(shopId + '_' + request.auth.uid));
+    }
+
+    // 🏪 是否店主
     function isShopOwner(shopId) {
-  return isShopMember(shopId)
-    && get(/databases/$(database)/documents/shop_members/$(shopId + '_' + request.auth.uid)).data.role == 'owner';
-}
+      return isShopMember(shopId)
+        && get(/databases/$(database)/documents/shop_members/$(shopId + '_' + request.auth.uid)).data.role == 'owner';
+    }
 
-   match /users/{uid} {
-  allow read: if signedIn();
-  allow create, update: if isSelf(uid);
-  allow delete: if false;
+    // 👤 會員帳號
+    match /users/{uid} {
+      allow read: if isSelf(uid) || isRootAdmin();
+      allow create, update: if isSelf(uid) || isRootAdmin();
+      allow delete: if false;
 
-  match /policy_acceptances/{shopId} {
-    allow read: if signedIn() && (isSelf(uid) || isShopMember(shopId));
-    allow create, update: if isSelf(uid);
-    allow delete: if false;
-  }
-}
-    match /user_profiles/{uid} {
-  allow read: if signedIn();
-  allow create, update: if isSelf(uid);
-  allow delete: if false;
-
-      match /pets/{petId} {
-        allow read, create, update, delete: if isSelf(uid);
+      // 📜 個人條款同意紀錄
+      match /policy_acceptances/{shopId} {
+        allow read: if signedIn() && (isSelf(uid) || isShopMember(shopId) || isRootAdmin());
+        allow create, update: if isSelf(uid) || isRootAdmin();
+        allow delete: if false;
       }
     }
 
-match /shop_members/{memberId} {
-  allow read: if signedIn();
-  allow create: if signedIn();
-  allow update, delete: if false;
-}
+    // 👤 會員資料（測試版暫時放寬）
+    match /user_profiles/{uid} {
+      allow read: if signedIn();
+      allow create: if signedIn();
+      allow update: if signedIn() || isRootAdmin();
+      allow delete: if false;
 
-match /shop_member_invites/{inviteId} {
-  allow read: if signedIn();
-  allow create: if signedIn();
-  allow update: if signedIn();
-  allow delete: if false;
-}
+      // 🐾 寵物資料（測試版暫時放寬）
+      match /pets/{petId} {
+        allow read: if signedIn();
+        allow create, update, delete: if signedIn() || isRootAdmin();
+      }
+    }
 
+    // 🏪 店家成員根集合
+    match /shop_members/{memberId} {
+      allow read: if signedIn();
+      allow create: if signedIn();
+      allow update, delete: if isRootAdmin();
+    }
+
+    // ✉️ 員工邀請
+    match /shop_member_invites/{inviteId} {
+      allow read: if signedIn();
+      allow create: if signedIn();
+      allow update: if signedIn() || isRootAdmin();
+      allow delete: if isRootAdmin();
+    }
+
+    // 🏪 店家資料
     match /shops/{shopId} {
       allow read: if true;
       allow create: if signedIn();
-      allow update: if isShopMember(shopId);
+      allow update: if isShopMember(shopId) || isRootAdmin();
       allow delete: if false;
 
+      // 🏪 店家子成員
       match /shop_members/{uid} {
-        allow read: if isShopMember(shopId);
-        allow create, update, delete: if isShopOwner(shopId);
+        allow read: if isShopMember(shopId) || isRootAdmin();
+        allow create, update, delete: if isShopOwner(shopId) || isRootAdmin();
       }
 
+      // 🛏 房型
       match /room_types/{roomTypeId} {
         allow read: if true;
-        allow create, update, delete: if isShopMember(shopId);
+        allow create, update, delete: if isShopMember(shopId) || isRootAdmin();
       }
 
+      // 🚪 房間
       match /rooms/{roomId} {
         allow read: if true;
-        allow create, update, delete: if isShopMember(shopId);
+        allow create, update, delete: if isShopMember(shopId) || isRootAdmin();
       }
 
+      // ➕ 加購
       match /addons/{addonId} {
         allow read: if true;
-        allow create, update, delete: if isShopMember(shopId);
+        allow create, update, delete: if isShopMember(shopId) || isRootAdmin();
       }
 
-match /policies/{policyId} {
-  allow read: if true;
-  allow create, update, delete: if isShopMember(shopId);
-}
+      // 📜 店家條款
+      match /policies/{policyId} {
+        allow read: if true;
+        allow create, update, delete: if isShopMember(shopId) || isRootAdmin();
+      }
 
-match /policy_versions/{versionId} {
-  allow read: if isShopMember(shopId);
-  allow create, update, delete: if isShopMember(shopId);
-}
+      // 📜 條款版本
+      match /policy_versions/{versionId} {
+        allow read: if isShopMember(shopId) || isRootAdmin();
+        allow create, update, delete: if isShopMember(shopId) || isRootAdmin();
+      }
 
+      // 📜 店家條款同意紀錄
       match /policy_acceptances/{acceptanceId} {
-        allow read: if isShopMember(shopId);
+        allow read: if isShopMember(shopId) || isRootAdmin();
         allow create: if signedIn();
         allow update, delete: if false;
       }
 
+      // 🧩 店家其他子集合（測試版保底）
       match /{subPath=**} {
         allow read: if true;
-        allow write: if isShopMember(shopId);
+        allow write: if isShopMember(shopId) || isRootAdmin();
       }
     }
 
-match /action_logs/{logId} {
-  allow read: if signedIn() && isShopMember(resource.data.shopId);
-  allow create: if signedIn() && isShopMember(request.resource.data.shopId);
-  allow update, delete: if false;
-}
+    // 📝 操作紀錄
+    match /action_logs/{logId} {
+      allow read: if signedIn() &&
+        (
+          isShopMember(resource.data.shopId) ||
+          isRootAdmin()
+        );
 
+      allow create: if signedIn() &&
+        (
+          isShopMember(request.resource.data.shopId) ||
+          isRootAdmin()
+        );
+
+      allow update, delete: if false;
+    }
+
+    // 🔢 訂單流水號
+    match /booking_counters/{shopId} {
+      allow read, create, update: if isShopMember(shopId) || isRootAdmin();
+      allow delete: if false;
+    }
+
+    // 📦 訂單
     match /bookings/{bookingId} {
       allow read: if signedIn() &&
         (
           resource.data.userId == request.auth.uid ||
-          isShopMember(resource.data.shopId)
+          isShopMember(resource.data.shopId) ||
+          isRootAdmin()
         );
 
-      allow create: if signedIn();
+      allow create: if signedIn() &&
+        (
+          request.resource.data.userId == request.auth.uid ||
+          isShopMember(request.resource.data.shopId) ||
+          isRootAdmin()
+        );
 
       allow update: if signedIn() &&
         (
           resource.data.userId == request.auth.uid ||
-          isShopMember(resource.data.shopId)
+          isShopMember(resource.data.shopId) ||
+          isRootAdmin()
         );
 
       allow delete: if false;
     }
 
-match /platform_policies/{policyId} {
-  allow read: if true;
-  allow create, update, delete: if false;
-}
+    // 📜 平台條款
+    match /platform_policies/{policyId} {
+      allow read: if true;
+      allow create, update, delete: if isRootAdmin();
+    }
 
-match /activation_codes/{codeId} {
-  allow read: if signedIn();
-  allow create, update, delete: if false;
-}
+    // 🎟 激活碼
+    match /activation_codes/{codeId} {
+      allow read: if signedIn();
+      allow create, update, delete: if isRootAdmin();
+    }
 
+    // 👑 平台管理員
+    match /platform_admins/{adminUid} {
+      allow read, write: if isRootAdmin();
+    }
+
+    // 📜 平台條款版本
+    match /platform_policy_versions/{versionId} {
+      allow read, write: if isRootAdmin();
+    }
+
+    // 🚫 其他全部拒絕
     match /{document=**} {
       allow read, write: if false;
     }
