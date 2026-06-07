@@ -41,11 +41,9 @@ class _BookingOrderCardState extends State<BookingOrderCard> {
 
     final roomName = (data['roomName'] ?? '-').toString();
 
-    final assignStatus =
-    (data['assignStatus'] ?? 'assigned').toString();
+    final assignStatus = (data['assignStatus'] ?? 'assigned').toString();
 
-final isUnassigned =
-    assignStatus == 'unassigned';
+    final isUnassigned = assignStatus == 'unassigned';
 
     final roomTypeName = (data['roomTypeName'] ?? '未設定房型').toString();
 
@@ -70,16 +68,13 @@ final isUnassigned =
     final depositPaid =
         data['depositPaid'] == true || data['depositStatus'] == 'confirmed';
 
-    final depositStatus =
-    (data['depositStatus'] ?? '').toString();
+    final depositStatus = (data['depositStatus'] ?? '').toString();
 
-    final isDepositReview =
-    depositStatus == 'pending_review';
+    final isDepositReview = depositStatus == 'pending_review';
 
     final paymentMethod = _paymentMethodText(data['paymentMethod']);
     final createdAtText = _formatDateTime(data['createdAt']);
-    final depositExpireText =
-    _formatDateTime(data['depositExpireAt']);
+    final depositExpireText = _formatDateTime(data['depositExpireAt']);
 
     return AnimatedContainer(
       duration: const Duration(milliseconds: 180),
@@ -112,9 +107,7 @@ final isUnassigned =
                   Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      _roomBox(
-  isUnassigned ? '待分' : roomName,
-),
+                      _roomBox(isUnassigned ? '待分' : roomName),
 
                       const SizedBox(width: 12),
 
@@ -178,101 +171,104 @@ final isUnassigned =
 
                             Row(
                               children: [
-                                Container(
-  padding: const EdgeInsets.symmetric(
-    horizontal: 10,
-    vertical: 5,
-  ),
-  decoration: BoxDecoration(
-    color: Colors.blueGrey.shade50,
-    borderRadius: BorderRadius.circular(12),
-  ),
-  child: Text(
-  data['bookingCode'] ??
-      '#${widget.bookingId.substring(0, 8)}',
-  style: TextStyle(
-    color: Colors.blueGrey.shade800,
-    fontSize: 14,
-    fontWeight: FontWeight.w900,
-    letterSpacing: 0.5,
-  ),
-),
-),
-if (data['source'] == 'admin') ...[
-  const SizedBox(width: 8),
+                                Expanded(
+                                  child: Wrap(
+                                    spacing: 8,
+                                    runSpacing: 8,
+                                    crossAxisAlignment:
+                                        WrapCrossAlignment.center,
+                                    children: [
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 10,
+                                          vertical: 5,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: Colors.blueGrey.shade50,
+                                          borderRadius: BorderRadius.circular(
+                                            12,
+                                          ),
+                                        ),
+                                        child: Text(
+                                          data['bookingCode'] ??
+                                              '#${widget.bookingId.substring(0, 8)}',
+                                          style: TextStyle(
+                                            color: Colors.blueGrey.shade800,
+                                            fontSize: 14,
+                                            fontWeight: FontWeight.w900,
+                                          ),
+                                        ),
+                                      ),
 
-  Container(
-    padding: const EdgeInsets.symmetric(
-      horizontal: 10,
-      vertical: 5,
-    ),
-    decoration: BoxDecoration(
-      color: Colors.blue.shade50,
-      borderRadius: BorderRadius.circular(12),
-      border: Border.all(
-        color: Colors.blue.shade200,
-      ),
-    ),
-    child: Text(
-      '手動新增',
-      style: TextStyle(
-        color: Colors.blue.shade800,
-        fontSize: 12,
-        fontWeight: FontWeight.w900,
-      ),
-    ),
-  ),
-],
-if (isDepositReview) ...[
-  const SizedBox(width: 8),
-  Container(
-    padding: const EdgeInsets.symmetric(
-      horizontal: 10,
-      vertical: 5,
-    ),
-    decoration: BoxDecoration(
-      color: Colors.red.shade50,
-      borderRadius: BorderRadius.circular(12),
-      border: Border.all(
-        color: Colors.red.shade200,
-      ),
-    ),
-    child: Text(
-      '已回傳付款',
-      style: TextStyle(
-        color: Colors.red.shade700,
-        fontSize: 12,
-        fontWeight: FontWeight.w900,
-      ),
-    ),
-  ),
-],
-if (isUnassigned) ...[
-  const SizedBox(width: 8),
+                                      if (data['source'] == 'admin')
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 10,
+                                            vertical: 5,
+                                          ),
+                                          decoration: BoxDecoration(
+                                            color: Colors.blue.shade50,
+                                            borderRadius: BorderRadius.circular(
+                                              12,
+                                            ),
+                                          ),
+                                          child: Text(
+                                            '手動新增',
+                                            style: TextStyle(
+                                              color: Colors.blue.shade800,
+                                              fontSize: 12,
+                                              fontWeight: FontWeight.w900,
+                                            ),
+                                          ),
+                                        ),
 
-  Container(
-    padding: const EdgeInsets.symmetric(
-      horizontal: 10,
-      vertical: 5,
-    ),
-    decoration: BoxDecoration(
-      color: Colors.orange.shade50,
-      borderRadius: BorderRadius.circular(12),
-      border: Border.all(
-        color: Colors.orange.shade200,
-      ),
-    ),
-    child: Text(
-      '待分房',
-      style: TextStyle(
-        color: Colors.orange.shade800,
-        fontSize: 12,
-        fontWeight: FontWeight.w900,
-      ),
-    ),
-  ),
-],
-                                const Spacer(),
+                                      if (isDepositReview)
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 10,
+                                            vertical: 5,
+                                          ),
+                                          decoration: BoxDecoration(
+                                            color: Colors.red.shade50,
+                                            borderRadius: BorderRadius.circular(
+                                              12,
+                                            ),
+                                          ),
+                                          child: Text(
+                                            '已回傳付款',
+                                            style: TextStyle(
+                                              color: Colors.red.shade700,
+                                              fontSize: 12,
+                                              fontWeight: FontWeight.w900,
+                                            ),
+                                          ),
+                                        ),
+
+                                      if (isUnassigned)
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 10,
+                                            vertical: 5,
+                                          ),
+                                          decoration: BoxDecoration(
+                                            color: Colors.orange.shade50,
+                                            borderRadius: BorderRadius.circular(
+                                              12,
+                                            ),
+                                          ),
+                                          child: Text(
+                                            '待分房',
+                                            style: TextStyle(
+                                              color: Colors.orange.shade800,
+                                              fontSize: 12,
+                                              fontWeight: FontWeight.w900,
+                                            ),
+                                          ),
+                                        ),
+                                    ],
+                                  ),
+                                ),
+
                                 Icon(
                                   _expanded
                                       ? Icons.keyboard_arrow_up
@@ -313,23 +309,23 @@ if (isUnassigned) ...[
                     const SizedBox(height: 4),
 
                     _compactExpandBox(
-  customerName: customerName,
-  customerPhone: customerPhone,
-  petNames: petNames,
-  paymentMethod: paymentMethod,
-  depositExpireText: depositExpireText,
-depositAmount: depositAmount,
-depositText: depositAmount <= 0
-      ? '無需訂金'
-      : depositPaid
-          ? '已確認'
-          : '尚未確認',
-  depositColor: depositAmount <= 0
-      ? Colors.grey
-      : depositPaid
-          ? Colors.green
-          : Colors.orange,
-),
+                      customerName: customerName,
+                      customerPhone: customerPhone,
+                      petNames: petNames,
+                      paymentMethod: paymentMethod,
+                      depositExpireText: depositExpireText,
+                      depositAmount: depositAmount,
+                      depositText: depositAmount <= 0
+                          ? '無需訂金'
+                          : depositPaid
+                          ? '已確認'
+                          : '尚未確認',
+                      depositColor: depositAmount <= 0
+                          ? Colors.grey
+                          : depositPaid
+                          ? Colors.green
+                          : Colors.orange,
+                    ),
 
                     Row(
                       children: [
@@ -349,13 +345,13 @@ depositText: depositAmount <= 0
                                 : '無需訂金',
                             color: depositAmount > 0
                                 ? depositPaid
-                                    ? Colors.green
-                                    : Colors.orange
+                                      ? Colors.green
+                                      : Colors.orange
                                 : Colors.grey,
                             subText: depositAmount > 0
                                 ? depositPaid
-                                    ? '已確認'
-                                    : '尚未確認'
+                                      ? '已確認'
+                                      : '尚未確認'
                                 : null,
                           ),
                         ),
@@ -394,44 +390,41 @@ depositText: depositAmount <= 0
   }
 
   Widget _roomBox(String roomName) {
-  return Container(
-    width: 68,
-    height: 68,
-    decoration: BoxDecoration(
-      gradient: LinearGradient(
-        colors: [
-          Colors.blueGrey.shade900,
-          Colors.blueGrey.shade700,
-        ],
-        begin: Alignment.topLeft,
-        end: Alignment.bottomRight,
-      ),
-      borderRadius: BorderRadius.circular(20),
-      boxShadow: [
-        BoxShadow(
-          color: Colors.black.withOpacity(0.12),
-          blurRadius: 10,
-          offset: const Offset(0, 4),
+    return Container(
+      width: 68,
+      height: 68,
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [Colors.blueGrey.shade900, Colors.blueGrey.shade700],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
         ),
-      ],
-    ),
-    child: Column(
-      mainAxisAlignment: MainAxisAlignment.center,      
-      children: [
-        Text(
-          roomName,
-          textAlign: TextAlign.center,
-          style: const TextStyle(
-            color: Colors.white,
-            fontSize: 26,
-            fontWeight: FontWeight.w900,
-            height: 1,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.12),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
           ),
-        ),
-      ],
-    ),
-  );
-}
+        ],
+      ),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Text(
+            roomName,
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 26,
+              fontWeight: FontWeight.w900,
+              height: 1,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 
   Widget _compactInfoRow({
     required String customerName,
@@ -449,19 +442,14 @@ depositText: depositAmount <= 0
                 customerName,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  fontWeight: FontWeight.bold,
-                ),
+                style: const TextStyle(fontWeight: FontWeight.bold),
               ),
             ),
             Icon(Icons.phone, size: 16, color: Colors.grey.shade600),
             const SizedBox(width: 4),
             Text(
               customerPhone,
-              style: TextStyle(
-                color: Colors.grey.shade700,
-                fontSize: 13,
-              ),
+              style: TextStyle(color: Colors.grey.shade700, fontSize: 13),
             ),
           ],
         ),
@@ -488,134 +476,129 @@ depositText: depositAmount <= 0
     );
   }
 
-Widget _compactExpandBox({
-  required String customerName,
-  required String customerPhone,
-  required String petNames,
-  required String paymentMethod,
-  required String depositText,
-  required String depositExpireText,
-required num depositAmount,
-required Color depositColor,
-}) {
-  return Container(
-  width: double.infinity,
-  margin: const EdgeInsets.only(bottom: 10),
-  padding: const EdgeInsets.all(12),
-  decoration: BoxDecoration(
-    color: Colors.grey.shade50,
-    borderRadius: BorderRadius.circular(14),
-    border: Border.all(color: Colors.grey.shade200),
-  ),
-  child: Column(
-    children: [
-
-      /// 第一排
-      Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Expanded(
-            child: _miniInfo(
-              icon: Icons.person,
-              label: '姓名',
-              value: customerName,
-            ),
-          ),
-
-          const SizedBox(width: 16),
-
-          Expanded(
-            child: _miniInfo(
-              icon: Icons.phone,
-              label: '電話',
-              value: customerPhone,
-            ),
-          ),
-        ],
+  Widget _compactExpandBox({
+    required String customerName,
+    required String customerPhone,
+    required String petNames,
+    required String paymentMethod,
+    required String depositText,
+    required String depositExpireText,
+    required num depositAmount,
+    required Color depositColor,
+  }) {
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.grey.shade50,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: Colors.grey.shade200),
       ),
-
-      const SizedBox(height: 14),
-
-      /// 第二排
-      Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Column(
         children: [
-          Expanded(
-            child: _miniInfo(
-              icon: Icons.pets,
-              label: '寵物',
-              value: petNames.isEmpty
-                  ? '無寵物資料'
-                  : petNames,
-            ),
+          /// 第一排
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: _miniInfo(
+                  icon: Icons.person,
+                  label: '姓名',
+                  value: customerName,
+                ),
+              ),
+
+              const SizedBox(width: 16),
+
+              Expanded(
+                child: _miniInfo(
+                  icon: Icons.phone,
+                  label: '電話',
+                  value: customerPhone,
+                ),
+              ),
+            ],
           ),
 
-          const SizedBox(width: 16),
+          const SizedBox(height: 14),
 
-          Expanded(
-            child: _miniInfo(
-              icon: Icons.credit_card,
-              label: '付款',
-              value: paymentMethod,
-            ),
+          /// 第二排
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: _miniInfo(
+                  icon: Icons.pets,
+                  label: '寵物',
+                  value: petNames.isEmpty ? '無寵物資料' : petNames,
+                ),
+              ),
+
+              const SizedBox(width: 16),
+
+              Expanded(
+                child: _miniInfo(
+                  icon: Icons.credit_card,
+                  label: '付款',
+                  value: paymentMethod,
+                ),
+              ),
+            ],
           ),
-        ],
-      ),
 
-      /// 第三排
-      if (depositAmount > 0 && depositExpireText != '-') ...[
-        const SizedBox(height: 14),
+          /// 第三排
+          if (depositAmount > 0 && depositExpireText != '-') ...[
+            const SizedBox(height: 14),
 
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Expanded(
-              child: _miniInfo(
-                icon: Icons.verified,
-                label: '訂金',
-                value: depositText,
-                valueColor: depositColor,
-              ),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: _miniInfo(
+                    icon: Icons.verified,
+                    label: '訂金',
+                    value: depositText,
+                    valueColor: depositColor,
+                  ),
+                ),
+
+                const SizedBox(width: 16),
+
+                Expanded(
+                  child: _miniInfo(
+                    icon: Icons.schedule,
+                    label: '訂金期限',
+                    value: depositExpireText,
+                    valueColor: Colors.red.shade700,
+                  ),
+                ),
+              ],
             ),
+          ] else ...[
+            const SizedBox(height: 14),
 
-            const SizedBox(width: 16),
+            Row(
+              children: [
+                Expanded(
+                  child: _miniInfo(
+                    icon: Icons.verified,
+                    label: '訂金',
+                    value: depositText,
+                    valueColor: depositColor,
+                  ),
+                ),
 
-            Expanded(
-              child: _miniInfo(
-                icon: Icons.schedule,
-                label: '訂金期限',
-                value: depositExpireText,
-                valueColor: Colors.red.shade700,
-              ),
+                const SizedBox(width: 16),
+
+                const Expanded(child: SizedBox()),
+              ],
             ),
           ],
-        ),
-      ] else ...[
-        const SizedBox(height: 14),
-
-        Row(
-          children: [
-            Expanded(
-              child: _miniInfo(
-                icon: Icons.verified,
-                label: '訂金',
-                value: depositText,
-                valueColor: depositColor,
-              ),
-            ),
-
-            const SizedBox(width: 16),
-
-            const Expanded(
-              child: SizedBox(),
-            ),
-          ],
-        ),
-      ],
-    ],
-  ),
-);
-}
+        ],
+      ),
+    );
+  }
 
   Widget _amountBox({
     required String title,
@@ -665,10 +648,7 @@ required Color depositColor,
 
   Widget _statusChip(_StatusInfo info) {
     return Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: 10,
-        vertical: 5,
-      ),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
       decoration: BoxDecoration(
         color: info.color.withOpacity(0.12),
         borderRadius: BorderRadius.circular(18),
@@ -743,6 +723,7 @@ required Color depositColor,
     }
   }
 }
+
 Widget _miniInfo({
   required IconData icon,
   required String label,
@@ -752,11 +733,7 @@ Widget _miniInfo({
   return Row(
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
-      Icon(
-        icon,
-        size: 16,
-        color: Colors.blue.shade600,
-      ),
+      Icon(icon, size: 16, color: Colors.blue.shade600),
       const SizedBox(width: 5),
       Expanded(
         child: Column(
@@ -787,6 +764,7 @@ Widget _miniInfo({
     ],
   );
 }
+
 class _StatusInfo {
   const _StatusInfo(this.text, this.color);
 

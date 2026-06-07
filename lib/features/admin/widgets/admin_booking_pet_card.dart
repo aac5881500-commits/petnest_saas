@@ -5,10 +5,7 @@
 import 'package:flutter/material.dart';
 
 class AdminBookingPetCard extends StatelessWidget {
-  const AdminBookingPetCard({
-    super.key,
-    required this.pet,
-  });
+  const AdminBookingPetCard({super.key, required this.pet});
 
   final Map<String, dynamic> pet;
 
@@ -24,10 +21,7 @@ class AdminBookingPetCard extends StatelessWidget {
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 8,
-          ),
+          BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 8),
         ],
       ),
       child: Column(
@@ -35,10 +29,9 @@ class AdminBookingPetCard extends StatelessWidget {
           CircleAvatar(
             radius: 26,
             backgroundColor: Colors.grey.shade200,
-            backgroundImage:
-                (pet['photoUrl'] != null && pet['photoUrl'] != '')
-                    ? NetworkImage(pet['photoUrl'])
-                    : null,
+            backgroundImage: (pet['photoUrl'] != null && pet['photoUrl'] != '')
+                ? NetworkImage(pet['photoUrl'])
+                : null,
             child: (pet['photoUrl'] == null || pet['photoUrl'] == '')
                 ? const Icon(Icons.pets)
                 : null,
@@ -54,10 +47,7 @@ class AdminBookingPetCard extends StatelessWidget {
           if ((pet['age'] ?? '').toString().isNotEmpty)
             Text(
               pet['age'],
-              style: const TextStyle(
-                fontSize: 11,
-                color: Colors.grey,
-              ),
+              style: const TextStyle(fontSize: 11, color: Colors.grey),
             ),
 
           Container(
@@ -84,10 +74,7 @@ class AdminBookingPetCard extends StatelessWidget {
                 Flexible(
                   child: Text(
                     medical,
-                    style: const TextStyle(
-                      color: Colors.red,
-                      fontSize: 11,
-                    ),
+                    style: const TextStyle(color: Colors.red, fontSize: 11),
                     overflow: TextOverflow.ellipsis,
                   ),
                 ),
@@ -102,10 +89,7 @@ class AdminBookingPetCard extends StatelessWidget {
                 Flexible(
                   child: Text(
                     '客戶：${pet['note']}',
-                    style: const TextStyle(
-                      fontSize: 11,
-                      color: Colors.black87,
-                    ),
+                    style: const TextStyle(fontSize: 11, color: Colors.black87),
                     overflow: TextOverflow.ellipsis,
                   ),
                 ),
@@ -120,20 +104,19 @@ class AdminBookingPetCard extends StatelessWidget {
                 Flexible(
                   child: Text(
                     '員工：$staffNote',
-                    style: const TextStyle(
-                      color: Colors.red,
-                      fontSize: 11,
-                    ),
+                    style: const TextStyle(color: Colors.red, fontSize: 11),
                     overflow: TextOverflow.ellipsis,
                   ),
                 ),
               ],
             ),
 
-          const Spacer(),
+          const SizedBox(height: 6),
 
           Text(
             isNeutered ? '已結紮' : '未結紮',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
             style: TextStyle(
               fontSize: 11,
               color: isNeutered ? Colors.green : Colors.grey,

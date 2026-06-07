@@ -3,13 +3,17 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:petnest_saas/features/auth/pages/home_page.dart';
 import 'package:petnest_saas/features/auth/pages/login_page.dart';
 import 'package:petnest_saas/firebase_options.dart';
 import 'package:petnest_saas/features/member/pages/member_page.dart';
+import 'package:petnest_saas/features/shop/pages/shop_code_redirect_page.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  await SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
 
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
 
@@ -31,6 +35,20 @@ class PetNestApp extends StatelessWidget {
         '/member': (context) => const MemberPage(),
         '/login': (context) => const LoginPage(),
         '/home': (context) => const HomePage(),
+      },
+
+      onGenerateRoute: (settings) {
+        final uri = Uri.parse(settings.name ?? '');
+
+        if (uri.pathSegments.length == 2 && uri.pathSegments.first == 's') {
+          final shopCode = uri.pathSegments[1];
+
+          return MaterialPageRoute(
+            builder: (_) => ShopCodeRedirectPage(shopCode: shopCode),
+          );
+        }
+
+        return null;
       },
 
       home: const SplashPage(),

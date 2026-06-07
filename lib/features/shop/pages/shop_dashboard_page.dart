@@ -32,6 +32,7 @@ import 'package:petnest_saas/features/shop/pages/shop_addon_page.dart';
 import 'package:petnest_saas/features/shop/pages/shop_payment_setting_page.dart';
 import 'package:petnest_saas/features/shop/pages/shop_environment_manage_page.dart';
 import 'package:petnest_saas/features/shop/pages/shop_about_manage_page.dart';
+import 'package:petnest_saas/features/shop/pages/shop_announcement_manage_page.dart';
 import 'package:petnest_saas/core/constants/shop_permission_keys.dart';
 
 class ShopDashboardPage extends StatefulWidget {
@@ -136,7 +137,8 @@ class _ShopDashboardPageState extends State<ShopDashboardPage> {
         _can(ShopPermissionKeys.viewReports) ||
         _can(ShopPermissionKeys.viewActionLogs);
 
-    if (enabledModules.contains(ShopModules.basicInfo) && canSeeBasicInfo) {
+    if (enabledModules.contains(ShopModules.basicInfo) &&
+        (canSeeBasicInfo || _currentUserRole == ShopRoles.staff)) {
       result.add(ShopModules.basicInfo);
     }
 
@@ -203,7 +205,7 @@ class _ShopDashboardPageState extends State<ShopDashboardPage> {
       return const Scaffold(body: Center(child: Text('查無店家權限')));
     }
 
-    if (!_hasAnyDashboardPermission) {
+    if (!_hasAnyDashboardPermission && _currentUserRole != ShopRoles.staff) {
       return Scaffold(
         appBar: AppBar(
           backgroundColor: Colors.white,
@@ -436,6 +438,20 @@ class _BasicInfoTab extends StatelessWidget {
               );
             },
           ),
+
+        _MenuTile(
+          title: '公告管理',
+          subtitle: '新增、編輯、上下架店家公告',
+          icon: Icons.campaign,
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => ShopAnnouncementManagePage(shopId: shopId),
+              ),
+            );
+          },
+        ),
 
         _MenuTile(
           title: '前台預覽',

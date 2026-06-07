@@ -130,27 +130,32 @@ class _BookingDetailPageState extends State<BookingDetailPage> {
             title: const Text('訂單詳細'),
             actions: [
               if (bookingStatus == 'pending' || bookingStatus == 'unpaid')
-                TextButton.icon(
-                  onPressed: () async {
-                    final cancelReason = await _showCancelReasonDialog(context);
-
-                    if (cancelReason == null) return;
-
-                    await BookingService.instance.cancelBooking(
-                      bookingId: widget.docId,
-                      cancelReason: cancelReason,
-                      cancelBy: 'customer',
-                    );
-                    if (context.mounted) {
-                      ScaffoldMessenger.of(
+                Padding(
+                  padding: const EdgeInsets.only(left: 12),
+                  child: TextButton.icon(
+                    onPressed: () async {
+                      final cancelReason = await _showCancelReasonDialog(
                         context,
-                      ).showSnackBar(const SnackBar(content: Text('訂單已取消')));
-                    }
-                  },
-                  icon: const Icon(Icons.close, color: Colors.red, size: 18),
-                  label: const Text(
-                    '取消訂單',
-                    style: TextStyle(color: Colors.red),
+                      );
+
+                      if (cancelReason == null) return;
+
+                      await BookingService.instance.cancelBooking(
+                        bookingId: widget.docId,
+                        cancelReason: cancelReason,
+                        cancelBy: 'customer',
+                      );
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(
+                          context,
+                        ).showSnackBar(const SnackBar(content: Text('訂單已取消')));
+                      }
+                    },
+                    icon: const Icon(Icons.close, color: Colors.red, size: 18),
+                    label: const Text(
+                      '取消',
+                      style: TextStyle(color: Colors.red, fontSize: 14),
+                    ),
                   ),
                 ),
               Padding(

@@ -157,7 +157,7 @@ class AdminBookingDetailPage extends StatelessWidget {
                     crossAxisCount: 3,
                     crossAxisSpacing: 12,
                     mainAxisSpacing: 12,
-                    childAspectRatio: 0.65, // 🔥 原本0.8 → 改這個
+                    childAspectRatio: 0.52,
                   ),
                   itemBuilder: (context, index) {
                     final pet = pets[index];

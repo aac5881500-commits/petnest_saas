@@ -6,10 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/services/shop_home_stats_service.dart';
 
 class MyShopStatRow extends StatelessWidget {
-  const MyShopStatRow({
-    super.key,
-    required this.shopId,
-  });
+  const MyShopStatRow({super.key, required this.shopId});
 
   final String shopId;
 
@@ -18,11 +15,9 @@ class MyShopStatRow extends StatelessWidget {
     return FutureBuilder<Map<String, int>>(
       future: ShopHomeStatsService.instance.getShopHomeStats(shopId),
       builder: (context, statsSnapshot) {
-        final stats = statsSnapshot.data ?? {
-          'pendingOrders': 0,
-          'transferUploadedOrders': 0,
-          'memberCount': 0,
-        };
+        final stats =
+            statsSnapshot.data ??
+            {'pendingOrders': 0, 'transferUploadedOrders': 0, 'memberCount': 0};
 
         return Row(
           children: [
@@ -33,7 +28,7 @@ class MyShopStatRow extends StatelessWidget {
                 value: '${stats['pendingOrders'] ?? 0}',
               ),
             ),
-            const SizedBox(width: 10),
+            const SizedBox(width: 6),
             Expanded(
               child: _StatCard(
                 icon: Icons.upload_file,
@@ -41,7 +36,7 @@ class MyShopStatRow extends StatelessWidget {
                 value: '${stats['transferUploadedOrders'] ?? 0}',
               ),
             ),
-            const SizedBox(width: 10),
+            const SizedBox(width: 6),
             Expanded(
               child: _StatCard(
                 icon: Icons.people,
@@ -70,39 +65,24 @@ class _StatCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: 12,
-        vertical: 14,
-      ),
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
       decoration: BoxDecoration(
         color: Colors.grey.shade50,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: Colors.grey.shade200,
-        ),
+        border: Border.all(color: Colors.grey.shade200),
       ),
       child: Column(
         children: [
-          Icon(
-            icon,
-            color: Colors.orange.shade400,
-            size: 22,
-          ),
-          const SizedBox(height: 8),
-          Text(
-            title,
-            style: TextStyle(
-              fontSize: 12,
-              color: Colors.grey.shade700,
-            ),
-          ),
+          Icon(icon, color: Colors.orange.shade400, size: 16),
           const SizedBox(height: 4),
           Text(
+            title,
+            style: TextStyle(fontSize: 10, color: Colors.grey.shade700),
+          ),
+          const SizedBox(height: 2),
+          Text(
             value,
-            style: const TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
-            ),
+            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
           ),
         ],
       ),

@@ -11,18 +11,13 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:petnest_saas/core/services/auth_service.dart';
 import 'package:petnest_saas/core/services/platform_policy_service.dart';
-import 'package:petnest_saas/core/services/shop_service.dart';
 import 'package:petnest_saas/features/platform/pages/platform_user_policy_page.dart';
 import 'package:petnest_saas/features/shop/pages/shop_public_page.dart';
-import 'package:petnest_saas/core/services/platform_policy_manage_service.dart';
-import 'package:petnest_saas/features/platform/pages/platform_shop_owner_policy_page.dart';
 import 'register_page.dart';
+import 'package:petnest_saas/features/shop/pages/shop_qr_scan_page.dart';
 
 class LoginPage extends StatefulWidget {
-  const LoginPage({
-    super.key,
-    this.redirectShopId,
-  });
+  const LoginPage({super.key, this.redirectShopId});
 
   final String? redirectShopId;
 
@@ -57,8 +52,8 @@ class _LoginPageState extends State<LoginPage> {
   }
 
   Future<void> _goNextAfterLogin() async {
-    final accepted =
-        await PlatformPolicyService.instance.hasAcceptedCurrentUserPolicy();
+    final accepted = await PlatformPolicyService.instance
+        .hasAcceptedCurrentUserPolicy();
 
     if (!mounted) return;
 
@@ -86,18 +81,12 @@ class _LoginPageState extends State<LoginPage> {
       Navigator.pushAndRemoveUntil(
         context,
         MaterialPageRoute(
-          builder: (_) => ShopPublicPage(
-            shopId: widget.redirectShopId!,
-          ),
+          builder: (_) => ShopPublicPage(shopId: widget.redirectShopId!),
         ),
         (route) => false,
       );
     } else {
-      Navigator.pushNamedAndRemoveUntil(
-        context,
-        '/home',
-        (route) => false,
-      );
+      Navigator.pushNamedAndRemoveUntil(context, '/home', (route) => false);
     }
   }
 
@@ -116,10 +105,7 @@ class _LoginPageState extends State<LoginPage> {
       final prefs = await SharedPreferences.getInstance();
 
       if (_rememberEmail) {
-        await prefs.setString(
-          'saved_email',
-          _emailController.text.trim(),
-        );
+        await prefs.setString('saved_email', _emailController.text.trim());
       } else {
         await prefs.remove('saved_email');
       }
@@ -140,38 +126,6 @@ class _LoginPageState extends State<LoginPage> {
     }
   }
 
-  Future<void> _createShop() async {
-    try {
-      final policy = await PlatformPolicyManageService.instance.getPolicy(
-  PlatformShopOwnerPolicyPage.policyKey,
-);
-
-final currentPolicyVersion =
-    policy?['version'] is int ? policy!['version'] : 1;
-
-final shopId = await ShopService.instance.createShop(
-  name: '我的第一間店',
-  city: '新竹縣',
-  district: '新埔鎮',
-  businessType: 'cat_hotel',
-  acceptedShopOwnerPolicyVersion: currentPolicyVersion,
-  activationCode: 'TEST',
-);
-
-      if (!mounted) return;
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('店家建立成功：$shopId')),
-      );
-    } catch (e) {
-      if (!mounted) return;
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('建立失敗：$e')),
-      );
-    }
-  }
-
   Future<void> _googleLogin() async {
     try {
       setState(() {
@@ -189,9 +143,9 @@ final shopId = await ShopService.instance.createShop(
     } catch (e) {
       if (!mounted) return;
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Google登入失敗: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Google登入失敗: $e')));
     } finally {
       if (mounted) {
         setState(() {
@@ -252,10 +206,7 @@ final shopId = await ShopService.instance.createShop(
                 ),
 
                 if (_error != null)
-                  Text(
-                    _error!,
-                    style: const TextStyle(color: Colors.red),
-                  ),
+                  Text(_error!, style: const TextStyle(color: Colors.red)),
 
                 const SizedBox(height: 12),
 
@@ -280,16 +231,6 @@ final shopId = await ShopService.instance.createShop(
 
                 const SizedBox(height: 12),
 
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    onPressed: _loading ? null : _createShop,
-                    child: const Text('建立店家'),
-                  ),
-                ),
-
-                const SizedBox(height: 12),
-
                 TextButton(
                   onPressed: _loading
                       ? null
@@ -302,6 +243,25 @@ final shopId = await ShopService.instance.createShop(
                           );
                         },
                   child: const Text('還沒有帳號？前往註冊'),
+                ),
+                const SizedBox(height: 12),
+
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    icon: const Icon(Icons.qr_code_scanner),
+                    label: const Text('掃描店家 QRCode'),
+                    onPressed: _loading
+                        ? null
+                        : () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => const ShopQrScanPage(),
+                              ),
+                            );
+                          },
+                  ),
                 ),
               ],
             ),

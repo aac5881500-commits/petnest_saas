@@ -48,34 +48,74 @@ service cloud.firestore {
       }
     }
 
-    // 👤 會員資料（測試版暫時放寬）
+    // 👤 會員資料
     match /user_profiles/{uid} {
       allow read: if signedIn();
-      allow create: if signedIn();
-      allow update: if signedIn() || isRootAdmin();
+      allow create: if isSelf(uid) || isRootAdmin();
+      allow update: if isSelf(uid) || isRootAdmin();
       allow delete: if false;
 
-      // 🐾 寵物資料（測試版暫時放寬）
-      match /pets/{petId} {
-        allow read: if signedIn();
-        allow create, update, delete: if signedIn() || isRootAdmin();
-      }
+      // 🐾 寵物資料
+match /pets/{petId} {
+  allow read: if signedIn();
+
+  allow create, update, delete: if isSelf(uid) || isRootAdmin();
+}
     }
 
     // 🏪 店家成員根集合
-    match /shop_members/{memberId} {
-      allow read: if signedIn();
-      allow create: if signedIn();
-      allow update, delete: if isRootAdmin();
-    }
+match /shop_members/{memberId} {
+  allow read: if signedIn();
+
+  // 建立店家成員：
+  // 1. 平台最高權限可建立
+  // 2. 店主可建立自己店家的成員
+  // 3. 受邀員工只能建立「自己的」成員資料
+  allow create: if signedIn() &&
+    (
+      isRootAdmin() ||
+
+      (
+        request.resource.data.shopId is string &&
+        isShopOwner(request.resource.data.shopId)
+      ) ||
+
+      (
+        request.resource.data.shopId is string &&
+        request.resource.data.uid == request.auth.uid &&
+        exists(/databases/$(database)/documents/shop_member_invites/$(request.resource.data.shopId + '_' + request.auth.uid))
+      )
+    );
+
+  allow update, delete: if isRootAdmin() ||
+    (
+      resource.data.shopId is string &&
+      isShopOwner(resource.data.shopId)
+    );
+}
 
     // ✉️ 員工邀請
-    match /shop_member_invites/{inviteId} {
-      allow read: if signedIn();
-      allow create: if signedIn();
-      allow update: if signedIn() || isRootAdmin();
-      allow delete: if isRootAdmin();
-    }
+match /shop_member_invites/{inviteId} {
+  allow read: if signedIn();
+
+  allow create: if signedIn() &&
+    (
+      isRootAdmin() ||
+      (
+        request.resource.data.shopId is string &&
+        isShopOwner(request.resource.data.shopId)
+      )
+    );
+
+  allow update, delete: if signedIn() &&
+    (
+      isRootAdmin() ||
+      (
+        resource.data.shopId is string &&
+        isShopOwner(resource.data.shopId)
+      )
+    );
+}
 
     // 🏪 店家資料
     match /shops/{shopId} {
@@ -150,6 +190,29 @@ service cloud.firestore {
 
       allow update, delete: if false;
     }
+
+    // 🔗 會員綁定 / 合併申請
+match /member_link_requests/{requestId} {
+  allow read: if signedIn() &&
+    (
+      isShopMember(resource.data.shopId) ||
+      isRootAdmin()
+    );
+
+  allow create: if signedIn() &&
+    (
+      isShopMember(request.resource.data.shopId) ||
+      isRootAdmin()
+    );
+
+  allow update: if signedIn() &&
+    (
+      isShopMember(resource.data.shopId) ||
+      isRootAdmin()
+    );
+
+  allow delete: if false;
+}
 
     // 🔢 訂單流水號
     match /booking_counters/{shopId} {

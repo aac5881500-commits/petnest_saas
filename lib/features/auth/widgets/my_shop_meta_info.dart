@@ -92,14 +92,12 @@ class MyShopMetaInfo extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      margin: const EdgeInsets.only(top: 14),
-      padding: const EdgeInsets.all(14),
+      margin: const EdgeInsets.only(top: 8),
+      padding: const EdgeInsets.all(8),
       decoration: BoxDecoration(
         color: Colors.grey.shade50,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: Colors.grey.shade200,
-        ),
+        border: Border.all(color: Colors.grey.shade200),
       ),
       child: Column(
         children: [
@@ -118,14 +116,15 @@ class MyShopMetaInfo extends StatelessWidget {
                   icon: Icons.visibility,
                   label: '公開狀態',
                   value: isPublic ? '公開中' : '未公開',
-                  valueColor:
-                      isPublic ? Colors.green.shade700 : Colors.grey.shade700,
+                  valueColor: isPublic
+                      ? Colors.green.shade700
+                      : Colors.grey.shade700,
                 ),
               ),
             ],
           ),
 
-          const SizedBox(height: 10),
+          const SizedBox(height: 6),
 
           Row(
             children: [
@@ -147,7 +146,7 @@ class MyShopMetaInfo extends StatelessWidget {
             ],
           ),
 
-          const SizedBox(height: 10),
+          const SizedBox(width: 6),
 
           Row(
             children: [
@@ -190,48 +189,37 @@ class _MetaBox extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-  constraints: const BoxConstraints(
-    minHeight: 74,
-  ),
-  padding: const EdgeInsets.all(10),
+      constraints: const BoxConstraints(minHeight: 56),
+      padding: const EdgeInsets.all(6),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: Colors.grey.shade200,
-        ),
+        border: Border.all(color: Colors.grey.shade200),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              Icon(
-                icon,
-                size: 16,
-                color: Colors.grey.shade600,
-              ),
+              Icon(icon, size: 16, color: Colors.grey.shade600),
               const SizedBox(width: 5),
               Expanded(
                 child: Text(
                   label,
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: Colors.grey.shade600,
-                  ),
+                  style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
                 ),
               ),
             ],
           ),
 
-          const SizedBox(height: 8),
+          const SizedBox(height: 4),
 
           Text(
             value,
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
             style: TextStyle(
-              fontSize: 13,
+              fontSize: 12,
               fontWeight: FontWeight.w800,
               color: valueColor ?? Colors.grey.shade900,
             ),

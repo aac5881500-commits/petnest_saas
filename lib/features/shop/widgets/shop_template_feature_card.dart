@@ -11,7 +11,7 @@ class ShopTemplateFeatureCard extends StatelessWidget {
     required this.title,
     required this.subtitle,
     required this.onTap,
-  }); 
+  });
 
   final IconData icon;
   final String title;
@@ -23,7 +23,7 @@ class ShopTemplateFeatureCard extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.all(14),
+        padding: const EdgeInsets.all(10),
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(18),
@@ -38,12 +38,8 @@ class ShopTemplateFeatureCard extends StatelessWidget {
         ),
         child: Row(
           children: [
-            Icon(
-              icon,
-              size: 30,
-              color: const Color(0xFFB86B18),
-            ),
-            const SizedBox(width: 12),
+            Icon(icon, size: 24, color: const Color(0xFFB86B18)),
+            const SizedBox(width: 8),
             Expanded(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
@@ -52,12 +48,12 @@ class ShopTemplateFeatureCard extends StatelessWidget {
                   Text(
                     title,
                     style: const TextStyle(
-                      fontSize: 16,
+                      fontSize: 15,
                       fontWeight: FontWeight.w800,
                       color: Color(0xFF3A2A1A),
                     ),
                   ),
-                  const SizedBox(height: 4),
+                  const SizedBox(height: 2),
                   Text(
                     subtitle,
                     style: const TextStyle(

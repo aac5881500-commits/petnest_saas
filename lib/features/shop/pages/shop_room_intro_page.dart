@@ -87,8 +87,7 @@ class ShopRoomIntroPage extends StatelessWidget {
                 );
               }
 
-              final crossAxisCount = roomTypes.length == 1 ? 1 : 2;
-
+              const crossAxisCount = 1;
               return GridView.builder(
                 shrinkWrap: true,
                 physics: const NeverScrollableScrollPhysics(),
@@ -97,7 +96,7 @@ class ShopRoomIntroPage extends StatelessWidget {
                   crossAxisCount: crossAxisCount,
                   mainAxisSpacing: 14,
                   crossAxisSpacing: 14,
-                  childAspectRatio: crossAxisCount == 1 ? 1.45 : 0.78,
+                  childAspectRatio: crossAxisCount == 1 ? 0.95 : 0.62,
                 ),
                 itemBuilder: (context, index) {
                   final roomType = roomTypes[index];
@@ -135,7 +134,7 @@ class _RoomIntroGridCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final imageHeight = isFullWidth ? 170.0 : 115.0;
+    final imageHeight = isFullWidth ? 160.0 : 100.0;
     return GestureDetector(
       onTap: onTap,
       child: Container(
@@ -189,7 +188,7 @@ class _RoomIntroGridCard extends StatelessWidget {
                         color: const Color(0xFF3A2A1A),
                       ),
                     ),
-                    const SizedBox(height: 5),
+                    const SizedBox(height: 3),
                     Text(
                       'NT\$ ${roomType['price'] ?? 0} / 晚',
                       maxLines: 1,
@@ -200,7 +199,7 @@ class _RoomIntroGridCard extends StatelessWidget {
                         fontWeight: FontWeight.w800,
                       ),
                     ),
-                    const SizedBox(height: 4),
+                    const SizedBox(height: 2),
                     Text(
                       '可住 ${roomType['capacity'] ?? 0} 隻',
                       style: const TextStyle(
@@ -208,7 +207,7 @@ class _RoomIntroGridCard extends StatelessWidget {
                         color: Color(0xFF8A6A45),
                       ),
                     ),
-                    const Spacer(),
+                    const SizedBox(height: 14),
                     Container(
                       padding: const EdgeInsets.symmetric(
                         horizontal: 10,

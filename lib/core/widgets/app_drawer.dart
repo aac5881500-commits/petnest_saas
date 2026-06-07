@@ -13,11 +13,17 @@ import 'package:petnest_saas/features/booking/pages/my_bookings_page.dart';
 import 'package:petnest_saas/features/auth/pages/login_page.dart';
 import 'package:petnest_saas/core/constants/shop_permission_keys.dart';
 import 'package:petnest_saas/features/booking/pages/booking_detail_page.dart';
+import 'package:petnest_saas/features/platform/pages/platform_shop_manage_page.dart';
 
 class AppDrawer extends StatelessWidget {
-  const AppDrawer({super.key, required this.shopId});
+  const AppDrawer({
+    super.key,
+    required this.shopId,
+    this.platformPreview = false,
+  });
 
   final String shopId;
+  final bool platformPreview;
 
   Color get _orange => const Color(0xFFFF8A3D);
   Color get _brown => const Color(0xFF4A2C18);
@@ -38,6 +44,26 @@ class AppDrawer extends StatelessWidget {
                 padding: const EdgeInsets.symmetric(horizontal: 20),
                 children: [
                   const SizedBox(height: 16),
+
+                  if (platformPreview) ...[
+                    _sectionTitle('平台巡檢'),
+                    _menuItem(
+                      icon: Icons.admin_panel_settings,
+                      title: '返回平台店家管理',
+                      iconColor: Colors.blue,
+                      textColor: Colors.blue,
+                      onTap: () {
+                        Navigator.pushAndRemoveUntil(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const PlatformShopManagePage(),
+                          ),
+                          (route) => false,
+                        );
+                      },
+                    ),
+                    _divider(),
+                  ],
 
                   _sectionTitle('會員區'),
                   _menuItem(
@@ -76,25 +102,56 @@ class AppDrawer extends StatelessWidget {
 
                   _divider(),
 
-                  _sectionTitle('店家功能'),
-                  _menuItem(
-                    icon: Icons.calendar_month,
-                    title: '我要預約',
-                    onTap: () => _goBooking(context),
-                  ),
-                  _menuItem(
-                    icon: Icons.bed,
-                    title: '房間介紹',
-                    onTap: () {
-                      Navigator.pop(context);
-                    },
-                  ),
-                  _menuItem(
-                    icon: Icons.description,
-                    title: '入住須知',
-                    onTap: () {
-                      Navigator.pop(context);
-                    },
+                  ExpansionTile(
+                    initiallyExpanded: true,
+                    tilePadding: EdgeInsets.zero,
+                    childrenPadding: EdgeInsets.zero,
+                    leading: Icon(Icons.pets, color: _orange, size: 18),
+                    title: Text(
+                      '店家功能',
+                      style: TextStyle(
+                        color: _brown,
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    children: [
+                      _menuItem(
+                        icon: Icons.calendar_month,
+                        title: '我要預約',
+                        onTap: () => _goBooking(context),
+                      ),
+                      _menuItem(
+                        icon: Icons.bed,
+                        title: '房間介紹',
+                        onTap: () {
+                          Navigator.pop(context);
+                        },
+                      ),
+                      _menuItem(
+                        icon: Icons.description,
+                        title: '入住須知',
+                        onTap: () {
+                          Navigator.pop(context);
+                        },
+                      ),
+
+                      // 🔒 預留：之後再接功能
+                      _menuItem(
+                        icon: Icons.campaign_outlined,
+                        title: '最新公告（預留）',
+                        onTap: () {
+                          Navigator.pop(context);
+                        },
+                      ),
+                      _menuItem(
+                        icon: Icons.help_outline,
+                        title: '常見問題（預留）',
+                        onTap: () {
+                          Navigator.pop(context);
+                        },
+                      ),
+                    ],
                   ),
 
                   _divider(),
@@ -120,7 +177,7 @@ class AppDrawer extends StatelessWidget {
                           }
                         }
 
-                        if (!hasAnyPermission) {
+                        if (memberData == null) {
                           return const SizedBox();
                         }
 

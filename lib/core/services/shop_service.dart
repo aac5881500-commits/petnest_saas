@@ -363,6 +363,17 @@ class ShopService {
     return ShopProfileService.instance.getShop(shopId);
   }
 
+  /// 依 shopCode 取得店家
+  Future<Map<String, dynamic>?> getShopByCode(String shopCode) async {
+    final snapshot = await _shops.doc(shopCode).get();
+
+    if (!snapshot.exists) {
+      return null;
+    }
+
+    return snapshot.data();
+  }
+
   /// 監聽單一店家
   Stream<Map<String, dynamic>?> streamShop(String shopId) {
     return ShopProfileService.instance.streamShop(shopId);

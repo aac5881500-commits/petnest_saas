@@ -12,12 +12,19 @@ import 'package:petnest_saas/features/shop/widgets/shop_template_feature_card.da
 import 'package:petnest_saas/features/shop/pages/shop_room_intro_page.dart';
 import 'package:petnest_saas/features/shop/pages/shop_environment_page.dart';
 import 'package:petnest_saas/features/shop/pages/shop_about_page.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
+import 'package:petnest_saas/features/shop/pages/shop_announcement_page.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class ShopPublicPage extends StatefulWidget {
-  const ShopPublicPage({super.key, required this.shopId});
+  const ShopPublicPage({
+    super.key,
+    required this.shopId,
+    this.platformPreview = false,
+  });
 
   final String shopId;
-
+  final bool platformPreview;
   @override
   State<ShopPublicPage> createState() => _ShopPublicPageState();
 }
@@ -25,6 +32,8 @@ class ShopPublicPage extends StatefulWidget {
 class _ShopPublicPageState extends State<ShopPublicPage> {
   late final PageController _pageController;
   int _currentIndex = 0;
+
+  bool _showShopInfo = false;
 
   @override
   void initState() {
@@ -124,20 +133,31 @@ class _ShopPublicPageState extends State<ShopPublicPage> {
         /// 🔥 正確：只保留一個 Scaffold
         return Scaffold(
           backgroundColor: const Color(0xFFFFFCF7),
-          drawer: AppDrawer(shopId: widget.shopId),
+          drawer: AppDrawer(
+            shopId: widget.shopId,
+            platformPreview: widget.platformPreview,
+          ),
 
           appBar: AppBar(
             backgroundColor: const Color(0xFFFFFCF7),
             elevation: 0,
             surfaceTintColor: Colors.transparent,
-            leading: Builder(
-              builder: (context) => IconButton(
-                icon: const Icon(Icons.menu),
-                onPressed: () {
-                  Scaffold.of(context).openDrawer();
-                },
-              ),
-            ),
+            leading: widget.platformPreview
+                ? IconButton(
+                    icon: const Icon(Icons.arrow_back),
+                    tooltip: '返回店家管理',
+                    onPressed: () {
+                      Navigator.pop(context);
+                    },
+                  )
+                : Builder(
+                    builder: (context) => IconButton(
+                      icon: const Icon(Icons.menu),
+                      onPressed: () {
+                        Scaffold.of(context).openDrawer();
+                      },
+                    ),
+                  ),
             title: Column(
               children: [
                 Text(
@@ -172,7 +192,7 @@ class _ShopPublicPageState extends State<ShopPublicPage> {
                     /// 🔥 Banner（Stack版本，100%正常）
                     if (banners.isNotEmpty)
                       SizedBox(
-                        height: 260,
+                        height: 160,
                         child: Stack(
                           children: [
                             /// 圖片滑動
@@ -281,20 +301,33 @@ class _ShopPublicPageState extends State<ShopPublicPage> {
                       },
                     ),
 
-                    const SizedBox(height: 22),
+                    const SizedBox(height: 14),
+
+                    _buildNoticePreviewCard(
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) =>
+                                ShopAnnouncementPage(shopId: widget.shopId),
+                          ),
+                        );
+                      },
+                    ),
+
+                    const SizedBox(height: 18),
 
                     ShopSectionTitle(icon: Icons.pets, title: '住宿服務'),
 
                     const SizedBox(height: 12),
 
-                    /// 貓咪旅館功能
                     GridView.count(
                       crossAxisCount: 2,
                       shrinkWrap: true,
                       physics: const NeverScrollableScrollPhysics(),
                       mainAxisSpacing: 12,
                       crossAxisSpacing: 12,
-                      childAspectRatio: 2.0,
+                      childAspectRatio: 2.15,
                       children: [
                         ShopTemplateFeatureCard(
                           icon: Icons.home,
@@ -325,6 +358,7 @@ class _ShopPublicPageState extends State<ShopPublicPage> {
                             );
                           },
                         ),
+
                         ShopTemplateFeatureCard(
                           icon: Icons.info,
                           title: '入住須知',
@@ -341,26 +375,22 @@ class _ShopPublicPageState extends State<ShopPublicPage> {
                             );
                           },
                         ),
-                      ],
-                    ),
 
-                    const SizedBox(height: 24),
+                        ShopTemplateFeatureCard(
+                          icon: Icons.videocam,
+                          title: '觀看攝影機',
+                          subtitle: '即時查看毛孩狀況',
+                          onTap: () {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text('攝影機功能尚未開放')),
+                            );
+                          },
+                        ),
 
-                    ShopSectionTitle(icon: Icons.storefront, title: '了解我們'),
-
-                    const SizedBox(height: 12),
-
-                    GridView.count(
-                      crossAxisCount: 2,
-                      shrinkWrap: true,
-                      physics: const NeverScrollableScrollPhysics(),
-                      mainAxisSpacing: 12,
-                      crossAxisSpacing: 12,
-                      childAspectRatio: 2.0,
-                      children: [
-                        _buildMenuButton(
-                          icon: Icons.map,
+                        ShopTemplateFeatureCard(
+                          icon: Icons.favorite,
                           title: '關於我們',
+                          subtitle: '品牌理念・店家故事',
                           onTap: () {
                             Navigator.push(
                               context,
@@ -372,10 +402,37 @@ class _ShopPublicPageState extends State<ShopPublicPage> {
                           },
                         ),
 
-                        _buildMenuButton(
+                        ShopTemplateFeatureCard(
+                          icon: Icons.card_giftcard,
+                          title: '優惠活動',
+                          subtitle: '限時優惠・活動方案',
+                          onTap: () {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text('優惠活動尚未開放')),
+                            );
+                          },
+                        ),
+
+                        ShopTemplateFeatureCard(
                           icon: Icons.star,
-                          title: '評價',
-                          onTap: () {},
+                          title: '評價專區',
+                          subtitle: '顧客評價・真實回饋',
+                          onTap: () {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text('評價功能尚未開放')),
+                            );
+                          },
+                        ),
+
+                        ShopTemplateFeatureCard(
+                          icon: Icons.help,
+                          title: '常見問題',
+                          subtitle: '常見疑問・快速解答',
+                          onTap: () {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text('常見問題尚未開放')),
+                            );
+                          },
                         ),
                       ],
                     ),
@@ -401,81 +458,105 @@ class _ShopPublicPageState extends State<ShopPublicPage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text(
-                      '店家資訊',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
+                    InkWell(
+                      onTap: () {
+                        setState(() {
+                          _showShopInfo = !_showShopInfo;
+                        });
+                      },
+                      child: Row(
+                        children: [
+                          Text(
+                            '店家資訊',
+                            style: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          const Spacer(),
+                          Icon(
+                            _showShopInfo
+                                ? Icons.keyboard_arrow_up
+                                : Icons.keyboard_arrow_down,
+                          ),
+                        ],
                       ),
                     ),
 
                     const SizedBox(height: 8),
-
-                    _buildInfoRow(
-                      Icons.access_time,
-                      '營業時間',
-                      shop['businessHours'] ?? '',
-                    ),
-                    GestureDetector(
-                      onTap: () => _callPhone(shop['phone'] ?? ''),
-                      child: _buildInfoRow(
-                        Icons.phone,
-                        '電話',
-                        shop['phone'] ?? '',
+                    if (_showShopInfo) ...[
+                      _buildInfoRow(
+                        Icons.access_time,
+                        '營業時間',
+                        shop['businessHours'] ?? '',
                       ),
-                    ),
-                    GestureDetector(
-                      onTap: () => _openMap(
-                        '${shop['city'] ?? ''}${shop['district'] ?? ''}${shop['address'] ?? ''}',
+                      GestureDetector(
+                        onTap: () => _callPhone(shop['phone'] ?? ''),
+                        child: _buildInfoRow(
+                          Icons.phone,
+                          '電話',
+                          shop['phone'] ?? '',
+                        ),
                       ),
-                      child: _buildInfoRow(
-                        Icons.location_on,
-                        '地址',
-                        '${shop['city'] ?? ''}${shop['district'] ?? ''}${shop['address'] ?? ''}',
+                      GestureDetector(
+                        onTap: () => _openMap(
+                          '${shop['city'] ?? ''}${shop['district'] ?? ''}${shop['address'] ?? ''}',
+                        ),
+                        child: _buildInfoRow(
+                          Icons.location_on,
+                          '地址',
+                          '${shop['city'] ?? ''}${shop['district'] ?? ''}${shop['address'] ?? ''}',
+                        ),
                       ),
-                    ),
 
-                    const SizedBox(height: 8),
+                      const SizedBox(height: 8),
 
-                    Row(
-                      children: [
-                        if ((shop['licenseNumber'] ?? '').toString().isNotEmpty)
-                          Expanded(
-                            child: _buildInfoRow(
-                              Icons.pets,
-                              '字號',
-                              shop['licenseNumber'] ?? '',
+                      Row(
+                        children: [
+                          if ((shop['licenseNumber'] ?? '')
+                              .toString()
+                              .isNotEmpty)
+                            Expanded(
+                              child: _buildInfoRow(
+                                Icons.pets,
+                                '字號',
+                                shop['licenseNumber'] ?? '',
+                              ),
                             ),
-                          ),
 
-                        if (shop['showTaxId'] == true &&
-                            (shop['taxId'] ?? '').toString().isNotEmpty)
-                          Expanded(
-                            child: _buildInfoRow(
-                              Icons.receipt,
-                              '統編',
-                              shop['taxId'] ?? '',
+                          if (shop['showTaxId'] == true &&
+                              (shop['taxId'] ?? '').toString().isNotEmpty)
+                            Expanded(
+                              child: _buildInfoRow(
+                                Icons.receipt,
+                                '統編',
+                                shop['taxId'] ?? '',
+                              ),
                             ),
-                          ),
-                      ],
-                    ),
-
+                        ],
+                      ),
+                    ],
                     const SizedBox(height: 12),
 
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                       children: [
                         _buildSocialButton(
-                          icon: Icons.camera_alt,
+                          icon: FontAwesomeIcons.instagram,
                           url: shop['igUrl'],
+                          activeColor: const Color(0xFFE1306C),
                         ),
+
                         _buildSocialButton(
-                          icon: Icons.facebook,
+                          icon: FontAwesomeIcons.facebook,
                           url: shop['fbUrl'],
+                          activeColor: const Color(0xFF1877F2),
                         ),
+
                         _buildSocialButton(
-                          icon: Icons.chat,
+                          icon: FontAwesomeIcons.line,
                           url: shop['lineUrl'],
+                          activeColor: const Color(0xFF06C755),
                         ),
                       ],
                     ),
@@ -525,6 +606,134 @@ class _ShopPublicPageState extends State<ShopPublicPage> {
     );
   }
 
+  Widget _buildNoticePreviewCard({required VoidCallback onTap}) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: const Color(0xFFF0E0CC)),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.04),
+              blurRadius: 8,
+              offset: const Offset(0, 3),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 38,
+              height: 38,
+              decoration: const BoxDecoration(
+                color: Color(0xFFFFF1DD),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.campaign,
+                size: 22,
+                color: Color(0xFFB86B18),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: StreamBuilder<QuerySnapshot>(
+                stream: FirebaseFirestore.instance
+                    .collection('shops')
+                    .doc(widget.shopId)
+                    .collection('announcements')
+                    .where('isPublished', isEqualTo: true)
+                    .snapshots(),
+                builder: (context, snapshot) {
+                  String previewText = '目前尚無公告';
+                  bool isPinned = false;
+
+                  if (snapshot.hasData && snapshot.data!.docs.isNotEmpty) {
+                    final docs = snapshot.data!.docs.toList();
+
+                    docs.sort((a, b) {
+                      final aData = a.data() as Map<String, dynamic>;
+                      final bData = b.data() as Map<String, dynamic>;
+
+                      final aPinned = aData['isPinned'] == true;
+                      final bPinned = bData['isPinned'] == true;
+
+                      if (aPinned != bPinned) {
+                        return aPinned ? -1 : 1;
+                      }
+
+                      final aTime = aData['createdAt'];
+                      final bTime = bData['createdAt'];
+
+                      if (aTime is! Timestamp || bTime is! Timestamp) return 0;
+
+                      return bTime.compareTo(aTime);
+                    });
+
+                    final data = docs.first.data() as Map<String, dynamic>;
+
+                    previewText = data['title']?.toString() ?? '未命名公告';
+
+                    isPinned = data['isPinned'] == true;
+                  }
+
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      if (isPinned)
+                        Container(
+                          margin: const EdgeInsets.only(bottom: 4),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 2,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.orange,
+                            borderRadius: BorderRadius.circular(999),
+                          ),
+                          child: const Text(
+                            '置頂公告',
+                            style: TextStyle(
+                              fontSize: 10,
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+
+                      const Text(
+                        '最新公告',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w800,
+                          color: Color(0xFFB86B18),
+                        ),
+                      ),
+                      const SizedBox(height: 3),
+                      Text(
+                        previewText,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 13,
+                          color: Color(0xFF3A2A1A),
+                        ),
+                      ),
+                    ],
+                  );
+                },
+              ),
+            ),
+            const Icon(Icons.chevron_right, size: 22, color: Color(0xFFB86B18)),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildMainServiceButton({
     required IconData icon,
     required String title,
@@ -535,7 +744,7 @@ class _ShopPublicPageState extends State<ShopPublicPage> {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.all(18),
+        padding: const EdgeInsets.all(8),
         decoration: BoxDecoration(
           color: const Color(0xFFFFF1DD),
           borderRadius: BorderRadius.circular(22),
@@ -551,13 +760,13 @@ class _ShopPublicPageState extends State<ShopPublicPage> {
         child: Row(
           children: [
             Container(
-              width: 58,
-              height: 58,
+              width: 48,
+              height: 48,
               decoration: const BoxDecoration(
                 color: Color(0xFFFFD59E),
                 shape: BoxShape.circle,
               ),
-              child: Icon(icon, size: 30, color: Color(0xFF6B3F16)),
+              child: Icon(icon, size: 24, color: Color(0xFF6B3F16)),
             ),
             const SizedBox(width: 14),
             Expanded(
@@ -567,7 +776,7 @@ class _ShopPublicPageState extends State<ShopPublicPage> {
                   Text(
                     title,
                     style: const TextStyle(
-                      fontSize: 20,
+                      fontSize: 22,
                       fontWeight: FontWeight.w800,
                       color: Color(0xFF3A2A1A),
                     ),
@@ -584,7 +793,7 @@ class _ShopPublicPageState extends State<ShopPublicPage> {
                   Text(
                     actionText,
                     style: const TextStyle(
-                      fontSize: 15,
+                      fontSize: 14,
                       fontWeight: FontWeight.w700,
                       color: Color(0xFFB86B18),
                     ),
@@ -596,43 +805,6 @@ class _ShopPublicPageState extends State<ShopPublicPage> {
               Icons.arrow_forward_ios,
               size: 18,
               color: Color(0xFFB86B18),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildMenuButton({
-    required IconData icon,
-    required String title,
-    required VoidCallback onTap,
-  }) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        height: 70,
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: Colors.grey.shade300),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.05),
-              blurRadius: 6,
-              offset: const Offset(0, 2),
-            ),
-          ],
-        ),
-
-        padding: const EdgeInsets.symmetric(horizontal: 16),
-        child: Row(
-          children: [
-            Icon(icon, size: 32),
-            const SizedBox(width: 12),
-            Text(
-              title,
-              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
             ),
           ],
         ),
@@ -654,14 +826,18 @@ class _ShopPublicPageState extends State<ShopPublicPage> {
     );
   }
 
-  Widget _buildSocialButton({required IconData icon, required String? url}) {
+  Widget _buildSocialButton({
+    required IconData icon,
+    required String? url,
+    required Color activeColor,
+  }) {
     final isActive = (url ?? '').isNotEmpty;
 
     return GestureDetector(
       onTap: isActive ? () => _openUrl(url!) : null,
       child: Container(
-        width: 60,
-        height: 60,
+        width: 40,
+        height: 40,
         decoration: BoxDecoration(
           color: isActive ? Colors.blue.shade50 : Colors.grey.shade200,
           shape: BoxShape.circle,
@@ -669,7 +845,7 @@ class _ShopPublicPageState extends State<ShopPublicPage> {
         child: Icon(
           icon,
           size: 28,
-          color: isActive ? Colors.blue : Colors.grey,
+          color: isActive ? activeColor : Colors.grey,
         ),
       ),
     );

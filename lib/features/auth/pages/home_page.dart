@@ -13,15 +13,13 @@ import 'package:petnest_saas/features/platform/pages/platform_shop_list_page.dar
 import 'package:petnest_saas/features/platform/pages/platform_admin_page.dart';
 import 'package:petnest_saas/features/auth/widgets/my_shop_card.dart';
 import 'package:petnest_saas/features/auth/widgets/my_shop_stat_row.dart';
-import 'package:petnest_saas/features/auth/widgets/platform_home_hero_card.dart';
-import 'package:petnest_saas/features/auth/widgets/platform_account_card.dart';
 import 'package:petnest_saas/features/auth/widgets/platform_section_title.dart';
 import 'package:petnest_saas/features/auth/widgets/my_shop_badges.dart';
 import 'package:petnest_saas/features/auth/widgets/my_shop_info.dart';
 import 'package:petnest_saas/features/auth/widgets/my_shop_open_status_helper.dart';
 import 'package:petnest_saas/features/auth/pages/my_shop_card_media_page.dart';
 import 'package:petnest_saas/features/auth/widgets/my_shop_meta_info.dart';
-import 'package:petnest_saas/features/auth/widgets/platform_admin_entry_card.dart';
+import 'package:petnest_saas/features/auth/widgets/my_shop_qr_link_card.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -87,6 +85,11 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
+  bool _isRootAdmin(String? uid) {
+    return uid == 'LTk2AdDOAIVGhlkt97fnbD5TXIf1' ||
+        uid == '7FNrECQeqAca9Vu8lBBzTSdcJcg1';
+  }
+
   Future<void> _logout() async {
     await AuthService.instance.logout();
 
@@ -106,15 +109,28 @@ class _HomePageState extends State<HomePage> {
 
     return Scaffold(
       appBar: AppBar(
+        toolbarHeight: 68,
         title: Padding(
-          padding: const EdgeInsets.only(top: 10),
+          padding: EdgeInsets.zero,
           child: Image.asset(
             'assets/images/petnest_logo.png',
-            height: 150,
+            height: 558,
             fit: BoxFit.contain,
           ),
         ),
         actions: [
+          if (_isRootAdmin(uid))
+            TextButton.icon(
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const PlatformAdminPage()),
+                );
+              },
+              icon: const Icon(Icons.admin_panel_settings, size: 18),
+              label: const Text('平台後台'),
+            ),
+
           PopupMenuButton<String>(
             icon: const CircleAvatar(
               radius: 16,
@@ -168,29 +184,45 @@ class _HomePageState extends State<HomePage> {
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 420),
           child: Padding(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
             child: Column(
               children: [
-                PlatformHomeHeroCard(
-                  onFindShopTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => const PlatformShopListPage(),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        user?.email ?? '',
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                          color: Colors.grey.shade800,
+                        ),
                       ),
-                    );
-                  },
-                  onCreateShopTap: _openCreateShopPage,
+                    ),
+                    TextButton.icon(
+                      onPressed: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const PlatformShopListPage(),
+                          ),
+                        );
+                      },
+                      icon: const Icon(Icons.search, size: 17),
+                      label: const Text('找店'),
+                    ),
+                    TextButton.icon(
+                      onPressed: _openCreateShopPage,
+                      icon: const Icon(Icons.add_business, size: 17),
+                      label: const Text('開店'),
+                    ),
+                  ],
                 ),
 
-                PlatformAccountCard(email: user?.email ?? ''),
-
-                PlatformAdminEntryCard(uid: uid),
-
-                const SizedBox(height: 20),
+                const SizedBox(height: 6),
 
                 const PlatformSectionTitle(title: '我的店家'),
-
                 const SizedBox(height: 12),
 
                 Expanded(
@@ -207,8 +239,9 @@ class _HomePageState extends State<HomePage> {
                         return const Center(child: Text('還沒有店家'));
                       }
 
-                      return ListView.builder(
+                      return PageView.builder(
                         itemCount: shops.length,
+                        controller: PageController(viewportFraction: 0.94),
                         itemBuilder: (context, index) {
                           final shop = shops[index];
                           final coverUrl =
@@ -256,202 +289,223 @@ class _HomePageState extends State<HomePage> {
                                 ),
                               );
                             },
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Stack(
-                                  children: [
-                                    Container(
-                                      height: 175,
-                                      decoration: BoxDecoration(
-                                        color: Colors.grey.shade200,
-                                        borderRadius:
-                                            const BorderRadius.vertical(
-                                              top: Radius.circular(22),
-                                            ),
-                                        image: coverUrl.isNotEmpty
-                                            ? DecorationImage(
-                                                image: NetworkImage(coverUrl),
-                                                fit: BoxFit.cover,
+                            child: SingleChildScrollView(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Stack(
+                                    children: [
+                                      Container(
+                                        height: 70,
+                                        decoration: BoxDecoration(
+                                          color: Colors.grey.shade200,
+                                          borderRadius:
+                                              const BorderRadius.vertical(
+                                                top: Radius.circular(22),
+                                              ),
+                                          image: coverUrl.isNotEmpty
+                                              ? DecorationImage(
+                                                  image: NetworkImage(coverUrl),
+                                                  fit: BoxFit.cover,
+                                                )
+                                              : null,
+                                        ),
+                                        child: coverUrl.isEmpty
+                                            ? const Center(
+                                                child: Icon(
+                                                  Icons.storefront,
+                                                  size: 28,
+                                                  color: Colors.black26,
+                                                ),
                                               )
                                             : null,
                                       ),
-                                      child: coverUrl.isEmpty
-                                          ? const Center(
-                                              child: Icon(
-                                                Icons.storefront,
-                                                size: 44,
-                                                color: Colors.black26,
-                                              ),
-                                            )
-                                          : null,
-                                    ),
 
-                                    Positioned(
-                                      left: 14,
-                                      top: 14,
-                                      child: _HomeBadge(
-                                        text: isOpenNow ? '營業中' : '休息中',
-                                        icon: Icons.circle,
-                                      ),
-                                    ),
-                                    Positioned(
-                                      right: 14,
-                                      top: 14,
-                                      child: InkWell(
-                                        borderRadius: BorderRadius.circular(
-                                          999,
-                                        ),
-                                        onTap: () {
-                                          Navigator.push(
-                                            context,
-                                            MaterialPageRoute(
-                                              builder: (_) =>
-                                                  MyShopCardMediaPage(
-                                                    shopId: shop['shopId']
-                                                        .toString(),
-                                                  ),
-                                            ),
-                                          ).then((_) {
-                                            _reloadShops();
-                                          });
-                                        },
-                                        child: Container(
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: 10,
-                                            vertical: 6,
-                                          ),
-                                          decoration: BoxDecoration(
-                                            color: Colors.white,
-                                            borderRadius: BorderRadius.circular(
-                                              999,
-                                            ),
-                                          ),
-                                          child: const Row(
-                                            mainAxisSize: MainAxisSize.min,
-                                            children: [
-                                              Icon(
-                                                Icons.image,
-                                                size: 15,
-                                                color: Colors.blue,
-                                              ),
-                                              SizedBox(width: 4),
-                                              Text(
-                                                '圖片',
-                                                style: TextStyle(
-                                                  fontSize: 12,
-                                                  color: Colors.blue,
-                                                  fontWeight: FontWeight.bold,
-                                                ),
-                                              ),
-                                            ],
-                                          ),
+                                      Positioned(
+                                        left: 14,
+                                        top: 14,
+                                        child: _HomeBadge(
+                                          text: isOpenNow ? '營業中' : '休息中',
+                                          icon: Icons.circle,
                                         ),
                                       ),
-                                    ),
-                                  ],
-                                ),
-
-                                Padding(
-                                  padding: const EdgeInsets.all(16),
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Row(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.center,
-                                        children: [
-                                          Container(
-                                            width: 96,
-                                            height: 96,
-                                            margin: const EdgeInsets.only(
-                                              right: 14,
+                                      Positioned(
+                                        right: 14,
+                                        top: 14,
+                                        child: InkWell(
+                                          borderRadius: BorderRadius.circular(
+                                            999,
+                                          ),
+                                          onTap: () {
+                                            Navigator.push(
+                                              context,
+                                              MaterialPageRoute(
+                                                builder: (_) =>
+                                                    MyShopCardMediaPage(
+                                                      shopId: shop['shopId']
+                                                          .toString(),
+                                                    ),
+                                              ),
+                                            ).then((_) {
+                                              _reloadShops();
+                                            });
+                                          },
+                                          child: Container(
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 10,
+                                              vertical: 6,
                                             ),
                                             decoration: BoxDecoration(
                                               color: Colors.white,
                                               borderRadius:
-                                                  BorderRadius.circular(28),
-                                              border: Border.all(
-                                                color: Colors.grey.shade200,
-                                              ),
-                                              boxShadow: [
-                                                BoxShadow(
-                                                  color: Colors.black
-                                                      .withOpacity(0.06),
-                                                  blurRadius: 10,
-                                                  offset: const Offset(0, 4),
-                                                ),
-                                              ],
-                                              image: logoUrl.isNotEmpty
-                                                  ? DecorationImage(
-                                                      image: NetworkImage(
-                                                        logoUrl,
-                                                      ),
-                                                      fit: BoxFit.cover,
-                                                    )
-                                                  : null,
+                                                  BorderRadius.circular(999),
                                             ),
-                                            child: logoUrl.isEmpty
-                                                ? const Icon(
-                                                    Icons.storefront,
-                                                    size: 36,
-                                                    color: Colors.black26,
-                                                  )
-                                                : null,
-                                          ),
-
-                                          Expanded(
-                                            child: Column(
-                                              crossAxisAlignment:
-                                                  CrossAxisAlignment.start,
+                                            child: const Row(
+                                              mainAxisSize: MainAxisSize.min,
                                               children: [
-                                                MyShopInfo(
-                                                  shopName:
-                                                      shop['name'] ?? '未命名店家',
-                                                  businessType: businessType,
-                                                  city: city,
-                                                  district: district,
-                                                  shopId: shop['shopId']
-                                                      .toString(),
+                                                Icon(
+                                                  Icons.image,
+                                                  size: 15,
+                                                  color: Colors.blue,
                                                 ),
-
-                                                const SizedBox(height: 10),
-
-                                                MyShopBadges(
-                                                  role: role,
-                                                  isPublic: isPublic,
+                                                SizedBox(width: 4),
+                                                Text(
+                                                  '圖片',
+                                                  style: TextStyle(
+                                                    fontSize: 12,
+                                                    color: Colors.blue,
+                                                    fontWeight: FontWeight.bold,
+                                                  ),
                                                 ),
                                               ],
                                             ),
                                           ),
-
-                                          const Icon(
-                                            Icons.chevron_right,
-                                            size: 34,
-                                            color: Colors.black45,
-                                          ),
-                                        ],
-                                      ),
-
-                                      const SizedBox(height: 16),
-
-                                      MyShopStatRow(
-                                        shopId: shop['shopId'].toString(),
-                                      ),
-                                      MyShopMetaInfo(
-                                        enabledModules: enabledModules,
-                                        openTime: openTime,
-                                        closeTime: closeTime,
-                                        isPublic: isPublic,
-                                        licenseNumber: licenseNumber,
-                                        taxId: taxId,
-                                        updatedAt: updatedAt,
+                                        ),
                                       ),
                                     ],
                                   ),
-                                ),
-                              ],
+
+                                  Padding(
+                                    padding: const EdgeInsets.fromLTRB(
+                                      10,
+                                      2,
+                                      10,
+                                      10,
+                                    ),
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Row(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.center,
+                                          children: [
+                                            Container(
+                                              width: 56,
+                                              height: 56,
+                                              margin: const EdgeInsets.only(
+                                                right: 14,
+                                              ),
+                                              decoration: BoxDecoration(
+                                                color: Colors.white,
+                                                borderRadius:
+                                                    BorderRadius.circular(18),
+                                                border: Border.all(
+                                                  color: Colors.grey.shade200,
+                                                ),
+                                                boxShadow: [
+                                                  BoxShadow(
+                                                    color: Colors.black
+                                                        .withOpacity(0.06),
+                                                    blurRadius: 10,
+                                                    offset: const Offset(0, 4),
+                                                  ),
+                                                ],
+                                                image: logoUrl.isNotEmpty
+                                                    ? DecorationImage(
+                                                        image: NetworkImage(
+                                                          logoUrl,
+                                                        ),
+                                                        fit: BoxFit.cover,
+                                                      )
+                                                    : null,
+                                              ),
+                                              child: logoUrl.isEmpty
+                                                  ? const Icon(
+                                                      Icons.storefront,
+                                                      size: 24,
+                                                      color: Colors.black26,
+                                                    )
+                                                  : null,
+                                            ),
+
+                                            Expanded(
+                                              child: Column(
+                                                crossAxisAlignment:
+                                                    CrossAxisAlignment.start,
+                                                children: [
+                                                  MyShopInfo(
+                                                    shopName:
+                                                        shop['name'] ?? '未命名店家',
+                                                    businessType: businessType,
+                                                    city: city,
+                                                    district: district,
+                                                    shopId: shop['shopId']
+                                                        .toString(),
+                                                    shopCode:
+                                                        shop['shopCode']
+                                                            ?.toString() ??
+                                                        '',
+                                                  ),
+
+                                                  const SizedBox(height: 4),
+
+                                                  MyShopBadges(
+                                                    role: role,
+                                                    isPublic: isPublic,
+                                                  ),
+                                                ],
+                                              ),
+                                            ),
+
+                                            const Icon(
+                                              Icons.chevron_right,
+                                              size: 34,
+                                              color: Colors.black45,
+                                            ),
+                                          ],
+                                        ),
+
+                                        const SizedBox(height: 12),
+
+                                        MyShopQrLinkCard(
+                                          shopCode:
+                                              shop['shopCode']
+                                                      ?.toString()
+                                                      .isNotEmpty ==
+                                                  true
+                                              ? shop['shopCode'].toString()
+                                              : shop['shopId'].toString(),
+                                        ),
+                                        const SizedBox(height: 8),
+
+                                        MyShopStatRow(
+                                          shopId: shop['shopId'].toString(),
+                                        ),
+                                        MyShopMetaInfo(
+                                          enabledModules: enabledModules,
+                                          openTime: openTime,
+                                          closeTime: closeTime,
+                                          isPublic: isPublic,
+                                          licenseNumber: licenseNumber,
+                                          taxId: taxId,
+                                          updatedAt: updatedAt,
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
                           );
                         },

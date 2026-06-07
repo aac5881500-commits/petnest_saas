@@ -69,6 +69,14 @@ class AdminMemberProfileSection extends StatelessWidget {
               const SizedBox(height: 16),
               _MemberTags(data: data, tags: tags),
               const SizedBox(height: 12),
+
+              _MemberLinkLookupButton(
+                userId: userId,
+                shopId: shopId,
+                data: data,
+              ),
+
+              const SizedBox(height: 12),
               _MemberLinkRequests(userId: userId, shopId: shopId, data: data),
               const SizedBox(height: 12),
               _AdminNoteBox(userId: userId, data: data),
@@ -384,6 +392,164 @@ class _MemberTags extends StatelessWidget {
         ],
       ],
     );
+  }
+}
+
+class _MemberLinkLookupButton extends StatelessWidget {
+  const _MemberLinkLookupButton({
+    required this.userId,
+    required this.shopId,
+    required this.data,
+  });
+
+  final String userId;
+  final String shopId;
+  final Map<String, dynamic> data;
+
+  @override
+  Widget build(BuildContext context) {
+    final phone = data['phone']?.toString().trim() ?? '';
+    final email = data['email']?.toString().trim() ?? '';
+
+    if (phone.isEmpty || email.isEmpty) {
+      return const SizedBox();
+    }
+
+    return SizedBox(
+      width: double.infinity,
+      child: OutlinedButton.icon(
+        icon: const Icon(Icons.manage_search),
+        label: const Text('合併查詢'),
+        onPressed: () async {
+          await _lookupOldMembers(context, phone);
+        },
+      ),
+    );
+  }
+
+  Future<void> _lookupOldMembers(BuildContext context, String phone) async {
+    final snapshot = await FirebaseFirestore.instance
+        .collection('user_profiles')
+        .where('phone', isEqualTo: phone)
+        .get();
+
+    final candidates = snapshot.docs.where((doc) {
+      if (doc.id == userId) return false;
+
+      final item = doc.data();
+
+      final shopIds = List<String>.from(item['shopIds'] ?? []);
+      final linkedAuthUid = item['linkedAuthUid']?.toString() ?? '';
+      final itemEmail = item['email']?.toString() ?? '';
+      final status = item['status']?.toString() ?? '';
+
+      return shopIds.contains(shopId) &&
+          linkedAuthUid.isEmpty &&
+          itemEmail.isEmpty &&
+          status != 'archived';
+    }).toList();
+
+    if (!context.mounted) return;
+
+    if (candidates.isEmpty) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('查無可合併的舊會員')));
+      return;
+    }
+
+    await showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('可合併的舊會員'),
+          content: SizedBox(
+            width: double.maxFinite,
+            child: ListView.builder(
+              shrinkWrap: true,
+              itemCount: candidates.length,
+              itemBuilder: (context, index) {
+                final doc = candidates[index];
+                final oldData = doc.data();
+
+                return Card(
+                  child: ListTile(
+                    title: Text(
+                      oldData['name']?.toString().isNotEmpty == true
+                          ? oldData['name'].toString()
+                          : '未填姓名',
+                    ),
+                    subtitle: Text('電話：${oldData['phone'] ?? '未填'}'),
+                    trailing: ElevatedButton(
+                      child: const Text('建立申請'),
+                      onPressed: () async {
+                        await _createLinkRequest(
+                          context: context,
+                          oldUserId: doc.id,
+                          oldData: oldData,
+                        );
+                      },
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pop(context);
+              },
+              child: const Text('關閉'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Future<void> _createLinkRequest({
+    required BuildContext context,
+    required String oldUserId,
+    required Map<String, dynamic> oldData,
+  }) async {
+    final exists = await FirebaseFirestore.instance
+        .collection('member_link_requests')
+        .where('shopId', isEqualTo: shopId)
+        .where('targetUserId', isEqualTo: oldUserId)
+        .where('authUid', isEqualTo: userId)
+        .where('status', isEqualTo: 'pending')
+        .get();
+
+    if (exists.docs.isNotEmpty) {
+      if (!context.mounted) return;
+
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('已經有待確認的合併申請')));
+      return;
+    }
+
+    await FirebaseFirestore.instance.collection('member_link_requests').add({
+      'shopId': shopId,
+      'targetUserId': oldUserId,
+      'targetName': oldData['name'] ?? '',
+      'targetPhone': oldData['phone'] ?? '',
+      'authUid': userId,
+      'authEmail': data['email'] ?? '',
+      'status': 'pending',
+      'createdFrom': 'admin_lookup',
+      'createdAt': FieldValue.serverTimestamp(),
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+
+    if (!context.mounted) return;
+
+    Navigator.pop(context);
+
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('已建立合併申請，請確認綁定')));
   }
 }
 
