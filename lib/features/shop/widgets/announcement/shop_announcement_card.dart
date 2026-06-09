@@ -1,6 +1,6 @@
 // lib/features/shop/widgets/announcement/shop_announcement_card.dart
 // 📢 店家公告卡片
-// 功能：顯示前台公告標題、內容與時間
+// 功能：顯示前台公告標題、摘要、類型圖示、置頂狀態與時間
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
@@ -16,6 +16,9 @@ class ShopAnnouncementCard extends StatelessWidget {
     final content = data['content']?.toString() ?? '';
     final createdAt = data['createdAt'];
     final isPinned = data['isPinned'] == true;
+    final type = data['type']?.toString() ?? 'normal';
+    final typeIcon = _iconByType(type);
+    final typeLabel = _labelByType(type);
 
     return Container(
       width: double.infinity,
@@ -34,7 +37,7 @@ class ShopAnnouncementCard extends StatelessWidget {
         ],
       ),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           Container(
             width: 38,
@@ -43,11 +46,7 @@ class ShopAnnouncementCard extends StatelessWidget {
               color: Color(0xFFFFF1DD),
               shape: BoxShape.circle,
             ),
-            child: const Icon(
-              Icons.campaign,
-              size: 22,
-              color: Color(0xFFB86B18),
-            ),
+            child: Icon(typeIcon, size: 22, color: const Color(0xFFB86B18)),
           ),
           const SizedBox(width: 12),
 
@@ -55,7 +54,7 @@ class ShopAnnouncementCard extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                if (isPinned) ...[
+                if (isPinned)
                   Container(
                     margin: const EdgeInsets.only(bottom: 6),
                     padding: const EdgeInsets.symmetric(
@@ -86,9 +85,17 @@ class ShopAnnouncementCard extends StatelessWidget {
                       ],
                     ),
                   ),
-                  const SizedBox(width: 8),
-                  const Icon(Icons.chevron_right, color: Color(0xFFB86B18)),
-                ],
+
+                Text(
+                  typeLabel,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFFB86B18),
+                  ),
+                ),
+
+                const SizedBox(height: 3),
 
                 Text(
                   title,
@@ -98,6 +105,7 @@ class ShopAnnouncementCard extends StatelessWidget {
                     color: Color(0xFF3A2A1A),
                   ),
                 ),
+
                 const SizedBox(height: 6),
 
                 Text(
@@ -110,6 +118,7 @@ class ShopAnnouncementCard extends StatelessWidget {
                     color: Color(0xFF5A4632),
                   ),
                 ),
+
                 const SizedBox(height: 8),
 
                 Text(
@@ -122,9 +131,44 @@ class ShopAnnouncementCard extends StatelessWidget {
               ],
             ),
           ),
+
+          const SizedBox(width: 8),
+          const Icon(Icons.chevron_right, color: Color(0xFFB86B18)),
         ],
       ),
     );
+  }
+
+  IconData _iconByType(String type) {
+    switch (type) {
+      case 'important':
+        return Icons.priority_high;
+      case 'business_hours':
+        return Icons.schedule;
+      case 'promotion':
+        return Icons.card_giftcard;
+      case 'checkin_notice':
+        return Icons.pets;
+      case 'normal':
+      default:
+        return Icons.campaign;
+    }
+  }
+
+  String _labelByType(String type) {
+    switch (type) {
+      case 'important':
+        return '重要公告';
+      case 'business_hours':
+        return '營業異動';
+      case 'promotion':
+        return '優惠活動';
+      case 'checkin_notice':
+        return '入住提醒';
+      case 'normal':
+      default:
+        return '一般公告';
+    }
   }
 
   String _formatTime(dynamic value) {

@@ -14,6 +14,8 @@ import 'package:petnest_saas/features/auth/pages/login_page.dart';
 import 'package:petnest_saas/core/constants/shop_permission_keys.dart';
 import 'package:petnest_saas/features/booking/pages/booking_detail_page.dart';
 import 'package:petnest_saas/features/platform/pages/platform_shop_manage_page.dart';
+import 'package:petnest_saas/features/shop/pages/shop_faq_page.dart';
+import 'package:petnest_saas/features/shop/pages/shop_announcement_page.dart';
 
 class AppDrawer extends StatelessWidget {
   const AppDrawer({
@@ -137,18 +139,69 @@ class AppDrawer extends StatelessWidget {
                       ),
 
                       // 🔒 預留：之後再接功能
-                      _menuItem(
-                        icon: Icons.campaign_outlined,
-                        title: '最新公告（預留）',
-                        onTap: () {
-                          Navigator.pop(context);
+                      StreamBuilder<DocumentSnapshot>(
+                        stream: FirebaseFirestore.instance
+                            .collection('shops')
+                            .doc(shopId)
+                            .snapshots(),
+                        builder: (context, snapshot) {
+                          final shop =
+                              snapshot.data?.data() as Map<String, dynamic>?;
+
+                          final showAnnouncementSection =
+                              shop?['showAnnouncementSection'] != false;
+
+                          if (!showAnnouncementSection) {
+                            return const SizedBox.shrink();
+                          }
+
+                          return _menuItem(
+                            icon: Icons.campaign_outlined,
+                            title: '最新公告',
+                            onTap: () {
+                              Navigator.pop(context);
+
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) =>
+                                      ShopAnnouncementPage(shopId: shopId),
+                                ),
+                              );
+                            },
+                          );
                         },
                       ),
-                      _menuItem(
-                        icon: Icons.help_outline,
-                        title: '常見問題（預留）',
-                        onTap: () {
-                          Navigator.pop(context);
+                      StreamBuilder<DocumentSnapshot>(
+                        stream: FirebaseFirestore.instance
+                            .collection('shops')
+                            .doc(shopId)
+                            .snapshots(),
+                        builder: (context, snapshot) {
+                          final shop =
+                              snapshot.data?.data() as Map<String, dynamic>?;
+
+                          final showFaqSection =
+                              shop?['showFaqSection'] != false;
+
+                          if (!showFaqSection) {
+                            return const SizedBox.shrink();
+                          }
+
+                          return _menuItem(
+                            icon: Icons.help_outline,
+                            title: '常見問題',
+                            onTap: () {
+                              Navigator.pop(context);
+
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => ShopFaqPage(shopId: shopId),
+                                ),
+                              );
+                            },
+                          );
                         },
                       ),
                     ],
@@ -208,20 +261,6 @@ class AppDrawer extends StatelessWidget {
                                   ),
                                   (route) => false,
                                 );
-                              },
-                            ),
-                            _menuItem(
-                              icon: Icons.settings,
-                              title: '功能設定',
-                              onTap: () {
-                                Navigator.pop(context);
-                              },
-                            ),
-                            _menuItem(
-                              icon: Icons.error_outline,
-                              title: '客戶申訴',
-                              onTap: () {
-                                Navigator.pop(context);
                               },
                             ),
                             _divider(),

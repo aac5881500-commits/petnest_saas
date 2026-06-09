@@ -246,6 +246,51 @@ match /member_link_requests/{requestId} {
       allow delete: if false;
     }
 
+       // 📮 店主 / 店家聯絡平台
+    match /platform_contact_requests/{requestId} {
+      allow read: if signedIn() &&
+        (
+          isRootAdmin() ||
+          isShopMember(resource.data.shopId)
+        );
+
+      allow create: if signedIn() &&
+        request.resource.data.source == 'shop_owner' &&
+        request.resource.data.shopId is string &&
+        isShopMember(request.resource.data.shopId) &&
+        request.resource.data.userId == request.auth.uid &&
+        request.resource.data.status == 'open';
+
+      allow update: if isRootAdmin();
+
+      allow delete: if false;
+
+            // 💬 聯絡平台對話紀錄
+      match /messages/{messageId} {
+        allow read: if signedIn() &&
+          (
+            isRootAdmin() ||
+            isShopMember(get(/databases/$(database)/documents/platform_contact_requests/$(requestId)).data.shopId)
+          );
+
+        allow create: if signedIn() &&
+  get(/databases/$(database)/documents/platform_contact_requests/$(requestId)).data.status != 'closed' &&
+  (
+    (
+      isRootAdmin() &&
+      request.resource.data.senderType == 'platform'
+    ) ||
+    (
+      request.resource.data.senderType == 'shop_owner' &&
+      isShopMember(get(/databases/$(database)/documents/platform_contact_requests/$(requestId)).data.shopId)
+    )
+  ) &&
+  request.resource.data.senderUid == request.auth.uid;
+
+        allow update, delete: if false;
+      }
+    }
+
     // 📜 平台條款
     match /platform_policies/{policyId} {
       allow read: if true;
@@ -266,6 +311,14 @@ match /member_link_requests/{requestId} {
     // 📜 平台條款版本
     match /platform_policy_versions/{versionId} {
       allow read, write: if isRootAdmin();
+    }
+
+    // 🔔 平台通知
+    match /shop_notifications/{notificationId} {
+
+      allow read: if signedIn();
+
+      allow create, update, delete: if isRootAdmin();
     }
 
     // 🚫 其他全部拒絕

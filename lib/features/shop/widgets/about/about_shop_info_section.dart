@@ -8,10 +8,7 @@ import 'package:petnest_saas/features/shop/widgets/about/about_section_title.dar
 import 'package:url_launcher/url_launcher.dart';
 
 class AboutShopInfoSection extends StatelessWidget {
-  const AboutShopInfoSection({
-    super.key,
-    required this.shopId,
-  });
+  const AboutShopInfoSection({super.key, required this.shopId});
 
   final String shopId;
 
@@ -19,6 +16,17 @@ class AboutShopInfoSection extends StatelessWidget {
     if (url.isEmpty) return;
 
     final uri = Uri.parse(url);
+    await launchUrl(uri, mode: LaunchMode.externalApplication);
+  }
+
+  Future<void> _openMap(String address) async {
+    final cleanAddress = address.trim();
+    if (cleanAddress.isEmpty) return;
+
+    final uri = Uri.parse(
+      'https://www.google.com/maps/search/?api=1&query=${Uri.encodeComponent(cleanAddress)}',
+    );
+
     await launchUrl(uri, mode: LaunchMode.externalApplication);
   }
 
@@ -32,9 +40,7 @@ class AboutShopInfoSection extends StatelessWidget {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Padding(
             padding: EdgeInsets.symmetric(horizontal: 22),
-            child: Center(
-              child: CircularProgressIndicator(),
-            ),
+            child: Center(child: CircularProgressIndicator()),
           );
         }
 
@@ -42,9 +48,16 @@ class AboutShopInfoSection extends StatelessWidget {
           return const SizedBox.shrink();
         }
 
+        final externalLinksEnabled = shop['externalLinksEnabled'] != false;
+
         final businessHours = (shop['businessHours'] ?? '').toString();
         final phone = (shop['phone'] ?? '').toString();
-        final address = (shop['address'] ?? '').toString();
+
+        final city = (shop['city'] ?? '').toString();
+        final district = (shop['district'] ?? '').toString();
+        final addressDetail = (shop['address'] ?? '').toString();
+        final fullAddress = '$city$district$addressDetail';
+
         final licenseNumber = (shop['licenseNumber'] ?? '').toString();
 
         final igUrl = (shop['igUrl'] ?? '').toString();
@@ -68,16 +81,14 @@ class AboutShopInfoSection extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const AboutSectionTitle(
-                  icon: Icons.storefront,
-                  title: '店家資訊',
-                ),
+                const AboutSectionTitle(icon: Icons.storefront, title: '店家資訊'),
 
                 const SizedBox(height: 18),
 
                 _InfoRow(
                   icon: Icons.access_time,
-                  text: '營業時間：${businessHours.isEmpty ? '尚未設定' : businessHours}',
+                  text:
+                      '營業時間：${businessHours.isEmpty ? '尚未設定' : businessHours}',
                 ),
                 _InfoRow(
                   icon: Icons.phone,
@@ -85,7 +96,7 @@ class AboutShopInfoSection extends StatelessWidget {
                 ),
                 _InfoRow(
                   icon: Icons.location_on_outlined,
-                  text: '地址：${address.isEmpty ? '尚未設定' : address}',
+                  text: '地址：${fullAddress.isEmpty ? '尚未設定' : fullAddress}',
                 ),
 
                 if (licenseNumber.isNotEmpty)
@@ -99,23 +110,31 @@ class AboutShopInfoSection extends StatelessWidget {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceAround,
                   children: [
-                    _SocialButton(
-                      icon: Icons.camera_alt_outlined,
-                      label: 'Instagram',
-                      isActive: igUrl.isNotEmpty,
-                      onTap: igUrl.isNotEmpty ? () => _openUrl(igUrl) : null,
-                    ),
-                    _SocialButton(
-                      icon: Icons.chat_bubble_outline,
-                      label: 'LINE',
-                      isActive: lineUrl.isNotEmpty,
-                      onTap: lineUrl.isNotEmpty ? () => _openUrl(lineUrl) : null,
-                    ),
+                    if (externalLinksEnabled)
+                      _SocialButton(
+                        icon: Icons.camera_alt_outlined,
+                        label: 'Instagram',
+                        isActive: igUrl.isNotEmpty,
+                        onTap: igUrl.isNotEmpty ? () => _openUrl(igUrl) : null,
+                      ),
+
+                    if (externalLinksEnabled)
+                      _SocialButton(
+                        icon: Icons.chat_bubble_outline,
+                        label: 'LINE',
+                        isActive: lineUrl.isNotEmpty,
+                        onTap: lineUrl.isNotEmpty
+                            ? () => _openUrl(lineUrl)
+                            : null,
+                      ),
+
                     _SocialButton(
                       icon: Icons.map_outlined,
                       label: '地圖',
-                      isActive: address.isNotEmpty,
-                      onTap: null,
+                      isActive: fullAddress.isNotEmpty,
+                      onTap: fullAddress.isNotEmpty
+                          ? () => _openMap(fullAddress)
+                          : null,
                     ),
                   ],
                 ),
@@ -129,10 +148,7 @@ class AboutShopInfoSection extends StatelessWidget {
 }
 
 class _InfoRow extends StatelessWidget {
-  const _InfoRow({
-    required this.icon,
-    required this.text,
-  });
+  const _InfoRow({required this.icon, required this.text});
 
   final IconData icon;
   final String text;
@@ -144,11 +160,7 @@ class _InfoRow extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(
-            icon,
-            size: 22,
-            color: Color(0xFFC47A2C),
-          ),
+          Icon(icon, size: 22, color: Color(0xFFC47A2C)),
           SizedBox(width: 12),
           Expanded(
             child: Text(
@@ -188,8 +200,9 @@ class _SocialButton extends StatelessWidget {
         children: [
           CircleAvatar(
             radius: 26,
-            backgroundColor:
-                isActive ? const Color(0xFFFFE7C8) : Colors.grey.shade200,
+            backgroundColor: isActive
+                ? const Color(0xFFFFE7C8)
+                : Colors.grey.shade200,
             child: Icon(
               icon,
               size: 24,

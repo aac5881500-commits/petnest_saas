@@ -34,6 +34,9 @@ import 'package:petnest_saas/features/shop/pages/shop_environment_manage_page.da
 import 'package:petnest_saas/features/shop/pages/shop_about_manage_page.dart';
 import 'package:petnest_saas/features/shop/pages/shop_announcement_manage_page.dart';
 import 'package:petnest_saas/core/constants/shop_permission_keys.dart';
+import 'package:petnest_saas/features/shop/pages/shop_contact_platform_page.dart';
+import 'package:petnest_saas/features/shop/pages/shop_faq_manage_page.dart';
+import 'package:petnest_saas/features/shop/pages/shop_platform_notification_page.dart';
 
 class ShopDashboardPage extends StatefulWidget {
   const ShopDashboardPage({super.key, required this.shopId});
@@ -360,6 +363,38 @@ class _BasicInfoTab extends StatelessWidget {
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
+        const _MenuSectionTitle('會員系統'),
+
+        if (_can(ShopPermissionKeys.manageMembers))
+          StreamBuilder<QuerySnapshot>(
+            stream: FirebaseFirestore.instance
+                .collection('member_link_requests')
+                .where('shopId', isEqualTo: shopId)
+                .where('status', isEqualTo: 'pending')
+                .snapshots(),
+            builder: (context, snapshot) {
+              final count = snapshot.data?.docs.length ?? 0;
+
+              return _MenuTile(
+                title: '會員管理',
+                subtitle: count > 0
+                    ? '查看會員資料與訂單紀錄｜有 $count 筆會員綁定申請'
+                    : '查看會員資料與訂單紀錄',
+                icon: Icons.people,
+                enabled: true,
+                badgeCount: count,
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => AdminMemberListPage(shopId: shopId),
+                    ),
+                  );
+                },
+              );
+            },
+          ),
+
         const _MenuSectionTitle('店家資料'),
 
         if (currentUserRole == ShopRoles.owner)
@@ -454,6 +489,20 @@ class _BasicInfoTab extends StatelessWidget {
         ),
 
         _MenuTile(
+          title: '常見問題管理',
+          subtitle: '新增、編輯、上下架常見問題',
+          icon: Icons.help_outline,
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => ShopFaqManagePage(shopId: shopId),
+              ),
+            );
+          },
+        ),
+
+        _MenuTile(
           title: '前台預覽',
           subtitle: '查看客戶看到的頁面',
           icon: Icons.visibility,
@@ -466,6 +515,52 @@ class _BasicInfoTab extends StatelessWidget {
         ),
 
         const _MenuSectionTitle('後台管理'),
+
+        StreamBuilder<QuerySnapshot>(
+          stream: FirebaseFirestore.instance
+              .collection('shop_notifications')
+              .snapshots(),
+          builder: (context, snapshot) {
+            final unreadCount = (snapshot.data?.docs ?? []).where((doc) {
+              final data = doc.data() as Map<String, dynamic>;
+
+              return (data['shopId'] ?? '').toString() == shopId &&
+                  (data['status'] ?? '').toString() == 'unread';
+            }).length;
+
+            return _MenuTile(
+              title: '平台通知',
+              subtitle: unreadCount > 0
+                  ? '有 $unreadCount 則未讀平台通知'
+                  : '查看平台發送的方案、停權、審核與系統通知',
+              icon: Icons.notifications_active_outlined,
+              badgeCount: unreadCount,
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) =>
+                        ShopPlatformNotificationPage(shopId: shopId),
+                  ),
+                );
+              },
+            );
+          },
+        ),
+
+        _MenuTile(
+          title: '聯絡平台',
+          subtitle: '向平台回報問題、提出需求或聯絡客服',
+          icon: Icons.support_agent,
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => ShopContactPlatformPage(shopId: shopId),
+              ),
+            );
+          },
+        ),
 
         _MenuTile(
           title: '模組設定',
@@ -505,36 +600,6 @@ class _BasicInfoTab extends StatelessWidget {
             );
           },
         ),
-
-        if (_can(ShopPermissionKeys.manageMembers))
-          StreamBuilder<QuerySnapshot>(
-            stream: FirebaseFirestore.instance
-                .collection('member_link_requests')
-                .where('shopId', isEqualTo: shopId)
-                .where('status', isEqualTo: 'pending')
-                .snapshots(),
-            builder: (context, snapshot) {
-              final count = snapshot.data?.docs.length ?? 0;
-
-              return _MenuTile(
-                title: '會員管理',
-                subtitle: count > 0
-                    ? '查看會員資料與訂單紀錄｜有 $count 筆會員綁定申請'
-                    : '查看會員資料與訂單紀錄',
-                icon: Icons.people,
-                enabled: true,
-                badgeCount: count,
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => AdminMemberListPage(shopId: shopId),
-                    ),
-                  );
-                },
-              );
-            },
-          ),
       ],
     );
   }

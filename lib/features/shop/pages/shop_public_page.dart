@@ -15,6 +15,7 @@ import 'package:petnest_saas/features/shop/pages/shop_about_page.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:petnest_saas/features/shop/pages/shop_announcement_page.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:petnest_saas/features/shop/pages/shop_faq_page.dart';
 
 class ShopPublicPage extends StatefulWidget {
   const ShopPublicPage({
@@ -93,6 +94,8 @@ class _ShopPublicPageState extends State<ShopPublicPage> {
           return const Scaffold(body: Center(child: Text('找不到店家')));
         }
 
+        final externalLinksEnabled = shop['externalLinksEnabled'] != false;
+
         /// 🔥 店家已開啟的模組 / 服務類型
         final List enabledModules = shop['enabledModules'] ?? [];
         final List serviceTypes = shop['serviceTypes'] ?? [];
@@ -123,12 +126,24 @@ class _ShopPublicPageState extends State<ShopPublicPage> {
             .map<Map<String, String>>((e) {
               return {'image': (e['imageUrl'] ?? '').toString()};
             })
+            .where((e) => e['image']!.isNotEmpty)
             .toList();
 
         /// 舊資料兼容（如果還沒升級）
         if (banners.isEmpty && (shop['coverUrl'] ?? '').toString().isNotEmpty) {
           banners.add({'image': shop['coverUrl']});
         }
+
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted) return;
+
+          for (final banner in banners) {
+            final imageUrl = banner['image'];
+            if (imageUrl == null || imageUrl.isEmpty) continue;
+
+            precacheImage(NetworkImage(imageUrl), context);
+          }
+        });
 
         /// 🔥 正確：只保留一個 Scaffold
         return Scaffold(
@@ -196,33 +211,47 @@ class _ShopPublicPageState extends State<ShopPublicPage> {
                         child: Stack(
                           children: [
                             /// 圖片滑動
-                            PageView.builder(
-                              controller: _pageController,
-                              physics: const PageScrollPhysics(),
-                              itemCount: banners.length,
-                              onPageChanged: (index) {
-                                setState(() {
-                                  _currentIndex = index;
-                                });
-                              },
-                              itemBuilder: (context, index) {
-                                final banner = banners[index];
+                            GestureDetector(
+                              behavior: HitTestBehavior.opaque,
+                              onHorizontalDragEnd: (details) {
+                                if (banners.length <= 1) return;
 
-                                return ClipRRect(
-                                  borderRadius: BorderRadius.circular(16),
-                                  child: Container(
-                                    color: Colors.black,
-                                    child: Center(
-                                      child: Image.network(
-                                        banner['image']!,
-                                        fit: BoxFit.contain,
-                                        width: double.infinity,
-                                        height: double.infinity,
+                                final velocity = details.primaryVelocity ?? 0;
+
+                                if (velocity < -120) {
+                                  setState(() {
+                                    _currentIndex =
+                                        _currentIndex == banners.length - 1
+                                        ? 0
+                                        : _currentIndex + 1;
+                                  });
+                                }
+
+                                if (velocity > 120) {
+                                  setState(() {
+                                    _currentIndex = _currentIndex == 0
+                                        ? banners.length - 1
+                                        : _currentIndex - 1;
+                                  });
+                                }
+                              },
+                              child: ClipRRect(
+                                borderRadius: BorderRadius.circular(16),
+                                child: Container(
+                                  color: Colors.black,
+                                  child: Center(
+                                    child: Image.network(
+                                      banners[_currentIndex]['image']!,
+                                      key: ValueKey(
+                                        banners[_currentIndex]['image'],
                                       ),
+                                      fit: BoxFit.contain,
+                                      width: double.infinity,
+                                      height: double.infinity,
                                     ),
                                   ),
-                                );
-                              },
+                                ),
+                              ),
                             ),
 
                             if (banners.length > 1)
@@ -303,19 +332,22 @@ class _ShopPublicPageState extends State<ShopPublicPage> {
 
                     const SizedBox(height: 14),
 
-                    _buildNoticePreviewCard(
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) =>
-                                ShopAnnouncementPage(shopId: widget.shopId),
-                          ),
-                        );
-                      },
-                    ),
+                    if (shop['showAnnouncementSection'] != false) ...[
+                      _buildNoticePreviewCard(
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) =>
+                                  ShopAnnouncementPage(shopId: widget.shopId),
+                            ),
+                          );
+                        },
+                      ),
 
-                    const SizedBox(height: 18),
+                      const SizedBox(height: 18),
+                    ] else
+                      const SizedBox(height: 4),
 
                     ShopSectionTitle(icon: Icons.pets, title: '住宿服務'),
 
@@ -424,16 +456,21 @@ class _ShopPublicPageState extends State<ShopPublicPage> {
                           },
                         ),
 
-                        ShopTemplateFeatureCard(
-                          icon: Icons.help,
-                          title: '常見問題',
-                          subtitle: '常見疑問・快速解答',
-                          onTap: () {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text('常見問題尚未開放')),
-                            );
-                          },
-                        ),
+                        if (shop['showFaqSection'] != false)
+                          ShopTemplateFeatureCard(
+                            icon: Icons.help,
+                            title: '常見問題',
+                            subtitle: '常見疑問・快速解答',
+                            onTap: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) =>
+                                      ShopFaqPage(shopId: widget.shopId),
+                                ),
+                              );
+                            },
+                          ),
                       ],
                     ),
 
@@ -538,28 +575,29 @@ class _ShopPublicPageState extends State<ShopPublicPage> {
                     ],
                     const SizedBox(height: 12),
 
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                      children: [
-                        _buildSocialButton(
-                          icon: FontAwesomeIcons.instagram,
-                          url: shop['igUrl'],
-                          activeColor: const Color(0xFFE1306C),
-                        ),
+                    if (externalLinksEnabled)
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                        children: [
+                          _buildSocialButton(
+                            icon: FontAwesomeIcons.instagram,
+                            url: shop['igUrl'],
+                            activeColor: const Color(0xFFE1306C),
+                          ),
 
-                        _buildSocialButton(
-                          icon: FontAwesomeIcons.facebook,
-                          url: shop['fbUrl'],
-                          activeColor: const Color(0xFF1877F2),
-                        ),
+                          _buildSocialButton(
+                            icon: FontAwesomeIcons.facebook,
+                            url: shop['fbUrl'],
+                            activeColor: const Color(0xFF1877F2),
+                          ),
 
-                        _buildSocialButton(
-                          icon: FontAwesomeIcons.line,
-                          url: shop['lineUrl'],
-                          activeColor: const Color(0xFF06C755),
-                        ),
-                      ],
-                    ),
+                          _buildSocialButton(
+                            icon: FontAwesomeIcons.line,
+                            url: shop['lineUrl'],
+                            activeColor: const Color(0xFF06C755),
+                          ),
+                        ],
+                      ),
                   ],
                 ),
               ),
@@ -650,6 +688,7 @@ class _ShopPublicPageState extends State<ShopPublicPage> {
                 builder: (context, snapshot) {
                   String previewText = '目前尚無公告';
                   bool isPinned = false;
+                  String typeLabel = '最新公告';
 
                   if (snapshot.hasData && snapshot.data!.docs.isNotEmpty) {
                     final docs = snapshot.data!.docs.toList();
@@ -676,8 +715,10 @@ class _ShopPublicPageState extends State<ShopPublicPage> {
                     final data = docs.first.data() as Map<String, dynamic>;
 
                     previewText = data['title']?.toString() ?? '未命名公告';
-
                     isPinned = data['isPinned'] == true;
+                    typeLabel = _announcementTypeLabel(
+                      data['type']?.toString() ?? 'normal',
+                    );
                   }
 
                   return Column(
@@ -704,15 +745,17 @@ class _ShopPublicPageState extends State<ShopPublicPage> {
                           ),
                         ),
 
-                      const Text(
-                        '最新公告',
-                        style: TextStyle(
+                      Text(
+                        typeLabel,
+                        style: const TextStyle(
                           fontSize: 13,
                           fontWeight: FontWeight.w800,
                           color: Color(0xFFB86B18),
                         ),
                       ),
+
                       const SizedBox(height: 3),
+
                       Text(
                         previewText,
                         maxLines: 1,
@@ -849,5 +892,21 @@ class _ShopPublicPageState extends State<ShopPublicPage> {
         ),
       ),
     );
+  }
+
+  String _announcementTypeLabel(String type) {
+    switch (type) {
+      case 'important':
+        return '重要公告';
+      case 'business_hours':
+        return '營業異動';
+      case 'promotion':
+        return '優惠活動';
+      case 'checkin_notice':
+        return '入住提醒';
+      case 'normal':
+      default:
+        return '一般公告';
+    }
   }
 }

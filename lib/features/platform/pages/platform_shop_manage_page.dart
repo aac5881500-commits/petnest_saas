@@ -9,6 +9,7 @@ import 'package:petnest_saas/features/platform/widgets/platform_shop_status_pill
 import 'package:petnest_saas/features/platform/widgets/platform_shop_info_pill.dart';
 import 'package:petnest_saas/features/platform/widgets/platform_shop_metric_card.dart';
 import 'package:petnest_saas/features/shop/pages/shop_public_page.dart';
+import 'package:petnest_saas/features/platform/pages/platform_send_shop_notification_page.dart';
 
 class PlatformShopManagePage extends StatelessWidget {
   const PlatformShopManagePage({super.key});
@@ -192,6 +193,8 @@ class PlatformShopManagePage extends StatelessWidget {
                     ? data['platformHomeLogoUrl'].toString()
                     : data['logoUrl']?.toString() ?? '';
                 final isPublic = data['isPublic'] == true;
+                final externalLinksEnabled =
+                    data['externalLinksEnabled'] != false;
                 final plan = data['plan']?.toString() ?? 'free';
                 final enabledModules = List<String>.from(
                   data['enabledModules'] ?? [],
@@ -529,6 +532,76 @@ class PlatformShopManagePage extends StatelessWidget {
                             ],
                           ),
                         ),
+                        const SizedBox(height: 8),
+
+                        Container(
+                          padding: const EdgeInsets.all(14),
+                          decoration: BoxDecoration(
+                            color: externalLinksEnabled
+                                ? const Color(0xFFF9FAFB)
+                                : const Color(0xFFFFF7F7),
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(
+                              color: externalLinksEnabled
+                                  ? Colors.grey.shade200
+                                  : Colors.red.shade100,
+                            ),
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(
+                                Icons.link_off,
+                                size: 20,
+                                color: externalLinksEnabled
+                                    ? Colors.blue
+                                    : Colors.red,
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      externalLinksEnabled
+                                          ? '外部連結已啟用'
+                                          : '外部連結已關閉',
+                                      style: TextStyle(
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w900,
+                                        color: externalLinksEnabled
+                                            ? Colors.green
+                                            : Colors.red,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      externalLinksEnabled
+                                          ? 'IG / FB / LINE 等外部連結目前可顯示'
+                                          : '此店家的外部連結目前已被平台關閉',
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        color: Colors.grey.shade600,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              Switch(
+                                value: externalLinksEnabled,
+                                onChanged: (value) async {
+                                  await FirebaseFirestore.instance
+                                      .collection('shops')
+                                      .doc(doc.id)
+                                      .update({
+                                        'externalLinksEnabled': value,
+                                        'updatedAt':
+                                            FieldValue.serverTimestamp(),
+                                      });
+                                },
+                              ),
+                            ],
+                          ),
+                        ),
                         const SizedBox(height: 12),
 
                         GridView.count(
@@ -664,6 +737,46 @@ class PlatformShopManagePage extends StatelessWidget {
                             ),
 
                             const SizedBox(height: 8),
+
+                            const SizedBox(height: 8),
+
+                            SizedBox(
+                              width: double.infinity,
+                              child: OutlinedButton.icon(
+                                style: OutlinedButton.styleFrom(
+                                  foregroundColor: Colors.orange,
+                                  side: BorderSide(
+                                    color: Colors.orange.shade200,
+                                  ),
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 14,
+                                  ),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(14),
+                                  ),
+                                ),
+                                onPressed: () {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (_) =>
+                                          PlatformSendShopNotificationPage(
+                                            shopId: doc.id,
+                                            shopName: name,
+                                          ),
+                                    ),
+                                  );
+                                },
+                                icon: const Icon(
+                                  Icons.notifications_active_outlined,
+                                  size: 18,
+                                ),
+                                label: const Text(
+                                  '通知店家',
+                                  style: TextStyle(fontWeight: FontWeight.w800),
+                                ),
+                              ),
+                            ),
 
                             SizedBox(
                               width: double.infinity,

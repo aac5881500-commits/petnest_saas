@@ -8,6 +8,7 @@ import 'package:petnest_saas/features/platform/pages/platform_shop_manage_page.d
 import 'package:petnest_saas/features/platform/pages/platform_policy_manage_page.dart';
 import 'package:petnest_saas/features/platform/pages/platform_activation_code_manage_page.dart';
 import 'package:petnest_saas/features/platform/pages/platform_shop_request_manage_page.dart';
+import 'package:petnest_saas/features/platform/pages/platform_contact_request_list_page.dart';
 
 class PlatformAdminPage extends StatelessWidget {
   const PlatformAdminPage({super.key});
@@ -83,6 +84,21 @@ class PlatformAdminPage extends StatelessWidget {
                 context,
                 MaterialPageRoute(
                   builder: (_) => const PlatformPolicyManagePage(),
+                ),
+              );
+            },
+          ),
+          const SizedBox(height: 12),
+
+          _AdminEntryCard(
+            icon: Icons.support_agent,
+            title: '聯絡平台案件',
+            subtitle: '查看店主送出的問題、需求與回報紀錄',
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => const PlatformContactRequestListPage(),
                 ),
               );
             },
