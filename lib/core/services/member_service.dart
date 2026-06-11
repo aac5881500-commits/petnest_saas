@@ -12,9 +12,7 @@ class MemberService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
 
   /// 🔥 確保會員存在（登入店家時呼叫）
-  Future<void> ensureMember({
-    required String shopId,
-  }) async {
+  Future<void> ensureMember({required String shopId}) async {
     final user = _auth.currentUser;
     if (user == null) return;
 
@@ -30,21 +28,23 @@ class MemberService {
     if (doc.exists) return;
 
     /// 建立會員
-    await memberRef.set({
-      'userId': user.uid,
-      'email': user.email,
-      'createdAt': FieldValue.serverTimestamp(),
-
-      /// 🔥 未來會用到
-      'lastLoginAt': FieldValue.serverTimestamp(),
-      'isBlocked': false,
-    });
+    try {
+      await memberRef.set({
+        'userId': user.uid,
+        'email': user.email,
+        'createdAt': FieldValue.serverTimestamp(),
+        'lastLoginAt': FieldValue.serverTimestamp(),
+        'isBlocked': false,
+      });
+    } catch (e) {
+      print('🔥 ensureMember錯誤');
+      print(e);
+      rethrow;
+    }
   }
 
   /// 🔥 更新最後登入時間
-  Future<void> updateLastLogin({
-    required String shopId,
-  }) async {
+  Future<void> updateLastLogin({required String shopId}) async {
     final user = _auth.currentUser;
     if (user == null) return;
 
@@ -53,8 +53,6 @@ class MemberService {
         .doc(shopId)
         .collection('members')
         .doc(user.uid)
-        .update({
-      'lastLoginAt': FieldValue.serverTimestamp(),
-    });
+        .update({'lastLoginAt': FieldValue.serverTimestamp()});
   }
 }

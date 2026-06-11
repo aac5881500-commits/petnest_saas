@@ -608,9 +608,12 @@ class AdminBookingDetailPage extends StatelessWidget {
           'checkOutAt': now,
           'extraFee': extraFee,
           'extraCharges': FieldValue.arrayUnion(extraCharges),
+          'status': 'completed',
+          'updatedAt': now,
         });
 
     await FirebaseFirestore.instance.collection('reports').add({
+      'shopId': data['shopId'],
       'bookingId': bookingId,
       'roomName': data['roomName'],
       'totalPrice': data['totalPrice'] ?? 0,
@@ -640,8 +643,6 @@ class AdminBookingDetailPage extends StatelessWidget {
       'operatorEmail': user?.email,
       'createdAt': FieldValue.serverTimestamp(),
     });
-
-    await _updateStatus('completed');
   }
 
   Future<List<String>> _uploadExtraChargeImages({

@@ -216,12 +216,6 @@ class BookingSubmitHelper {
       policyAcceptedAt: policyAcceptedAt,
     );
 
-    await BookingService.instance.updateBooking(
-      bookingId: bookingId,
-      totalPrice: totalPrice,
-      pricePerNight: pricePerNight,
-    );
-
     return bookingId;
   }
 }

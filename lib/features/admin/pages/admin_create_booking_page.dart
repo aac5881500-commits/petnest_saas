@@ -18,6 +18,7 @@ import 'package:petnest_saas/features/admin/widgets/admin_selected_member_card.d
 import 'package:petnest_saas/features/admin/widgets/admin_pet_section.dart';
 import 'package:petnest_saas/features/admin/widgets/admin_booking_date_section.dart';
 import 'package:petnest_saas/features/admin/widgets/admin_booking_room_type_section.dart';
+import 'package:petnest_saas/core/services/shop_plan_service.dart';
 
 class AdminCreateBookingPage extends StatefulWidget {
   const AdminCreateBookingPage({super.key, required this.shopId});
@@ -761,6 +762,38 @@ class _AdminCreateBookingPageState extends State<AdminCreateBookingPage> {
   Future<void> _submitBooking() async {
     final member = _selectedMember;
     final roomType = _selectedRoomType;
+    final shopDoc = await FirebaseFirestore.instance
+        .collection('shops')
+        .doc(widget.shopId)
+        .get();
+
+    final shop = shopDoc.data() as Map<String, dynamic>? ?? {};
+
+    final dailyLimit = ShopPlanService.manualBookingDailyLimit(shop);
+
+    final now = DateTime.now();
+    final todayStart = DateTime(now.year, now.month, now.day);
+    final tomorrowStart = todayStart.add(const Duration(days: 1));
+
+    final todayAdminBookings = await FirebaseFirestore.instance
+        .collection('bookings')
+        .where('shopId', isEqualTo: widget.shopId)
+        .where('source', isEqualTo: 'admin')
+        .where(
+          'createdAt',
+          isGreaterThanOrEqualTo: Timestamp.fromDate(todayStart),
+        )
+        .where('createdAt', isLessThan: Timestamp.fromDate(tomorrowStart))
+        .get();
+
+    if (todayAdminBookings.docs.length >= dailyLimit) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('免費版每日最多手動新增 $dailyLimit 筆訂單，升級 999 方案即可解除限制')),
+      );
+      return;
+    }
 
     if (member == null ||
         roomType == null ||

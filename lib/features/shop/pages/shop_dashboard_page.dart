@@ -37,6 +37,7 @@ import 'package:petnest_saas/core/constants/shop_permission_keys.dart';
 import 'package:petnest_saas/features/shop/pages/shop_contact_platform_page.dart';
 import 'package:petnest_saas/features/shop/pages/shop_faq_manage_page.dart';
 import 'package:petnest_saas/features/shop/pages/shop_platform_notification_page.dart';
+import 'package:petnest_saas/core/services/shop_plan_service.dart';
 
 class ShopDashboardPage extends StatefulWidget {
   const ShopDashboardPage({super.key, required this.shopId});
@@ -297,12 +298,14 @@ class _ShopDashboardPageState extends State<ShopDashboardPage> {
                         case ShopModules.basicInfo:
                           return _BasicInfoTab(
                             shopId: widget.shopId,
+                            shop: shop,
                             currentUserRole: _currentUserRole,
                             memberData: _currentMemberData,
                           );
                         case ShopModules.catHotel:
                           return _CatHotelTab(
                             shopId: widget.shopId,
+                            shop: shop,
                             isProfileComplete: isComplete,
                             memberData: _currentMemberData,
                           );
@@ -347,10 +350,11 @@ class _ShopDashboardPageState extends State<ShopDashboardPage> {
 class _BasicInfoTab extends StatelessWidget {
   const _BasicInfoTab({
     required this.shopId,
+    required this.shop,
     required this.currentUserRole,
     required this.memberData,
   });
-
+  final Map<String, dynamic> shop;
   final String shopId;
   final String? currentUserRole;
   final Map<String, dynamic>? memberData;
@@ -360,9 +364,143 @@ class _BasicInfoTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final canUsePublicPage = ShopPlanService.canUsePublicPage(shop);
+    final canUseAnnouncement = ShopPlanService.canUseAnnouncement(shop);
+    final canUseFaq = ShopPlanService.canUseFaq(shop);
+
+    final canUseBusinessInfo = ShopPlanService.canUseBusinessInfo(shop);
+    final canUseShopBanner = ShopPlanService.canUseShopBanner(shop);
+    final canUseEnvironment = ShopPlanService.canUseEnvironment(shop);
+    final canUseAboutUs = ShopPlanService.canUseAboutUs(shop);
+
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
+        _ShopPlanStatusCard(shopId: shopId),
+
+        const _MenuSectionTitle('店家資料'),
+
+        if (currentUserRole == ShopRoles.owner)
+          _MenuTile(
+            title: '店家基本資料',
+            subtitle: '設定店名、類型、地址、電話與介紹',
+            icon: Icons.store,
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => ShopBasicInfoPage(shopId: shopId),
+                ),
+              );
+            },
+          ),
+        if (_can(ShopPermissionKeys.editBusinessInfo))
+          _MenuTile(
+            title: '營業資訊',
+            subtitle: canUseBusinessInfo ? '設定營業時間與服務項目' : '999方案開放',
+            icon: Icons.schedule,
+            enabled: canUseBusinessInfo,
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => ShopBusinessInfoPage(shopId: shopId),
+                ),
+              );
+            },
+          ),
+        if (_can(ShopPermissionKeys.editMedia))
+          _MenuTile(
+            title: '店家封面',
+            subtitle: canUseShopBanner ? '上傳封面圖片' : '999方案開放',
+            icon: Icons.image,
+            enabled: canUseShopBanner,
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => ShopMediaPage(shopId: shopId),
+                ),
+              );
+            },
+          ),
+
+        const _MenuSectionTitle('前台內容'),
+
+        if (_can(ShopPermissionKeys.manageEnvironment))
+          _MenuTile(
+            title: '環境介紹管理',
+            subtitle: canUseEnvironment ? '設定環境照片、介紹文案與展示內容' : '999方案開放',
+            icon: Icons.apartment_rounded,
+            enabled: canUseEnvironment,
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => ShopEnvironmentManagePage(shopId: shopId),
+                ),
+              );
+            },
+          ),
+
+        if (_can(ShopPermissionKeys.manageAbout))
+          _MenuTile(
+            title: '關於我們管理',
+            subtitle: canUseAboutUs ? '設定品牌故事、理念與介紹內容' : '999方案開放',
+            icon: Icons.favorite_border,
+            enabled: canUseAboutUs,
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => ShopAboutManagePage(shopId: shopId),
+                ),
+              );
+            },
+          ),
+
+        _MenuTile(
+          title: '公告管理',
+          subtitle: canUseAnnouncement ? '新增、編輯、上下架店家公告' : '999方案開放',
+          icon: Icons.campaign,
+          enabled: canUseAnnouncement,
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => ShopAnnouncementManagePage(shopId: shopId),
+              ),
+            );
+          },
+        ),
+        _MenuTile(
+          title: '常見問題管理',
+          subtitle: canUseFaq ? '新增、編輯、上下架常見問題' : '999方案開放',
+          icon: Icons.help_outline,
+          enabled: canUseFaq,
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => ShopFaqManagePage(shopId: shopId),
+              ),
+            );
+          },
+        ),
+
+        _MenuTile(
+          title: '前台預覽',
+          subtitle: canUsePublicPage ? '查看客戶看到的頁面' : '999方案開放',
+          icon: Icons.visibility,
+          enabled: canUsePublicPage,
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => ShopPublicPage(shopId: shopId)),
+            );
+          },
+        ),
+
         const _MenuSectionTitle('會員系統'),
 
         if (_can(ShopPermissionKeys.manageMembers))
@@ -394,125 +532,6 @@ class _BasicInfoTab extends StatelessWidget {
               );
             },
           ),
-
-        const _MenuSectionTitle('店家資料'),
-
-        if (currentUserRole == ShopRoles.owner)
-          _MenuTile(
-            title: '店家基本資料',
-            subtitle: '設定店名、類型、地址、電話與介紹',
-            icon: Icons.store,
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => ShopBasicInfoPage(shopId: shopId),
-                ),
-              );
-            },
-          ),
-
-        if (_can(ShopPermissionKeys.editBusinessInfo))
-          _MenuTile(
-            title: '營業資訊',
-            subtitle: '設定營業時間與服務項目',
-            icon: Icons.schedule,
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => ShopBusinessInfoPage(shopId: shopId),
-                ),
-              );
-            },
-          ),
-
-        if (_can(ShopPermissionKeys.editMedia))
-          _MenuTile(
-            title: '店家封面 ',
-            subtitle: '上傳封面圖片',
-            icon: Icons.image,
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => ShopMediaPage(shopId: shopId),
-                ),
-              );
-            },
-          ),
-
-        const _MenuSectionTitle('前台內容'),
-
-        if (_can(ShopPermissionKeys.manageEnvironment))
-          _MenuTile(
-            title: '環境介紹管理',
-            subtitle: '設定環境照片、介紹文案與展示內容',
-            icon: Icons.apartment_rounded,
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => ShopEnvironmentManagePage(shopId: shopId),
-                ),
-              );
-            },
-          ),
-
-        if (_can(ShopPermissionKeys.manageAbout))
-          _MenuTile(
-            title: '關於我們管理',
-            subtitle: '設定品牌故事、理念與介紹內容',
-            icon: Icons.favorite_border,
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => ShopAboutManagePage(shopId: shopId),
-                ),
-              );
-            },
-          ),
-
-        _MenuTile(
-          title: '公告管理',
-          subtitle: '新增、編輯、上下架店家公告',
-          icon: Icons.campaign,
-          onTap: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (_) => ShopAnnouncementManagePage(shopId: shopId),
-              ),
-            );
-          },
-        ),
-
-        _MenuTile(
-          title: '常見問題管理',
-          subtitle: '新增、編輯、上下架常見問題',
-          icon: Icons.help_outline,
-          onTap: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (_) => ShopFaqManagePage(shopId: shopId),
-              ),
-            );
-          },
-        ),
-
-        _MenuTile(
-          title: '前台預覽',
-          subtitle: '查看客戶看到的頁面',
-          icon: Icons.visibility,
-          onTap: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(builder: (_) => ShopPublicPage(shopId: shopId)),
-            );
-          },
-        ),
 
         const _MenuSectionTitle('後台管理'),
 
@@ -609,10 +628,12 @@ class _BasicInfoTab extends StatelessWidget {
 class _CatHotelTab extends StatelessWidget {
   const _CatHotelTab({
     required this.shopId,
+    required this.shop,
     required this.isProfileComplete,
     required this.memberData,
   });
 
+  final Map<String, dynamic> shop;
   final String shopId;
   final bool isProfileComplete;
   final Map<String, dynamic>? memberData;
@@ -623,6 +644,10 @@ class _CatHotelTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final canUseDepositSettings = ShopPlanService.canUseDepositSettings(shop);
+
+    final canUsePolicySettings = ShopPlanService.canUsePolicySettings(shop);
+
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
@@ -720,8 +745,9 @@ class _CatHotelTab extends StatelessWidget {
         if (_can(ShopPermissionKeys.managePaymentSettings))
           _MenuTile(
             title: '付款 / 訂金設定',
-            subtitle: '設定是否需要訂金、付款方式與收款資訊',
+            subtitle: canUseDepositSettings ? '設定是否需要訂金、付款方式與收款資訊' : '999方案開放',
             icon: Icons.payments,
+            enabled: canUseDepositSettings,
             onTap: () {
               Navigator.push(
                 context,
@@ -737,8 +763,9 @@ class _CatHotelTab extends StatelessWidget {
         if (_can(ShopPermissionKeys.managePolicy))
           _MenuTile(
             title: '入住規則 / 貓咪條件',
-            subtitle: '設定入住條款與貓咪入住條件',
+            subtitle: canUsePolicySettings ? '設定入住條款與貓咪入住條件' : '999方案開放',
             icon: Icons.rule,
+            enabled: canUsePolicySettings,
             onTap: () {
               Navigator.push(
                 context,
@@ -819,6 +846,90 @@ class _ModuleTemplateTab extends StatelessWidget {
           description: '這個模組目前先留位置，不一定顯示，不重做資料結構。',
         ),
       ],
+    );
+  }
+}
+
+class _ShopPlanStatusCard extends StatelessWidget {
+  const _ShopPlanStatusCard({required this.shopId});
+
+  final String shopId;
+
+  String _planName(String plan) {
+    switch (plan) {
+      case 'basic':
+      case 'pro999':
+        return '999方案';
+      case 'free':
+        return '免費版';
+      default:
+        return '免費版';
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<DocumentSnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('shops')
+          .doc(shopId)
+          .snapshots(),
+      builder: (context, snapshot) {
+        final data = snapshot.data?.data() as Map<String, dynamic>? ?? {};
+        final plan = (data['plan'] ?? 'free').toString();
+        final status = (data['status'] ?? 'active').toString();
+        final paidUntil = data['paidUntil'];
+
+        var expireText = '尚未設定';
+        if (paidUntil is Timestamp) {
+          final date = paidUntil.toDate();
+          expireText =
+              '${date.year}/${date.month.toString().padLeft(2, '0')}/${date.day.toString().padLeft(2, '0')}';
+        }
+
+        final now = DateTime.now();
+
+        int? daysLeft;
+
+        if (paidUntil is Timestamp) {
+          daysLeft = paidUntil.toDate().difference(now).inDays;
+        }
+
+        Color color;
+        String statusText;
+
+        if (status == 'suspended') {
+          color = Colors.red;
+          statusText = '已停權';
+        } else if (daysLeft != null && daysLeft < 0) {
+          color = Colors.red;
+          statusText = '已到期';
+        } else if (daysLeft != null && daysLeft <= 7) {
+          color = Colors.orange;
+          statusText = '即將到期';
+        } else {
+          color = Colors.green;
+          statusText = '正常使用';
+        }
+
+        return Card(
+          child: ListTile(
+            leading: CircleAvatar(
+              backgroundColor: color.withOpacity(0.12),
+              child: Icon(Icons.workspace_premium, color: color),
+            ),
+            title: Text(
+              '目前方案：${_planName(plan)}',
+              style: const TextStyle(fontWeight: FontWeight.bold),
+            ),
+            subtitle: Text(
+              daysLeft == null
+                  ? '到期時間：$expireText\n狀態：$statusText'
+                  : '到期時間：$expireText\n剩餘：$daysLeft 天\n狀態：$statusText',
+            ),
+          ),
+        );
+      },
     );
   }
 }

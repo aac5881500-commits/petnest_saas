@@ -8,6 +8,7 @@ import 'package:petnest_saas/core/services/shop_service.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:petnest_saas/core/services/action_log_service.dart';
+import 'package:petnest_saas/core/services/shop_plan_service.dart';
 
 class ShopRoomTypePage extends StatefulWidget {
   const ShopRoomTypePage({super.key, required this.shopId});
@@ -82,6 +83,25 @@ class _ShopRoomTypePageState extends State<ShopRoomTypePage> {
     final price = int.tryParse(_priceController.text) ?? 0;
     final totalRooms = int.tryParse(_totalRoomsController.text) ?? 0;
     final description = _descriptionController.text.trim();
+    final roomTypes = await ShopService.instance.getRoomTypes(widget.shopId);
+
+    final shopDoc = await FirebaseFirestore.instance
+        .collection('shops')
+        .doc(widget.shopId)
+        .get();
+
+    final shop = shopDoc.data() as Map<String, dynamic>? ?? {};
+
+    final limit = ShopPlanService.roomTypeLimit(shop);
+
+    if (roomTypes.length >= limit) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('免費版最多建立 $limit 種房型，升級 999 方案即可解除限制')),
+      );
+      return;
+    }
 
     if (name.isEmpty || capacity <= 0 || price <= 0 || totalRooms <= 0) {
       ScaffoldMessenger.of(

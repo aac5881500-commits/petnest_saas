@@ -15,23 +15,20 @@ import 'package:petnest_saas/core/services/action_log_service.dart';
 import 'package:petnest_saas/core/services/shop_service.dart';
 import 'package:petnest_saas/shared/widgets/booking_calendar.dart';
 import 'package:petnest_saas/core/constants/shop_permission_keys.dart';
+import 'package:petnest_saas/core/services/shop_plan_service.dart';
 
 class ShopBookingSettingsPage extends StatefulWidget {
-  const ShopBookingSettingsPage({
-    super.key,
-    required this.shopId,
-  });
+  const ShopBookingSettingsPage({super.key, required this.shopId});
 
   final String shopId;
 
   @override
-State<ShopBookingSettingsPage> createState() => _ShopBookingSettingsPageState();
+  State<ShopBookingSettingsPage> createState() =>
+      _ShopBookingSettingsPageState();
 }
 
 class _ShopBookingSettingsPageState extends State<ShopBookingSettingsPage> {
-
   final _maxAdvanceBookingDaysController = TextEditingController();
-
 
   bool _bookingEnabled = true;
   bool _settingsInitialized = false;
@@ -42,7 +39,6 @@ class _ShopBookingSettingsPageState extends State<ShopBookingSettingsPage> {
   Map<String, dynamic>? _memberData;
 
   DateTime? _selectedCalendarDate;
-
 
   @override
   void initState() {
@@ -69,13 +65,12 @@ class _ShopBookingSettingsPageState extends State<ShopBookingSettingsPage> {
     }
 
     try {
-      final memberData =
-    await ShopService.instance.getUserMemberInShop(
-  shopId: widget.shopId,
-  uid: user.uid,
-);
+      final memberData = await ShopService.instance.getUserMemberInShop(
+        shopId: widget.shopId,
+        uid: user.uid,
+      );
 
-final role = memberData?['role']?.toString();
+      final role = memberData?['role']?.toString();
 
       if (!mounted) return;
       setState(() {
@@ -95,54 +90,38 @@ final role = memberData?['role']?.toString();
   @override
   Widget build(BuildContext context) {
     if (!_roleLoaded) {
-      return const Scaffold(
-        body: Center(
-          child: CircularProgressIndicator(),
-        ),
-      );
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
 
     if (_currentUserRole == null) {
-      return const Scaffold(
-        body: Center(
-          child: Text('查無店家權限'),
-        ),
-      );
+      return const Scaffold(body: Center(child: Text('查無店家權限')));
     }
 
-   final canManageBookings =
-    ShopService.instance.hasPermission(
-  _memberData,
-  ShopPermissionKeys.manageBookingSettings,
-);
+    final canManageBookings = ShopService.instance.hasPermission(
+      _memberData,
+      ShopPermissionKeys.manageBookingSettings,
+    );
 
-if (!canManageBookings) {
-  return Scaffold(
-    appBar: AppBar(
-      title: const Text('權限限制'),
-      leading: IconButton(
-        icon: const Icon(Icons.arrow_back),
-        onPressed: () {
-          if (Navigator.canPop(context)) {
-            Navigator.pop(context);
-          } else {
-            Navigator.pushReplacementNamed(
-              context,
-              '/home',
-            );
-          }
-        },
-      ),
-    ),
-    body: const Center(
-      child: Text('你沒有管理權限'),
-    ),
-  );
-}
+    if (!canManageBookings) {
+      return Scaffold(
+        appBar: AppBar(
+          title: const Text('權限限制'),
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back),
+            onPressed: () {
+              if (Navigator.canPop(context)) {
+                Navigator.pop(context);
+              } else {
+                Navigator.pushReplacementNamed(context, '/home');
+              }
+            },
+          ),
+        ),
+        body: const Center(child: Text('你沒有管理權限')),
+      );
+    }
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('預約管理'),
-      ),
+      appBar: AppBar(title: const Text('預約管理')),
       body: StreamBuilder<Map<String, dynamic>?>(
         stream: ShopService.instance.streamShop(widget.shopId),
         builder: (context, shopSnapshot) {
@@ -151,9 +130,7 @@ if (!canManageBookings) {
           }
 
           if (shopSnapshot.hasError) {
-            return Center(
-              child: Text('店家資料載入失敗：${shopSnapshot.error}'),
-            );
+            return Center(child: Text('店家資料載入失敗：${shopSnapshot.error}'));
           }
 
           final shop = shopSnapshot.data;
@@ -162,14 +139,22 @@ if (!canManageBookings) {
           }
 
           if (!_settingsInitialized) {
-  _initSettingsIfNeeded(shop);
-}
+            _initSettingsIfNeeded(shop);
+          }
 
           final today = _dateOnly(DateTime.now());
-          final maxAdvanceBookingDays =
-              _toInt(shop['maxAdvanceBookingDays'], fallback: 30);
-          final lastDate = today.add(Duration(days: maxAdvanceBookingDays));
+          final savedMaxAdvanceBookingDays = _toInt(
+            shop['maxAdvanceBookingDays'],
+            fallback: 30,
+          );
 
+          final planLimit = ShopPlanService.bookingOpenDaysLimit(shop);
+
+          final maxAdvanceBookingDays = savedMaxAdvanceBookingDays > planLimit
+              ? planLimit
+              : savedMaxAdvanceBookingDays;
+
+          final lastDate = today.add(Duration(days: maxAdvanceBookingDays));
           return FutureBuilder<_CalendarPayload>(
             future: _buildCalendarPayload(
               shop: shop,
@@ -186,15 +171,15 @@ if (!canManageBookings) {
                   children: [
                     _buildBookingSettingsCard(),
                     const SizedBox(height: 16),
-                   _buildCalendarSection(
-  shop: shop,
-  firstDate: today,
-  lastDate: lastDate,
-  payload: payload,
-),
-const SizedBox(height: 16),
-_buildBookingActionLogs(),
-const SizedBox(height: 16),
+                    _buildCalendarSection(
+                      shop: shop,
+                      firstDate: today,
+                      lastDate: lastDate,
+                      payload: payload,
+                    ),
+                    const SizedBox(height: 16),
+                    _buildBookingActionLogs(),
+                    const SizedBox(height: 16),
                   ],
                 ),
               );
@@ -214,10 +199,7 @@ const SizedBox(height: 16),
           children: [
             const Text(
               '預約設定',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-              ),
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 16),
             SwitchListTile(
@@ -238,7 +220,7 @@ const SizedBox(height: 16),
               keyboardType: TextInputType.number,
               decoration: const InputDecoration(
                 labelText: '最遠可預約天數',
-                hintText: '例如 30 / 60',
+                hintText: '免費版30天｜999方案365天',
                 border: OutlineInputBorder(),
               ),
             ),
@@ -276,33 +258,28 @@ const SizedBox(height: 16),
       children: [
         const Text(
           '日期管理月曆',
-          style: TextStyle(
-            fontSize: 18,
-            fontWeight: FontWeight.bold,
-          ),
+          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
         ),
         const SizedBox(height: 8),
         Text(
-  '1. 可開啟或關閉前台預約功能。\n'
-  '2. 可設定客戶最遠可預約天數。\n'
-  '3. 可點擊日期關閉單日預約，並設定原因（例如：休假、清潔、維修）。\n'
-  '4. 關閉日期後，前台將無法選擇該日期預約。\n'
-  '5. 若只是單一房間維修或臨時關閉，請至房務管理設定個別房間日期。',
-  style: TextStyle(
-    color: Colors.red,
-    fontSize: 13,
-    height: 1.6,
-    fontWeight: FontWeight.w700,
-  ),
-),
+          '1. 可開啟或關閉前台預約功能。\n'
+          '2. 可設定客戶最遠可預約天數。\n'
+          '3. 可點擊日期關閉單日預約，並設定原因（例如：休假、清潔、維修）。\n'
+          '4. 關閉日期後，前台將無法選擇該日期預約。\n'
+          '5. 若只是單一房間維修或臨時關閉，請至房務管理設定個別房間日期。',
+          style: TextStyle(
+            color: Colors.red,
+            fontSize: 13,
+            height: 1.6,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
         const SizedBox(height: 12),
         if (loading)
           const Card(
             child: Padding(
               padding: EdgeInsets.all(24),
-              child: Center(
-                child: CircularProgressIndicator(),
-              ),
+              child: Center(child: CircularProgressIndicator()),
             ),
           )
         else
@@ -314,141 +291,121 @@ const SizedBox(height: 16),
             blockedDateKeys: payload.blockedDateKeys,
             unbookableDateKeys: payload.unbookableDateKeys,
             onDayTap: (date) async {
-  final selected = _dateOnly(date);
+              final selected = _dateOnly(date);
 
-  await _toggleBlockedDate(
-    shop: shop,
-    date: selected,
-  );
+              await _toggleBlockedDate(shop: shop, date: selected);
 
-  if (!mounted) return;
+              if (!mounted) return;
 
-  setState(() {
-    _selectedCalendarDate = selected;
-  });
-},
+              setState(() {
+                _selectedCalendarDate = selected;
+              });
+            },
           ),
       ],
     );
   }
 
-Widget _buildBookingActionLogs() {
-  return StreamBuilder<List<Map<String, dynamic>>>(
-    stream: ActionLogService.instance.streamShopLogs(widget.shopId),
-    builder: (context, snapshot) {
-      final logs = (snapshot.data ?? [])
-          .where((log) {
-            final action = log['action']?.toString() ?? '';
+  Widget _buildBookingActionLogs() {
+    return StreamBuilder<List<Map<String, dynamic>>>(
+      stream: ActionLogService.instance.streamShopLogs(widget.shopId),
+      builder: (context, snapshot) {
+        final logs = (snapshot.data ?? [])
+            .where((log) {
+              final action = log['action']?.toString() ?? '';
 
-            return [
-              'update_booking_settings',
-              'block_date',
-              'unblock_date',
-            ].contains(action);
-          })
-          .take(20)
-          .toList();
+              return [
+                'update_booking_settings',
+                'block_date',
+                'unblock_date',
+              ].contains(action);
+            })
+            .take(20)
+            .toList();
 
-      return Card(
-        child: Padding(
-          padding: const EdgeInsets.all(12),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                '預約管理操作紀錄',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
+        return Card(
+          child: Padding(
+            padding: const EdgeInsets.all(12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  '預約管理操作紀錄',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                 ),
-              ),
 
-              const SizedBox(height: 8),
+                const SizedBox(height: 8),
 
-              if (logs.isEmpty)
-                const Text('目前沒有預約管理操作紀錄'),
+                if (logs.isEmpty) const Text('目前沒有預約管理操作紀錄'),
 
-              ...logs.map((log) {
-                final action = log['action']?.toString() ?? '';
-                final operatorEmail =
-                    log['operatorEmail']?.toString() ?? '-';
-                final operatorRole =
-                    log['operatorRole']?.toString() ?? '-';
-                    String displayRole = operatorRole;
+                ...logs.map((log) {
+                  final action = log['action']?.toString() ?? '';
+                  final operatorEmail = log['operatorEmail']?.toString() ?? '-';
 
-if (operatorRole == 'owner') {
-  displayRole = '老闆';
-} else if (operatorRole == 'staff') {
-  displayRole = '員工';
-}
+                  final payload = Map<String, dynamic>.from(
+                    log['payload'] ?? {},
+                  );
 
-                final payload =
-    Map<String, dynamic>.from(log['payload'] ?? {});
+                  final dateKey = payload['dateKey']?.toString() ?? '-';
 
-final dateKey =
-    payload['dateKey']?.toString() ?? '-';
+                  final createdAt = log['createdAt'];
 
-final createdAt = log['createdAt'];
+                  String formattedTime = '-';
 
-String formattedTime = '-';
+                  if (createdAt is Timestamp) {
+                    formattedTime = DateFormat(
+                      'yyyy-MM-dd HH:mm',
+                    ).format(createdAt.toDate());
+                  }
 
-if (createdAt is Timestamp) {
-  formattedTime = DateFormat(
-    'yyyy-MM-dd HH:mm',
-  ).format(createdAt.toDate());
-}
+                  String title = action;
 
-String title = action;
+                  String settingDetail = '';
 
-String settingDetail = '';
+                  if (action == 'update_booking_settings') {
+                    title = '更新預約設定';
 
-if (action == 'update_booking_settings') {
-  title = '更新預約設定';
+                    final bookingEnabled = payload['bookingEnabled'] == true;
 
-  final bookingEnabled =
-      payload['bookingEnabled'] == true;
+                    final maxDays = payload['maxAdvanceBookingDays'];
 
-  final maxDays =
-      payload['maxAdvanceBookingDays'];
+                    settingDetail =
+                        '前台預約：${bookingEnabled ? '開啟' : '關閉'}\n'
+                        '最遠預約天數：$maxDays 天';
+                  } else if (action == 'block_date') {
+                    title = '關閉預約日期';
+                  } else if (action == 'unblock_date') {
+                    title = '恢復預約日期';
+                  }
 
-  settingDetail =
-      '前台預約：${bookingEnabled ? '開啟' : '關閉'}\n'
-      '最遠預約天數：$maxDays 天';
-} else if (action == 'block_date') {
-                  title = '關閉預約日期';
-                } else if (action == 'unblock_date') {
-                  title = '恢復預約日期';
-                }
-
-                return ListTile(
-                  dense: true,
-                  leading: const Icon(Icons.history),
-                  title: Text(title),
-                subtitle: Text(
-  '${settingDetail.isNotEmpty ? '$settingDetail\n' : ''}'
-  '異動日期：$dateKey\n'
-  '操作時間：$formattedTime\n'
-  '操作人：$operatorEmail\n',
-),
-                );
-              }),
-            ],
+                  return ListTile(
+                    dense: true,
+                    leading: const Icon(Icons.history),
+                    title: Text(title),
+                    subtitle: Text(
+                      '${settingDetail.isNotEmpty ? '$settingDetail\n' : ''}'
+                      '異動日期：$dateKey\n'
+                      '操作時間：$formattedTime\n'
+                      '操作人：$operatorEmail\n',
+                    ),
+                  );
+                }),
+              ],
+            ),
           ),
-        ),
-      );
-    },
-  );
-}
-
+        );
+      },
+    );
+  }
 
   Future<_CalendarPayload> _buildCalendarPayload({
     required Map<String, dynamic> shop,
     required DateTime firstDate,
     required DateTime lastDate,
   }) async {
-    final blockedDateKeys = List<String>.from(shop['blockedDates'] ?? [])
-        .map((e) => e.toString())
-        .toSet();
+    final blockedDateKeys = List<String>.from(
+      shop['blockedDates'] ?? [],
+    ).map((e) => e.toString()).toSet();
 
     final Map<String, int> remainingRoomsMap = {};
     final Map<String, int> occupiedRoomsMap = {};
@@ -458,15 +415,14 @@ if (action == 'update_booking_settings') {
     final last = _dateOnly(lastDate);
 
     while (!cursor.isAfter(last)) {
-  final key = ShopService.instance.formatDateKey(cursor);
+      final key = ShopService.instance.formatDateKey(cursor);
 
+      // 🔥 後台月曆不再算房間（統一用前台邏輯）
+      occupiedRoomsMap[key] = 0;
+      remainingRoomsMap[key] = 0;
 
-// 🔥 後台月曆不再算房間（統一用前台邏輯）
-occupiedRoomsMap[key] = 0;
-remainingRoomsMap[key] = 0;
-
-  cursor = cursor.add(const Duration(days: 1));
-}
+      cursor = cursor.add(const Duration(days: 1));
+    }
 
     return _CalendarPayload(
       blockedDateKeys: blockedDateKeys,
@@ -477,33 +433,46 @@ remainingRoomsMap[key] = 0;
   }
 
   void _initSettingsIfNeeded(Map<String, dynamic> shop) {
-  if (_settingsInitialized) return;
+    if (_settingsInitialized) return;
 
-  _bookingEnabled = shop['bookingEnabled'] ?? true;
+    _bookingEnabled = shop['bookingEnabled'] ?? true;
 
-  _maxAdvanceBookingDaysController.text =
-      _toInt(shop['maxAdvanceBookingDays'], fallback: 30).toString();
+    _maxAdvanceBookingDaysController.text = _toInt(
+      shop['maxAdvanceBookingDays'],
+      fallback: 30,
+    ).toString();
 
-  _selectedCalendarDate = _dateOnly(DateTime.now());
+    _selectedCalendarDate = _dateOnly(DateTime.now());
 
-  _settingsInitialized = true;
+    _settingsInitialized = true;
 
-  WidgetsBinding.instance.addPostFrameCallback((_) {
-    if (mounted) setState(() {});
-  });
-}
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) setState(() {});
+    });
+  }
 
   Future<void> _saveSettings() async {
-
     final maxAdvanceBookingDays =
         int.tryParse(_maxAdvanceBookingDaysController.text.trim()) ?? 0;
 
+    final shopDoc = await FirebaseFirestore.instance
+        .collection('shops')
+        .doc(widget.shopId)
+        .get();
+
+    final shop = shopDoc.data() as Map<String, dynamic>? ?? {};
+
+    final maxLimit = ShopPlanService.bookingOpenDaysLimit(shop);
+
+    if (maxAdvanceBookingDays > maxLimit) {
+      _showSnackBar('目前方案最多只能設定 $maxLimit 天');
+      return;
+    }
 
     if (maxAdvanceBookingDays <= 0) {
       _showSnackBar('最遠可預約天數至少要 1');
       return;
     }
-
 
     setState(() {
       _savingSettings = true;
@@ -570,22 +539,20 @@ remainingRoomsMap[key] = 0;
             action: 'unblock_date',
             operatorUid: user.uid,
             operatorRole: _currentUserRole!,
-            payload: {
-  'dateKey': dateKey,
-},
+            payload: {'dateKey': dateKey},
           );
         }
 
         if (!mounted) return;
         _showSnackBar('已改成開放：$dateKey');
       } else {
-  await FirebaseFirestore.instance
-      .collection('shops')
-      .doc(widget.shopId)
-      .update({
-    'blockedDates': FieldValue.arrayUnion([dateKey]),
-'blockedDateReasons.$dateKey': FieldValue.delete(),  });
-
+        await FirebaseFirestore.instance
+            .collection('shops')
+            .doc(widget.shopId)
+            .update({
+              'blockedDates': FieldValue.arrayUnion([dateKey]),
+              'blockedDateReasons.$dateKey': FieldValue.delete(),
+            });
 
         if (user != null && _currentUserRole != null) {
           await ActionLogService.instance.logAction(
@@ -595,9 +562,7 @@ remainingRoomsMap[key] = 0;
             action: 'block_date',
             operatorUid: user.uid,
             operatorRole: _currentUserRole!,
-            payload: {
-  'dateKey': dateKey,
-},
+            payload: {'dateKey': dateKey},
           );
         }
 
@@ -611,9 +576,7 @@ remainingRoomsMap[key] = 0;
   }
 
   void _showSnackBar(String text) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(text)),
-    );
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(text)));
   }
 
   DateTime _dateOnly(DateTime date) {
@@ -626,11 +589,6 @@ remainingRoomsMap[key] = 0;
     if (value is String) return int.tryParse(value) ?? fallback;
     return fallback;
   }
-
-
-
-
-
 }
 
 class _CalendarPayload {
