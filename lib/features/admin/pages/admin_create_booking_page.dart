@@ -19,6 +19,7 @@ import 'package:petnest_saas/features/admin/widgets/admin_pet_section.dart';
 import 'package:petnest_saas/features/admin/widgets/admin_booking_date_section.dart';
 import 'package:petnest_saas/features/admin/widgets/admin_booking_room_type_section.dart';
 import 'package:petnest_saas/core/services/shop_plan_service.dart';
+import 'package:petnest_saas/core/services/shop_permission_service.dart';
 
 class AdminCreateBookingPage extends StatefulWidget {
   const AdminCreateBookingPage({super.key, required this.shopId});
@@ -257,6 +258,22 @@ class _AdminCreateBookingPageState extends State<AdminCreateBookingPage> {
   }
 
   Future<void> _quickCreateMember() async {
+    final shopDoc = await FirebaseFirestore.instance
+        .collection('shops')
+        .doc(widget.shopId)
+        .get();
+
+    final shop = shopDoc.data() as Map<String, dynamic>? ?? {};
+
+    if (!ShopPermissionService.canCreateMember(shop)) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(ShopPermissionService.restrictedMessage())),
+      );
+
+      return;
+    }
     final result = await showDialog<Map<String, String>>(
       context: context,
       builder: (_) => AdminQuickCreateMemberDialog(defaultPhone: _keyword),
@@ -768,6 +785,15 @@ class _AdminCreateBookingPageState extends State<AdminCreateBookingPage> {
         .get();
 
     final shop = shopDoc.data() as Map<String, dynamic>? ?? {};
+    if (!ShopPermissionService.canCreateOrder(shop)) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(ShopPermissionService.restrictedMessage())),
+      );
+
+      return;
+    }
 
     final dailyLimit = ShopPlanService.manualBookingDailyLimit(shop);
 
@@ -790,7 +816,7 @@ class _AdminCreateBookingPageState extends State<AdminCreateBookingPage> {
       if (!mounted) return;
 
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('免費版每日最多手動新增 $dailyLimit 筆訂單，升級 999 方案即可解除限制')),
+        SnackBar(content: Text('免費版每日最多手動新增 $dailyLimit 筆訂單，升級方案即可解除限制')),
       );
       return;
     }

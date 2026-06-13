@@ -68,7 +68,7 @@ class ShopPlanService {
 
   // 免費版限制
   static int manualBookingDailyLimit(Map<String, dynamic>? shop) {
-    return isPaidActive(shop) ? 999999 : 2;
+    return isPaidActive(shop) ? 999999 : 10;
   }
 
   static int roomTypeLimit(Map<String, dynamic>? shop) {

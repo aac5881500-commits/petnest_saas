@@ -74,6 +74,12 @@ class _ShopPublicPageState extends State<ShopPublicPage> {
     await launchUrl(uri, mode: LaunchMode.externalApplication);
   }
 
+  void _showFreeModeSnackBar() {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('此店家目前為免費版，完整前台功能尚未開放，請直接聯絡店家洽詢')),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return StreamBuilder<Map<String, dynamic>?>(
@@ -95,6 +101,16 @@ class _ShopPublicPageState extends State<ShopPublicPage> {
         }
 
         final externalLinksEnabled = shop['externalLinksEnabled'] != false;
+        final plan = shop['plan']?.toString() ?? 'free';
+        final paidUntil = shop['paidUntil'];
+
+        bool isPaidActive = false;
+
+        if (paidUntil is Timestamp) {
+          isPaidActive = paidUntil.toDate().isAfter(DateTime.now());
+        }
+
+        final isFreeMode = plan == 'free' || !isPaidActive;
 
         /// 🔥 店家已開啟的模組 / 服務類型
         final List enabledModules = shop['enabledModules'] ?? [];
@@ -283,197 +299,192 @@ class _ShopPublicPageState extends State<ShopPublicPage> {
 
                     if (banners.isNotEmpty) const SizedBox(height: 20),
 
-                    /// 🔥 貓咪旅館主服務卡
-                    _buildMainServiceButton(
-                      icon: Icons.pets,
-                      title: '貓咪旅館',
-                      subtitle: '安心住宿・房型介紹・入住須知',
-                      actionText: '我要預約住宿',
-                      onTap: () async {
-                        final user = FirebaseAuth.instance.currentUser;
+                    if (isFreeMode) ...[
+                      _buildFreeModeNoticeCard(shop),
+                    ] else ...[
+                      /// 🔥 貓咪旅館主服務卡
+                      _buildMainServiceButton(
+                        icon: Icons.pets,
+                        title: '貓咪旅館',
+                        subtitle: '安心住宿・房型介紹・入住須知',
+                        actionText: '我要預約住宿',
+                        onTap: () async {
+                          final user = FirebaseAuth.instance.currentUser;
 
-                        if (user == null) {
-                          ScaffoldMessenger.of(
-                            context,
-                          ).showSnackBar(const SnackBar(content: Text('請先登入')));
-                          return;
-                        }
+                          if (user == null) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text('請先登入')),
+                            );
+                            return;
+                          }
 
-                        final hasAccepted = await ShopService.instance
-                            .hasAcceptedPolicy(
-                              shopId: widget.shopId,
-                              userId: user.uid,
+                          final hasAccepted = await ShopService.instance
+                              .hasAcceptedPolicy(
+                                shopId: widget.shopId,
+                                userId: user.uid,
+                              );
+
+                          if (!hasAccepted) {
+                            final result = await Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => ShopPolicyViewPage(
+                                  shopId: widget.shopId,
+                                  readOnly: false,
+                                ),
+                              ),
                             );
 
-                        if (!hasAccepted) {
-                          final result = await Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => ShopPolicyViewPage(
-                                shopId: widget.shopId,
-                                readOnly: false,
-                              ),
-                            ),
-                          );
+                            if (result != true) return;
+                          }
 
-                          if (result != true) return;
-                        }
-
-                        /// ✅ 通過才進預約
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) =>
-                                ShopBookingPage(shopId: widget.shopId),
-                          ),
-                        );
-                      },
-                    ),
-
-                    const SizedBox(height: 14),
-
-                    if (shop['showAnnouncementSection'] != false) ...[
-                      _buildNoticePreviewCard(
-                        onTap: () {
                           Navigator.push(
                             context,
                             MaterialPageRoute(
                               builder: (_) =>
-                                  ShopAnnouncementPage(shopId: widget.shopId),
+                                  ShopBookingPage(shopId: widget.shopId),
                             ),
                           );
                         },
                       ),
 
-                      const SizedBox(height: 18),
-                    ] else
-                      const SizedBox(height: 4),
+                      const SizedBox(height: 14),
 
-                    ShopSectionTitle(icon: Icons.pets, title: '住宿服務'),
-
-                    const SizedBox(height: 12),
-
-                    GridView.count(
-                      crossAxisCount: 2,
-                      shrinkWrap: true,
-                      physics: const NeverScrollableScrollPhysics(),
-                      mainAxisSpacing: 12,
-                      crossAxisSpacing: 12,
-                      childAspectRatio: 2.15,
-                      children: [
-                        ShopTemplateFeatureCard(
-                          icon: Icons.home,
-                          title: '環境介紹',
-                          subtitle: '住宿空間・安心設備',
+                      if (shop['showAnnouncementSection'] != false) ...[
+                        _buildNoticePreviewCard(
                           onTap: () {
                             Navigator.push(
                               context,
                               MaterialPageRoute(
                                 builder: (_) =>
-                                    ShopEnvironmentPage(shopId: widget.shopId),
+                                    ShopAnnouncementPage(shopId: widget.shopId),
                               ),
                             );
                           },
                         ),
+                        const SizedBox(height: 18),
+                      ] else
+                        const SizedBox(height: 4),
 
-                        ShopTemplateFeatureCard(
-                          icon: Icons.bed,
-                          title: '房間介紹',
-                          subtitle: '多種房型・專屬選擇',
-                          onTap: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) =>
-                                    ShopRoomIntroPage(shopId: widget.shopId),
-                              ),
-                            );
-                          },
-                        ),
+                      ShopSectionTitle(icon: Icons.pets, title: '住宿服務'),
 
-                        ShopTemplateFeatureCard(
-                          icon: Icons.info,
-                          title: '入住須知',
-                          subtitle: '入住條件・注意事項',
-                          onTap: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) => ShopPolicyViewPage(
-                                  shopId: widget.shopId,
-                                  readOnly: true,
-                                ),
-                              ),
-                            );
-                          },
-                        ),
+                      const SizedBox(height: 12),
 
-                        ShopTemplateFeatureCard(
-                          icon: Icons.videocam,
-                          title: '觀看攝影機',
-                          subtitle: '即時查看毛孩狀況',
-                          onTap: () {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text('攝影機功能尚未開放')),
-                            );
-                          },
-                        ),
-
-                        ShopTemplateFeatureCard(
-                          icon: Icons.favorite,
-                          title: '關於我們',
-                          subtitle: '品牌理念・店家故事',
-                          onTap: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) =>
-                                    ShopAboutPage(shopId: widget.shopId),
-                              ),
-                            );
-                          },
-                        ),
-
-                        ShopTemplateFeatureCard(
-                          icon: Icons.card_giftcard,
-                          title: '優惠活動',
-                          subtitle: '限時優惠・活動方案',
-                          onTap: () {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text('優惠活動尚未開放')),
-                            );
-                          },
-                        ),
-
-                        ShopTemplateFeatureCard(
-                          icon: Icons.star,
-                          title: '評價專區',
-                          subtitle: '顧客評價・真實回饋',
-                          onTap: () {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text('評價功能尚未開放')),
-                            );
-                          },
-                        ),
-
-                        if (shop['showFaqSection'] != false)
+                      GridView.count(
+                        crossAxisCount: 2,
+                        shrinkWrap: true,
+                        physics: const NeverScrollableScrollPhysics(),
+                        mainAxisSpacing: 12,
+                        crossAxisSpacing: 12,
+                        childAspectRatio: 2.15,
+                        children: [
                           ShopTemplateFeatureCard(
-                            icon: Icons.help,
-                            title: '常見問題',
-                            subtitle: '常見疑問・快速解答',
+                            icon: Icons.home,
+                            title: '環境介紹',
+                            subtitle: '住宿空間・安心設備',
+                            onTap: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => ShopEnvironmentPage(
+                                    shopId: widget.shopId,
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
+                          ShopTemplateFeatureCard(
+                            icon: Icons.bed,
+                            title: '房間介紹',
+                            subtitle: '多種房型・專屬選擇',
                             onTap: () {
                               Navigator.push(
                                 context,
                                 MaterialPageRoute(
                                   builder: (_) =>
-                                      ShopFaqPage(shopId: widget.shopId),
+                                      ShopRoomIntroPage(shopId: widget.shopId),
                                 ),
                               );
                             },
                           ),
-                      ],
-                    ),
-
+                          ShopTemplateFeatureCard(
+                            icon: Icons.info,
+                            title: '入住須知',
+                            subtitle: '入住條件・注意事項',
+                            onTap: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => ShopPolicyViewPage(
+                                    shopId: widget.shopId,
+                                    readOnly: true,
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
+                          ShopTemplateFeatureCard(
+                            icon: Icons.videocam,
+                            title: '觀看攝影機',
+                            subtitle: '即時查看毛孩狀況',
+                            onTap: () {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(content: Text('攝影機功能尚未開放')),
+                              );
+                            },
+                          ),
+                          ShopTemplateFeatureCard(
+                            icon: Icons.favorite,
+                            title: '關於我們',
+                            subtitle: '品牌理念・店家故事',
+                            onTap: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) =>
+                                      ShopAboutPage(shopId: widget.shopId),
+                                ),
+                              );
+                            },
+                          ),
+                          ShopTemplateFeatureCard(
+                            icon: Icons.card_giftcard,
+                            title: '優惠活動',
+                            subtitle: '限時優惠・活動方案',
+                            onTap: () {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(content: Text('優惠活動尚未開放')),
+                              );
+                            },
+                          ),
+                          ShopTemplateFeatureCard(
+                            icon: Icons.star,
+                            title: '評價專區',
+                            subtitle: '顧客評價・真實回饋',
+                            onTap: () {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(content: Text('評價功能尚未開放')),
+                              );
+                            },
+                          ),
+                          if (shop['showFaqSection'] != false)
+                            ShopTemplateFeatureCard(
+                              icon: Icons.help,
+                              title: '常見問題',
+                              subtitle: '常見疑問・快速解答',
+                              onTap: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) =>
+                                        ShopFaqPage(shopId: widget.shopId),
+                                  ),
+                                );
+                              },
+                            ),
+                        ],
+                      ),
+                    ],
                     const SizedBox(height: 80),
                   ],
                 ),
@@ -528,7 +539,9 @@ class _ShopPublicPageState extends State<ShopPublicPage> {
                         shop['businessHours'] ?? '',
                       ),
                       GestureDetector(
-                        onTap: () => _callPhone(shop['phone'] ?? ''),
+                        onTap: externalLinksEnabled
+                            ? () => _callPhone(shop['phone'] ?? '')
+                            : null,
                         child: _buildInfoRow(
                           Icons.phone,
                           '電話',
@@ -536,9 +549,11 @@ class _ShopPublicPageState extends State<ShopPublicPage> {
                         ),
                       ),
                       GestureDetector(
-                        onTap: () => _openMap(
-                          '${shop['city'] ?? ''}${shop['district'] ?? ''}${shop['address'] ?? ''}',
-                        ),
+                        onTap: externalLinksEnabled
+                            ? () => _openMap(
+                                '${shop['city'] ?? ''}${shop['district'] ?? ''}${shop['address'] ?? ''}',
+                              )
+                            : null,
                         child: _buildInfoRow(
                           Icons.location_on,
                           '地址',
@@ -773,6 +788,47 @@ class _ShopPublicPageState extends State<ShopPublicPage> {
             const Icon(Icons.chevron_right, size: 22, color: Color(0xFFB86B18)),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildFreeModeNoticeCard(Map<String, dynamic> shop) {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFF8EE),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: const Color(0xFFFFD7A8)),
+      ),
+      child: Column(
+        children: [
+          const Icon(Icons.lock_outline, size: 42, color: Color(0xFFB86B18)),
+
+          const SizedBox(height: 12),
+
+          const Text(
+            '此店家目前使用免費方案',
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
+          ),
+
+          const SizedBox(height: 8),
+
+          const Text('完整線上預約功能尚未開放', textAlign: TextAlign.center),
+
+          const SizedBox(height: 18),
+
+          if ((shop['phone'] ?? '').toString().isNotEmpty)
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: () {
+                  _callPhone(shop['phone']);
+                },
+                icon: const Icon(Icons.phone),
+                label: const Text('直接聯絡店家'),
+              ),
+            ),
+        ],
       ),
     );
   }

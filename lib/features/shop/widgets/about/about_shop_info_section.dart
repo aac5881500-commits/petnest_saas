@@ -128,14 +128,15 @@ class AboutShopInfoSection extends StatelessWidget {
                             : null,
                       ),
 
-                    _SocialButton(
-                      icon: Icons.map_outlined,
-                      label: '地圖',
-                      isActive: fullAddress.isNotEmpty,
-                      onTap: fullAddress.isNotEmpty
-                          ? () => _openMap(fullAddress)
-                          : null,
-                    ),
+                    if (externalLinksEnabled)
+                      _SocialButton(
+                        icon: Icons.map_outlined,
+                        label: '地圖',
+                        isActive: fullAddress.isNotEmpty,
+                        onTap: fullAddress.isNotEmpty
+                            ? () => _openMap(fullAddress)
+                            : null,
+                      ),
                   ],
                 ),
               ],

@@ -397,7 +397,7 @@ class _BasicInfoTab extends StatelessWidget {
         if (_can(ShopPermissionKeys.editBusinessInfo))
           _MenuTile(
             title: '營業資訊',
-            subtitle: canUseBusinessInfo ? '設定營業時間與服務項目' : '999方案開放',
+            subtitle: canUseBusinessInfo ? '設定營業時間與服務項目' : '升級方案解鎖',
             icon: Icons.schedule,
             enabled: canUseBusinessInfo,
             onTap: () {
@@ -412,7 +412,7 @@ class _BasicInfoTab extends StatelessWidget {
         if (_can(ShopPermissionKeys.editMedia))
           _MenuTile(
             title: '店家封面',
-            subtitle: canUseShopBanner ? '上傳封面圖片' : '999方案開放',
+            subtitle: canUseShopBanner ? '上傳封面圖片' : '升級方案解鎖',
             icon: Icons.image,
             enabled: canUseShopBanner,
             onTap: () {
@@ -430,7 +430,7 @@ class _BasicInfoTab extends StatelessWidget {
         if (_can(ShopPermissionKeys.manageEnvironment))
           _MenuTile(
             title: '環境介紹管理',
-            subtitle: canUseEnvironment ? '設定環境照片、介紹文案與展示內容' : '999方案開放',
+            subtitle: canUseEnvironment ? '設定環境照片、介紹文案與展示內容' : '升級方案解鎖',
             icon: Icons.apartment_rounded,
             enabled: canUseEnvironment,
             onTap: () {
@@ -446,7 +446,7 @@ class _BasicInfoTab extends StatelessWidget {
         if (_can(ShopPermissionKeys.manageAbout))
           _MenuTile(
             title: '關於我們管理',
-            subtitle: canUseAboutUs ? '設定品牌故事、理念與介紹內容' : '999方案開放',
+            subtitle: canUseAboutUs ? '設定品牌故事、理念與介紹內容' : '升級方案解鎖',
             icon: Icons.favorite_border,
             enabled: canUseAboutUs,
             onTap: () {
@@ -461,7 +461,7 @@ class _BasicInfoTab extends StatelessWidget {
 
         _MenuTile(
           title: '公告管理',
-          subtitle: canUseAnnouncement ? '新增、編輯、上下架店家公告' : '999方案開放',
+          subtitle: canUseAnnouncement ? '新增、編輯、上下架店家公告' : '升級方案解鎖',
           icon: Icons.campaign,
           enabled: canUseAnnouncement,
           onTap: () {
@@ -475,7 +475,7 @@ class _BasicInfoTab extends StatelessWidget {
         ),
         _MenuTile(
           title: '常見問題管理',
-          subtitle: canUseFaq ? '新增、編輯、上下架常見問題' : '999方案開放',
+          subtitle: canUseFaq ? '新增、編輯、上下架常見問題' : '升級方案解鎖',
           icon: Icons.help_outline,
           enabled: canUseFaq,
           onTap: () {
@@ -490,7 +490,7 @@ class _BasicInfoTab extends StatelessWidget {
 
         _MenuTile(
           title: '前台預覽',
-          subtitle: canUsePublicPage ? '查看客戶看到的頁面' : '999方案開放',
+          subtitle: canUsePublicPage ? '查看客戶看到的頁面' : '升級方案解鎖',
           icon: Icons.visibility,
           enabled: canUsePublicPage,
           onTap: () {
@@ -745,7 +745,7 @@ class _CatHotelTab extends StatelessWidget {
         if (_can(ShopPermissionKeys.managePaymentSettings))
           _MenuTile(
             title: '付款 / 訂金設定',
-            subtitle: canUseDepositSettings ? '設定是否需要訂金、付款方式與收款資訊' : '999方案開放',
+            subtitle: canUseDepositSettings ? '設定是否需要訂金、付款方式與收款資訊' : '升級方案解鎖',
             icon: Icons.payments,
             enabled: canUseDepositSettings,
             onTap: () {
@@ -763,7 +763,7 @@ class _CatHotelTab extends StatelessWidget {
         if (_can(ShopPermissionKeys.managePolicy))
           _MenuTile(
             title: '入住規則 / 貓咪條件',
-            subtitle: canUsePolicySettings ? '設定入住條款與貓咪入住條件' : '999方案開放',
+            subtitle: canUsePolicySettings ? '設定入住條款與貓咪入住條件' : '升級方案解鎖',
             icon: Icons.rule,
             enabled: canUsePolicySettings,
             onTap: () {

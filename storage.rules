@@ -1,0 +1,60 @@
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isRootAdmin() {
+      return signedIn()
+        && request.auth.uid in [
+          'LTk2AdDOAIVGhlkt97fnbD5TXIf1',
+          '7FNrECQeqAca9Vu8lBBzTSdcJcg1'
+        ];
+    }
+
+    function isShopMember(shopId) {
+      return signedIn()
+        && firestore.exists(
+          /databases/(default)/documents/shop_members/$(shopId + '_' + request.auth.uid)
+        );
+    }
+
+    function isImage() {
+      return request.resource.contentType.matches('image/.*');
+    }
+
+    function isUnder5MB() {
+      return request.resource.size < 5 * 1024 * 1024;
+    }
+
+    // 🐾 會員寵物照片：pets/{uid}/{petId}.jpg
+    match /pets/{uid}/{fileName} {
+  allow read: if true;
+  allow write: if signedIn()
+    && request.auth.uid == uid
+    && isUnder5MB();
+}
+
+    // 🏪 店家所有圖片：shops/{shopId}/...
+    // 包含：
+    // shops/{shopId}/logo.jpg
+    // shops/{shopId}/banner_xxx.jpg
+    // shops/{shopId}/room_types/{roomTypeId}/xxx.jpg
+    // shops/{shopId}/platform_home_cover/xxx.jpg
+    // shops/{shopId}/platform_home_logo/xxx.jpg
+    match /shops/{shopId}/{allPaths=**} {
+      allow read: if true;
+      allow write: if (isShopMember(shopId) || isRootAdmin())
+        && isImage()
+        && isUnder5MB();
+    }
+
+    // 🚫 其他 Storage 路徑全部拒絕
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

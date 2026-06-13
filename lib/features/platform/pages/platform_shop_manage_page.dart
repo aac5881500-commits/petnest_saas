@@ -10,6 +10,7 @@ import 'package:petnest_saas/features/platform/widgets/platform_shop_info_pill.d
 import 'package:petnest_saas/features/platform/widgets/platform_shop_metric_card.dart';
 import 'package:petnest_saas/features/shop/pages/shop_public_page.dart';
 import 'package:petnest_saas/features/platform/pages/platform_send_shop_notification_page.dart';
+import 'package:petnest_saas/features/platform/widgets/shop_plan_manage_dialog.dart';
 
 class PlatformShopManagePage extends StatelessWidget {
   const PlatformShopManagePage({super.key});
@@ -200,6 +201,8 @@ class PlatformShopManagePage extends StatelessWidget {
                   data['enabledModules'] ?? [],
                 );
                 final status = data['status']?.toString() ?? 'active';
+                final accountStatus =
+                    data['accountStatus']?.toString() ?? 'normal';
                 final paidUntil = data['paidUntil'];
                 final createdAt = data['createdAt'];
                 final lastLoginAt = data['lastLoginAt'];
@@ -316,9 +319,22 @@ class PlatformShopManagePage extends StatelessWidget {
 
                             const SizedBox(width: 8),
 
-                            PlatformShopStatusPill(
-                              label: _statusLabel(status),
-                              color: _statusColor(status),
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.end,
+                              children: [
+                                PlatformShopStatusPill(
+                                  label: _statusLabel(status),
+                                  color: _statusColor(status),
+                                ),
+
+                                if (accountStatus == 'restricted') ...[
+                                  const SizedBox(height: 6),
+                                  const PlatformShopStatusPill(
+                                    label: '限制模式',
+                                    color: Colors.orange,
+                                  ),
+                                ],
+                              ],
                             ),
                           ],
                         ),
@@ -448,25 +464,16 @@ class PlatformShopManagePage extends StatelessWidget {
                                 onPressed: () {
                                   showDialog(
                                     context: context,
-                                    builder: (dialogContext) {
-                                      return AlertDialog(
-                                        title: const Text('變更方案'),
-                                        content: const Text(
-                                          '正式版建議不要直接切換方案，之後這裡會改成：延長試用、人工續約、強制降級、開通測試權限。',
-                                        ),
-                                        actions: [
-                                          TextButton(
-                                            onPressed: () {
-                                              Navigator.pop(dialogContext);
-                                            },
-                                            child: const Text('我知道了'),
-                                          ),
-                                        ],
+                                    builder: (_) {
+                                      return ShopPlanManageDialog(
+                                        shopId: doc.id,
+                                        shopName: name,
+                                        shop: data,
                                       );
                                     },
                                   );
                                 },
-                                child: const Text('變更方案'),
+                                child: const Text('方案與權限管理'),
                               ),
                             ],
                           ),
