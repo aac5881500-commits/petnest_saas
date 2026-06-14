@@ -16,6 +16,7 @@ import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:petnest_saas/features/shop/pages/shop_announcement_page.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:petnest_saas/features/shop/pages/shop_faq_page.dart';
+import 'package:petnest_saas/features/platform/pages/platform_shop_list_page.dart';
 
 class ShopPublicPage extends StatefulWidget {
   const ShopPublicPage({
@@ -98,6 +99,73 @@ class _ShopPublicPageState extends State<ShopPublicPage> {
         final shop = snapshot.data;
         if (shop == null) {
           return const Scaffold(body: Center(child: Text('找不到店家')));
+        }
+        final accountStatus = (shop['accountStatus'] ?? 'normal').toString();
+        final shopStatus = (shop['status'] ?? 'active').toString();
+
+        if (accountStatus == 'suspended' || shopStatus == 'suspended') {
+          return Scaffold(
+            backgroundColor: const Color(0xFFFFFCF7),
+            appBar: AppBar(
+              title: const Text('店家暫停服務'),
+              backgroundColor: const Color(0xFFFFFCF7),
+              elevation: 0,
+              surfaceTintColor: Colors.transparent,
+            ),
+            body: Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(24),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(22),
+                    border: Border.all(color: Colors.red.shade100),
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.block, size: 64, color: Colors.red),
+                      SizedBox(height: 18),
+                      Text(
+                        '店家暫停服務',
+                        style: TextStyle(
+                          fontSize: 22,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                      SizedBox(height: 10),
+                      const Text(
+                        '此店家目前已停止使用平台服務。\n你可以前往平台探索其他優質店家。',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(height: 1.5, color: Colors.black54),
+                      ),
+
+                      const SizedBox(height: 20),
+
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton.icon(
+                          icon: const Icon(Icons.search),
+                          label: const Text('探索其他店家'),
+                          onPressed: () {
+                            Navigator.pushAndRemoveUntil(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => const PlatformShopListPage(),
+                              ),
+                              (route) => false,
+                            );
+                          },
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          );
         }
 
         final externalLinksEnabled = shop['externalLinksEnabled'] != false;
@@ -590,7 +658,7 @@ class _ShopPublicPageState extends State<ShopPublicPage> {
                     ],
                     const SizedBox(height: 12),
 
-                    if (externalLinksEnabled)
+                    if (externalLinksEnabled && !isFreeMode)
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                         children: [

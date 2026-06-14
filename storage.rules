@@ -32,10 +32,12 @@ service firebase.storage {
 
     // 🐾 會員寵物照片：pets/{uid}/{petId}.jpg
     match /pets/{uid}/{fileName} {
-  allow read: if true;
+  allow read: if signedIn();
+
   allow write: if signedIn()
     && request.auth.uid == uid
-    && isUnder5MB();
+    && request.resource.contentType == 'image/jpeg'
+    && request.resource.size < 6 * 1024 * 1024;
 }
 
     // 🏪 店家所有圖片：shops/{shopId}/...
@@ -51,6 +53,60 @@ service firebase.storage {
         && isImage()
         && isUnder5MB();
     }
+
+// 📸 客戶上傳匯款證明
+match /booking_images/{bookingId}/{fileName} {
+  allow read: if signedIn();
+
+  allow write: if signedIn()
+    && isImage()
+    && isUnder5MB()
+    && (
+      isRootAdmin() ||
+      firestore.get(
+        /databases/(default)/documents/bookings/$(bookingId)
+      ).data.userId == request.auth.uid ||
+      isShopMember(
+        firestore.get(
+          /databases/(default)/documents/bookings/$(bookingId)
+        ).data.shopId
+      )
+    );
+}
+
+// 📸 店家退房額外費用照片
+match /booking_extra_charges/{bookingId}/{fileName} {
+  allow read: if signedIn();
+
+  allow write: if signedIn()
+    && isImage()
+    && isUnder5MB()
+    && (
+      isRootAdmin() ||
+      isShopMember(
+        firestore.get(
+          /databases/(default)/documents/bookings/$(bookingId)
+        ).data.shopId
+      )
+    );
+}
+
+// 📮 店主聯絡平台附件
+match /platform_contact_requests/{requestId}/{fileName} {
+  allow read: if signedIn();
+
+  allow write: if signedIn()
+    && isImage()
+    && isUnder5MB()
+    && (
+      isRootAdmin() ||
+      isShopMember(
+        firestore.get(
+          /databases/(default)/documents/platform_contact_requests/$(requestId)
+        ).data.shopId
+      )
+    );
+}
 
     // 🚫 其他 Storage 路徑全部拒絕
     match /{allPaths=**} {

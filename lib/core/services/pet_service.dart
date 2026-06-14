@@ -48,10 +48,7 @@ class PetService {
 
       if (image == null) throw Exception('圖片解析失敗');
 
-      final resized = img.copyResize(
-        image,
-        width: 800,
-      );
+      final resized = img.copyResize(image, width: 800);
 
       uploadData = img.encodeJpg(resized, quality: 85);
     }
@@ -61,14 +58,12 @@ class PetService {
         .child('pets')
         .child(_uid)
         .child('$petId.jpg');
+    debugPrint(
+      '🐾 upload pet photo uid=$_uid petId=$petId path=pets/$_uid/$petId.jpg',
+    );
 
     /// 🔥 覆蓋上傳
-    await ref.putData(
-  uploadData,
-  SettableMetadata(
-    contentType: 'image/jpeg',
-  ),
-);
+    await ref.putData(uploadData, SettableMetadata(contentType: 'image/jpeg'));
 
     final url = await ref.getDownloadURL();
 
@@ -77,10 +72,7 @@ class PetService {
         .doc(_uid)
         .collection('pets')
         .doc(petId)
-        .update({
-      'photoUrl': url,
-      'updatedAt': FieldValue.serverTimestamp(),
-    });
+        .update({'photoUrl': url, 'updatedAt': FieldValue.serverTimestamp()});
   }
 
   // ===============================
@@ -94,20 +86,17 @@ class PetService {
         .orderBy('createdAt', descending: true)
         .snapshots()
         .map((snapshot) {
-      return snapshot.docs.map((doc) {
-        return {
-          'petId': doc.id,
-          ...doc.data(),
-        };
-      }).toList();
-    });
+          return snapshot.docs.map((doc) {
+            return {'petId': doc.id, ...doc.data()};
+          }).toList();
+        });
   }
 
   // ===============================
   // 🐱 新增寵物（完整版🔥）
   // ===============================
   Future<String> createPet({
-  required String name,
+    required String name,
 
     /// 基本
     String gender = '',
@@ -147,7 +136,7 @@ class PetService {
       /// 基本
       'name': name,
       'type': 'cat',
-'species': 'cat',
+      'species': 'cat',
       'gender': gender,
       'litterType': litterType,
 
@@ -170,10 +159,7 @@ class PetService {
     });
 
     /// 🔥 更新數量
-    await _firestore
-        .collection('user_profiles')
-        .doc(user.uid)
-        .set({
+    await _firestore.collection('user_profiles').doc(user.uid).set({
       'petsCount': FieldValue.increment(1),
       'updatedAt': FieldValue.serverTimestamp(),
     }, SetOptions(merge: true));

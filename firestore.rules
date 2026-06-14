@@ -196,22 +196,28 @@ match /faqs/{faqId} {
       }
     }
 
-    // 📝 操作紀錄
-    match /action_logs/{logId} {
-      allow read: if signedIn() &&
-        (
-          isShopMember(resource.data.shopId) ||
-          isRootAdmin()
-        );
+   // 📝 操作紀錄
+match /action_logs/{logId} {
+  allow read: if signedIn() &&
+    (
+      isShopMember(resource.data.shopId) ||
+      isRootAdmin()
+    );
 
-      allow create: if signedIn() &&
-        (
-          isShopMember(request.resource.data.shopId) ||
-          isRootAdmin()
-        );
+  allow create: if signedIn() &&
+    (
+      isShopMember(request.resource.data.shopId) ||
+      isRootAdmin() ||
 
-      allow update, delete: if false;
-    }
+      (
+        request.resource.data.operatorUid == request.auth.uid &&
+        request.resource.data.shopId is string &&
+        request.resource.data.type == 'booking_cancelled'
+      )
+    );
+
+  allow update, delete: if false;
+}
 
     // 🔗 會員綁定 / 合併申請
 match /member_link_requests/{requestId} {
@@ -227,12 +233,11 @@ match /member_link_requests/{requestId} {
       isRootAdmin()
     );
 
-  allow update: if signedIn() &&
-    (
-      isShopMember(resource.data.shopId) ||
-      isRootAdmin()
-    );
-
+ allow update: if signedIn() &&
+  (
+    isShopMember(resource.data.shopId) ||
+    isRootAdmin()
+  );
   allow delete: if false;
 }
 
@@ -275,10 +280,27 @@ match /bookings/{bookingId} {
   allow create: if signedIn();
 
   allow update: if signedIn() &&
+  (
+    isShopMember(resource.data.shopId) ||
+    isRootAdmin() ||
+
     (
-      isShopMember(resource.data.shopId) ||
-      isRootAdmin()
-    );
+      resource.data.userId == request.auth.uid &&
+      request.resource.data.diff(resource.data).changedKeys().hasOnly([
+        'status',
+        'cancelReason',
+        'cancelBy',
+        'cancelledAt',
+        'updatedAt',
+        'transferImageUrl',
+        'transferLast5',
+        'depositStatus',
+        'depositSubmittedAt',
+        'depositExpired',
+'assignStatus'
+      ])
+    )
+  );
 
   allow delete: if false;
 }
@@ -326,6 +348,18 @@ match /bookings/{bookingId} {
         allow update, delete: if false;
       }
     }
+
+// 📨 店家重要資料修改申請
+match /shop_change_requests/{requestId} {
+
+  allow read: if signedIn();
+
+  allow create: if signedIn();
+
+  allow update: if isRootAdmin();
+
+  allow delete: if isRootAdmin();
+}
 
     // 📜 平台條款
     match /platform_policies/{policyId} {

@@ -7,6 +7,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/services/shop_service.dart';
+import 'package:petnest_saas/features/shop/pages/shop_change_request_page.dart';
 
 class ShopBasicInfoPage extends StatefulWidget {
   const ShopBasicInfoPage({super.key, required this.shopId});
@@ -501,8 +502,14 @@ class _ShopBasicInfoPageState extends State<ShopBasicInfoPage> {
     final host = uri.host.toLowerCase();
 
     if (type == 'line') {
-      if (host == 'line.me' || host == 'lin.ee') return null;
-      return 'LINE 連結只能使用 line.me 或 lin.ee';
+      if (host == 'line.me' ||
+          host == 'www.line.me' ||
+          host == 'page.line.me' ||
+          host == 'lin.ee') {
+        return null;
+      }
+
+      return 'LINE 連結只能使用 line.me、page.line.me 或 lin.ee';
     }
 
     if (type == 'ig') {
@@ -727,20 +734,17 @@ class _ShopBasicInfoPageState extends State<ShopBasicInfoPage> {
                       side: const BorderSide(color: Colors.red),
                     ),
                     onPressed: () {
-                      showDialog(
-                        context: context,
-                        builder: (_) => AlertDialog(
-                          title: const Text('申請修改重要資料'),
-                          content: const Text(
-                            '為保障店家與消費者權益，店名、電話、地址、特寵字號、統編等重要資料需由平台審核後才能修改。\n\n'
-                            '目前線上申請功能準備中。\n\n如需修改店名、電話、地址、特寵字號或統編等重要資料，請先聯絡平台管理員協助處理。',
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => ShopChangeRequestPage(
+                            shopId: widget.shopId,
+                            shopName: _nameController.text,
+                            currentPhone: _phoneController.text,
+                            currentAddress: _addressController.text,
+                            currentLicenseNumber: _licenseController.text,
+                            currentTaxId: _taxIdController.text,
                           ),
-                          actions: [
-                            TextButton(
-                              onPressed: () => Navigator.pop(context),
-                              child: const Text('知道了'),
-                            ),
-                          ],
                         ),
                       );
                     },

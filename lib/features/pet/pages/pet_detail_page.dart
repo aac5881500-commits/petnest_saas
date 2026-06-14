@@ -9,11 +9,7 @@ import 'dart:typed_data';
 import 'package:firebase_storage/firebase_storage.dart';
 
 class PetDetailPage extends StatelessWidget {
-  const PetDetailPage({
-    super.key,
-    required this.pet,
-    this.isAdminView = false,
-  });
+  const PetDetailPage({super.key, required this.pet, this.isAdminView = false});
 
   final Map<String, dynamic> pet;
   final bool isAdminView;
@@ -26,34 +22,30 @@ class PetDetailPage extends StatelessWidget {
       appBar: AppBar(
         title: Text(
           pet['name'] ?? '寵物資料',
-          style: const TextStyle(
-            fontSize: 22,
-            fontWeight: FontWeight.bold,
-          ),
+          style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
         ),
         actions: [
-  if (isAdminView)
-    IconButton(
-      icon: const Icon(Icons.edit),
-      onPressed: () => _showEditDialog(context),
-    )
-  else ...[
-    IconButton(
-      icon: const Icon(Icons.edit),
-      onPressed: () => _showEditDialog(context),
-    ),
-    IconButton(
-      icon: const Icon(Icons.delete, color: Colors.red),
-      onPressed: () => _deletePet(context),
-    ),
-  ],
-],
+          if (isAdminView)
+            IconButton(
+              icon: const Icon(Icons.edit),
+              onPressed: () => _showEditDialog(context),
+            )
+          else ...[
+            IconButton(
+              icon: const Icon(Icons.edit),
+              onPressed: () => _showEditDialog(context),
+            ),
+            IconButton(
+              icon: const Icon(Icons.delete, color: Colors.red),
+              onPressed: () => _deletePet(context),
+            ),
+          ],
+        ],
       ),
-     body: SingleChildScrollView(
-  padding: const EdgeInsets.all(16),
-  child: Column(
-    children: [
-      
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          children: [
             /// 🖼️ 圖片
             GestureDetector(
               onTap: photoUrl.isNotEmpty
@@ -61,8 +53,7 @@ class PetDetailPage extends StatelessWidget {
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (_) =>
-                              _FullImagePage(imageUrl: photoUrl),
+                          builder: (_) => _FullImagePage(imageUrl: photoUrl),
                         ),
                       );
                     }
@@ -118,19 +109,14 @@ class PetDetailPage extends StatelessWidget {
             const SizedBox(height: 16),
 
             _buildCard([
-              const Text('健康資訊',
-                  style: TextStyle(fontWeight: FontWeight.bold)),
+              const Text('健康資訊', style: TextStyle(fontWeight: FontWeight.bold)),
               const SizedBox(height: 8),
-              _item('結紮狀況',
-                  pet['isNeutered'] == true ? '已結紮' : '未結紮'),
-                  const SizedBox(height: 6),
-const Text(
-  '※ 未結紮公貓可能會有噴尿情況，將會額外收費（詳見入住須知）',
-  style: TextStyle(
-    color: Colors.red,
-    fontSize: 16,
-  ),
-),
+              _item('結紮狀況', pet['isNeutered'] == true ? '已結紮' : '未結紮'),
+              const SizedBox(height: 6),
+              const Text(
+                '※ 未結紮公貓可能會有噴尿情況，將會額外收費（詳見入住須知）',
+                style: TextStyle(color: Colors.red, fontSize: 16),
+              ),
               _item('醫療狀況', pet['vaccine']),
               _item('貓砂種類', pet['litterType']),
             ]),
@@ -138,27 +124,26 @@ const Text(
             const SizedBox(height: 16),
 
             _buildCard([
-              const Text('其他備註',
-                  style: TextStyle(fontWeight: FontWeight.bold)),
+              const Text('其他備註', style: TextStyle(fontWeight: FontWeight.bold)),
               const SizedBox(height: 8),
               Text(pet['note'] ?? '無'),
             ]),
             if (isAdminView) ...[
-  const SizedBox(height: 16),
+              const SizedBox(height: 16),
 
-  _buildCard([
-    const Text(
-      '🔒 員工備註（內部）',
-      style: TextStyle(
-        fontWeight: FontWeight.bold,
-        fontSize: 16,
-        color: Colors.red,
-      ),
-    ),
-    const SizedBox(height: 8),
-    Text(pet['adminNote'] ?? '無'),
-  ]),
-],
+              _buildCard([
+                const Text(
+                  '🔒 員工備註（內部）',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
+                    color: Colors.red,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(pet['adminNote'] ?? '無'),
+              ]),
+            ],
           ],
         ),
       ),
@@ -188,35 +173,27 @@ const Text(
     );
   }
 
-/// ✨ 統一輸入框樣式
-InputDecoration _inputStyle(String label) {
-  return InputDecoration(
-    labelText: label,
-    filled: true,
-    fillColor: Colors.grey.shade50,
-    contentPadding: const EdgeInsets.symmetric(
-      horizontal: 14,
-      vertical: 20,
-    ),
-    border: OutlineInputBorder(
-      borderRadius: BorderRadius.circular(14),
-      borderSide: BorderSide.none,
-    ),
-    enabledBorder: OutlineInputBorder(
-      borderRadius: BorderRadius.circular(14),
-      borderSide: BorderSide(
-        color: Colors.grey.shade300,
+  /// ✨ 統一輸入框樣式
+  InputDecoration _inputStyle(String label) {
+    return InputDecoration(
+      labelText: label,
+      filled: true,
+      fillColor: Colors.grey.shade50,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 20),
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(14),
+        borderSide: BorderSide.none,
       ),
-    ),
-    focusedBorder: OutlineInputBorder(
-      borderRadius: BorderRadius.circular(14),
-      borderSide: const BorderSide(
-        color: Colors.blue,
-        width: 1.5,
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(14),
+        borderSide: BorderSide(color: Colors.grey.shade300),
       ),
-    ),
-  );
-}
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(14),
+        borderSide: const BorderSide(color: Colors.blue, width: 1.5),
+      ),
+    );
+  }
 
   Widget _item(String label, dynamic value) {
     return Padding(
@@ -227,15 +204,12 @@ InputDecoration _inputStyle(String label) {
             width: 100,
             child: Text(
               '$label：',
-              style: const TextStyle(
-                  fontWeight: FontWeight.bold, fontSize: 16),
+              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
             ),
           ),
           Expanded(
             child: Text(
-              value?.toString().isNotEmpty == true
-                  ? value.toString()
-                  : '未填寫',
+              value?.toString().isNotEmpty == true ? value.toString() : '未填寫',
               style: const TextStyle(fontSize: 16),
             ),
           ),
@@ -251,9 +225,7 @@ InputDecoration _inputStyle(String label) {
     final name = TextEditingController(text: pet['name'] ?? '');
     final breed = TextEditingController(text: pet['breed'] ?? '');
     final note = TextEditingController(text: pet['note'] ?? '');
-    final adminNote = TextEditingController(
-  text: pet['adminNote'] ?? '',
-);
+    final adminNote = TextEditingController(text: pet['adminNote'] ?? '');
 
     String? gender = pet['gender'];
     String? age = pet['age'];
@@ -269,35 +241,30 @@ InputDecoration _inputStyle(String label) {
         return StatefulBuilder(
           builder: (context, setState) {
             return AlertDialog(
-  backgroundColor: Colors.white,
-  elevation: 0,
-  shape: RoundedRectangleBorder(
-    borderRadius: BorderRadius.circular(28),
-  ),
-  insetPadding: const EdgeInsets.symmetric(
-    horizontal: 24,
-    vertical: 24,
-  ),
+              backgroundColor: Colors.white,
+              elevation: 0,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(28),
+              ),
+              insetPadding: const EdgeInsets.symmetric(
+                horizontal: 24,
+                vertical: 24,
+              ),
               title: const Text(
-  '編輯寵物',
-  style: TextStyle(
-    fontSize: 24,
-    fontWeight: FontWeight.bold,
-  ),
-),
+                '編輯寵物',
+                style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+              ),
               content: SingleChildScrollView(
                 child: Column(
-  crossAxisAlignment: CrossAxisAlignment.start,
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-
-                    
-
                     /// 🔥 圖片選擇
                     GestureDetector(
                       onTap: () async {
                         final picker = ImagePicker();
-                        final picked =
-                            await picker.pickImage(source: ImageSource.gallery);
+                        final picked = await picker.pickImage(
+                          source: ImageSource.gallery,
+                        );
                         if (picked != null) {
                           final bytes = await picked.readAsBytes();
                           setState(() => newImage = bytes);
@@ -315,240 +282,241 @@ InputDecoration _inputStyle(String label) {
                           child: newImage != null
                               ? Image.memory(newImage!, fit: BoxFit.cover)
                               : (pet['photoUrl'] != null &&
-                                      pet['photoUrl'] != '')
-                                  ? Image.network(pet['photoUrl'],
-                                      fit: BoxFit.cover)
-                                  : const Icon(Icons.camera_alt),
+                                    pet['photoUrl'] != '')
+                              ? Image.network(
+                                  pet['photoUrl'],
+                                  fit: BoxFit.cover,
+                                )
+                              : const Icon(Icons.camera_alt),
                         ),
                       ),
                     ),
 
                     TextField(
-  controller: name,
-  enabled: !isAdminView,
-  decoration: _inputStyle('名稱'),
-),
+                      controller: name,
+                      enabled: !isAdminView,
+                      decoration: _inputStyle('名稱'),
+                    ),
 
-const SizedBox(height: 12),
+                    const SizedBox(height: 12),
 
-TextField(
-  controller: breed,
-  decoration: _inputStyle('品種'),
-),
+                    TextField(controller: breed, decoration: _inputStyle('品種')),
 
-if (isAdminView) ...[
-  const SizedBox(height: 12),
-  TextField(
-  controller: adminNote,
-  maxLines: 3,
-  decoration: _inputStyle('員工備註（只有後台看得到）'),
-),
-],
+                    if (isAdminView) ...[
+                      const SizedBox(height: 12),
+                      TextField(
+                        controller: adminNote,
+                        maxLines: 3,
+                        decoration: _inputStyle('員工備註（只有後台看得到）'),
+                      ),
+                    ],
 
                     DropdownButtonFormField<String>(
                       value: ['公貓', '母貓'].contains(gender) ? gender : null,
 
-decoration: _inputStyle('性別'),
+                      decoration: _inputStyle('性別'),
 
                       items: ['公貓', '母貓']
-                          .map((e) =>
-                              DropdownMenuItem(value: e, child: Text(e)))
+                          .map(
+                            (e) => DropdownMenuItem(value: e, child: Text(e)),
+                          )
                           .toList(),
 
                       onChanged: isAdminView
-    ? null
-    : (v) => setState(() => gender = v),
-
+                          ? null
+                          : (v) => setState(() => gender = v),
                     ),
 
-const SizedBox(height: 12),
-
-DropdownButtonFormField<String>(
-  value: ['有結紮', '未結紮'].contains(neuterStatus)
-      ? neuterStatus
-      : null,
-  decoration: _inputStyle('結紮狀況'),
-  items: const [
-    DropdownMenuItem(value: '有結紮', child: Text('有結紮')),
-    DropdownMenuItem(value: '未結紮', child: Text('未結紮')),
-  ],
-  onChanged: isAdminView
-      ? null
-      : (v) => setState(() => neuterStatus = v),
-),
+                    const SizedBox(height: 12),
 
                     DropdownButtonFormField<String>(
-  value: ['6~12個月', '1~10歲', '10~12歲', '12歲以上'].contains(age)
-      ? age
-      : null,
-  decoration: _inputStyle('年齡'),
-  items: const [
-    DropdownMenuItem(value: '6~12個月', child: Text('含6~12個月')),
-    DropdownMenuItem(value: '1~10歲', child: Text('1~10歲')),
-    DropdownMenuItem(value: '10~12歲', child: Text('10~12歲')),
-    DropdownMenuItem(value: '12歲以上', child: Text('12歲以上')),
-  ],
-  onChanged: isAdminView
-      ? null
-      : (v) => setState(() => age = v),
-),
+                      value: ['有結紮', '未結紮'].contains(neuterStatus)
+                          ? neuterStatus
+                          : null,
+                      decoration: _inputStyle('結紮狀況'),
+                      items: const [
+                        DropdownMenuItem(value: '有結紮', child: Text('有結紮')),
+                        DropdownMenuItem(value: '未結紮', child: Text('未結紮')),
+                      ],
+                      onChanged: isAdminView
+                          ? null
+                          : (v) => setState(() => neuterStatus = v),
+                    ),
 
                     DropdownButtonFormField<String>(
-  value: [
-    '無',
-    '慢性腎臟病',
-    '心臟病',
-    '糖尿病',
-    '術後照護',
-    '皮膚疾病',
-    '其他',
-  ].contains(medical)
-      ? medical
-      : null,
-  decoration: _inputStyle('醫療狀況'),
-  items: const [
-    DropdownMenuItem(value: '無', child: Text('無')),
-    DropdownMenuItem(value: '慢性腎臟病', child: Text('慢性腎臟病')),
-    DropdownMenuItem(value: '心臟病', child: Text('心臟病')),
-    DropdownMenuItem(value: '糖尿病', child: Text('糖尿病')),
-    DropdownMenuItem(value: '術後照護', child: Text('術後照護')),
-    DropdownMenuItem(value: '皮膚疾病', child: Text('皮膚治療')),
-    DropdownMenuItem(value: '其他', child: Text('其他')),
-  ],
-  onChanged: isAdminView
-      ? null
-      : (v) => setState(() => medical = v),
-),
+                      value:
+                          ['6~12個月', '1~10歲', '10~12歲', '12歲以上'].contains(age)
+                          ? age
+                          : null,
+                      decoration: _inputStyle('年齡'),
+                      items: const [
+                        DropdownMenuItem(
+                          value: '6~12個月',
+                          child: Text('含6~12個月'),
+                        ),
+                        DropdownMenuItem(value: '1~10歲', child: Text('1~10歲')),
+                        DropdownMenuItem(
+                          value: '10~12歲',
+                          child: Text('10~12歲'),
+                        ),
+                        DropdownMenuItem(value: '12歲以上', child: Text('12歲以上')),
+                      ],
+                      onChanged: isAdminView
+                          ? null
+                          : (v) => setState(() => age = v),
+                    ),
 
                     DropdownButtonFormField<String>(
-  value: ['豆腐砂', '礦砂', '其他'].contains(litterType)
-      ? litterType
-      : null,
-  decoration: _inputStyle('貓砂種類'),
-  items: const [
-    DropdownMenuItem(value: '豆腐砂', child: Text('豆腐砂')),
-    DropdownMenuItem(value: '礦砂', child: Text('礦砂')),
-    DropdownMenuItem(value: '其他', child: Text('其他')),
-  ],
-  onChanged: isAdminView
-      ? null
-      : (v) => setState(() => litterType = v),
-),
+                      value:
+                          [
+                            '無',
+                            '慢性腎臟病',
+                            '心臟病',
+                            '糖尿病',
+                            '術後照護',
+                            '皮膚疾病',
+                            '其他',
+                          ].contains(medical)
+                          ? medical
+                          : null,
+                      decoration: _inputStyle('醫療狀況'),
+                      items: const [
+                        DropdownMenuItem(value: '無', child: Text('無')),
+                        DropdownMenuItem(value: '慢性腎臟病', child: Text('慢性腎臟病')),
+                        DropdownMenuItem(value: '心臟病', child: Text('心臟病')),
+                        DropdownMenuItem(value: '糖尿病', child: Text('糖尿病')),
+                        DropdownMenuItem(value: '術後照護', child: Text('術後照護')),
+                        DropdownMenuItem(value: '皮膚疾病', child: Text('皮膚治療')),
+                        DropdownMenuItem(value: '其他', child: Text('其他')),
+                      ],
+                      onChanged: isAdminView
+                          ? null
+                          : (v) => setState(() => medical = v),
+                    ),
 
-const SizedBox(height: 12),
+                    DropdownButtonFormField<String>(
+                      value: ['豆腐砂', '礦砂', '其他'].contains(litterType)
+                          ? litterType
+                          : null,
+                      decoration: _inputStyle('貓砂種類'),
+                      items: const [
+                        DropdownMenuItem(value: '豆腐砂', child: Text('豆腐砂')),
+                        DropdownMenuItem(value: '礦砂', child: Text('礦砂')),
+                        DropdownMenuItem(value: '其他', child: Text('其他')),
+                      ],
+                      onChanged: isAdminView
+                          ? null
+                          : (v) => setState(() => litterType = v),
+                    ),
 
-TextField(
-  controller: note,
-  maxLines: 4,
-  decoration: _inputStyle('其他備註'),
-),
+                    const SizedBox(height: 12),
+
+                    TextField(
+                      controller: note,
+                      maxLines: 4,
+                      decoration: _inputStyle('其他備註'),
+                    ),
                   ],
                 ),
               ),
               actionsPadding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
 
-actions: [
-  Row(
-    children: [
+              actions: [
+                Row(
+                  children: [
+                    /// 取消
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: () => Navigator.pop(context),
+                        style: OutlinedButton.styleFrom(
+                          minimumSize: const Size.fromHeight(52),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                        ),
+                        child: const Text('取消', style: TextStyle(fontSize: 16)),
+                      ),
+                    ),
 
-      /// 取消
-      Expanded(
-        child: OutlinedButton(
-          onPressed: () => Navigator.pop(context),
-          style: OutlinedButton.styleFrom(
-            minimumSize: const Size.fromHeight(52),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
-            ),
-          ),
-          child: const Text(
-            '取消',
-            style: TextStyle(
-              fontSize: 16,
-            ),
-          ),
-        ),
-      ),
+                    const SizedBox(width: 12),
 
-      const SizedBox(width: 12),
+                    /// 儲存
+                    Expanded(
+                      child: FilledButton(
+                        onPressed: () async {
+                          /// 🔥 刪舊圖
+                          if (newImage != null &&
+                              pet['photoUrl'] != null &&
+                              pet['photoUrl'] != '') {
+                            try {
+                              await FirebaseStorage.instance
+                                  .refFromURL(pet['photoUrl'])
+                                  .delete();
+                            } catch (e) {}
+                          }
 
-      /// 儲存
-      Expanded(
-        child: FilledButton(
-          onPressed: () async {
+                          /// 🔥 更新資料
+                          await FirebaseFirestore.instance
+                              .collection('user_profiles')
+                              .doc(uid)
+                              .collection('pets')
+                              .doc(pet['petId'])
+                              .update({
+                                'name': name.text,
+                                'age': age,
+                                'gender': gender,
+                                'breed': breed.text,
+                                'isNeutered': neuterStatus == '有結紮',
+                                'vaccine': medical,
+                                'litterType': litterType,
+                                'note': note.text,
+                                'adminNote': adminNote.text,
+                              });
 
-            /// 🔥 刪舊圖
-            if (newImage != null &&
-                pet['photoUrl'] != null &&
-                pet['photoUrl'] != '') {
-              try {
-                await FirebaseStorage.instance
-                    .refFromURL(pet['photoUrl'])
-                    .delete();
-              } catch (e) {}
-            }
+                          /// 🔥 上傳新圖
+                          if (newImage != null) {
+                            final ref = FirebaseStorage.instance
+                                .ref()
+                                .child('pets')
+                                .child(uid)
+                                .child('${pet['petId']}.jpg');
 
-            /// 🔥 更新資料
-            await FirebaseFirestore.instance
-                .collection('user_profiles')
-                .doc(uid)
-                .collection('pets')
-                .doc(pet['petId'])
-                .update({
-              'name': name.text,
-              'age': age,
-              'gender': gender,
-              'breed': breed.text,
-              'isNeutered': neuterStatus == '有結紮',
-              'vaccine': medical,
-              'litterType': litterType,
-              'note': note.text,
-              'adminNote': adminNote.text,
-            });
+                            await ref.putData(
+                              newImage!,
+                              SettableMetadata(contentType: 'image/jpeg'),
+                            );
 
-            /// 🔥 上傳新圖
-            if (newImage != null) {
-              final ref = FirebaseStorage.instance
-                  .ref()
-                  .child('pets')
-                  .child(uid)
-                  .child('${pet['petId']}.jpg');
+                            final url = await ref.getDownloadURL();
 
-              await ref.putData(newImage!);
+                            await FirebaseFirestore.instance
+                                .collection('user_profiles')
+                                .doc(uid)
+                                .collection('pets')
+                                .doc(pet['petId'])
+                                .update({'photoUrl': url});
+                          }
 
-              final url = await ref.getDownloadURL();
-
-              await FirebaseFirestore.instance
-                  .collection('user_profiles')
-                  .doc(uid)
-                  .collection('pets')
-                  .doc(pet['petId'])
-                  .update({
-                'photoUrl': url,
-              });
-            }
-
-            Navigator.pop(context);
-            Navigator.pop(context);
-          },
-          style: FilledButton.styleFrom(
-            minimumSize: const Size.fromHeight(52),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
-            ),
-          ),
-          child: const Text(
-            '儲存',
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-        ),
-      ),
-    ],
-  ),
-],
+                          Navigator.pop(context);
+                          Navigator.pop(context);
+                        },
+                        style: FilledButton.styleFrom(
+                          minimumSize: const Size.fromHeight(52),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                        ),
+                        child: const Text(
+                          '儲存',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
             );
           },
         );
@@ -562,9 +530,7 @@ actions: [
     /// 🔥 刪圖片
     if (pet['photoUrl'] != null && pet['photoUrl'] != '') {
       try {
-        await FirebaseStorage.instance
-            .refFromURL(pet['photoUrl'])
-            .delete();
+        await FirebaseStorage.instance.refFromURL(pet['photoUrl']).delete();
       } catch (e) {}
     }
 
@@ -590,11 +556,7 @@ class _FullImagePage extends StatelessWidget {
       backgroundColor: Colors.black,
       body: GestureDetector(
         onTap: () => Navigator.pop(context),
-        child: Center(
-          child: InteractiveViewer(
-            child: Image.network(imageUrl),
-          ),
-        ),
+        child: Center(child: InteractiveViewer(child: Image.network(imageUrl))),
       ),
     );
   }

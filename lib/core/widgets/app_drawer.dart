@@ -16,6 +16,9 @@ import 'package:petnest_saas/features/booking/pages/booking_detail_page.dart';
 import 'package:petnest_saas/features/platform/pages/platform_shop_manage_page.dart';
 import 'package:petnest_saas/features/shop/pages/shop_faq_page.dart';
 import 'package:petnest_saas/features/shop/pages/shop_announcement_page.dart';
+import 'package:petnest_saas/features/shop/pages/shop_environment_page.dart';
+import 'package:petnest_saas/features/shop/pages/shop_about_page.dart';
+import 'package:petnest_saas/features/shop/pages/shop_room_intro_page.dart';
 
 class AppDrawer extends StatelessWidget {
   const AppDrawer({
@@ -103,61 +106,54 @@ class AppDrawer extends StatelessWidget {
                   if (user != null) _latestBookingCard(context, user.uid),
 
                   _divider(),
+                  StreamBuilder<DocumentSnapshot>(
+                    stream: FirebaseFirestore.instance
+                        .collection('shops')
+                        .doc(shopId)
+                        .snapshots(),
+                    builder: (context, snapshot) {
+                      final shop =
+                          snapshot.data?.data() as Map<String, dynamic>?;
 
-                  ExpansionTile(
-                    initiallyExpanded: true,
-                    tilePadding: EdgeInsets.zero,
-                    childrenPadding: EdgeInsets.zero,
-                    leading: Icon(Icons.pets, color: _orange, size: 18),
-                    title: Text(
-                      '店家功能',
-                      style: TextStyle(
-                        color: _brown,
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    children: [
-                      _menuItem(
-                        icon: Icons.calendar_month,
-                        title: '我要預約',
-                        onTap: () => _goBooking(context),
-                      ),
-                      _menuItem(
-                        icon: Icons.bed,
-                        title: '房間介紹',
-                        onTap: () {
-                          Navigator.pop(context);
-                        },
-                      ),
-                      _menuItem(
-                        icon: Icons.description,
-                        title: '入住須知',
-                        onTap: () {
-                          Navigator.pop(context);
-                        },
-                      ),
+                      final plan = shop?['plan']?.toString() ?? 'free';
+                      final paidUntil = shop?['paidUntil'];
 
-                      // 🔒 預留：之後再接功能
-                      StreamBuilder<DocumentSnapshot>(
-                        stream: FirebaseFirestore.instance
-                            .collection('shops')
-                            .doc(shopId)
-                            .snapshots(),
-                        builder: (context, snapshot) {
-                          final shop =
-                              snapshot.data?.data() as Map<String, dynamic>?;
+                      bool isPaidActive = false;
 
-                          final showAnnouncementSection =
-                              shop?['showAnnouncementSection'] != false;
+                      if (paidUntil is Timestamp) {
+                        isPaidActive = paidUntil.toDate().isAfter(
+                          DateTime.now(),
+                        );
+                      }
 
-                          if (!showAnnouncementSection) {
-                            return const SizedBox.shrink();
-                          }
+                      final isFreeMode = plan == 'free' || !isPaidActive;
 
-                          return _menuItem(
-                            icon: Icons.campaign_outlined,
-                            title: '最新公告',
+                      if (isFreeMode) {
+                        return const SizedBox.shrink();
+                      }
+
+                      return ExpansionTile(
+                        initiallyExpanded: true,
+                        tilePadding: EdgeInsets.zero,
+                        childrenPadding: EdgeInsets.zero,
+                        leading: Icon(Icons.pets, color: _orange, size: 18),
+                        title: Text(
+                          '店家功能',
+                          style: TextStyle(
+                            color: _brown,
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        children: [
+                          _menuItem(
+                            icon: Icons.calendar_month,
+                            title: '我要預約',
+                            onTap: () => _goBooking(context),
+                          ),
+                          _menuItem(
+                            icon: Icons.home,
+                            title: '環境介紹',
                             onTap: () {
                               Navigator.pop(context);
 
@@ -165,46 +161,89 @@ class AppDrawer extends StatelessWidget {
                                 context,
                                 MaterialPageRoute(
                                   builder: (_) =>
-                                      ShopAnnouncementPage(shopId: shopId),
+                                      ShopEnvironmentPage(shopId: shopId),
                                 ),
                               );
                             },
-                          );
-                        },
-                      ),
-                      StreamBuilder<DocumentSnapshot>(
-                        stream: FirebaseFirestore.instance
-                            .collection('shops')
-                            .doc(shopId)
-                            .snapshots(),
-                        builder: (context, snapshot) {
-                          final shop =
-                              snapshot.data?.data() as Map<String, dynamic>?;
-
-                          final showFaqSection =
-                              shop?['showFaqSection'] != false;
-
-                          if (!showFaqSection) {
-                            return const SizedBox.shrink();
-                          }
-
-                          return _menuItem(
-                            icon: Icons.help_outline,
-                            title: '常見問題',
+                          ),
+                          _menuItem(
+                            icon: Icons.bed,
+                            title: '房間介紹',
                             onTap: () {
                               Navigator.pop(context);
 
                               Navigator.push(
                                 context,
                                 MaterialPageRoute(
-                                  builder: (_) => ShopFaqPage(shopId: shopId),
+                                  builder: (_) =>
+                                      ShopRoomIntroPage(shopId: shopId),
                                 ),
                               );
                             },
-                          );
-                        },
-                      ),
-                    ],
+                          ),
+                          _menuItem(
+                            icon: Icons.description,
+                            title: '入住須知',
+                            onTap: () {
+                              Navigator.pop(context);
+
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => ShopPolicyViewPage(
+                                    shopId: shopId,
+                                    readOnly: true,
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
+                          _menuItem(
+                            icon: Icons.favorite,
+                            title: '關於我們',
+                            onTap: () {
+                              Navigator.pop(context);
+
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => ShopAboutPage(shopId: shopId),
+                                ),
+                              );
+                            },
+                          ),
+                          if (shop?['showAnnouncementSection'] != false)
+                            _menuItem(
+                              icon: Icons.campaign_outlined,
+                              title: '最新公告',
+                              onTap: () {
+                                Navigator.pop(context);
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) =>
+                                        ShopAnnouncementPage(shopId: shopId),
+                                  ),
+                                );
+                              },
+                            ),
+                          if (shop?['showFaqSection'] != false)
+                            _menuItem(
+                              icon: Icons.help_outline,
+                              title: '常見問題',
+                              onTap: () {
+                                Navigator.pop(context);
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => ShopFaqPage(shopId: shopId),
+                                  ),
+                                );
+                              },
+                            ),
+                        ],
+                      );
+                    },
                   ),
 
                   _divider(),

@@ -204,6 +204,19 @@ class PlatformShopManagePage extends StatelessWidget {
                 final accountStatus =
                     data['accountStatus']?.toString() ?? 'normal';
                 final paidUntil = data['paidUntil'];
+
+                DateTime? paidUntilDate;
+
+                if (paidUntil is Timestamp) {
+                  paidUntilDate = paidUntil.toDate();
+                } else if (paidUntil is DateTime) {
+                  paidUntilDate = paidUntil;
+                }
+
+                final isExpired =
+                    paidUntilDate != null &&
+                    paidUntilDate.isBefore(DateTime.now());
+
                 final createdAt = data['createdAt'];
                 final lastLoginAt = data['lastLoginAt'];
                 final acceptedShopOwnerPolicyVersion =
@@ -212,9 +225,10 @@ class PlatformShopManagePage extends StatelessWidget {
                 final planStatus = status == 'suspended'
                     ? '已停權'
                     : plan == 'free'
-                    ? '試用中'
+                    ? '免費版'
+                    : isExpired
+                    ? '已到期\n免費版權限'
                     : '付費中';
-
                 return Card(
                   elevation: 0,
                   color: status == 'suspended'
@@ -442,6 +456,8 @@ class PlatformShopManagePage extends StatelessWidget {
                                             ? Colors.red
                                             : plan == 'free'
                                             ? Colors.orange
+                                            : isExpired
+                                            ? Colors.deepOrange
                                             : Colors.green,
                                         fontWeight: FontWeight.w800,
                                       ),

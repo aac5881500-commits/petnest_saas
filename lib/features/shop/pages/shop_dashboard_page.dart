@@ -38,6 +38,7 @@ import 'package:petnest_saas/features/shop/pages/shop_contact_platform_page.dart
 import 'package:petnest_saas/features/shop/pages/shop_faq_manage_page.dart';
 import 'package:petnest_saas/features/shop/pages/shop_platform_notification_page.dart';
 import 'package:petnest_saas/core/services/shop_plan_service.dart';
+import 'package:petnest_saas/features/platform/pages/platform_shop_list_page.dart';
 
 class ShopDashboardPage extends StatefulWidget {
   const ShopDashboardPage({super.key, required this.shopId});
@@ -249,6 +250,61 @@ class _ShopDashboardPageState extends State<ShopDashboardPage> {
         final shop = snapshot.data;
         if (shop == null) {
           return const Scaffold(body: Center(child: Text('找不到店家資料')));
+        }
+
+        final accountStatus = (shop['accountStatus'] ?? 'normal').toString();
+        final shopStatus = (shop['status'] ?? 'active').toString();
+
+        if (accountStatus == 'suspended' || shopStatus == 'suspended') {
+          return Scaffold(
+            appBar: AppBar(title: const Text('帳號停權')),
+            body: Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Icon(Icons.block, size: 72, color: Colors.red),
+
+                    const SizedBox(height: 20),
+
+                    const Text(
+                      '此店家帳號目前已停權',
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+
+                    const SizedBox(height: 12),
+
+                    const Text('如有疑問請聯絡平台處理', textAlign: TextAlign.center),
+
+                    const SizedBox(height: 24),
+                    SizedBox(
+                      width: 180,
+                      child: ElevatedButton.icon(
+                        icon: const Icon(Icons.support_agent),
+                        label: const Text('聯絡平台'),
+                        onPressed: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => ShopContactPlatformPage(
+                                shopId: widget.shopId,
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+
+                    const SizedBox(height: 12),
+                  ],
+                ),
+              ),
+            ),
+          );
         }
 
         final isComplete = _isProfileComplete(shop);
