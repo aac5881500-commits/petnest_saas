@@ -84,6 +84,8 @@ class ShopPlatformNotificationPage extends StatelessWidget {
       body: StreamBuilder<QuerySnapshot>(
         stream: FirebaseFirestore.instance
             .collection('shop_notifications')
+            .where('shopId', isEqualTo: shopId)
+            .orderBy('createdAt', descending: true)
             .snapshots(),
         builder: (context, snapshot) {
           if (snapshot.hasError) {
@@ -94,26 +96,7 @@ class ShopPlatformNotificationPage extends StatelessWidget {
             return const Center(child: CircularProgressIndicator());
           }
 
-          final allDocs = snapshot.data?.docs ?? [];
-
-          final docs =
-              allDocs.where((doc) {
-                final data = doc.data() as Map<String, dynamic>;
-                return (data['shopId'] ?? '').toString() == shopId;
-              }).toList()..sort((a, b) {
-                final aData = a.data() as Map<String, dynamic>;
-                final bData = b.data() as Map<String, dynamic>;
-
-                final aTime = aData['createdAt'];
-                final bTime = bData['createdAt'];
-
-                if (aTime is Timestamp && bTime is Timestamp) {
-                  return bTime.compareTo(aTime);
-                }
-
-                return 0;
-              });
-
+          final docs = snapshot.data?.docs ?? [];
           if (docs.isEmpty) {
             return const Center(child: Text('目前沒有平台通知'));
           }

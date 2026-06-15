@@ -121,7 +121,55 @@ match /shop_member_invites/{inviteId} {
     match /shops/{shopId} {
       allow read: if true;
       allow create: if signedIn();
-      allow update: if isShopMember(shopId) || isRootAdmin();
+      allow update: if isRootAdmin()
+  ||
+  (
+    isShopMember(shopId)
+    &&
+    request.resource.data.diff(resource.data).changedKeys().hasOnly([
+      'updatedAt',
+
+      'businessHours',
+      'openTime',
+      'closeTime',
+      'closedDays',
+      'isOpen',
+      'bookingEnabled',
+      'description',
+
+      'banners',
+      'coverUrl',
+      'logoUrl',
+      'platformHomeCoverUrl',
+      'platformHomeLogoUrl',
+      'environmentIntro',
+
+      'fbUrl',
+      'igUrl',
+      'lineUrl',
+
+      'showAnnouncementSection',
+      'showFaqSection',
+      'showTaxId',
+      'externalLinksEnabled',
+
+      'bankName',
+      'accountName',
+      'accountNumber',
+      'paymentMethods',
+      'depositEnabled',
+      'depositType',
+      'depositValue',
+      'depositAmount',
+      'depositBase',
+      'depositExpireHours',
+
+      'blockedDates',
+      'blockedDateReasons',
+      'specialPrices',
+      'defaultPricePerNight'
+    ])
+  );
       allow delete: if false;
 
       // 🏪 店家子成員
@@ -241,12 +289,15 @@ match /member_link_requests/{requestId} {
   allow delete: if false;
 }
 
-   // 🔢 訂單流水號
-match /booking_counters/{shopId} {
+   match /booking_counters/{shopId} {
   allow read: if signedIn();
 
-  // 前台會員下單、店主手動建單都需要產生訂單編號
-  allow create, update: if signedIn();
+  allow create, update: if signedIn()
+    && request.resource.data.keys().hasOnly([
+      'current',
+      'updatedAt'
+    ])
+    && request.resource.data.current is int;
 
   allow delete: if false;
 }
@@ -350,11 +401,23 @@ match /bookings/{bookingId} {
     }
 
 // 📨 店家重要資料修改申請
+// 📨 店家重要資料修改申請
 match /shop_change_requests/{requestId} {
 
-  allow read: if signedIn();
+  allow read: if signedIn() &&
+    (
+      isRootAdmin() ||
+      (
+        resource.data.shopId is string &&
+        isShopMember(resource.data.shopId)
+      )
+    );
 
-  allow create: if signedIn();
+  allow create: if signedIn() &&
+    (
+      request.resource.data.shopId is string &&
+      isShopMember(request.resource.data.shopId)
+    );
 
   allow update: if isRootAdmin();
 
@@ -368,11 +431,14 @@ match /shop_change_requests/{requestId} {
     }
 
     // 🎟 激活碼
-    match /activation_codes/{codeId} {
-      allow read: if signedIn();
-      allow create, update, delete: if isRootAdmin();
-    }
+// 目前激活碼系統暫停開發，先只允許平台最高權限管理
+match /activation_codes/{codeId} {
+  allow read, create, update, delete: if isRootAdmin();
 
+  match /usage_logs/{logId} {
+    allow read, create, update, delete: if isRootAdmin();
+  }
+}
     // 👑 平台管理員
     match /platform_admins/{adminUid} {
       allow read, write: if isRootAdmin();
@@ -384,13 +450,32 @@ match /shop_change_requests/{requestId} {
     }
 
     // 🔔 平台通知
-    match /shop_notifications/{notificationId} {
+match /shop_notifications/{notificationId} {
+  allow read: if signedIn() &&
+    (
+      isRootAdmin() ||
+      isShopMember(resource.data.shopId)
+    );
 
-      allow read: if signedIn();
+  allow create, delete: if isRootAdmin();
 
-      allow create, update, delete: if isRootAdmin();
-    }
-
+allow update: if
+  isRootAdmin()
+  ||
+  (
+    isShopMember(resource.data.shopId)
+    &&
+    request.resource.data.shopId == resource.data.shopId
+    &&
+    request.resource.data.title == resource.data.title
+    &&
+    request.resource.data.content == resource.data.content
+    &&
+    request.resource.data.type == resource.data.type
+    &&
+    request.resource.data.createdAt == resource.data.createdAt
+  );
+}
     // 🚫 其他全部拒絕
     match /{document=**} {
       allow read, write: if false;

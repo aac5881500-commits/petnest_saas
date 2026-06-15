@@ -4,6 +4,8 @@
 
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:petnest_saas/core/constants/taiwan_city_data.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 class ShopChangeRequestPage extends StatefulWidget {
   const ShopChangeRequestPage({
@@ -12,12 +14,20 @@ class ShopChangeRequestPage extends StatefulWidget {
     required this.shopName,
     required this.currentPhone,
     required this.currentAddress,
+    required this.currentCity,
+    required this.currentDistrict,
     required this.currentLicenseNumber,
     required this.currentTaxId,
   });
 
   final String shopId;
   final String shopName;
+  final String currentPhone;
+  final String currentCity;
+  final String currentDistrict;
+  final String currentAddress;
+  final String currentLicenseNumber;
+  final String currentTaxId;
 
   @override
   State<ShopChangeRequestPage> createState() => _ShopChangeRequestPageState();
@@ -28,6 +38,8 @@ class _ShopChangeRequestPageState extends State<ShopChangeRequestPage> {
   final _newValueController = TextEditingController();
 
   String _requestType = 'phone';
+  String _newCity = '新竹縣';
+  String _newDistrict = '新埔鎮';
 
   Future<void> _submitRequest() async {
     if (_reasonController.text.trim().isEmpty) {
@@ -44,12 +56,51 @@ class _ShopChangeRequestPageState extends State<ShopChangeRequestPage> {
       return;
     }
 
+    final currentUser = FirebaseAuth.instance.currentUser;
+
+    if (currentUser == null) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('請重新登入後再送出申請')));
+      return;
+    }
+
+    final duplicateQuery = await FirebaseFirestore.instance
+        .collection('shop_change_requests')
+        .where('shopId', isEqualTo: widget.shopId)
+        .where('requestType', isEqualTo: _requestType)
+        .where('status', isEqualTo: 'pending')
+        .limit(1)
+        .get();
+
+    if (duplicateQuery.docs.isNotEmpty) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('此項目已有審核中的申請，請先等待審核或取消原申請')));
+      return;
+    }
+
     await FirebaseFirestore.instance.collection('shop_change_requests').add({
       'shopId': widget.shopId,
       'shopName': widget.shopName,
+      'currentValue': _currentValueText(),
+      'applicantEmail': currentUser.email ?? '',
+      'applicantUid': currentUser.uid,
 
       'requestType': _requestType,
-      'newValue': _newValueController.text.trim(),
+
+      'newValue': _requestType == 'address'
+          ? '$_newCity $_newDistrict ${_newValueController.text.trim()}'
+          : _newValueController.text.trim(),
+
+      'newCity': _requestType == 'address' ? _newCity : null,
+      'newDistrict': _requestType == 'address' ? _newDistrict : null,
+      'newAddress': _requestType == 'address'
+          ? _newValueController.text.trim()
+          : null,
+
       'reason': _reasonController.text.trim(),
 
       'status': 'pending',
@@ -73,7 +124,7 @@ class _ShopChangeRequestPageState extends State<ShopChangeRequestPage> {
       case 'phone':
         return widget.currentPhone;
       case 'address':
-        return widget.currentAddress;
+        return '${widget.currentCity} ${widget.currentDistrict}\n${widget.currentAddress}';
       case 'licenseNumber':
         return widget.currentLicenseNumber;
       case 'taxId':
@@ -115,6 +166,13 @@ class _ShopChangeRequestPageState extends State<ShopChangeRequestPage> {
 
               setState(() {
                 _requestType = value;
+
+                if (_requestType == 'address') {
+                  _newCity = '新竹縣';
+                  _newDistrict = '新埔鎮';
+                }
+
+                _newValueController.clear();
               });
             },
           ),
@@ -136,27 +194,84 @@ class _ShopChangeRequestPageState extends State<ShopChangeRequestPage> {
 
           const SizedBox(height: 16),
 
-          TextFormField(
-            controller: _newValueController,
-            maxLines: _requestType == 'address' ? 2 : 1,
-            keyboardType: _requestType == 'phone'
-                ? TextInputType.phone
-                : TextInputType.text,
-            decoration: InputDecoration(
-              labelText: _requestType == 'name'
-                  ? '新店名'
-                  : _requestType == 'phone'
-                  ? '新電話'
-                  : _requestType == 'address'
-                  ? '新地址'
-                  : _requestType == 'licenseNumber'
-                  ? '新特寵字號'
-                  : _requestType == 'taxId'
-                  ? '新統編'
-                  : '申請修改後的新資料',
-              border: const OutlineInputBorder(),
+          if (_requestType == 'address') ...[
+            DropdownButtonFormField<String>(
+              value: _newCity,
+              decoration: const InputDecoration(
+                labelText: '新縣市',
+                border: OutlineInputBorder(),
+              ),
+              items: cityData.keys
+                  .map(
+                    (city) => DropdownMenuItem(value: city, child: Text(city)),
+                  )
+                  .toList(),
+              onChanged: (value) {
+                if (value == null) return;
+
+                setState(() {
+                  _newCity = value;
+                  _newDistrict = cityData[value]!.first;
+                });
+              },
             ),
-          ),
+
+            const SizedBox(height: 16),
+
+            DropdownButtonFormField<String>(
+              value: _newDistrict,
+              decoration: const InputDecoration(
+                labelText: '新區域',
+                border: OutlineInputBorder(),
+              ),
+              items: (cityData[_newCity] ?? [])
+                  .map(
+                    (district) => DropdownMenuItem(
+                      value: district,
+                      child: Text(district),
+                    ),
+                  )
+                  .toList(),
+              onChanged: (value) {
+                if (value == null) return;
+
+                setState(() {
+                  _newDistrict = value;
+                });
+              },
+            ),
+
+            const SizedBox(height: 16),
+
+            TextFormField(
+              controller: _newValueController,
+              maxLines: 2,
+              decoration: const InputDecoration(
+                labelText: '新詳細地址',
+                border: OutlineInputBorder(),
+              ),
+            ),
+          ] else ...[
+            TextFormField(
+              controller: _newValueController,
+              maxLines: 1,
+              keyboardType: _requestType == 'phone'
+                  ? TextInputType.phone
+                  : TextInputType.text,
+              decoration: InputDecoration(
+                labelText: _requestType == 'name'
+                    ? '新店名'
+                    : _requestType == 'phone'
+                    ? '新電話'
+                    : _requestType == 'licenseNumber'
+                    ? '新特寵字號'
+                    : _requestType == 'taxId'
+                    ? '新統編'
+                    : '申請修改後的新資料',
+                border: const OutlineInputBorder(),
+              ),
+            ),
+          ],
 
           const SizedBox(height: 16),
 
