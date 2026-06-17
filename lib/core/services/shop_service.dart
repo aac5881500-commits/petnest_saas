@@ -31,6 +31,21 @@ class ShopService {
   CollectionReference<Map<String, dynamic>> get _shopMembers =>
       _firestore.collection('shop_members');
 
+  List<String> effectiveEnabledModules(Map<String, dynamic> shop) {
+    final plan = shop['plan']?.toString() ?? 'free';
+
+    final lockedModule =
+        shop['lockedModule']?.toString().trim().isNotEmpty == true
+        ? shop['lockedModule'].toString()
+        : shop['businessType']?.toString() ?? ShopModules.catHotel;
+
+    if (plan == 'pro') {
+      return ShopModules.proEnabledModules();
+    }
+
+    return ShopModules.lockedPlanModules(lockedModule);
+  }
+
   List<String> normalizeEnabledModules(dynamic value) {
     if (value is! List) {
       return [...ShopModules.defaultEnabled];
@@ -53,16 +68,35 @@ class ShopService {
     required String shopId,
     required List<String> enabledModules,
   }) async {
+    final shopDoc = await _shops.doc(shopId).get();
+    final shop = shopDoc.data() ?? {};
+
+    final plan = shop['plan']?.toString() ?? 'free';
+
+    final lockedModule =
+        shop['lockedModule']?.toString().trim().isNotEmpty == true
+        ? shop['lockedModule'].toString()
+        : shop['businessType']?.toString() ?? ShopModules.catHotel;
+
     final normalized = enabledModules
         .map((e) => e.trim())
         .where((e) => ShopModules.all.contains(e))
         .toSet()
         .toList();
 
+    final List<String> finalModules;
+
+    if (plan == 'pro') {
+      finalModules = normalized.isEmpty
+          ? ShopModules.proEnabledModules()
+          : {ShopModules.basicInfo, ...normalized}.toList();
+    } else {
+      finalModules = ShopModules.lockedPlanModules(lockedModule);
+    }
+
     await _shops.doc(shopId).update({
-      'enabledModules': normalized.isEmpty
-          ? ShopModules.defaultEnabled
-          : normalized,
+      'enabledModules': finalModules,
+      'lockedModule': lockedModule,
       'updatedAt': FieldValue.serverTimestamp(),
     });
   }
@@ -122,15 +156,23 @@ class ShopService {
     if (existing.docs.isNotEmpty) {
       throw Exception('你已經建立過店家了');
     }
+    print('🔥 開始驗證激活碼: $activationCode');
+
     final activationError = await PlatformActivationCodeService.instance
         .validateCode(activationCode);
+
+    print('🔥 激活碼驗證完成: $activationError');
 
     if (activationError != null) {
       throw Exception(activationError);
     }
 
+    print('🔥 開始讀取激活碼資料');
+
     final activationCodeData = await PlatformActivationCodeService.instance
         .getCode(activationCode);
+
+    print('🔥 激活碼資料: $activationCodeData');
 
     if (activationCodeData == null) {
       throw Exception('找不到此激活碼');
@@ -144,6 +186,11 @@ class ShopService {
     final activationCodeId = activationCodeData['id'].toString();
 
     final activationPlan = activationCodeData['plan']?.toString() ?? 'basic';
+
+    final lockedModule =
+        activationCodeData['module']?.toString() ?? ShopModules.catHotel;
+
+    final initialEnabledModules = ShopModules.lockedPlanModules(lockedModule);
 
     final activationFreeDays = activationCodeData['freeDays'] is int
         ? activationCodeData['freeDays'] as int
@@ -193,7 +240,8 @@ class ShopService {
       'acceptedShopOwnerPolicyAt': FieldValue.serverTimestamp(),
 
       // 基本資料
-      'businessType': businessType,
+      'businessType': lockedModule,
+      'lockedModule': lockedModule,
       'phone': '',
       'address': '',
       'description': '',
@@ -213,7 +261,7 @@ class ShopService {
       'coverUrl': '',
 
       // 模組開關（後台分頁用）
-      'enabledModules': ShopModules.defaultEnabled,
+      'enabledModules': initialEnabledModules,
 
       // ========= 預約設定 =========
       'bookingEnabled': true,
@@ -288,10 +336,17 @@ class ShopService {
       'usedByEmail': user.email ?? '',
       'plan': activationPlan,
       'freeDays': activationFreeDays,
+      'module': lockedModule,
       'usedAt': FieldValue.serverTimestamp(),
     });
 
-    await batch.commit();
+    try {
+      await batch.commit();
+    } catch (e, st) {
+      print('🔥 建立店家 batch commit 失敗: $e');
+      print(st);
+      rethrow;
+    }
 
     return shopRef.id;
   }
@@ -341,7 +396,7 @@ class ShopService {
         'businessType': shopData['businessType'] ?? '',
 
         // 🔥 首頁營運資訊區
-        'enabledModules': List<String>.from(shopData['enabledModules'] ?? []),
+        'enabledModules': effectiveEnabledModules(shopData),
 
         'licenseNumber': shopData['licenseNumber'] ?? '',
 

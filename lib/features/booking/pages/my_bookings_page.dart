@@ -160,9 +160,20 @@ class _MyBookingsPageState extends State<MyBookingsPage> {
         stream: FirebaseFirestore.instance
             .collection('bookings')
             .where('userId', isEqualTo: user.uid)
+            .orderBy('createdAt', descending: true)
             .limit(30)
             .snapshots(),
+
         builder: (context, snapshot) {
+          if (snapshot.hasError) {
+            return Center(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Text('讀取失敗：${snapshot.error}'),
+              ),
+            );
+          }
+
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
           }
@@ -172,19 +183,6 @@ class _MyBookingsPageState extends State<MyBookingsPage> {
           }
 
           final docs = snapshot.data!.docs.toList();
-
-          docs.sort((a, b) {
-            final aData = a.data() as Map<String, dynamic>;
-            final bData = b.data() as Map<String, dynamic>;
-
-            final aCode = (aData['bookingCode'] ?? '').toString();
-            final bCode = (bData['bookingCode'] ?? '').toString();
-
-            final aNumber = int.tryParse(aCode.split('B').last) ?? 0;
-            final bNumber = int.tryParse(bCode.split('B').last) ?? 0;
-
-            return bNumber.compareTo(aNumber);
-          });
 
           final visibleDocs = docs.take(_limit).toList();
 
@@ -235,6 +233,7 @@ class _MyBookingsPageState extends State<MyBookingsPage> {
 
               final bool hasDeposit = depositAmount > 0;
               final bookingCode = (data['bookingCode'] ?? '').toString();
+              final shopName = (data['shopName'] ?? '').toString();
 
               final shortBookingId = bookingCode.isNotEmpty
                   ? bookingCode
@@ -289,12 +288,42 @@ class _MyBookingsPageState extends State<MyBookingsPage> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text(
-                                roomTypeName,
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 15,
-                                ),
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  if (shopName.isNotEmpty)
+                                    Padding(
+                                      padding: const EdgeInsets.only(bottom: 4),
+                                      child: Row(
+                                        children: [
+                                          const Icon(
+                                            Icons.storefront,
+                                            size: 14,
+                                            color: Colors.orange,
+                                          ),
+                                          const SizedBox(width: 4),
+                                          Expanded(
+                                            child: Text(
+                                              shopName,
+                                              style: const TextStyle(
+                                                fontSize: 13,
+                                                fontWeight: FontWeight.w700,
+                                                color: Colors.orange,
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+
+                                  Text(
+                                    roomTypeName,
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 15,
+                                    ),
+                                  ),
+                                ],
                               ),
 
                               const SizedBox(height: 4),

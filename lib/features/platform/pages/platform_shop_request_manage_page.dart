@@ -20,6 +20,14 @@ class PlatformShopRequestManagePage extends StatelessWidget {
         return '特寵字號修改';
       case 'taxId':
         return '統編修改';
+      case 'lineUrl':
+        return 'LINE 連結修改';
+
+      case 'igUrl':
+        return 'IG 連結修改';
+
+      case 'fbUrl':
+        return 'FB 連結修改';
       default:
         return '資料修改';
     }
@@ -98,14 +106,29 @@ class PlatformShopRequestManagePage extends StatelessWidget {
         case 'name':
           fieldName = 'name';
           break;
+
         case 'phone':
           fieldName = 'phone';
           break;
+
         case 'licenseNumber':
           fieldName = 'licenseNumber';
           break;
+
         case 'taxId':
           fieldName = 'taxId';
+          break;
+
+        case 'lineUrl':
+          fieldName = 'lineUrl';
+          break;
+
+        case 'igUrl':
+          fieldName = 'igUrl';
+          break;
+
+        case 'fbUrl':
+          fieldName = 'fbUrl';
           break;
       }
 

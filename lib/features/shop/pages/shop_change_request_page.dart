@@ -18,6 +18,9 @@ class ShopChangeRequestPage extends StatefulWidget {
     required this.currentDistrict,
     required this.currentLicenseNumber,
     required this.currentTaxId,
+    required this.currentLineUrl,
+    required this.currentIgUrl,
+    required this.currentFbUrl,
   });
 
   final String shopId;
@@ -28,6 +31,9 @@ class ShopChangeRequestPage extends StatefulWidget {
   final String currentAddress;
   final String currentLicenseNumber;
   final String currentTaxId;
+  final String currentLineUrl;
+  final String currentIgUrl;
+  final String currentFbUrl;
 
   @override
   State<ShopChangeRequestPage> createState() => _ShopChangeRequestPageState();
@@ -54,6 +60,22 @@ class _ShopChangeRequestPageState extends State<ShopChangeRequestPage> {
         context,
       ).showSnackBar(const SnackBar(content: Text('請填寫要修改的新資料')));
       return;
+    }
+
+    if (_requestType == 'lineUrl' ||
+        _requestType == 'igUrl' ||
+        _requestType == 'fbUrl') {
+      final error = _validateSocialUrl(
+        value: _newValueController.text,
+        type: _requestType,
+      );
+
+      if (error != null) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(error)));
+        return;
+      }
     }
 
     final currentUser = FirebaseAuth.instance.currentUser;
@@ -117,6 +139,51 @@ class _ShopChangeRequestPageState extends State<ShopChangeRequestPage> {
     Navigator.pop(context);
   }
 
+  String? _validateSocialUrl({required String value, required String type}) {
+    final text = value.trim();
+
+    if (text.isEmpty) return '請輸入網址';
+
+    final uri = Uri.tryParse(text);
+
+    if (uri == null || !uri.hasScheme || uri.host.isEmpty) {
+      return '請輸入完整網址，例如 https://...';
+    }
+
+    final host = uri.host.toLowerCase();
+
+    if (type == 'lineUrl') {
+      if (host == 'line.me' ||
+          host == 'www.line.me' ||
+          host == 'page.line.me' ||
+          host == 'lin.ee') {
+        return null;
+      }
+
+      return 'LINE 連結只能使用 line.me、page.line.me 或 lin.ee';
+    }
+
+    if (type == 'igUrl') {
+      if (host == 'instagram.com' || host == 'www.instagram.com') {
+        return null;
+      }
+
+      return 'IG 連結只能使用 instagram.com';
+    }
+
+    if (type == 'fbUrl') {
+      if (host == 'facebook.com' ||
+          host == 'www.facebook.com' ||
+          host == 'fb.me') {
+        return null;
+      }
+
+      return 'FB 連結只能使用 facebook.com 或 fb.me';
+    }
+
+    return null;
+  }
+
   String _currentValueText() {
     switch (_requestType) {
       case 'name':
@@ -129,6 +196,12 @@ class _ShopChangeRequestPageState extends State<ShopChangeRequestPage> {
         return widget.currentLicenseNumber;
       case 'taxId':
         return widget.currentTaxId;
+      case 'lineUrl':
+        return widget.currentLineUrl;
+      case 'igUrl':
+        return widget.currentIgUrl;
+      case 'fbUrl':
+        return widget.currentFbUrl;
       default:
         return '';
     }
@@ -160,6 +233,9 @@ class _ShopChangeRequestPageState extends State<ShopChangeRequestPage> {
               DropdownMenuItem(value: 'address', child: Text('地址修改')),
               DropdownMenuItem(value: 'licenseNumber', child: Text('特寵字號修改')),
               DropdownMenuItem(value: 'taxId', child: Text('統編修改')),
+              DropdownMenuItem(value: 'lineUrl', child: Text('LINE 連結修改')),
+              DropdownMenuItem(value: 'igUrl', child: Text('IG 連結修改')),
+              DropdownMenuItem(value: 'fbUrl', child: Text('FB 連結修改')),
             ],
             onChanged: (value) {
               if (value == null) return;
@@ -267,6 +343,12 @@ class _ShopChangeRequestPageState extends State<ShopChangeRequestPage> {
                     ? '新特寵字號'
                     : _requestType == 'taxId'
                     ? '新統編'
+                    : _requestType == 'lineUrl'
+                    ? '新 LINE 連結'
+                    : _requestType == 'igUrl'
+                    ? '新 IG 連結'
+                    : _requestType == 'fbUrl'
+                    ? '新 FB 連結'
                     : '申請修改後的新資料',
                 border: const OutlineInputBorder(),
               ),

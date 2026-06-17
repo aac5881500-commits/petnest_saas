@@ -33,10 +33,7 @@ class BookingRoomTypeSection extends StatelessWidget {
     if (selectedPetIds.isEmpty) {
       return const Padding(
         padding: EdgeInsets.symmetric(vertical: 16),
-        child: Text(
-          '請先選擇入住寵物',
-          style: TextStyle(color: Colors.red),
-        ),
+        child: Text('請先選擇入住寵物', style: TextStyle(color: Colors.red)),
       );
     }
 
@@ -56,10 +53,8 @@ class BookingRoomTypeSection extends StatelessWidget {
 
         final roomTypes = (snapshot.data ?? []).where((type) {
           final capacity = (type['capacity'] ?? 1) as int;
-          final availableRooms = (type['availableRooms'] ?? 0) as int;
 
           if (capacity < selectedPetIds.length) return false;
-          if (availableRooms <= 0) return false;
 
           return true;
         }).toList();
@@ -68,50 +63,76 @@ class BookingRoomTypeSection extends StatelessWidget {
           return const Text('此區間沒有可用房型');
         }
 
+        final hasAvailableRoomType = roomTypes.any((type) {
+          final availableRooms = (type['availableRooms'] ?? 0) as int;
+          return availableRooms > 0;
+        });
+
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text(
               '第三步：選擇房型',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-              ),
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
 
             const SizedBox(height: 12),
 
+            if (!hasAvailableRoomType) ...[
+              Container(
+                width: double.infinity,
+                margin: const EdgeInsets.only(bottom: 12),
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.red.shade50,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.red.shade100),
+                ),
+                child: const Text(
+                  '此日期區間所有可入住的房型都已滿，請重新選擇日期。',
+                  style: TextStyle(
+                    color: Colors.red,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ],
+
             ...roomTypes.map((type) {
+              final availableRooms = (type['availableRooms'] ?? 0) as int;
+              final isFull = availableRooms <= 0;
+
               final isSelected =
+                  !isFull &&
                   selectedRoomType?['roomTypeId'] == type['roomTypeId'];
 
               return GestureDetector(
-                onTap: () {
-                  onSelectRoomType(type);
+                onTap: isFull
+                    ? null
+                    : () {
+                        onSelectRoomType(type);
 
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => RoomTypeDetailPage(
-                        shopId: shopId,
-                        roomType: type,
-                        startDate: startDate!,
-                        endDate: endDate!,
-                      ),
-                    ),
-                  );
-                },
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => RoomTypeDetailPage(
+                              shopId: shopId,
+                              roomType: type,
+                              startDate: startDate!,
+                              endDate: endDate!,
+                            ),
+                          ),
+                        );
+                      },
                 child: Card(
                   child: Container(
                     margin: const EdgeInsets.only(bottom: 12),
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      color: Colors.white,
+                      color: isFull ? Colors.grey.shade100 : Colors.white,
                       borderRadius: BorderRadius.circular(12),
                       border: Border.all(
-                        color: isSelected
-                            ? Colors.green
-                            : Colors.grey.shade300,
+                        color: isSelected ? Colors.green : Colors.grey.shade300,
                         width: isSelected ? 2 : 1,
                       ),
                     ),
@@ -140,13 +161,25 @@ class BookingRoomTypeSection extends StatelessWidget {
                                 builder: (_) {
                                   final rooms = type['availableRooms'] ?? 0;
 
-                                  if (rooms <= 1) {
+                                  if (rooms <= 0) {
                                     return const Text(
-                                      '🔥 剩 1 間',
-                                      style: TextStyle(color: Colors.red),
+                                      '已滿',
+                                      style: TextStyle(
+                                        color: Colors.red,
+                                        fontWeight: FontWeight.bold,
+                                      ),
                                     );
                                   }
 
+                                  if (rooms <= 1) {
+                                    return const Text(
+                                      '⚠ 即將滿房',
+                                      style: TextStyle(
+                                        color: Colors.orange,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    );
+                                  }
                                   return Text('剩 $rooms 間');
                                 },
                               ),
@@ -160,8 +193,7 @@ class BookingRoomTypeSection extends StatelessWidget {
                             final extraPrice = type['extraPrice'] ?? 0;
 
                             final petCount = selectedPetIds.length;
-                            final extraCount =
-                                petCount > 1 ? petCount - 1 : 0;
+                            final extraCount = petCount > 1 ? petCount - 1 : 0;
 
                             final totalPrice =
                                 basePrice + (extraCount * extraPrice);

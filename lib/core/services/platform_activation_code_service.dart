@@ -8,37 +8,33 @@ import 'package:firebase_auth/firebase_auth.dart';
 class PlatformActivationCodeService {
   PlatformActivationCodeService._();
 
-  static final instance =
-      PlatformActivationCodeService._();
+  static final instance = PlatformActivationCodeService._();
 
-  final FirebaseFirestore _firestore =
-      FirebaseFirestore.instance;
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
-  final FirebaseAuth _auth =
-      FirebaseAuth.instance;
+  final FirebaseAuth _auth = FirebaseAuth.instance;
 
-  CollectionReference<Map<String, dynamic>>
-      get _activationCodes =>
-          _firestore.collection('activation_codes');
+  CollectionReference<Map<String, dynamic>> get _activationCodes =>
+      _firestore.collection('activation_codes');
 
   /// 🔥 建立激活碼
   Future<void> createCode({
     required String code,
     required int maxUses,
     required int freeDays,
+    required String module,
     String type = 'shop_create',
     String plan = 'basic',
   }) async {
     final user = _auth.currentUser;
 
-final exists = await getCode(code);
+    final exists = await getCode(code);
 
-if (exists != null) {
-  throw Exception('此激活碼已存在');
-}
+    if (exists != null) {
+      throw Exception('此激活碼已存在');
+    }
 
     await _activationCodes.add({
-
       'code': code.trim(),
 
       /// 類型
@@ -46,6 +42,9 @@ if (exists != null) {
 
       /// 開通方案
       'plan': plan,
+
+      /// 鎖定模板
+      'module': module,
 
       /// 使用次數
       'maxUses': maxUses,
@@ -64,29 +63,20 @@ if (exists != null) {
       /// 預留欄位
       'memo': '',
       'expireAt': null,
-      'allowBusinessTypes': [
-        'cat_hotel',
-      ],
+      'allowBusinessTypes': [module],
       'onlyNewUser': false,
 
       /// 建立資訊
       'createdByUid': user?.uid ?? '',
-      'createdAt':
-          FieldValue.serverTimestamp(),
-      'updatedAt':
-          FieldValue.serverTimestamp(),
+      'createdAt': FieldValue.serverTimestamp(),
+      'updatedAt': FieldValue.serverTimestamp(),
     });
   }
 
   /// 🔍 取得激活碼
-  Future<Map<String, dynamic>?> getCode(
-    String code,
-  ) async {
+  Future<Map<String, dynamic>?> getCode(String code) async {
     final snapshot = await _activationCodes
-        .where(
-          'code',
-          isEqualTo: code.trim(),
-        )
+        .where('code', isEqualTo: code.trim())
         .limit(1)
         .get();
 
@@ -96,16 +86,11 @@ if (exists != null) {
 
     final doc = snapshot.docs.first;
 
-    return {
-      'id': doc.id,
-      ...doc.data(),
-    };
+    return {'id': doc.id, ...doc.data()};
   }
 
   /// ✅ 驗證激活碼
-  Future<String?> validateCode(
-    String code,
-  ) async {
+  Future<String?> validateCode(String code) async {
     final data = await getCode(code);
 
     /// 找不到
@@ -118,11 +103,9 @@ if (exists != null) {
       return '此激活碼已停用';
     }
 
-    final maxUses =
-        data['maxUses'] ?? 0;
+    final maxUses = data['maxUses'] ?? 0;
 
-    final usedCount =
-        data['usedCount'] ?? 0;
+    final usedCount = data['usedCount'] ?? 0;
 
     /// 超過次數
     if (usedCount >= maxUses) {
@@ -131,14 +114,15 @@ if (exists != null) {
 
     return null;
   }
+
   /// 🔄 切換激活碼啟用狀態
-Future<void> updateCodeEnabled({
-  required String codeId,
-  required bool enabled,
-}) async {
-  await _activationCodes.doc(codeId).update({
-    'enabled': enabled,
-    'updatedAt': FieldValue.serverTimestamp(),
-  });
-}
+  Future<void> updateCodeEnabled({
+    required String codeId,
+    required bool enabled,
+  }) async {
+    await _activationCodes.doc(codeId).update({
+      'enabled': enabled,
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+  }
 }

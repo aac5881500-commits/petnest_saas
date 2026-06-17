@@ -71,21 +71,29 @@ match /shop_members/{memberId} {
   // 1. 平台最高權限可建立
   // 2. 店主可建立自己店家的成員
   // 3. 受邀員工只能建立「自己的」成員資料
-  allow create: if signedIn() &&
+ allow create: if signedIn() &&
+  (
+    isRootAdmin() ||
+
     (
-      isRootAdmin() ||
+      request.resource.data.uid == request.auth.uid &&
+      request.resource.data.role == 'owner' &&
+      request.resource.data.shopId is string &&
+      memberId == request.resource.data.shopId + '_' + request.auth.uid &&
+      getAfter(/databases/$(database)/documents/shops/$(request.resource.data.shopId)).data.ownerUid == request.auth.uid
+    ) ||
 
-      (
-        request.resource.data.shopId is string &&
-        isShopOwner(request.resource.data.shopId)
-      ) ||
+    (
+      request.resource.data.shopId is string &&
+      isShopOwner(request.resource.data.shopId)
+    ) ||
 
-      (
-        request.resource.data.shopId is string &&
-        request.resource.data.uid == request.auth.uid &&
-        exists(/databases/$(database)/documents/shop_member_invites/$(request.resource.data.shopId + '_' + request.auth.uid))
-      )
-    );
+    (
+      request.resource.data.shopId is string &&
+      request.resource.data.uid == request.auth.uid &&
+      exists(/databases/$(database)/documents/shop_member_invites/$(request.resource.data.shopId + '_' + request.auth.uid))
+    )
+  );
 
   allow update, delete: if isRootAdmin() ||
     (
@@ -430,13 +438,49 @@ match /shop_change_requests/{requestId} {
       allow create, update, delete: if isRootAdmin();
     }
 
+// 🔢 平台流水號計數器
+match /platform_counters/{counterId} {
+  allow read: if signedIn();
+
+  allow create, update: if signedIn()
+    && counterId == 'shops'
+    && request.resource.data.keys().hasOnly([
+      'current',
+      'updatedAt'
+    ])
+    && request.resource.data.current is int;
+
+  allow delete: if isRootAdmin();
+}
+
     // 🎟 激活碼
 // 目前激活碼系統暫停開發，先只允許平台最高權限管理
 match /activation_codes/{codeId} {
-  allow read, create, update, delete: if isRootAdmin();
+  allow read: if signedIn();
+
+  allow create, delete: if isRootAdmin();
+
+ allow update: if signedIn() &&
+  (
+    isRootAdmin() ||
+    (
+      request.resource.data.diff(resource.data).changedKeys().hasOnly([
+        'usedCount',
+        'usedShopIds',
+        'usedByUids',
+        'lastUsedAt',
+        'updatedAt',
+        'enabled'
+      ])
+    )
+  );
 
   match /usage_logs/{logId} {
-    allow read, create, update, delete: if isRootAdmin();
+    allow read: if isRootAdmin();
+
+    allow create: if signedIn();
+
+    allow update, delete: if isRootAdmin();
   }
 }
     // 👑 平台管理員

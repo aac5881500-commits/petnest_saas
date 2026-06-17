@@ -55,17 +55,17 @@ class BookingCalendar extends StatefulWidget {
 }
 
 class _BookingCalendarState extends State<BookingCalendar> {
-
   @override
-void didUpdateWidget(covariant BookingCalendar oldWidget) {
-  super.didUpdateWidget(oldWidget);
+  void didUpdateWidget(covariant BookingCalendar oldWidget) {
+    super.didUpdateWidget(oldWidget);
 
-  // 🔥 當 range 改變時強制刷新
-  if (oldWidget.rangeStart != widget.rangeStart ||
-      oldWidget.rangeEnd != widget.rangeEnd) {
-    setState(() {});
+    // 🔥 當 range 改變時強制刷新
+    if (oldWidget.rangeStart != widget.rangeStart ||
+        oldWidget.rangeEnd != widget.rangeEnd) {
+      setState(() {});
+    }
   }
-}
+
   late DateTime _visibleMonth;
 
   @override
@@ -80,8 +80,16 @@ void didUpdateWidget(covariant BookingCalendar oldWidget) {
 
   @override
   Widget build(BuildContext context) {
-    final firstDayOfMonth = DateTime(_visibleMonth.year, _visibleMonth.month, 1);
-    final lastDayOfMonth = DateTime(_visibleMonth.year, _visibleMonth.month + 1, 0);
+    final firstDayOfMonth = DateTime(
+      _visibleMonth.year,
+      _visibleMonth.month,
+      1,
+    );
+    final lastDayOfMonth = DateTime(
+      _visibleMonth.year,
+      _visibleMonth.month + 1,
+      0,
+    );
 
     final int leadingEmpty = firstDayOfMonth.weekday % 7;
     final int totalDays = lastDayOfMonth.day;
@@ -98,8 +106,8 @@ void didUpdateWidget(covariant BookingCalendar oldWidget) {
     }
 
     return Card(
-  child: Padding(
-    padding: const EdgeInsets.fromLTRB(12, 4, 12, 12), 
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(12, 4, 12, 12),
         child: Column(
           children: [
             _buildHeader(),
@@ -107,14 +115,14 @@ void didUpdateWidget(covariant BookingCalendar oldWidget) {
             _buildWeekHeader(),
             const SizedBox(height: 8),
             GridView.count(
-  crossAxisCount: 7,
-  shrinkWrap: true,
-  physics: const NeverScrollableScrollPhysics(),
-  crossAxisSpacing: 8,
-  mainAxisSpacing: 8,
-  childAspectRatio: 0.55, 
-  children: dayCells,
-),
+              crossAxisCount: 7,
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              crossAxisSpacing: 8,
+              mainAxisSpacing: 8,
+              childAspectRatio: 0.55,
+              children: dayCells,
+            ),
           ],
         ),
       ),
@@ -135,10 +143,7 @@ void didUpdateWidget(covariant BookingCalendar oldWidget) {
           child: Center(
             child: Text(
               '${_visibleMonth.year} / ${_visibleMonth.month.toString().padLeft(2, '0')}',
-              style: const TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-              ),
+              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
           ),
         ),
@@ -170,151 +175,149 @@ void didUpdateWidget(covariant BookingCalendar oldWidget) {
     );
   }
 
- Widget _buildDayCell(BuildContext context, DateTime date) {
+  Widget _buildDayCell(BuildContext context, DateTime date) {
+    final bool isOutOfRange =
+        date.isBefore(_dateOnly(widget.firstDate)) ||
+        date.isAfter(_dateOnly(widget.lastDate));
 
-  final bool isOutOfRange =
-      date.isBefore(_dateOnly(widget.firstDate)) ||
-      date.isAfter(_dateOnly(widget.lastDate));
+    final dateKey = _formatDateKey(date);
+    final remaining = widget.remainingRoomsMap[dateKey];
 
-  final dateKey = _formatDateKey(date);
-  final remaining = widget.remainingRoomsMap[dateKey];
+    final bool isBlocked = widget.blockedDateKeys.contains(dateKey);
+    final bool isUnbookable = widget.unbookableDateKeys.contains(dateKey);
 
-final bool isBlocked = widget.blockedDateKeys.contains(dateKey);
-final bool isUnbookable = widget.unbookableDateKeys.contains(dateKey);
+    final String? reason = widget.blockedDateReasons[dateKey];
+    final bool isRangeStart =
+        widget.rangeStart != null && _isSameDate(widget.rangeStart!, date);
 
-final String? reason = widget.blockedDateReasons[dateKey];
-final bool isRangeStart =
-    widget.rangeStart != null &&
-    _isSameDate(widget.rangeStart!, date);
+    final bool isRangeEnd =
+        widget.rangeEnd != null && _isSameDate(widget.rangeEnd!, date);
 
-final bool isRangeEnd =
-    widget.rangeEnd != null &&
-    _isSameDate(widget.rangeEnd!, date);
+    final bool isInRange =
+        widget.rangeStart != null &&
+        widget.rangeEnd != null &&
+        !date.isBefore(_dateOnly(widget.rangeStart!)) &&
+        !date.isAfter(_dateOnly(widget.rangeEnd!));
 
-final bool isInRange =
-    widget.rangeStart != null &&
-    widget.rangeEnd != null &&
-    !date.isBefore(_dateOnly(widget.rangeStart!)) &&
-    !date.isAfter(_dateOnly(widget.rangeEnd!));
+    Color borderColor = Colors.grey.shade300;
+    Color backgroundColor = Colors.white;
+    Color dayTextColor = Colors.black87;
 
-  Color borderColor = Colors.grey.shade300;
-  Color backgroundColor = Colors.white;
-  Color dayTextColor = Colors.black87;
+    if (isOutOfRange) {
+      backgroundColor = Colors.grey.shade100;
+      dayTextColor = Colors.grey.shade400;
+    } else if (isBlocked || isUnbookable) {
+      backgroundColor = Colors.red.shade50;
+      borderColor = Colors.red.shade200;
+      dayTextColor = Colors.red.shade700;
+    }
+    if (isRangeStart || isRangeEnd) {
+      backgroundColor = Colors.blue;
+      borderColor = Colors.blue.shade900;
+      dayTextColor = Colors.white;
+    } else if (isInRange) {
+      backgroundColor = Colors.blue.shade100;
+      borderColor = Colors.blue.shade300;
+      dayTextColor = Colors.black;
+    }
 
-  if (isOutOfRange) {
-    backgroundColor = Colors.grey.shade100;
-    dayTextColor = Colors.grey.shade400;
-  } else if (isBlocked || isUnbookable) {
-    backgroundColor = Colors.red.shade50;
-    borderColor = Colors.red.shade200;
-    dayTextColor = Colors.red.shade700;
-  } if (isRangeStart || isRangeEnd) {
-  backgroundColor = Colors.blue;
-  borderColor = Colors.blue.shade900;
-  dayTextColor = Colors.white;
-} else if (isInRange) {
-  backgroundColor = Colors.blue.shade100;
-  borderColor = Colors.blue.shade300;
-  dayTextColor = Colors.black;
-}
+    final bool canTap = !isOutOfRange;
 
-  final bool canTap = !isOutOfRange;
+    return InkWell(
+      onTap: () {
+        /// 🔥 超出範圍
+        if (isOutOfRange) return;
 
-  return InkWell(
-  onTap: () {
+        /// 🔥 房滿（前後台都擋）
+        if (isUnbookable && !widget.allowBlockedTap) {
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(const SnackBar(content: Text('此日期已滿')));
+          return;
+        }
 
-  /// 🔥 超出範圍
-  if (isOutOfRange) return;
+        /// 🔥 關閉日期
+        if (isBlocked && !widget.allowBlockedTap) {
+          return;
+        }
 
-  /// 🔥 房滿（前後台都擋）
-  if (isUnbookable && !widget.allowBlockedTap) {
-  ScaffoldMessenger.of(context).showSnackBar(
-    const SnackBar(content: Text('此日期已滿')),
-  );
-  return;
-}
-
-  /// 🔥 關閉日期
-if (isBlocked && !widget.allowBlockedTap) {
-  return;
-}
-
-  /// ✅ 正常
-  widget.onDayTap(date);
-},
-    borderRadius: BorderRadius.circular(12),
-    child: Container(
-      height: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
-      decoration: BoxDecoration(
-        color: backgroundColor,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: borderColor),
-      ),
-      child: Column(
-  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-  children: [
-  /// 日期
-  Text(
-    '${date.day}',
-    style: TextStyle(
-      fontSize: 16,
-      fontWeight: FontWeight.bold,
-      color: dayTextColor,
-    ),
-  ),
-
-  /// 🔥 剩餘房數（這是你缺的）
-  if (remaining != null)
-    Text(
-      '剩 $remaining',
-      style: TextStyle(
-        fontSize: 10,
-        color: remaining <= 1 ? Colors.red : Colors.grey,
-      ),
-    ),
-
-  /// 🔥 關閉原因
-  if (isBlocked && reason != null && reason.isNotEmpty)
-    Container(
-      margin: const EdgeInsets.only(top: 2),
-      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
-      decoration: BoxDecoration(
-        color: Colors.red.shade100,
-        borderRadius: BorderRadius.circular(6),
-      ),
-      child: Text(
-        reason,
-        style: const TextStyle(
-          fontSize: 9,
-          color: Colors.red,
-          fontWeight: FontWeight.bold,
+        /// ✅ 正常
+        widget.onDayTap(date);
+      },
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        height: double.infinity,
+        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+        decoration: BoxDecoration(
+          color: backgroundColor,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: borderColor),
         ),
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            /// 日期
+            Text(
+              '${date.day}',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+                color: dayTextColor,
+              ),
+            ),
+
+            /// 🔥 滿房提示
+            if (isUnbookable)
+              Text(
+                '滿',
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.red.shade700,
+                ),
+              ),
+
+            /// 🔥 關閉原因
+            if (isBlocked && reason != null && reason.isNotEmpty)
+              Container(
+                margin: const EdgeInsets.only(top: 2),
+                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                decoration: BoxDecoration(
+                  color: Colors.red.shade100,
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Text(
+                  reason,
+                  style: const TextStyle(
+                    fontSize: 9,
+                    color: Colors.red,
+                    fontWeight: FontWeight.bold,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+          ],
+        ),
       ),
-    ),
-],
-),
-    ),
-  );
-}
+    );
+  }
 
   void _goPrevMonth() {
-  setState(() {
-    _visibleMonth = DateTime(_visibleMonth.year, _visibleMonth.month - 1, 1);
-  });
+    setState(() {
+      _visibleMonth = DateTime(_visibleMonth.year, _visibleMonth.month - 1, 1);
+    });
 
-  widget.onMonthChanged?.call(_visibleMonth); // 🔥 新增
-}
+    widget.onMonthChanged?.call(_visibleMonth); // 🔥 新增
+  }
 
   void _goNextMonth() {
-  setState(() {
-    _visibleMonth = DateTime(_visibleMonth.year, _visibleMonth.month + 1, 1);
-  });
+    setState(() {
+      _visibleMonth = DateTime(_visibleMonth.year, _visibleMonth.month + 1, 1);
+    });
 
-  widget.onMonthChanged?.call(_visibleMonth); // 🔥 新增
-}
+    widget.onMonthChanged?.call(_visibleMonth); // 🔥 新增
+  }
 
   bool _isSameMonthOrBefore(DateTime a, DateTime b) {
     final aa = DateTime(a.year, a.month, 1);

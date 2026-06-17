@@ -4,6 +4,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:petnest_saas/core/constants/shop_modules.dart';
 
 class ShopPlanManageDialog extends StatelessWidget {
   const ShopPlanManageDialog({
@@ -43,6 +44,8 @@ class ShopPlanManageDialog extends StatelessWidget {
         return '免費版';
       case 'basic':
         return '999方案';
+      case 'pro':
+        return '1999全模組方案';
       default:
         return '未設定';
     }
@@ -66,7 +69,7 @@ class ShopPlanManageDialog extends StatelessWidget {
 
     DateTime baseDate;
 
-    if (paidUntil is Timestamp) {
+    if (paidUntil is Timestamp && paidUntil.toDate().isAfter(DateTime.now())) {
       baseDate = paidUntil.toDate();
     } else {
       baseDate = DateTime.now();
@@ -83,6 +86,32 @@ class ShopPlanManageDialog extends StatelessWidget {
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text('已延長 $days 天')));
+    }
+  }
+
+  Future<void> _updatePlan(BuildContext context, String plan) async {
+    final lockedModule =
+        shop['lockedModule']?.toString().trim().isNotEmpty == true
+        ? shop['lockedModule'].toString()
+        : shop['businessType']?.toString() ?? ShopModules.catHotel;
+
+    final enabledModules = plan == 'pro'
+        ? ShopModules.proEnabledModules()
+        : ShopModules.lockedPlanModules(lockedModule);
+
+    await FirebaseFirestore.instance.collection('shops').doc(shopId).update({
+      'plan': plan,
+      'lockedModule': lockedModule,
+      'enabledModules': enabledModules,
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+
+    if (context.mounted) {
+      Navigator.pop(context);
+
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('已切換為 ${_planLabel(plan)}')));
     }
   }
 
@@ -335,6 +364,39 @@ class ShopPlanManageDialog extends StatelessWidget {
                 ],
               ],
             ),
+          ),
+
+          const SizedBox(height: 18),
+
+          const Text(
+            '切換方案',
+            style: TextStyle(fontSize: 14, fontWeight: FontWeight.w900),
+          ),
+          const SizedBox(height: 10),
+
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              _actionChip(
+                label: '免費版',
+                icon: Icons.free_breakfast_outlined,
+                color: Colors.grey,
+                onTap: () => _updatePlan(context, 'free'),
+              ),
+              _actionChip(
+                label: '999方案',
+                icon: Icons.workspace_premium_outlined,
+                color: Colors.blue,
+                onTap: () => _updatePlan(context, 'basic'),
+              ),
+              _actionChip(
+                label: '1999全模組',
+                icon: Icons.auto_awesome_outlined,
+                color: Colors.deepPurple,
+                onTap: () => _updatePlan(context, 'pro'),
+              ),
+            ],
           ),
 
           const SizedBox(height: 18),

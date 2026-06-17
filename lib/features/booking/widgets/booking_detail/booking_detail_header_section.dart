@@ -32,6 +32,25 @@ class BookingDetailHeaderSection extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          if ((data['shopName'] ?? '').toString().isNotEmpty) ...[
+            Row(
+              children: [
+                const Icon(Icons.storefront, color: Colors.white70, size: 16),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    (data['shopName'] ?? '').toString(),
+                    style: const TextStyle(
+                      color: Colors.white70,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+          ],
           // 第一排：房號 + 房型 + 晚數
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,

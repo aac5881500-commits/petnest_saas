@@ -40,6 +40,12 @@ class _ShopBasicInfoPageState extends State<ShopBasicInfoPage> {
   bool _loading = true;
   bool _saving = false;
 
+  bool _isInitialSetup = false;
+
+  bool _lineInitialSetup = false;
+  bool _igInitialSetup = false;
+  bool _fbInitialSetup = false;
+
   String _businessType = 'cat';
 
   @override
@@ -69,6 +75,15 @@ class _ShopBasicInfoPageState extends State<ShopBasicInfoPage> {
 
     _businessType = rawBusinessType == 'cat' ? 'cat_hotel' : rawBusinessType;
 
+    _isInitialSetup =
+        _phoneController.text.trim().isEmpty ||
+        _addressController.text.trim().isEmpty;
+
+    _lineInitialSetup = _lineUrlController.text.trim().isEmpty;
+
+    _igInitialSetup = _igUrlController.text.trim().isEmpty;
+
+    _fbInitialSetup = _fbUrlController.text.trim().isEmpty;
     setState(() => _loading = false);
   }
 
@@ -94,6 +109,16 @@ class _ShopBasicInfoPageState extends State<ShopBasicInfoPage> {
       taxId: _taxIdController.text,
       showTaxId: _showTaxId,
     );
+
+    _lineInitialSetup = _lineUrlController.text.trim().isEmpty;
+
+    _igInitialSetup = _igUrlController.text.trim().isEmpty;
+
+    _fbInitialSetup = _fbUrlController.text.trim().isEmpty;
+
+    _isInitialSetup =
+        _phoneController.text.trim().isEmpty ||
+        _addressController.text.trim().isEmpty;
 
     setState(() => _saving = false);
 
@@ -193,7 +218,7 @@ class _ShopBasicInfoPageState extends State<ShopBasicInfoPage> {
                         Expanded(
                           child: Text(
                             '為保障店家與消費者權益，店名、店家類型、電話、縣市、區域、地址、特寵字號、統編等重要資料若需修改，需由平台人工審核後協助處理，以避免冒用、詐騙或資料異常情形。\n\n'
-                            'LINE、IG、FB 可由店家自行更新；未來平台後台會提供對外連結快速關閉功能，避免帳號遭盜用或連結被濫用時無法即時處理。',
+                            '店名、電話、地址、特寵字號、統編、LINE、IG、FB 等重要公開資訊，若需修改皆需由平台審核後更新。',
                             style: TextStyle(fontSize: 13, height: 1.5),
                           ),
                         ),
@@ -208,14 +233,16 @@ class _ShopBasicInfoPageState extends State<ShopBasicInfoPage> {
                       borderRadius: BorderRadius.circular(12),
                       border: Border.all(color: Colors.red.shade200),
                     ),
-                    child: const Row(
+                    child: Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Icon(Icons.lock_outline, color: Colors.red),
                         SizedBox(width: 8),
                         Expanded(
                           child: Text(
-                            '重要資料需透過申請修改流程處理，平台確認資料正確後才會更新正式資料。',
+                            _isInitialSetup
+                                ? '請先完成店家基本資料設定，完成後重要資料將鎖定並改為申請修改模式。'
+                                : '重要資料需透過申請修改流程處理，平台確認資料正確後才會更新正式資料。',
                             style: TextStyle(
                               color: Colors.red,
                               fontSize: 13,
@@ -231,7 +258,7 @@ class _ShopBasicInfoPageState extends State<ShopBasicInfoPage> {
                     controller: _nameController,
                     readOnly: true,
                     decoration: _input(
-                      '店名（建立後不可修改）',
+                      '店名（需申請修改）',
                     ).copyWith(filled: true, fillColor: Colors.grey.shade100),
                   ),
                   const SizedBox(height: 16),
@@ -255,9 +282,9 @@ class _ShopBasicInfoPageState extends State<ShopBasicInfoPage> {
 
                   TextFormField(
                     controller: _phoneController,
-                    readOnly: true,
+                    readOnly: !_isInitialSetup,
                     decoration: _input(
-                      '電話（需申請修改）',
+                      _isInitialSetup ? '電話（首次設定）' : '電話（需申請修改）',
                     ).copyWith(filled: true, fillColor: Colors.grey.shade100),
                   ),
 
@@ -285,9 +312,9 @@ class _ShopBasicInfoPageState extends State<ShopBasicInfoPage> {
 
                   TextFormField(
                     controller: _addressController,
-                    readOnly: true,
+                    readOnly: !_isInitialSetup,
                     decoration: _input(
-                      '地址（需申請修改）',
+                      _isInitialSetup ? '地址（首次設定）' : '地址（需申請修改）',
                     ).copyWith(filled: true, fillColor: Colors.grey.shade100),
                   ),
 
@@ -295,9 +322,9 @@ class _ShopBasicInfoPageState extends State<ShopBasicInfoPage> {
 
                   TextFormField(
                     controller: _licenseController,
-                    readOnly: true,
+                    readOnly: !_isInitialSetup,
                     decoration: _input(
-                      '特寵字號（需申請修改）',
+                      _isInitialSetup ? '特寵字號（首次設定）' : '特寵字號（需申請修改）',
                     ).copyWith(filled: true, fillColor: Colors.grey.shade100),
                   ),
 
@@ -305,9 +332,9 @@ class _ShopBasicInfoPageState extends State<ShopBasicInfoPage> {
 
                   TextFormField(
                     controller: _taxIdController,
-                    readOnly: true,
+                    readOnly: !_isInitialSetup,
                     decoration: _input(
-                      '統編（需申請修改）',
+                      _isInitialSetup ? '統編（首次設定）' : '統編（需申請修改）',
                     ).copyWith(filled: true, fillColor: Colors.grey.shade100),
                   ),
 
@@ -322,30 +349,41 @@ class _ShopBasicInfoPageState extends State<ShopBasicInfoPage> {
                   /// 🔥 LINE / IG / FB
                   TextFormField(
                     controller: _lineUrlController,
-                    decoration: _input('LINE'),
-                    validator: (v) =>
-                        _validateSocialUrl(value: v, type: 'line'),
+                    validator: (value) =>
+                        _validateSocialUrl(value: value, type: 'line'),
+                    readOnly: !_lineInitialSetup,
+                    decoration: _input(
+                      _lineInitialSetup ? 'LINE（首次設定）' : 'LINE（需申請修改）',
+                    ).copyWith(filled: true, fillColor: Colors.grey.shade100),
                   ),
                   const SizedBox(height: 16),
 
                   TextFormField(
                     controller: _igUrlController,
-                    decoration: _input('IG'),
-                    validator: (v) => _validateSocialUrl(value: v, type: 'ig'),
+                    validator: (value) =>
+                        _validateSocialUrl(value: value, type: 'ig'),
+                    readOnly: !_igInitialSetup,
+                    decoration: _input(
+                      _igInitialSetup ? 'IG（首次設定）' : 'IG（需申請修改）',
+                    ).copyWith(filled: true, fillColor: Colors.grey.shade100),
                   ),
                   const SizedBox(height: 16),
 
                   TextFormField(
                     controller: _fbUrlController,
-                    decoration: _input('FB'),
-                    validator: (v) => _validateSocialUrl(value: v, type: 'fb'),
+                    validator: (value) =>
+                        _validateSocialUrl(value: value, type: 'fb'),
+                    readOnly: !_fbInitialSetup,
+                    decoration: _input(
+                      _fbInitialSetup ? 'FB（首次設定）' : 'FB（需申請修改）',
+                    ).copyWith(filled: true, fillColor: Colors.grey.shade100),
                   ),
 
                   const SizedBox(height: 24),
 
                   ElevatedButton(
                     onPressed: _saving ? null : _save,
-                    child: Text(_saving ? '儲存中' : '儲存社群資訊'),
+                    child: Text(_saving ? '儲存中' : '儲存顯示設定'),
                   ),
                   const SizedBox(height: 12),
 
@@ -367,6 +405,9 @@ class _ShopBasicInfoPageState extends State<ShopBasicInfoPage> {
                             currentAddress: _addressController.text,
                             currentLicenseNumber: _licenseController.text,
                             currentTaxId: _taxIdController.text,
+                            currentLineUrl: _lineUrlController.text,
+                            currentIgUrl: _igUrlController.text,
+                            currentFbUrl: _fbUrlController.text,
                           ),
                         ),
                       );

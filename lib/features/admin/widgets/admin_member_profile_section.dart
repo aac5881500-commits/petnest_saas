@@ -36,56 +36,96 @@ class AdminMemberProfileSection extends StatelessWidget {
 
         final tags = List<String>.from(data['tags'] ?? []);
 
-        final canArchiveMember =
-            data['createdFrom'] == 'admin' &&
-            (data['linkedAuthUid'] ?? '').toString().isEmpty &&
-            (data['email'] ?? '').toString().isEmpty &&
-            data['status'] != 'archived';
+        final shopMemberDoc = FirebaseFirestore.instance
+            .collection('shops')
+            .doc(shopId)
+            .collection('members')
+            .doc(userId);
 
-        final canRestoreMember =
-            data['createdFrom'] == 'admin' && data['status'] == 'archived';
+        return StreamBuilder<DocumentSnapshot>(
+          stream: shopMemberDoc.snapshots(),
+          builder: (context, shopMemberSnapshot) {
+            final memberData =
+                shopMemberSnapshot.data?.data() as Map<String, dynamic>? ?? {};
 
-        return Container(
-          width: double.infinity,
-          margin: const EdgeInsets.only(bottom: 20),
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(12),
-            boxShadow: [
-              BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10),
-            ],
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _MemberHeader(data: data, tags: tags),
-              const SizedBox(height: 12),
-              _MemberBasicInfo(data: data),
-              const SizedBox(height: 16),
-              _MemberStats(userId: userId, tags: tags),
-              const SizedBox(height: 20),
-              _EmergencyContactBox(data: data),
-              const SizedBox(height: 16),
-              _MemberTags(data: data, tags: tags),
-              const SizedBox(height: 12),
+            final isShopBlacklisted = memberData['blacklisted'] == true;
 
-              _MemberLinkLookupButton(
-                userId: userId,
-                shopId: shopId,
-                data: data,
+            final effectiveTags = [
+              ...tags.where((e) => e != 'blacklist'),
+              if (isShopBlacklisted) 'blacklist',
+            ];
+
+            final blacklistReason = (memberData['blacklistReason'] ?? '')
+                .toString()
+                .trim();
+
+            final canArchiveMember =
+                data['createdFrom'] == 'admin' &&
+                (data['linkedAuthUid'] ?? '').toString().isEmpty &&
+                (data['email'] ?? '').toString().isEmpty &&
+                data['status'] != 'archived';
+
+            final canRestoreMember =
+                data['createdFrom'] == 'admin' && data['status'] == 'archived';
+
+            return Container(
+              width: double.infinity,
+              margin: const EdgeInsets.only(bottom: 20),
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(12),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.05),
+                    blurRadius: 10,
+                  ),
+                ],
               ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _MemberHeader(
+                    data: data,
+                    tags: effectiveTags,
+                    blacklistReason: blacklistReason,
+                  ),
+                  const SizedBox(height: 12),
+                  _MemberBasicInfo(data: data),
+                  const SizedBox(height: 16),
+                  _MemberStats(userId: userId, tags: effectiveTags),
+                  const SizedBox(height: 20),
+                  _EmergencyContactBox(data: data),
+                  const SizedBox(height: 16),
+                  _MemberTags(data: data, tags: effectiveTags),
+                  const SizedBox(height: 12),
 
-              const SizedBox(height: 12),
-              _MemberLinkRequests(userId: userId, shopId: shopId, data: data),
-              const SizedBox(height: 12),
-              _AdminNoteBox(userId: userId, data: data),
-              const SizedBox(height: 12),
-              _MemberActionButtons(userId: userId, shopId: shopId, data: data),
-              if (canArchiveMember) _ArchiveButton(userId: userId),
-              if (canRestoreMember) _RestoreButton(userId: userId),
-            ],
-          ),
+                  _MemberLinkLookupButton(
+                    userId: userId,
+                    shopId: shopId,
+                    data: data,
+                  ),
+
+                  const SizedBox(height: 12),
+                  _MemberLinkRequests(
+                    userId: userId,
+                    shopId: shopId,
+                    data: data,
+                  ),
+                  const SizedBox(height: 12),
+                  _AdminNoteBox(userId: userId, data: data),
+                  const SizedBox(height: 12),
+                  _MemberActionButtons(
+                    userId: userId,
+                    shopId: shopId,
+                    data: data,
+                  ),
+                  if (canArchiveMember) _ArchiveButton(userId: userId),
+                  if (canRestoreMember) _RestoreButton(userId: userId),
+                ],
+              ),
+            );
+          },
         );
       },
     );
@@ -93,11 +133,15 @@ class AdminMemberProfileSection extends StatelessWidget {
 }
 
 class _MemberHeader extends StatelessWidget {
-  const _MemberHeader({required this.data, required this.tags});
+  const _MemberHeader({
+    required this.data,
+    required this.tags,
+    required this.blacklistReason,
+  });
 
   final Map<String, dynamic> data;
   final List<String> tags;
-
+  final String blacklistReason;
   @override
   Widget build(BuildContext context) {
     return Row(
@@ -120,15 +164,27 @@ class _MemberHeader extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 6),
-              Wrap(
-                spacing: 6,
-                children: [
-                  if (tags.contains('vip'))
-                    adminMemberSmallBadge('常客', Colors.orange),
-                  if (tags.contains('blacklist'))
-                    adminMemberSmallBadge('黑名單', Colors.red),
-                ],
-              ),
+              if (tags.contains('blacklist') && blacklistReason.isNotEmpty) ...[
+                const SizedBox(height: 6),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 6,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.red.shade50,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.red.shade200),
+                  ),
+                  child: Text(
+                    '🚫 黑名單原因：$blacklistReason',
+                    style: const TextStyle(
+                      color: Colors.red,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ],
             ],
           ),
         ),
@@ -903,20 +959,23 @@ class _MemberActionButtons extends StatelessWidget {
 
   Future<void> _toggleBlacklist(BuildContext context) async {
     final ref = FirebaseFirestore.instance
-        .collection('user_profiles')
+        .collection('shops')
+        .doc(shopId)
+        .collection('members')
         .doc(userId);
 
     final snap = await ref.get();
-    final tags = List<String>.from(snap.data()?['tags'] ?? []);
+    final memberData = snap.data() ?? {};
+    final isBlacklisted = memberData['blacklisted'] == true;
 
-    if (tags.contains('blacklist')) {
-      tags.remove('blacklist');
-
-      await ref.update({
-        'tags': tags,
+    if (isBlacklisted) {
+      await ref.set({
+        'blacklisted': false,
         'blacklistReason': FieldValue.delete(),
         'blacklistedAt': FieldValue.delete(),
-      });
+        'blacklistRemovedAt': FieldValue.serverTimestamp(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
 
       final user = FirebaseAuth.instance.currentUser;
 
@@ -969,13 +1028,14 @@ class _MemberActionButtons extends StatelessWidget {
 
     if (reason == null || reason.isEmpty) return;
 
-    tags.add('blacklist');
-
-    await ref.update({
-      'tags': tags,
+    await ref.set({
+      'shopId': shopId,
+      'userId': userId,
+      'blacklisted': true,
       'blacklistReason': reason,
       'blacklistedAt': FieldValue.serverTimestamp(),
-    });
+      'updatedAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
 
     final user = FirebaseAuth.instance.currentUser;
 

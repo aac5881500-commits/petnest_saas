@@ -133,7 +133,7 @@ class AppDrawer extends StatelessWidget {
                       }
 
                       return ExpansionTile(
-                        initiallyExpanded: true,
+                        initiallyExpanded: false,
                         tilePadding: EdgeInsets.zero,
                         childrenPadding: EdgeInsets.zero,
                         leading: Icon(Icons.pets, color: _orange, size: 18),
@@ -585,6 +585,8 @@ class AppDrawer extends StatelessWidget {
 
         final roomTypeName = data['roomTypeName'] ?? '未指定房型';
 
+        final shopName = (data['shopName'] ?? '').toString();
+
         final roomName = data['roomName'] ?? data['roomNumber'] ?? '';
 
         final roomImages = data['roomImages'] ?? [];
@@ -730,14 +732,45 @@ class AppDrawer extends StatelessWidget {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(
-                            '$roomTypeName $roomName',
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                            ),
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              if (shopName.isNotEmpty)
+                                Row(
+                                  children: [
+                                    const Icon(
+                                      Icons.storefront,
+                                      size: 14,
+                                      color: Colors.orange,
+                                    ),
+                                    const SizedBox(width: 4),
+                                    Expanded(
+                                      child: Text(
+                                        shopName,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: const TextStyle(
+                                          fontSize: 13,
+                                          fontWeight: FontWeight.w700,
+                                          color: Colors.orange,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+
+                              const SizedBox(height: 4),
+
+                              Text(
+                                '$roomTypeName $roomName',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ],
                           ),
 
                           const SizedBox(height: 8),

@@ -436,22 +436,20 @@ class ShopRoomService {
         }
       }
 
-      if (minAvailableRooms > 0) {
-        result.add({
-          'roomTypeId': typeId,
-          'name': type['name'],
-          'price': type['price'],
-          'capacity': type['capacity'],
-          'availableRooms': minAvailableRooms,
-          'images': type['images'] ?? [],
-          'description': type['description'] ?? '',
-          'features': type['features'] ?? [],
-          'extraPrice': type['extraPrice'] ?? 0,
-          'width': type['width'] ?? 0,
-          'depth': type['depth'] ?? 0,
-          'height': type['height'] ?? 0,
-        });
-      }
+      result.add({
+        'roomTypeId': typeId,
+        'name': type['name'],
+        'price': type['price'],
+        'capacity': type['capacity'],
+        'availableRooms': minAvailableRooms,
+        'images': type['images'] ?? [],
+        'description': type['description'] ?? '',
+        'features': type['features'] ?? [],
+        'extraPrice': type['extraPrice'] ?? 0,
+        'width': type['width'] ?? 0,
+        'depth': type['depth'] ?? 0,
+        'height': type['height'] ?? 0,
+      });
     }
 
     return result;

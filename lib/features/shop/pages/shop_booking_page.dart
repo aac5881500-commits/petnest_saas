@@ -98,12 +98,20 @@ class _ShopBookingPageState extends State<ShopBookingPage> {
     final data = doc.data();
     if (data == null) return;
 
-    final tags = List<String>.from(data['tags'] ?? []);
+    final shopMemberDoc = await FirebaseFirestore.instance
+        .collection('shops')
+        .doc(widget.shopId)
+        .collection('members')
+        .doc(user.uid)
+        .get();
+
+    final shopMemberData = shopMemberDoc.data() ?? {};
+    final isShopBlacklisted = shopMemberData['blacklisted'] == true;
 
     setState(() {
       _customerNameController.text = data['name'] ?? '';
       _customerPhoneController.text = data['phone'] ?? '';
-      _isBlacklisted = tags.contains('blacklist'); // 🔥關鍵
+      _isBlacklisted = isShopBlacklisted;
     });
   }
 

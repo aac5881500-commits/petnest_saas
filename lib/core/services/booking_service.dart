@@ -95,6 +95,7 @@ class BookingService {
     final accountName = shopData['accountName'] ?? '';
     final accountNumber = shopData['accountNumber'] ?? '';
     final depositExpireHours = shopData['depositExpireHours'] ?? 1;
+    final shopName = (shopData['name'] ?? '').toString();
 
     // 🔥 取得寵物資料（快照）
     if (user == null) throw Exception('未登入');
@@ -132,6 +133,7 @@ class BookingService {
       'bookingId': doc.id,
       'bookingCode': bookingCode,
       'shopId': shopId,
+      'shopName': shopData['name'],
       'userId': user.uid,
       'policyVersion': policyVersion,
       'policyTitle': policyTitle,
@@ -254,6 +256,7 @@ class BookingService {
     final accountName = shopData['accountName'] ?? '';
     final accountNumber = shopData['accountNumber'] ?? '';
     final depositExpireHours = shopData['depositExpireHours'] ?? 1;
+    final shopName = (shopData['name'] ?? '').toString();
 
     // 🔥 取得寵物資料（快照）
     if (operator == null) throw Exception('未登入');
@@ -291,6 +294,7 @@ class BookingService {
       'bookingId': doc.id,
       'bookingCode': bookingCode,
       'shopId': shopId,
+      'shopName': shopData['name'],
       'userId': userId,
       'source': 'admin',
       'createdByUid': operator.uid,

@@ -487,7 +487,12 @@ class _CreateShopPageState extends State<CreateShopPage> {
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(const SnackBar(content: Text('建立成功')));
-    } catch (e) {
+    } catch (e, st) {
+      debugPrint('建立店家失敗: $e');
+      debugPrintStack(stackTrace: st);
+
+      if (!mounted) return;
+
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text('建立失敗: $e')));

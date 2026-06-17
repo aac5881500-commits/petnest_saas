@@ -914,10 +914,14 @@ class _ShopPlanStatusCard extends StatelessWidget {
   String _planName(String plan) {
     switch (plan) {
       case 'basic':
-      case 'pro999':
         return '999方案';
+
+      case 'pro':
+        return '1999全模組方案';
+
       case 'free':
         return '免費版';
+
       default:
         return '免費版';
     }

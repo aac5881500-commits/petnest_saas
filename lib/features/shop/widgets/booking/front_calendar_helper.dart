@@ -153,7 +153,7 @@ class FrontCalendarHelper {
         }
       }
 
-      int minRemaining = 999999;
+      int totalRemaining = 0;
 
       for (final entry in totalRoomsByRoomType.entries) {
         final roomTypeId = entry.key;
@@ -164,18 +164,14 @@ class FrontCalendarHelper {
 
         final remaining = total - occupied - blockedRooms;
 
-        if (remaining < minRemaining) {
-          minRemaining = remaining;
+        if (remaining > 0) {
+          totalRemaining += remaining;
         }
       }
 
-      if (minRemaining == 999999) {
-        minRemaining = 0;
-      }
+      remainingRoomsMap[key] = totalRemaining;
 
-      remainingRoomsMap[key] = minRemaining;
-
-      if (minRemaining <= 0) {
+      if (totalRemaining <= 0) {
         unbookableDateKeys.add(key);
       }
 

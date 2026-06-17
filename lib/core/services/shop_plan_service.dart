@@ -14,8 +14,12 @@ class ShopPlanService {
     return planOf(shop) == ShopPlanKeys.free;
   }
 
-  static bool isPro999(Map<String, dynamic>? shop) {
-    return planOf(shop) == ShopPlanKeys.pro999;
+  static bool isBasic(Map<String, dynamic>? shop) {
+    return planOf(shop) == ShopPlanKeys.basic;
+  }
+
+  static bool isPro(Map<String, dynamic>? shop) {
+    return planOf(shop) == ShopPlanKeys.pro;
   }
 
   static bool isPaidActive(Map<String, dynamic>? shop) {
@@ -23,7 +27,7 @@ class ShopPlanService {
     final paidUntil = shop?['paidUntil'];
 
     if (plan == ShopPlanKeys.free) return false;
-    if (plan != 'basic' && plan != 'pro999') return false;
+    if (plan != ShopPlanKeys.basic && plan != ShopPlanKeys.pro) return false;
     if (paidUntil is! Timestamp) return false;
 
     return paidUntil.toDate().isAfter(DateTime.now());

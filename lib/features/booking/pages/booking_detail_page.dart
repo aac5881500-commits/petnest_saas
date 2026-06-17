@@ -75,7 +75,7 @@ class _BookingDetailPageState extends State<BookingDetailPage> {
         }
 
         final data = snapshot.data!.data() as Map<String, dynamic>;
-
+        final shopName = (data['shopName'] ?? '').toString();
         final basePrice = data['basePrice'] ?? 0;
         final nights = data['nights'] ?? 1;
         final extraPetPrice = data['extraPetPrice'] ?? 0;
