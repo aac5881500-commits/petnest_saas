@@ -249,6 +249,7 @@ class _AdminMemberListPageState extends State<AdminMemberListPage> {
                                 builder: (context, profileSnapshot) {
                                   int petCount = 0;
                                   List<String> tags = [];
+                                  bool isBlacklisted = false;
                                   String displayName = name;
                                   String displayPhone = phone;
                                   String displayEmail = email;
@@ -299,75 +300,95 @@ class _AdminMemberListPageState extends State<AdminMemberListPage> {
                                     note1Controller.text = profileNote;
                                   }
 
-                                  return GestureDetector(
-                                    onTap: () {
-                                      Navigator.push(
-                                        context,
-                                        MaterialPageRoute(
-                                          builder: (_) => AdminMemberDetailPage(
-                                            userId: userId,
-                                            shopId: widget.shopId,
+                                  return StreamBuilder<DocumentSnapshot>(
+                                    stream: FirebaseFirestore.instance
+                                        .collection('shops')
+                                        .doc(widget.shopId)
+                                        .collection('members')
+                                        .doc(userId)
+                                        .snapshots(),
+                                    builder: (context, shopMemberSnapshot) {
+                                      final shopMemberData =
+                                          shopMemberSnapshot.data?.data()
+                                              as Map<String, dynamic>?;
+
+                                      final isBlacklisted =
+                                          shopMemberData?['blacklisted'] ==
+                                          true;
+
+                                      return GestureDetector(
+                                        onTap: () {
+                                          Navigator.push(
+                                            context,
+                                            MaterialPageRoute(
+                                              builder: (_) =>
+                                                  AdminMemberDetailPage(
+                                                    userId: userId,
+                                                    shopId: widget.shopId,
+                                                  ),
+                                            ),
+                                          );
+                                        },
+                                        child: Card(
+                                          elevation: 5,
+                                          shape: RoundedRectangleBorder(
+                                            borderRadius: BorderRadius.circular(
+                                              16,
+                                            ),
                                           ),
-                                        ),
-                                      );
-                                    },
-                                    child: Card(
-                                      elevation: 5,
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(16),
-                                      ),
-                                      child: Padding(
-                                        padding: const EdgeInsets.all(12),
-                                        child: Column(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.start,
-                                          children: [
-                                            Row(
+                                          child: Padding(
+                                            padding: const EdgeInsets.all(12),
+                                            child: Column(
                                               crossAxisAlignment:
                                                   CrossAxisAlignment.start,
                                               children: [
-                                                /// 📦 右邊資訊
-                                                Expanded(
-                                                  child: Column(
-                                                    crossAxisAlignment:
-                                                        CrossAxisAlignment
-                                                            .start,
-                                                    children: [
-                                                      /// 👤 名字 + 標籤
-                                                      Row(
+                                                Row(
+                                                  crossAxisAlignment:
+                                                      CrossAxisAlignment.start,
+                                                  children: [
+                                                    /// 📦 右邊資訊
+                                                    Expanded(
+                                                      child: Column(
+                                                        crossAxisAlignment:
+                                                            CrossAxisAlignment
+                                                                .start,
                                                         children: [
-                                                          Expanded(
-                                                            child: Text(
-                                                              displayName,
-                                                              maxLines: 1,
-                                                              overflow:
-                                                                  TextOverflow
-                                                                      .ellipsis,
-                                                              style: const TextStyle(
-                                                                fontSize: 20,
-                                                                fontWeight:
-                                                                    FontWeight
-                                                                        .w900,
+                                                          /// 👤 名字 + 標籤
+                                                          Row(
+                                                            children: [
+                                                              Expanded(
+                                                                child: Text(
+                                                                  displayName,
+                                                                  maxLines: 1,
+                                                                  overflow:
+                                                                      TextOverflow
+                                                                          .ellipsis,
+                                                                  style: const TextStyle(
+                                                                    fontSize:
+                                                                        20,
+                                                                    fontWeight:
+                                                                        FontWeight
+                                                                            .w900,
+                                                                  ),
+                                                                ),
                                                               ),
-                                                            ),
-                                                          ),
 
-                                                          if (tags.contains(
-                                                            'vip',
-                                                          ))
-                                                            Container(
-                                                              margin:
-                                                                  const EdgeInsets.only(
-                                                                    left: 6,
-                                                                  ),
-                                                              padding:
-                                                                  const EdgeInsets.symmetric(
-                                                                    horizontal:
-                                                                        8,
-                                                                    vertical: 4,
-                                                                  ),
-                                                              decoration:
-                                                                  BoxDecoration(
+                                                              if (tags.contains(
+                                                                'vip',
+                                                              ))
+                                                                Container(
+                                                                  margin:
+                                                                      const EdgeInsets.only(
+                                                                        left: 6,
+                                                                      ),
+                                                                  padding:
+                                                                      const EdgeInsets.symmetric(
+                                                                        horizontal:
+                                                                            8,
+                                                                        vertical:
+                                                                            4,
+                                                                      ),
+                                                                  decoration: BoxDecoration(
                                                                     color: Colors
                                                                         .orange
                                                                         .shade50,
@@ -376,36 +397,35 @@ class _AdminMemberListPageState extends State<AdminMemberListPage> {
                                                                           20,
                                                                         ),
                                                                   ),
-                                                              child: Text(
-                                                                '⭐ 常客',
-                                                                style: TextStyle(
-                                                                  color: Colors
-                                                                      .orange
-                                                                      .shade800,
-                                                                  fontSize: 11,
-                                                                  fontWeight:
-                                                                      FontWeight
-                                                                          .bold,
+                                                                  child: Text(
+                                                                    '⭐ 常客',
+                                                                    style: TextStyle(
+                                                                      color: Colors
+                                                                          .orange
+                                                                          .shade800,
+                                                                      fontSize:
+                                                                          11,
+                                                                      fontWeight:
+                                                                          FontWeight
+                                                                              .bold,
+                                                                    ),
+                                                                  ),
                                                                 ),
-                                                              ),
-                                                            ),
 
-                                                          if (tags.contains(
-                                                            'blacklist',
-                                                          ))
-                                                            Container(
-                                                              margin:
-                                                                  const EdgeInsets.only(
-                                                                    left: 6,
-                                                                  ),
-                                                              padding:
-                                                                  const EdgeInsets.symmetric(
-                                                                    horizontal:
-                                                                        8,
-                                                                    vertical: 4,
-                                                                  ),
-                                                              decoration:
-                                                                  BoxDecoration(
+                                                              if (isBlacklisted)
+                                                                Container(
+                                                                  margin:
+                                                                      const EdgeInsets.only(
+                                                                        left: 6,
+                                                                      ),
+                                                                  padding:
+                                                                      const EdgeInsets.symmetric(
+                                                                        horizontal:
+                                                                            8,
+                                                                        vertical:
+                                                                            4,
+                                                                      ),
+                                                                  decoration: BoxDecoration(
                                                                     color: Colors
                                                                         .red
                                                                         .shade50,
@@ -414,219 +434,242 @@ class _AdminMemberListPageState extends State<AdminMemberListPage> {
                                                                           20,
                                                                         ),
                                                                   ),
-                                                              child: Text(
-                                                                '🚫 黑名單',
-                                                                style: TextStyle(
-                                                                  color: Colors
-                                                                      .red
-                                                                      .shade700,
-                                                                  fontSize: 11,
-                                                                  fontWeight:
-                                                                      FontWeight
-                                                                          .bold,
+                                                                  child: Text(
+                                                                    '🚫 黑名單',
+                                                                    style: TextStyle(
+                                                                      color: Colors
+                                                                          .red
+                                                                          .shade700,
+                                                                      fontSize:
+                                                                          11,
+                                                                      fontWeight:
+                                                                          FontWeight
+                                                                              .bold,
+                                                                    ),
+                                                                  ),
+                                                                ),
+                                                            ],
+                                                          ),
+
+                                                          const SizedBox(
+                                                            height: 8,
+                                                          ),
+
+                                                          /// 📞 電話
+                                                          Row(
+                                                            children: [
+                                                              const Icon(
+                                                                Icons.phone,
+                                                                size: 16,
+                                                                color:
+                                                                    Colors.grey,
+                                                              ),
+                                                              const SizedBox(
+                                                                width: 6,
+                                                              ),
+                                                              Expanded(
+                                                                child: Text(
+                                                                  displayPhone,
+                                                                  style:
+                                                                      const TextStyle(
+                                                                        fontSize:
+                                                                            15,
+                                                                      ),
                                                                 ),
                                                               ),
-                                                            ),
-                                                        ],
-                                                      ),
-
-                                                      const SizedBox(height: 8),
-
-                                                      /// 📞 電話
-                                                      Row(
-                                                        children: [
-                                                          const Icon(
-                                                            Icons.phone,
-                                                            size: 16,
-                                                            color: Colors.grey,
+                                                            ],
                                                           ),
+
                                                           const SizedBox(
-                                                            width: 6,
+                                                            height: 6,
                                                           ),
-                                                          Expanded(
-                                                            child: Text(
-                                                              displayPhone,
-                                                              style:
-                                                                  const TextStyle(
-                                                                    fontSize:
-                                                                        15,
-                                                                  ),
-                                                            ),
-                                                          ),
-                                                        ],
-                                                      ),
 
-                                                      const SizedBox(height: 6),
-
-                                                      /// 📧 Email
-                                                      Row(
-                                                        children: [
-                                                          const Icon(
-                                                            Icons.email,
-                                                            size: 16,
-                                                            color: Colors.grey,
-                                                          ),
-                                                          const SizedBox(
-                                                            width: 6,
-                                                          ),
-                                                          Expanded(
-                                                            child: Text(
-                                                              displayEmail,
-                                                              maxLines: 1,
-                                                              overflow:
-                                                                  TextOverflow
-                                                                      .ellipsis,
-                                                              style:
-                                                                  const TextStyle(
+                                                          /// 📧 Email
+                                                          Row(
+                                                            children: [
+                                                              const Icon(
+                                                                Icons.email,
+                                                                size: 16,
+                                                                color:
+                                                                    Colors.grey,
+                                                              ),
+                                                              const SizedBox(
+                                                                width: 6,
+                                                              ),
+                                                              Expanded(
+                                                                child: Text(
+                                                                  displayEmail,
+                                                                  maxLines: 1,
+                                                                  overflow:
+                                                                      TextOverflow
+                                                                          .ellipsis,
+                                                                  style: const TextStyle(
                                                                     fontSize:
                                                                         13,
                                                                     color: Colors
                                                                         .grey,
                                                                   ),
-                                                            ),
+                                                                ),
+                                                              ),
+                                                            ],
                                                           ),
                                                         ],
                                                       ),
-                                                    ],
-                                                  ),
-                                                ),
-                                              ],
-                                            ),
-
-                                            const SizedBox(height: 12),
-
-                                            Row(
-                                              children: [
-                                                Expanded(
-                                                  child: _miniInfoBox(
-                                                    icon: Icons.pets,
-                                                    color: Colors.orange,
-                                                    label: '寵物',
-                                                    value: '$petCount 隻',
-                                                  ),
-                                                ),
-                                                const SizedBox(width: 8),
-                                                Expanded(
-                                                  child: _miniInfoBox(
-                                                    icon: Icons.receipt_long,
-                                                    color: Colors.blue,
-                                                    label: '訂單',
-                                                    value:
-                                                        '${data['bookingCount'] ?? 0} 筆',
-                                                  ),
-                                                ),
-                                              ],
-                                            ),
-                                            const SizedBox(height: 8),
-
-                                            if (latestRoomName.isNotEmpty)
-                                              Container(
-                                                width: double.infinity,
-                                                margin: const EdgeInsets.only(
-                                                  top: 8,
-                                                ),
-                                                padding:
-                                                    const EdgeInsets.symmetric(
-                                                      horizontal: 8,
-                                                      vertical: 6,
                                                     ),
-                                                decoration: BoxDecoration(
-                                                  color: Colors.green.shade50,
-                                                  borderRadius:
-                                                      BorderRadius.circular(10),
-                                                ),
-                                                child: Column(
-                                                  crossAxisAlignment:
-                                                      CrossAxisAlignment.start,
-                                                  children: [
-                                                    const Text(
-                                                      '最近入住',
-                                                      style: TextStyle(
-                                                        fontSize: 11,
-                                                        fontWeight:
-                                                            FontWeight.bold,
-                                                      ),
-                                                    ),
-                                                    Text(
-                                                      latestRoomName,
-                                                      style: TextStyle(
-                                                        fontSize: 15,
-                                                        fontWeight:
-                                                            FontWeight.w900,
-                                                        color: Colors
-                                                            .green
-                                                            .shade800,
-                                                      ),
-                                                    ),
-                                                    if (latestDateText
-                                                        .isNotEmpty)
-                                                      Text(
-                                                        latestDateText,
-                                                        style: TextStyle(
-                                                          fontSize: 11,
-                                                          color: Colors
-                                                              .green
-                                                              .shade700,
-                                                        ),
-                                                      ),
                                                   ],
                                                 ),
-                                              ),
 
-                                            if (note1Controller.text.isNotEmpty)
-                                              Container(
-                                                width: double.infinity,
-                                                padding:
-                                                    const EdgeInsets.symmetric(
-                                                      horizontal: 10,
-                                                      vertical: 8,
-                                                    ),
-                                                decoration: BoxDecoration(
-                                                  color: Colors.orange.shade50,
-                                                  borderRadius:
-                                                      BorderRadius.circular(10),
-                                                  border: Border.all(
-                                                    color:
-                                                        Colors.orange.shade100,
-                                                  ),
-                                                ),
-                                                child: Column(
-                                                  crossAxisAlignment:
-                                                      CrossAxisAlignment.start,
+                                                const SizedBox(height: 12),
+
+                                                Row(
                                                   children: [
-                                                    Text(
-                                                      '📝 店家備註',
-                                                      style: TextStyle(
-                                                        fontSize: 11,
-                                                        fontWeight:
-                                                            FontWeight.bold,
+                                                    Expanded(
+                                                      child: _miniInfoBox(
+                                                        icon: Icons.pets,
+                                                        color: Colors.orange,
+                                                        label: '寵物',
+                                                        value: '$petCount 隻',
+                                                      ),
+                                                    ),
+                                                    const SizedBox(width: 8),
+                                                    Expanded(
+                                                      child: _miniInfoBox(
+                                                        icon:
+                                                            Icons.receipt_long,
+                                                        color: Colors.blue,
+                                                        label: '訂單',
+                                                        value:
+                                                            '${data['bookingCount'] ?? 0} 筆',
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
+                                                const SizedBox(height: 8),
+
+                                                if (latestRoomName.isNotEmpty)
+                                                  Container(
+                                                    width: double.infinity,
+                                                    margin:
+                                                        const EdgeInsets.only(
+                                                          top: 8,
+                                                        ),
+                                                    padding:
+                                                        const EdgeInsets.symmetric(
+                                                          horizontal: 8,
+                                                          vertical: 6,
+                                                        ),
+                                                    decoration: BoxDecoration(
+                                                      color:
+                                                          Colors.green.shade50,
+                                                      borderRadius:
+                                                          BorderRadius.circular(
+                                                            10,
+                                                          ),
+                                                    ),
+                                                    child: Column(
+                                                      crossAxisAlignment:
+                                                          CrossAxisAlignment
+                                                              .start,
+                                                      children: [
+                                                        const Text(
+                                                          '最近入住',
+                                                          style: TextStyle(
+                                                            fontSize: 11,
+                                                            fontWeight:
+                                                                FontWeight.bold,
+                                                          ),
+                                                        ),
+                                                        Text(
+                                                          latestRoomName,
+                                                          style: TextStyle(
+                                                            fontSize: 15,
+                                                            fontWeight:
+                                                                FontWeight.w900,
+                                                            color: Colors
+                                                                .green
+                                                                .shade800,
+                                                          ),
+                                                        ),
+                                                        if (latestDateText
+                                                            .isNotEmpty)
+                                                          Text(
+                                                            latestDateText,
+                                                            style: TextStyle(
+                                                              fontSize: 11,
+                                                              color: Colors
+                                                                  .green
+                                                                  .shade700,
+                                                            ),
+                                                          ),
+                                                      ],
+                                                    ),
+                                                  ),
+
+                                                if (note1Controller
+                                                    .text
+                                                    .isNotEmpty)
+                                                  Container(
+                                                    width: double.infinity,
+                                                    padding:
+                                                        const EdgeInsets.symmetric(
+                                                          horizontal: 10,
+                                                          vertical: 8,
+                                                        ),
+                                                    decoration: BoxDecoration(
+                                                      color:
+                                                          Colors.orange.shade50,
+                                                      borderRadius:
+                                                          BorderRadius.circular(
+                                                            10,
+                                                          ),
+                                                      border: Border.all(
                                                         color: Colors
                                                             .orange
-                                                            .shade800,
+                                                            .shade100,
                                                       ),
                                                     ),
+                                                    child: Column(
+                                                      crossAxisAlignment:
+                                                          CrossAxisAlignment
+                                                              .start,
+                                                      children: [
+                                                        Text(
+                                                          '📝 店家備註',
+                                                          style: TextStyle(
+                                                            fontSize: 11,
+                                                            fontWeight:
+                                                                FontWeight.bold,
+                                                            color: Colors
+                                                                .orange
+                                                                .shade800,
+                                                          ),
+                                                        ),
 
-                                                    const SizedBox(height: 4),
+                                                        const SizedBox(
+                                                          height: 4,
+                                                        ),
 
-                                                    Text(
-                                                      note1Controller.text,
-                                                      maxLines: 2,
-                                                      overflow:
-                                                          TextOverflow.ellipsis,
-                                                      style: TextStyle(
-                                                        fontSize: 12,
-                                                        color: Colors
-                                                            .grey
-                                                            .shade800,
-                                                      ),
+                                                        Text(
+                                                          note1Controller.text,
+                                                          maxLines: 2,
+                                                          overflow: TextOverflow
+                                                              .ellipsis,
+                                                          style: TextStyle(
+                                                            fontSize: 12,
+                                                            color: Colors
+                                                                .grey
+                                                                .shade800,
+                                                          ),
+                                                        ),
+                                                      ],
                                                     ),
-                                                  ],
-                                                ),
-                                              ),
-                                          ],
+                                                  ),
+                                              ],
+                                            ),
+                                          ),
                                         ),
-                                      ),
-                                    ),
+                                      );
+                                    },
                                   );
                                 },
                               );

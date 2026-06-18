@@ -742,10 +742,42 @@ class BookingService {
     required DateTime startDate,
     required DateTime endDate,
   }) async {
-    final bookings = await getShopBookings(shopId);
-
     final start = _dateOnly(startDate);
     final end = _dateOnly(endDate);
+
+    // ======================
+    // 先檢查 room_calendar
+    // ======================
+
+    final stayDates = getStayDates(startDate: start, endDate: end);
+
+    for (final date in stayDates) {
+      final dateKey = ShopService.instance.formatDateKey(date);
+
+      final calendarDoc = await _firestore
+          .collection('shops')
+          .doc(shopId)
+          .collection('room_calendar')
+          .doc('${roomId}_$dateKey')
+          .get();
+
+      if (calendarDoc.exists) {
+        final status = calendarDoc.data()?['status']?.toString() ?? '';
+
+        if (status == 'blocked' ||
+            status == 'maintenance' ||
+            status == 'booked' ||
+            status == 'checked_in') {
+          return false;
+        }
+      }
+    }
+
+    // ======================
+    // 再檢查 bookings
+    // ======================
+
+    final bookings = await getShopBookings(shopId);
 
     for (final booking in bookings) {
       if (booking['status'] == 'cancelled') continue;
@@ -757,7 +789,6 @@ class BookingService {
 
       if (bStart == null || bEnd == null) continue;
 
-      // 👉 區間重疊檢查
       final overlap = start.isBefore(bEnd) && end.isAfter(bStart);
 
       if (overlap) {

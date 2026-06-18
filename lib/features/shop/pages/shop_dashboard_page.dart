@@ -38,7 +38,8 @@ import 'package:petnest_saas/features/shop/pages/shop_contact_platform_page.dart
 import 'package:petnest_saas/features/shop/pages/shop_faq_manage_page.dart';
 import 'package:petnest_saas/features/shop/pages/shop_platform_notification_page.dart';
 import 'package:petnest_saas/core/services/shop_plan_service.dart';
-import 'package:petnest_saas/features/platform/pages/platform_shop_list_page.dart';
+import 'package:petnest_saas/features/shop/pages/shop_payout_setting_page.dart';
+import 'package:petnest_saas/features/shop/pages/shop_report_page.dart';
 
 class ShopDashboardPage extends StatefulWidget {
   const ShopDashboardPage({super.key, required this.shopId});
@@ -137,8 +138,8 @@ class _ShopDashboardPageState extends State<ShopDashboardPage> {
         _can(ShopPermissionKeys.manageRooms) ||
         _can(ShopPermissionKeys.managePaymentSettings) ||
         _can(ShopPermissionKeys.managePolicy);
-
     final canSeeReports =
+        _currentUserRole == ShopRoles.owner ||
         _can(ShopPermissionKeys.viewReports) ||
         _can(ShopPermissionKeys.viewActionLogs);
 
@@ -151,10 +152,10 @@ class _ShopDashboardPageState extends State<ShopDashboardPage> {
       result.add(ShopModules.catHotel);
     }
 
-    if (enabledModules.contains(ShopModules.reports) && canSeeReports) {
+    if (_currentUserRole == ShopRoles.owner ||
+        (enabledModules.contains(ShopModules.reports) && canSeeReports)) {
       result.add(ShopModules.reports);
     }
-
     return result;
   }
 
@@ -386,7 +387,10 @@ class _ShopDashboardPageState extends State<ShopDashboardPage> {
                             description: '這裡先保留給商品管理、訂單、上下架、曝光位模板。',
                           );
                         case ShopModules.reports:
-                          return _ReportsTab(currentUserRole: _currentUserRole);
+                          return _ReportsTab(
+                            shopId: widget.shopId,
+                            currentUserRole: _currentUserRole,
+                          );
                         default:
                           return const Center(child: Text('模組尚未定義'));
                       }
@@ -476,6 +480,20 @@ class _BasicInfoTab extends StatelessWidget {
                 context,
                 MaterialPageRoute(
                   builder: (_) => ShopMediaPage(shopId: shopId),
+                ),
+              );
+            },
+          ),
+        if (_can(ShopPermissionKeys.managePaymentSettings))
+          _MenuTile(
+            title: '收款帳戶 / 金流設定',
+            subtitle: '管理銀行轉帳收款資料，未來金流設定也會放這裡',
+            icon: Icons.account_balance,
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => ShopPayoutSettingPage(shopId: shopId),
                 ),
               );
             },
@@ -852,8 +870,9 @@ class _CatHotelTab extends StatelessWidget {
 
 /// ===== 表格統計分頁 =====
 class _ReportsTab extends StatelessWidget {
-  const _ReportsTab({required this.currentUserRole});
+  const _ReportsTab({required this.shopId, required this.currentUserRole});
 
+  final String shopId;
   final String? currentUserRole;
 
   bool get _isOwner => currentUserRole == ShopRoles.owner;
@@ -863,20 +882,28 @@ class _ReportsTab extends StatelessWidget {
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
-        const _TemplateCard(
-          title: '營運總覽',
-          description: '先預留給訂單數、入住率、營業額、常用報表。',
+        Card(
+          child: ListTile(
+            leading: const Icon(Icons.analytics),
+            title: const Text('營運報表中心'),
+            subtitle: const Text('查看日期統計、營收分析、房型分析、會員統計與 Excel 匯出'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => ShopReportPage(shopId: shopId),
+                ),
+              );
+            },
+          ),
         ),
-        const _TemplateCard(title: '日期統計表', description: '先預留給每日預約、每日營收、房況統計。'),
-        const _TemplateCard(
-          title: '會員 / 客戶統計',
-          description: '先預留給客戶回訪率、新舊客比例、來源分析。',
-        ),
+
+        const SizedBox(height: 16),
+
         _TemplateCard(
           title: '老闆專屬內容',
-          description: _isOwner
-              ? '你是 owner，未來可放金流連結、內部成本、敏感報表。'
-              : '此區未來只開放 owner 查看。',
+          description: _isOwner ? '未來可放金流分析、成本分析與進階統計' : '此區未來只開放 owner 查看',
           locked: !_isOwner,
         ),
       ],
@@ -1106,6 +1133,7 @@ class _BookingManageTile extends StatelessWidget {
       builder: (context, snapshot) {
         int pendingCount = 0;
         int paymentUploadedCount = 0;
+        int unreadMessageCount = 0;
 
         if (snapshot.hasData) {
           for (final doc in snapshot.data!.docs) {
@@ -1114,6 +1142,11 @@ class _BookingManageTile extends StatelessWidget {
             final status = (data['status'] ?? '').toString();
 
             final depositStatus = (data['depositStatus'] ?? '').toString();
+
+            final shopUnreadMessageCount =
+                (data['shopUnreadMessageCount'] ?? 0) as int;
+
+            unreadMessageCount += shopUnreadMessageCount;
 
             if (status == 'pending' || status == 'unpaid') {
               pendingCount++;
@@ -1127,7 +1160,8 @@ class _BookingManageTile extends StatelessWidget {
           }
         }
 
-        final totalCount = pendingCount + paymentUploadedCount;
+        final totalCount =
+            pendingCount + paymentUploadedCount + unreadMessageCount;
 
         return Card(
           child: ListTile(
@@ -1136,7 +1170,7 @@ class _BookingManageTile extends StatelessWidget {
             title: const Text('訂單管理'),
 
             subtitle: Text(
-              '待確認 $pendingCount 筆 ・ 已回傳付款 $paymentUploadedCount 筆',
+              '待確認 $pendingCount 筆 ・ 已回傳付款 $paymentUploadedCount 筆 ・ 新留言 $unreadMessageCount 則',
             ),
 
             trailing: totalCount > 0

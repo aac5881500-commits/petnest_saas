@@ -234,6 +234,7 @@ class _MyBookingsPageState extends State<MyBookingsPage> {
               final bool hasDeposit = depositAmount > 0;
               final bookingCode = (data['bookingCode'] ?? '').toString();
               final shopName = (data['shopName'] ?? '').toString();
+              final createdAtText = _formatDateTime(data['createdAt']);
 
               final shortBookingId = bookingCode.isNotEmpty
                   ? bookingCode
@@ -328,14 +329,30 @@ class _MyBookingsPageState extends State<MyBookingsPage> {
 
                               const SizedBox(height: 4),
 
-                              Text(
-                                '${_formatDate(start)} → ${_formatDate(end)}',
-                                style: TextStyle(
-                                  color: Colors.grey.shade700,
-                                  fontSize: 13,
-                                ),
-                              ),
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    '${_formatDate(start)} → ${_formatDate(end)}',
+                                    style: TextStyle(
+                                      color: Colors.grey.shade700,
+                                      fontSize: 13,
+                                    ),
+                                  ),
 
+                                  if (createdAtText.isNotEmpty)
+                                    Padding(
+                                      padding: const EdgeInsets.only(top: 2),
+                                      child: Text(
+                                        '下訂 $createdAtText',
+                                        style: TextStyle(
+                                          color: Colors.grey.shade500,
+                                          fontSize: 11,
+                                        ),
+                                      ),
+                                    ),
+                                ],
+                              ),
                               const SizedBox(height: 6),
 
                               Wrap(

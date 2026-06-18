@@ -33,6 +33,13 @@ class BookingDetailPaymentSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final payAmountType = (data['payAmountType'] ?? 'deposit').toString();
+    final totalPrice = data['totalPrice'] ?? 0;
+    final depositAmount = data['depositAmount'] ?? 0;
+
+    final paymentAmountLabel = payAmountType == 'full' ? '一次付清金額' : '訂金金額';
+    final paymentAmount = payAmountType == 'full' ? totalPrice : depositAmount;
+
     return _sectionCard(
       title: '付款方式',
       children: [
@@ -84,9 +91,12 @@ class BookingDetailPaymentSection extends StatelessWidget {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Text('訂金金額', style: TextStyle(color: Colors.grey)),
                   Text(
-                    'NT\$ ${data['depositAmount'] ?? 0}',
+                    paymentAmountLabel,
+                    style: const TextStyle(color: Colors.grey),
+                  ),
+                  Text(
+                    'NT\$ $paymentAmount',
                     style: const TextStyle(
                       fontSize: 20,
                       fontWeight: FontWeight.bold,

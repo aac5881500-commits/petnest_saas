@@ -37,7 +37,7 @@ class ShopModules {
   static const proModules = [catHotel, dogHotel, grooming, hospital, store];
 
   /// 舊資料 fallback
-  static const defaultEnabled = [basicInfo, catHotel];
+  static const defaultEnabled = [basicInfo, catHotel, reports];
 
   /// free / basic 固定只能用基本資料 + 鎖定模板
   static List<String> lockedPlanModules(String lockedModule) {
@@ -45,11 +45,11 @@ class ShopModules {
       return [...defaultEnabled];
     }
 
-    return [basicInfo, lockedModule];
+    return [basicInfo, lockedModule, reports];
   }
 
   /// pro 可用全部模板
   static List<String> proEnabledModules() {
-    return [basicInfo, ...proModules];
+    return [basicInfo, ...proModules, reports];
   }
 }

@@ -29,6 +29,7 @@ import 'package:petnest_saas/features/admin/widgets/admin_booking_note_section.d
 import 'package:petnest_saas/features/admin/widgets/admin_booking_action_section.dart';
 import 'package:petnest_saas/features/admin/widgets/admin_booking_dialogs.dart';
 import 'package:petnest_saas/features/shop/pages/policy_version_detail_page.dart';
+import 'package:petnest_saas/features/booking/widgets/booking_detail/booking_detail_message_section.dart';
 
 class AdminBookingDetailPage extends StatelessWidget {
   const AdminBookingDetailPage({
@@ -283,6 +284,14 @@ class AdminBookingDetailPage extends StatelessWidget {
                 _sectionTitle('訂單備註'),
 
                 AdminBookingNoteSection(data: data),
+
+                _sectionTitle('訂單留言'),
+                BookingDetailMessageSection(
+                  bookingId: bookingId,
+                  senderType: 'shop',
+                  bookingStatus: status.toString(),
+                ),
+
                 _sectionTitle('訂單時間軸'),
 
                 AdminBookingTimeline(

@@ -30,8 +30,16 @@ class AdminBookingPriceSection extends StatelessWidget {
 
     final depositPaid = data['depositPaid'] == true;
     final depositAmount = data['depositAmount'] ?? 0;
-    final paymentMethodText =
-        adminBookingPaymentMethodText(data['paymentMethod']);
+    final payAmountType = (data['payAmountType'] ?? 'deposit').toString();
+
+    final paymentTitle = payAmountType == 'full' ? '全額' : '訂金';
+
+    final paymentAmount = payAmountType == 'full'
+        ? (data['totalPrice'] ?? 0)
+        : depositAmount;
+    final paymentMethodText = adminBookingPaymentMethodText(
+      data['paymentMethod'],
+    );
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -113,111 +121,104 @@ class AdminBookingPriceSection extends StatelessWidget {
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
-                '加值服務',
-                style: TextStyle(fontWeight: FontWeight.bold),
-              ),
+              const Text('加值服務', style: TextStyle(fontWeight: FontWeight.bold)),
               const SizedBox(height: 6),
 
-              ...List.generate(
-                (data['addons'] as List).length,
-                (index) {
-                  final item = data['addons'][index];
+              ...List.generate((data['addons'] as List).length, (index) {
+                final item = data['addons'][index];
 
-                  final price = item['price'] ?? 0;
-                  final count = item['count'] ?? 1;
-                  final total = item['total'] ?? (price * count);
+                final price = item['price'] ?? 0;
+                final count = item['count'] ?? 1;
+                final total = item['total'] ?? (price * count);
 
-                  final List<dynamic> petIds = item['petNames'] ?? [];
+                final List<dynamic> petIds = item['petNames'] ?? [];
 
-                 final List<String> petNames = petIds
-    .map<String>((id) {
-      final match = pets.cast<Map<String, dynamic>?>().firstWhere(
-            (p) => p?['name'] == id || p?['petId'] == id,
-            orElse: () => null,
-          );
+                final List<String> petNames = petIds
+                    .map<String>((id) {
+                      final match = pets
+                          .cast<Map<String, dynamic>?>()
+                          .firstWhere(
+                            (p) => p?['name'] == id || p?['petId'] == id,
+                            orElse: () => null,
+                          );
 
-      final name = match != null ? match['name'] : id;
-      return name?.toString() ?? '';
-    })
-    .where((name) => name.isNotEmpty)
-    .toList();
+                      final name = match != null ? match['name'] : id;
+                      return name?.toString() ?? '';
+                    })
+                    .where((name) => name.isNotEmpty)
+                    .toList();
 
-                  return Container(
-                    margin: const EdgeInsets.only(bottom: 12),
-                    padding: const EdgeInsets.all(14),
-                    decoration: BoxDecoration(
-                      color: Colors.orange.shade50,
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: Colors.orange.shade200),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Row(
-                              children: [
-                                const Text(
-                                  '🐾 ',
-                                  style: TextStyle(fontSize: 16),
+                return Container(
+                  margin: const EdgeInsets.only(bottom: 12),
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: Colors.orange.shade50,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.orange.shade200),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Row(
+                            children: [
+                              const Text('🐾 ', style: TextStyle(fontSize: 16)),
+                              Text(
+                                item['name'] ?? '',
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 16,
                                 ),
-                                Text(
-                                  item['name'] ?? '',
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 16,
-                                  ),
-                                ),
-                              ],
-                            ),
-                            Text(
-                              '+NT\$ $total',
-                              style: const TextStyle(
-                                color: Colors.blue,
-                                fontWeight: FontWeight.bold,
-                                fontSize: 16,
                               ),
+                            ],
+                          ),
+                          Text(
+                            '+NT\$ $total',
+                            style: const TextStyle(
+                              color: Colors.blue,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 16,
                             ),
-                          ],
+                          ),
+                        ],
+                      ),
+
+                      const SizedBox(height: 8),
+
+                      if (count > 1)
+                        Text(
+                          '$price x $count = $total',
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: Colors.grey,
+                          ),
                         ),
 
-                        const SizedBox(height: 8),
-
-                        if (count > 1)
-                          Text(
-                            '$price x $count = $total',
+                      if (item['type'] == 'custom' && petNames.isNotEmpty)
+                        Container(
+                          margin: const EdgeInsets.only(top: 8),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 6,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.orange.shade100,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(
+                            '👉 指定寵物：${petNames.join('、')}',
                             style: const TextStyle(
-                              fontSize: 12,
-                              color: Colors.grey,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.deepOrange,
                             ),
                           ),
-
-                        if (item['type'] == 'custom' && petNames.isNotEmpty)
-                          Container(
-                            margin: const EdgeInsets.only(top: 8),
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 10,
-                              vertical: 6,
-                            ),
-                            decoration: BoxDecoration(
-                              color: Colors.orange.shade100,
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: Text(
-                              '👉 指定寵物：${petNames.join('、')}',
-                              style: const TextStyle(
-                                fontWeight: FontWeight.bold,
-                                color: Colors.deepOrange,
-                              ),
-                            ),
-                          ),
-                      ],
-                    ),
-                  );
-                },
-              ),
+                        ),
+                    ],
+                  ),
+                );
+              }),
             ],
           ),
 
@@ -231,10 +232,7 @@ class AdminBookingPriceSection extends StatelessWidget {
             color: Colors.white,
             borderRadius: BorderRadius.circular(16),
             boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.05),
-                blurRadius: 10,
-              ),
+              BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10),
             ],
           ),
           child: Column(
@@ -245,10 +243,7 @@ class AdminBookingPriceSection extends StatelessWidget {
                 children: [
                   const Text(
                     '總價',
-                    style: TextStyle(
-                      fontSize: 16,
-                      color: Colors.grey,
-                    ),
+                    style: TextStyle(fontSize: 16, color: Colors.grey),
                   ),
                   Text(
                     'NT\$ ${data['totalPrice'] ?? 0}',
@@ -266,12 +261,12 @@ class AdminBookingPriceSection extends StatelessWidget {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Text(
-                    '訂金',
-                    style: TextStyle(color: Colors.grey),
+                  Text(
+                    paymentTitle,
+                    style: const TextStyle(color: Colors.grey),
                   ),
                   Text(
-                    'NT\$ ${data['depositAmount'] ?? 0}',
+                    'NT\$ $paymentAmount',
                     style: TextStyle(
                       fontWeight: FontWeight.bold,
                       color: depositPaid ? Colors.green : Colors.grey,
@@ -283,19 +278,18 @@ class AdminBookingPriceSection extends StatelessWidget {
           ),
         ),
 
-        if (depositAmount > 0)
+        if (paymentAmount > 0)
           Container(
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
-              color:
-                  depositPaid ? Colors.green.shade100 : Colors.red.shade100,
+              color: depositPaid ? Colors.green.shade100 : Colors.red.shade100,
               borderRadius: BorderRadius.circular(8),
             ),
             child: Row(
               children: [
                 Expanded(
                   child: Text(
-                    depositPaid ? '✅ 已收到訂金' : '❌ 尚未確認訂金',
+                    depositPaid ? '✅ 已確認$paymentTitle' : '❌ 尚未確認$paymentTitle',
                     style: TextStyle(
                       fontWeight: FontWeight.bold,
                       color: depositPaid ? Colors.green : Colors.red,
@@ -323,10 +317,7 @@ class AdminBookingPriceSection extends StatelessWidget {
             ),
             child: const Text(
               '💡 本訂單無需訂金',
-              style: TextStyle(
-                fontWeight: FontWeight.bold,
-                color: Colors.grey,
-              ),
+              style: TextStyle(fontWeight: FontWeight.bold, color: Colors.grey),
             ),
           ),
 
@@ -350,10 +341,7 @@ class AdminBookingPriceSection extends StatelessWidget {
                   children: [
                     const Text(
                       '付款方式',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Colors.grey,
-                      ),
+                      style: TextStyle(fontSize: 12, color: Colors.grey),
                     ),
                     Text(
                       paymentMethodText,

@@ -23,15 +23,16 @@ class BookingStatusFilter extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final items = [
-  _FilterItem('pending', '待確認', Colors.orange),
-  _FilterItem('depositReview', '已回傳付款/訂金', Colors.red),
-  _FilterItem('confirmed', '已確認', Colors.blue),
-  _FilterItem('checked_in', '入住中', Colors.green),
-  _FilterItem('todayCheckIn', '今日入住', Colors.deepPurple),
-  _FilterItem('todayCheckOut', '今日退房', Colors.lightBlue),
-  _FilterItem('futureCheckIn', '未來入住', Colors.teal),
-  _FilterItem('history', '歷史查詢', Colors.grey),
-];
+      _FilterItem('pending', '待確認', Colors.orange),
+      _FilterItem('depositReview', '已回傳付款/訂金', Colors.red),
+      _FilterItem('messageUnread', '新留言', Colors.pink),
+      _FilterItem('confirmed', '已確認', Colors.blue),
+      _FilterItem('checked_in', '入住中', Colors.green),
+      _FilterItem('todayCheckIn', '今日入住', Colors.deepPurple),
+      _FilterItem('todayCheckOut', '今日退房', Colors.lightBlue),
+      _FilterItem('futureCheckIn', '未來入住', Colors.teal),
+      _FilterItem('history', '歷史查詢', Colors.grey),
+    ];
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
@@ -46,14 +47,9 @@ class BookingStatusFilter extends StatelessWidget {
             onTap: () => onChanged(item.type),
             child: AnimatedContainer(
               duration: const Duration(milliseconds: 180),
-              padding: const EdgeInsets.symmetric(
-                horizontal: 14,
-                vertical: 8,
-              ),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
               decoration: BoxDecoration(
-                color: selected
-                    ? item.color
-                    : item.color.withOpacity(0.10),
+                color: selected ? item.color : item.color.withOpacity(0.10),
                 borderRadius: BorderRadius.circular(22),
               ),
               child: Row(
@@ -98,11 +94,7 @@ class BookingStatusFilter extends StatelessWidget {
 }
 
 class _FilterItem {
-  const _FilterItem(
-    this.type,
-    this.label,
-    this.color,
-  );
+  const _FilterItem(this.type, this.label, this.color);
 
   final String type;
   final String label;

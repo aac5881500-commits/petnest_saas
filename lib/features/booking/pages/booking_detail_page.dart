@@ -27,6 +27,7 @@ import 'package:petnest_saas/features/booking/widgets/booking_detail/booking_det
 import 'package:petnest_saas/features/booking/widgets/booking_detail/booking_detail_payment_section.dart';
 import 'package:petnest_saas/features/booking/widgets/booking_detail/booking_detail_after_checkout_section.dart';
 import 'package:petnest_saas/features/shop/pages/policy_version_detail_page.dart';
+import 'package:petnest_saas/features/booking/widgets/booking_detail/booking_detail_message_section.dart';
 
 class BookingDetailPage extends StatefulWidget {
   final Map<String, dynamic> data;
@@ -454,6 +455,14 @@ class _BookingDetailPageState extends State<BookingDetailPage> {
                   onSubmitDeposit: _submitDeposit,
                   onDeleteTransferImage: _deleteTransferImage,
                 ),
+
+                BookingDetailMessageSection(
+                  bookingId: widget.docId,
+                  senderType: 'customer',
+                  bookingStatus: bookingStatus.toString(),
+                ),
+
+                const SizedBox(height: 16),
 
                 BookingDetailAfterCheckoutSection(
                   data: data,

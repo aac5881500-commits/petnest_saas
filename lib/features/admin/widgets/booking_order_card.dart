@@ -65,10 +65,18 @@ class _BookingOrderCardState extends State<BookingOrderCard> {
 
     final totalPrice = data['totalPrice'] ?? 0;
     final depositAmount = data['depositAmount'] ?? 0;
+    final payAmountType = (data['payAmountType'] ?? 'deposit').toString();
+
+    final paymentTitle = payAmountType == 'full' ? '全額' : '訂金';
+
+    final paymentAmount = payAmountType == 'full' ? totalPrice : depositAmount;
     final depositPaid =
         data['depositPaid'] == true || data['depositStatus'] == 'confirmed';
 
     final depositStatus = (data['depositStatus'] ?? '').toString();
+    final shopUnreadMessageCount = (data['shopUnreadMessageCount'] ?? 0) as int;
+
+    final hasUnreadMessage = shopUnreadMessageCount > 0;
 
     final isDepositReview = depositStatus == 'pending_review';
 
@@ -244,6 +252,28 @@ class _BookingOrderCardState extends State<BookingOrderCard> {
                                           ),
                                         ),
 
+                                      if (hasUnreadMessage)
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 10,
+                                            vertical: 5,
+                                          ),
+                                          decoration: BoxDecoration(
+                                            color: Colors.green.shade50,
+                                            borderRadius: BorderRadius.circular(
+                                              12,
+                                            ),
+                                          ),
+                                          child: Text(
+                                            '💬 新留言 $shopUnreadMessageCount',
+                                            style: TextStyle(
+                                              color: Colors.green.shade800,
+                                              fontSize: 12,
+                                              fontWeight: FontWeight.w900,
+                                            ),
+                                          ),
+                                        ),
+
                                       if (isUnassigned)
                                         Container(
                                           padding: const EdgeInsets.symmetric(
@@ -315,6 +345,8 @@ class _BookingOrderCardState extends State<BookingOrderCard> {
                       paymentMethod: paymentMethod,
                       depositExpireText: depositExpireText,
                       depositAmount: depositAmount,
+                      paymentTitle: paymentTitle,
+                      expireTitle: payAmountType == 'full' ? '付款期限' : '訂金期限',
                       depositText: depositAmount <= 0
                           ? '無需訂金'
                           : depositPaid
@@ -339,16 +371,16 @@ class _BookingOrderCardState extends State<BookingOrderCard> {
                         const SizedBox(width: 10),
                         Expanded(
                           child: _amountBox(
-                            title: '訂金',
-                            value: depositAmount > 0
-                                ? 'NT\$ $depositAmount'
+                            title: paymentTitle,
+                            value: paymentAmount > 0
+                                ? 'NT\$ $paymentAmount'
                                 : '無需訂金',
                             color: depositAmount > 0
                                 ? depositPaid
                                       ? Colors.green
                                       : Colors.orange
                                 : Colors.grey,
-                            subText: depositAmount > 0
+                            subText: paymentAmount > 0
                                 ? depositPaid
                                       ? '已確認'
                                       : '尚未確認'
@@ -485,6 +517,8 @@ class _BookingOrderCardState extends State<BookingOrderCard> {
     required String depositExpireText,
     required num depositAmount,
     required Color depositColor,
+    required String paymentTitle,
+    required String expireTitle,
   }) {
     return Container(
       width: double.infinity,
@@ -557,7 +591,7 @@ class _BookingOrderCardState extends State<BookingOrderCard> {
                 Expanded(
                   child: _miniInfo(
                     icon: Icons.verified,
-                    label: '訂金',
+                    label: paymentTitle,
                     value: depositText,
                     valueColor: depositColor,
                   ),
@@ -568,7 +602,7 @@ class _BookingOrderCardState extends State<BookingOrderCard> {
                 Expanded(
                   child: _miniInfo(
                     icon: Icons.schedule,
-                    label: '訂金期限',
+                    label: expireTitle,
                     value: depositExpireText,
                     valueColor: Colors.red.shade700,
                   ),
@@ -583,7 +617,7 @@ class _BookingOrderCardState extends State<BookingOrderCard> {
                 Expanded(
                   child: _miniInfo(
                     icon: Icons.verified,
-                    label: '訂金',
+                    label: paymentTitle,
                     value: depositText,
                     valueColor: depositColor,
                   ),

@@ -201,6 +201,9 @@ class _AdminBookingListPageState extends State<AdminBookingListPage> {
                         return false;
                       }
 
+                      final shopUnreadMessageCount =
+                          (data['shopUnreadMessageCount'] ?? 0) as int;
+
                       switch (_filterType) {
                         case 'pending':
                           return status == 'pending' || status == 'unpaid';
@@ -212,6 +215,9 @@ class _AdminBookingListPageState extends State<AdminBookingListPage> {
                           return depositStatus == 'pending_review' &&
                               status != 'completed' &&
                               status != 'cancelled';
+
+                        case 'messageUnread':
+                          return shopUnreadMessageCount > 0;
 
                         case 'confirmed':
                           return status == 'confirmed';
@@ -478,6 +484,7 @@ class _AdminBookingListPageState extends State<AdminBookingListPage> {
       'active': 0,
       'pending': 0,
       'depositReview': 0,
+      'messageUnread': 0,
       'confirmed': 0,
       'checked_in': 0,
       'todayCheckIn': 0,
@@ -491,6 +498,13 @@ class _AdminBookingListPageState extends State<AdminBookingListPage> {
       final status = (data['status'] ?? 'pending').toString();
 
       final depositStatus = (data['depositStatus'] ?? '').toString();
+
+      final shopUnreadMessageCount =
+          (data['shopUnreadMessageCount'] ?? 0) as int;
+
+      if (shopUnreadMessageCount > 0) {
+        counts['messageUnread'] = (counts['messageUnread'] ?? 0) + 1;
+      }
 
       if (status == 'pending' || status == 'unpaid') {
         counts['pending'] = (counts['pending'] ?? 0) + 1;

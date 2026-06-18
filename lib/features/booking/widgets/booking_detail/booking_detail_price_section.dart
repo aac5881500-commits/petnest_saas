@@ -32,6 +32,13 @@ class BookingDetailPriceSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final payAmountType = (data['payAmountType'] ?? 'deposit').toString();
+
+    final paymentLabel = payAmountType == 'full' ? '需支付全額' : '需支付訂金';
+
+    final paymentAmount = payAmountType == 'full'
+        ? finalTotal
+        : (data['depositAmount'] ?? 0);
     return Column(
       children: [
         Container(
@@ -242,9 +249,12 @@ class BookingDetailPriceSection extends StatelessWidget {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Text('需支付訂金', style: TextStyle(color: Colors.white70)),
                   Text(
-                    'NT\$ ${data['depositAmount'] ?? 0}',
+                    paymentLabel,
+                    style: const TextStyle(color: Colors.white70),
+                  ),
+                  Text(
+                    'NT\$ $paymentAmount',
                     style: TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.bold,

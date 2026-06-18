@@ -362,6 +362,15 @@ match /bookings/{bookingId} {
   );
 
   allow delete: if false;
+
+match /messages/{messageId} {
+
+  allow read: if signedIn();
+
+  allow create: if signedIn();
+
+  allow update, delete: if false;
+}
 }
        // 📮 店主 / 店家聯絡平台
     match /platform_contact_requests/{requestId} {

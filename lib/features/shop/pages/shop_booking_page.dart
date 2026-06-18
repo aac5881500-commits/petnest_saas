@@ -72,7 +72,7 @@ class _ShopBookingPageState extends State<ShopBookingPage> {
   DateTime? _tempEndDate;
   String? _selectedServiceType;
   Map<String, dynamic>? _selectedRoomType;
-  bool _showAddons = false;
+  bool _showAddons = true;
   List<Map<String, dynamic>> _selectedValueServices = [];
   Map<String, List<String>> _selectedCustomServices = {};
   Map<String, dynamic>? _selectedTimeAddon;

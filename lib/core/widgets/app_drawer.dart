@@ -557,6 +557,9 @@ class AppDrawer extends StatelessWidget {
 
         final data = doc.data() as Map<String, dynamic>;
 
+        final customerUnreadMessageCount =
+            (data['customerUnreadMessageCount'] ?? 0) as int;
+
         String status = data['status'] ?? 'pending';
 
         final rawPaymentMethod = (data['paymentMethod'] ?? '').toString();
@@ -614,6 +617,7 @@ class AppDrawer extends StatelessWidget {
         final hasDeposit = depositAmount > 0;
 
         final canShowDepositExpire =
+            hasDeposit &&
             depositExpireText.isNotEmpty &&
             status != '已確認' &&
             status != '已入住' &&
@@ -855,6 +859,26 @@ class AppDrawer extends StatelessWidget {
                                     '訂金 NT\$ $depositAmount',
                                     style: TextStyle(
                                       color: Colors.orange.shade800,
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 12,
+                                    ),
+                                  ),
+                                ),
+
+                              if (customerUnreadMessageCount > 0)
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 10,
+                                    vertical: 5,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: Colors.green.shade50,
+                                    borderRadius: BorderRadius.circular(30),
+                                  ),
+                                  child: Text(
+                                    '💬 店家回覆 $customerUnreadMessageCount',
+                                    style: TextStyle(
+                                      color: Colors.green.shade800,
                                       fontWeight: FontWeight.bold,
                                       fontSize: 12,
                                     ),
