@@ -137,13 +137,27 @@ match /shop_member_invites/{inviteId} {
     request.resource.data.diff(resource.data).changedKeys().hasOnly([
       'updatedAt',
 
-      'businessHours',
-      'openTime',
-      'closeTime',
-      'closedDays',
-      'isOpen',
-      'bookingEnabled',
-      'description',
+     'businessHours',
+'openTime',
+'closeTime',
+'closedDays',
+'isOpen',
+'bookingEnabled',
+'description',
+'serviceTypes',
+'isPublic',
+
+'enabledModules',
+'lockedModule',
+
+'totalRooms',
+'cleaningRooms',
+'maintenanceRooms',
+'maxAdvanceBookingDays',
+'defaultPricePerNight',
+
+'blockedDates',
+'specialPrices',
 
       'banners',
       'coverUrl',

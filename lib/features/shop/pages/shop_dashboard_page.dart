@@ -640,6 +640,8 @@ class _BasicInfoTab extends StatelessWidget {
         StreamBuilder<QuerySnapshot>(
           stream: FirebaseFirestore.instance
               .collection('shop_notifications')
+              .where('shopId', isEqualTo: shopId)
+              .where('status', isEqualTo: 'unread')
               .snapshots(),
           builder: (context, snapshot) {
             final unreadCount = (snapshot.data?.docs ?? []).where((doc) {

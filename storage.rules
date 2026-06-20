@@ -32,7 +32,11 @@ service firebase.storage {
 
     // 🐾 會員寵物照片：pets/{uid}/{petId}.jpg
     match /pets/{uid}/{fileName} {
-  allow read: if signedIn();
+  allow read: if signedIn()
+  && (
+    request.auth.uid == uid ||
+    isRootAdmin()
+  );
 
   allow write: if signedIn()
     && request.auth.uid == uid
@@ -116,7 +120,15 @@ match /booking_extra_charges/{bookingId}/{fileName} {
 
 // 📮 店主聯絡平台附件
 match /platform_contact_requests/{requestId}/{fileName} {
-  allow read: if signedIn();
+  allow read: if signedIn()
+  && (
+    isRootAdmin() ||
+    isShopMember(
+      firestore.get(
+        /databases/(default)/documents/platform_contact_requests/$(requestId)
+      ).data.shopId
+    )
+  );
 
   allow write: if signedIn()
     && isImage()
