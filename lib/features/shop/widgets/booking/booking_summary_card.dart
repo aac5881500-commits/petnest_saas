@@ -12,6 +12,11 @@ class BookingSummaryCard extends StatelessWidget {
     required this.petCount,
     required this.roomTypeName,
     required this.totalPrice,
+    this.originalTotal,
+    this.discountAmount = 0,
+    this.discountPercent = 0,
+    this.discountMinNights = 0,
+    this.discountBase = '',
     required this.timeAddon,
     required this.valueServices,
     required this.customServices,
@@ -24,7 +29,11 @@ class BookingSummaryCard extends StatelessWidget {
   final int petCount;
   final String roomTypeName;
   final int totalPrice;
-
+  final int? originalTotal;
+  final int discountAmount;
+  final int discountPercent;
+  final int discountMinNights;
+  final String discountBase;
   final Map<String, dynamic>? timeAddon;
   final List<Map<String, dynamic>> valueServices;
   final Map<String, List<String>> customServices;
@@ -41,10 +50,7 @@ class BookingSummaryCard extends StatelessWidget {
           children: [
             const Text(
               '預約確認',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-              ),
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
 
             const SizedBox(height: 12),
@@ -65,17 +71,11 @@ class BookingSummaryCard extends StatelessWidget {
             const SizedBox(height: 6),
 
             if (timeAddon != null)
-              _infoRow(
-                '時間加購',
-                '+NT\$ ${timeAddon!['price'] ?? 0}',
-              ),
+              _infoRow('時間加購', '+NT\$ ${timeAddon!['price'] ?? 0}'),
 
             if (valueServices.isNotEmpty)
               ...valueServices.map(
-                (e) => _infoRow(
-                  e['name'] ?? '',
-                  '+NT\$ ${e['price'] ?? 0}',
-                ),
+                (e) => _infoRow(e['name'] ?? '', '+NT\$ ${e['price'] ?? 0}'),
               ),
 
             if (customServices.isNotEmpty)
@@ -84,19 +84,40 @@ class BookingSummaryCard extends StatelessWidget {
                 final count = entry.value.length;
                 final price = customServicePrices[name] ?? 0;
 
-                return _infoRow(
-                  '$name ($count隻)',
-                  '+NT\$ ${price * count}',
-                );
+                return _infoRow('$name ($count隻)', '+NT\$ ${price * count}');
               }),
 
             const Divider(),
 
-            _infoRow('總價', 'NT\$ $totalPrice'),
+            if (discountAmount > 0 && originalTotal != null) ...[
+              _infoRow('原價', 'NT\$ $originalTotal'),
+              const SizedBox(height: 6),
+              _infoRow('長住優惠', '滿 $discountMinNights 晚折扣 $discountPercent%'),
+              const SizedBox(height: 6),
+              _infoRow('折扣範圍', _discountBaseText()),
+              const SizedBox(height: 6),
+              _infoRow('折扣金額', '-NT\$ $discountAmount'),
+              const SizedBox(height: 6),
+            ],
+
+            _infoRow(discountAmount > 0 ? '折後總價' : '總價', 'NT\$ $totalPrice'),
           ],
         ),
       ),
     );
+  }
+
+  String _discountBaseText() {
+    switch (discountBase) {
+      case 'room':
+        return '只折房價';
+      case 'room_pet':
+        return '房價＋寵物加價';
+      case 'total':
+        return '總金額（含加值服務）';
+      default:
+        return '長住優惠';
+    }
   }
 
   Widget _infoRow(String label, String value) {

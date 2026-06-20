@@ -103,8 +103,8 @@ class _BookingDetailPageState extends State<BookingDetailPage> {
           return sum + total.toInt();
         });
 
-        /// 🔥 最終總價（完整🔥）
-        final finalTotal = correctSubtotal + addonTotal;
+        /// 🔥 最終總價：優先使用訂單已存的 totalPrice（折後金額）
+        final finalTotal = data['totalPrice'] ?? (correctSubtotal + addonTotal);
         final depositStatus = data['depositStatus'] ?? '';
         final bookingStatus = data['status'] ?? 'unpaid';
         final transferLast5 = (data['transferLast5'] ?? '').toString();

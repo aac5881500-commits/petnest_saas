@@ -230,9 +230,8 @@ class _AdminMemberListPageState extends State<AdminMemberListPage> {
                                   ? '${_formatDate(latestStartDate)} ～ ${_formatDate(latestEndDate)}'
                                   : '';
 
-                              final note1Controller = TextEditingController(
-                                text: data['adminNote1'] ?? '',
-                              );
+                              String adminNote1 =
+                                  data['adminNote1']?.toString() ?? '';
 
                               return FutureBuilder<List<dynamic>>(
                                 future: Future.wait([
@@ -297,7 +296,7 @@ class _AdminMemberListPageState extends State<AdminMemberListPage> {
                                             ?.toString() ??
                                         '';
 
-                                    note1Controller.text = profileNote;
+                                    adminNote1 = profileNote;
                                   }
 
                                   return StreamBuilder<DocumentSnapshot>(
@@ -605,9 +604,7 @@ class _AdminMemberListPageState extends State<AdminMemberListPage> {
                                                     ),
                                                   ),
 
-                                                if (note1Controller
-                                                    .text
-                                                    .isNotEmpty)
+                                                if (adminNote1.isNotEmpty)
                                                   Container(
                                                     width: double.infinity,
                                                     padding:
@@ -650,7 +647,7 @@ class _AdminMemberListPageState extends State<AdminMemberListPage> {
                                                         ),
 
                                                         Text(
-                                                          note1Controller.text,
+                                                          adminNote1,
                                                           maxLines: 2,
                                                           overflow: TextOverflow
                                                               .ellipsis,

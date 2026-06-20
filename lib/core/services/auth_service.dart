@@ -31,8 +31,7 @@ class AuthService {
   // =========================================
   Future<UserCredential?> signInWithGoogle() async {
     try {
-      final GoogleSignInAccount? googleUser =
-          await GoogleSignIn().signIn();
+      final GoogleSignInAccount? googleUser = await GoogleSignIn().signIn();
 
       if (googleUser == null) return null;
 
@@ -43,8 +42,7 @@ class AuthService {
         idToken: googleAuth.idToken,
       );
 
-      final userCredential =
-          await _auth.signInWithCredential(credential);
+      final userCredential = await _auth.signInWithCredential(credential);
 
       final user = userCredential.user;
 
@@ -52,8 +50,7 @@ class AuthService {
         await _ensureUserBaseData(user);
 
         // 🔥 同步店家邀請
-        await ShopService.instance
-            .syncPendingInvitesForCurrentUser();
+        await ShopService.instance.syncPendingInvitesForCurrentUser();
       }
 
       return userCredential;
@@ -68,8 +65,7 @@ class AuthService {
   // =========================================
   Future<void> _ensureUserBaseData(User user) async {
     final userRef = _firestore.collection('users').doc(user.uid);
-    final profileRef =
-        _firestore.collection('user_profiles').doc(user.uid);
+    final profileRef = _firestore.collection('user_profiles').doc(user.uid);
 
     final userDoc = await userRef.get();
     final profileDoc = await profileRef.get();
@@ -77,6 +73,8 @@ class AuthService {
     /// ================================
     /// 🟦 users（平台帳號）
     /// ================================
+    final now = FieldValue.serverTimestamp();
+
     if (!userDoc.exists) {
       await userRef.set({
         'uid': user.uid,
@@ -84,14 +82,17 @@ class AuthService {
         'displayName': user.displayName ?? '',
         'role': 'user',
         'status': 'active',
-        'createdAt': FieldValue.serverTimestamp(),
-        'updatedAt': FieldValue.serverTimestamp(),
+        'createdAt': now,
+        'updatedAt': now,
+        'lastLoginAt': now,
       });
     } else {
-      await userRef.update({
-        'email': user.email, // 🔥 補email
-        'updatedAt': FieldValue.serverTimestamp(),
-      });
+      await userRef.set({
+        'email': user.email,
+        'displayName': user.displayName ?? '',
+        'updatedAt': now,
+        'lastLoginAt': now,
+      }, SetOptions(merge: true));
     }
 
     /// ================================
@@ -133,8 +134,7 @@ class AuthService {
     required String password,
     String? displayName,
   }) async {
-    final credential =
-        await _auth.createUserWithEmailAndPassword(
+    final credential = await _auth.createUserWithEmailAndPassword(
       email: email.trim(),
       password: password.trim(),
     );
@@ -151,8 +151,7 @@ class AuthService {
     await _ensureUserBaseData(user);
 
     // 🔥 同步店家邀請
-    await ShopService.instance
-        .syncPendingInvitesForCurrentUser();
+    await ShopService.instance.syncPendingInvitesForCurrentUser();
 
     return credential;
   }
@@ -164,8 +163,7 @@ class AuthService {
     required String email,
     required String password,
   }) async {
-    final credential =
-        await _auth.signInWithEmailAndPassword(
+    final credential = await _auth.signInWithEmailAndPassword(
       email: email.trim(),
       password: password.trim(),
     );
@@ -177,8 +175,7 @@ class AuthService {
     }
 
     // 🔥 同步店家邀請
-    await ShopService.instance
-        .syncPendingInvitesForCurrentUser();
+    await ShopService.instance.syncPendingInvitesForCurrentUser();
 
     return credential;
   }

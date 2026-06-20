@@ -59,6 +59,34 @@ class _ShopDashboardPageState extends State<ShopDashboardPage> {
   void initState() {
     super.initState();
     _loadRole();
+    _updateLastActiveAt();
+  }
+
+  Future<void> _updateLastActiveAt() async {
+    final user = FirebaseAuth.instance.currentUser;
+
+    if (user == null) return;
+
+    final userRef = FirebaseFirestore.instance
+        .collection('users')
+        .doc(user.uid);
+
+    final doc = await userRef.get();
+    final data = doc.data();
+
+    final lastActiveAt = data?['lastActiveAt'];
+
+    if (lastActiveAt is Timestamp) {
+      final diff = DateTime.now().difference(lastActiveAt.toDate());
+
+      if (diff.inMinutes < 10) {
+        return;
+      }
+    }
+
+    await userRef.set({
+      'lastActiveAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
   }
 
   Future<void> _loadRole() async {
@@ -818,8 +846,8 @@ class _CatHotelTab extends StatelessWidget {
 
         if (_can(ShopPermissionKeys.managePaymentSettings))
           _MenuTile(
-            title: '付款 / 訂金設定',
-            subtitle: canUseDepositSettings ? '設定是否需要訂金、付款方式與收款資訊' : '升級方案解鎖',
+            title: '收款與優惠設定',
+            subtitle: canUseDepositSettings ? '設定收款方式、訂金規則與長住優惠' : '升級方案解鎖',
             icon: Icons.payments,
             enabled: canUseDepositSettings,
             onTap: () {

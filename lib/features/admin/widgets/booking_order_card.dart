@@ -78,6 +78,10 @@ class _BookingOrderCardState extends State<BookingOrderCard> {
 
     final hasUnreadMessage = shopUnreadMessageCount > 0;
 
+    final discountAmount = (data['discountAmount'] ?? 0) as num;
+    final discountMinNights = (data['discountMinNights'] ?? 0) as num;
+    final hasDiscount = discountAmount > 0;
+
     final isDepositReview = depositStatus == 'pending_review';
 
     final paymentMethod = _paymentMethodText(data['paymentMethod']);
@@ -290,6 +294,27 @@ class _BookingOrderCardState extends State<BookingOrderCard> {
                                             '待分房',
                                             style: TextStyle(
                                               color: Colors.orange.shade800,
+                                              fontSize: 12,
+                                              fontWeight: FontWeight.w900,
+                                            ),
+                                          ),
+                                        ),
+                                      if (hasDiscount)
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 10,
+                                            vertical: 5,
+                                          ),
+                                          decoration: BoxDecoration(
+                                            color: Colors.green.shade50,
+                                            borderRadius: BorderRadius.circular(
+                                              12,
+                                            ),
+                                          ),
+                                          child: Text(
+                                            '🏷 滿${discountMinNights.toInt()}晚優惠 -NT\$ ${discountAmount.toInt()}',
+                                            style: TextStyle(
+                                              color: Colors.green.shade800,
                                               fontSize: 12,
                                               fontWeight: FontWeight.w900,
                                             ),

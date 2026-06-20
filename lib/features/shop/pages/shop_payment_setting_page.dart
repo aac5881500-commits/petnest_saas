@@ -1,7 +1,7 @@
 // lib/features/shop/pages/shop_payment_setting_page.dart
-// 💰 店家付款 / 訂金設定頁
-// 功能：設定訂金規則、付款期限、付款方式
-// 備註：銀行帳戶資料已移出，之後統一放到「收款帳戶 / 金流設定」
+// 💰 店家收款與優惠設定頁
+// 功能：設定訂金規則、付款期限、付款方式、優惠 / 長住折扣
+// 備註：銀行帳戶資料已移出，統一放到「收款帳戶 / 金流設定」
 
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -26,7 +26,12 @@ class _ShopPaymentSettingPageState extends State<ShopPaymentSettingPage> {
   bool _transfer = false;
   int _depositExpireHours = 12;
 
+  bool _discountEnabled = false;
+  String _discountBase = 'room_pet';
+
   final _depositValueCtrl = TextEditingController();
+
+  final List<Map<String, TextEditingController>> _discountRuleCtrls = [];
 
   bool _loading = true;
 
@@ -39,6 +44,12 @@ class _ShopPaymentSettingPageState extends State<ShopPaymentSettingPage> {
   @override
   void dispose() {
     _depositValueCtrl.dispose();
+
+    for (final item in _discountRuleCtrls) {
+      item['minNights']?.dispose();
+      item['discountPercent']?.dispose();
+    }
+
     super.dispose();
   }
 
@@ -59,11 +70,76 @@ class _ShopPaymentSettingPageState extends State<ShopPaymentSettingPage> {
 
       _cash = data['paymentMethods']?['cash'] ?? true;
       _transfer = data['paymentMethods']?['transfer'] ?? false;
-
       _depositExpireHours = data['depositExpireHours'] ?? 12;
+
+      final discountSetting =
+          data['discountSetting'] as Map<String, dynamic>? ?? {};
+
+      _discountEnabled = discountSetting['enabled'] ?? false;
+      _discountBase = discountSetting['base'] ?? 'room_pet';
+
+      final rules = discountSetting['rules'];
+
+      if (rules is List && rules.isNotEmpty) {
+        for (final item in rules) {
+          if (item is! Map) continue;
+
+          _discountRuleCtrls.add({
+            'minNights': TextEditingController(
+              text: (item['minNights'] ?? '').toString(),
+            ),
+            'discountPercent': TextEditingController(
+              text: (item['discountPercent'] ?? '').toString(),
+            ),
+          });
+        }
+      } else {
+        _addDefaultDiscountRules();
+      }
+    } else {
+      _addDefaultDiscountRules();
+    }
+
+    if (_discountRuleCtrls.isEmpty) {
+      _addDefaultDiscountRules();
     }
 
     setState(() => _loading = false);
+  }
+
+  void _addDefaultDiscountRules() {
+    _discountRuleCtrls.addAll([
+      {
+        'minNights': TextEditingController(text: '3'),
+        'discountPercent': TextEditingController(text: '20'),
+      },
+      {
+        'minNights': TextEditingController(text: '7'),
+        'discountPercent': TextEditingController(text: '30'),
+      },
+    ]);
+  }
+
+  List<Map<String, int>> _buildDiscountRulesForSave() {
+    final rules = <Map<String, int>>[];
+
+    for (final item in _discountRuleCtrls) {
+      final minNights = int.tryParse(item['minNights']?.text.trim() ?? '') ?? 0;
+
+      var discountPercent =
+          int.tryParse(item['discountPercent']?.text.trim() ?? '') ?? 0;
+
+      if (minNights <= 0) continue;
+
+      if (discountPercent < 1) discountPercent = 1;
+      if (discountPercent > 99) discountPercent = 99;
+
+      rules.add({'minNights': minNights, 'discountPercent': discountPercent});
+    }
+
+    rules.sort((a, b) => a['minNights']!.compareTo(b['minNights']!));
+
+    return rules;
   }
 
   Future<void> _save() async {
@@ -82,6 +158,12 @@ class _ShopPaymentSettingPageState extends State<ShopPaymentSettingPage> {
           'depositBase': _depositType == 'percent' ? _depositBase : 'total',
           'paymentMethods': {'cash': _cash, 'transfer': _transfer},
           'depositExpireHours': _depositExpireHours,
+          'discountSetting': {
+            'enabled': _discountEnabled,
+            'base': _discountBase,
+            'rules': _buildDiscountRulesForSave(),
+          },
+          'updatedAt': FieldValue.serverTimestamp(),
         });
 
     if (!mounted) return;
@@ -132,6 +214,62 @@ class _ShopPaymentSettingPageState extends State<ShopPaymentSettingPage> {
     });
   }
 
+  void _addDiscountRule() {
+    setState(() {
+      _discountRuleCtrls.add({
+        'minNights': TextEditingController(),
+        'discountPercent': TextEditingController(),
+      });
+    });
+  }
+
+  void _removeDiscountRule(int index) {
+    final item = _discountRuleCtrls.removeAt(index);
+    item['minNights']?.dispose();
+    item['discountPercent']?.dispose();
+    setState(() {});
+  }
+
+  Widget _sectionCard({
+    required String title,
+    required String subtitle,
+    required List<Widget> children,
+  }) {
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(bottom: 18),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.grey.shade200),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            title,
+            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            subtitle,
+            style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
+          ),
+          const Divider(height: 24),
+          ...children,
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_loading) {
@@ -139,193 +277,345 @@ class _ShopPaymentSettingPageState extends State<ShopPaymentSettingPage> {
     }
 
     return Scaffold(
-      appBar: AppBar(title: const Text('付款 / 訂金設定')),
+      appBar: AppBar(title: const Text('收款與優惠設定')),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Column(
           children: [
-            SwitchListTile(
-              title: const Text('啟用訂金'),
-              value: _depositEnabled,
-              onChanged: (v) => setState(() => _depositEnabled = v),
-            ),
-
-            if (_depositEnabled) ...[
-              const Align(
-                alignment: Alignment.centerLeft,
-                child: Text(
-                  '訂金付款期限',
-                  style: TextStyle(fontWeight: FontWeight.bold),
+            _sectionCard(
+              title: '收款設定',
+              subtitle: '設定付款方式、訂金規則與收款資訊',
+              children: [
+                SwitchListTile(
+                  title: const Text('啟用訂金'),
+                  value: _depositEnabled,
+                  onChanged: (v) => setState(() => _depositEnabled = v),
                 ),
-              ),
 
-              const SizedBox(height: 8),
-
-              ...[
-                {'label': '12 小時', 'value': 12},
-                {'label': '1 天', 'value': 24},
-                {'label': '3 天', 'value': 72},
-              ].map((item) {
-                return RadioListTile<int>(
-                  title: Text(item['label'].toString()),
-                  value: item['value'] as int,
-                  groupValue: _depositExpireHours,
-                  onChanged: (v) {
-                    setState(() {
-                      _depositExpireHours = v ?? 12;
-                    });
-                  },
-                );
-              }),
-
-              const Divider(height: 30),
-
-              if (_depositType == 'percent') ...[
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(12),
-                  margin: const EdgeInsets.only(bottom: 10),
-                  decoration: BoxDecoration(
-                    color: Colors.red.shade50,
-                    borderRadius: BorderRadius.circular(10),
+                if (_depositEnabled) ...[
+                  const Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      '訂金付款期限',
+                      style: TextStyle(fontWeight: FontWeight.bold),
+                    ),
                   ),
-                  child: const Text(
-                    '※ 訂金只會依照下方設定方式計算，請確認是否包含加值服務',
-                    style: TextStyle(color: Colors.red, fontSize: 13),
+
+                  const SizedBox(height: 8),
+
+                  ...[
+                    {'label': '12 小時', 'value': 12},
+                    {'label': '1 天', 'value': 24},
+                    {'label': '3 天', 'value': 72},
+                  ].map((item) {
+                    return RadioListTile<int>(
+                      title: Text(item['label'].toString()),
+                      value: item['value'] as int,
+                      groupValue: _depositExpireHours,
+                      onChanged: (v) {
+                        setState(() {
+                          _depositExpireHours = v ?? 12;
+                        });
+                      },
+                    );
+                  }),
+
+                  const Divider(height: 30),
+
+                  if (_depositType == 'percent') ...[
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(12),
+                      margin: const EdgeInsets.only(bottom: 10),
+                      decoration: BoxDecoration(
+                        color: Colors.red.shade50,
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: const Text(
+                        '※ 訂金只會依照下方設定方式計算，請確認是否包含加值服務',
+                        style: TextStyle(color: Colors.red, fontSize: 13),
+                      ),
+                    ),
+
+                    const Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        '訂金計算方式',
+                        style: TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                    ),
+
+                    RadioListTile<String>(
+                      title: const Text('只算房價'),
+                      value: 'room',
+                      groupValue: _depositBase,
+                      onChanged: (v) {
+                        setState(() {
+                          _depositBase = v ?? 'room';
+                        });
+                      },
+                    ),
+
+                    RadioListTile<String>(
+                      title: const Text('算總金額（含加值服務）'),
+                      value: 'total',
+                      groupValue: _depositBase,
+                      onChanged: (v) {
+                        setState(() {
+                          _depositBase = v ?? 'total';
+                        });
+                      },
+                    ),
+
+                    const Divider(height: 30, thickness: 1),
+                  ],
+
+                  const Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      '訂金類型',
+                      style: TextStyle(fontWeight: FontWeight.bold),
+                    ),
                   ),
-                ),
+
+                  Row(
+                    children: [
+                      Expanded(
+                        child: RadioListTile<String>(
+                          title: const Text('固定金額'),
+                          value: 'fixed',
+                          groupValue: _depositType,
+                          onChanged: (v) {
+                            if (v == null) return;
+                            _changeDepositType(v);
+                          },
+                        ),
+                      ),
+                      Expanded(
+                        child: RadioListTile<String>(
+                          title: const Text('百分比'),
+                          value: 'percent',
+                          groupValue: _depositType,
+                          onChanged: (v) {
+                            if (v == null) return;
+                            _changeDepositType(v);
+                          },
+                        ),
+                      ),
+                    ],
+                  ),
+
+                  if (_depositType == 'percent')
+                    const Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        '※ 百分比將依照上方選擇的計算方式計算',
+                        style: TextStyle(color: Colors.red, fontSize: 12),
+                      ),
+                    ),
+
+                  TextField(
+                    controller: _depositValueCtrl,
+                    keyboardType: TextInputType.number,
+                    decoration: InputDecoration(
+                      labelText: _depositType == 'fixed'
+                          ? '訂金金額（元）'
+                          : '訂金百分比（%）',
+                    ),
+                    onChanged: _updateDepositValue,
+                  ),
+
+                  const SizedBox(height: 20),
+                ],
 
                 const Align(
                   alignment: Alignment.centerLeft,
                   child: Text(
-                    '訂金計算方式',
+                    '付款方式',
                     style: TextStyle(fontWeight: FontWeight.bold),
                   ),
                 ),
 
-                RadioListTile<String>(
-                  title: const Text('只算房價'),
-                  value: 'room',
-                  groupValue: _depositBase,
-                  onChanged: (v) {
-                    setState(() {
-                      _depositBase = v ?? 'room';
-                    });
-                  },
+                CheckboxListTile(
+                  title: const Text('到店付款'),
+                  value: _cash,
+                  onChanged: (v) => setState(() => _cash = v ?? false),
                 ),
 
-                RadioListTile<String>(
-                  title: const Text('算總金額（含加值服務）'),
-                  value: 'total',
-                  groupValue: _depositBase,
-                  onChanged: (v) {
-                    setState(() {
-                      _depositBase = v ?? 'total';
-                    });
-                  },
+                CheckboxListTile(
+                  title: const Text('轉帳'),
+                  value: _transfer,
+                  onChanged: (v) => setState(() => _transfer = v ?? false),
                 ),
 
-                const Divider(height: 30, thickness: 1),
-              ],
-
-              const Align(
-                alignment: Alignment.centerLeft,
-                child: Text(
-                  '訂金類型',
-                  style: TextStyle(fontWeight: FontWeight.bold),
-                ),
-              ),
-
-              Row(
-                children: [
-                  Expanded(
-                    child: RadioListTile<String>(
-                      title: const Text('固定金額'),
-                      value: 'fixed',
-                      groupValue: _depositType,
-                      onChanged: (v) {
-                        if (v == null) return;
-                        _changeDepositType(v);
-                      },
+                if (_transfer)
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(12),
+                    margin: const EdgeInsets.only(top: 8),
+                    decoration: BoxDecoration(
+                      color: Colors.blue.shade50,
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: Colors.blue.shade100),
+                    ),
+                    child: const Text(
+                      '請至「基本資訊 → 收款帳戶 / 金流設定」填寫轉帳帳戶。',
+                      style: TextStyle(
+                        color: Colors.blue,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                   ),
-                  Expanded(
-                    child: RadioListTile<String>(
-                      title: const Text('百分比'),
-                      value: 'percent',
-                      groupValue: _depositType,
-                      onChanged: (v) {
-                        if (v == null) return;
-                        _changeDepositType(v);
-                      },
+              ],
+            ),
+
+            _sectionCard(
+              title: '優惠 / 長住折扣設定',
+              subtitle: '可設定住宿滿幾晚後自動套用折扣，之後會接到前台預約金額計算',
+              children: [
+                SwitchListTile(
+                  title: const Text('啟用長住折扣'),
+                  value: _discountEnabled,
+                  onChanged: (v) => setState(() => _discountEnabled = v),
+                ),
+
+                if (_discountEnabled) ...[
+                  const Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      '折扣計算方式',
+                      style: TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                  ),
+
+                  RadioListTile<String>(
+                    title: const Text('只折房價'),
+                    value: 'room',
+                    groupValue: _discountBase,
+                    onChanged: (v) {
+                      setState(() {
+                        _discountBase = v ?? 'room';
+                      });
+                    },
+                  ),
+
+                  RadioListTile<String>(
+                    title: const Text('房價 + 寵物加價'),
+                    value: 'room_pet',
+                    groupValue: _discountBase,
+                    onChanged: (v) {
+                      setState(() {
+                        _discountBase = v ?? 'room_pet';
+                      });
+                    },
+                  ),
+
+                  RadioListTile<String>(
+                    title: const Text('總金額（含加值服務）'),
+                    value: 'total',
+                    groupValue: _discountBase,
+                    onChanged: (v) {
+                      setState(() {
+                        _discountBase = v ?? 'total';
+                      });
+                    },
+                  ),
+
+                  const Divider(height: 30),
+
+                  const Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      '折扣規則',
+                      style: TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                  ),
+
+                  const SizedBox(height: 8),
+
+                  ...List.generate(_discountRuleCtrls.length, (index) {
+                    final rule = _discountRuleCtrls[index];
+
+                    return Container(
+                      margin: const EdgeInsets.only(bottom: 10),
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.orange.shade50,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: Colors.orange.shade100),
+                      ),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: TextField(
+                              controller: rule['minNights'],
+                              keyboardType: TextInputType.number,
+                              decoration: const InputDecoration(
+                                labelText: '滿幾晚',
+                                suffixText: '晚',
+                              ),
+                            ),
+                          ),
+
+                          const SizedBox(width: 10),
+
+                          Expanded(
+                            child: TextField(
+                              controller: rule['discountPercent'],
+                              keyboardType: TextInputType.number,
+                              decoration: const InputDecoration(
+                                labelText: '折扣',
+                                helperText: '20 = 8折',
+                                suffixText: '%',
+                              ),
+                            ),
+                          ),
+
+                          IconButton(
+                            onPressed: _discountRuleCtrls.length <= 1
+                                ? null
+                                : () => _removeDiscountRule(index),
+                            icon: const Icon(Icons.delete_outline),
+                          ),
+                        ],
+                      ),
+                    );
+                  }),
+
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: OutlinedButton.icon(
+                      onPressed: _addDiscountRule,
+                      icon: const Icon(Icons.add),
+                      label: const Text('新增折扣規則'),
+                    ),
+                  ),
+
+                  const SizedBox(height: 8),
+
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade100,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: const Text(
+                      '例：滿 3 晚、折扣 20% = 打 8 折。滿 7 晚、折扣 30% = 打 7 折。系統會套用符合條件中最高門檻的折扣。',
+                      style: TextStyle(fontSize: 12, color: Colors.black54),
                     ),
                   ),
                 ],
-              ),
-
-              if (_depositType == 'percent')
-                const Align(
-                  alignment: Alignment.centerLeft,
-                  child: Text(
-                    '※ 百分比將依照上方選擇的計算方式計算',
-                    style: TextStyle(color: Colors.red, fontSize: 12),
-                  ),
-                ),
-
-              TextField(
-                controller: _depositValueCtrl,
-                keyboardType: TextInputType.number,
-                decoration: InputDecoration(
-                  labelText: _depositType == 'fixed' ? '訂金金額（元）' : '訂金百分比（%）',
-                ),
-                onChanged: _updateDepositValue,
-              ),
-
-              const SizedBox(height: 20),
-            ],
-
-            const Align(
-              alignment: Alignment.centerLeft,
-              child: Text(
-                '付款方式',
-                style: TextStyle(fontWeight: FontWeight.bold),
-              ),
+              ],
             ),
 
-            CheckboxListTile(
-              title: const Text('到店付款'),
-              value: _cash,
-              onChanged: (v) => setState(() => _cash = v ?? false),
-            ),
-
-            CheckboxListTile(
-              title: const Text('轉帳'),
-              value: _transfer,
-              onChanged: (v) => setState(() => _transfer = v ?? false),
-            ),
-
-            if (_transfer)
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(12),
-                margin: const EdgeInsets.only(top: 8),
-                decoration: BoxDecoration(
-                  color: Colors.blue.shade50,
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: Colors.blue.shade100),
-                ),
-                child: const Text(
-                  '轉帳帳戶資料將移至「收款帳戶 / 金流設定」管理。',
-                  style: TextStyle(
-                    color: Colors.blue,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: _save,
+                child: const Text('儲存設定'),
               ),
-
-            const SizedBox(height: 30),
-
-            ElevatedButton(onPressed: _save, child: const Text('儲存設定')),
+            ),
           ],
         ),
       ),

@@ -34,6 +34,12 @@ class BookingDetailPriceSection extends StatelessWidget {
   Widget build(BuildContext context) {
     final payAmountType = (data['payAmountType'] ?? 'deposit').toString();
 
+    final originalTotal = (data['originalTotal'] ?? 0) as num;
+    final discountAmount = (data['discountAmount'] ?? 0) as num;
+    final discountPercent = (data['discountPercent'] ?? 0) as num;
+    final discountMinNights = (data['discountMinNights'] ?? 0) as num;
+    final discountBase = (data['discountBase'] ?? '').toString();
+
     final paymentLabel = payAmountType == 'full' ? '需支付全額' : '需支付訂金';
 
     final paymentAmount = payAmountType == 'full'
@@ -229,6 +235,59 @@ class BookingDetailPriceSection extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              if (discountAmount > 0) ...[
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text('原價', style: TextStyle(color: Colors.white70)),
+                    Text(
+                      'NT\$ ${originalTotal.toInt()}',
+                      style: const TextStyle(
+                        color: Colors.white70,
+                        decoration: TextDecoration.lineThrough,
+                      ),
+                    ),
+                  ],
+                ),
+
+                const SizedBox(height: 6),
+
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      '長住優惠（滿${discountMinNights.toInt()}晚 ${discountPercent.toInt()}%）',
+                      style: const TextStyle(color: Colors.greenAccent),
+                    ),
+                    Text(
+                      '- NT\$ ${discountAmount.toInt()}',
+                      style: const TextStyle(
+                        color: Colors.greenAccent,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
+
+                const SizedBox(height: 6),
+
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text('折扣範圍', style: TextStyle(color: Colors.white70)),
+                    Text(
+                      discountBase == 'room'
+                          ? '只折房價'
+                          : discountBase == 'room_pet'
+                          ? '房價＋寵物加價'
+                          : '總金額（含加值服務）',
+                      style: const TextStyle(color: Colors.white70),
+                    ),
+                  ],
+                ),
+
+                const Divider(color: Colors.white24, height: 24),
+              ],
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [

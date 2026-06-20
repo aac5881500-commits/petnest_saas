@@ -38,7 +38,7 @@ class BookingAddonSection extends StatelessWidget {
   final ValueChanged<Map<String, dynamic>> onToggleValueService;
   final ValueChanged<Map<String, dynamic>> onToggleCustomService;
   final void Function(String serviceName, String petId, bool selected)
-      onToggleCustomPet;
+  onToggleCustomPet;
 
   @override
   Widget build(BuildContext context) {
@@ -93,9 +93,7 @@ class BookingAddonSection extends StatelessWidget {
               const SizedBox(height: 10),
 
               if (addonLoading)
-                const Center(
-                  child: CircularProgressIndicator(),
-                ),
+                const Center(child: CircularProgressIndicator()),
 
               if (!addonLoading && addonData == null)
                 const Padding(
@@ -125,14 +123,7 @@ class BookingAddonSection extends StatelessWidget {
                     '營業時間外入住',
                     style: TextStyle(fontWeight: FontWeight.bold),
                   ),
-                  const SizedBox(height: 4),
-                  const Text(
-                    '※ 正常營業時間入住不需勾選',
-                    style: TextStyle(
-                      color: Colors.red,
-                      fontSize: 12,
-                    ),
-                  ),
+
                   const SizedBox(height: 6),
 
                   ...timeOptions.map((item) {
@@ -143,10 +134,7 @@ class BookingAddonSection extends StatelessWidget {
                     return GestureDetector(
                       onTap: () => onSelectTimeAddon(item),
                       child: AddonItemCard(
-                        item: {
-                          ...item,
-                          'name': label,
-                        },
+                        item: {...item, 'name': label},
                         isSelected: isSelected,
                       ),
                     );
@@ -170,10 +158,7 @@ class BookingAddonSection extends StatelessWidget {
 
                     return GestureDetector(
                       onTap: () => onToggleValueService(item),
-                      child: AddonItemCard(
-                        item: item,
-                        isSelected: isSelected,
-                      ),
+                      child: AddonItemCard(item: item, isSelected: isSelected),
                     );
                   }),
                 ],
@@ -193,23 +178,20 @@ class BookingAddonSection extends StatelessWidget {
                       return const SizedBox.shrink();
                     }
 
-                    final isSelected =
-                        selectedCustomServices.containsKey(serviceName);
+                    final isSelected = selectedCustomServices.containsKey(
+                      serviceName,
+                    );
 
                     return GestureDetector(
                       onTap: () => onToggleCustomService(item),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          AddonItemCard(
-                            item: item,
-                            isSelected: isSelected,
-                          ),
+                          AddonItemCard(item: item, isSelected: isSelected),
 
                           if (isSelected)
                             Padding(
-                              padding:
-                                  const EdgeInsets.only(left: 30, top: 6),
+                              padding: const EdgeInsets.only(left: 30, top: 6),
                               child: Wrap(
                                 spacing: 6,
                                 children: selectedPetIds.map((petId) {
@@ -222,11 +204,9 @@ class BookingAddonSection extends StatelessWidget {
                                       pet['name']?.toString() ?? petId;
 
                                   final selectedList =
-                                      selectedCustomServices[serviceName] ??
-                                          [];
+                                      selectedCustomServices[serviceName] ?? [];
 
-                                  final selected =
-                                      selectedList.contains(petId);
+                                  final selected = selectedList.contains(petId);
 
                                   return FilterChip(
                                     label: Text('🐱 $petName'),

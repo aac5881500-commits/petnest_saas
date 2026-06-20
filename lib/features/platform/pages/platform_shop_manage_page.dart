@@ -14,7 +14,6 @@ import 'package:petnest_saas/features/platform/widgets/shop_plan_manage_dialog.d
 
 class PlatformShopManagePage extends StatelessWidget {
   const PlatformShopManagePage({super.key});
-
   String _formatDate(dynamic value) {
     if (value == null) return '尚未設定';
 
@@ -27,6 +26,24 @@ class PlatformShopManagePage extends StatelessWidget {
     }
 
     if (date == null) return '尚未設定';
+
+    final diff = DateTime.now().difference(date);
+
+    if (diff.inMinutes < 1) {
+      return '剛剛';
+    }
+
+    if (diff.inMinutes < 60) {
+      return '${diff.inMinutes}分鐘前';
+    }
+
+    if (diff.inHours < 24) {
+      return '${diff.inHours}小時前';
+    }
+
+    if (diff.inDays < 7) {
+      return '${diff.inDays}天前';
+    }
 
     String twoDigits(int number) {
       return number.toString().padLeft(2, '0');
@@ -218,7 +235,7 @@ class PlatformShopManagePage extends StatelessWidget {
                     paidUntilDate.isBefore(DateTime.now());
 
                 final createdAt = data['createdAt'];
-                final lastLoginAt = data['lastLoginAt'];
+                final ownerUid = data['ownerUid']?.toString() ?? '';
                 final acceptedShopOwnerPolicyVersion =
                     data['acceptedShopOwnerPolicyVersion'] ?? 0;
                 final activationCode = data['activationCode']?.toString() ?? '';
@@ -382,9 +399,39 @@ class PlatformShopManagePage extends StatelessWidget {
                                 icon: Icons.add_business,
                                 label: '建立：${_formatDate(createdAt)}',
                               ),
-                              PlatformShopInfoPill(
-                                icon: Icons.login,
-                                label: '最後登入：${_formatDate(lastLoginAt)}',
+                              FutureBuilder<DocumentSnapshot>(
+                                future: ownerUid.isEmpty
+                                    ? null
+                                    : FirebaseFirestore.instance
+                                          .collection('users')
+                                          .doc(ownerUid)
+                                          .get(),
+                                builder: (context, userSnapshot) {
+                                  final userData =
+                                      userSnapshot.data?.data()
+                                          as Map<String, dynamic>?;
+
+                                  final lastLoginAt = userData?['lastLoginAt'];
+                                  final lastActiveAt =
+                                      userData?['lastActiveAt'];
+
+                                  return Wrap(
+                                    spacing: 8,
+                                    runSpacing: 8,
+                                    children: [
+                                      PlatformShopInfoPill(
+                                        icon: Icons.login,
+                                        label:
+                                            '最後登入：${_formatDate(lastLoginAt)}',
+                                      ),
+                                      PlatformShopInfoPill(
+                                        icon: Icons.access_time,
+                                        label:
+                                            '最後活躍：${_formatDate(lastActiveAt)}',
+                                      ),
+                                    ],
+                                  );
+                                },
                               ),
                               PlatformShopInfoPill(
                                 icon: Icons.article_outlined,
@@ -635,19 +682,80 @@ class PlatformShopManagePage extends StatelessWidget {
                           crossAxisSpacing: 10,
                           childAspectRatio: 1.15,
                           children: [
-                            PlatformShopMetricCard(
-                              icon: Icons.receipt_long,
-                              title: '訂單總數',
-                              value: '0',
-                              subtitle: '本月 0 筆',
-                              iconColor: Colors.green,
+                            StreamBuilder<QuerySnapshot>(
+                              stream: FirebaseFirestore.instance
+                                  .collection('bookings')
+                                  .where('shopId', isEqualTo: doc.id)
+                                  .snapshots(),
+                              builder: (context, bookingSnapshot) {
+                                final bookingDocs =
+                                    bookingSnapshot.data?.docs ?? [];
+
+                                final now = DateTime.now();
+                                final monthStart = DateTime(
+                                  now.year,
+                                  now.month,
+                                  1,
+                                );
+
+                                final monthCount = bookingDocs.where((
+                                  bookingDoc,
+                                ) {
+                                  final bookingData =
+                                      bookingDoc.data() as Map<String, dynamic>;
+                                  final createdAt = bookingData['createdAt'];
+
+                                  if (createdAt is! Timestamp) return false;
+
+                                  return createdAt.toDate().isAfter(monthStart);
+                                }).length;
+
+                                return PlatformShopMetricCard(
+                                  icon: Icons.receipt_long,
+                                  title: '訂單總數',
+                                  value: bookingDocs.length.toString(),
+                                  subtitle: '本月 $monthCount 筆',
+                                  iconColor: Colors.green,
+                                );
+                              },
                             ),
-                            PlatformShopMetricCard(
-                              icon: Icons.people_alt_outlined,
-                              title: '會員數',
-                              value: '0',
-                              subtitle: '本月新增 0 人',
-                              iconColor: Colors.orange,
+                            StreamBuilder<QuerySnapshot>(
+                              stream: FirebaseFirestore.instance
+                                  .collection('shops')
+                                  .doc(doc.id)
+                                  .collection('members')
+                                  .snapshots(),
+                              builder: (context, memberSnapshot) {
+                                final memberDocs =
+                                    memberSnapshot.data?.docs ?? [];
+
+                                final now = DateTime.now();
+                                final monthStart = DateTime(
+                                  now.year,
+                                  now.month,
+                                  1,
+                                );
+
+                                final monthCount = memberDocs.where((
+                                  memberDoc,
+                                ) {
+                                  final memberData =
+                                      memberDoc.data() as Map<String, dynamic>;
+                                  final createdAt = memberData['createdAt'];
+
+                                  if (createdAt is! Timestamp) return false;
+
+                                  return createdAt.toDate().isAfter(monthStart);
+                                }).length;
+
+                                return PlatformShopMetricCard(
+                                  icon: Icons.people_alt_outlined,
+                                  title: '會員數',
+                                  value: memberDocs.length.toString(),
+                                  subtitle: '本月新增 $monthCount 人',
+                                  iconColor: Colors.orange,
+                                );
+                              },
                             ),
                             PlatformShopMetricCard(
                               icon: Icons.image_outlined,

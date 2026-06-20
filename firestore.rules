@@ -297,15 +297,26 @@ match /member_link_requests/{requestId} {
   allow delete: if false;
 }
 
-   match /booking_counters/{shopId} {
-  allow read: if signedIn();
+  match /booking_counters/{shopId} {
+  allow read: if isShopMember(shopId) || isRootAdmin();
 
   allow create, update: if signedIn()
-    && request.resource.data.keys().hasOnly([
-      'current',
-      'updatedAt'
-    ])
-    && request.resource.data.current is int;
+    && (
+      isShopMember(shopId) ||
+      isRootAdmin() ||
+      (
+        request.resource.data.keys().hasOnly([
+          'current',
+          'updatedAt'
+        ])
+        && request.resource.data.current is int
+        && (
+          !exists(/databases/$(database)/documents/booking_counters/$(shopId)) ||
+          request.resource.data.current ==
+            resource.data.current + 1
+        )
+      )
+    );
 
   allow delete: if false;
 }
@@ -330,13 +341,26 @@ match /reports/{reportId} {
 match /bookings/{bookingId} {
 
   allow read: if signedIn() &&
-    (
-      resource.data.userId == request.auth.uid ||
-      isShopMember(resource.data.shopId) ||
-      isRootAdmin()
-    );
+  (
+    get(/databases/$(database)/documents/bookings/$(bookingId)).data.userId
+      == request.auth.uid
+    ||
+    isShopMember(
+      get(/databases/$(database)/documents/bookings/$(bookingId)).data.shopId
+    )
+    ||
+    isRootAdmin()
+  );
 
-  allow create: if signedIn();
+  allow create: if signedIn()
+  &&
+  request.resource.data.userId == request.auth.uid
+  &&
+  request.resource.data.shopId is string
+  &&
+  request.resource.data.status == 'pending'
+  &&
+  request.resource.data.createdAt == request.time;
 
   allow update: if signedIn() &&
   (
@@ -361,16 +385,36 @@ match /bookings/{bookingId} {
     )
   );
 
-  allow delete: if false;
+allow delete: if false;
 
-match /messages/{messageId} {
+  match /messages/{messageId} {
 
-  allow read: if signedIn();
+    allow read: if signedIn() &&
+      (
+        resource.data.userId == request.auth.uid
+        ||
+        isShopMember(resource.data.shopId)
+        ||
+        isRootAdmin()
+      );
 
-  allow create: if signedIn();
+    allow create: if signedIn()
+      &&
+      request.resource.data.senderId == request.auth.uid
+      &&
+      (
+        get(/databases/$(database)/documents/bookings/$(bookingId)).data.userId
+          == request.auth.uid
+        ||
+        isShopMember(
+          get(/databases/$(database)/documents/bookings/$(bookingId)).data.shopId
+        )
+        ||
+        isRootAdmin()
+      );
 
-  allow update, delete: if false;
-}
+    allow update, delete: if false;
+  }
 }
        // 📮 店主 / 店家聯絡平台
     match /platform_contact_requests/{requestId} {

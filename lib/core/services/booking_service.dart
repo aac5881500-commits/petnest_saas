@@ -71,6 +71,13 @@ class BookingService {
     String emergencyAddress = '',
     String emergencyPhone2 = '',
     int totalPrice = 0,
+
+    int originalTotal = 0,
+    int discountAmount = 0,
+    int discountPercent = 0,
+    int discountMinNights = 0,
+    String discountBase = '',
+
     int depositAmount = 0,
     String paymentMethod = '',
     String payAmountType = '', // deposit / full
@@ -175,6 +182,13 @@ class BookingService {
 
       /// 價格欄位
       'totalPrice': totalPrice,
+
+      'originalTotal': originalTotal,
+      'discountAmount': discountAmount,
+      'discountPercent': discountPercent,
+      'discountMinNights': discountMinNights,
+      'discountBase': discountBase,
+
       'depositAmount': depositAmount,
       'paymentMethod': paymentMethod,
       'payAmountType': payAmountType,

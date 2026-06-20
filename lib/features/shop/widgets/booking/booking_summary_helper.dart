@@ -5,6 +5,56 @@ import 'package:flutter/material.dart';
 import 'package:petnest_saas/features/shop/widgets/booking/booking_summary_card.dart';
 
 class BookingSummaryHelper {
+  static Map<String, int> calculatePriceParts({
+    required Map<String, dynamic> selectedRoomType,
+    required int nights,
+    required List<String> selectedPetIds,
+    required Map<String, dynamic>? selectedTimeAddon,
+    required List<Map<String, dynamic>> selectedValueServices,
+    required Map<String, List<String>> selectedCustomServices,
+    required Map<String, dynamic>? addonData,
+  }) {
+    final basePrice = ((selectedRoomType['price'] ?? 0) as num).toInt();
+    final extraPrice = ((selectedRoomType['extraPrice'] ?? 0) as num).toInt();
+
+    final roomTotal = basePrice * nights;
+
+    final petCount = selectedPetIds.length;
+    final extraCount = petCount > 1 ? petCount - 1 : 0;
+    final petTotal = extraCount * extraPrice * nights;
+
+    int addonTotal = 0;
+
+    if (selectedTimeAddon != null) {
+      addonTotal += ((selectedTimeAddon['price'] ?? 0) as num).toInt();
+    }
+
+    for (final item in selectedValueServices) {
+      addonTotal += ((item['price'] ?? 0) as num).toInt();
+    }
+
+    for (final entry in selectedCustomServices.entries) {
+      final serviceName = entry.key;
+      final selectedPets = entry.value;
+
+      final service = (addonData?['customServices'] ?? []).firstWhere(
+        (e) => e['name'] == serviceName,
+        orElse: () => {},
+      );
+
+      final price = ((service['price'] ?? 0) as num).toInt();
+
+      addonTotal += price * selectedPets.length;
+    }
+
+    return {
+      'roomTotal': roomTotal,
+      'petTotal': petTotal,
+      'addonTotal': addonTotal,
+      'subtotal': roomTotal + petTotal + addonTotal,
+    };
+  }
+
   /// ===============================
   /// 🔥 計算總價
   /// ===============================
@@ -17,52 +67,17 @@ class BookingSummaryHelper {
     required Map<String, List<String>> selectedCustomServices,
     required Map<String, dynamic>? addonData,
   }) {
-    final basePrice =
-        (selectedRoomType['price'] ?? 0).toInt();
+    final parts = calculatePriceParts(
+      selectedRoomType: selectedRoomType,
+      nights: nights,
+      selectedPetIds: selectedPetIds,
+      selectedTimeAddon: selectedTimeAddon,
+      selectedValueServices: selectedValueServices,
+      selectedCustomServices: selectedCustomServices,
+      addonData: addonData,
+    );
 
-    int total = basePrice * nights;
-
-    /// 🔥 多貓價格
-    final petCount = selectedPetIds.length;
-    final extraPrice =
-        (selectedRoomType['extraPrice'] ?? 0).toInt();
-
-    if (petCount > 1) {
-      final extraCount = petCount - 1;
-
-      total +=
-          (extraCount * extraPrice * nights).toInt();
-    }
-
-    /// 🔥 時間加購
-    if (selectedTimeAddon != null) {
-      total +=
-          (selectedTimeAddon['price'] ?? 0) as int;
-    }
-
-    /// 🔥 加值服務
-    for (var item in selectedValueServices) {
-      total += (item['price'] ?? 0) as int;
-    }
-
-    /// 🔥 客製化服務
-    for (var entry in selectedCustomServices.entries) {
-      final serviceName = entry.key;
-      final selectedPets = entry.value;
-
-      final service =
-          (addonData?['customServices'] ?? [])
-              .firstWhere(
-        (e) => e['name'] == serviceName,
-        orElse: () => {},
-      );
-
-      final price = (service['price'] ?? 0) as int;
-
-      total += price * selectedPets.length;
-    }
-
-    return total;
+    return parts['subtotal'] ?? 0;
   }
 
   /// ===============================
@@ -75,6 +90,11 @@ class BookingSummaryHelper {
     required List<String> selectedPetIds,
     required Map<String, dynamic> selectedRoomType,
     required int totalPrice,
+    int? originalTotal,
+    int discountAmount = 0,
+    int discountPercent = 0,
+    int discountMinNights = 0,
+    String discountBase = '',
     required Map<String, dynamic>? selectedTimeAddon,
     required List<Map<String, dynamic>> selectedValueServices,
     required Map<String, List<String>> selectedCustomServices,
@@ -82,19 +102,15 @@ class BookingSummaryHelper {
   }) {
     final Map<String, int> customServicePrices = {};
 
-    for (final entry
-        in selectedCustomServices.entries) {
+    for (final entry in selectedCustomServices.entries) {
       final name = entry.key;
 
-      final service =
-          (addonData?['customServices'] ?? [])
-              .firstWhere(
+      final service = (addonData?['customServices'] ?? []).firstWhere(
         (e) => e['name'] == name,
         orElse: () => {},
       );
 
-      customServicePrices[name] =
-          (service['price'] ?? 0) as int;
+      customServicePrices[name] = ((service['price'] ?? 0) as num).toInt();
     }
 
     return BookingSummaryCard(
@@ -102,9 +118,13 @@ class BookingSummaryHelper {
       endDateText: endDateText,
       nights: nights,
       petCount: selectedPetIds.length,
-      roomTypeName:
-          selectedRoomType['name'] ?? '',
+      roomTypeName: selectedRoomType['name'] ?? '',
       totalPrice: totalPrice,
+      originalTotal: originalTotal,
+      discountAmount: discountAmount,
+      discountPercent: discountPercent,
+      discountMinNights: discountMinNights,
+      discountBase: discountBase,
       timeAddon: selectedTimeAddon,
       valueServices: selectedValueServices,
       customServices: selectedCustomServices,

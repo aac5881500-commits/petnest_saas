@@ -424,7 +424,7 @@ class _ShopBookingPageState extends State<ShopBookingPage> {
                           _startDate != null &&
                           _endDate != null) ...[
                         const SizedBox(height: 16),
-                        _buildBookingSummary(),
+                        _buildBookingSummary(shop),
                       ],
 
                       BookingNextStepSection(
@@ -443,7 +443,7 @@ class _ShopBookingPageState extends State<ShopBookingPage> {
                         nights: _nights,
                         totalPrice: _selectedRoomType == null
                             ? 0
-                            : _calculateTotalPrice(),
+                            : _calculateTotalPrice(shop: shop),
                         valueServices: _selectedValueServices,
                         formKey: _formKey,
                         shopId: widget.shopId,
@@ -681,6 +681,7 @@ class _ShopBookingPageState extends State<ShopBookingPage> {
     });
 
     try {
+      final discountInfo = _calculateDiscountInfo(shop);
       await BookingSubmitHelper.submitBooking(
         shopId: widget.shopId,
         customerName: _customerNameController.text,
@@ -693,7 +694,14 @@ class _ShopBookingPageState extends State<ShopBookingPage> {
         endDate: _endDate!,
         nights: _nights,
         note: _noteController.text,
-        totalPrice: _calculateTotalPrice(),
+        totalPrice: _calculateTotalPrice(shop: shop),
+
+        originalTotal: discountInfo['originalTotal'] ?? 0,
+        discountAmount: discountInfo['discountAmount'] ?? 0,
+        discountPercent: discountInfo['discountPercent'] ?? 0,
+        discountMinNights: discountInfo['discountMinNights'] ?? 0,
+        discountBase: (discountInfo['discountBase'] ?? '').toString(),
+
         addons: _buildAddonsData(),
         address: address,
         emergencyName: emergencyName,
@@ -863,8 +871,8 @@ class _ShopBookingPageState extends State<ShopBookingPage> {
     );
   }
 
-  int _calculateTotalPrice() {
-    return BookingSummaryHelper.calculateTotalPrice(
+  Map<String, dynamic> _calculateDiscountInfo(Map<String, dynamic>? shop) {
+    final priceParts = BookingSummaryHelper.calculatePriceParts(
       selectedRoomType: _selectedRoomType!,
       nights: _nights,
       selectedPetIds: _selectedPetIds,
@@ -873,22 +881,139 @@ class _ShopBookingPageState extends State<ShopBookingPage> {
       selectedCustomServices: _selectedCustomServices,
       addonData: _addonData,
     );
+
+    final roomTotal = priceParts['roomTotal'] ?? 0;
+    final petTotal = priceParts['petTotal'] ?? 0;
+    final originalTotal = priceParts['subtotal'] ?? 0;
+
+    if (shop == null || _nights <= 0) {
+      return {
+        'originalTotal': originalTotal,
+        'discountPercent': 0,
+        'discountAmount': 0,
+        'finalTotal': originalTotal,
+      };
+    }
+
+    final discountSetting = shop['discountSetting'] as Map<String, dynamic>?;
+
+    if (discountSetting == null || discountSetting['enabled'] != true) {
+      return {
+        'originalTotal': originalTotal,
+        'discountPercent': 0,
+        'discountAmount': 0,
+        'finalTotal': originalTotal,
+      };
+    }
+
+    final rules = discountSetting['rules'];
+
+    if (rules is! List || rules.isEmpty) {
+      return {
+        'originalTotal': originalTotal,
+        'discountPercent': 0,
+        'discountAmount': 0,
+        'finalTotal': originalTotal,
+      };
+    }
+
+    Map<String, dynamic>? matchedRule;
+
+    for (final rule in rules) {
+      if (rule is! Map) continue;
+
+      final minNights = ((rule['minNights'] ?? 0) as num).toInt();
+
+      if (_nights >= minNights) {
+        if (matchedRule == null ||
+            minNights > ((matchedRule['minNights'] ?? 0) as num).toInt()) {
+          matchedRule = Map<String, dynamic>.from(rule);
+        }
+      }
+    }
+
+    if (matchedRule == null) {
+      return {
+        'originalTotal': originalTotal,
+        'discountPercent': 0,
+        'discountAmount': 0,
+        'finalTotal': originalTotal,
+      };
+    }
+
+    final discountPercent = ((matchedRule['discountPercent'] ?? 0) as num)
+        .toInt();
+
+    if (discountPercent <= 0) {
+      return {
+        'originalTotal': originalTotal,
+        'discountPercent': 0,
+        'discountAmount': 0,
+        'finalTotal': originalTotal,
+      };
+    }
+
+    final discountBase = (discountSetting['base'] ?? 'total').toString();
+
+    int discountTargetAmount;
+
+    switch (discountBase) {
+      case 'room':
+        discountTargetAmount = roomTotal;
+        break;
+      case 'room_pet':
+        discountTargetAmount = roomTotal + petTotal;
+        break;
+      case 'total':
+      default:
+        discountTargetAmount = originalTotal;
+        break;
+    }
+
+    final discountAmount = (discountTargetAmount * discountPercent / 100)
+        .round();
+
+    return {
+      'originalTotal': originalTotal,
+      'discountPercent': discountPercent,
+      'discountAmount': discountAmount,
+      'discountMinNights': ((matchedRule['minNights'] ?? 0) as num).toInt(),
+      'discountBase': discountBase,
+      'finalTotal': originalTotal - discountAmount,
+    };
   }
 
-  Widget _buildBookingSummary() {
-    final totalPrice = _calculateTotalPrice();
+  int _calculateTotalPrice({Map<String, dynamic>? shop}) {
+    final discountInfo = _calculateDiscountInfo(shop);
 
-    return BookingSummaryHelper.buildSummary(
-      startDateText: _formatDate(_startDate!),
-      endDateText: _formatDate(_endDate!),
-      nights: _nights,
-      selectedPetIds: _selectedPetIds,
-      selectedRoomType: _selectedRoomType!,
-      totalPrice: totalPrice,
-      selectedTimeAddon: _selectedTimeAddon,
-      selectedValueServices: _selectedValueServices,
-      selectedCustomServices: _selectedCustomServices,
-      addonData: _addonData,
+    return discountInfo['finalTotal'] ?? 0;
+  }
+
+  Widget _buildBookingSummary(Map<String, dynamic> shop) {
+    final discountInfo = _calculateDiscountInfo(shop);
+    final totalPrice = discountInfo['finalTotal'] ?? 0;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        BookingSummaryHelper.buildSummary(
+          startDateText: _formatDate(_startDate!),
+          endDateText: _formatDate(_endDate!),
+          nights: _nights,
+          selectedPetIds: _selectedPetIds,
+          selectedRoomType: _selectedRoomType!,
+          totalPrice: totalPrice,
+          originalTotal: discountInfo['originalTotal'],
+          discountAmount: discountInfo['discountAmount'] ?? 0,
+          discountPercent: discountInfo['discountPercent'] ?? 0,
+          discountMinNights: discountInfo['discountMinNights'] ?? 0,
+          discountBase: (discountInfo['discountBase'] ?? '').toString(),
+          selectedTimeAddon: _selectedTimeAddon,
+          selectedValueServices: _selectedValueServices,
+          selectedCustomServices: _selectedCustomServices,
+          addonData: _addonData,
+        ),
+      ],
     );
   }
 
