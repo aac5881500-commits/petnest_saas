@@ -70,9 +70,6 @@ class _BookingFormPageState extends State<BookingFormPage> {
   String _depositBase = 'total';
   bool _cashEnabled = true;
   bool _transferEnabled = true;
-  String _bankName = '';
-  String _accountName = '';
-  String _accountNumber = '';
   String? _paymentMethod;
   String _payAmountType = 'deposit';
   String? _city;
@@ -470,6 +467,18 @@ class _BookingFormPageState extends State<BookingFormPage> {
     _loadShopPaymentSettings();
   }
 
+  @override
+  void dispose() {
+    _detailAddressController.dispose();
+    _emergencyNameController.dispose();
+    _emergencyPhoneController.dispose();
+    _emergencyRelationController.dispose();
+    _emergencyAddressController.dispose();
+    _phone2Controller.dispose();
+
+    super.dispose();
+  }
+
   Future<void> _loadShopPaymentSettings() async {
     final doc = await FirebaseFirestore.instance
         .collection('shops')
@@ -478,6 +487,8 @@ class _BookingFormPageState extends State<BookingFormPage> {
 
     final data = doc.data();
     if (data == null) return;
+
+    if (!mounted) return;
 
     setState(() {
       _depositEnabled = data['depositEnabled'] ?? false;
@@ -501,10 +512,6 @@ class _BookingFormPageState extends State<BookingFormPage> {
         _depositRate = 0;
       }
 
-      _bankName = data['bankName'] ?? '';
-      _accountName = data['accountName'] ?? '';
-      _accountNumber = data['accountNumber'] ?? '';
-
       /// 🔥 新增（吃後台付款方式）
       final methods = data['paymentMethods'] ?? {};
 
@@ -525,6 +532,8 @@ class _BookingFormPageState extends State<BookingFormPage> {
 
     final data = doc.data();
     if (data == null) return;
+
+    if (!mounted) return;
 
     setState(() {
       /// 👤 基本資料

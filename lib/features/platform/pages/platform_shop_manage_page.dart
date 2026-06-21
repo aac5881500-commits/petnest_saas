@@ -162,9 +162,13 @@ class PlatformShopManagePage extends StatelessWidget {
             padding: const EdgeInsets.all(16),
 
             children: [
-              Wrap(
-                spacing: 12,
-                runSpacing: 12,
+              GridView.count(
+                crossAxisCount: 2,
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                mainAxisSpacing: 12,
+                crossAxisSpacing: 12,
+                childAspectRatio: 1.35,
                 children: [
                   PlatformShopStatCard(
                     icon: Icons.storefront,
@@ -680,7 +684,7 @@ class PlatformShopManagePage extends StatelessWidget {
                           physics: const NeverScrollableScrollPhysics(),
                           mainAxisSpacing: 10,
                           crossAxisSpacing: 10,
-                          childAspectRatio: 1.15,
+                          childAspectRatio: 0.78,
                           children: [
                             StreamBuilder<QuerySnapshot>(
                               stream: FirebaseFirestore.instance
@@ -761,7 +765,7 @@ class PlatformShopManagePage extends StatelessWidget {
                               icon: Icons.image_outlined,
                               title: '媒體容量',
                               value: '未統計',
-                              subtitle: '之後依圖片上傳紀錄計算',
+                              subtitle: '之後統計',
                               iconColor: Colors.purple,
                             ),
                             PlatformShopMetricCard(

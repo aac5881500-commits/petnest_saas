@@ -199,7 +199,7 @@ class _AdminMemberListPageState extends State<AdminMemberListPage> {
                                   crossAxisCount: 2,
                                   crossAxisSpacing: 12,
                                   mainAxisSpacing: 12,
-                                  childAspectRatio: 0.68,
+                                  childAspectRatio: 0.52,
                                 ),
                             itemCount: visibleDocs.length,
                             itemBuilder: (context, index) {
@@ -227,7 +227,7 @@ class _AdminMemberListPageState extends State<AdminMemberListPage> {
                               final latestDateText =
                                   latestStartDate is Timestamp &&
                                       latestEndDate is Timestamp
-                                  ? '${_formatDate(latestStartDate)} ～ ${_formatDate(latestEndDate)}'
+                                  ? '${_formatDateShort(latestStartDate)}-${_formatDateShort(latestEndDate)}'
                                   : '';
 
                               String adminNote1 =
@@ -555,7 +555,7 @@ class _AdminMemberListPageState extends State<AdminMemberListPage> {
                                                     padding:
                                                         const EdgeInsets.symmetric(
                                                           horizontal: 8,
-                                                          vertical: 6,
+                                                          vertical: 4,
                                                         ),
                                                     decoration: BoxDecoration(
                                                       color:
@@ -581,7 +581,7 @@ class _AdminMemberListPageState extends State<AdminMemberListPage> {
                                                         Text(
                                                           latestRoomName,
                                                           style: TextStyle(
-                                                            fontSize: 15,
+                                                            fontSize: 14,
                                                             fontWeight:
                                                                 FontWeight.w900,
                                                             color: Colors
@@ -750,6 +750,12 @@ class _AdminMemberListPageState extends State<AdminMemberListPage> {
     final dt = value.toDate();
     String two(int n) => n.toString().padLeft(2, '0');
     return '${dt.year}-${two(dt.month)}-${two(dt.day)}';
+  }
+
+  String _formatDateShort(Timestamp value) {
+    final dt = value.toDate();
+    String two(int n) => n.toString().padLeft(2, '0');
+    return '${two(dt.month)}/${two(dt.day)}';
   }
 
   Widget _buildArchivedMembers() {

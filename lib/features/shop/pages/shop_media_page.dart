@@ -37,6 +37,8 @@ class _ShopMediaPageState extends State<ShopMediaPage> {
     final data = shop?['banners'];
 
     if (data != null && data is List) {
+      if (!mounted) return;
+
       setState(() {
         banners = data.map<Map<String, dynamic>>((e) {
           return {
@@ -61,8 +63,8 @@ class _ShopMediaPageState extends State<ShopMediaPage> {
     /// 🔥 不裁切（Web穩定版）
     final XFile finalFile = file;
 
+    if (!mounted) return;
     setState(() => _uploading = true);
-
     try {
       final Uint8List originalBytes = await finalFile.readAsBytes();
 
@@ -99,6 +101,8 @@ class _ShopMediaPageState extends State<ShopMediaPage> {
         bytes: bytes,
       );
 
+      if (!mounted) return;
+
       setState(() {
         banners[index]['imageUrl'] = url;
       });
@@ -107,7 +111,9 @@ class _ShopMediaPageState extends State<ShopMediaPage> {
         context,
       ).showSnackBar(SnackBar(content: Text('上傳失敗：$e')));
     } finally {
-      setState(() => _uploading = false);
+      if (mounted) {
+        setState(() => _uploading = false);
+      }
     }
   }
 

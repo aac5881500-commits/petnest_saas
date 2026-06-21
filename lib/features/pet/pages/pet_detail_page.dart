@@ -522,6 +522,10 @@ class PetDetailPage extends StatelessWidget {
         );
       },
     );
+    name.dispose();
+    breed.dispose();
+    note.dispose();
+    adminNote.dispose();
   }
 
   Future<void> _deletePet(BuildContext context) async {

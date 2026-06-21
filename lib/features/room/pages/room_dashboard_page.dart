@@ -92,89 +92,95 @@ class _RoomDashboardPageState extends State<RoomDashboardPage> {
       body: Column(
         children: [
           /// 📅 週日期切換
-          Padding(
-            padding: const EdgeInsets.fromLTRB(12, 8, 12, 6),
-            child: Row(
-              children: [
-                IconButton(
-                  icon: const Icon(Icons.chevron_left),
-                  onPressed: () {
-                    setState(() {
-                      selectedDate = selectedDate.subtract(
-                        const Duration(days: 7),
-                      );
-                    });
-                  },
-                ),
-                Expanded(
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                    children: List.generate(7, (i) {
-                      final day = weekDays[i];
-                      final isSelected =
-                          day.year == selectedDate.year &&
-                          day.month == selectedDate.month &&
-                          day.day == selectedDate.day;
+          SizedBox(
+            height: 76,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(8, 6, 8, 6),
+              child: Row(
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.chevron_left),
+                    onPressed: () {
+                      setState(() {
+                        selectedDate = selectedDate.subtract(
+                          const Duration(days: 7),
+                        );
+                      });
+                    },
+                  ),
+                  Expanded(
+                    child: Row(
+                      children: List.generate(7, (i) {
+                        final day = weekDays[i];
+                        final isSelected =
+                            day.year == selectedDate.year &&
+                            day.month == selectedDate.month &&
+                            day.day == selectedDate.day;
 
-                      final weekNames = ['一', '二', '三', '四', '五', '六', '日'];
+                        final weekNames = ['一', '二', '三', '四', '五', '六', '日'];
 
-                      return GestureDetector(
-                        onTap: () {
-                          setState(() {
-                            selectedDate = day;
-                          });
-                        },
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 6,
-                          ),
-                          decoration: BoxDecoration(
-                            color: isSelected
-                                ? Colors.blue.withOpacity(0.08)
-                                : Colors.transparent,
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(
-                              color: isSelected
-                                  ? Colors.blue
-                                  : Colors.transparent,
+                        return Expanded(
+                          child: GestureDetector(
+                            onTap: () {
+                              setState(() {
+                                selectedDate = day;
+                              });
+                            },
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 2,
+                                vertical: 5,
+                              ),
+                              decoration: BoxDecoration(
+                                color: isSelected
+                                    ? Colors.blue.withOpacity(0.08)
+                                    : Colors.transparent,
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(
+                                  color: isSelected
+                                      ? Colors.blue
+                                      : Colors.transparent,
+                                ),
+                              ),
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Text(
+                                    '${day.month}/${day.day}',
+                                    style: const TextStyle(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w800,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    weekNames[i],
+                                    style: const TextStyle(
+                                      fontSize: 11,
+                                      color: Colors.grey,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
                           ),
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Text(
-                                '${day.month}/${day.day}',
-                                style: const TextStyle(
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w800,
-                                ),
-                              ),
-                              const SizedBox(height: 2),
-                              Text(
-                                weekNames[i],
-                                style: const TextStyle(
-                                  fontSize: 11,
-                                  color: Colors.grey,
-                                  fontWeight: FontWeight.w700,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      );
-                    }),
+                        );
+                      }),
+                    ),
                   ),
-                ),
-                IconButton(
-                  icon: const Icon(Icons.chevron_right),
-                  onPressed: () {
-                    setState(() {
-                      selectedDate = selectedDate.add(const Duration(days: 7));
-                    });
-                  },
-                ),
-              ],
+                  IconButton(
+                    icon: const Icon(Icons.chevron_right),
+                    onPressed: () {
+                      setState(() {
+                        selectedDate = selectedDate.add(
+                          const Duration(days: 7),
+                        );
+                      });
+                    },
+                  ),
+                ],
+              ),
             ),
           ),
 

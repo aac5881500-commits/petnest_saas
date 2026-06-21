@@ -196,7 +196,7 @@ class _BookingDetailPageState extends State<BookingDetailPage> {
                                 : widget.docId.substring(0, 8);
 
                             await Clipboard.setData(ClipboardData(text: id));
-
+                            if (!mounted) return;
                             ScaffoldMessenger.of(context).showSnackBar(
                               const SnackBar(content: Text('已複製訂單編號')),
                             );
@@ -350,6 +350,7 @@ class _BookingDetailPageState extends State<BookingDetailPage> {
                             final version = data['policyVersion'];
 
                             if (shopId.isEmpty || version == null) {
+                              if (!mounted) return;
                               ScaffoldMessenger.of(context).showSnackBar(
                                 const SnackBar(content: Text('找不到條款版本資料')),
                               );
@@ -366,6 +367,7 @@ class _BookingDetailPageState extends State<BookingDetailPage> {
                             if (!context.mounted) return;
 
                             if (!doc.exists) {
+                              if (!mounted) return;
                               ScaffoldMessenger.of(context).showSnackBar(
                                 const SnackBar(content: Text('找不到該版本條款')),
                               );
@@ -615,17 +617,21 @@ class _BookingDetailPageState extends State<BookingDetailPage> {
             'depositSubmittedAt': FieldValue.serverTimestamp(),
           });
 
+      if (!mounted) return;
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(const SnackBar(content: Text('訂金已送出')));
     } catch (e) {
+      if (!mounted) return;
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text('錯誤：$e')));
     } finally {
-      setState(() {
-        _loading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _loading = false;
+        });
+      }
     }
   }
 
@@ -641,6 +647,8 @@ class _BookingDetailPageState extends State<BookingDetailPage> {
 
     if (picked == null) return;
 
+    if (!mounted) return;
+
     setState(() {
       _loading = true;
     });
@@ -650,6 +658,7 @@ class _BookingDetailPageState extends State<BookingDetailPage> {
 
       /// 🔥 限制上傳後大小，避免高階手機大圖炸容量
       if (bytes.length > 5 * 1024 * 1024) {
+        if (!mounted) return;
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(const SnackBar(content: Text('圖片太大，請選擇 5MB 以下的圖片')));
@@ -675,18 +684,22 @@ class _BookingDetailPageState extends State<BookingDetailPage> {
           .collection('bookings')
           .doc(widget.docId)
           .update({'transferImageUrl': url});
-
+      if (!mounted) return;
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(const SnackBar(content: Text('圖片上傳成功')));
     } catch (e) {
+      if (!mounted) return;
+
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text('上傳失敗：$e')));
     } finally {
-      setState(() {
-        _loading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _loading = false;
+        });
+      }
     }
   }
 
@@ -772,6 +785,7 @@ class _BookingDetailPageState extends State<BookingDetailPage> {
     return depositAmount > 0 &&
         (paymentMethod == 'transfer' || paymentMethod == 'cash') &&
         depositStatus != 'pending' &&
+        depositStatus != 'pending_review' &&
         depositStatus != 'confirmed' &&
         status != 'cancelled';
   }

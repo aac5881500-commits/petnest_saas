@@ -5,20 +5,15 @@ import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/services/shop_service.dart';
 
 class ShopBusinessInfoPage extends StatefulWidget {
-  const ShopBusinessInfoPage({
-    super.key,
-    required this.shopId,
-  });
+  const ShopBusinessInfoPage({super.key, required this.shopId});
 
   final String shopId;
 
   @override
-  State<ShopBusinessInfoPage> createState() =>
-      _ShopBusinessInfoPageState();
+  State<ShopBusinessInfoPage> createState() => _ShopBusinessInfoPageState();
 }
 
-class _ShopBusinessInfoPageState
-    extends State<ShopBusinessInfoPage> {
+class _ShopBusinessInfoPageState extends State<ShopBusinessInfoPage> {
   bool _isOpen = true;
   bool _isPublic = false;
 
@@ -38,24 +33,29 @@ class _ShopBusinessInfoPageState
     _load();
   }
 
+  @override
+  void dispose() {
+    _businessHoursController.dispose();
+    super.dispose();
+  }
+
   Future<void> _load() async {
-    final shop =
-        await ShopService.instance.getShop(widget.shopId);
+    final shop = await ShopService.instance.getShop(widget.shopId);
 
     if (shop != null) {
       _isOpen = shop['isOpen'] ?? true;
       _isPublic = shop['isPublic'] ?? false;
-      _businessHoursController.text =
-          shop['businessHours'] ?? '';
-          final openTime = shop['openTime']?.toString() ?? '';
-final closeTime = shop['closeTime']?.toString() ?? '';
+      _businessHoursController.text = shop['businessHours'] ?? '';
+      final openTime = shop['openTime']?.toString() ?? '';
+      final closeTime = shop['closeTime']?.toString() ?? '';
 
-_startTime = _parseTimeOfDay(openTime);
-_endTime = _parseTimeOfDay(closeTime);
+      _startTime = _parseTimeOfDay(openTime);
+      _endTime = _parseTimeOfDay(closeTime);
 
-      _serviceTypes =
-          List<String>.from(shop['serviceTypes'] ?? []);
+      _serviceTypes = List<String>.from(shop['serviceTypes'] ?? []);
     }
+
+    if (!mounted) return;
 
     setState(() {
       _loading = false;
@@ -66,8 +66,7 @@ _endTime = _parseTimeOfDay(closeTime);
   Future<void> _pickStartTime() async {
     final picked = await showTimePicker(
       context: context,
-      initialTime:
-          _startTime ?? const TimeOfDay(hour: 10, minute: 0),
+      initialTime: _startTime ?? const TimeOfDay(hour: 10, minute: 0),
     );
 
     if (picked != null) {
@@ -82,8 +81,7 @@ _endTime = _parseTimeOfDay(closeTime);
   Future<void> _pickEndTime() async {
     final picked = await showTimePicker(
       context: context,
-      initialTime:
-          _endTime ?? const TimeOfDay(hour: 20, minute: 0),
+      initialTime: _endTime ?? const TimeOfDay(hour: 20, minute: 0),
     );
 
     if (picked != null) {
@@ -94,21 +92,21 @@ _endTime = _parseTimeOfDay(closeTime);
     }
   }
 
-TimeOfDay? _parseTimeOfDay(String value) {
-  if (value.isEmpty || !value.contains(':')) return null;
+  TimeOfDay? _parseTimeOfDay(String value) {
+    if (value.isEmpty || !value.contains(':')) return null;
 
-  final parts = value.split(':');
-  if (parts.length != 2) return null;
+    final parts = value.split(':');
+    if (parts.length != 2) return null;
 
-  final hour = int.tryParse(parts[0]);
-  final minute = int.tryParse(parts[1]);
+    final hour = int.tryParse(parts[0]);
+    final minute = int.tryParse(parts[1]);
 
-  if (hour == null || minute == null) return null;
-  if (hour < 0 || hour > 23) return null;
-  if (minute < 0 || minute > 59) return null;
+    if (hour == null || minute == null) return null;
+    if (hour < 0 || hour > 23) return null;
+    if (minute < 0 || minute > 59) return null;
 
-  return TimeOfDay(hour: hour, minute: minute);
-}
+    return TimeOfDay(hour: hour, minute: minute);
+  }
 
   // 🔥 更新文字
   void _updateBusinessHoursText() {
@@ -130,24 +128,24 @@ TimeOfDay? _parseTimeOfDay(String value) {
     });
 
     await ShopService.instance.updateBusinessInfo(
-  shopId: widget.shopId,
-  isOpen: _isOpen,
-  businessHours: _businessHoursController.text,
-  openTime: _startTime == null
-      ? ''
-      : '${_startTime!.hour.toString().padLeft(2, '0')}:${_startTime!.minute.toString().padLeft(2, '0')}',
-  closeTime: _endTime == null
-      ? ''
-      : '${_endTime!.hour.toString().padLeft(2, '0')}:${_endTime!.minute.toString().padLeft(2, '0')}',
-  isPublic: _isPublic,
-  serviceTypes: _serviceTypes,
-);
+      shopId: widget.shopId,
+      isOpen: _isOpen,
+      businessHours: _businessHoursController.text,
+      openTime: _startTime == null
+          ? ''
+          : '${_startTime!.hour.toString().padLeft(2, '0')}:${_startTime!.minute.toString().padLeft(2, '0')}',
+      closeTime: _endTime == null
+          ? ''
+          : '${_endTime!.hour.toString().padLeft(2, '0')}:${_endTime!.minute.toString().padLeft(2, '0')}',
+      isPublic: _isPublic,
+      serviceTypes: _serviceTypes,
+    );
 
     if (!mounted) return;
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('已儲存')),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('已儲存')));
 
     Navigator.pop(context);
   }
@@ -155,15 +153,11 @@ TimeOfDay? _parseTimeOfDay(String value) {
   @override
   Widget build(BuildContext context) {
     if (_loading) {
-      return const Scaffold(
-        body: Center(child: CircularProgressIndicator()),
-      );
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('營業資訊'),
-      ),
+      appBar: AppBar(title: const Text('營業資訊')),
       body: Padding(
         padding: const EdgeInsets.all(16),
         child: ListView(
@@ -217,7 +211,6 @@ TimeOfDay? _parseTimeOfDay(String value) {
             ),
 
             const SizedBox(height: 20),
-
 
             /// 公開開關
             SwitchListTile(

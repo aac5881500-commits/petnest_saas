@@ -147,8 +147,8 @@ class _RoomCalendarPageState extends State<RoomCalendarPage> {
 
               final leadingEmptyDays = firstDayOfMonth.weekday % 7;
               final totalGridCount = daysInMonth + leadingEmptyDays;
-
-              return Column(
+              return ListView(
+                padding: EdgeInsets.zero,
                 children: [
                   Container(
                     width: double.infinity,
@@ -278,28 +278,30 @@ class _RoomCalendarPageState extends State<RoomCalendarPage> {
                   ),
 
                   /// 📅 月曆主卡片
-                  Expanded(
-                    child: Container(
-                      margin: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-                      padding: const EdgeInsets.only(top: 8),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(color: Colors.grey.shade200),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.03),
-                            blurRadius: 10,
-                            offset: const Offset(0, 4),
-                          ),
-                        ],
-                      ),
+                  Container(
+                    margin: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+                    padding: const EdgeInsets.only(top: 8),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: Colors.grey.shade200),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.03),
+                          blurRadius: 10,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
+                    ),
+                    child: SizedBox(
+                      height: 500,
                       child: GridView.builder(
+                        physics: const NeverScrollableScrollPhysics(),
                         padding: const EdgeInsets.fromLTRB(14, 10, 14, 18),
                         gridDelegate:
                             const SliverGridDelegateWithFixedCrossAxisCount(
                               crossAxisCount: 7,
-                              childAspectRatio: 0.72,
+                              childAspectRatio: 0.68,
                             ),
                         itemCount: totalGridCount,
                         itemBuilder: (context, index) {
@@ -421,7 +423,7 @@ class _RoomCalendarPageState extends State<RoomCalendarPage> {
                                     });
                                   },
                             child: Container(
-                              margin: const EdgeInsets.all(5),
+                              margin: const EdgeInsets.all(4),
                               padding: const EdgeInsets.symmetric(vertical: 6),
                               decoration: BoxDecoration(
                                 color: isDisabled
@@ -465,7 +467,9 @@ class _RoomCalendarPageState extends State<RoomCalendarPage> {
                                       fontSize: 16,
                                     ),
                                   ),
+
                                   const SizedBox(height: 4),
+
                                   Container(
                                     width: 10,
                                     height: 10,
@@ -493,7 +497,7 @@ class _RoomCalendarPageState extends State<RoomCalendarPage> {
                           : _selectedStatus,
                     ),
 
-                  SizedBox(height: 260, child: _roomActionLogsPanel()),
+                  _roomActionLogsPanel(),
 
                   /// 🔥 圖例
                   Container(

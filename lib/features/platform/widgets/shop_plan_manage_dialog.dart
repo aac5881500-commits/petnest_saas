@@ -327,174 +327,180 @@ class ShopPlanManageDialog extends StatelessWidget {
           ),
         ],
       ),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            shopName,
-            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900),
-          ),
-          const SizedBox(height: 14),
-
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              color: const Color(0xFFF9FAFB),
-              borderRadius: BorderRadius.circular(18),
-              border: Border.all(color: Colors.grey.shade200),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              shopName,
+              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900),
             ),
-            child: Column(
-              children: [
-                _infoRow('目前方案', _planLabel(plan)),
-                const SizedBox(height: 10),
-                _infoRow('到期日', _formatDate(shop['paidUntil'])),
-                const SizedBox(height: 10),
-                _infoRow('帳號狀態', _accountStatusLabel(accountStatus)),
-                if (accountStatus == 'restricted') ...[
+            const SizedBox(height: 14),
+
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF9FAFB),
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(color: Colors.grey.shade200),
+              ),
+              child: Column(
+                children: [
+                  _infoRow('目前方案', _planLabel(plan)),
                   const SizedBox(height: 10),
-                  _infoRow(
-                    '限制原因',
-                    (shop['restrictionReason']?.toString().trim().isNotEmpty ??
-                            false)
-                        ? shop['restrictionReason'].toString()
-                        : '未填寫',
-                  ),
+                  _infoRow('到期日', _formatDate(shop['paidUntil'])),
+                  const SizedBox(height: 10),
+                  _infoRow('帳號狀態', _accountStatusLabel(accountStatus)),
+                  if (accountStatus == 'restricted') ...[
+                    const SizedBox(height: 10),
+                    _infoRow(
+                      '限制原因',
+                      (shop['restrictionReason']
+                                  ?.toString()
+                                  .trim()
+                                  .isNotEmpty ??
+                              false)
+                          ? shop['restrictionReason'].toString()
+                          : '未填寫',
+                    ),
+                  ],
                 ],
+              ),
+            ),
+
+            const SizedBox(height: 18),
+
+            const Text(
+              '切換方案',
+              style: TextStyle(fontSize: 14, fontWeight: FontWeight.w900),
+            ),
+            const SizedBox(height: 10),
+
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                _actionChip(
+                  label: '免費版',
+                  icon: Icons.free_breakfast_outlined,
+                  color: Colors.grey,
+                  onTap: () => _updatePlan(context, 'free'),
+                ),
+                _actionChip(
+                  label: '999方案',
+                  icon: Icons.workspace_premium_outlined,
+                  color: Colors.blue,
+                  onTap: () => _updatePlan(context, 'basic'),
+                ),
+                _actionChip(
+                  label: '1999全模組',
+                  icon: Icons.auto_awesome_outlined,
+                  color: Colors.deepPurple,
+                  onTap: () => _updatePlan(context, 'pro'),
+                ),
               ],
             ),
-          ),
 
-          const SizedBox(height: 18),
+            const SizedBox(height: 18),
 
-          const Text(
-            '切換方案',
-            style: TextStyle(fontSize: 14, fontWeight: FontWeight.w900),
-          ),
-          const SizedBox(height: 10),
+            const Text(
+              '延長方案',
+              style: TextStyle(fontSize: 14, fontWeight: FontWeight.w900),
+            ),
+            const SizedBox(height: 10),
 
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              _actionChip(
-                label: '免費版',
-                icon: Icons.free_breakfast_outlined,
-                color: Colors.grey,
-                onTap: () => _updatePlan(context, 'free'),
-              ),
-              _actionChip(
-                label: '999方案',
-                icon: Icons.workspace_premium_outlined,
-                color: Colors.blue,
-                onTap: () => _updatePlan(context, 'basic'),
-              ),
-              _actionChip(
-                label: '1999全模組',
-                icon: Icons.auto_awesome_outlined,
-                color: Colors.deepPurple,
-                onTap: () => _updatePlan(context, 'pro'),
-              ),
-            ],
-          ),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                _actionChip(
+                  label: '+7天',
+                  icon: Icons.add_circle_outline,
+                  color: Colors.blue,
+                  onTap: () => _extendPaidUntil(context, 7),
+                ),
+                _actionChip(
+                  label: '+30天',
+                  icon: Icons.add_circle_outline,
+                  color: Colors.blue,
+                  onTap: () => _extendPaidUntil(context, 30),
+                ),
+                _actionChip(
+                  label: '自訂天數',
+                  icon: Icons.edit_calendar_outlined,
+                  color: Colors.purple,
+                  onTap: () => _showCustomDaysDialog(context),
+                ),
+              ],
+            ),
 
-          const SizedBox(height: 18),
+            const SizedBox(height: 18),
 
-          const Text(
-            '延長方案',
-            style: TextStyle(fontSize: 14, fontWeight: FontWeight.w900),
-          ),
-          const SizedBox(height: 10),
+            const Text(
+              '帳號限制',
+              style: TextStyle(fontSize: 14, fontWeight: FontWeight.w900),
+            ),
+            const SizedBox(height: 10),
 
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              _actionChip(
-                label: '+7天',
-                icon: Icons.add_circle_outline,
-                color: Colors.blue,
-                onTap: () => _extendPaidUntil(context, 7),
-              ),
-              _actionChip(
-                label: '+30天',
-                icon: Icons.add_circle_outline,
-                color: Colors.blue,
-                onTap: () => _extendPaidUntil(context, 30),
-              ),
-              _actionChip(
-                label: '自訂天數',
-                icon: Icons.edit_calendar_outlined,
-                color: Colors.purple,
-                onTap: () => _showCustomDaysDialog(context),
-              ),
-            ],
-          ),
-
-          const SizedBox(height: 18),
-
-          const Text(
-            '帳號限制',
-            style: TextStyle(fontSize: 14, fontWeight: FontWeight.w900),
-          ),
-          const SizedBox(height: 10),
-
-          SizedBox(
-            width: double.infinity,
-            child: OutlinedButton.icon(
-              onPressed: () => _showRestrictionReasonDialog(context),
-              icon: const Icon(Icons.edit_note_outlined, size: 18),
-              label: const Text('設定限制原因'),
-              style: OutlinedButton.styleFrom(
-                foregroundColor: Colors.blueGrey,
-                side: BorderSide(color: Colors.blueGrey.shade200),
-                padding: const EdgeInsets.symmetric(vertical: 13),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(14),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: () => _showRestrictionReasonDialog(context),
+                icon: const Icon(Icons.edit_note_outlined, size: 18),
+                label: const Text('設定限制原因'),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: Colors.blueGrey,
+                  side: BorderSide(color: Colors.blueGrey.shade200),
+                  padding: const EdgeInsets.symmetric(vertical: 13),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
                 ),
               ),
             ),
-          ),
 
-          const SizedBox(height: 10),
+            const SizedBox(height: 10),
 
-          Row(
-            children: [
-              Expanded(
-                child: OutlinedButton.icon(
-                  onPressed: () => _updateAccountStatus(context, 'restricted'),
-                  icon: const Icon(Icons.lock_outline, size: 18),
-                  label: const Text('限制模式'),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: Colors.orange,
-                    side: BorderSide(color: Colors.orange.shade300),
-                    padding: const EdgeInsets.symmetric(vertical: 13),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: () =>
+                        _updateAccountStatus(context, 'restricted'),
+                    icon: const Icon(Icons.lock_outline, size: 18),
+                    label: const Text('限制模式'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: Colors.orange,
+                      side: BorderSide(color: Colors.orange.shade300),
+                      padding: const EdgeInsets.symmetric(vertical: 13),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
                     ),
                   ),
                 ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: OutlinedButton.icon(
-                  onPressed: () => _updateAccountStatus(context, 'normal'),
-                  icon: const Icon(Icons.check_circle_outline, size: 18),
-                  label: const Text('解除限制'),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: Colors.green,
-                    side: BorderSide(color: Colors.green.shade300),
-                    padding: const EdgeInsets.symmetric(vertical: 13),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: () => _updateAccountStatus(context, 'normal'),
+                    icon: const Icon(Icons.check_circle_outline, size: 18),
+                    label: const Text('解除限制'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: Colors.green,
+                      side: BorderSide(color: Colors.green.shade300),
+                      padding: const EdgeInsets.symmetric(vertical: 13),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
                     ),
                   ),
                 ),
-              ),
-            ],
-          ),
-        ],
+              ],
+            ),
+          ],
+        ),
       ),
       actions: [
         SizedBox(

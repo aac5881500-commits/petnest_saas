@@ -112,17 +112,43 @@ class BookingDetailPaymentSection extends StatelessWidget {
         const SizedBox(height: 10),
 
         if (data['paymentMethod'] == 'transfer') ...[
-          _buildLast5Field(),
-          const SizedBox(height: 12),
-          _buildTransferImageBox(context),
-          const SizedBox(height: 12),
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton(
-              onPressed: _isLocked ? null : (loading ? null : onSubmitDeposit),
-              child: Text(loading ? '送出中...' : '送出付款資料'),
+          if (depositStatus == 'pending_review')
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.green.shade50,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.green.shade200),
+              ),
+              child: const Column(
+                children: [
+                  Icon(Icons.check_circle, color: Colors.green, size: 40),
+                  SizedBox(height: 8),
+                  Text(
+                    '已回傳轉帳證明',
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                  ),
+                  SizedBox(height: 4),
+                  Text('等待店家確認中', style: TextStyle(color: Colors.grey)),
+                ],
+              ),
+            )
+          else ...[
+            _buildLast5Field(),
+            const SizedBox(height: 12),
+            _buildTransferImageBox(context),
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: _isLocked
+                    ? null
+                    : (loading ? null : onSubmitDeposit),
+                child: Text(loading ? '送出中...' : '送出付款資料'),
+              ),
             ),
-          ),
+          ],
         ],
       ],
     );

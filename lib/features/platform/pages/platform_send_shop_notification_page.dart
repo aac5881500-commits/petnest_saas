@@ -38,6 +38,13 @@ class _PlatformSendShopNotificationPageState
     {'value': 'update', 'label': '功能更新'},
   ];
 
+  @override
+  void dispose() {
+    _titleController.dispose();
+    _contentController.dispose();
+    super.dispose();
+  }
+
   Future<void> _send() async {
     if (_titleController.text.trim().isEmpty) {
       ScaffoldMessenger.of(
@@ -70,6 +77,8 @@ class _PlatformSendShopNotificationPageState
 
       Navigator.pop(context);
     } catch (e) {
+      if (!mounted) return;
+
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text('送出失敗：$e')));

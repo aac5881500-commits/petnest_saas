@@ -406,6 +406,8 @@ class _ShopPublicPageState extends State<ShopPublicPage> {
                             if (result != true) return;
                           }
 
+                          if (!mounted) return;
+
                           Navigator.push(
                             context,
                             MaterialPageRoute(

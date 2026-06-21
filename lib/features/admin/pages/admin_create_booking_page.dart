@@ -319,6 +319,8 @@ class _AdminCreateBookingPageState extends State<AdminCreateBookingPage> {
       'updatedAt': FieldValue.serverTimestamp(),
     });
 
+    if (!mounted) return;
+
     setState(() {
       _selectedMember = {
         'userId': doc.id,
@@ -394,6 +396,8 @@ class _AdminCreateBookingPageState extends State<AdminCreateBookingPage> {
       'createdAt': FieldValue.serverTimestamp(),
       'updatedAt': FieldValue.serverTimestamp(),
     });
+
+    if (!mounted) return;
 
     setState(() {
       _selectedPetIds.add(doc.id);

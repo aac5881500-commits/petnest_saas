@@ -84,6 +84,9 @@ class _ShopBasicInfoPageState extends State<ShopBasicInfoPage> {
     _igInitialSetup = _igUrlController.text.trim().isEmpty;
 
     _fbInitialSetup = _fbUrlController.text.trim().isEmpty;
+
+    if (!mounted) return;
+
     setState(() => _loading = false);
   }
 
@@ -119,6 +122,8 @@ class _ShopBasicInfoPageState extends State<ShopBasicInfoPage> {
     _isInitialSetup =
         _phoneController.text.trim().isEmpty ||
         _addressController.text.trim().isEmpty;
+
+    if (!mounted) return;
 
     setState(() => _saving = false);
 

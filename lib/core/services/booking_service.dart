@@ -794,10 +794,11 @@ class BookingService {
     final bookings = await getShopBookings(shopId);
 
     for (final booking in bookings) {
-      if (booking['status'] == 'cancelled') continue;
+      final status = booking['status']?.toString() ?? '';
+
+      if (status == 'cancelled' || status == 'completed') continue;
 
       if (booking['roomId'] != roomId) continue;
-
       final bStart = _timestampToDate(booking['startDate']);
       final bEnd = _timestampToDate(booking['endDate']);
 

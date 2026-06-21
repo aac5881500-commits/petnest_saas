@@ -971,6 +971,20 @@ class _MemberPageState extends State<MemberPage> {
     );
   }
 
+  @override
+  void dispose() {
+    _phoneController.dispose();
+    _nameController.dispose();
+    _detailAddressController.dispose();
+
+    _emergencyNameController.dispose();
+    _emergencyPhoneController.dispose();
+    _emergencyRelationController.dispose();
+    _emergencyAddressController.dispose();
+
+    super.dispose();
+  }
+
   Widget _buildSectionCard({
     required String title,
     required List<Widget> children,

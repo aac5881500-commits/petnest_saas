@@ -9,16 +9,10 @@ import 'package:petnest_saas/features/admin/widgets/booking_status_filter.dart';
 import 'package:petnest_saas/features/admin/widgets/booking_sort_bar.dart';
 import 'package:petnest_saas/features/admin/widgets/booking_order_card.dart';
 import 'package:petnest_saas/features/admin/widgets/booking_advanced_filter_button.dart';
-import 'package:petnest_saas/dev/dev_fake_booking_generator.dart';
 import 'package:petnest_saas/features/admin/pages/admin_booking_history_page.dart';
 import 'package:petnest_saas/features/admin/pages/admin_create_booking_page.dart';
 import 'package:petnest_saas/core/services/shop_permission_service.dart';
 import 'package:petnest_saas/core/services/shop_service.dart';
-
-//關閉測試 生成定安
-const bool kDevMode = false;
-//打開測試 生成訂單
-//const bool kDevMode = true;
 
 class AdminBookingListPage extends StatefulWidget {
   const AdminBookingListPage({
@@ -61,23 +55,6 @@ class _AdminBookingListPageState extends State<AdminBookingListPage> {
       appBar: AppBar(
         title: const Text('訂單管理'),
         actions: [
-          if (kDevMode)
-            IconButton(
-              tooltip: '產生測試訂單',
-              icon: const Icon(Icons.bug_report),
-              onPressed: () async {
-                await DevFakeBookingGenerator.generate(
-                  shopId: widget.shopId,
-                  count: 50,
-                );
-
-                if (!context.mounted) return;
-
-                ScaffoldMessenger.of(
-                  context,
-                ).showSnackBar(const SnackBar(content: Text('已產生 50 筆測試訂單')));
-              },
-            ),
           StreamBuilder<Map<String, dynamic>?>(
             stream: ShopService.instance.streamShop(widget.shopId),
             builder: (context, shopSnapshot) {
