@@ -58,9 +58,6 @@ class PetService {
         .child('pets')
         .child(_uid)
         .child('$petId.jpg');
-    debugPrint(
-      '🐾 upload pet photo uid=$_uid petId=$petId path=pets/$_uid/$petId.jpg',
-    );
 
     /// 🔥 覆蓋上傳
     await ref.putData(uploadData, SettableMetadata(contentType: 'image/jpeg'));

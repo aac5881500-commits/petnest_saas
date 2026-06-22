@@ -524,7 +524,6 @@ class _ShopBookingPageState extends State<ShopBookingPage> {
         _tempEndDate = null;
       });
 
-      print('👉 第一次點: $tapped');
       return;
     }
 
@@ -576,7 +575,6 @@ class _ShopBookingPageState extends State<ShopBookingPage> {
             _rangeMessage = ''; // 🔥 清掉錯誤訊息
           });
 
-          print('👉 同一天自動+1天');
           return;
         }
 
@@ -587,7 +585,6 @@ class _ShopBookingPageState extends State<ShopBookingPage> {
           _rangeMessage = ''; // 🔥 清掉
         });
 
-        print('👉 重新選開始: $tapped');
         return;
       }
 
@@ -622,7 +619,6 @@ class _ShopBookingPageState extends State<ShopBookingPage> {
         _rangeMessage = ''; // 🔥 清掉
       });
 
-      print('👉 設定區間: $_tempStartDate ~ $_tempEndDate');
       return;
     }
   }

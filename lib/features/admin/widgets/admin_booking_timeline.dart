@@ -19,6 +19,12 @@ class AdminBookingTimeline extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final depositAmount = data['depositAmount'] ?? 0;
+    final paymentMethod = data['paymentMethod']?.toString() ?? '';
+    final hasDeposit =
+        depositAmount > 0 &&
+        (paymentMethod == 'transfer' || paymentMethod == 'cash');
+
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(14),
@@ -27,10 +33,7 @@ class AdminBookingTimeline extends StatelessWidget {
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 10,
-          ),
+          BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10),
         ],
       ),
       child: Column(
@@ -41,12 +44,19 @@ class AdminBookingTimeline extends StatelessWidget {
             active: true,
           ),
 
-          if (depositRequired)
+          if (hasDeposit) ...[
             _timelineItem(
               title: '付款 / 訂單保留期限',
               time: adminBookingFormatDateTime(data['depositExpireAt']),
               active: data['depositExpireAt'] != null,
             ),
+
+            _timelineItem(
+              title: '客戶已回傳付款資料',
+              time: adminBookingFormatDateTime(data['depositSubmittedAt']),
+              active: data['depositSubmittedAt'] != null,
+            ),
+          ],
 
           _timelineItem(
             title: '店家已確認',
@@ -104,19 +114,11 @@ class AdminBookingTimeline extends StatelessWidget {
                 shape: BoxShape.circle,
               ),
               child: active
-                  ? const Icon(
-                      Icons.check,
-                      size: 13,
-                      color: Colors.white,
-                    )
+                  ? const Icon(Icons.check, size: 13, color: Colors.white)
                   : null,
             ),
             if (!isLast)
-              Container(
-                width: 2,
-                height: 38,
-                color: Colors.grey.shade300,
-              ),
+              Container(width: 2, height: 38, color: Colors.grey.shade300),
           ],
         ),
 

@@ -156,23 +156,16 @@ class ShopService {
     if (existing.docs.isNotEmpty) {
       throw Exception('你已經建立過店家了');
     }
-    print('🔥 開始驗證激活碼: $activationCode');
 
     final activationError = await PlatformActivationCodeService.instance
         .validateCode(activationCode);
-
-    print('🔥 激活碼驗證完成: $activationError');
 
     if (activationError != null) {
       throw Exception(activationError);
     }
 
-    print('🔥 開始讀取激活碼資料');
-
     final activationCodeData = await PlatformActivationCodeService.instance
         .getCode(activationCode);
-
-    print('🔥 激活碼資料: $activationCodeData');
 
     if (activationCodeData == null) {
       throw Exception('找不到此激活碼');
@@ -353,8 +346,6 @@ class ShopService {
 
   /// 取得我的店家
   Future<List<Map<String, dynamic>>> getMyShops() async {
-    print('🔥🔥🔥 getMyShops 開始執行');
-
     final user = _currentUser;
     if (user == null) throw Exception('未登入');
 
@@ -362,10 +353,6 @@ class ShopService {
         .where('uid', isEqualTo: user.uid)
         .get();
 
-    print('========');
-    print('登入UID: ${user.uid}');
-    print('店家數量: ${memberSnapshot.docs.length}');
-    print('========');
     final List<Map<String, dynamic>> result = [];
 
     for (final doc in memberSnapshot.docs) {

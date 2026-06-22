@@ -41,8 +41,8 @@ class ActionLogService {
       'targetId': targetId,
       'action': action,
       'operatorUid': operatorUid,
-'operatorEmail': user?.email ?? '',
-'operatorRole': operatorRole,
+      'operatorEmail': user?.email ?? '',
+      'operatorRole': operatorRole,
       'payload': payload ?? <String, dynamic>{},
       'createdAt': FieldValue.serverTimestamp(),
     });
@@ -51,18 +51,14 @@ class ActionLogService {
   /// 監聽店家最新 20 筆操作紀錄
   Stream<List<Map<String, dynamic>>> streamShopLogs(String shopId) {
     return _actionLogs
-    .where('shopId', isEqualTo: shopId)
-    .orderBy('createdAt', descending: true)
-    .limit(20)
-    .snapshots()
-    .map((snapshot) {
-      print('操作紀錄抓取筆數: ${snapshot.docs.length}');
-  return snapshot.docs.map((doc) {
-    return {
-      'id': doc.id,
-      ...doc.data(),
-    };
-  }).toList();
-});
+        .where('shopId', isEqualTo: shopId)
+        .orderBy('createdAt', descending: true)
+        .limit(20)
+        .snapshots()
+        .map((snapshot) {
+          return snapshot.docs.map((doc) {
+            return {'id': doc.id, ...doc.data()};
+          }).toList();
+        });
   }
 }

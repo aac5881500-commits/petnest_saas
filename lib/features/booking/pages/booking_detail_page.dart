@@ -45,6 +45,8 @@ class _BookingDetailPageState extends State<BookingDetailPage> {
   bool _loading = false;
   bool _autoCancelling = false;
   Timer? _expireTimer;
+  final GlobalKey _messageSectionKey = GlobalKey();
+  final ScrollController _scrollController = ScrollController();
 
   @override
   void initState() {
@@ -56,6 +58,7 @@ class _BookingDetailPageState extends State<BookingDetailPage> {
     _expireTimer?.cancel();
     _last5Controller.dispose();
     _last5FocusNode.dispose();
+    _scrollController.dispose();
     super.dispose();
   }
 
@@ -135,6 +138,15 @@ class _BookingDetailPageState extends State<BookingDetailPage> {
                   padding: const EdgeInsets.only(left: 12),
                   child: TextButton.icon(
                     onPressed: () async {
+                      if (depositStatus == 'pending_review') {
+                        _scrollToMessageSection();
+
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('已帶你到留言區')),
+                        );
+                        return;
+                      }
+
                       final cancelReason = await _showCancelReasonDialog(
                         context,
                       );
@@ -146,16 +158,30 @@ class _BookingDetailPageState extends State<BookingDetailPage> {
                         cancelReason: cancelReason,
                         cancelBy: 'customer',
                       );
+
                       if (context.mounted) {
                         ScaffoldMessenger.of(
                           context,
                         ).showSnackBar(const SnackBar(content: Text('訂單已取消')));
                       }
                     },
-                    icon: const Icon(Icons.close, color: Colors.red, size: 18),
-                    label: const Text(
-                      '取消',
-                      style: TextStyle(color: Colors.red, fontSize: 14),
+                    icon: Icon(
+                      depositStatus == 'pending_review'
+                          ? Icons.chat_bubble_outline
+                          : Icons.close,
+                      color: depositStatus == 'pending_review'
+                          ? Colors.blue
+                          : Colors.red,
+                      size: 18,
+                    ),
+                    label: Text(
+                      depositStatus == 'pending_review' ? '聯絡店家' : '取消',
+                      style: TextStyle(
+                        color: depositStatus == 'pending_review'
+                            ? Colors.blue
+                            : Colors.red,
+                        fontSize: 14,
+                      ),
                     ),
                   ),
                 ),
@@ -234,6 +260,7 @@ class _BookingDetailPageState extends State<BookingDetailPage> {
           body: Padding(
             padding: const EdgeInsets.all(16),
             child: ListView(
+              controller: _scrollController,
               children: [
                 /// 🏠 房型卡（完全後台版🔥）
                 BookingDetailStatusCard(data: data),
@@ -391,6 +418,7 @@ class _BookingDetailPageState extends State<BookingDetailPage> {
                 ),
 
                 /// 💰 訂金提示
+                /// 💰 訂金提示
                 if ((data['depositAmount'] ?? 0) > 0 &&
                     (data['paymentMethod'] == 'transfer' ||
                         data['paymentMethod'] == 'cash') &&
@@ -399,35 +427,23 @@ class _BookingDetailPageState extends State<BookingDetailPage> {
                     padding: const EdgeInsets.all(10),
                     margin: const EdgeInsets.only(bottom: 10),
                     decoration: BoxDecoration(
-                      color: Colors.red.shade50,
+                      color: depositStatus == 'pending_review'
+                          ? Colors.green.shade50
+                          : Colors.red.shade50,
                       borderRadius: BorderRadius.circular(10),
                     ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          '⚠️ 請依店家規定完成訂金付款，訂單才會成立',
-                          style: TextStyle(
-                            color: Colors.red,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-
-                        if (data['depositExpireAt'] != null)
-                          Padding(
-                            padding: const EdgeInsets.only(top: 6),
-                            child: Text(
-                              '付款期限：${_formatDateTime(data['depositExpireAt'])}',
-                              style: TextStyle(
-                                color: Colors.red.shade700,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ),
-                      ],
+                    child: Text(
+                      depositStatus == 'pending_review'
+                          ? '✅ 已回傳轉帳證明，等待店家確認\n回傳時間：${_formatDateTime(data['depositSubmittedAt']) ?? '剛剛'}'
+                          : '⚠️ 請依店家規定完成訂金付款，訂單才會成立\n付款期限：${_formatDateTime(data['depositExpireAt']) ?? '未設定'}',
+                      style: TextStyle(
+                        color: depositStatus == 'pending_review'
+                            ? Colors.green
+                            : Colors.red,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                   ),
-
                 if ((data['depositAmount'] ?? 0) <= 0 ||
                     data['paymentMethod'] == 'cash')
                   Container(
@@ -458,12 +474,14 @@ class _BookingDetailPageState extends State<BookingDetailPage> {
                   onDeleteTransferImage: _deleteTransferImage,
                 ),
 
-                BookingDetailMessageSection(
-                  bookingId: widget.docId,
-                  senderType: 'customer',
-                  bookingStatus: bookingStatus.toString(),
+                Container(
+                  key: _messageSectionKey,
+                  child: BookingDetailMessageSection(
+                    bookingId: widget.docId,
+                    senderType: 'customer',
+                    bookingStatus: bookingStatus.toString(),
+                  ),
                 ),
-
                 const SizedBox(height: 16),
 
                 BookingDetailAfterCheckoutSection(
@@ -478,6 +496,18 @@ class _BookingDetailPageState extends State<BookingDetailPage> {
         );
       },
     );
+  }
+
+  void _scrollToMessageSection() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!_scrollController.hasClients) return;
+
+      _scrollController.animateTo(
+        _scrollController.position.maxScrollExtent,
+        duration: const Duration(milliseconds: 500),
+        curve: Curves.easeInOut,
+      );
+    });
   }
 
   Future<String?> _showCancelReasonDialog(BuildContext context) async {
