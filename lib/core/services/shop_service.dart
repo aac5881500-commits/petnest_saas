@@ -334,13 +334,14 @@ class ShopService {
     });
 
     try {
+      print('🔥 準備 batch commit');
       await batch.commit();
+      print('✅ batch commit 成功');
     } catch (e, st) {
       print('🔥 建立店家 batch commit 失敗: $e');
       print(st);
       rethrow;
     }
-
     return shopRef.id;
   }
 

@@ -9,11 +9,15 @@ import 'package:petnest_saas/features/auth/pages/login_page.dart';
 import 'package:petnest_saas/firebase_options.dart';
 import 'package:petnest_saas/features/member/pages/member_page.dart';
 import 'package:petnest_saas/features/shop/pages/shop_code_redirect_page.dart';
+import 'package:flutter/foundation.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  await SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
+  // 📱 只在手機 App 鎖直向；Web 後台不鎖方向
+  if (!kIsWeb) {
+    await SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
+  }
 
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
 
@@ -35,6 +39,9 @@ class PetNestApp extends StatelessWidget {
         '/member': (context) => const MemberPage(),
         '/login': (context) => const LoginPage(),
         '/home': (context) => const HomePage(),
+
+        // 🖥️ 店家 Web 後台入口
+        '/admin': (context) => const AppEntryPage(),
       },
 
       onGenerateRoute: (settings) {
