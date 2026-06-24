@@ -1,0 +1,77 @@
+The following plugins do not support Swift Package Manager for ios:
+  - mobile_scanner
+This will become an error in a future version of Flutter. Please contact the plugin maintainers to request Swift Package Manager adoption.
+Building com.example.petnestSaas for device (ios-release)...
+Automatically signing iOS for device deployment using specified development team in Xcode project: RZMHKCA8X5
+The following target(s) do not support arm64 architecture, which is a requirement for Apple Silicon iOS 26+ simulators:
+  - GoogleMLKit (transitive dependency of Flutter plugin mobile_scanner)
+  - MLImage (transitive dependency of Flutter plugin mobile_scanner)
+  - MLKitBarcodeScanning (transitive dependency of Flutter plugin mobile_scanner)
+  - MLKitCommon (transitive dependency of Flutter plugin mobile_scanner)
+  - MLKitVision (transitive dependency of Flutter plugin mobile_scanner)
+
+Please contact plugin maintainers to request arm64 support to continue to be able to use the plugin on a simulator.
+Running Xcode build...                                          
+Xcode build done.                                           29.7s
+Failed to build iOS app
+Error output from Xcode build:
+↳
+    ** BUILD FAILED **
+
+
+Xcode's output:
+↳
+    Writing result bundle at path:
+    	/var/folders/2l/6tbq_8fx5b7bqjf63h135r6w0000gn/T/flutter_tools.N7kxbx/flutter_ios_build_temp_dir2HAH2p/temporary_xcresult_bundle
+
+    ../../.pub-cache/hosted/pub.dev/font_awesome_flutter-10.12.0/lib/src/icon_data.dart:6:30: Error: The class 'IconData' can't be extended outside of its library because it's a final class.
+    class IconDataBrands extends IconData {
+                                 ^
+    ../../.pub-cache/hosted/pub.dev/font_awesome_flutter-10.12.0/lib/src/icon_data.dart:17:29: Error: The class 'IconData' can't be extended outside of its library because it's a final class.
+    class IconDataSolid extends IconData {
+                                ^
+    ../../.pub-cache/hosted/pub.dev/font_awesome_flutter-10.12.0/lib/src/icon_data.dart:28:31: Error: The class 'IconData' can't be extended outside of its library because it's a final class.
+    class IconDataRegular extends IconData {
+                                  ^
+    ../../.pub-cache/hosted/pub.dev/font_awesome_flutter-10.12.0/lib/src/icon_data.dart:40:29: Error: The class 'IconData' can't be extended outside of its library because it's a final class.
+    class IconDataLight extends IconData {
+                                ^
+    ../../.pub-cache/hosted/pub.dev/font_awesome_flutter-10.12.0/lib/src/icon_data.dart:53:31: Error: The class 'IconData' can't be extended outside of its library because it's a final class.
+    class IconDataDuotone extends IconData {
+                                  ^
+    ../../.pub-cache/hosted/pub.dev/font_awesome_flutter-10.12.0/lib/src/icon_data.dart:71:28: Error: The class 'IconData' can't be extended outside of its library because it's a final class.
+    class IconDataThin extends IconData {
+                               ^
+    ../../.pub-cache/hosted/pub.dev/font_awesome_flutter-10.12.0/lib/src/icon_data.dart:80:33: Error: The class 'IconData' can't be extended outside of its library because it's a final class.
+    class IconDataSharpThin extends IconData {
+                                    ^
+    ../../.pub-cache/hosted/pub.dev/font_awesome_flutter-10.12.0/lib/src/icon_data.dart:92:34: Error: The class 'IconData' can't be extended outside of its library because it's a final class.
+    class IconDataSharpLight extends IconData {
+                                     ^
+    ../../.pub-cache/hosted/pub.dev/font_awesome_flutter-10.12.0/lib/src/icon_data.dart:104:36: Error: The class 'IconData' can't be extended outside of its library because it's a final class.
+    class IconDataSharpRegular extends IconData {
+                                       ^
+    ../../.pub-cache/hosted/pub.dev/font_awesome_flutter-10.12.0/lib/src/icon_data.dart:116:34: Error: The class 'IconData' can't be extended outside of its library because it's a final class.
+    class IconDataSharpSolid extends IconData {
+                                     ^
+    Target kernel_snapshot_program failed: Exception
+    Failed to package /Users/liuchihcheng/dovelopment/petnest_saas.
+    Command PhaseScriptExecution failed with a nonzero exit code
+    /Users/liuchihcheng/dovelopment/petnest_saas/ios/Pods/Pods.xcodeproj: warning: The iOS deployment target 'IPHONEOS_DEPLOYMENT_TARGET' is set to 9.0, but the range of supported deployment target versions is 12.0 to 26.5.99. (in target 'nanopb-nanopb_Privacy' from project 'Pods')
+    /Users/liuchihcheng/dovelopment/petnest_saas/ios/Pods/Pods.xcodeproj: warning: The iOS deployment target 'IPHONEOS_DEPLOYMENT_TARGET' is set to 9.0, but the range of supported deployment target versions is 12.0 to 26.5.99. (in target 'PromisesObjC-FBLPromises_Privacy' from project 'Pods')
+    /Users/liuchihcheng/dovelopment/petnest_saas/ios/Pods/Pods.xcodeproj: warning: The iOS deployment target 'IPHONEOS_DEPLOYMENT_TARGET' is set to 10.0, but the range of supported deployment target versions is 12.0 to 26.5.99. (in target 'GoogleToolboxForMac-GoogleToolboxForMac_Privacy' from project 'Pods')
+    /Users/liuchihcheng/dovelopment/petnest_saas/ios/Pods/Pods.xcodeproj: warning: The iOS deployment target 'IPHONEOS_DEPLOYMENT_TARGET' is set to 10.0, but the range of supported deployment target versions is 12.0 to 26.5.99. (in target 'GoogleToolboxForMac-GoogleToolboxForMac_Logger_Privacy' from project 'Pods')
+    /Users/liuchihcheng/dovelopment/petnest_saas/ios/Pods/Pods.xcodeproj: warning: The iOS deployment target 'IPHONEOS_DEPLOYMENT_TARGET' is set to 9.0, but the range of supported deployment target versions is 12.0 to 26.5.99. (in target 'nanopb' from project 'Pods')
+    /Users/liuchihcheng/dovelopment/petnest_saas/ios/Pods/Pods.xcodeproj: warning: The iOS deployment target 'IPHONEOS_DEPLOYMENT_TARGET' is set to 9.0, but the range of supported deployment target versions is 12.0 to 26.5.99. (in target 'PromisesObjC' from project 'Pods')
+    /Users/liuchihcheng/dovelopment/petnest_saas/ios/Pods/Pods.xcodeproj: warning: The iOS deployment target 'IPHONEOS_DEPLOYMENT_TARGET' is set to 10.0, but the range of supported deployment target versions is 12.0 to 26.5.99. (in target 'GoogleToolboxForMac' from project 'Pods')
+    /Users/liuchihcheng/dovelopment/petnest_saas/ios/Pods/Pods.xcodeproj: warning: The iOS deployment target 'IPHONEOS_DEPLOYMENT_TARGET' is set to 10.0, but the range of supported deployment target versions is 12.0 to 26.5.99. (in target 'GTMSessionFetcher-GTMSessionFetcher_Core_Privacy' from project 'Pods')
+    /Users/liuchihcheng/dovelopment/petnest_saas/ios/Pods/Pods.xcodeproj: warning: The iOS deployment target 'IPHONEOS_DEPLOYMENT_TARGET' is set to 10.0, but the range of supported deployment target versions is 12.0 to 26.5.99. (in target 'GTMSessionFetcher' from project 'Pods')
+    /Users/liuchihcheng/dovelopment/petnest_saas/ios/Pods/Pods.xcodeproj: warning: The iOS deployment target 'IPHONEOS_DEPLOYMENT_TARGET' is set to 9.0, but the range of supported deployment target versions is 12.0 to 26.5.99. (in target 'GoogleUtilities-GoogleUtilities_Privacy' from project 'Pods')
+    /Users/liuchihcheng/dovelopment/petnest_saas/ios/Pods/Pods.xcodeproj: warning: The iOS deployment target 'IPHONEOS_DEPLOYMENT_TARGET' is set to 9.0, but the range of supported deployment target versions is 12.0 to 26.5.99. (in target 'GoogleUtilities' from project 'Pods')
+    /Users/liuchihcheng/dovelopment/petnest_saas/ios/Pods/Pods.xcodeproj: warning: The iOS deployment target 'IPHONEOS_DEPLOYMENT_TARGET' is set to 9.0, but the range of supported deployment target versions is 12.0 to 26.5.99. (in target 'GoogleDataTransport-GoogleDataTransport_Privacy' from project 'Pods')
+    /Users/liuchihcheng/dovelopment/petnest_saas/ios/Pods/Pods.xcodeproj: warning: The iOS deployment target 'IPHONEOS_DEPLOYMENT_TARGET' is set to 10.0, but the range of supported deployment target versions is 12.0 to 26.5.99. (in target 'GoogleUtilitiesComponents' from project 'Pods')
+    /Users/liuchihcheng/dovelopment/petnest_saas/ios/Pods/Pods.xcodeproj: warning: The iOS deployment target 'IPHONEOS_DEPLOYMENT_TARGET' is set to 9.0, but the range of supported deployment target versions is 12.0 to 26.5.99. (in target 'GoogleDataTransport' from project 'Pods')
+    note: Run script build phase 'Run Script' will be run during every build because the option to run the script phase "Based on dependency analysis" is unchecked. (in target 'Runner' from project 'Runner')
+    note: Run script build phase 'Thin Binary' will be run during every build because the option to run the script phase "Based on dependency analysis" is unchecked. (in target 'Runner' from project 'Runner')
+
+Encountered error while building for device.

@@ -996,30 +996,31 @@ class _ShopPublicPageState extends State<ShopPublicPage> {
   }
 
   Widget _buildSocialButton({
-    required FaIconData icon,
-    required String? url,
-    required Color activeColor,
-  }) {
-    final isActive = (url ?? '').isNotEmpty;
+  required FaIconData icon,
+  required String? url,
+  required Color activeColor,
+}) {
+  final isActive = (url ?? '').isNotEmpty;
 
-    return GestureDetector(
-      onTap: isActive ? () => _openUrl(url!) : null,
-      child: Container(
-        width: 40,
-        height: 40,
-        decoration: BoxDecoration(
-          color: isActive ? Colors.blue.shade50 : Colors.grey.shade200,
-          shape: BoxShape.circle,
-        ),
+  return GestureDetector(
+    onTap: isActive ? () => _openUrl(url!) : null,
+    child: Container(
+      width: 40,
+      height: 40,
+      decoration: BoxDecoration(
+        color: isActive ? Colors.blue.shade50 : Colors.grey.shade200,
+        shape: BoxShape.circle,
+      ),
+      child: Center(
         child: FaIcon(
           icon,
           size: 28,
           color: isActive ? activeColor : Colors.grey,
         ),
       ),
-    );
-  }
-
+    ),
+  );
+}
   String _announcementTypeLabel(String type) {
     switch (type) {
       case 'important':
