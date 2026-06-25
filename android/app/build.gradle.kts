@@ -18,7 +18,7 @@ if (keystorePropertiesFile.exists()) {
 }
 
 android {
-    namespace = "com.example.petnest_saas"
+    namespace = "com.petnest.saas"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 

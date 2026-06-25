@@ -996,7 +996,7 @@ class _ShopPublicPageState extends State<ShopPublicPage> {
   }
 
   Widget _buildSocialButton({
-    required IconData icon,
+    required FaIconData icon,
     required String? url,
     required Color activeColor,
   }) {
@@ -1011,7 +1011,7 @@ class _ShopPublicPageState extends State<ShopPublicPage> {
           color: isActive ? Colors.blue.shade50 : Colors.grey.shade200,
           shape: BoxShape.circle,
         ),
-        child: Icon(
+        child: FaIcon(
           icon,
           size: 28,
           color: isActive ? activeColor : Colors.grey,

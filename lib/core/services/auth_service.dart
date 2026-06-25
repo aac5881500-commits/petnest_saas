@@ -12,6 +12,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:petnest_saas/core/services/shop_service.dart';
+import 'package:flutter/foundation.dart';
 
 class AuthService {
   AuthService._();
@@ -55,8 +56,8 @@ class AuthService {
 
       return userCredential;
     } catch (e) {
-      print('Google 登入錯誤: $e');
-      return null;
+      debugPrint('Google 登入錯誤: $e');
+      rethrow;
     }
   }
 
