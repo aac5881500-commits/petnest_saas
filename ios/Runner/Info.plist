@@ -66,7 +66,20 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
+			<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>com.googleusercontent.apps.38879325834-ddhteoct0pqor0hourau6kknd0cl3qt4</string>
+			</array>
+		</dict>
+	</array>
 	<key>NSCameraUsageDescription</key>
 	<string>需要使用相機拍攝寵物照片、住宿紀錄或轉帳憑證。</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>需要使用相簿選擇寵物照片、住宿紀錄或轉帳憑證。</string>
 </dict>
 </plist>
