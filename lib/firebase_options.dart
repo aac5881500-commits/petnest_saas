@@ -23,10 +23,8 @@ class DefaultFirebaseOptions {
       case TargetPlatform.android:
         return android;
       case TargetPlatform.iOS:
-        throw UnsupportedError(
-          'DefaultFirebaseOptions have not been configured for ios - '
-          'you can reconfigure this by running the FlutterFire CLI again.',
-        );
+        return ios;
+
       case TargetPlatform.macOS:
         throw UnsupportedError(
           'DefaultFirebaseOptions have not been configured for macos - '
@@ -65,5 +63,14 @@ class DefaultFirebaseOptions {
     messagingSenderId: '38879325834',
     projectId: 'petnest-saas',
     storageBucket: 'petnest-saas.firebasestorage.app',
+  );
+
+  static const FirebaseOptions ios = FirebaseOptions(
+    apiKey: 'AIzaSyAzTtUP6f-uQUZcVMY5oP1XPX8DIjiHurg',
+    appId: '1:38879325834:ios:b6bfb27139fb4d08d40773',
+    messagingSenderId: '38879325834',
+    projectId: 'petnest-saas',
+    storageBucket: 'petnest-saas.firebasestorage.app',
+    iosBundleId: 'com.liuchihcheng.petnestSaas',
   );
 }
