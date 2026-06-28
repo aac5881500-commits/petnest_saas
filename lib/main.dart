@@ -10,6 +10,7 @@ import 'package:petnest_saas/firebase_options.dart';
 import 'package:petnest_saas/features/member/pages/member_page.dart';
 import 'package:petnest_saas/features/shop/pages/shop_code_redirect_page.dart';
 import 'package:flutter/foundation.dart';
+import 'package:petnest_saas/core/services/fcm_token_service.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -20,6 +21,8 @@ Future<void> main() async {
   }
 
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+
+  FcmTokenService.instance.listenTokenRefresh();
 
   runApp(const PetNestApp());
 }
@@ -149,6 +152,10 @@ class AppEntryPage extends StatelessWidget {
         }
 
         if (snapshot.hasData) {
+          Future.microtask(() {
+            FcmTokenService.instance.saveCurrentUserToken();
+          });
+
           return const HomePage();
         }
 

@@ -107,7 +107,7 @@ class _AdminBookingListPageState extends State<AdminBookingListPage> {
             onTap: () {
               ScaffoldMessenger.of(
                 context,
-              ).showSnackBar(const SnackBar(content: Text('進階篩選功能開發中')));
+              ).showSnackBar(const SnackBar(content: Text('此功能將於後續版本提供')));
             },
           ),
 

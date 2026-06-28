@@ -39,6 +39,21 @@ service cloud.firestore {
       allow read: if isSelf(uid) || isRootAdmin();
       allow create, update: if isSelf(uid) || isRootAdmin();
       allow delete: if false;
+            // 🔔 使用者 FCM 推播 Token
+      match /fcm_tokens/{tokenId} {
+        allow read: if isSelf(uid) || isRootAdmin();
+
+        allow create, update: if isSelf(uid)
+          && request.resource.data.keys().hasOnly([
+            'token',
+            'platform',
+            'createdAt',
+            'updatedAt'
+          ])
+          && request.resource.data.token == tokenId;
+
+        allow delete: if isSelf(uid) || isRootAdmin();
+      }
 
       // 📜 個人條款同意紀錄
       match /policy_acceptances/{shopId} {
@@ -319,6 +334,22 @@ match /member_link_requests/{requestId} {
     isRootAdmin()
   );
   allow delete: if false;
+}
+
+// 🗑️ 帳號刪除申請
+match /account_delete_requests/{requestId} {
+
+  allow create: if signedIn()
+    && request.resource.data.uid == request.auth.uid
+    && request.resource.data.status == 'pending';
+
+  allow read: if signedIn()
+    && (
+      isRootAdmin()
+      || resource.data.uid == request.auth.uid
+    );
+
+  allow update, delete: if isRootAdmin();
 }
 
   match /booking_counters/{shopId} {

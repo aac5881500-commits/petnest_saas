@@ -133,7 +133,7 @@ class _ReportCard extends StatelessWidget {
         title: Text(title),
         subtitle: Text(subtitle),
         trailing: onTap == null
-            ? const Chip(label: Text('開發中'))
+            ? const Chip(label: Text('此功能將於後續版本提供'))
             : const Icon(Icons.chevron_right),
         onTap: onTap,
       ),

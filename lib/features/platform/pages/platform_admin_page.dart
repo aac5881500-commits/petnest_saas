@@ -10,6 +10,7 @@ import 'package:petnest_saas/features/platform/pages/platform_policy_manage_page
 import 'package:petnest_saas/features/platform/pages/platform_activation_code_manage_page.dart';
 import 'package:petnest_saas/features/platform/pages/platform_shop_request_manage_page.dart';
 import 'package:petnest_saas/features/platform/pages/platform_contact_request_list_page.dart';
+import 'package:petnest_saas/features/platform/pages/platform_account_delete_request_page.dart';
 
 class PlatformAdminPage extends StatelessWidget {
   const PlatformAdminPage({super.key});
@@ -129,6 +130,33 @@ class PlatformAdminPage extends StatelessWidget {
                 MaterialPageRoute(
                   builder: (_) => const PlatformMemberManagePage(),
                 ),
+              );
+            },
+          ),
+
+          const SizedBox(height: 12),
+
+          StreamBuilder<QuerySnapshot>(
+            stream: FirebaseFirestore.instance
+                .collection('account_delete_requests')
+                .where('status', isEqualTo: 'pending')
+                .snapshots(),
+            builder: (context, snapshot) {
+              final count = snapshot.data?.docs.length ?? 0;
+
+              return _AdminEntryCard(
+                icon: Icons.delete_outline,
+                title: '帳號刪除申請',
+                subtitle: '查看會員刪除帳號申請與處理狀態',
+                badgeCount: count,
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const PlatformAccountDeleteRequestPage(),
+                    ),
+                  );
+                },
               );
             },
           ),

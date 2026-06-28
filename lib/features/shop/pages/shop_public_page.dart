@@ -499,7 +499,7 @@ class _ShopPublicPageState extends State<ShopPublicPage> {
                             subtitle: '即時查看毛孩狀況',
                             onTap: () {
                               ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(content: Text('攝影機功能尚未開放')),
+                                const SnackBar(content: Text('攝影機功能將於後續版本提供')),
                               );
                             },
                           ),
@@ -518,22 +518,12 @@ class _ShopPublicPageState extends State<ShopPublicPage> {
                             },
                           ),
                           ShopTemplateFeatureCard(
-                            icon: Icons.card_giftcard,
-                            title: '優惠活動',
-                            subtitle: '限時優惠・活動方案',
-                            onTap: () {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(content: Text('優惠活動尚未開放')),
-                              );
-                            },
-                          ),
-                          ShopTemplateFeatureCard(
                             icon: Icons.star,
                             title: '評價專區',
                             subtitle: '顧客評價・真實回饋',
                             onTap: () {
                               ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(content: Text('評價功能尚未開放')),
+                                const SnackBar(content: Text('評價功能將於後續版本提供')),
                               );
                             },
                           ),
@@ -883,7 +873,7 @@ class _ShopPublicPageState extends State<ShopPublicPage> {
 
           const SizedBox(height: 8),
 
-          const Text('完整線上預約功能尚未開放', textAlign: TextAlign.center),
+          const Text('線上預約功能將於後續版本提供', textAlign: TextAlign.center),
 
           const SizedBox(height: 18),
 
@@ -913,7 +903,7 @@ class _ShopPublicPageState extends State<ShopPublicPage> {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.all(8),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
         decoration: BoxDecoration(
           color: const Color(0xFFFFF1DD),
           borderRadius: BorderRadius.circular(22),
@@ -929,8 +919,8 @@ class _ShopPublicPageState extends State<ShopPublicPage> {
         child: Row(
           children: [
             Container(
-              width: 48,
-              height: 48,
+              width: 42,
+              height: 42,
               decoration: const BoxDecoration(
                 color: Color(0xFFFFD59E),
                 shape: BoxShape.circle,
@@ -945,7 +935,7 @@ class _ShopPublicPageState extends State<ShopPublicPage> {
                   Text(
                     title,
                     style: const TextStyle(
-                      fontSize: 22,
+                      fontSize: 20,
                       fontWeight: FontWeight.w800,
                       color: Color(0xFF3A2A1A),
                     ),
@@ -958,7 +948,7 @@ class _ShopPublicPageState extends State<ShopPublicPage> {
                       color: Color(0xFF8A6A45),
                     ),
                   ),
-                  const SizedBox(height: 10),
+                  const SizedBox(height: 6),
                   Text(
                     actionText,
                     style: const TextStyle(
@@ -996,31 +986,32 @@ class _ShopPublicPageState extends State<ShopPublicPage> {
   }
 
   Widget _buildSocialButton({
-  required FaIconData icon,
-  required String? url,
-  required Color activeColor,
-}) {
-  final isActive = (url ?? '').isNotEmpty;
+    required FaIconData icon,
+    required String? url,
+    required Color activeColor,
+  }) {
+    final isActive = (url ?? '').isNotEmpty;
 
-  return GestureDetector(
-    onTap: isActive ? () => _openUrl(url!) : null,
-    child: Container(
-      width: 40,
-      height: 40,
-      decoration: BoxDecoration(
-        color: isActive ? Colors.blue.shade50 : Colors.grey.shade200,
-        shape: BoxShape.circle,
-      ),
-      child: Center(
-        child: FaIcon(
-          icon,
-          size: 28,
-          color: isActive ? activeColor : Colors.grey,
+    return GestureDetector(
+      onTap: isActive ? () => _openUrl(url!) : null,
+      child: Container(
+        width: 40,
+        height: 40,
+        decoration: BoxDecoration(
+          color: isActive ? Colors.blue.shade50 : Colors.grey.shade200,
+          shape: BoxShape.circle,
+        ),
+        child: Center(
+          child: FaIcon(
+            icon,
+            size: 28,
+            color: isActive ? activeColor : Colors.grey,
+          ),
         ),
       ),
-    ),
-  );
-}
+    );
+  }
+
   String _announcementTypeLabel(String type) {
     switch (type) {
       case 'important':

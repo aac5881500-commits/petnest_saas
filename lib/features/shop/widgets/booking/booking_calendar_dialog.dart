@@ -41,42 +41,32 @@ class BookingCalendarDialog extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Dialog(
-      insetPadding: const EdgeInsets.symmetric(
-        horizontal: 20,
-        vertical: 20,
-      ),
-      child: Center(
+      insetPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
+      child: SafeArea(
         child: SizedBox(
-          height: MediaQuery.of(context).size.height * 0.95,
-          width: MediaQuery.of(context).size.width * 0.9,
+          height: MediaQuery.of(context).size.height * 0.82,
+          width: MediaQuery.of(context).size.width * 0.94,
           child: SingleChildScrollView(
             child: Column(
               children: [
                 BookingCalendar(
-                  key: ValueKey(
-                    '${tempStartDate}_${tempEndDate}',
-                  ),
+                  key: ValueKey('${tempStartDate}_${tempEndDate}'),
 
                   initialMonth: calendarMonth,
 
                   firstDate: today,
 
-                  lastDate: today.add(
-                    Duration(days: maxDays),
-                  ),
+                  lastDate: today.add(Duration(days: maxDays)),
 
                   rangeStart: tempStartDate,
                   rangeEnd: tempEndDate,
 
                   blockedDateKeys: payload.blockedDateKeys,
-                  blockedDateReasons:
-                      payload.blockedDateReasons,
+                  blockedDateReasons: payload.blockedDateReasons,
 
-                  unbookableDateKeys:
-                      payload.unbookableDateKeys,
+                  unbookableDateKeys: payload.unbookableDateKeys,
 
-                  remainingRoomsMap:
-                      payload.remainingRoomsMap,
+                  remainingRoomsMap: payload.remainingRoomsMap,
 
                   onMonthChanged: onMonthChanged,
 
@@ -87,30 +77,25 @@ class BookingCalendarDialog extends StatelessWidget {
                   Container(
                     width: double.infinity,
                     padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 10,
+                      horizontal: 12,
+                      vertical: 8,
                     ),
                     margin: const EdgeInsets.only(top: 8),
                     decoration: BoxDecoration(
                       color: Colors.grey.shade100,
-                      borderRadius:
-                          BorderRadius.circular(8),
+                      borderRadius: BorderRadius.circular(8),
                     ),
                     child: Row(
                       children: [
-                        const Text(
-                          '⚠️ ',
-                          style: TextStyle(fontSize: 18),
-                        ),
+                        const Text('⚠️ ', style: TextStyle(fontSize: 14)),
 
                         Expanded(
                           child: Text(
                             rangeMessage,
                             style: const TextStyle(
-                              fontSize: 16,
+                              fontSize: 13,
                               color: Colors.red,
-                              fontWeight:
-                                  FontWeight.w600,
+                              fontWeight: FontWeight.w600,
                             ),
                           ),
                         ),
@@ -119,7 +104,7 @@ class BookingCalendarDialog extends StatelessWidget {
                   ),
 
                 Padding(
-                  padding: const EdgeInsets.all(12),
+                  padding: const EdgeInsets.fromLTRB(12, 8, 12, 10),
                   child: Row(
                     children: [
                       Expanded(

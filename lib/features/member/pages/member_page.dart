@@ -175,6 +175,91 @@ class _MemberPageState extends State<MemberPage> {
     });
   }
 
+  Future<void> _showDeleteAccountDialog(User user) async {
+    final reasonController = TextEditingController();
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text('申請刪除帳號'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text(
+                '送出申請後，平台會人工審核你的帳號刪除需求。\n\n'
+                '若帳號內仍有尚未完成的預約、付款、退款或爭議紀錄，'
+                '平台可能會先協助確認後再處理。\n\n'
+                '完成後，平台會依服務條款與資料保存規範處理你的會員資料、'
+                '寵物資料與相關紀錄。',
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: reasonController,
+                maxLines: 3,
+                decoration: const InputDecoration(
+                  labelText: '刪除原因（可不填）',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: const Text('取消'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(dialogContext, true),
+              child: const Text('送出申請'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirmed != true) {
+      reasonController.dispose();
+      return;
+    }
+
+    final existing = await FirebaseFirestore.instance
+        .collection('account_delete_requests')
+        .where('uid', isEqualTo: user.uid)
+        .where('status', isEqualTo: 'pending')
+        .limit(1)
+        .get();
+
+    if (existing.docs.isNotEmpty) {
+      reasonController.dispose();
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('你已經送出刪除帳號申請，平台會盡快處理')));
+      return;
+    }
+
+    await FirebaseFirestore.instance.collection('account_delete_requests').add({
+      'uid': user.uid,
+      'email': user.email ?? '',
+      'displayName': user.displayName ?? '',
+      'reason': reasonController.text.trim(),
+      'status': 'pending',
+      'createdAt': FieldValue.serverTimestamp(),
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+
+    reasonController.dispose();
+
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('已送出刪除帳號申請，平台會盡快處理')));
+  }
+
   @override
   Widget build(BuildContext context) {
     final user = FirebaseAuth.instance.currentUser;
@@ -960,6 +1045,74 @@ class _MemberPageState extends State<MemberPage> {
                                 },
                               ),
                             ],
+                          ),
+                          const SizedBox(height: 24),
+
+                          StreamBuilder<QuerySnapshot>(
+                            stream: FirebaseFirestore.instance
+                                .collection('account_delete_requests')
+                                .where('uid', isEqualTo: user.uid)
+                                .orderBy('createdAt', descending: true)
+                                .limit(1)
+                                .snapshots(),
+                            builder: (context, snapshot) {
+                              final doc = snapshot.data?.docs.isNotEmpty == true
+                                  ? snapshot.data!.docs.first
+                                  : null;
+
+                              final data = doc?.data() as Map<String, dynamic>?;
+
+                              final status = (data?['status'] ?? '') as String;
+
+                              String statusText = '';
+                              if (status == 'pending') {
+                                statusText = '目前狀態：待處理';
+                              } else if (status == 'processing') {
+                                statusText = '目前狀態：處理中';
+                              } else if (status == 'rejected') {
+                                statusText = '目前狀態：已拒絕，如仍需刪除可再次聯絡平台';
+                              } else if (status == 'completed') {
+                                statusText = '目前狀態：已完成';
+                              }
+
+                              final canSubmit =
+                                  status.isEmpty || status == 'rejected';
+
+                              return _buildSectionCard(
+                                title: '帳號管理',
+                                children: [
+                                  ListTile(
+                                    contentPadding: EdgeInsets.zero,
+                                    leading: CircleAvatar(
+                                      radius: 26,
+                                      backgroundColor: Colors.red.shade50,
+                                      child: Icon(
+                                        Icons.delete_outline,
+                                        color: Colors.red.shade700,
+                                      ),
+                                    ),
+                                    title: const Text(
+                                      '申請刪除帳號',
+                                      style: TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                    subtitle: Text(
+                                      statusText.isEmpty
+                                          ? '送出後由平台協助處理會員資料與相關紀錄'
+                                          : statusText,
+                                    ),
+                                    trailing: const Icon(Icons.chevron_right),
+                                    enabled: canSubmit,
+                                    onTap: canSubmit
+                                        ? () {
+                                            _showDeleteAccountDialog(user);
+                                          }
+                                        : null,
+                                  ),
+                                ],
+                              );
+                            },
                           ),
                         ],
                       ),
