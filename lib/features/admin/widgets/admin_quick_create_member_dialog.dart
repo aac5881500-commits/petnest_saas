@@ -56,7 +56,26 @@ class _AdminQuickCreateMemberDialogState
     final name = _nameController.text.trim();
     final phone = _phoneController.text.trim();
 
-    if (name.isEmpty || phone.isEmpty) return;
+    if (name.isEmpty) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('請輸入會員姓名')));
+      return;
+    }
+
+    if (phone.isEmpty) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('請輸入手機號碼')));
+      return;
+    }
+
+    if (!RegExp(r'^09\d{8}$').hasMatch(phone)) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('手機號碼格式錯誤，請輸入 09 開頭共 10 碼')));
+      return;
+    }
 
     final fullAddress =
         '${_city ?? ''}${_district ?? ''}${_detailAddressController.text.trim()}';
@@ -83,7 +102,7 @@ class _AdminQuickCreateMemberDialogState
             TextField(
               controller: _nameController,
               decoration: const InputDecoration(
-                labelText: '會員姓名',
+                labelText: '會員姓名（必填）',
                 border: OutlineInputBorder(),
               ),
             ),
@@ -93,8 +112,11 @@ class _AdminQuickCreateMemberDialogState
             TextField(
               controller: _phoneController,
               keyboardType: TextInputType.phone,
+              maxLength: 10,
               decoration: const InputDecoration(
-                labelText: '手機號碼',
+                labelText: '手機號碼（必填）',
+                hintText: '09xxxxxxxx',
+                counterText: '',
                 border: OutlineInputBorder(),
               ),
             ),

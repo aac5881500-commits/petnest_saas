@@ -24,6 +24,7 @@ class _RoomDashboardPageState extends State<RoomDashboardPage> {
 
   bool _loadingPermission = true;
   bool _hasPermission = false;
+  bool _showUnassignedBookings = false;
 
   DateTime get weekStart {
     final d = selectedDate;
@@ -296,7 +297,6 @@ class _RoomDashboardPageState extends State<RoomDashboardPage> {
                               Container(
                                 width: double.infinity,
                                 margin: const EdgeInsets.fromLTRB(12, 8, 12, 4),
-                                padding: const EdgeInsets.all(12),
                                 decoration: BoxDecoration(
                                   color: Colors.orange.shade50,
                                   borderRadius: BorderRadius.circular(14),
@@ -305,104 +305,152 @@ class _RoomDashboardPageState extends State<RoomDashboardPage> {
                                   ),
                                 ),
                                 child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    Text(
-                                      '待分房訂單 (${unassignedBookings.length})',
-                                      style: TextStyle(
-                                        color: Colors.orange.shade800,
-                                        fontWeight: FontWeight.w900,
-                                        fontSize: 15,
+                                    InkWell(
+                                      borderRadius: BorderRadius.circular(14),
+                                      onTap: () {
+                                        setState(() {
+                                          _showUnassignedBookings =
+                                              !_showUnassignedBookings;
+                                        });
+                                      },
+                                      child: Padding(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 12,
+                                          vertical: 10,
+                                        ),
+                                        child: Row(
+                                          children: [
+                                            Icon(
+                                              Icons.warning_amber_rounded,
+                                              color: Colors.orange.shade800,
+                                              size: 20,
+                                            ),
+                                            const SizedBox(width: 8),
+                                            Expanded(
+                                              child: Text(
+                                                '待分房訂單 (${unassignedBookings.length})',
+                                                style: TextStyle(
+                                                  color: Colors.orange.shade800,
+                                                  fontWeight: FontWeight.w900,
+                                                  fontSize: 15,
+                                                ),
+                                              ),
+                                            ),
+                                            Icon(
+                                              _showUnassignedBookings
+                                                  ? Icons.keyboard_arrow_up
+                                                  : Icons.keyboard_arrow_down,
+                                              color: Colors.orange.shade800,
+                                            ),
+                                          ],
+                                        ),
                                       ),
                                     ),
 
-                                    const SizedBox(height: 10),
+                                    if (_showUnassignedBookings) ...[
+                                      const Divider(height: 1),
+                                      Padding(
+                                        padding: const EdgeInsets.fromLTRB(
+                                          10,
+                                          8,
+                                          10,
+                                          10,
+                                        ),
+                                        child: Column(
+                                          children: unassignedBookings.map((
+                                            doc,
+                                          ) {
+                                            final data =
+                                                doc.data()
+                                                    as Map<String, dynamic>;
 
-                                    ...unassignedBookings.map((doc) {
-                                      final data =
-                                          doc.data() as Map<String, dynamic>;
+                                            final customerName =
+                                                data['customerName'] ?? '';
+                                            final roomTypeName =
+                                                data['roomTypeName'] ?? '';
 
-                                      final customerName =
-                                          data['customerName'] ?? '';
+                                            final start =
+                                                (data['startDate'] as Timestamp)
+                                                    .toDate();
+                                            final end =
+                                                (data['endDate'] as Timestamp)
+                                                    .toDate();
 
-                                      final roomTypeName =
-                                          data['roomTypeName'] ?? '';
-
-                                      final start =
-                                          (data['startDate'] as Timestamp)
-                                              .toDate();
-
-                                      final end = (data['endDate'] as Timestamp)
-                                          .toDate();
-
-                                      return InkWell(
-                                        onTap: () {
-                                          Navigator.push(
-                                            context,
-                                            MaterialPageRoute(
-                                              builder: (_) =>
-                                                  AdminBookingDetailPage(
-                                                    bookingId: doc.id,
-                                                    canEdit: true,
+                                            return InkWell(
+                                              onTap: () {
+                                                Navigator.push(
+                                                  context,
+                                                  MaterialPageRoute(
+                                                    builder: (_) =>
+                                                        AdminBookingDetailPage(
+                                                          bookingId: doc.id,
+                                                          canEdit: true,
+                                                        ),
                                                   ),
-                                            ),
-                                          );
-                                        },
-                                        child: Container(
-                                          margin: const EdgeInsets.only(
-                                            bottom: 8,
-                                          ),
-                                          padding: const EdgeInsets.all(10),
-                                          decoration: BoxDecoration(
-                                            color: Colors.white,
-                                            borderRadius: BorderRadius.circular(
-                                              12,
-                                            ),
-                                          ),
-                                          child: Row(
-                                            children: [
-                                              const Icon(
-                                                Icons.warning_amber_rounded,
-                                                color: Colors.orange,
-                                              ),
-
-                                              const SizedBox(width: 10),
-
-                                              Expanded(
-                                                child: Column(
-                                                  crossAxisAlignment:
-                                                      CrossAxisAlignment.start,
+                                                );
+                                              },
+                                              child: Container(
+                                                margin: const EdgeInsets.only(
+                                                  bottom: 8,
+                                                ),
+                                                padding: const EdgeInsets.all(
+                                                  10,
+                                                ),
+                                                decoration: BoxDecoration(
+                                                  color: Colors.white,
+                                                  borderRadius:
+                                                      BorderRadius.circular(12),
+                                                ),
+                                                child: Row(
                                                   children: [
-                                                    Text(
-                                                      customerName,
-                                                      style: const TextStyle(
-                                                        fontWeight:
-                                                            FontWeight.w800,
-                                                      ),
+                                                    const Icon(
+                                                      Icons
+                                                          .warning_amber_rounded,
+                                                      color: Colors.orange,
                                                     ),
-
-                                                    const SizedBox(height: 2),
-
-                                                    Text(
-                                                      '$roomTypeName ｜ '
-                                                      '${DateFormat('MM/dd').format(start)}'
-                                                      ' - '
-                                                      '${DateFormat('MM/dd').format(end)}',
-                                                      style: TextStyle(
-                                                        fontSize: 12,
-                                                        color: Colors
-                                                            .grey
-                                                            .shade700,
+                                                    const SizedBox(width: 10),
+                                                    Expanded(
+                                                      child: Column(
+                                                        crossAxisAlignment:
+                                                            CrossAxisAlignment
+                                                                .start,
+                                                        children: [
+                                                          Text(
+                                                            customerName,
+                                                            style:
+                                                                const TextStyle(
+                                                                  fontWeight:
+                                                                      FontWeight
+                                                                          .w800,
+                                                                ),
+                                                          ),
+                                                          const SizedBox(
+                                                            height: 2,
+                                                          ),
+                                                          Text(
+                                                            '$roomTypeName ｜ '
+                                                            '${DateFormat('MM/dd').format(start)}'
+                                                            ' - '
+                                                            '${DateFormat('MM/dd').format(end)}',
+                                                            style: TextStyle(
+                                                              fontSize: 12,
+                                                              color: Colors
+                                                                  .grey
+                                                                  .shade700,
+                                                            ),
+                                                          ),
+                                                        ],
                                                       ),
                                                     ),
                                                   ],
                                                 ),
                                               ),
-                                            ],
-                                          ),
+                                            );
+                                          }).toList(),
                                         ),
-                                      );
-                                    }),
+                                      ),
+                                    ],
                                   ],
                                 ),
                               ),
@@ -422,12 +470,6 @@ class _RoomDashboardPageState extends State<RoomDashboardPage> {
                                   const SizedBox(height: 6),
                                   Row(
                                     children: [
-                                      _buildSummaryCard(
-                                        '待分房',
-                                        unassignedBookings.length,
-                                        Colors.orange,
-                                      ),
-                                      const SizedBox(width: 8),
                                       _buildSummaryCard(
                                         '空房',
                                         emptyCount,

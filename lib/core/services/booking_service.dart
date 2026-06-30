@@ -6,6 +6,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:petnest_saas/core/services/shop_service.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart';
 
 class BookingService {
   BookingService._();
@@ -89,7 +90,9 @@ class BookingService {
   }) async {
     final user = _currentUser;
     final doc = _bookings.doc();
+    debugPrint('ADMIN_BOOKING_STEP: generate code start');
     final bookingCode = await _generateBookingCode(shopId);
+    debugPrint('ADMIN_BOOKING_STEP: generate code ok');
     final normalizedStart = _dateOnly(startDate);
     final normalizedEnd = _dateOnly(endDate);
 
@@ -257,7 +260,12 @@ class BookingService {
   }) async {
     final operator = _currentUser;
     final doc = _bookings.doc();
+
+    debugPrint('ADMIN_BOOKING_STEP 1: 開始產生訂單編號');
+
     final bookingCode = await _generateBookingCode(shopId);
+
+    debugPrint('ADMIN_BOOKING_STEP 2: 訂單編號=$bookingCode');
     final normalizedStart = _dateOnly(startDate);
     final normalizedEnd = _dateOnly(endDate);
 
@@ -275,33 +283,22 @@ class BookingService {
     // 🔥 取得寵物資料（快照）
     if (operator == null) throw Exception('未登入');
 
-    final petDocs = await _firestore
-        .collection('user_profiles')
-        .doc(userId)
-        .collection('pets')
-        .where(FieldPath.documentId, whereIn: petIds)
-        .get();
-
-    final finalPets = petDocs.docs.map((doc) {
-      final p = doc.data();
-
+    final finalPets = (pets ?? []).map((p) {
       return {
         'name': p['name'],
         'breed': p['breed'],
         'gender': p['gender'],
         'age': p['age'],
         'isNeutered': p['isNeutered'],
-
-        /// 🔥 修正這裡
         'photoUrl': p['photoUrl'] ?? '',
-
         'medicalStatus': p['vaccine'],
         'litterType': p['litterType'],
-
         'note': p['note'],
         'staffNote': p['adminNote'] ?? '',
       };
     }).toList();
+
+    debugPrint('ADMIN_BOOKING_STEP 3: 開始寫入 booking');
 
     await doc.set({
       'addons': (addons ?? []).isNotEmpty ? addons : [],
@@ -379,6 +376,8 @@ class BookingService {
       'createdAt': FieldValue.serverTimestamp(),
       'updatedAt': FieldValue.serverTimestamp(),
     });
+
+    debugPrint('ADMIN_BOOKING_STEP 4: booking 寫入完成');
 
     return doc.id;
   }

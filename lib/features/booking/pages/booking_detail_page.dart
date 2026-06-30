@@ -133,65 +133,13 @@ class _BookingDetailPageState extends State<BookingDetailPage> {
           appBar: AppBar(
             title: const Text('訂單詳細'),
             actions: [
-              if (bookingStatus == 'pending' || bookingStatus == 'unpaid')
-                Padding(
-                  padding: const EdgeInsets.only(left: 12),
-                  child: TextButton.icon(
-                    onPressed: () async {
-                      if (depositStatus == 'pending_review') {
-                        _scrollToMessageSection();
-
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('已帶你到留言區')),
-                        );
-                        return;
-                      }
-
-                      final cancelReason = await _showCancelReasonDialog(
-                        context,
-                      );
-
-                      if (cancelReason == null) return;
-
-                      await BookingService.instance.cancelBooking(
-                        bookingId: widget.docId,
-                        cancelReason: cancelReason,
-                        cancelBy: 'customer',
-                      );
-
-                      if (context.mounted) {
-                        ScaffoldMessenger.of(
-                          context,
-                        ).showSnackBar(const SnackBar(content: Text('訂單已取消')));
-                      }
-                    },
-                    icon: Icon(
-                      depositStatus == 'pending_review'
-                          ? Icons.chat_bubble_outline
-                          : Icons.close,
-                      color: depositStatus == 'pending_review'
-                          ? Colors.blue
-                          : Colors.red,
-                      size: 18,
-                    ),
-                    label: Text(
-                      depositStatus == 'pending_review' ? '聯絡店家' : '取消',
-                      style: TextStyle(
-                        color: depositStatus == 'pending_review'
-                            ? Colors.blue
-                            : Colors.red,
-                        fontSize: 14,
-                      ),
-                    ),
-                  ),
-                ),
               Padding(
-                padding: const EdgeInsets.only(right: 12),
+                padding: const EdgeInsets.only(right: 8),
                 child: Center(
                   child: Container(
                     padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 6,
+                      horizontal: 8,
+                      vertical: 4,
                     ),
                     decoration: BoxDecoration(
                       color: Colors.blueGrey.shade50,
@@ -205,7 +153,7 @@ class _BookingDetailPageState extends State<BookingDetailPage> {
                         const Text(
                           '訂單編號',
                           style: TextStyle(
-                            fontSize: 12,
+                            fontSize: 10,
                             fontWeight: FontWeight.w500,
                             color: Colors.grey,
                           ),
@@ -237,14 +185,14 @@ class _BookingDetailPageState extends State<BookingDetailPage> {
                                     ? data['bookingCode']
                                     : widget.docId.substring(0, 8),
                                 style: const TextStyle(
-                                  fontSize: 18, // 🔥 放大
+                                  fontSize: 13, // 🔥 放大
                                   fontWeight: FontWeight.bold,
                                 ),
                               ),
                               const SizedBox(width: 6),
                               const Icon(
                                 Icons.copy,
-                                size: 16,
+                                size: 13,
                                 color: Colors.grey,
                               ),
                             ],
@@ -264,6 +212,61 @@ class _BookingDetailPageState extends State<BookingDetailPage> {
               children: [
                 /// 🏠 房型卡（完全後台版🔥）
                 BookingDetailStatusCard(data: data),
+                const SizedBox(height: 12),
+
+                if (bookingStatus == 'pending' || bookingStatus == 'unpaid')
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      onPressed: () async {
+                        if (depositStatus == 'pending_review') {
+                          _scrollToMessageSection();
+
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('已帶你到留言區')),
+                          );
+                          return;
+                        }
+
+                        final cancelReason = await _showCancelReasonDialog(
+                          context,
+                        );
+
+                        if (cancelReason == null) return;
+
+                        await BookingService.instance.cancelBooking(
+                          bookingId: widget.docId,
+                          cancelReason: cancelReason,
+                          cancelBy: 'customer',
+                        );
+
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('訂單已取消')),
+                          );
+                        }
+                      },
+                      icon: Icon(
+                        depositStatus == 'pending_review'
+                            ? Icons.chat_bubble_outline
+                            : Icons.close,
+                      ),
+                      label: Text(
+                        depositStatus == 'pending_review' ? '聯絡店家' : '取消訂單',
+                      ),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: depositStatus == 'pending_review'
+                            ? Colors.blue
+                            : Colors.red,
+                        side: BorderSide(
+                          color: depositStatus == 'pending_review'
+                              ? Colors.blue.shade200
+                              : Colors.red.shade200,
+                        ),
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                      ),
+                    ),
+                  ),
 
                 if (bookingStatus == 'cancelled')
                   Container(

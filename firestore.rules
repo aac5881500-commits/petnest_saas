@@ -36,7 +36,14 @@ service cloud.firestore {
 
     // 👤 會員帳號
     match /users/{uid} {
-      allow read: if isSelf(uid) || isRootAdmin();
+      allow read: if isSelf(uid) || isRootAdmin() ||
+  (
+    signedIn()
+    && resource.data.shopIds is list
+    && resource.data.shopIds.hasAny([
+      get(/databases/$(database)/documents/shop_members/$(resource.data.shopIds[0] + '_' + request.auth.uid)).data.shopId
+    ])
+  );
       allow create, update: if isSelf(uid) || isRootAdmin();
       allow delete: if false;
             // 🔔 使用者 FCM 推播 Token
@@ -66,15 +73,39 @@ service cloud.firestore {
     // 👤 會員資料
 match /user_profiles/{uid} {
   allow read: if isSelf(uid) || isRootAdmin();
-  allow create: if isSelf(uid) || isRootAdmin();
+  allow create: if
+    isSelf(uid)
+    || isRootAdmin()
+    || (
+      signedIn()
+      && request.resource.data.createdFrom == 'admin'
+      && request.resource.data.shopIds is list
+      && request.resource.data.shopIds.size() == 1
+      && request.resource.data.shopIds[0] is string
+      && isShopMember(request.resource.data.shopIds[0])
+    );
   allow update: if isSelf(uid) || isRootAdmin();
   allow delete: if false;
 
       // 🐾 寵物資料
 match /pets/{petId} {
-  allow read: if isSelf(uid) || isRootAdmin();
+  allow read: if
+    isSelf(uid)
+    || isRootAdmin()
+    || (
+      resource.data.shopId is string
+      && isShopMember(resource.data.shopId)
+    );
 
-  allow create, update, delete: if isSelf(uid) || isRootAdmin();
+  allow create, update, delete: if
+    isSelf(uid)
+    || isRootAdmin()
+    || (
+      signedIn()
+      && request.resource.data.createdFrom == 'admin'
+      && request.resource.data.shopId is string
+      && isShopMember(request.resource.data.shopId)
+    );
 }
     }
 
@@ -161,7 +192,14 @@ match /shop_member_invites/{inviteId} {
     &&
     request.resource.data.diff(resource.data).changedKeys().hasOnly([
       'updatedAt',
-
+'name',
+'businessType',
+'phone',
+'address',
+'city',
+'district',
+'licenseNumber',
+'taxId',
      'businessHours',
 'openTime',
 'closeTime',
@@ -227,11 +265,11 @@ match /shop_member_invites/{inviteId} {
 
       // 👤 店家會員
 match /members/{uid} {
-  allow read: if isSelf(uid) || isShopMember(shopId) || isRootAdmin();
+  allow read: if signedIn() && (isShopMember(shopId) || isRootAdmin());
 
-  allow create: if isSelf(uid);
+  allow create: if signedIn() && (isShopMember(shopId) || isRootAdmin());
 
-  allow update: if isSelf(uid) || isShopMember(shopId) || isRootAdmin();
+  allow update: if signedIn() && (isShopMember(shopId) || isRootAdmin());
 
   allow delete: if false;
 }
@@ -351,15 +389,15 @@ match /account_delete_requests/{requestId} {
 
   allow update, delete: if isRootAdmin();
 }
-
-  match /booking_counters/{shopId} {
-  allow read: if isShopMember(shopId) || isRootAdmin();
+// 🔢 店家訂單流水號
+match /booking_counters/{shopId} {
+  allow read: if signedIn();
 
   allow create, update: if signedIn()
     && (
-      isShopMember(shopId) ||
-      isRootAdmin() ||
-      (
+      isShopMember(shopId)
+      || isRootAdmin()
+      || (
         request.resource.data.keys().hasOnly([
           'current',
           'updatedAt'
@@ -367,14 +405,15 @@ match /account_delete_requests/{requestId} {
         && request.resource.data.current is int
         && (
           !exists(/databases/$(database)/documents/booking_counters/$(shopId)) ||
-          request.resource.data.current ==
-            resource.data.current + 1
+          request.resource.data.current == resource.data.current + 1
         )
       )
     );
 
   allow delete: if false;
 }
+
+  
     // 📊 退房報表
 match /reports/{reportId} {
   allow read: if signedIn() &&
@@ -395,27 +434,25 @@ match /reports/{reportId} {
    // 📦 訂單
 match /bookings/{bookingId} {
 
-  allow read: if signedIn() &&
-  (
-    get(/databases/$(database)/documents/bookings/$(bookingId)).data.userId
-      == request.auth.uid
-    ||
-    isShopMember(
-      get(/databases/$(database)/documents/bookings/$(bookingId)).data.shopId
-    )
-    ||
-    isRootAdmin()
-  );
+ allow read: if signedIn();
 
-  allow create: if signedIn()
-  &&
-  request.resource.data.userId == request.auth.uid
+allow create: if signedIn()
   &&
   request.resource.data.shopId is string
   &&
   request.resource.data.status == 'pending'
   &&
-  request.resource.data.createdAt == request.time;
+  (
+    request.resource.data.userId == request.auth.uid
+    ||
+    (
+      request.resource.data.source == 'admin'
+      &&
+      isShopMember(request.resource.data.shopId)
+    )
+    ||
+    isRootAdmin()
+  );
 
   allow update: if signedIn() &&
   (

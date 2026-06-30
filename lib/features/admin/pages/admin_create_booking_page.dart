@@ -284,7 +284,9 @@ class _AdminCreateBookingPageState extends State<AdminCreateBookingPage> {
     final phone = result['phone'] ?? '';
 
     final exists = await FirebaseFirestore.instance
-        .collection('user_profiles')
+        .collection('shops')
+        .doc(widget.shopId)
+        .collection('members')
         .where('phone', isEqualTo: phone)
         .limit(1)
         .get();
@@ -299,31 +301,15 @@ class _AdminCreateBookingPageState extends State<AdminCreateBookingPage> {
       return;
     }
 
-    final doc = FirebaseFirestore.instance.collection('user_profiles').doc();
-
-    await doc.set({
-      'name': result['name'],
-      'phone': result['phone'],
-      'email': '',
-      'address': result['address'],
-      'emergencyContact': {
-        'name': result['emergencyName'],
-        'phone': result['emergencyPhone'],
-        'relation': result['emergencyRelation'],
-        'address': result['emergencyAddress'],
-      },
-      'createdFrom': 'admin',
-      'linkedAuthUid': null,
-      'shopIds': [widget.shopId],
-      'createdAt': FieldValue.serverTimestamp(),
-      'updatedAt': FieldValue.serverTimestamp(),
-    });
-
     if (!mounted) return;
 
     setState(() {
       _selectedMember = {
-        'userId': doc.id,
+        'userId': FirebaseFirestore.instance
+            .collection('user_profiles')
+            .doc()
+            .id,
+        'isTempAdminMember': true,
         'name': result['name'],
         'phone': result['phone'],
         'email': '',
@@ -344,11 +330,12 @@ class _AdminCreateBookingPageState extends State<AdminCreateBookingPage> {
 
     ScaffoldMessenger.of(
       context,
-    ).showSnackBar(const SnackBar(content: Text('已建立會員')));
+    ).showSnackBar(const SnackBar(content: Text('已暫存會員，送出訂單後才會正式建立')));
   }
 
   Widget _memberSearchResult() {
     return AdminMemberSearchSection(
+      shopId: widget.shopId,
       keyword: _keyword,
       onSelectMember: (userId, data) {
         setState(() {
@@ -376,33 +363,42 @@ class _AdminCreateBookingPageState extends State<AdminCreateBookingPage> {
 
     if (result == null) return;
 
-    final doc = FirebaseFirestore.instance
+    final petId = FirebaseFirestore.instance
         .collection('user_profiles')
         .doc(userId)
         .collection('pets')
-        .doc();
+        .doc()
+        .id;
 
-    await doc.set({
-      'name': result['name'],
-      'type': result['type'],
-      'breed': result['breed'],
-      'gender': result['gender'],
-      'age': result['age'],
-      'isNeutered': result['isNeutered'],
-      'vaccine': result['vaccine'],
-      'litterType': result['litterType'],
-      'note': result['note'],
-      'createdFrom': 'admin',
-      'createdAt': FieldValue.serverTimestamp(),
-      'updatedAt': FieldValue.serverTimestamp(),
-    });
+    if (member['isTempAdminMember'] != true) {
+      await FirebaseFirestore.instance
+          .collection('user_profiles')
+          .doc(userId)
+          .collection('pets')
+          .doc(petId)
+          .set({
+            'name': result['name'],
+            'type': result['type'],
+            'breed': result['breed'],
+            'gender': result['gender'],
+            'age': result['age'],
+            'isNeutered': result['isNeutered'],
+            'vaccine': result['vaccine'],
+            'litterType': result['litterType'],
+            'note': result['note'],
+            'shopId': widget.shopId,
+            'createdFrom': 'admin',
+            'createdAt': FieldValue.serverTimestamp(),
+            'updatedAt': FieldValue.serverTimestamp(),
+          });
+    }
 
     if (!mounted) return;
 
     setState(() {
-      _selectedPetIds.add(doc.id);
+      _selectedPetIds.add(petId);
       _pets.add({
-        'petId': doc.id,
+        'petId': petId,
         'name': result['name'],
         'type': result['type'],
         'breed': result['breed'],
@@ -426,6 +422,7 @@ class _AdminCreateBookingPageState extends State<AdminCreateBookingPage> {
     return AdminPetSection(
       member: _selectedMember,
       selectedPetIds: _selectedPetIds,
+      tempPets: _pets,
       onCreatePet: _quickCreatePet,
       onTogglePet: ({required petId, required petData, required selected}) {
         setState(() {
@@ -833,11 +830,75 @@ class _AdminCreateBookingPageState extends State<AdminCreateBookingPage> {
     }
 
     try {
+      String finalUserId = member['userId'] ?? '';
+
+      if (member['isTempAdminMember'] == true) {
+        final memberRef = FirebaseFirestore.instance
+            .collection('user_profiles')
+            .doc(finalUserId);
+
+        final batch = FirebaseFirestore.instance.batch();
+        batch.set(memberRef, {
+          'name': member['name'],
+          'phone': member['phone'],
+          'email': '',
+          'address': member['address'],
+          'emergencyContact': member['emergencyContact'],
+          'shopIds': [widget.shopId],
+          'createdFrom': 'admin',
+          'createdAt': FieldValue.serverTimestamp(),
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+
+        final shopMemberRef = FirebaseFirestore.instance
+            .collection('shops')
+            .doc(widget.shopId)
+            .collection('members')
+            .doc(finalUserId);
+
+        batch.set(shopMemberRef, {
+          'userId': finalUserId,
+          'name': member['name'],
+          'phone': member['phone'],
+          'email': '',
+          'createdFrom': 'admin',
+          'shopId': widget.shopId,
+          'createdAt': FieldValue.serverTimestamp(),
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+
+        for (final pet in _pets) {
+          final petId = pet['petId']?.toString() ?? '';
+
+          if (petId.isEmpty) continue;
+
+          final petRef = memberRef.collection('pets').doc(petId);
+
+          batch.set(petRef, {
+            'name': pet['name'],
+            'type': pet['type'],
+            'breed': pet['breed'],
+            'gender': pet['gender'],
+            'age': pet['age'],
+            'isNeutered': pet['isNeutered'],
+            'vaccine': pet['vaccine'],
+            'litterType': pet['litterType'],
+            'note': pet['note'],
+            'shopId': widget.shopId,
+            'createdFrom': 'admin',
+            'createdAt': FieldValue.serverTimestamp(),
+            'updatedAt': FieldValue.serverTimestamp(),
+          });
+        }
+
+        await batch.commit();
+      }
+
       final nights = _endDate!.difference(_startDate!).inDays;
 
       await BookingService.instance.createAdminBooking(
         shopId: widget.shopId,
-        userId: member['userId'] ?? '',
+        userId: finalUserId,
         customerName: member['name'] ?? '',
         customerPhone: member['phone'] ?? '',
         petIds: _selectedPetIds.toList(),
@@ -870,6 +931,7 @@ class _AdminCreateBookingPageState extends State<AdminCreateBookingPage> {
           nights: nights,
         ),
 
+        pets: _pets,
         addons: _buildAdminAddons(),
         note:
             '手動新增訂單｜$_adminOrderSource'

@@ -118,9 +118,9 @@ class _BookingCalendarState extends State<BookingCalendar> {
               crossAxisCount: 7,
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
-              crossAxisSpacing: 8,
+              crossAxisSpacing: 4,
               mainAxisSpacing: 8,
-              childAspectRatio: 0.55,
+              childAspectRatio: 0.62,
               children: dayCells,
             ),
           ],
@@ -257,12 +257,17 @@ class _BookingCalendarState extends State<BookingCalendar> {
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             /// 日期
-            Text(
-              '${date.day}',
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-                color: dayTextColor,
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text(
+                '${date.day}',
+                maxLines: 1,
+                softWrap: false,
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: dayTextColor,
+                ),
               ),
             ),
 

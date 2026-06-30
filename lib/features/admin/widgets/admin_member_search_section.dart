@@ -8,55 +8,52 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 class AdminMemberSearchSection extends StatelessWidget {
   const AdminMemberSearchSection({
     super.key,
+    required this.shopId,
     required this.keyword,
     required this.onSelectMember,
   });
 
   final String keyword;
+  final String shopId;
 
-  final void Function(
-    String userId,
-    Map<String, dynamic> data,
-  ) onSelectMember;
+  final void Function(String userId, Map<String, dynamic> data) onSelectMember;
 
   @override
   Widget build(BuildContext context) {
     if (keyword.isEmpty) {
-      return const Text(
-        '請先輸入姓名或電話搜尋會員',
-        style: TextStyle(color: Colors.grey),
-      );
+      return const Text('請先輸入姓名或電話搜尋會員', style: TextStyle(color: Colors.grey));
     }
 
     return StreamBuilder<QuerySnapshot>(
       stream: FirebaseFirestore.instance
-          .collection('user_profiles')
-          .limit(50)
+          .collection('shops')
+          .doc(shopId)
+          .collection('members')
+          .where('phone', isEqualTo: keyword)
+          .limit(20)
           .snapshots(),
       builder: (context, snapshot) {
-        if (!snapshot.hasData) {
-          return const Center(
-            child: CircularProgressIndicator(),
+        if (snapshot.hasError) {
+          return Text(
+            '搜尋會員失敗：${snapshot.error}',
+            style: const TextStyle(color: Colors.red),
           );
+        }
+        if (!snapshot.hasData) {
+          return const Center(child: CircularProgressIndicator());
         }
 
         final docs = snapshot.data!.docs.where((doc) {
-          final data =
-              doc.data() as Map<String, dynamic>;
+          final data = doc.data() as Map<String, dynamic>;
 
-          final name =
-              data['name']?.toString() ?? '';
+          final name = data['name']?.toString() ?? '';
 
-          final phone =
-              data['phone']?.toString() ?? '';
+          final phone = data['phone']?.toString() ?? '';
 
-          final matched =
-              name.contains(keyword) ||
-                  phone.contains(keyword);
+          final matched = name.contains(keyword) || phone.contains(keyword);
 
           final isMerged =
-              data['status'] == 'merged' ||
-                  data['isMerged'] == true;
+              data['status'] == 'merged' || data['isMerged'] == true;
 
           return matched && !isMerged;
         }).toList();
@@ -70,41 +67,25 @@ class AdminMemberSearchSection extends StatelessWidget {
 
         return Column(
           children: docs.map((doc) {
-            final data =
-                doc.data() as Map<String, dynamic>;
+            final data = doc.data() as Map<String, dynamic>;
 
             return Card(
-              margin:
-                  const EdgeInsets.only(bottom: 10),
+              margin: const EdgeInsets.only(bottom: 10),
               shape: RoundedRectangleBorder(
-                borderRadius:
-                    BorderRadius.circular(14),
+                borderRadius: BorderRadius.circular(14),
               ),
               child: ListTile(
-                leading: const CircleAvatar(
-                  child: Icon(Icons.person),
-                ),
+                leading: const CircleAvatar(child: Icon(Icons.person)),
                 title: Text(
-                  data['name']
-                              ?.toString()
-                              .isNotEmpty ==
-                          true
+                  data['name']?.toString().isNotEmpty == true
                       ? data['name'].toString()
                       : '未填姓名',
-                  style: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                  ),
+                  style: const TextStyle(fontWeight: FontWeight.bold),
                 ),
-                subtitle: Text(
-                  '電話：${data['phone'] ?? '未填'}',
-                ),
-                trailing:
-                    const Icon(Icons.chevron_right),
+                subtitle: Text('電話：${data['phone'] ?? '未填'}'),
+                trailing: const Icon(Icons.chevron_right),
                 onTap: () {
-                  onSelectMember(
-                    doc.id,
-                    data,
-                  );
+                  onSelectMember(doc.id, data);
                 },
               ),
             );

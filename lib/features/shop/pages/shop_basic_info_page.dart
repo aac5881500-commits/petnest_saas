@@ -95,41 +95,47 @@ class _ShopBasicInfoPageState extends State<ShopBasicInfoPage> {
 
     setState(() => _saving = true);
 
-    await ShopService.instance.updateShopBasicInfo(
-      shopId: widget.shopId,
-      name: _nameController.text,
-      businessType: _businessType,
-      phone: _phoneController.text,
-      address: _addressController.text,
-      city: _cityController.text,
-      district: _districtController.text,
+    try {
+      await ShopService.instance.updateShopBasicInfo(
+        shopId: widget.shopId,
+        name: _nameController.text,
+        businessType: _businessType,
+        phone: _phoneController.text,
+        address: _addressController.text,
+        city: _cityController.text,
+        district: _districtController.text,
+        lineUrl: _lineUrlController.text,
+        igUrl: _igUrlController.text,
+        fbUrl: _fbUrlController.text,
+        licenseNumber: _licenseController.text,
+        taxId: _taxIdController.text,
+        showTaxId: _showTaxId,
+      );
 
-      lineUrl: _lineUrlController.text,
-      igUrl: _igUrlController.text,
-      fbUrl: _fbUrlController.text,
+      _lineInitialSetup = _lineUrlController.text.trim().isEmpty;
+      _igInitialSetup = _igUrlController.text.trim().isEmpty;
+      _fbInitialSetup = _fbUrlController.text.trim().isEmpty;
 
-      licenseNumber: _licenseController.text,
-      taxId: _taxIdController.text,
-      showTaxId: _showTaxId,
-    );
+      _isInitialSetup =
+          _phoneController.text.trim().isEmpty ||
+          _addressController.text.trim().isEmpty;
 
-    _lineInitialSetup = _lineUrlController.text.trim().isEmpty;
+      if (!mounted) return;
 
-    _igInitialSetup = _igUrlController.text.trim().isEmpty;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('已儲存')));
+    } catch (e) {
+      if (!mounted) return;
 
-    _fbInitialSetup = _fbUrlController.text.trim().isEmpty;
-
-    _isInitialSetup =
-        _phoneController.text.trim().isEmpty ||
-        _addressController.text.trim().isEmpty;
-
-    if (!mounted) return;
-
-    setState(() => _saving = false);
-
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text('已儲存')));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('儲存失敗：$e')));
+    } finally {
+      if (mounted) {
+        setState(() => _saving = false);
+      }
+    }
   }
 
   InputDecoration _input(String label) {

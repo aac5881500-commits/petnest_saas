@@ -49,10 +49,10 @@ class ShopTemplateFeatureCard extends StatelessWidget {
                     title,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      fontSize: 18,
+                    style: TextStyle(
+                      fontSize: title == '觀看攝影機' ? 16 : 18,
                       fontWeight: FontWeight.w800,
-                      color: Color(0xFF3A2A1A),
+                      color: const Color(0xFF3A2A1A),
                     ),
                   ),
                 ],

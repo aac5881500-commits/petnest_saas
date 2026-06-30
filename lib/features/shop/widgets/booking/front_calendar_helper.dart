@@ -78,32 +78,22 @@ class FrontCalendarHelper {
 
     final monthEnd = DateTime(lastDate.year, lastDate.month, lastDate.day);
 
-    final snapshot = await FirebaseFirestore.instance
-        .collection('bookings')
-        .where('shopId', isEqualTo: shop['shopId'])
-        .where(
-          'status',
-          whereIn: ['pending', 'confirmed', 'occupied', 'checked_in'],
-        )
-        .where('startDate', isLessThanOrEqualTo: Timestamp.fromDate(monthEnd))
-        .get();
+    final occupiedRoomDateSet = <String>{};
 
-    final bookings = snapshot.docs
-        .map((doc) {
-          final data = doc.data();
+    for (final doc in calendarSnapshot.docs) {
+      final data = doc.data();
 
-          final start = (data['startDate'] as Timestamp).toDate();
-          final end = (data['endDate'] as Timestamp).toDate();
+      final status = (data['status'] ?? '').toString();
 
-          if (end.isBefore(monthStart) || start.isAfter(monthEnd)) {
-            return null;
-          }
+      if (status != 'booked' && status != 'checked_in') continue;
 
-          return data;
-        })
-        .where((e) => e != null)
-        .cast<Map<String, dynamic>>()
-        .toList();
+      final roomId = (data['roomId'] ?? '').toString();
+      final date = (data['date'] ?? '').toString();
+
+      if (roomId.isEmpty || date.isEmpty) continue;
+
+      occupiedRoomDateSet.add('$roomId|$date');
+    }
 
     while (!cursor.isAfter(last)) {
       final key = ShopService.instance.formatDateKey(cursor);
@@ -125,31 +115,16 @@ class FrontCalendarHelper {
               (blockedRoomsByRoomType[roomTypeId] ?? 0) + 1;
         }
       }
-      for (final booking in bookings) {
-        final start = (booking['startDate'] as Timestamp).toDate();
-        final end = (booking['endDate'] as Timestamp).toDate();
+      for (final roomDoc in roomsSnapshot.docs) {
+        final roomId = roomDoc.id;
+        final room = roomDoc.data();
+        final roomTypeId = (room['roomTypeId'] ?? '').toString();
 
-        if (end.isBefore(monthStart) || start.isAfter(monthEnd)) {
-          continue;
-        }
+        if (roomTypeId.isEmpty) continue;
 
-        DateTime temp = DateTime(start.year, start.month, start.day);
-
-        while (!temp.isAfter(end.subtract(const Duration(days: 1)))) {
-          final dKey = ShopService.instance.formatDateKey(temp);
-
-          if (dKey == key) {
-            final roomTypeId = (booking['roomTypeId'] ?? '').toString();
-
-            if (roomTypeId.isNotEmpty) {
-              occupiedByRoomType[roomTypeId] =
-                  (occupiedByRoomType[roomTypeId] ?? 0) + 1;
-            }
-
-            break;
-          }
-
-          temp = temp.add(const Duration(days: 1));
+        if (occupiedRoomDateSet.contains('$roomId|$key')) {
+          occupiedByRoomType[roomTypeId] =
+              (occupiedByRoomType[roomTypeId] ?? 0) + 1;
         }
       }
 

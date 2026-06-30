@@ -123,10 +123,8 @@ class _ShopDashboardPageState extends State<ShopDashboardPage> {
   }
 
   bool _isProfileComplete(Map<String, dynamic> shop) {
-    return (shop['businessType'] ?? '') != '' &&
-        (shop['city'] ?? '') != '' &&
-        (shop['address'] ?? '') != '' &&
-        (shop['phone'] ?? '') != '';
+    return (shop['phone'] ?? '').toString().trim().isNotEmpty &&
+        (shop['address'] ?? '').toString().trim().isNotEmpty;
   }
 
   bool _can(String permissionKey) {
@@ -386,6 +384,7 @@ class _ShopDashboardPageState extends State<ShopDashboardPage> {
                             shop: shop,
                             currentUserRole: _currentUserRole,
                             memberData: _currentMemberData,
+                            isProfileComplete: isComplete,
                           );
                         case ShopModules.catHotel:
                           return _CatHotelTab(
@@ -441,11 +440,13 @@ class _BasicInfoTab extends StatelessWidget {
     required this.shop,
     required this.currentUserRole,
     required this.memberData,
+    required this.isProfileComplete,
   });
   final Map<String, dynamic> shop;
   final String shopId;
   final String? currentUserRole;
   final Map<String, dynamic>? memberData;
+  final bool isProfileComplete;
   bool _can(String permissionKey) {
     return ShopService.instance.hasPermission(memberData, permissionKey);
   }
@@ -500,9 +501,11 @@ class _BasicInfoTab extends StatelessWidget {
         if (_can(ShopPermissionKeys.editMedia))
           _MenuTile(
             title: '店家封面',
-            subtitle: canUseShopBanner ? '上傳封面圖片' : '升級方案解鎖',
+            subtitle: !isProfileComplete
+                ? '請先完成基本資料'
+                : (canUseShopBanner ? '上傳封面圖片' : '升級方案解鎖'),
             icon: Icons.image,
-            enabled: canUseShopBanner,
+            enabled: isProfileComplete && canUseShopBanner,
             onTap: () {
               Navigator.push(
                 context,
@@ -515,8 +518,11 @@ class _BasicInfoTab extends StatelessWidget {
         if (_can(ShopPermissionKeys.managePaymentSettings))
           _MenuTile(
             title: '收款帳戶 / 金流設定',
-            subtitle: '管理銀行轉帳收款資料，未來金流設定也會放這裡',
+            subtitle: !isProfileComplete
+                ? '請先完成基本資料'
+                : '管理銀行轉帳收款資料，未來金流設定也會放這裡',
             icon: Icons.account_balance,
+            enabled: isProfileComplete,
             onTap: () {
               Navigator.push(
                 context,
@@ -532,9 +538,11 @@ class _BasicInfoTab extends StatelessWidget {
         if (_can(ShopPermissionKeys.manageEnvironment))
           _MenuTile(
             title: '環境介紹管理',
-            subtitle: canUseEnvironment ? '設定環境照片、介紹文案與展示內容' : '升級方案解鎖',
+            subtitle: !isProfileComplete
+                ? '請先完成基本資料'
+                : (canUseEnvironment ? '設定環境照片、介紹文案與展示內容' : '升級方案解鎖'),
             icon: Icons.apartment_rounded,
-            enabled: canUseEnvironment,
+            enabled: isProfileComplete && canUseEnvironment,
             onTap: () {
               Navigator.push(
                 context,
@@ -548,9 +556,11 @@ class _BasicInfoTab extends StatelessWidget {
         if (_can(ShopPermissionKeys.manageAbout))
           _MenuTile(
             title: '關於我們管理',
-            subtitle: canUseAboutUs ? '設定品牌故事、理念與介紹內容' : '升級方案解鎖',
+            subtitle: !isProfileComplete
+                ? '請先完成基本資料'
+                : (canUseAboutUs ? '設定品牌故事、理念與介紹內容' : '升級方案解鎖'),
             icon: Icons.favorite_border,
-            enabled: canUseAboutUs,
+            enabled: isProfileComplete && canUseAboutUs,
             onTap: () {
               Navigator.push(
                 context,
@@ -563,9 +573,11 @@ class _BasicInfoTab extends StatelessWidget {
 
         _MenuTile(
           title: '公告管理',
-          subtitle: canUseAnnouncement ? '新增、編輯、上下架店家公告' : '升級方案解鎖',
+          subtitle: !isProfileComplete
+              ? '請先完成基本資料'
+              : (canUseAnnouncement ? '新增、編輯、上下架店家公告' : '升級方案解鎖'),
           icon: Icons.campaign,
-          enabled: canUseAnnouncement,
+          enabled: isProfileComplete && canUseAnnouncement,
           onTap: () {
             Navigator.push(
               context,
@@ -577,9 +589,11 @@ class _BasicInfoTab extends StatelessWidget {
         ),
         _MenuTile(
           title: '常見問題管理',
-          subtitle: canUseFaq ? '新增、編輯、上下架常見問題' : '升級方案解鎖',
+          subtitle: !isProfileComplete
+              ? '請先完成基本資料'
+              : (canUseFaq ? '新增、編輯、上下架常見問題' : '升級方案解鎖'),
           icon: Icons.help_outline,
-          enabled: canUseFaq,
+          enabled: isProfileComplete && canUseFaq,
           onTap: () {
             Navigator.push(
               context,
@@ -592,9 +606,11 @@ class _BasicInfoTab extends StatelessWidget {
 
         _MenuTile(
           title: '前台預覽',
-          subtitle: canUsePublicPage ? '查看客戶看到的頁面' : '升級方案解鎖',
+          subtitle: !isProfileComplete
+              ? '請先完成基本資料'
+              : (canUsePublicPage ? '查看客戶看到的頁面' : '升級方案解鎖'),
           icon: Icons.visibility,
-          enabled: canUsePublicPage,
+          enabled: isProfileComplete && canUsePublicPage,
           onTap: () {
             Navigator.push(
               context,
@@ -621,7 +637,7 @@ class _BasicInfoTab extends StatelessWidget {
                     ? '查看會員資料與訂單紀錄｜有 $count 筆會員綁定申請'
                     : '查看會員資料與訂單紀錄',
                 icon: Icons.people,
-                enabled: true,
+                enabled: isProfileComplete,
                 badgeCount: count,
                 onTap: () {
                   Navigator.push(
@@ -760,6 +776,7 @@ class _CatHotelTab extends StatelessWidget {
         if (_can(ShopPermissionKeys.manageBookings))
           _BookingManageTile(
             shopId: shopId,
+            enabled: isProfileComplete,
             onTap: () {
               Navigator.push(
                 context,
@@ -773,6 +790,7 @@ class _CatHotelTab extends StatelessWidget {
         if (_can(ShopPermissionKeys.manageRoomDashboard))
           _RoomDashboardTile(
             shopId: shopId,
+            enabled: isProfileComplete,
             onTap: () {
               Navigator.push(
                 context,
@@ -804,8 +822,9 @@ class _CatHotelTab extends StatelessWidget {
         if (_can(ShopPermissionKeys.manageRoomTypes))
           _MenuTile(
             title: '房型管理',
-            subtitle: '設定房型、容量、價格與介紹內容',
+            subtitle: isProfileComplete ? '設定房型、容量、價格與介紹內容' : '請先完成基本資料',
             icon: Icons.home_work,
+            enabled: isProfileComplete,
             onTap: () {
               Navigator.push(
                 context,
@@ -819,8 +838,9 @@ class _CatHotelTab extends StatelessWidget {
         if (_can(ShopPermissionKeys.manageRooms))
           _MenuTile(
             title: '房間管理',
-            subtitle: '管理實際房號與房間開關',
+            subtitle: isProfileComplete ? '管理實際房號與房間開關' : '請先完成基本資料',
             icon: Icons.meeting_room,
+            enabled: isProfileComplete,
             onTap: () {
               Navigator.push(
                 context,
@@ -834,8 +854,9 @@ class _CatHotelTab extends StatelessWidget {
         if (_can(ShopPermissionKeys.managePaymentSettings))
           _MenuTile(
             title: '住宿加購 / 附加服務',
-            subtitle: '設定時間加購、額外服務、價格與開關',
+            subtitle: isProfileComplete ? '設定時間加購、額外服務、價格與開關' : '請先完成基本資料',
             icon: Icons.add_box,
+            enabled: isProfileComplete,
             onTap: () {
               Navigator.push(
                 context,
@@ -849,9 +870,11 @@ class _CatHotelTab extends StatelessWidget {
         if (_can(ShopPermissionKeys.managePaymentSettings))
           _MenuTile(
             title: '收款與優惠設定',
-            subtitle: canUseDepositSettings ? '設定收款方式、訂金規則與長住優惠' : '升級方案解鎖',
+            subtitle: !isProfileComplete
+                ? '請先完成基本資料'
+                : (canUseDepositSettings ? '設定收款方式、訂金規則與長住優惠' : '升級方案解鎖'),
             icon: Icons.payments,
-            enabled: canUseDepositSettings,
+            enabled: isProfileComplete && canUseDepositSettings,
             onTap: () {
               Navigator.push(
                 context,
@@ -867,9 +890,11 @@ class _CatHotelTab extends StatelessWidget {
         if (_can(ShopPermissionKeys.managePolicy))
           _MenuTile(
             title: '入住規則 / 貓咪條件',
-            subtitle: canUsePolicySettings ? '設定入住條款與貓咪入住條件' : '升級方案解鎖',
+            subtitle: !isProfileComplete
+                ? '請先完成基本資料'
+                : (canUsePolicySettings ? '設定入住條款與貓咪入住條件' : '升級方案解鎖'),
             icon: Icons.rule,
-            enabled: canUsePolicySettings,
+            enabled: isProfileComplete && canUsePolicySettings,
             onTap: () {
               Navigator.push(
                 context,
@@ -882,8 +907,9 @@ class _CatHotelTab extends StatelessWidget {
 
         _MenuTile(
           title: '條款同意紀錄',
-          subtitle: '查看會員條款同意與簽署紀錄',
+          subtitle: isProfileComplete ? '查看會員條款同意與簽署紀錄' : '請先完成基本資料',
           icon: Icons.list_alt,
+          enabled: isProfileComplete,
           onTap: () {
             Navigator.push(
               context,
@@ -1099,10 +1125,15 @@ class _TemplateCard extends StatelessWidget {
 }
 
 class _RoomDashboardTile extends StatelessWidget {
-  const _RoomDashboardTile({required this.shopId, required this.onTap});
+  const _RoomDashboardTile({
+    required this.shopId,
+    required this.onTap,
+    required this.enabled,
+  });
 
   final String shopId;
   final VoidCallback onTap;
+  final bool enabled;
 
   @override
   Widget build(BuildContext context) {
@@ -1134,11 +1165,14 @@ class _RoomDashboardTile extends StatelessWidget {
 
         return _MenuTile(
           title: '房務管理',
-          subtitle: unassignedCount > 0
-              ? '待分房 $unassignedCount 間 ・ 查看所有房間狀態'
-              : '查看房況、待分房與入住狀態',
+          subtitle: !enabled
+              ? '請先完成基本資料'
+              : (unassignedCount > 0
+                    ? '待分房 $unassignedCount 間 ・ 查看所有房間狀態'
+                    : '查看房況、待分房與入住狀態'),
           icon: Icons.grid_view,
-          badgeCount: unassignedCount,
+          enabled: enabled,
+          badgeCount: enabled ? unassignedCount : 0,
           onTap: onTap,
         );
       },
@@ -1147,11 +1181,15 @@ class _RoomDashboardTile extends StatelessWidget {
 }
 
 class _BookingManageTile extends StatelessWidget {
-  const _BookingManageTile({required this.shopId, required this.onTap});
+  const _BookingManageTile({
+    required this.shopId,
+    required this.onTap,
+    required this.enabled,
+  });
 
   final String shopId;
   final VoidCallback onTap;
-
+  final bool enabled;
   @override
   Widget build(BuildContext context) {
     return StreamBuilder<QuerySnapshot>(
@@ -1193,37 +1231,42 @@ class _BookingManageTile extends StatelessWidget {
         final totalCount =
             pendingCount + paymentUploadedCount + unreadMessageCount;
 
-        return Card(
-          child: ListTile(
-            leading: const Icon(Icons.receipt_long),
+        return Opacity(
+          opacity: enabled ? 1 : 0.45,
+          child: Card(
+            child: ListTile(
+              leading: const Icon(Icons.receipt_long),
 
-            title: const Text('訂單管理'),
+              title: const Text('訂單管理'),
 
-            subtitle: Text(
-              '待確認 $pendingCount 筆 ・ 已回傳付款 $paymentUploadedCount 筆 ・ 新留言 $unreadMessageCount 則',
-            ),
+              subtitle: Text(
+                enabled
+                    ? '待確認 $pendingCount 筆 ・ 已回傳付款 $paymentUploadedCount 筆 ・ 新留言 $unreadMessageCount 則'
+                    : '請先完成基本資料',
+              ),
 
-            trailing: totalCount > 0
-                ? Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 6,
-                    ),
-                    decoration: BoxDecoration(
-                      color: Colors.red,
-                      borderRadius: BorderRadius.circular(999),
-                    ),
-                    child: Text(
-                      '$totalCount',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
+              trailing: totalCount > 0
+                  ? Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 6,
                       ),
-                    ),
-                  )
-                : const Icon(Icons.chevron_right),
+                      decoration: BoxDecoration(
+                        color: Colors.red,
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                      child: Text(
+                        '$totalCount',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    )
+                  : const Icon(Icons.chevron_right),
 
-            onTap: onTap,
+              onTap: enabled ? onTap : null,
+            ),
           ),
         );
       },

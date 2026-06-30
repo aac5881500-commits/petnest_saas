@@ -351,16 +351,23 @@ class ShopRoomService {
       stayDates.add(formatDateKey(cursor));
       cursor = cursor.add(const Duration(days: 1));
     }
-    final bookingsSnapshot = await _firestore
-        .collection('bookings')
-        .where('shopId', isEqualTo: shopId)
-        .where(
-          'status',
-          whereIn: ['pending', 'confirmed', 'occupied', 'checked_in'],
-        )
-        .get();
+    final roomCalendarSnapshot = await roomCalendarRef(shopId).get();
 
-    final bookings = bookingsSnapshot.docs.map((e) => e.data()).toList();
+    final occupiedRoomDateSet = <String>{};
+
+    for (final doc in roomCalendarSnapshot.docs) {
+      final data = doc.data();
+      final status = (data['status'] ?? '').toString();
+
+      if (status != 'booked' && status != 'checked_in') continue;
+
+      final roomId = (data['roomId'] ?? '').toString();
+      final date = (data['date'] ?? '').toString();
+
+      if (roomId.isEmpty || date.isEmpty) continue;
+
+      occupiedRoomDateSet.add('$roomId|$date');
+    }
 
     final result = <Map<String, dynamic>>[];
 
@@ -378,28 +385,13 @@ class ShopRoomService {
 
         int bookedCount = 0;
 
-        for (final booking in bookings) {
-          final bookingRoomTypeId = (booking['roomTypeId'] ?? '').toString();
+        for (final room in typeRooms) {
+          final roomId = room.id;
 
-          if (bookingRoomTypeId != typeId) continue;
-
-          final start = (booking['startDate'] as Timestamp).toDate();
-          final end = (booking['endDate'] as Timestamp).toDate();
-
-          DateTime temp = DateTime(start.year, start.month, start.day);
-
-          while (temp.isBefore(end)) {
-            final bookingDateKey = formatDateKey(temp);
-
-            if (bookingDateKey == date) {
-              bookedCount++;
-              break;
-            }
-
-            temp = temp.add(const Duration(days: 1));
+          if (occupiedRoomDateSet.contains('$roomId|$date')) {
+            bookedCount++;
           }
         }
-
         final calendarSnapshot = await roomCalendarRef(
           shopId,
         ).where('date', isEqualTo: date).get();

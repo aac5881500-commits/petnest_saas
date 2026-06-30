@@ -4,10 +4,7 @@
 import 'package:flutter/material.dart';
 
 class RoomFeatureTags extends StatelessWidget {
-  const RoomFeatureTags({
-    super.key,
-    required this.features,
-  });
+  const RoomFeatureTags({super.key, required this.features});
 
   final List features;
 
@@ -31,50 +28,55 @@ class RoomFeatureTags extends StatelessWidget {
     }
 
     return LayoutBuilder(
-  builder: (context, constraints) {
-    const spacing = 10.0;
+      builder: (context, constraints) {
+        const spacing = 10.0;
 
-    final itemWidth =
-        (constraints.maxWidth - spacing * 2) / 3;
+        final itemWidth = (constraints.maxWidth - spacing) / 2;
 
-    return Wrap(
-      spacing: spacing,
-      runSpacing: 10,
-      children: features.map<Widget>((key) {
-        final item = featureOptions[key];
+        return Wrap(
+          spacing: spacing,
+          runSpacing: 10,
+          children: features.map<Widget>((key) {
+            final item = featureOptions[key];
 
-        if (item == null) {
-          return const SizedBox();
-        }
+            if (item != null) {
+              return SizedBox(
+                width: itemWidth,
+                child: RoomFeatureCard(
+                  icon: item['icon'] as IconData,
+                  text: item['name'] as String,
+                ),
+              );
+            }
 
-        return SizedBox(
-          width: itemWidth,
-          child: RoomFeatureCard(
-            icon: item['icon'] as IconData,
-            text: item['name'] as String,
-          ),
+            return SizedBox(
+              width: itemWidth,
+              child: RoomFeatureCard(
+                emoji: key.toString().split(' ').first,
+                text: key.toString().replaceFirst(
+                  '${key.toString().split(' ').first} ',
+                  '',
+                ),
+              ),
+            );
+          }).toList(),
         );
-      }).toList(),
+      },
     );
-  },
-);
   }
 }
 
 class RoomFeatureCard extends StatelessWidget {
-  const RoomFeatureCard({
-    super.key,
-    required this.icon,
-    required this.text,
-  });
+  const RoomFeatureCard({super.key, this.icon, this.emoji, required this.text});
 
-  final IconData icon;
+  final IconData? icon;
+  final String? emoji;
   final String text;
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      height: 58,
+      height: 64,
       padding: const EdgeInsets.symmetric(horizontal: 8),
       decoration: BoxDecoration(
         color: const Color(0xFFFFFCF7),
@@ -97,18 +99,20 @@ class RoomFeatureCard extends StatelessWidget {
               color: Color(0xFFFFF1DD),
               shape: BoxShape.circle,
             ),
-            child: Icon(
-              icon,
-              size: 17,
-              color: Color(0xFFB86B18),
-            ),
+            child: icon != null
+                ? Icon(icon, size: 17, color: const Color(0xFFB86B18))
+                : Text(
+                    emoji ?? '⭐',
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(fontSize: 16),
+                  ),
           ),
           const SizedBox(width: 7),
           Expanded(
             child: Text(
               text,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
+              maxLines: 2,
+              overflow: TextOverflow.visible,
               style: const TextStyle(
                 fontSize: 12,
                 fontWeight: FontWeight.w700,

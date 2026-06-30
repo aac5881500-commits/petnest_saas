@@ -329,7 +329,7 @@ class _ShopPublicPageState extends State<ShopPublicPage> {
                                       key: ValueKey(
                                         banners[_currentIndex]['image'],
                                       ),
-                                      fit: BoxFit.contain,
+                                      fit: BoxFit.cover,
                                       width: double.infinity,
                                       height: double.infinity,
                                     ),

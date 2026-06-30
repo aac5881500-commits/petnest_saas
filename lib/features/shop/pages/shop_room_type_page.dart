@@ -76,6 +76,49 @@ class _ShopRoomTypePageState extends State<ShopRoomTypePage> {
   ];
 
   List<String> _selectedFeatures = [];
+  final List<Map<String, String>> _customFeatures = [];
+  final _customFeatureNameController = TextEditingController();
+
+  final List<String> _customFeatureIcons = [
+    '💊',
+    '🧸',
+    '🍖',
+    '🎁',
+    '🚗',
+    '📷',
+    '❤️',
+    '⭐',
+    '🌙',
+    '☀️',
+    '🐟',
+    '🐾',
+    '🛁',
+    '🧼',
+    '🧹',
+    '🍗',
+    '🥣',
+    '🍼',
+    '🏠',
+    '🛏️',
+    '🌿',
+    '🌸',
+    '🎵',
+    '🔔',
+    '📹',
+    '🪟',
+    '❄️',
+    '🔥',
+    '🧊',
+    '🚿',
+    '🏥',
+    '🩺',
+    '📝',
+    '📦',
+    '👜',
+    '🧑‍⚕️',
+  ];
+
+  String _selectedCustomIcon = '💊';
 
   Future<void> _createRoomType() async {
     final name = _nameController.text.trim();
@@ -169,7 +212,10 @@ class _ShopRoomTypePageState extends State<ShopRoomTypePage> {
         depth: int.tryParse(_depthController.text) ?? 0,
         height: int.tryParse(_heightController.text) ?? 0,
 
-        extraData: {'features': _selectedFeatures},
+        extraData: {
+          'features': _selectedFeatures,
+          'customFeatures': List<Map<String, String>>.from(_customFeatures),
+        },
       );
 
       /// 📝 操作紀錄
@@ -187,12 +233,17 @@ class _ShopRoomTypePageState extends State<ShopRoomTypePage> {
       _priceController.clear();
       _totalRoomsController.clear();
       _descriptionController.clear();
+
       _selectedFeatures.clear();
+
+      _customFeatures.clear();
+      _customFeatureNameController.clear();
+      _selectedCustomIcon = '💊';
+
       _extraPriceController.clear();
       _widthController.clear();
       _depthController.clear();
       _heightController.clear();
-
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(const SnackBar(content: Text('新增成功')));
@@ -283,6 +334,7 @@ class _ShopRoomTypePageState extends State<ShopRoomTypePage> {
     _widthController.dispose();
     _depthController.dispose();
     _heightController.dispose();
+    _customFeatureNameController.dispose();
     super.dispose();
   }
 
@@ -331,6 +383,195 @@ class _ShopRoomTypePageState extends State<ShopRoomTypePage> {
           ),
         );
       }).toList(),
+    );
+  }
+
+  Widget _buildCustomFeatureSelector() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Divider(height: 24),
+
+        Row(
+          children: [
+            Text(
+              '自訂特色（${_customFeatures.length} / 10）',
+              style: const TextStyle(fontWeight: FontWeight.bold),
+            ),
+            const Spacer(),
+            if (_customFeatures.length >= 10)
+              const Text(
+                '已達上限',
+                style: TextStyle(color: Colors.red, fontSize: 12),
+              ),
+          ],
+        ),
+
+        const SizedBox(height: 8),
+
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: _customFeatures.map((item) {
+            return Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+              decoration: BoxDecoration(
+                color: Colors.grey.shade200,
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text('${item['icon']}', style: const TextStyle(fontSize: 13)),
+                  const SizedBox(width: 4),
+                  Text(
+                    item['name'] ?? '',
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                  PopupMenuButton<String>(
+                    icon: const Icon(
+                      Icons.more_vert,
+                      size: 16,
+                      color: Colors.black54,
+                    ),
+                    onSelected: (value) {
+                      if (value == 'edit') {
+                        _customFeatureNameController.text = item['name'] ?? '';
+                        _selectedCustomIcon = item['icon'] ?? '💊';
+
+                        setState(() {
+                          _customFeatures.remove(item);
+                        });
+                      }
+
+                      if (value == 'delete') {
+                        setState(() {
+                          _customFeatures.remove(item);
+                        });
+                      }
+                    },
+                    itemBuilder: (_) => const [
+                      PopupMenuItem(value: 'edit', child: Text('編輯')),
+                      PopupMenuItem(value: 'delete', child: Text('刪除')),
+                    ],
+                  ),
+                ],
+              ),
+            );
+          }).toList(),
+        ),
+        const SizedBox(height: 8),
+
+        if (_customFeatures.length < 10) ...[
+          const Align(
+            alignment: Alignment.centerLeft,
+            child: Text(
+              '選擇圖示',
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+            ),
+          ),
+
+          const SizedBox(height: 8),
+
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: _customFeatureIcons.map((icon) {
+              final selected = icon == _selectedCustomIcon;
+
+              return InkWell(
+                borderRadius: BorderRadius.circular(12),
+                onTap: () {
+                  setState(() {
+                    _selectedCustomIcon = icon;
+                  });
+                },
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 180),
+                  width: 46,
+                  height: 46,
+                  decoration: BoxDecoration(
+                    color: selected
+                        ? Theme.of(
+                            context,
+                          ).colorScheme.primary.withOpacity(0.12)
+                        : Colors.grey.shade100,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: selected
+                          ? Theme.of(context).colorScheme.primary
+                          : Colors.grey.shade300,
+                      width: selected ? 2 : 1,
+                    ),
+                  ),
+                  child: Center(
+                    child: Text(icon, style: const TextStyle(fontSize: 22)),
+                  ),
+                ),
+              );
+            }).toList(),
+          ),
+          TextField(
+            controller: _customFeatureNameController,
+            decoration: const InputDecoration(
+              labelText: '特色名稱',
+              hintText: '最多4個字',
+              counterText: '',
+            ),
+          ),
+
+          Align(
+            alignment: Alignment.centerRight,
+            child: SizedBox(
+              width: double.infinity,
+              child: FilledButton.icon(
+                onPressed: () {
+                  final name = _customFeatureNameController.text.trim();
+
+                  if (name.isEmpty) {
+                    ScaffoldMessenger.of(
+                      context,
+                    ).showSnackBar(const SnackBar(content: Text('請輸入特色名稱')));
+                    return;
+                  }
+
+                  if (name.length > 4) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('特色名稱最多 4 個字')),
+                    );
+                    return;
+                  }
+
+                  final exists = _customFeatures.any(
+                    (item) => item['name'] == name,
+                  );
+
+                  if (exists) {
+                    ScaffoldMessenger.of(
+                      context,
+                    ).showSnackBar(const SnackBar(content: Text('此特色已存在')));
+                    return;
+                  }
+
+                  setState(() {
+                    _customFeatures.add({
+                      'icon': _selectedCustomIcon,
+                      'name': name,
+                    });
+                    _customFeatureNameController.clear();
+                  });
+                },
+                icon: const Icon(Icons.add),
+                label: const Text('新增自訂特色'),
+              ),
+            ),
+          ),
+        ],
+      ],
     );
   }
 
@@ -551,6 +792,8 @@ class _ShopRoomTypePageState extends State<ShopRoomTypePage> {
                     /// 🔥 小卡選擇
                     _buildFeatureSelector(),
 
+                    _buildCustomFeatureSelector(),
+
                     const SizedBox(height: 12),
 
                     ElevatedButton(
@@ -581,6 +824,9 @@ class _ShopRoomTypePageState extends State<ShopRoomTypePage> {
                     final item = list[index];
                     final features = item['features'] ?? [];
 
+                    final customFeatures = List<Map<String, dynamic>>.from(
+                      item['customFeatures'] ?? [],
+                    );
                     return Card(
                       child: ListTile(
                         title: Text(item['name'] ?? ''),
@@ -614,6 +860,29 @@ class _ShopRoomTypePageState extends State<ShopRoomTypePage> {
 
                             /// 🔥 小卡
                             _buildFeatureTags(features),
+                            if (customFeatures.isNotEmpty) ...[
+                              const SizedBox(height: 6),
+                              Wrap(
+                                spacing: 6,
+                                runSpacing: 6,
+                                children: customFeatures.map((item) {
+                                  return Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 8,
+                                      vertical: 4,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: Colors.grey.shade200,
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    child: Text(
+                                      '${item['icon']} ${item['name']}',
+                                      style: const TextStyle(fontSize: 11),
+                                    ),
+                                  );
+                                }).toList(),
+                              ),
+                            ],
 
                             /// 🔥 圖片
                             if ((item['images'] ?? []).isNotEmpty)
