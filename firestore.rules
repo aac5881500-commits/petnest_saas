@@ -63,8 +63,8 @@ service cloud.firestore {
       }
 
       // 📜 個人條款同意紀錄
-      match /policy_acceptances/{shopId} {
-  allow read: if isSelf(uid) || isRootAdmin();
+match /policy_acceptances/{shopId} {
+  allow read: if isSelf(uid) || isRootAdmin() || isShopMember(shopId);
   allow create, update: if isSelf(uid) || isRootAdmin();
   allow delete: if false;
 }
@@ -144,11 +144,12 @@ match /shop_members/{memberId} {
       isShopOwner(request.resource.data.shopId)
     ) ||
 
-    (
-      request.resource.data.shopId is string &&
-      request.resource.data.uid == request.auth.uid &&
-      exists(/databases/$(database)/documents/shop_member_invites/$(request.resource.data.shopId + '_' + request.auth.uid))
-    )
+   (
+  request.resource.data.shopId is string &&
+  request.resource.data.uid == request.auth.uid &&
+  request.resource.data.emailKey is string &&
+  exists(/databases/$(database)/documents/shop_member_invites/$(request.resource.data.shopId + '_' + request.resource.data.emailKey))
+)
   );
 
   allow update, delete: if isRootAdmin() ||
@@ -171,14 +172,19 @@ match /shop_member_invites/{inviteId} {
       )
     );
 
-  allow update, delete: if signedIn() &&
+ allow update, delete: if signedIn() &&
+  (
+    isRootAdmin() ||
     (
-      isRootAdmin() ||
-      (
-        resource.data.shopId is string &&
-        isShopOwner(resource.data.shopId)
-      )
-    );
+      resource.data.shopId is string &&
+      isShopOwner(resource.data.shopId)
+    )
+  );
+
+allow update: if signedIn() &&
+  request.resource.data.status == 'accepted' &&
+  resource.data.status == 'pending' &&
+  resource.data.emailKey == request.auth.token.email.lower();
 }
 
     // 🏪 店家資料
@@ -271,7 +277,19 @@ match /members/{uid} {
 
   allow update: if signedIn() && (isShopMember(shopId) || isRootAdmin());
 
-  allow delete: if false;
+allow delete: if signedIn() &&
+  (isShopMember(shopId) || isRootAdmin());
+
+
+  // 🐾 店家會員底下的寵物快取
+  match /pets/{petId} {
+    allow read: if signedIn() && (isShopMember(shopId) || isRootAdmin());
+
+    allow create, update: if signedIn() && (isShopMember(shopId) || isRootAdmin());
+
+    allow delete: if signedIn() &&
+  (isShopMember(shopId) || isRootAdmin());
+  }
 }
 
       // 🛏 房型
@@ -285,6 +303,13 @@ match /members/{uid} {
         allow read: if true;
         allow create, update, delete: if isShopMember(shopId) || isRootAdmin();
       }
+
+      // 📡 設備管理：攝影機 / 溫度 / 濕度 / 感測器
+match /devices/{deviceId} {
+  allow read: if isShopMember(shopId) || isRootAdmin();
+
+  allow create, update, delete: if isShopMember(shopId) || isRootAdmin();
+}
 
 
 // 📅 房務日曆
@@ -431,10 +456,61 @@ match /reports/{reportId} {
   allow update, delete: if false;
 }
 
-   // 📦 訂單
+// ⭐ 評價
+match /reviews/{reviewId} {
+  allow read: if true;
+
+  allow create: if signedIn()
+  && request.resource.data.userId == request.auth.uid
+  && request.resource.data.shopId is string
+  && request.resource.data.bookingId is string
+  && request.resource.data.status == 'visible'
+  && request.resource.data.rating >= 1
+  && request.resource.data.rating <= 5
+  && request.resource.data.environmentRating >= 1
+  && request.resource.data.environmentRating <= 5
+  && request.resource.data.serviceRating >= 1
+  && request.resource.data.serviceRating <= 5
+  && request.resource.data.priceRating >= 1
+  && request.resource.data.priceRating <= 5
+  && request.resource.data.imageUrls is list
+  && request.resource.data.imageUrls.size() <= 5
+  && get(/databases/$(database)/documents/bookings/$(request.resource.data.bookingId)).data.userId == request.auth.uid
+  && get(/databases/$(database)/documents/bookings/$(request.resource.data.bookingId)).data.shopId == request.resource.data.shopId
+  && get(/databases/$(database)/documents/bookings/$(request.resource.data.bookingId)).data.status == 'completed';
+
+  allow update: if isRootAdmin()
+    ||
+    (
+      signedIn()
+      && resource.data.userId == request.auth.uid
+      && request.resource.data.diff(resource.data).changedKeys().hasOnly([
+        'content',
+        'imageUrls',
+        'updatedAt'
+      ])
+      && request.resource.data.imageUrls is list
+      && request.resource.data.imageUrls.size() <= 5
+    )
+    ||
+    (
+      signedIn()
+      && isShopMember(resource.data.shopId)
+      && request.resource.data.diff(resource.data).changedKeys().hasOnly([
+        'reply',
+        'replyAt',
+        'replyBy',
+        'updatedAt'
+      ])
+      && request.resource.data.replyBy == request.auth.uid
+    );
+
+  allow delete: if isRootAdmin();
+}
+// 📦 訂單
 match /bookings/{bookingId} {
 
- allow read: if signedIn();
+allow read: if signedIn();
 
 allow create: if signedIn()
   &&
@@ -454,10 +530,23 @@ allow create: if signedIn()
     isRootAdmin()
   );
 
-  allow update: if signedIn() &&
+allow update: if signedIn() &&
   (
     isShopMember(resource.data.shopId) ||
     isRootAdmin() ||
+
+    (
+      resource.data.userId == request.auth.uid &&
+      resource.data.status == 'completed' &&
+      !(resource.data.reviewed == true) &&
+      request.resource.data.reviewed == true &&
+      request.resource.data.reviewId is string &&
+      request.resource.data.diff(resource.data).changedKeys().hasOnly([
+        'reviewed',
+        'reviewId',
+        'updatedAt'
+      ])
+    ) ||
 
     (
       resource.data.userId == request.auth.uid &&
@@ -472,12 +561,20 @@ allow create: if signedIn()
         'depositStatus',
         'depositSubmittedAt',
         'depositExpired',
-'assignStatus'
+        'assignStatus'
       ])
     )
   );
 
-allow delete: if false;
+allow delete: if signedIn() &&
+  (
+    isRootAdmin() ||
+    (
+      resource.data.shopId is string &&
+      isShopMember(resource.data.shopId) &&
+      resource.data.status == 'cancelled'
+    )
+  );
 
   match /messages/{messageId} {
 
@@ -514,11 +611,14 @@ allow delete: if false;
        // 📮 店主 / 店家聯絡平台
     match /platform_contact_requests/{requestId} {
       allow read: if signedIn() &&
-        (
-          isRootAdmin() ||
-          isShopMember(resource.data.shopId)
-        );
-
+  (
+    isRootAdmin() ||
+    (
+      resource.data.shopId is string &&
+      isShopMember(resource.data.shopId)
+    ) ||
+    resource.data.userId == request.auth.uid
+  );
       allow create: if signedIn() &&
         request.resource.data.source == 'shop_owner' &&
         request.resource.data.shopId is string &&

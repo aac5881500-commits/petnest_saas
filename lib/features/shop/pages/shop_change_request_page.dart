@@ -1,6 +1,6 @@
 // lib/features/shop/pages/shop_change_request_page.dart
 // 📨 重要資料修改申請
-// 功能：店家送出電話、地址、統編、特寵字號修改申請
+// 功能：店家送出店名、電話、地址與社群連結修改申請
 
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -192,10 +192,6 @@ class _ShopChangeRequestPageState extends State<ShopChangeRequestPage> {
         return widget.currentPhone;
       case 'address':
         return '${widget.currentCity} ${widget.currentDistrict}\n${widget.currentAddress}';
-      case 'licenseNumber':
-        return widget.currentLicenseNumber;
-      case 'taxId':
-        return widget.currentTaxId;
       case 'lineUrl':
         return widget.currentLineUrl;
       case 'igUrl':
@@ -231,8 +227,6 @@ class _ShopChangeRequestPageState extends State<ShopChangeRequestPage> {
               DropdownMenuItem(value: 'name', child: Text('店名修改')),
               DropdownMenuItem(value: 'phone', child: Text('電話修改')),
               DropdownMenuItem(value: 'address', child: Text('地址修改')),
-              DropdownMenuItem(value: 'licenseNumber', child: Text('特寵字號修改')),
-              DropdownMenuItem(value: 'taxId', child: Text('統編修改')),
               DropdownMenuItem(value: 'lineUrl', child: Text('LINE 連結修改')),
               DropdownMenuItem(value: 'igUrl', child: Text('IG 連結修改')),
               DropdownMenuItem(value: 'fbUrl', child: Text('FB 連結修改')),
@@ -339,10 +333,6 @@ class _ShopChangeRequestPageState extends State<ShopChangeRequestPage> {
                     ? '新店名'
                     : _requestType == 'phone'
                     ? '新電話'
-                    : _requestType == 'licenseNumber'
-                    ? '新特寵字號'
-                    : _requestType == 'taxId'
-                    ? '新統編'
                     : _requestType == 'lineUrl'
                     ? '新 LINE 連結'
                     : _requestType == 'igUrl'

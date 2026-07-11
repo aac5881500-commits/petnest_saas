@@ -118,12 +118,11 @@ class PetService {
         .doc(user.uid)
         .collection('pets');
 
-    /// 🔥 限制最多 5 隻
+    /// 🔥 限制最多 10 隻
     final snapshot = await petsRef.get();
-    if (snapshot.docs.length >= 5) {
-      throw Exception('最多只能新增 5 隻寵物');
+    if (snapshot.docs.length >= 10) {
+      throw Exception('最多只能新增 10 隻寵物');
     }
-
     final doc = petsRef.doc();
 
     await doc.set({

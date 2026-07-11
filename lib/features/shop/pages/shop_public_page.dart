@@ -17,6 +17,7 @@ import 'package:petnest_saas/features/shop/pages/shop_announcement_page.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:petnest_saas/features/shop/pages/shop_faq_page.dart';
 import 'package:petnest_saas/features/platform/pages/platform_shop_list_page.dart';
+import 'package:petnest_saas/features/shop/pages/shop_review_list_page.dart';
 
 class ShopPublicPage extends StatefulWidget {
   const ShopPublicPage({
@@ -517,31 +518,59 @@ class _ShopPublicPageState extends State<ShopPublicPage> {
                               );
                             },
                           ),
-                          ShopTemplateFeatureCard(
-                            icon: Icons.star,
-                            title: '評價專區',
-                            subtitle: '顧客評價・真實回饋',
-                            onTap: () {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(content: Text('評價功能將於後續版本提供')),
-                              );
-                            },
-                          ),
                           if (shop['showFaqSection'] != false)
-                            ShopTemplateFeatureCard(
-                              icon: Icons.help,
-                              title: '常見問題',
-                              subtitle: '常見疑問・快速解答',
-                              onTap: () {
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (_) =>
-                                        ShopFaqPage(shopId: widget.shopId),
-                                  ),
+                            StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+                              stream: FirebaseFirestore.instance
+                                  .collection('reviews')
+                                  .where('shopId', isEqualTo: widget.shopId)
+                                  .where('status', isEqualTo: 'visible')
+                                  .snapshots(),
+                              builder: (context, reviewSnapshot) {
+                                final reviewDocs =
+                                    reviewSnapshot.data?.docs ?? [];
+
+                                double total = 0;
+                                for (final doc in reviewDocs) {
+                                  final data = doc.data();
+                                  total += ((data['rating'] ?? 0) as num)
+                                      .toDouble();
+                                }
+
+                                final subtitle = reviewDocs.isEmpty
+                                    ? '目前尚無評價'
+                                    : '⭐ ${(total / reviewDocs.length).toStringAsFixed(1)}（${reviewDocs.length}）・查看全部評價';
+
+                                return ShopTemplateFeatureCard(
+                                  icon: Icons.star,
+                                  title: '評價專區',
+                                  subtitle: subtitle,
+                                  onTap: () {
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (_) => ShopReviewListPage(
+                                          shopId: widget.shopId,
+                                        ),
+                                      ),
+                                    );
+                                  },
                                 );
                               },
                             ),
+                          ShopTemplateFeatureCard(
+                            icon: Icons.help,
+                            title: '常見問題',
+                            subtitle: '常見疑問・快速解答',
+                            onTap: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) =>
+                                      ShopFaqPage(shopId: widget.shopId),
+                                ),
+                              );
+                            },
+                          ),
                         ],
                       ),
                     ],

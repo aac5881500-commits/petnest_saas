@@ -8,6 +8,7 @@ import 'package:flutter/material.dart';
 class AdminPetSection extends StatelessWidget {
   const AdminPetSection({
     super.key,
+    required this.shopId,
     required this.member,
     required this.selectedPetIds,
     required this.tempPets,
@@ -15,6 +16,7 @@ class AdminPetSection extends StatelessWidget {
     required this.onTogglePet,
   });
 
+  final String shopId;
   final Map<String, dynamic>? member;
   final Set<String> selectedPetIds;
   final List<Map<String, dynamic>> tempPets;
@@ -119,7 +121,9 @@ class AdminPetSection extends StatelessWidget {
         else
           StreamBuilder<QuerySnapshot>(
             stream: FirebaseFirestore.instance
-                .collection('user_profiles')
+                .collection('shops')
+                .doc(shopId)
+                .collection('members')
                 .doc(userId)
                 .collection('pets')
                 .snapshots(),

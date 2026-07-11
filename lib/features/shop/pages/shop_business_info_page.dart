@@ -16,6 +16,8 @@ class ShopBusinessInfoPage extends StatefulWidget {
 class _ShopBusinessInfoPageState extends State<ShopBusinessInfoPage> {
   bool _isOpen = true;
   bool _isPublic = false;
+  bool _licenseVerified = false;
+  bool _taxIdVerified = false;
 
   List<String> _serviceTypes = [];
 
@@ -45,6 +47,12 @@ class _ShopBusinessInfoPageState extends State<ShopBusinessInfoPage> {
     if (shop != null) {
       _isOpen = shop['isOpen'] ?? true;
       _isPublic = shop['isPublic'] ?? false;
+      _licenseVerified = shop['licenseVerified'] == true;
+      _taxIdVerified = shop['taxIdVerified'] == true;
+
+      if (!_licenseVerified || !_taxIdVerified) {
+        _isPublic = false;
+      }
       _businessHoursController.text = shop['businessHours'] ?? '';
       final openTime = shop['openTime']?.toString() ?? '';
       final closeTime = shop['closeTime']?.toString() ?? '';
@@ -213,10 +221,32 @@ class _ShopBusinessInfoPageState extends State<ShopBusinessInfoPage> {
             const SizedBox(height: 20),
 
             /// 公開開關
-            SwitchListTile(
-              title: const Text('是否公開顯示'),
-              value: _isPublic,
-              onChanged: (v) => setState(() => _isPublic = v),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: (!_licenseVerified || !_taxIdVerified)
+                    ? Colors.red.shade50
+                    : Colors.green.shade50,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: (!_licenseVerified || !_taxIdVerified)
+                      ? Colors.red.shade200
+                      : Colors.green.shade200,
+                ),
+              ),
+              child: SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('是否公開顯示'),
+                subtitle: Text(
+                  (!_licenseVerified || !_taxIdVerified)
+                      ? '特寵字號與統編需平台認證通過後，才能公開在平台找店。'
+                      : '認證已通過，可公開顯示在平台找店。',
+                ),
+                value: _isPublic,
+                onChanged: (!_licenseVerified || !_taxIdVerified)
+                    ? null
+                    : (v) => setState(() => _isPublic = v),
+              ),
             ),
 
             const SizedBox(height: 24),

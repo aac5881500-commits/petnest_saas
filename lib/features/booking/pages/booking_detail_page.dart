@@ -28,6 +28,7 @@ import 'package:petnest_saas/features/booking/widgets/booking_detail/booking_det
 import 'package:petnest_saas/features/booking/widgets/booking_detail/booking_detail_after_checkout_section.dart';
 import 'package:petnest_saas/features/shop/pages/policy_version_detail_page.dart';
 import 'package:petnest_saas/features/booking/widgets/booking_detail/booking_detail_message_section.dart';
+import 'package:petnest_saas/features/booking/widgets/booking_detail/booking_detail_review_section.dart';
 
 class BookingDetailPage extends StatefulWidget {
   final Map<String, dynamic> data;
@@ -80,6 +81,7 @@ class _BookingDetailPageState extends State<BookingDetailPage> {
 
         final data = snapshot.data!.data() as Map<String, dynamic>;
         final shopName = (data['shopName'] ?? '').toString();
+        final reviewed = data['reviewed'] == true;
         final basePrice = data['basePrice'] ?? 0;
         final nights = data['nights'] ?? 1;
         final extraPetPrice = data['extraPetPrice'] ?? 0;
@@ -213,6 +215,39 @@ class _BookingDetailPageState extends State<BookingDetailPage> {
                 /// 🏠 房型卡（完全後台版🔥）
                 BookingDetailStatusCard(data: data),
                 const SizedBox(height: 12),
+                if ((data['source'] ?? '').toString() == 'admin' ||
+                    (data['source'] ?? '').toString() == 'manual')
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(12),
+                    margin: const EdgeInsets.only(bottom: 12),
+                    decoration: BoxDecoration(
+                      color: Colors.orange.shade50,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: Colors.orange.shade100),
+                    ),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Icon(
+                          Icons.info_outline,
+                          color: Colors.orange.shade700,
+                          size: 22,
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            '此訂單由店家代為建立，可能是電話、現場或合併歷史訂單後同步到您的會員中心。',
+                            style: TextStyle(
+                              color: Colors.orange.shade900,
+                              fontWeight: FontWeight.w700,
+                              height: 1.4,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
 
                 if (bookingStatus == 'pending' || bookingStatus == 'unpaid')
                   SizedBox(
@@ -476,6 +511,14 @@ class _BookingDetailPageState extends State<BookingDetailPage> {
                   onSubmitDeposit: _submitDeposit,
                   onDeleteTransferImage: _deleteTransferImage,
                 ),
+
+                BookingDetailReviewSection(
+                  bookingId: widget.docId,
+                  data: data,
+                  bookingStatus: bookingStatus.toString(),
+                ),
+
+                const SizedBox(height: 16),
 
                 Container(
                   key: _messageSectionKey,

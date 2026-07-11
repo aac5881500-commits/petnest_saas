@@ -252,6 +252,12 @@ class BookingService {
     String emergencyAddress = '',
     String emergencyPhone2 = '',
     int totalPrice = 0,
+    int originalTotal = 0,
+    bool applyLongStayDiscount = false,
+    int discountAmount = 0,
+    int discountPercent = 0,
+    int discountMinNights = 0,
+    String discountBase = '',
     int depositAmount = 0,
     String paymentMethod = '',
     String payAmountType = '', // deposit / full
@@ -285,16 +291,19 @@ class BookingService {
 
     final finalPets = (pets ?? []).map((p) {
       return {
-        'name': p['name'],
-        'breed': p['breed'],
-        'gender': p['gender'],
-        'age': p['age'],
-        'isNeutered': p['isNeutered'],
-        'photoUrl': p['photoUrl'] ?? '',
-        'medicalStatus': p['vaccine'],
-        'litterType': p['litterType'],
-        'note': p['note'],
-        'staffNote': p['adminNote'] ?? '',
+        'petId': p['petId'] ?? '',
+        'name': p['name'] ?? '',
+        'type': p['type'] ?? '',
+        'breed': p['breed'] ?? '',
+        'gender': p['gender'] ?? '',
+        'age': p['age'] ?? '',
+        'isNeutered': p['isNeutered'] ?? false,
+        'photoUrl': p['photoUrl'] ?? p['imageUrl'] ?? '',
+        'vaccine': p['vaccine'] ?? '',
+        'medicalStatus': p['medicalStatus'] ?? p['vaccine'] ?? '',
+        'litterType': p['litterType'] ?? '',
+        'note': p['note'] ?? '',
+        'staffNote': p['staffNote'] ?? p['adminNote'] ?? '',
       };
     }).toList();
 
@@ -347,6 +356,12 @@ class BookingService {
 
       /// 價格欄位
       'totalPrice': totalPrice,
+      'originalTotal': originalTotal,
+      'applyLongStayDiscount': applyLongStayDiscount,
+      'discountAmount': discountAmount,
+      'discountPercent': discountPercent,
+      'discountMinNights': discountMinNights,
+      'discountBase': discountBase,
       'depositAmount': depositAmount,
       'paymentMethod': paymentMethod,
       'payAmountType': payAmountType,

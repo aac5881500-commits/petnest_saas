@@ -21,6 +21,12 @@ class BookingDetailHeaderSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final source = (data['source'] ?? '').toString();
+
+    final sourceText = (source == 'admin' || source == 'manual')
+        ? '店家代為建立'
+        : 'APP 自行預約';
+
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(16),
@@ -182,6 +188,25 @@ class BookingDetailHeaderSection extends StatelessWidget {
                         ),
                       ],
                     ),
+                  const SizedBox(height: 4),
+
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Text(
+                        '建立來源 ',
+                        style: TextStyle(color: Colors.white54, fontSize: 11),
+                      ),
+                      Text(
+                        sourceText,
+                        style: const TextStyle(
+                          color: Colors.white70,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ],
+                  ),
                 ],
               ),
             ],

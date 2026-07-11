@@ -23,12 +23,10 @@ class CatHotelPermissionPage extends StatefulWidget {
   final void Function(String key, bool value) onChanged;
 
   @override
-  State<CatHotelPermissionPage> createState() =>
-      _CatHotelPermissionPageState();
+  State<CatHotelPermissionPage> createState() => _CatHotelPermissionPageState();
 }
 
-class _CatHotelPermissionPageState
-    extends State<CatHotelPermissionPage> {
+class _CatHotelPermissionPageState extends State<CatHotelPermissionPage> {
   void _updatePermission(String key, bool value) {
     setState(() {
       widget.permissions[key] = value;
@@ -40,9 +38,7 @@ class _CatHotelPermissionPageState
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('貓咪旅店權限'),
-      ),
+      appBar: AppBar(title: const Text('貓咪旅店權限')),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
@@ -50,46 +46,37 @@ class _CatHotelPermissionPageState
             title: '訂單管理',
             subtitle: '可查看與管理住宿訂單',
             value:
-                widget.permissions[ShopPermissionKeys.manageBookings] ??
-                    false,
+                widget.permissions[ShopPermissionKeys.manageBookings] ?? false,
+            enabled: widget.isOwner,
+            onChanged: (value) {
+              _updatePermission(ShopPermissionKeys.manageBookings, value);
+            },
+          ),
+
+          PermissionSwitchTile(
+            title: '預約管理',
+            subtitle: '可開關前台預約、管理可預約日期',
+            value:
+                widget.permissions[ShopPermissionKeys.manageBookingSettings] ??
+                false,
             enabled: widget.isOwner,
             onChanged: (value) {
               _updatePermission(
-                ShopPermissionKeys.manageBookings,
+                ShopPermissionKeys.manageBookingSettings,
                 value,
               );
             },
           ),
 
           PermissionSwitchTile(
-  title: '預約管理',
-  subtitle: '可開關前台預約、管理可預約日期',
-  value:
-      widget.permissions[
-          ShopPermissionKeys.manageBookingSettings] ??
-      false,
-  enabled: widget.isOwner,
-  onChanged: (value) {
-    _updatePermission(
-      ShopPermissionKeys.manageBookingSettings,
-      value,
-    );
-  },
-),
-
-          PermissionSwitchTile(
             title: '房務管理',
             subtitle: '可操作入住、退房、房間狀態',
             value:
-                widget.permissions[
-                    ShopPermissionKeys.manageRoomDashboard] ??
+                widget.permissions[ShopPermissionKeys.manageRoomDashboard] ??
                 false,
             enabled: widget.isOwner,
             onChanged: (value) {
-              _updatePermission(
-                ShopPermissionKeys.manageRoomDashboard,
-                value,
-              );
+              _updatePermission(ShopPermissionKeys.manageRoomDashboard, value);
             },
           ),
 
@@ -97,39 +84,39 @@ class _CatHotelPermissionPageState
             title: '房型管理',
             subtitle: '可新增與修改房型',
             value:
-                widget.permissions[
-                    ShopPermissionKeys.manageRoomTypes] ??
-                false,
+                widget.permissions[ShopPermissionKeys.manageRoomTypes] ?? false,
             enabled: widget.isOwner,
             onChanged: (value) {
-              _updatePermission(
-                ShopPermissionKeys.manageRoomTypes,
-                value,
-              );
+              _updatePermission(ShopPermissionKeys.manageRoomTypes, value);
             },
           ),
 
           PermissionSwitchTile(
             title: '房間管理',
             subtitle: '可新增與修改實際房間',
-            value:
-                widget.permissions[ShopPermissionKeys.manageRooms] ??
-                    false,
+            value: widget.permissions[ShopPermissionKeys.manageRooms] ?? false,
             enabled: widget.isOwner,
             onChanged: (value) {
-              _updatePermission(
-                ShopPermissionKeys.manageRooms,
-                value,
-              );
+              _updatePermission(ShopPermissionKeys.manageRooms, value);
             },
           ),
 
           PermissionSwitchTile(
-            title: '付款 / 訂金設定',
-            subtitle: '可修改付款方式、訂金與加購設定',
+            title: '攝影機 / 設備管理',
+            subtitle: '可新增、修改、關閉攝影機與設備',
             value:
-                widget.permissions[
-                    ShopPermissionKeys.managePaymentSettings] ??
+                widget.permissions[ShopPermissionKeys.manageDevices] ?? false,
+            enabled: widget.isOwner,
+            onChanged: (value) {
+              _updatePermission(ShopPermissionKeys.manageDevices, value);
+            },
+          ),
+
+          PermissionSwitchTile(
+            title: '收款與優惠設定',
+            subtitle: '可修改付款方式、訂金、優惠與折扣設定',
+            value:
+                widget.permissions[ShopPermissionKeys.managePaymentSettings] ??
                 false,
             enabled: widget.isOwner,
             onChanged: (value) {
@@ -141,17 +128,22 @@ class _CatHotelPermissionPageState
           ),
 
           PermissionSwitchTile(
-            title: '入住規則',
-            subtitle: '可修改入住條款與規則',
-            value:
-                widget.permissions[ShopPermissionKeys.managePolicy] ??
-                    false,
+            title: '住宿與加購',
+            subtitle: '可新增、修改住宿加購與附加服務',
+            value: widget.permissions[ShopPermissionKeys.manageAddons] ?? false,
             enabled: widget.isOwner,
             onChanged: (value) {
-              _updatePermission(
-                ShopPermissionKeys.managePolicy,
-                value,
-              );
+              _updatePermission(ShopPermissionKeys.manageAddons, value);
+            },
+          ),
+
+          PermissionSwitchTile(
+            title: '入住規則',
+            subtitle: '可修改入住條款與規則',
+            value: widget.permissions[ShopPermissionKeys.managePolicy] ?? false,
+            enabled: widget.isOwner,
+            onChanged: (value) {
+              _updatePermission(ShopPermissionKeys.managePolicy, value);
             },
           ),
 
@@ -159,10 +151,7 @@ class _CatHotelPermissionPageState
 
           Text(
             '條款同意紀錄固定可查看，不列入權限控制。',
-            style: TextStyle(
-              color: Colors.grey.shade700,
-              fontSize: 13,
-            ),
+            style: TextStyle(color: Colors.grey.shade700, fontSize: 13),
           ),
         ],
       ),

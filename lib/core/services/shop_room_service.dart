@@ -6,6 +6,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'dart:typed_data';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:petnest_saas/core/services/shop_device_service.dart';
 
 class ShopRoomService {
   ShopRoomService._();
@@ -191,7 +192,7 @@ class ShopRoomService {
     required String name,
     required String roomTypeId,
   }) async {
-    await roomsRef(shopId).add({
+    final roomDoc = await roomsRef(shopId).add({
       'name': name,
       'roomTypeId': roomTypeId,
       'enabled': true,
@@ -200,6 +201,18 @@ class ShopRoomService {
       'priceRules': [],
       'discountRules': [],
       'createdAt': FieldValue.serverTimestamp(),
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+
+    final cameraId = await ShopDeviceService.instance
+        .createDefaultCameraForRoom(
+          shopId: shopId,
+          roomId: roomDoc.id,
+          roomName: name,
+        );
+
+    await roomDoc.update({
+      'cameraIds': [cameraId],
       'updatedAt': FieldValue.serverTimestamp(),
     });
   }
@@ -351,22 +364,54 @@ class ShopRoomService {
       stayDates.add(formatDateKey(cursor));
       cursor = cursor.add(const Duration(days: 1));
     }
-    final roomCalendarSnapshot = await roomCalendarRef(shopId).get();
+    final bookingSnapshot = await _firestore
+        .collection('bookings')
+        .where('shopId', isEqualTo: shopId)
+        .where('status', whereIn: ['pending', 'confirmed', 'checked_in'])
+        .get();
 
-    final occupiedRoomDateSet = <String>{};
+    final bookedRoomTypeDateCount = <String, int>{};
 
-    for (final doc in roomCalendarSnapshot.docs) {
+    for (final doc in bookingSnapshot.docs) {
       final data = doc.data();
-      final status = (data['status'] ?? '').toString();
 
-      if (status != 'booked' && status != 'checked_in') continue;
+      final roomTypeId = (data['roomTypeId'] ?? data['roomId'] ?? '')
+          .toString();
+      if (roomTypeId.isEmpty) continue;
 
-      final roomId = (data['roomId'] ?? '').toString();
-      final date = (data['date'] ?? '').toString();
+      final bookingStartRaw = data['startDate'];
+      final bookingEndRaw = data['endDate'];
 
-      if (roomId.isEmpty || date.isEmpty) continue;
+      if (bookingStartRaw is! Timestamp || bookingEndRaw is! Timestamp) {
+        continue;
+      }
 
-      occupiedRoomDateSet.add('$roomId|$date');
+      final bookingStart = bookingStartRaw.toDate();
+      final bookingEnd = bookingEndRaw.toDate();
+
+      DateTime cursor = DateTime(
+        bookingStart.year,
+        bookingStart.month,
+        bookingStart.day,
+      );
+
+      final stopDate = DateTime(
+        bookingEnd.year,
+        bookingEnd.month,
+        bookingEnd.day,
+      );
+
+      while (cursor.isBefore(stopDate)) {
+        final dateKey = formatDateKey(cursor);
+
+        if (stayDates.contains(dateKey)) {
+          final key = '$roomTypeId|$dateKey';
+          bookedRoomTypeDateCount[key] =
+              (bookedRoomTypeDateCount[key] ?? 0) + 1;
+        }
+
+        cursor = cursor.add(const Duration(days: 1));
+      }
     }
 
     final result = <Map<String, dynamic>>[];
@@ -383,15 +428,6 @@ class ShopRoomService {
       for (final date in stayDates) {
         int availableCount = 0;
 
-        int bookedCount = 0;
-
-        for (final room in typeRooms) {
-          final roomId = room.id;
-
-          if (occupiedRoomDateSet.contains('$roomId|$date')) {
-            bookedCount++;
-          }
-        }
         final calendarSnapshot = await roomCalendarRef(
           shopId,
         ).where('date', isEqualTo: date).get();
@@ -421,7 +457,10 @@ class ShopRoomService {
           availableCount++;
         }
 
-        final realAvailableCount = availableCount - bookedCount;
+        final bookingBookedCount =
+            bookedRoomTypeDateCount['$typeId|$date'] ?? 0;
+
+        final realAvailableCount = availableCount - bookingBookedCount;
 
         if (realAvailableCount < minAvailableRooms) {
           minAvailableRooms = realAvailableCount;

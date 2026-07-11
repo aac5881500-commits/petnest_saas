@@ -20,6 +20,8 @@ class PlatformShopRequestManagePage extends StatelessWidget {
         return '特寵字號修改';
       case 'taxId':
         return '統編修改';
+      case 'fullVerify':
+        return '店家認證／平台公開';
       case 'lineUrl':
         return 'LINE 連結修改';
 
@@ -88,7 +90,14 @@ class PlatformShopRequestManagePage extends StatelessWidget {
 
     if (shopId.isEmpty) return;
 
-    if (requestType == 'address') {
+    if (requestType == 'fullVerify') {
+      await FirebaseFirestore.instance.collection('shops').doc(shopId).update({
+        'licenseVerified': true,
+        'taxIdVerified': true,
+        'isPublic': true,
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+    } else if (requestType == 'address') {
       if (newCity.isEmpty || newDistrict.isEmpty || newAddress.isEmpty) {
         return;
       }
@@ -140,12 +149,22 @@ class PlatformShopRequestManagePage extends StatelessWidget {
       });
     }
 
+    String reviewNote = '平台已核准';
+
+    switch (requestType) {
+      case 'fullVerify':
+        reviewNote = '平台已完成店家認證，並開放平台公開';
+        break;
+
+      default:
+        reviewNote = '平台已核准並更新資料';
+    }
     await FirebaseFirestore.instance
         .collection('shop_change_requests')
         .doc(doc.id)
         .update({
           'status': 'approved',
-          'reviewNote': '平台已核准並更新資料',
+          'reviewNote': reviewNote,
           'reviewedAt': FieldValue.serverTimestamp(),
         });
   }
@@ -201,6 +220,28 @@ class PlatformShopRequestManagePage extends StatelessWidget {
         });
   }
 
+  Widget _buildImagePreview({required String title, required String imageUrl}) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
+          const SizedBox(height: 6),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(10),
+            child: Image.network(
+              imageUrl,
+              height: 160,
+              width: double.infinity,
+              fit: BoxFit.cover,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildRequestList({
     required BuildContext context,
     required List<QueryDocumentSnapshot> docs,
@@ -234,6 +275,13 @@ class PlatformShopRequestManagePage extends StatelessWidget {
         final currentValue = data['currentValue']?.toString() ?? '';
         final status = data['status']?.toString() ?? 'pending';
         final reviewNote = data['reviewNote']?.toString() ?? '';
+        final contactName = data['contactName']?.toString() ?? '';
+        final contactPhone = data['contactPhone']?.toString() ?? '';
+        final contactTitle = data['contactTitle']?.toString() ?? '';
+        final contactProofImageUrl =
+            data['contactProofImageUrl']?.toString() ?? '';
+        final licenseImageUrl = data['licenseImageUrl']?.toString() ?? '';
+        final taxIdImageUrl = data['taxIdImageUrl']?.toString() ?? '';
         final createdAt = data['createdAt'];
         final reviewedAt = data['reviewedAt'];
 
@@ -271,6 +319,32 @@ class PlatformShopRequestManagePage extends StatelessWidget {
                 if (shopId.isNotEmpty) Text('店家ID：$shopId'),
                 if (applicantEmail.isNotEmpty) Text('申請人：$applicantEmail'),
                 Text('申請時間：${_formatDateTime(createdAt)}'),
+                if (contactName.isNotEmpty) Text('聯絡人姓名：$contactName'),
+                if (contactPhone.isNotEmpty) Text('聯絡電話：$contactPhone'),
+                if (contactTitle.isNotEmpty) Text('職稱／身分：$contactTitle'),
+                if (contactProofImageUrl.isNotEmpty ||
+                    licenseImageUrl.isNotEmpty ||
+                    taxIdImageUrl.isNotEmpty) ...[
+                  const SizedBox(height: 12),
+
+                  if (contactProofImageUrl.isNotEmpty)
+                    _buildImagePreview(
+                      title: '聯絡人證明照片',
+                      imageUrl: contactProofImageUrl,
+                    ),
+
+                  if (licenseImageUrl.isNotEmpty)
+                    _buildImagePreview(
+                      title: '特寵字號證明照片',
+                      imageUrl: licenseImageUrl,
+                    ),
+
+                  if (taxIdImageUrl.isNotEmpty)
+                    _buildImagePreview(
+                      title: '統編證明照片',
+                      imageUrl: taxIdImageUrl,
+                    ),
+                ],
                 if (done) Text('處理時間：${_formatDateTime(reviewedAt)}'),
 
                 if (currentValue.isNotEmpty) Text('目前資料：$currentValue'),

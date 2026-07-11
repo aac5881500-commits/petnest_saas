@@ -74,11 +74,12 @@ class _BookingFormPageState extends State<BookingFormPage> {
   String _payAmountType = 'deposit';
   String? _city;
   String? _district;
+  bool _sameAddress = false;
   final _detailAddressController = TextEditingController();
 
   final _emergencyNameController = TextEditingController();
   final _emergencyPhoneController = TextEditingController();
-  final _emergencyRelationController = TextEditingController();
+  String? _emergencyRelation;
   final _emergencyAddressController = TextEditingController();
   final _phone2Controller = TextEditingController();
 
@@ -472,7 +473,6 @@ class _BookingFormPageState extends State<BookingFormPage> {
     _detailAddressController.dispose();
     _emergencyNameController.dispose();
     _emergencyPhoneController.dispose();
-    _emergencyRelationController.dispose();
     _emergencyAddressController.dispose();
     _phone2Controller.dispose();
 
@@ -581,7 +581,10 @@ class _BookingFormPageState extends State<BookingFormPage> {
       if (emergency != null) {
         _emergencyNameController.text = emergency['name'] ?? '';
         _emergencyPhoneController.text = emergency['phone'] ?? '';
-        _emergencyRelationController.text = emergency['relation'] ?? '';
+        _emergencyRelation = (emergency['relation'] ?? '').toString().isEmpty
+            ? null
+            : emergency['relation'].toString();
+
         _emergencyAddressController.text = emergency['address'] ?? '';
         _phone2Controller.text = emergency['phone2'] ?? '';
       }
@@ -642,7 +645,7 @@ class _BookingFormPageState extends State<BookingFormPage> {
               TextFormField(
                 controller: widget.customerNameController,
                 decoration: const InputDecoration(
-                  labelText: '聯絡人姓名',
+                  labelText: '聯絡人姓名 *',
                   border: OutlineInputBorder(),
                 ),
               ),
@@ -653,13 +656,16 @@ class _BookingFormPageState extends State<BookingFormPage> {
                 controller: widget.customerPhoneController,
                 keyboardType: TextInputType.phone,
                 decoration: const InputDecoration(
-                  labelText: '聯絡電話',
+                  labelText: '聯絡電話 *',
                   border: OutlineInputBorder(),
                 ),
               ),
               const SizedBox(height: 24),
 
-              const Text('地址', style: TextStyle(fontWeight: FontWeight.bold)),
+              const Text(
+                '地址 *',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+              ),
 
               const SizedBox(height: 8),
 
@@ -702,15 +708,14 @@ class _BookingFormPageState extends State<BookingFormPage> {
               TextFormField(
                 controller: _detailAddressController,
                 decoration: const InputDecoration(
-                  labelText: '詳細地址',
+                  labelText: '詳細地址 *',
                   border: OutlineInputBorder(),
                 ),
               ),
 
               const SizedBox(height: 24),
-
               const Text(
-                '緊急聯絡人',
+                '緊急聯絡人 *',
                 style: TextStyle(fontWeight: FontWeight.bold),
               ),
 
@@ -736,25 +741,63 @@ class _BookingFormPageState extends State<BookingFormPage> {
 
               const SizedBox(height: 16),
 
-              TextFormField(
-                controller: _emergencyRelationController,
+              DropdownButtonFormField<String>(
+                value: _emergencyRelation,
                 decoration: const InputDecoration(
                   labelText: '與飼主關係',
                   border: OutlineInputBorder(),
                 ),
+                items: const [
+                  DropdownMenuItem(value: '父母', child: Text('父母')),
+                  DropdownMenuItem(value: '夫妻', child: Text('夫妻')),
+                  DropdownMenuItem(value: '配偶', child: Text('配偶')),
+                  DropdownMenuItem(value: '兄弟姊妹', child: Text('兄弟姊妹')),
+                  DropdownMenuItem(value: '情侶', child: Text('情侶')),
+                  DropdownMenuItem(value: '朋友', child: Text('朋友')),
+                  DropdownMenuItem(value: '其他', child: Text('其他')),
+                ],
+                onChanged: (value) {
+                  setState(() {
+                    _emergencyRelation = value;
+                  });
+                },
+              ),
+              const SizedBox(height: 16),
+
+              Row(
+                children: [
+                  const Expanded(
+                    child: Text(
+                      '緊急聯絡人地址 *',
+                      style: TextStyle(fontWeight: FontWeight.w600),
+                    ),
+                  ),
+                  Checkbox(
+                    value: _sameAddress,
+                    onChanged: (value) {
+                      setState(() {
+                        _sameAddress = value ?? false;
+
+                        if (_sameAddress) {
+                          _emergencyAddressController.text =
+                              '${_city ?? ''}${_district ?? ''}${_detailAddressController.text}';
+                        }
+                      });
+                    },
+                  ),
+                  const Text('同聯絡地址'),
+                ],
               ),
 
-              const SizedBox(height: 16),
+              const SizedBox(height: 6),
 
               TextFormField(
                 controller: _emergencyAddressController,
                 decoration: const InputDecoration(
-                  labelText: '緊急聯絡人地址',
+                  labelText: '請輸入緊急聯絡人地址',
                   border: OutlineInputBorder(),
                 ),
               ),
-
-              const SizedBox(height: 24),
 
               const SizedBox(height: 24),
 
@@ -902,7 +945,7 @@ class _BookingFormPageState extends State<BookingFormPage> {
                         _detailAddressController.text.trim().isEmpty ||
                         _emergencyNameController.text.trim().isEmpty ||
                         _emergencyPhoneController.text.trim().isEmpty ||
-                        _emergencyRelationController.text.trim().isEmpty ||
+                        (_emergencyRelation ?? '').trim().isEmpty ||
                         _emergencyAddressController.text.trim().isEmpty) {
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(content: Text('送出預約前，請完整填寫會員資料')),
@@ -924,7 +967,7 @@ class _BookingFormPageState extends State<BookingFormPage> {
                       fullAddress,
                       _emergencyNameController.text,
                       _emergencyPhoneController.text,
-                      _emergencyRelationController.text,
+                      _emergencyRelation ?? '',
                       _emergencyAddressController.text,
                       _phone2Controller.text,
                       calculatedDeposit,

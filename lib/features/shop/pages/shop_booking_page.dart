@@ -247,6 +247,9 @@ class _ShopBookingPageState extends State<ShopBookingPage> {
                     BookingDateSection(
                       shopName: shop['name'] ?? '未命名店家',
                       bookingEnabled: bookingEnabled,
+                      startDate: _startDate,
+                      endDate: _endDate,
+                      nights: _nights,
                       onOpenCalendar: () async {
                         await _openCalendarDialog(shop);
                       },

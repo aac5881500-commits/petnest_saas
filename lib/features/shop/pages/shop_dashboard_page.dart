@@ -40,6 +40,8 @@ import 'package:petnest_saas/features/shop/pages/shop_platform_notification_page
 import 'package:petnest_saas/core/services/shop_plan_service.dart';
 import 'package:petnest_saas/features/shop/pages/shop_payout_setting_page.dart';
 import 'package:petnest_saas/features/shop/pages/shop_report_page.dart';
+import 'package:petnest_saas/features/shop/pages/shop_device_page.dart';
+import 'package:petnest_saas/features/admin/pages/admin_review_list_page.dart';
 
 class ShopDashboardPage extends StatefulWidget {
   const ShopDashboardPage({super.key, required this.shopId});
@@ -151,11 +153,8 @@ class _ShopDashboardPageState extends State<ShopDashboardPage> {
         _can(ShopPermissionKeys.editBasicInfo) ||
         _can(ShopPermissionKeys.editBusinessInfo) ||
         _can(ShopPermissionKeys.editMedia) ||
-        _can(ShopPermissionKeys.manageEnvironment) ||
-        _can(ShopPermissionKeys.manageAbout) ||
-        _can(ShopPermissionKeys.manageModules) ||
-        _can(ShopPermissionKeys.manageMembers);
-
+        _can(ShopPermissionKeys.manageFrontendContent) ||
+        _can(ShopPermissionKeys.manageReviews);
     final canSeeCatHotel =
         _can(ShopPermissionKeys.manageBookings) ||
         _can(ShopPermissionKeys.manageBookingSettings) ||
@@ -163,6 +162,8 @@ class _ShopDashboardPageState extends State<ShopDashboardPage> {
         _can(ShopPermissionKeys.manageRoomTypes) ||
         _can(ShopPermissionKeys.manageRooms) ||
         _can(ShopPermissionKeys.managePaymentSettings) ||
+        _can(ShopPermissionKeys.manageAddons) ||
+        _can(ShopPermissionKeys.manageDevices) ||
         _can(ShopPermissionKeys.managePolicy);
     final canSeeReports =
         _currentUserRole == ShopRoles.owner ||
@@ -515,7 +516,7 @@ class _BasicInfoTab extends StatelessWidget {
               );
             },
           ),
-        if (_can(ShopPermissionKeys.managePaymentSettings))
+        if (currentUserRole == ShopRoles.owner)
           _MenuTile(
             title: '收款帳戶 / 金流設定',
             subtitle: !isProfileComplete
@@ -535,7 +536,7 @@ class _BasicInfoTab extends StatelessWidget {
 
         const _MenuSectionTitle('前台內容'),
 
-        if (_can(ShopPermissionKeys.manageEnvironment))
+        if (_can(ShopPermissionKeys.manageFrontendContent))
           _MenuTile(
             title: '環境介紹管理',
             subtitle: !isProfileComplete
@@ -553,7 +554,7 @@ class _BasicInfoTab extends StatelessWidget {
             },
           ),
 
-        if (_can(ShopPermissionKeys.manageAbout))
+        if (_can(ShopPermissionKeys.manageFrontendContent))
           _MenuTile(
             title: '關於我們管理',
             subtitle: !isProfileComplete
@@ -571,38 +572,40 @@ class _BasicInfoTab extends StatelessWidget {
             },
           ),
 
-        _MenuTile(
-          title: '公告管理',
-          subtitle: !isProfileComplete
-              ? '請先完成基本資料'
-              : (canUseAnnouncement ? '新增、編輯、上下架店家公告' : '升級方案解鎖'),
-          icon: Icons.campaign,
-          enabled: isProfileComplete && canUseAnnouncement,
-          onTap: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (_) => ShopAnnouncementManagePage(shopId: shopId),
-              ),
-            );
-          },
-        ),
-        _MenuTile(
-          title: '常見問題管理',
-          subtitle: !isProfileComplete
-              ? '請先完成基本資料'
-              : (canUseFaq ? '新增、編輯、上下架常見問題' : '升級方案解鎖'),
-          icon: Icons.help_outline,
-          enabled: isProfileComplete && canUseFaq,
-          onTap: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (_) => ShopFaqManagePage(shopId: shopId),
-              ),
-            );
-          },
-        ),
+        if (_can(ShopPermissionKeys.manageFrontendContent))
+          _MenuTile(
+            title: '公告管理',
+            subtitle: !isProfileComplete
+                ? '請先完成基本資料'
+                : (canUseAnnouncement ? '新增、編輯、上下架店家公告' : '升級方案解鎖'),
+            icon: Icons.campaign,
+            enabled: isProfileComplete && canUseAnnouncement,
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => ShopAnnouncementManagePage(shopId: shopId),
+                ),
+              );
+            },
+          ),
+        if (_can(ShopPermissionKeys.manageFrontendContent))
+          _MenuTile(
+            title: '常見問題管理',
+            subtitle: !isProfileComplete
+                ? '請先完成基本資料'
+                : (canUseFaq ? '新增、編輯、上下架常見問題' : '升級方案解鎖'),
+            icon: Icons.help_outline,
+            enabled: isProfileComplete && canUseFaq,
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => ShopFaqManagePage(shopId: shopId),
+                ),
+              );
+            },
+          ),
 
         _MenuTile(
           title: '前台預覽',
@@ -647,6 +650,22 @@ class _BasicInfoTab extends StatelessWidget {
                     ),
                   );
                 },
+              );
+            },
+          ),
+
+        if (_can(ShopPermissionKeys.manageReviews))
+          _MenuTile(
+            title: '評價管理',
+            subtitle: '查看客戶評價、照片與店家回覆',
+            icon: Icons.star_rate_rounded,
+            enabled: isProfileComplete,
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => AdminReviewListPage(shopId: shopId),
+                ),
               );
             },
           ),
@@ -849,9 +868,25 @@ class _CatHotelTab extends StatelessWidget {
             },
           ),
 
+        if (_can(ShopPermissionKeys.manageDevices))
+          _MenuTile(
+            title: '設備管理',
+            subtitle: isProfileComplete ? '管理攝影機、溫度監控與房間設備' : '請先完成基本資料',
+            icon: Icons.sensors,
+            enabled: isProfileComplete,
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => ShopDevicePage(shopId: shopId),
+                ),
+              );
+            },
+          ),
+
         const _MenuSectionTitle('付款與加購'),
 
-        if (_can(ShopPermissionKeys.managePaymentSettings))
+        if (_can(ShopPermissionKeys.manageAddons))
           _MenuTile(
             title: '住宿加購 / 附加服務',
             subtitle: isProfileComplete ? '設定時間加購、額外服務、價格與開關' : '請先完成基本資料',
@@ -997,10 +1032,10 @@ class _ShopPlanStatusCard extends StatelessWidget {
   String _planName(String plan) {
     switch (plan) {
       case 'basic':
-        return '999方案';
+        return '專業版';
 
       case 'pro':
-        return '1999全模組方案';
+        return '旗艦版';
 
       case 'free':
         return '免費版';

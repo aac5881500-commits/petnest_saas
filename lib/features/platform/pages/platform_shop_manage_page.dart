@@ -11,6 +11,7 @@ import 'package:petnest_saas/features/platform/widgets/platform_shop_metric_card
 import 'package:petnest_saas/features/shop/pages/shop_public_page.dart';
 import 'package:petnest_saas/features/platform/pages/platform_send_shop_notification_page.dart';
 import 'package:petnest_saas/features/platform/widgets/shop_plan_manage_dialog.dart';
+import 'package:petnest_saas/features/platform/pages/platform_shop_device_manage_page.dart';
 
 class PlatformShopManagePage extends StatelessWidget {
   const PlatformShopManagePage({super.key});
@@ -215,6 +216,8 @@ class PlatformShopManagePage extends StatelessWidget {
                     ? data['platformHomeLogoUrl'].toString()
                     : data['logoUrl']?.toString() ?? '';
                 final isPublic = data['isPublic'] == true;
+                final licenseVerified = data['licenseVerified'] == true;
+                final taxIdVerified = data['taxIdVerified'] == true;
                 final externalLinksEnabled =
                     data['externalLinksEnabled'] != false;
                 final plan = data['plan']?.toString() ?? 'free';
@@ -390,6 +393,16 @@ class PlatformShopManagePage extends StatelessWidget {
                               PlatformShopInfoPill(
                                 icon: Icons.visibility,
                                 label: isPublic ? '前台公開' : '前台隱藏',
+                              ),
+                              PlatformShopInfoPill(
+                                icon: Icons.verified_outlined,
+                                label: licenseVerified
+                                    ? '特寵字號：已認證'
+                                    : '特寵字號：未認證',
+                              ),
+                              PlatformShopInfoPill(
+                                icon: Icons.receipt_long_outlined,
+                                label: taxIdVerified ? '統編：已認證' : '統編：未認證',
                               ),
                               PlatformShopInfoPill(
                                 icon: Icons.workspace_premium,
@@ -827,6 +840,43 @@ class PlatformShopManagePage extends StatelessWidget {
                                 ),
                                 label: const Text(
                                   '模組設定',
+                                  style: TextStyle(fontWeight: FontWeight.w800),
+                                ),
+                              ),
+                            ),
+
+                            const SizedBox(height: 8),
+
+                            SizedBox(
+                              width: double.infinity,
+                              child: OutlinedButton.icon(
+                                style: OutlinedButton.styleFrom(
+                                  foregroundColor: Colors.blueGrey,
+                                  side: BorderSide(
+                                    color: Colors.blueGrey.shade200,
+                                  ),
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 14,
+                                  ),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(14),
+                                  ),
+                                ),
+                                onPressed: () {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (_) =>
+                                          PlatformShopDeviceManagePage(
+                                            shopId: doc.id,
+                                            shopName: name,
+                                          ),
+                                    ),
+                                  );
+                                },
+                                icon: const Icon(Icons.sensors, size: 18),
+                                label: const Text(
+                                  '設備管理',
                                   style: TextStyle(fontWeight: FontWeight.w800),
                                 ),
                               ),

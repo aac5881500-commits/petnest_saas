@@ -9,6 +9,7 @@ import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/services/shop_service.dart';
 import 'package:petnest_saas/features/shop/pages/shop_change_request_page.dart';
 import 'package:petnest_saas/features/shop/pages/shop_request_center_page.dart';
+import 'package:petnest_saas/features/shop/pages/shop_verify_request_page.dart';
 
 class ShopBasicInfoPage extends StatefulWidget {
   const ShopBasicInfoPage({super.key, required this.shopId});
@@ -39,6 +40,9 @@ class _ShopBasicInfoPageState extends State<ShopBasicInfoPage> {
   bool _showTaxId = true;
   bool _loading = true;
   bool _saving = false;
+  bool _licenseVerified = false;
+  bool _taxIdVerified = false;
+  bool _isPublic = false;
 
   bool _isInitialSetup = false;
 
@@ -70,6 +74,9 @@ class _ShopBasicInfoPageState extends State<ShopBasicInfoPage> {
     _licenseController.text = shop?['licenseNumber'] ?? '';
     _taxIdController.text = shop?['taxId'] ?? '';
     _showTaxId = shop?['showTaxId'] ?? true;
+    _licenseVerified = shop?['licenseVerified'] == true;
+    _taxIdVerified = shop?['taxIdVerified'] == true;
+    _isPublic = shop?['isPublic'] == true;
 
     final rawBusinessType = shop?['businessType']?.toString() ?? 'cat_hotel';
 
@@ -186,6 +193,72 @@ class _ShopBasicInfoPageState extends State<ShopBasicInfoPage> {
     return null;
   }
 
+  void _openVerifyRequest() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ShopVerifyRequestPage(
+          shopId: widget.shopId,
+          shopName: _nameController.text,
+          currentLicenseNumber: _licenseController.text,
+          currentTaxId: _taxIdController.text,
+        ),
+      ),
+    );
+  }
+
+  Widget _verifyStatusCard() {
+    final verified = _licenseVerified && _taxIdVerified && _isPublic;
+
+    return InkWell(
+      borderRadius: BorderRadius.circular(12),
+      onTap: _openVerifyRequest,
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 16),
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: verified ? Colors.green.shade50 : Colors.orange.shade50,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: verified ? Colors.green.shade200 : Colors.orange.shade200,
+          ),
+        ),
+        child: Row(
+          children: [
+            Icon(
+              verified ? Icons.verified : Icons.verified_user_outlined,
+              color: verified ? Colors.green : Colors.orange,
+              size: 32,
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    '店家認證狀態',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    verified ? '已完成認證，店家目前已公開於平台' : '尚未完成認證，點擊送出認證申請',
+                    style: TextStyle(
+                      color: verified
+                          ? Colors.green.shade800
+                          : Colors.orange.shade800,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const Icon(Icons.chevron_right),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   void dispose() {
     _nameController.dispose();
@@ -265,6 +338,7 @@ class _ShopBasicInfoPageState extends State<ShopBasicInfoPage> {
                       ],
                     ),
                   ),
+                  _verifyStatusCard(),
                   TextFormField(
                     controller: _nameController,
                     readOnly: true,
@@ -331,28 +405,81 @@ class _ShopBasicInfoPageState extends State<ShopBasicInfoPage> {
 
                   const SizedBox(height: 24),
 
-                  TextFormField(
-                    controller: _licenseController,
-                    readOnly: !_isInitialSetup,
-                    decoration: _input(
-                      _isInitialSetup ? '特寵字號（首次設定）' : '特寵字號（需申請修改）',
-                    ).copyWith(filled: true, fillColor: Colors.grey.shade100),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.orange.shade50,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: Colors.orange.shade200),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          '特寵字號認證',
+                          style: TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                        const SizedBox(height: 8),
+                        TextFormField(
+                          controller: _licenseController,
+                          readOnly: false,
+                          decoration: _input(
+                            _isInitialSetup ? '特寵字號（首次設定）' : '特寵字號（需申請修改）',
+                          ).copyWith(filled: true, fillColor: Colors.white),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          '此資料需平台確認後，店家才能在平台前台公開曝光。',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.orange.shade800,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
 
                   const SizedBox(height: 16),
 
-                  TextFormField(
-                    controller: _taxIdController,
-                    readOnly: !_isInitialSetup,
-                    decoration: _input(
-                      _isInitialSetup ? '統編（首次設定）' : '統編（需申請修改）',
-                    ).copyWith(filled: true, fillColor: Colors.grey.shade100),
-                  ),
-
-                  SwitchListTile(
-                    value: _showTaxId,
-                    title: const Text('顯示統編'),
-                    onChanged: (v) => setState(() => _showTaxId = v),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.blue.shade50,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: Colors.blue.shade200),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          '統編認證',
+                          style: TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                        const SizedBox(height: 8),
+                        TextFormField(
+                          controller: _taxIdController,
+                          readOnly: false,
+                          decoration: _input(
+                            _isInitialSetup ? '統編（首次設定）' : '統編（需申請修改）',
+                          ).copyWith(filled: true, fillColor: Colors.white),
+                        ),
+                        SwitchListTile(
+                          contentPadding: EdgeInsets.zero,
+                          value: _showTaxId,
+                          title: const Text('前台顯示統編'),
+                          onChanged: (v) => setState(() => _showTaxId = v),
+                        ),
+                        Text(
+                          '統編可選擇是否顯示，但是否能平台公開仍需平台認證。',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.blue.shade800,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
 
                   const SizedBox(height: 16),
@@ -430,6 +557,30 @@ class _ShopBasicInfoPageState extends State<ShopBasicInfoPage> {
                   const SizedBox(height: 8),
 
                   OutlinedButton.icon(
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: Colors.green,
+                      side: const BorderSide(color: Colors.green),
+                    ),
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => ShopVerifyRequestPage(
+                            shopId: widget.shopId,
+                            shopName: _nameController.text,
+                            currentLicenseNumber: _licenseController.text,
+                            currentTaxId: _taxIdController.text,
+                          ),
+                        ),
+                      );
+                    },
+                    icon: const Icon(Icons.verified_user_outlined),
+                    label: const Text('申請認證／平台公開'),
+                  ),
+
+                  const SizedBox(height: 8),
+
+                  OutlinedButton.icon(
                     onPressed: () {
                       Navigator.push(
                         context,
@@ -445,8 +596,8 @@ class _ShopBasicInfoPageState extends State<ShopBasicInfoPage> {
 
                   const SizedBox(height: 8),
                   Text(
-                    '重要資料修改申請功能即將推出。\n'
-                    '未來送出申請後，平台確認資料正確性後才會更新正式資料。',
+                    '重要資料、特寵字號、統編與平台公開皆透過此申請流程。\n'
+                    '平台審核通過後才會正式更新或開放公開。',
                     textAlign: TextAlign.center,
                     style: TextStyle(
                       fontSize: 12,

@@ -341,6 +341,7 @@ class _ShopContactPlatformPageState extends State<ShopContactPlatformPage> {
     return StreamBuilder<QuerySnapshot>(
       stream: FirebaseFirestore.instance
           .collection('platform_contact_requests')
+          .where('userId', isEqualTo: FirebaseAuth.instance.currentUser?.uid)
           .snapshots(),
       builder: (context, snapshot) {
         if (snapshot.hasError) {

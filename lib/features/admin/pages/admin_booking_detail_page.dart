@@ -148,6 +148,8 @@ class AdminBookingDetailPage extends StatelessWidget {
 
                 AdminBookingCustomerSection(data: data, emergency: emergency),
 
+                _buildMemberAdminNote(data),
+
                 _sectionTitle('寵物資訊 (${pets.length}隻)'),
 
                 GridView.builder(
@@ -410,6 +412,64 @@ class AdminBookingDetailPage extends StatelessWidget {
           );
         },
       ),
+    );
+  }
+
+  Widget _buildMemberAdminNote(Map<String, dynamic> bookingData) {
+    final shopId = (bookingData['shopId'] ?? '').toString();
+    final userId = (bookingData['userId'] ?? '').toString();
+
+    if (shopId.isEmpty || userId.isEmpty) {
+      return const SizedBox();
+    }
+
+    return StreamBuilder<DocumentSnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('shops')
+          .doc(shopId)
+          .collection('members')
+          .doc(userId)
+          .snapshots(),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData) {
+          return const SizedBox();
+        }
+
+        final data = snapshot.data!.data() as Map<String, dynamic>? ?? {};
+        final note = (data['adminNote1'] ?? '').toString().trim();
+
+        if (note.isEmpty) {
+          return const SizedBox();
+        }
+
+        return Container(
+          width: double.infinity,
+          margin: const EdgeInsets.only(top: 12, bottom: 16),
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: Colors.orange.shade50,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: Colors.orange.shade100),
+          ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(Icons.note_alt_outlined, color: Colors.orange.shade800),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  '店家會員備註：$note',
+                  style: TextStyle(
+                    color: Colors.orange.shade900,
+                    fontWeight: FontWeight.w700,
+                    height: 1.5,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 

@@ -10,6 +10,7 @@ import 'package:petnest_saas/features/shop/pages/shop_dashboard_page.dart';
 import 'package:petnest_saas/features/shop/pages/shop_policy_view_page.dart';
 import 'package:petnest_saas/features/shop/pages/shop_public_page.dart';
 import 'package:petnest_saas/features/booking/pages/my_bookings_page.dart';
+import 'package:petnest_saas/features/booking/pages/my_reviews_page.dart';
 import 'package:petnest_saas/features/auth/pages/login_page.dart';
 import 'package:petnest_saas/core/constants/shop_permission_keys.dart';
 import 'package:petnest_saas/features/booking/pages/booking_detail_page.dart';
@@ -88,6 +89,22 @@ class AppDrawer extends StatelessWidget {
                       }
                     },
                   ),
+
+                  _menuItem(
+                    icon: Icons.rate_review_outlined,
+                    title: '我的評價',
+                    onTap: () {
+                      Navigator.pop(context);
+
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const MyReviewsPage(),
+                        ),
+                      );
+                    },
+                  ),
+
                   _menuItem(
                     icon: Icons.receipt_long,
                     title: '我的訂單',

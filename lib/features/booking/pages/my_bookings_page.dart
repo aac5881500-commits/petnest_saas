@@ -24,6 +24,8 @@ class MyBookingsPage extends StatefulWidget {
 
 class _MyBookingsPageState extends State<MyBookingsPage> {
   int _limit = 5;
+  bool _checkingHistoryMergedNotice = false;
+  bool _historyNoticeCheckedOnce = false;
 
   String _bookingStatusText(Map<String, dynamic> data) {
     final status = (data['status'] ?? '').toString();
@@ -126,6 +128,63 @@ class _MyBookingsPageState extends State<MyBookingsPage> {
     return 0;
   }
 
+  Future<void> _checkHistoryMergedNotice({
+    required String shopId,
+    required String userId,
+  }) async {
+    if (_checkingHistoryMergedNotice || _historyNoticeCheckedOnce) return;
+
+    _checkingHistoryMergedNotice = true;
+    _historyNoticeCheckedOnce = true;
+
+    try {
+      final memberRef = FirebaseFirestore.instance
+          .collection('shops')
+          .doc(shopId)
+          .collection('members')
+          .doc(userId);
+
+      final memberDoc = await memberRef.get();
+
+      if (!memberDoc.exists) return;
+
+      final memberData = memberDoc.data() ?? {};
+
+      final shouldShow = memberData['historyMergedNoticeShown'] == false;
+      final count = memberData['historyMergedBookingCount'] ?? 0;
+
+      if (!shouldShow || count <= 0) return;
+      if (!mounted) return;
+
+      await showDialog<void>(
+        context: context,
+        builder: (_) {
+          return AlertDialog(
+            title: const Text('已同步歷史訂單'),
+            content: Text(
+              '已同步 $count 筆歷史住宿紀錄。\n\n'
+              '這些訂單是在您使用 PetNest App 前，由店家協助建立，'
+              '因此已同步到您的會員中心。',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('我知道了'),
+              ),
+            ],
+          );
+        },
+      );
+
+      await memberRef.update({
+        'historyMergedNoticeShown': true,
+        'historyMergedNoticeShownAt': FieldValue.serverTimestamp(),
+      });
+    } finally {
+      _checkingHistoryMergedNotice = false;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final user = FirebaseAuth.instance.currentUser;
@@ -181,8 +240,16 @@ class _MyBookingsPageState extends State<MyBookingsPage> {
           if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
             return const Center(child: Text('目前沒有訂單'));
           }
-
           final docs = snapshot.data!.docs.toList();
+
+          final firstData = docs.first.data() as Map<String, dynamic>;
+          final firstShopId = (firstData['shopId'] ?? '').toString();
+
+          if (firstShopId.isNotEmpty) {
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              _checkHistoryMergedNotice(shopId: firstShopId, userId: user.uid);
+            });
+          }
 
           final visibleDocs = docs.take(_limit).toList();
 
@@ -236,6 +303,10 @@ class _MyBookingsPageState extends State<MyBookingsPage> {
               final shopName = (data['shopName'] ?? '').toString();
               final createdAtText = _formatDateTime(data['createdAt']);
 
+              final source = (data['source'] ?? '').toString();
+
+              final bool isAdminBooking =
+                  source == 'admin' || source == 'manual';
               final shortBookingId = bookingCode.isNotEmpty
                   ? bookingCode
                   : (visibleDocs[index].id.length > 8
@@ -316,7 +387,28 @@ class _MyBookingsPageState extends State<MyBookingsPage> {
                                         ],
                                       ),
                                     ),
-
+                                  if (isAdminBooking)
+                                    Padding(
+                                      padding: const EdgeInsets.only(bottom: 4),
+                                      child: Row(
+                                        children: [
+                                          Icon(
+                                            Icons.badge_outlined,
+                                            size: 14,
+                                            color: Colors.orange.shade700,
+                                          ),
+                                          const SizedBox(width: 4),
+                                          Text(
+                                            '店家代為建立',
+                                            style: TextStyle(
+                                              fontSize: 12,
+                                              fontWeight: FontWeight.w700,
+                                              color: Colors.orange.shade700,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
                                   Text(
                                     roomTypeName,
                                     style: const TextStyle(

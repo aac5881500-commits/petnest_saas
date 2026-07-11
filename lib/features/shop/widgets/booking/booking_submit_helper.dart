@@ -6,6 +6,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:petnest_saas/core/services/booking_service.dart';
 import 'package:petnest_saas/core/services/member_service.dart';
+import 'package:petnest_saas/core/services/shop_policy_service.dart';
 
 class BookingSubmitHelper {
   BookingSubmitHelper._();
@@ -107,7 +108,11 @@ class BookingSubmitHelper {
     required String paymentMethod,
     required String payAmountType,
   }) async {
-    await MemberService.instance.ensureMember(shopId: shopId);
+    await MemberService.instance.ensureMember(
+      shopId: shopId,
+      name: customerName,
+      phone: customerPhone,
+    );
 
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) {
@@ -139,6 +144,11 @@ class BookingSubmitHelper {
           },
           'updatedAt': FieldValue.serverTimestamp(),
         }, SetOptions(merge: true));
+
+    await ShopPolicyService.instance.acceptPolicy(
+      shopId: shopId,
+      userId: user.uid,
+    );
 
     final policyAcceptanceDoc = await FirebaseFirestore.instance
         .collection('users')
@@ -225,6 +235,28 @@ class BookingSubmitHelper {
       policyTitle: policyTitle,
       policyAcceptedAt: policyAcceptedAt,
     );
+
+    final bookingCountSnap = await FirebaseFirestore.instance
+        .collection('bookings')
+        .where('shopId', isEqualTo: shopId)
+        .where('userId', isEqualTo: user.uid)
+        .get();
+
+    await FirebaseFirestore.instance
+        .collection('shops')
+        .doc(shopId)
+        .collection('members')
+        .doc(user.uid)
+        .set({
+          'bookingCount': bookingCountSnap.docs.length,
+          'petCount': selectedPetIds.length,
+          'policyAccepted': policyVersion > 0,
+          'policyVersion': policyVersion,
+          'policyTitle': policyTitle,
+          'policyAcceptedAt': policyAcceptedAt,
+          'policyAcceptedFrom': 'customer',
+          'updatedAt': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true));
 
     return bookingId;
   }

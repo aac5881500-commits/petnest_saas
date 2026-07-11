@@ -29,6 +29,18 @@ class ShopPermissionKeys {
   /// ❤️ 管理關於我們
   static const manageAbout = 'manage_about';
 
+  /// 🧾 管理前台內容：環境介紹 / 關於我們 / 公告 / FAQ
+  static const manageFrontendContent = 'manage_frontend_content';
+
+  /// ⭐ 管理評價
+  static const manageReviews = 'manage_reviews';
+
+  /// 📡 管理設備 / 攝影機
+  static const manageDevices = 'manage_devices';
+
+  /// ➕ 管理住宿加購 / 附加服務
+  static const manageAddons = 'manage_addons';
+
   /// 🧩 管理模組設定
   static const manageModules = 'manage_modules';
 
@@ -36,14 +48,13 @@ class ShopPermissionKeys {
   static const manageBookings = 'manage_bookings';
 
   /// 📅 管理預約設定
-static const manageBookingSettings =
-    'manage_booking_settings';
+  static const manageBookingSettings = 'manage_booking_settings';
 
   static const manageRoomDashboard = 'manage_room_dashboard';
-static const manageRoomTypes = 'manage_room_types';
-static const manageRooms = 'manage_rooms';
-static const managePaymentSettings = 'manage_payment_settings';
-static const managePolicy = 'manage_policy';
+  static const manageRoomTypes = 'manage_room_types';
+  static const manageRooms = 'manage_rooms';
+  static const managePaymentSettings = 'manage_payment_settings';
+  static const managePolicy = 'manage_policy';
 
   /// 📊 查看報表統計
   static const viewReports = 'view_reports';
@@ -59,15 +70,17 @@ static const managePolicy = 'manage_policy';
     editMedia,
     manageEnvironment,
     manageAbout,
+    manageFrontendContent,
+    manageReviews,
     manageModules,
     manageBookings,
     manageBookingSettings,
     manageRoomDashboard,
-manageRoomTypes,
-manageRooms,
-managePaymentSettings,
-managePolicy,
-    viewReports,
-    viewActionLogs,
+    manageRoomTypes,
+    manageRooms,
+    manageDevices,
+    managePaymentSettings,
+    manageAddons,
+    managePolicy,
   ];
 }

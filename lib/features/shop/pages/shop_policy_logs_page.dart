@@ -30,22 +30,32 @@ class _ShopPolicyLogsPageState extends State<ShopPolicyLogsPage> {
   }
 
   Future<void> _load() async {
-    final data = await ShopService.instance.getPolicyAcceptances(widget.shopId);
+    try {
+      final data = await ShopService.instance.getPolicyAcceptances(
+        widget.shopId,
+      );
 
-    /// 🔥 排序（最新在上）
-    data.sort((a, b) {
-      final aTime = a['acceptedAt'];
-      final bTime = b['acceptedAt'];
+      data.sort((a, b) {
+        final aTime = a['acceptedAt'];
+        final bTime = b['acceptedAt'];
 
-      if (aTime == null || bTime == null) return 0;
-      return bTime.compareTo(aTime);
-    });
+        if (aTime == null || bTime == null) return 0;
+        return bTime.compareTo(aTime);
+      });
 
-    setState(() {
-      _logs = data;
-      _filteredLogs = data;
-      _loading = false;
-    });
+      setState(() {
+        _logs = data;
+        _filteredLogs = data;
+        _loading = false;
+      });
+    } catch (e, s) {
+      debugPrint(e.toString());
+      debugPrint(s.toString());
+
+      setState(() {
+        _loading = false;
+      });
+    }
   }
 
   /// 🔍 搜尋

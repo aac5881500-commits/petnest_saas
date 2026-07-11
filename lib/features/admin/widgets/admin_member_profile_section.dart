@@ -20,10 +20,16 @@ class AdminMemberProfileSection extends StatelessWidget {
   Widget build(BuildContext context) {
     return StreamBuilder<DocumentSnapshot>(
       stream: FirebaseFirestore.instance
-          .collection('user_profiles')
+          .collection('shops')
+          .doc(shopId)
+          .collection('members')
           .doc(userId)
           .snapshots(),
       builder: (context, snapshot) {
+        if (snapshot.hasError) {
+          return Text('會員資料讀取失敗：${snapshot.error}');
+        }
+
         if (!snapshot.hasData) {
           return const Center(child: CircularProgressIndicator());
         }
@@ -93,7 +99,7 @@ class AdminMemberProfileSection extends StatelessWidget {
                   const SizedBox(height: 12),
                   _MemberBasicInfo(data: data),
                   const SizedBox(height: 16),
-                  _MemberStats(userId: userId, tags: effectiveTags),
+                  _MemberStats(data: memberData, tags: effectiveTags),
                   const SizedBox(height: 20),
                   _EmergencyContactBox(data: data),
                   const SizedBox(height: 16),
@@ -113,15 +119,22 @@ class AdminMemberProfileSection extends StatelessWidget {
                     data: data,
                   ),
                   const SizedBox(height: 12),
-                  _AdminNoteBox(userId: userId, data: data),
+                  _AdminNoteBox(
+                    userId: userId,
+                    shopId: shopId,
+                    data: memberData,
+                  ),
                   const SizedBox(height: 12),
                   _MemberActionButtons(
                     userId: userId,
                     shopId: shopId,
                     data: data,
                   ),
-                  if (canArchiveMember) _ArchiveButton(userId: userId),
-                  if (canRestoreMember) _RestoreButton(userId: userId),
+                  if (canArchiveMember)
+                    _ArchiveButton(userId: userId, shopId: shopId),
+
+                  if (canRestoreMember)
+                    _RestoreButton(userId: userId, shopId: shopId),
                 ],
               ),
             );
@@ -265,62 +278,45 @@ class _MemberBasicInfo extends StatelessWidget {
 }
 
 class _MemberStats extends StatelessWidget {
-  const _MemberStats({required this.userId, required this.tags});
+  const _MemberStats({required this.data, required this.tags});
 
-  final String userId;
+  final Map<String, dynamic> data;
   final List<String> tags;
 
   @override
   Widget build(BuildContext context) {
-    return FutureBuilder<List<int>>(
-      future: Future.wait([
-        FirebaseFirestore.instance
-            .collection('user_profiles')
-            .doc(userId)
-            .collection('pets')
-            .get()
-            .then((snapshot) => snapshot.docs.length),
-        FirebaseFirestore.instance
-            .collection('bookings')
-            .where('userId', isEqualTo: userId)
-            .get()
-            .then((snapshot) => snapshot.docs.length),
-      ]),
-      builder: (context, countSnapshot) {
-        final petCount = countSnapshot.data?[0] ?? 0;
-        final bookingCount = countSnapshot.data?[1] ?? 0;
+    final petCount = data['petCount'] ?? 0;
+    final bookingCount = data['bookingCount'] ?? 0;
 
-        return Row(
-          children: [
-            Expanded(
-              child: adminMemberStatBox(
-                icon: Icons.pets,
-                color: Colors.orange,
-                value: '$petCount',
-                label: '寵物數',
-              ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: adminMemberStatBox(
-                icon: Icons.receipt_long,
-                color: Colors.blue,
-                value: '$bookingCount',
-                label: '訂單數',
-              ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: adminMemberStatBox(
-                icon: Icons.verified_user,
-                color: tags.contains('vip') ? Colors.green : Colors.grey,
-                value: tags.contains('vip') ? 'VIP' : '一般',
-                label: '會員',
-              ),
-            ),
-          ],
-        );
-      },
+    return Row(
+      children: [
+        Expanded(
+          child: adminMemberStatBox(
+            icon: Icons.pets,
+            color: Colors.orange,
+            value: '$petCount',
+            label: '寵物數',
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: adminMemberStatBox(
+            icon: Icons.receipt_long,
+            color: Colors.blue,
+            value: '$bookingCount',
+            label: '訂單數',
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: adminMemberStatBox(
+            icon: Icons.verified_user,
+            color: tags.contains('vip') ? Colors.green : Colors.grey,
+            value: tags.contains('vip') ? 'VIP' : '一般',
+            label: '會員',
+          ),
+        ),
+      ],
     );
   }
 }
@@ -464,148 +460,10 @@ class _MemberLinkLookupButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final phone = data['phone']?.toString().trim() ?? '';
-    final email = data['email']?.toString().trim() ?? '';
-
-    if (phone.isEmpty || email.isEmpty) {
-      return const SizedBox();
-    }
-
-    return SizedBox(
-      width: double.infinity,
-      child: OutlinedButton.icon(
-        icon: const Icon(Icons.manage_search),
-        label: const Text('合併查詢'),
-        onPressed: () async {
-          await _lookupOldMembers(context, phone);
-        },
-      ),
-    );
-  }
-
-  Future<void> _lookupOldMembers(BuildContext context, String phone) async {
-    final snapshot = await FirebaseFirestore.instance
-        .collection('user_profiles')
-        .where('phone', isEqualTo: phone)
-        .get();
-
-    final candidates = snapshot.docs.where((doc) {
-      if (doc.id == userId) return false;
-
-      final item = doc.data();
-
-      final shopIds = List<String>.from(item['shopIds'] ?? []);
-      final linkedAuthUid = item['linkedAuthUid']?.toString() ?? '';
-      final itemEmail = item['email']?.toString() ?? '';
-      final status = item['status']?.toString() ?? '';
-
-      return shopIds.contains(shopId) &&
-          linkedAuthUid.isEmpty &&
-          itemEmail.isEmpty &&
-          status != 'archived';
-    }).toList();
-
-    if (!context.mounted) return;
-
-    if (candidates.isEmpty) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('查無可合併的舊會員')));
-      return;
-    }
-
-    await showDialog(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: const Text('可合併的舊會員'),
-          content: SizedBox(
-            width: double.maxFinite,
-            child: ListView.builder(
-              shrinkWrap: true,
-              itemCount: candidates.length,
-              itemBuilder: (context, index) {
-                final doc = candidates[index];
-                final oldData = doc.data();
-
-                return Card(
-                  child: ListTile(
-                    title: Text(
-                      oldData['name']?.toString().isNotEmpty == true
-                          ? oldData['name'].toString()
-                          : '未填姓名',
-                    ),
-                    subtitle: Text('電話：${oldData['phone'] ?? '未填'}'),
-                    trailing: ElevatedButton(
-                      child: const Text('建立申請'),
-                      onPressed: () async {
-                        await _createLinkRequest(
-                          context: context,
-                          oldUserId: doc.id,
-                          oldData: oldData,
-                        );
-                      },
-                    ),
-                  ),
-                );
-              },
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.pop(context);
-              },
-              child: const Text('關閉'),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  Future<void> _createLinkRequest({
-    required BuildContext context,
-    required String oldUserId,
-    required Map<String, dynamic> oldData,
-  }) async {
-    final exists = await FirebaseFirestore.instance
-        .collection('member_link_requests')
-        .where('shopId', isEqualTo: shopId)
-        .where('targetUserId', isEqualTo: oldUserId)
-        .where('authUid', isEqualTo: userId)
-        .where('status', isEqualTo: 'pending')
-        .get();
-
-    if (exists.docs.isNotEmpty) {
-      if (!context.mounted) return;
-
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('已經有待確認的合併申請')));
-      return;
-    }
-
-    await FirebaseFirestore.instance.collection('member_link_requests').add({
-      'shopId': shopId,
-      'targetUserId': oldUserId,
-      'targetName': oldData['name'] ?? '',
-      'targetPhone': oldData['phone'] ?? '',
-      'authUid': userId,
-      'authEmail': data['email'] ?? '',
-      'status': 'pending',
-      'createdFrom': 'admin_lookup',
-      'createdAt': FieldValue.serverTimestamp(),
-      'updatedAt': FieldValue.serverTimestamp(),
-    });
-
-    if (!context.mounted) return;
-
-    Navigator.pop(context);
-
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text('已建立合併申請，請確認綁定')));
+    // 暫時關閉會員合併查詢：
+    // 舊版會讀 user_profiles，店家端沒有權限讀其他會員 profile。
+    // 之後會員顯示穩定後，再獨立重做會員合併功能。
+    return const SizedBox.shrink();
   }
 }
 
@@ -622,235 +480,22 @@ class _MemberLinkRequests extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return StreamBuilder<QuerySnapshot>(
-      stream: FirebaseFirestore.instance
-          .collection('member_link_requests')
-          .where('targetUserId', isEqualTo: userId)
-          .where('status', isEqualTo: 'pending')
-          .snapshots(),
-      builder: (context, requestSnapshot) {
-        if (!requestSnapshot.hasData) {
-          return const SizedBox();
-        }
-
-        final requests = requestSnapshot.data!.docs;
-
-        if (requests.isEmpty) {
-          return const SizedBox();
-        }
-
-        return Column(
-          children: requests.map((requestDoc) {
-            final request = requestDoc.data() as Map<String, dynamic>;
-
-            return Container(
-              width: double.infinity,
-              margin: const EdgeInsets.only(bottom: 12),
-              padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(
-                color: Colors.blue.shade50,
-                borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: Colors.blue.shade100),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    '會員綁定申請',
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 17),
-                  ),
-                  const SizedBox(height: 8),
-                  Text('登入帳號：${request['authEmail'] ?? '未填'}'),
-                  Text('申請手機：${request['targetPhone'] ?? '未填'}'),
-                  const SizedBox(height: 12),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: ElevatedButton.icon(
-                          onPressed: () async {
-                            await _approveLinkRequest(
-                              context: context,
-                              requestDoc: requestDoc,
-                              request: request,
-                            );
-                          },
-                          icon: const Icon(Icons.check),
-                          label: const Text('確認綁定'),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: OutlinedButton.icon(
-                          onPressed: () async {
-                            await _rejectLinkRequest(
-                              context: context,
-                              requestDoc: requestDoc,
-                            );
-                          },
-                          icon: const Icon(Icons.close),
-                          label: const Text('拒絕'),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            );
-          }).toList(),
-        );
-      },
-    );
-  }
-
-  Future<void> _approveLinkRequest({
-    required BuildContext context,
-    required QueryDocumentSnapshot requestDoc,
-    required Map<String, dynamic> request,
-  }) async {
-    final authUid = request['authUid']?.toString() ?? '';
-
-    if (authUid.isEmpty) return;
-
-    final oldUserRef = FirebaseFirestore.instance
-        .collection('user_profiles')
-        .doc(userId);
-
-    final newUserRef = FirebaseFirestore.instance
-        .collection('user_profiles')
-        .doc(authUid);
-
-    final oldUserSnap = await oldUserRef.get();
-
-    if (!oldUserSnap.exists) return;
-
-    final oldData = oldUserSnap.data() ?? {};
-
-    await newUserRef.set({
-      ...oldData,
-      'uid': authUid,
-      'email': request['authEmail'] ?? '',
-      'linkedAuthUid': authUid,
-      'updatedAt': FieldValue.serverTimestamp(),
-    }, SetOptions(merge: true));
-
-    final pets = await oldUserRef.collection('pets').get();
-
-    for (final pet in pets.docs) {
-      await newUserRef.collection('pets').doc(pet.id).set(pet.data());
-      await pet.reference.delete();
-    }
-
-    final bookings = await FirebaseFirestore.instance
-        .collection('bookings')
-        .where('userId', isEqualTo: userId)
-        .get();
-
-    for (final booking in bookings.docs) {
-      await booking.reference.update({'userId': authUid});
-    }
-
-    await requestDoc.reference.update({
-      'status': 'approved',
-      'approvedAt': FieldValue.serverTimestamp(),
-      'updatedAt': FieldValue.serverTimestamp(),
-    });
-
-    final operator = FirebaseAuth.instance.currentUser;
-
-    await FirebaseFirestore.instance.collection('action_logs').add({
-      'type': 'member_link_approved',
-      'shopId': shopId,
-      'targetUserId': userId,
-      'targetUserName': data['name'] ?? '',
-      'targetUserEmail': data['email'] ?? '',
-      'operatorUid': operator?.uid,
-      'operatorEmail': operator?.email,
-      'createdAt': FieldValue.serverTimestamp(),
-    });
-
-    await oldUserRef.delete();
-
-    if (!context.mounted) return;
-
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text('會員資料已成功合併')));
-
-    Navigator.pop(context);
-  }
-
-  Future<void> _rejectLinkRequest({
-    required BuildContext context,
-    required QueryDocumentSnapshot requestDoc,
-  }) async {
-    final reasonController = TextEditingController();
-
-    final reason = await showDialog<String>(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: const Text('拒絕綁定原因'),
-          content: TextField(
-            controller: reasonController,
-            maxLines: 3,
-            decoration: const InputDecoration(
-              hintText: '例如：資料不符、無法確認本人、手機號碼填錯',
-              border: OutlineInputBorder(),
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.pop(context);
-              },
-              child: const Text('取消'),
-            ),
-            ElevatedButton(
-              onPressed: () {
-                Navigator.pop(context, reasonController.text.trim());
-              },
-              child: const Text('確認拒絕'),
-            ),
-          ],
-        );
-      },
-    );
-
-    if (reason == null || reason.isEmpty) return;
-
-    await requestDoc.reference.update({
-      'status': 'rejected',
-      'rejectReason': reason,
-      'rejectedAt': FieldValue.serverTimestamp(),
-      'updatedAt': FieldValue.serverTimestamp(),
-    });
-
-    final operator = FirebaseAuth.instance.currentUser;
-
-    await FirebaseFirestore.instance.collection('action_logs').add({
-      'type': 'member_link_rejected',
-      'shopId': shopId,
-      'targetUserId': userId,
-      'targetUserName': data['name'] ?? '',
-      'targetUserEmail': data['email'] ?? '',
-      'operatorUid': operator?.uid,
-      'operatorEmail': operator?.email,
-      'reason': reason,
-      'createdAt': FieldValue.serverTimestamp(),
-    });
-
-    if (!context.mounted) return;
-
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text('已拒絕會員綁定')));
+    // 暫時關閉會員綁定申請區塊：
+    // 舊版確認綁定會搬 user_profiles / pets / bookings，屬於高風險合併流程。
+    // 先讓會員詳細頁穩定顯示，之後再獨立重做會員合併。
+    return const SizedBox.shrink();
   }
 }
 
 class _AdminNoteBox extends StatelessWidget {
-  const _AdminNoteBox({required this.userId, required this.data});
+  const _AdminNoteBox({
+    required this.userId,
+    required this.shopId,
+    required this.data,
+  });
 
   final String userId;
+  final String shopId;
   final Map<String, dynamic> data;
 
   @override
@@ -879,12 +524,15 @@ class _AdminNoteBox extends StatelessWidget {
           child: OutlinedButton.icon(
             onPressed: () async {
               await FirebaseFirestore.instance
-                  .collection('user_profiles')
+                  .collection('shops')
+                  .doc(shopId)
+                  .collection('members')
                   .doc(userId)
-                  .update({
+                  .set({
                     'adminNote1': noteController.text.trim(),
                     'adminNoteUpdatedAt': FieldValue.serverTimestamp(),
-                  });
+                    'updatedAt': FieldValue.serverTimestamp(),
+                  }, SetOptions(merge: true));
 
               ScaffoldMessenger.of(
                 context,
@@ -940,12 +588,15 @@ class _MemberActionButtons extends StatelessWidget {
 
   Future<void> _toggleVip() async {
     final ref = FirebaseFirestore.instance
-        .collection('user_profiles')
+        .collection('shops')
+        .doc(shopId)
+        .collection('members')
         .doc(userId);
 
     final snap = await ref.get();
+    final data = snap.data() ?? {};
 
-    final tags = List<String>.from(snap.data()?['tags'] ?? []);
+    final tags = List<String>.from(data['tags'] ?? []);
     final wasVip = tags.contains('vip');
 
     if (wasVip) {
@@ -954,7 +605,10 @@ class _MemberActionButtons extends StatelessWidget {
       tags.add('vip');
     }
 
-    await ref.update({'tags': tags});
+    await ref.set({
+      'tags': tags,
+      'updatedAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
   }
 
   Future<void> _toggleBlacklist(BuildContext context) async {
@@ -1054,9 +708,10 @@ class _MemberActionButtons extends StatelessWidget {
 }
 
 class _ArchiveButton extends StatelessWidget {
-  const _ArchiveButton({required this.userId});
+  const _ArchiveButton({required this.userId, required this.shopId});
 
   final String userId;
+  final String shopId;
 
   @override
   Widget build(BuildContext context) {
@@ -1097,7 +752,9 @@ class _ArchiveButton extends StatelessWidget {
             if (confirm != true) return;
 
             await FirebaseFirestore.instance
-                .collection('user_profiles')
+                .collection('shops')
+                .doc(shopId)
+                .collection('members')
                 .doc(userId)
                 .update({
                   'status': 'archived',
@@ -1120,9 +777,10 @@ class _ArchiveButton extends StatelessWidget {
 }
 
 class _RestoreButton extends StatelessWidget {
-  const _RestoreButton({required this.userId});
+  const _RestoreButton({required this.userId, required this.shopId});
 
   final String userId;
+  final String shopId;
 
   @override
   Widget build(BuildContext context) {
@@ -1161,7 +819,9 @@ class _RestoreButton extends StatelessWidget {
             if (confirm != true) return;
 
             await FirebaseFirestore.instance
-                .collection('user_profiles')
+                .collection('shops')
+                .doc(shopId)
+                .collection('members')
                 .doc(userId)
                 .update({
                   'status': 'active',

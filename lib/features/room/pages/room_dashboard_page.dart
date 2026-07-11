@@ -535,6 +535,8 @@ class _RoomDashboardPageState extends State<RoomDashboardPage> {
 
                                   if (manualStatus == 'blocked') {
                                     color = Colors.black;
+                                  } else if (manualStatus == 'booked') {
+                                    color = Colors.deepOrange;
                                   } else if (todayBooking != null) {
                                     final status = todayBooking['status'] ?? '';
 

@@ -1,16 +1,13 @@
 // lib/features/admin/pages/admin_member_link_request_page.dart
-// 🔗 後台會員綁定申請管理頁
-// 功能：集中查看待確認的會員資料合併申請，並可跳到會員詳細頁處理
+// 🔗 後台會員合併管理頁
+// 功能：集中查看待處理的會員合併申請，並可跳到會員詳細頁處理
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/features/admin/pages/admin_member_detail_page.dart';
 
 class AdminMemberLinkRequestPage extends StatelessWidget {
-  const AdminMemberLinkRequestPage({
-    super.key,
-    required this.shopId,
-  });
+  const AdminMemberLinkRequestPage({super.key, required this.shopId});
 
   final String shopId;
 
@@ -28,9 +25,7 @@ class AdminMemberLinkRequestPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('會員綁定申請'),
-      ),
+      appBar: AppBar(title: const Text('會員合併管理')),
       body: StreamBuilder<QuerySnapshot>(
         stream: FirebaseFirestore.instance
             .collection('member_link_requests')
@@ -39,17 +34,13 @@ class AdminMemberLinkRequestPage extends StatelessWidget {
             .snapshots(),
         builder: (context, snapshot) {
           if (!snapshot.hasData) {
-            return const Center(
-              child: CircularProgressIndicator(),
-            );
+            return const Center(child: CircularProgressIndicator());
           }
 
           final requests = snapshot.data!.docs;
 
           if (requests.isEmpty) {
-            return const Center(
-              child: Text('目前沒有待確認的綁定申請'),
-            );
+            return const Center(child: Text('目前沒有待確認的綁定申請'));
           }
 
           return ListView.builder(
@@ -59,8 +50,7 @@ class AdminMemberLinkRequestPage extends StatelessWidget {
               final doc = requests[index];
               final data = doc.data() as Map<String, dynamic>;
 
-              final targetUserId =
-                  data['targetUserId']?.toString() ?? '';
+              final targetUserId = data['targetUserId']?.toString() ?? '';
 
               return Card(
                 margin: const EdgeInsets.only(bottom: 12),
@@ -71,10 +61,7 @@ class AdminMemberLinkRequestPage extends StatelessWidget {
                   contentPadding: const EdgeInsets.all(14),
                   leading: CircleAvatar(
                     backgroundColor: Colors.purple.shade50,
-                    child: const Icon(
-                      Icons.link,
-                      color: Colors.purple,
-                    ),
+                    child: const Icon(Icons.link, color: Colors.purple),
                   ),
                   title: Text(
                     data['targetName']?.toString().isNotEmpty == true

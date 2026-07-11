@@ -40,7 +40,7 @@ class BookingPetSection extends StatelessWidget {
               return type == 'cat' || species == 'cat';
             }).toList();
 
-            final isLimitReached = allPets.length >= 5;
+            final isLimitReached = allPets.length >= 10;
 
             return Align(
               alignment: Alignment.centerRight,
@@ -54,7 +54,7 @@ class BookingPetSection extends StatelessWidget {
                         );
                       },
                 child: Text(
-                  isLimitReached ? '已達上限（5隻）' : '+ 新增寵物',
+                  isLimitReached ? '已達上限（10隻）' : '+ 新增寵物',
                   style: TextStyle(color: isLimitReached ? Colors.grey : null),
                 ),
               ),

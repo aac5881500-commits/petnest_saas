@@ -4,18 +4,9 @@
       "collectionGroup": "action_logs",
       "queryScope": "COLLECTION",
       "fields": [
-        {
-          "fieldPath": "shopId",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "createdAt",
-          "order": "DESCENDING"
-        },
-        {
-          "fieldPath": "__name__",
-          "order": "DESCENDING"
-        }
+        { "fieldPath": "shopId", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" },
+        { "fieldPath": "__name__", "order": "DESCENDING" }
       ],
       "density": "SPARSE_ALL"
     },
@@ -23,18 +14,9 @@
       "collectionGroup": "bookings",
       "queryScope": "COLLECTION",
       "fields": [
-        {
-          "fieldPath": "shopId",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "createdAt",
-          "order": "DESCENDING"
-        },
-        {
-          "fieldPath": "__name__",
-          "order": "DESCENDING"
-        }
+        { "fieldPath": "shopId", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" },
+        { "fieldPath": "__name__", "order": "DESCENDING" }
       ],
       "density": "SPARSE_ALL"
     },
@@ -42,22 +24,10 @@
       "collectionGroup": "bookings",
       "queryScope": "COLLECTION",
       "fields": [
-        {
-          "fieldPath": "shopId",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "source",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "createdAt",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "__name__",
-          "order": "ASCENDING"
-        }
+        { "fieldPath": "shopId", "order": "ASCENDING" },
+        { "fieldPath": "source", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "ASCENDING" },
+        { "fieldPath": "__name__", "order": "ASCENDING" }
       ],
       "density": "SPARSE_ALL"
     },
@@ -65,22 +35,10 @@
       "collectionGroup": "bookings",
       "queryScope": "COLLECTION",
       "fields": [
-        {
-          "fieldPath": "shopId",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "source",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "createdAt",
-          "order": "DESCENDING"
-        },
-        {
-          "fieldPath": "__name__",
-          "order": "DESCENDING"
-        }
+        { "fieldPath": "shopId", "order": "ASCENDING" },
+        { "fieldPath": "source", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" },
+        { "fieldPath": "__name__", "order": "DESCENDING" }
       ],
       "density": "SPARSE_ALL"
     },
@@ -88,18 +46,9 @@
       "collectionGroup": "bookings",
       "queryScope": "COLLECTION",
       "fields": [
-        {
-          "fieldPath": "shopId",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "startDate",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "__name__",
-          "order": "ASCENDING"
-        }
+        { "fieldPath": "shopId", "order": "ASCENDING" },
+        { "fieldPath": "startDate", "order": "ASCENDING" },
+        { "fieldPath": "__name__", "order": "ASCENDING" }
       ],
       "density": "SPARSE_ALL"
     },
@@ -107,22 +56,10 @@
       "collectionGroup": "bookings",
       "queryScope": "COLLECTION",
       "fields": [
-        {
-          "fieldPath": "shopId",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "status",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "createdAt",
-          "order": "DESCENDING"
-        },
-        {
-          "fieldPath": "__name__",
-          "order": "DESCENDING"
-        }
+        { "fieldPath": "shopId", "order": "ASCENDING" },
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" },
+        { "fieldPath": "__name__", "order": "DESCENDING" }
       ],
       "density": "SPARSE_ALL"
     },
@@ -130,26 +67,11 @@
       "collectionGroup": "bookings",
       "queryScope": "COLLECTION",
       "fields": [
-        {
-          "fieldPath": "shopId",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "status",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "endDate",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "startDate",
-          "order": "DESCENDING"
-        },
-        {
-          "fieldPath": "__name__",
-          "order": "DESCENDING"
-        }
+        { "fieldPath": "shopId", "order": "ASCENDING" },
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "endDate", "order": "ASCENDING" },
+        { "fieldPath": "startDate", "order": "DESCENDING" },
+        { "fieldPath": "__name__", "order": "DESCENDING" }
       ],
       "density": "SPARSE_ALL"
     },
@@ -157,22 +79,10 @@
       "collectionGroup": "bookings",
       "queryScope": "COLLECTION",
       "fields": [
-        {
-          "fieldPath": "shopId",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "status",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "startDate",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "__name__",
-          "order": "ASCENDING"
-        }
+        { "fieldPath": "shopId", "order": "ASCENDING" },
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "startDate", "order": "ASCENDING" },
+        { "fieldPath": "__name__", "order": "ASCENDING" }
       ],
       "density": "SPARSE_ALL"
     },
@@ -180,26 +90,11 @@
       "collectionGroup": "bookings",
       "queryScope": "COLLECTION",
       "fields": [
-        {
-          "fieldPath": "shopId",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "status",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "startDate",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "endDate",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "__name__",
-          "order": "ASCENDING"
-        }
+        { "fieldPath": "shopId", "order": "ASCENDING" },
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "startDate", "order": "ASCENDING" },
+        { "fieldPath": "endDate", "order": "ASCENDING" },
+        { "fieldPath": "__name__", "order": "ASCENDING" }
       ],
       "density": "SPARSE_ALL"
     },
@@ -207,26 +102,11 @@
       "collectionGroup": "bookings",
       "queryScope": "COLLECTION",
       "fields": [
-        {
-          "fieldPath": "shopId",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "status",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "startDate",
-          "order": "DESCENDING"
-        },
-        {
-          "fieldPath": "endDate",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "__name__",
-          "order": "ASCENDING"
-        }
+        { "fieldPath": "shopId", "order": "ASCENDING" },
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "startDate", "order": "DESCENDING" },
+        { "fieldPath": "endDate", "order": "ASCENDING" },
+        { "fieldPath": "__name__", "order": "ASCENDING" }
       ],
       "density": "SPARSE_ALL"
     },
@@ -234,22 +114,10 @@
       "collectionGroup": "bookings",
       "queryScope": "COLLECTION",
       "fields": [
-        {
-          "fieldPath": "shopId",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "userId",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "createdAt",
-          "order": "DESCENDING"
-        },
-        {
-          "fieldPath": "__name__",
-          "order": "DESCENDING"
-        }
+        { "fieldPath": "shopId", "order": "ASCENDING" },
+        { "fieldPath": "userId", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" },
+        { "fieldPath": "__name__", "order": "DESCENDING" }
       ],
       "density": "SPARSE_ALL"
     },
@@ -257,18 +125,9 @@
       "collectionGroup": "bookings",
       "queryScope": "COLLECTION",
       "fields": [
-        {
-          "fieldPath": "userId",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "createdAt",
-          "order": "DESCENDING"
-        },
-        {
-          "fieldPath": "__name__",
-          "order": "DESCENDING"
-        }
+        { "fieldPath": "userId", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" },
+        { "fieldPath": "__name__", "order": "DESCENDING" }
       ],
       "density": "SPARSE_ALL"
     },
@@ -276,18 +135,9 @@
       "collectionGroup": "policy_acceptances",
       "queryScope": "COLLECTION",
       "fields": [
-        {
-          "fieldPath": "userId",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "acceptedAt",
-          "order": "DESCENDING"
-        },
-        {
-          "fieldPath": "__name__",
-          "order": "DESCENDING"
-        }
+        { "fieldPath": "userId", "order": "ASCENDING" },
+        { "fieldPath": "acceptedAt", "order": "DESCENDING" },
+        { "fieldPath": "__name__", "order": "DESCENDING" }
       ],
       "density": "SPARSE_ALL"
     },
@@ -295,40 +145,74 @@
       "collectionGroup": "shop_notifications",
       "queryScope": "COLLECTION",
       "fields": [
-        {
-          "fieldPath": "shopId",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "createdAt",
-          "order": "DESCENDING"
-        },
-        {
-          "fieldPath": "__name__",
-          "order": "DESCENDING"
-        }
+        { "fieldPath": "shopId", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" },
+        { "fieldPath": "__name__", "order": "DESCENDING" }
       ],
-            "density": "SPARSE_ALL"
+      "density": "SPARSE_ALL"
     },
-        {
+    {
       "collectionGroup": "shop_notifications",
       "queryScope": "COLLECTION",
       "fields": [
-        {
-          "fieldPath": "shopId",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "status",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "__name__",
-          "order": "ASCENDING"
-        }
+        { "fieldPath": "shopId", "order": "ASCENDING" },
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "__name__", "order": "ASCENDING" }
       ],
       "density": "SPARSE_ALL"
-    }
+    },
+    {
+      "collectionGroup": "reviews",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "shopId", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" },
+        { "fieldPath": "__name__", "order": "DESCENDING" }
+      ],
+      "density": "SPARSE_ALL"
+    },
+    {
+      "collectionGroup": "reviews",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "userId", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" },
+        { "fieldPath": "__name__", "order": "DESCENDING" }
+      ],
+      "density": "SPARSE_ALL"
+    },
+    {
+  "collectionGroup": "reviews",
+  "queryScope": "COLLECTION",
+  "fields": [
+    { "fieldPath": "userId", "order": "ASCENDING" },
+    { "fieldPath": "status", "order": "ASCENDING" },
+    { "fieldPath": "createdAt", "order": "DESCENDING" },
+    { "fieldPath": "__name__", "order": "DESCENDING" }
+  ],
+  "density": "SPARSE_ALL"
+},
+{
+  "collectionGroup": "reviews",
+  "queryScope": "COLLECTION",
+  "fields": [
+    { "fieldPath": "shopId", "order": "ASCENDING" },
+    { "fieldPath": "status", "order": "ASCENDING" },
+    { "fieldPath": "createdAt", "order": "DESCENDING" },
+    { "fieldPath": "__name__", "order": "DESCENDING" }
+  ],
+  "density": "SPARSE_ALL"
+},
+{
+  "collectionGroup": "reviews",
+  "queryScope": "COLLECTION",
+  "fields": [
+    { "fieldPath": "status", "order": "ASCENDING" },
+    { "fieldPath": "createdAt", "order": "DESCENDING" },
+    { "fieldPath": "__name__", "order": "DESCENDING" }
+  ],
+  "density": "SPARSE_ALL"
+}
   ],
   "fieldOverrides": []
 }

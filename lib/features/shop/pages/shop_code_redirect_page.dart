@@ -3,6 +3,7 @@
 // 功能：SHOP0001 → ShopPublicPage
 
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:petnest_saas/core/services/shop_service.dart';
 import 'package:petnest_saas/features/shop/pages/shop_public_page.dart';
 
@@ -11,10 +12,24 @@ class ShopCodeRedirectPage extends StatelessWidget {
 
   final String shopCode;
 
+  Future<Map<String, dynamic>?> _loadAndRememberShop() async {
+    final shop = await ShopService.instance.getShopByCode(shopCode);
+
+    if (shop == null) return null;
+
+    final shopId = shop['shopId']?.toString() ?? shopCode;
+
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('last_customer_shop_id', shopId);
+    await prefs.setString('last_customer_shop_code', shopCode);
+
+    return shop;
+  }
+
   @override
   Widget build(BuildContext context) {
     return FutureBuilder<Map<String, dynamic>?>(
-      future: ShopService.instance.getShopByCode(shopCode),
+      future: _loadAndRememberShop(),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Scaffold(

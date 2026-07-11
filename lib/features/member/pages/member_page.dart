@@ -10,6 +10,7 @@ import 'package:petnest_saas/features/pet/pages/pet_detail_page.dart';
 import 'package:petnest_saas/features/pet/pages/add_pet_page.dart';
 import 'package:petnest_saas/features/booking/pages/my_bookings_page.dart';
 import 'package:petnest_saas/core/constants/taiwan_city_data.dart';
+import 'package:petnest_saas/features/booking/pages/my_reviews_page.dart';
 
 class MemberPage extends StatefulWidget {
   const MemberPage({super.key});
@@ -1044,9 +1045,31 @@ class _MemberPageState extends State<MemberPage> {
                                   );
                                 },
                               ),
+                              const Divider(height: 1),
+                              ListTile(
+                                contentPadding: EdgeInsets.zero,
+                                leading: CircleAvatar(
+                                  radius: 26,
+                                  backgroundColor: Colors.amber.shade50,
+                                  child: const Icon(Icons.rate_review),
+                                ),
+                                title: const Text(
+                                  '我的評價',
+                                  style: TextStyle(fontWeight: FontWeight.bold),
+                                ),
+                                subtitle: const Text('查看住宿評價、店家回覆與修改'),
+                                trailing: const Icon(Icons.chevron_right),
+                                onTap: () {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (_) => const MyReviewsPage(),
+                                    ),
+                                  );
+                                },
+                              ),
                             ],
                           ),
-                          const SizedBox(height: 24),
 
                           StreamBuilder<QuerySnapshot>(
                             stream: FirebaseFirestore.instance

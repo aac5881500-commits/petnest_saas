@@ -90,6 +90,22 @@ match /booking_images/{bookingId}/{fileName} {
     );
 }
 
+// ⭐ 評價照片
+match /review_images/{bookingId}/{fileName} {
+
+  allow read: if true;
+
+  allow write: if signedIn()
+    && isImage()
+    && isUnder5MB()
+    && (
+      isRootAdmin() ||
+      firestore.get(
+        /databases/(default)/documents/bookings/$(bookingId)
+      ).data.userId == request.auth.uid
+    );
+}
+
 // 📸 店家退房額外費用照片
 match /booking_extra_charges/{bookingId}/{fileName} {
   allow read: if signedIn()
@@ -142,6 +158,22 @@ match /platform_contact_requests/{requestId}/{fileName} {
       )
     );
 }
+    // ✅ 店家認證／平台公開申請照片
+    match /shop_verify_requests/{shopId}/{folderName}/{fileName} {
+      allow read: if signedIn()
+        && (
+          isRootAdmin() ||
+          isShopMember(shopId)
+        );
+
+      allow write: if signedIn()
+        && isImage()
+        && isUnder5MB()
+        && (
+          isRootAdmin() ||
+          isShopMember(shopId)
+        );
+    }
 
     // 🚫 其他 Storage 路徑全部拒絕
     match /{allPaths=**} {

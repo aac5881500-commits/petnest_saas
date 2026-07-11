@@ -153,12 +153,11 @@ class _ShopRoomPageState extends State<ShopRoomPage> {
 
     int digitCount = 2;
 
-    await showModalBottomSheet(
+    await showDialog(
       context: context,
-      isScrollControlled: true,
-      builder: (sheetContext) {
+      builder: (dialogContext) {
         return StatefulBuilder(
-          builder: (context, setSheetState) {
+          builder: (context, setDialogState) {
             final start = int.tryParse(_batchStartController.text) ?? 1;
             final count = int.tryParse(_batchCountController.text) ?? 0;
             final prefix = _batchPrefixController.text.trim();
@@ -171,23 +170,13 @@ class _ShopRoomPageState extends State<ShopRoomPage> {
                 : '$prefix${start.toString().padLeft(digitCount, '0')} ～ '
                       '$prefix${end.toString().padLeft(digitCount, '0')}';
 
-            return Padding(
-              padding: EdgeInsets.only(
-                left: 16,
-                right: 16,
-                top: 16,
-                bottom: MediaQuery.of(sheetContext).viewInsets.bottom + 16,
-              ),
-              child: SingleChildScrollView(
+            return AlertDialog(
+              title: const Text('快速建立房間'),
+              content: SingleChildScrollView(
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      '快速建立房間',
-                      style: Theme.of(context).textTheme.titleLarge,
-                    ),
-                    const SizedBox(height: 8),
                     Text(
                       '$roomTypeName｜已建立 ${sameTypeRooms.length} / 設定 $totalRooms 間｜還可建立 $remainingCount 間',
                       style: const TextStyle(color: Colors.blue),
@@ -200,14 +189,14 @@ class _ShopRoomPageState extends State<ShopRoomPage> {
                         labelText: '房號前綴',
                         hintText: '例如 A、B、VIP、2F',
                       ),
-                      onChanged: (_) => setSheetState(() {}),
+                      onChanged: (_) => setDialogState(() {}),
                     ),
 
                     TextField(
                       controller: _batchStartController,
                       keyboardType: TextInputType.number,
                       decoration: const InputDecoration(labelText: '起始號碼'),
-                      onChanged: (_) => setSheetState(() {}),
+                      onChanged: (_) => setDialogState(() {}),
                     ),
 
                     TextField(
@@ -217,7 +206,7 @@ class _ShopRoomPageState extends State<ShopRoomPage> {
                         labelText: '建立數量',
                         helperText: '最多可建立 $remainingCount 間',
                       ),
-                      onChanged: (_) => setSheetState(() {}),
+                      onChanged: (_) => setDialogState(() {}),
                     ),
 
                     const SizedBox(height: 12),
@@ -230,21 +219,21 @@ class _ShopRoomPageState extends State<ShopRoomPage> {
                           label: const Text('1位'),
                           selected: digitCount == 1,
                           onSelected: (_) {
-                            setSheetState(() => digitCount = 1);
+                            setDialogState(() => digitCount = 1);
                           },
                         ),
                         ChoiceChip(
                           label: const Text('2位（01）'),
                           selected: digitCount == 2,
                           onSelected: (_) {
-                            setSheetState(() => digitCount = 2);
+                            setDialogState(() => digitCount = 2);
                           },
                         ),
                         ChoiceChip(
                           label: const Text('3位（001）'),
                           selected: digitCount == 3,
                           onSelected: (_) {
-                            setSheetState(() => digitCount = 3);
+                            setDialogState(() => digitCount = 3);
                           },
                         ),
                       ],
@@ -264,99 +253,79 @@ class _ShopRoomPageState extends State<ShopRoomPage> {
                         style: const TextStyle(fontWeight: FontWeight.w600),
                       ),
                     ),
-
-                    const SizedBox(height: 16),
-
-                    Row(
-                      children: [
-                        Expanded(
-                          child: OutlinedButton(
-                            onPressed: () => Navigator.pop(sheetContext),
-                            child: const Text('取消'),
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: ElevatedButton(
-                            onPressed: () async {
-                              final prefix = _batchPrefixController.text.trim();
-                              final start =
-                                  int.tryParse(_batchStartController.text) ?? 0;
-                              final count =
-                                  int.tryParse(_batchCountController.text) ?? 0;
-
-                              if (start <= 0 || count <= 0) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(content: Text('請輸入正確數字')),
-                                );
-                                return;
-                              }
-
-                              if (count > remainingCount) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(
-                                    content: Text('最多只能建立 $remainingCount 間'),
-                                  ),
-                                );
-                                return;
-                              }
-
-                              final allRooms = await ShopService.instance
-                                  .getRooms(widget.shopId);
-
-                              final existingNames = allRooms
-                                  .map(
-                                    (room) =>
-                                        (room['name'] ?? '').toString().trim(),
-                                  )
-                                  .toSet();
-
-                              final names = List.generate(count, (index) {
-                                final number = start + index;
-                                return '$prefix${number.toString().padLeft(digitCount, '0')}';
-                              });
-
-                              final duplicateNames = names
-                                  .where(existingNames.contains)
-                                  .toList();
-
-                              if (duplicateNames.isNotEmpty) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(
-                                    content: Text(
-                                      '房號已存在：${duplicateNames.join(', ')}',
-                                    ),
-                                  ),
-                                );
-                                return;
-                              }
-
-                              for (final name in names) {
-                                await ShopService.instance.createRoom(
-                                  shopId: widget.shopId,
-                                  name: name,
-                                  roomTypeId: roomTypeId,
-                                );
-                              }
-
-                              if (!mounted) return;
-
-                              Navigator.pop(sheetContext);
-
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: Text('已建立 ${names.length} 間房間'),
-                                ),
-                              );
-                            },
-                            child: const Text('確認建立'),
-                          ),
-                        ),
-                      ],
-                    ),
                   ],
                 ),
               ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(dialogContext),
+                  child: const Text('取消'),
+                ),
+                ElevatedButton(
+                  onPressed: () async {
+                    final prefix = _batchPrefixController.text.trim();
+                    final start = int.tryParse(_batchStartController.text) ?? 0;
+                    final count = int.tryParse(_batchCountController.text) ?? 0;
+
+                    if (start <= 0 || count <= 0) {
+                      ScaffoldMessenger.of(
+                        context,
+                      ).showSnackBar(const SnackBar(content: Text('請輸入正確數字')));
+                      return;
+                    }
+
+                    if (count > remainingCount) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('最多只能建立 $remainingCount 間')),
+                      );
+                      return;
+                    }
+
+                    final allRooms = await ShopService.instance.getRooms(
+                      widget.shopId,
+                    );
+
+                    final existingNames = allRooms
+                        .map((room) => (room['name'] ?? '').toString().trim())
+                        .toSet();
+
+                    final names = List.generate(count, (index) {
+                      final number = start + index;
+                      return '$prefix${number.toString().padLeft(digitCount, '0')}';
+                    });
+
+                    final duplicateNames = names
+                        .where(existingNames.contains)
+                        .toList();
+
+                    if (duplicateNames.isNotEmpty) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('房號已存在：${duplicateNames.join(', ')}'),
+                        ),
+                      );
+                      return;
+                    }
+
+                    for (final name in names) {
+                      await ShopService.instance.createRoom(
+                        shopId: widget.shopId,
+                        name: name,
+                        roomTypeId: roomTypeId,
+                      );
+                    }
+
+                    if (!mounted) return;
+
+                    Navigator.pop(dialogContext);
+
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('已建立 ${names.length} 間房間')),
+                    );
+                  },
+                  child: const Text('確認建立'),
+                ),
+              ],
             );
           },
         );

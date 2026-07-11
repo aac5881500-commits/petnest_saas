@@ -362,6 +362,10 @@ class PlatformShopListPage extends StatelessWidget {
 
                             const SizedBox(height: 6),
 
+                            _ShopReviewSummary(shopId: doc.id),
+
+                            const SizedBox(height: 6),
+
                             Row(
                               children: [
                                 Expanded(
@@ -445,6 +449,76 @@ class PlatformShopListPage extends StatelessWidget {
           );
         },
       ),
+    );
+  }
+}
+
+class _ShopReviewSummary extends StatelessWidget {
+  const _ShopReviewSummary({required this.shopId});
+
+  final String shopId;
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<QuerySnapshot<Map<String, dynamic>>>(
+      future: FirebaseFirestore.instance
+          .collection('reviews')
+          .where('shopId', isEqualTo: shopId)
+          .where('status', isEqualTo: 'visible')
+          .get(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return Text(
+            '評價載入中',
+            style: TextStyle(
+              color: Colors.grey.shade500,
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+            ),
+          );
+        }
+
+        final docs = snapshot.data?.docs ?? [];
+
+        if (docs.isEmpty) {
+          return Text(
+            '尚無評價',
+            style: TextStyle(
+              color: Colors.grey.shade500,
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+            ),
+          );
+        }
+
+        double total = 0;
+
+        for (final doc in docs) {
+          final data = doc.data();
+          total += ((data['rating'] ?? 0) as num).toDouble();
+        }
+
+        final average = total / docs.length;
+
+        return Row(
+          children: [
+            const Icon(Icons.star, size: 15, color: Color(0xFFFFB300)),
+            const SizedBox(width: 3),
+            Expanded(
+              child: Text(
+                '${average.toStringAsFixed(1)}（${docs.length}）',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w800,
+                  color: Color(0xFF444444),
+                ),
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 }

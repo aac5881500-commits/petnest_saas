@@ -4,9 +4,9 @@
 class ShopPlanKeys {
   static const free = 'free';
 
-  /// 999方案
+  /// 專業版（NT$999/月）
   static const basic = 'basic';
 
-  /// 1999方案
+  /// 旗艦版（NT$1,999/月，未來開放）
   static const pro = 'pro';
 }

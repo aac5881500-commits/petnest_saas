@@ -17,6 +17,9 @@ class AdminCreateBookingConfirmSection extends StatelessWidget {
     required this.selectedCustomServices,
     required this.addonData,
     required this.adminOrderSource,
+    required this.applyLongStayDiscount,
+    required this.onApplyLongStayDiscountChanged,
+    required this.discountInfo,
     required this.noteController,
     required this.onOrderSourceChanged,
     required this.formatDate,
@@ -38,7 +41,9 @@ class AdminCreateBookingConfirmSection extends StatelessWidget {
   final Map<String, dynamic>? addonData;
 
   final String adminOrderSource;
-
+  final bool applyLongStayDiscount;
+  final ValueChanged<bool> onApplyLongStayDiscountChanged;
+  final Map<String, dynamic>? discountInfo;
   final TextEditingController noteController;
 
   final void Function(String value) onOrderSourceChanged;
@@ -56,69 +61,48 @@ class AdminCreateBookingConfirmSection extends StatelessWidget {
 
     final nights = endDate!.difference(startDate!).inDays;
 
-    final roomName =
-        roomType!['name']?.toString() ?? '未選房型';
+    final roomName = roomType!['name']?.toString() ?? '未選房型';
 
     final price = roomType!['price'] ?? 0;
 
-    final extraPetPrice =
-        roomType!['extraPrice'] ?? 0;
+    final extraPetPrice = roomType!['extraPrice'] ?? 0;
 
-    final extraPetCount =
-        selectedPetIds.length > 1
-            ? selectedPetIds.length - 1
-            : 0;
+    final extraPetCount = selectedPetIds.length > 1
+        ? selectedPetIds.length - 1
+        : 0;
 
-    final extraPetTotal =
-        extraPetPrice * extraPetCount * nights;
+    final extraPetTotal = extraPetPrice * extraPetCount * nights;
 
-    final valueAddonTotal =
-        selectedValueServices.fold<int>(
+    final valueAddonTotal = selectedValueServices.fold<int>(
       0,
-      (sum, item) =>
-          sum + ((item['total'] ?? 0) as int),
+      (sum, item) => sum + ((item['total'] ?? 0) as int),
     );
 
-    final timeAddonTotal =
-        (selectedTimeAddon?['total'] ?? 0) as int;
+    final timeAddonTotal = (selectedTimeAddon?['total'] ?? 0) as int;
 
-    final customAddonTotal =
-        selectedCustomServices.entries.fold<int>(
-      0,
-      (sum, entry) {
-        final service =
-            List<Map<String, dynamic>>.from(
-          addonData?['customServices'] ?? [],
-        ).firstWhere(
-          (item) => item['name'] == entry.key,
-          orElse: () => {},
-        );
+    final customAddonTotal = selectedCustomServices.entries.fold<int>(0, (
+      sum,
+      entry,
+    ) {
+      final service = List<Map<String, dynamic>>.from(
+        addonData?['customServices'] ?? [],
+      ).firstWhere((item) => item['name'] == entry.key, orElse: () => {});
 
-        final price = service['price'] ?? 0;
+      final price = service['price'] ?? 0;
 
-        return sum + ((price as int) * entry.value.length);
-      },
-    );
+      return sum + ((price as int) * entry.value.length);
+    });
 
-    final addonTotal =
-        valueAddonTotal +
-            timeAddonTotal +
-            customAddonTotal;
+    final addonTotal = valueAddonTotal + timeAddonTotal + customAddonTotal;
 
-    final totalPrice =
-        (price * nights) +
-            extraPetTotal +
-            addonTotal;
+    final totalPrice = (price * nights) + extraPetTotal + addonTotal;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const Text(
           '第六步：確認資料',
-          style: TextStyle(
-            fontSize: 22,
-            fontWeight: FontWeight.w900,
-          ),
+          style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900),
         ),
 
         const SizedBox(height: 8),
@@ -134,32 +118,16 @@ class AdminCreateBookingConfirmSection extends StatelessWidget {
           value: adminOrderSource,
           decoration: InputDecoration(
             labelText: '下單方式',
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(14),
-            ),
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
           ),
           items: const [
-            DropdownMenuItem(
-              value: '電話預約',
-              child: Text('電話預約'),
-            ),
-            DropdownMenuItem(
-              value: 'LINE 預約',
-              child: Text('LINE 預約'),
-            ),
-            DropdownMenuItem(
-              value: '現場預約',
-              child: Text('現場預約'),
-            ),
-            DropdownMenuItem(
-              value: '其他',
-              child: Text('其他'),
-            ),
+            DropdownMenuItem(value: '電話預約', child: Text('電話預約')),
+            DropdownMenuItem(value: 'LINE 預約', child: Text('LINE 預約')),
+            DropdownMenuItem(value: '現場預約', child: Text('現場預約')),
+            DropdownMenuItem(value: '其他', child: Text('其他')),
           ],
           onChanged: (value) {
-            onOrderSourceChanged(
-              value ?? '電話預約',
-            );
+            onOrderSourceChanged(value ?? '電話預約');
           },
         ),
 
@@ -170,11 +138,8 @@ class AdminCreateBookingConfirmSection extends StatelessWidget {
           maxLines: 3,
           decoration: InputDecoration(
             labelText: '訂單備註',
-            hintText:
-                '例如：電話預約、LINE 預約、已口頭確認、特殊照顧事項',
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(14),
-            ),
+            hintText: '例如：電話預約、LINE 預約、已口頭確認、特殊照顧事項',
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
           ),
         ),
 
@@ -186,48 +151,42 @@ class AdminCreateBookingConfirmSection extends StatelessWidget {
           decoration: BoxDecoration(
             color: Colors.white,
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(
-              color: Colors.grey.shade300,
-            ),
+            border: Border.all(color: Colors.grey.shade300),
           ),
           child: Column(
-            crossAxisAlignment:
-                CrossAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _confirmRow(
-                '會員',
-                member!['name'] ?? '未填姓名',
-              ),
+              _confirmRow('會員', member!['name'] ?? '未填姓名'),
 
-              _confirmRow(
-                '電話',
-                member!['phone'] ?? '未填電話',
-              ),
+              _confirmRow('電話', member!['phone'] ?? '未填電話'),
 
-              _confirmRow(
-                '寵物數',
-                '${selectedPetIds.length} 隻',
-              ),
+              _confirmRow('寵物數', '${selectedPetIds.length} 隻'),
 
               _confirmRow(
                 '日期',
                 '${formatDate(startDate!)} ～ ${formatDate(endDate!)}',
               ),
 
-              _confirmRow(
-                '晚數',
-                '$nights 晚',
+              _confirmRow('晚數', '$nights 晚'),
+
+              _confirmRow('房型', roomName),
+
+              _confirmRow('房型單價', 'NT\$ $price'),
+
+              const SizedBox(height: 4),
+
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const Text(
+                  '套用多日折扣',
+                  style: TextStyle(fontWeight: FontWeight.w800),
+                ),
+                subtitle: const Text('符合店家設定時，系統會自動折抵多日入住優惠'),
+                value: applyLongStayDiscount,
+                onChanged: onApplyLongStayDiscountChanged,
               ),
 
-              _confirmRow(
-                '房型',
-                roomName,
-              ),
-
-              _confirmRow(
-                '房型單價',
-                'NT\$ $price',
-              ),
+              const SizedBox(height: 4),
 
               if (extraPetCount > 0)
                 _confirmRow(
@@ -245,65 +204,58 @@ class AdminCreateBookingConfirmSection extends StatelessWidget {
                 ),
 
               if (selectedCustomServices.isNotEmpty)
-                ...selectedCustomServices.entries.map(
-                  (entry) {
-                    final serviceName = entry.key;
-                    final count = entry.value.length;
+                ...selectedCustomServices.entries.map((entry) {
+                  final serviceName = entry.key;
+                  final count = entry.value.length;
 
-                    if (count <= 0) {
-                      return const SizedBox();
-                    }
+                  if (count <= 0) {
+                    return const SizedBox();
+                  }
 
-                    final service =
-                        List<Map<String, dynamic>>.from(
-                      addonData?['customServices'] ?? [],
-                    ).firstWhere(
-                      (item) =>
-                          item['name'] == serviceName,
-                      orElse: () => {},
-                    );
+                  final service =
+                      List<Map<String, dynamic>>.from(
+                        addonData?['customServices'] ?? [],
+                      ).firstWhere(
+                        (item) => item['name'] == serviceName,
+                        orElse: () => {},
+                      );
 
-                    final price =
-                        service['price'] ?? 0;
+                  final price = service['price'] ?? 0;
 
-                    final total = price * count;
-
-                    return _confirmRow(
-                      '客製化服務',
-                      '$serviceName '
-                          '/ $count 隻 '
-                          '/ NT\$ $total',
-                    );
-                  },
-                ),
-
-              if (selectedValueServices.isNotEmpty)
-                ...selectedValueServices.map((item) {
-                  final name =
-                      item['name']?.toString() ??
-                          '加值服務';
-
-                  final total =
-                      item['total'] ??
-                          item['price'] ??
-                          0;
+                  final total = price * count;
 
                   return _confirmRow(
-                    '加值服務',
-                    '$name / NT\$ $total',
+                    '客製化服務',
+                    '$serviceName '
+                        '/ $count 隻 '
+                        '/ NT\$ $total',
                   );
                 }),
 
-              if (addonTotal > 0)
-                _confirmRow(
-                  '加值服務小計',
-                  'NT\$ $addonTotal',
-                ),
+              if (selectedValueServices.isNotEmpty)
+                ...selectedValueServices.map((item) {
+                  final name = item['name']?.toString() ?? '加值服務';
 
-              _confirmRow(
-                '總金額',
-                'NT\$ $totalPrice',
-              ),
+                  final total = item['total'] ?? item['price'] ?? 0;
+
+                  return _confirmRow('加值服務', '$name / NT\$ $total');
+                }),
+
+              if (addonTotal > 0) _confirmRow('加值服務小計', 'NT\$ $addonTotal'),
+
+              if (discountInfo != null &&
+                  ((discountInfo!['discountAmount'] ?? 0) as int) > 0) ...[
+                _confirmRow('原價', 'NT\$ ${discountInfo!['originalTotal']}'),
+                _confirmRow(
+                  '多日折扣',
+                  '滿 ${discountInfo!['discountMinNights']} 晚 / '
+                      '${discountInfo!['discountPercent']}%｜'
+                      '- NT\$ ${discountInfo!['discountAmount']}',
+                ),
+                _confirmRow('折扣後金額', 'NT\$ ${discountInfo!['finalTotal']}'),
+              ] else ...[
+                _confirmRow('總金額', 'NT\$ $totalPrice'),
+              ],
             ],
           ),
         ),
@@ -311,15 +263,11 @@ class AdminCreateBookingConfirmSection extends StatelessWidget {
     );
   }
 
-  Widget _confirmRow(
-    String label,
-    String value,
-  ) {
+  Widget _confirmRow(String label, String value) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
       child: Row(
-        crossAxisAlignment:
-            CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           SizedBox(
             width: 90,
@@ -334,9 +282,7 @@ class AdminCreateBookingConfirmSection extends StatelessWidget {
           Expanded(
             child: Text(
               value,
-              style: const TextStyle(
-                fontWeight: FontWeight.w700,
-              ),
+              style: const TextStyle(fontWeight: FontWeight.w700),
             ),
           ),
         ],

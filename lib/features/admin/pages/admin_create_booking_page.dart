@@ -49,6 +49,7 @@ class _AdminCreateBookingPageState extends State<AdminCreateBookingPage> {
   String _rangeMessage = '';
   String _adminOrderSource = '電話預約';
   Map<String, dynamic>? _selectedRoomType;
+  bool _applyLongStayDiscount = true;
   bool _addonLoading = true;
   Map<String, dynamic>? _addonData;
 
@@ -420,6 +421,7 @@ class _AdminCreateBookingPageState extends State<AdminCreateBookingPage> {
 
   Widget _petSection() {
     return AdminPetSection(
+      shopId: widget.shopId,
       member: _selectedMember,
       selectedPetIds: _selectedPetIds,
       tempPets: _pets,
@@ -739,6 +741,150 @@ class _AdminCreateBookingPageState extends State<AdminCreateBookingPage> {
     return addons;
   }
 
+  Map<String, dynamic> _calculateAdminDiscountInfo({
+    required Map<String, dynamic> shop,
+    required Map<String, dynamic> roomType,
+    required int nights,
+  }) {
+    final basePrice = (roomType['price'] ?? 0) as int;
+
+    final extraPetPrice = (roomType['extraPrice'] ?? 0) as int;
+    final extraPetCount = _selectedPetIds.length > 1
+        ? _selectedPetIds.length - 1
+        : 0;
+
+    final roomTotal = basePrice * nights;
+    final petTotal = extraPetPrice * extraPetCount * nights;
+
+    final timeTotal = (_selectedTimeAddon?['total'] ?? 0) as int;
+
+    final valueTotal = _selectedValueServices.fold<int>(
+      0,
+      (sum, item) => sum + ((item['total'] ?? 0) as int),
+    );
+
+    final customTotal = _selectedCustomServices.entries.fold<int>(0, (
+      sum,
+      entry,
+    ) {
+      final service = List<Map<String, dynamic>>.from(
+        _addonData?['customServices'] ?? [],
+      ).firstWhere((item) => item['name'] == entry.key, orElse: () => {});
+
+      final price = (service['price'] ?? 0) as int;
+      return sum + (price * entry.value.length);
+    });
+
+    final originalTotal =
+        roomTotal + petTotal + timeTotal + valueTotal + customTotal;
+
+    if (!_applyLongStayDiscount || nights <= 0) {
+      return {
+        'originalTotal': originalTotal,
+        'discountAmount': 0,
+        'discountPercent': 0,
+        'discountMinNights': 0,
+        'discountBase': '',
+        'finalTotal': originalTotal,
+      };
+    }
+
+    final discountSetting = shop['discountSetting'] as Map<String, dynamic>?;
+
+    if (discountSetting == null || discountSetting['enabled'] != true) {
+      return {
+        'originalTotal': originalTotal,
+        'discountAmount': 0,
+        'discountPercent': 0,
+        'discountMinNights': 0,
+        'discountBase': '',
+        'finalTotal': originalTotal,
+      };
+    }
+
+    final rules = discountSetting['rules'];
+
+    if (rules is! List || rules.isEmpty) {
+      return {
+        'originalTotal': originalTotal,
+        'discountAmount': 0,
+        'discountPercent': 0,
+        'discountMinNights': 0,
+        'discountBase': '',
+        'finalTotal': originalTotal,
+      };
+    }
+
+    Map<String, dynamic>? matchedRule;
+
+    for (final rule in rules) {
+      if (rule is! Map) continue;
+
+      final minNights = ((rule['minNights'] ?? 0) as num).toInt();
+
+      if (nights >= minNights) {
+        if (matchedRule == null ||
+            minNights > ((matchedRule['minNights'] ?? 0) as num).toInt()) {
+          matchedRule = Map<String, dynamic>.from(rule);
+        }
+      }
+    }
+
+    if (matchedRule == null) {
+      return {
+        'originalTotal': originalTotal,
+        'discountAmount': 0,
+        'discountPercent': 0,
+        'discountMinNights': 0,
+        'discountBase': '',
+        'finalTotal': originalTotal,
+      };
+    }
+
+    final discountPercent = ((matchedRule['discountPercent'] ?? 0) as num)
+        .toInt();
+
+    if (discountPercent <= 0) {
+      return {
+        'originalTotal': originalTotal,
+        'discountAmount': 0,
+        'discountPercent': 0,
+        'discountMinNights': 0,
+        'discountBase': '',
+        'finalTotal': originalTotal,
+      };
+    }
+
+    final discountBase = (discountSetting['base'] ?? 'total').toString();
+
+    int discountTargetAmount;
+
+    switch (discountBase) {
+      case 'room':
+        discountTargetAmount = roomTotal;
+        break;
+      case 'room_pet':
+        discountTargetAmount = roomTotal + petTotal;
+        break;
+      case 'total':
+      default:
+        discountTargetAmount = originalTotal;
+        break;
+    }
+
+    final discountAmount = (discountTargetAmount * discountPercent / 100)
+        .round();
+
+    return {
+      'originalTotal': originalTotal,
+      'discountAmount': discountAmount,
+      'discountPercent': discountPercent,
+      'discountMinNights': ((matchedRule['minNights'] ?? 0) as num).toInt(),
+      'discountBase': discountBase,
+      'finalTotal': originalTotal - discountAmount,
+    };
+  }
+
   int _calculateAdminTotalPrice({
     required Map<String, dynamic> roomType,
     required int nights,
@@ -846,6 +992,7 @@ class _AdminCreateBookingPageState extends State<AdminCreateBookingPage> {
           'emergencyContact': member['emergencyContact'],
           'shopIds': [widget.shopId],
           'createdFrom': 'admin',
+          'source': 'admin',
           'createdAt': FieldValue.serverTimestamp(),
           'updatedAt': FieldValue.serverTimestamp(),
         });
@@ -858,11 +1005,19 @@ class _AdminCreateBookingPageState extends State<AdminCreateBookingPage> {
 
         batch.set(shopMemberRef, {
           'userId': finalUserId,
-          'name': member['name'],
-          'phone': member['phone'],
-          'email': '',
+          'name': member['name'] ?? '',
+          'phone': member['phone'] ?? '',
+          'email': member['email'] ?? '',
+          'address': member['address'] ?? '',
+          'emergencyContact': member['emergencyContact'] ?? {},
           'createdFrom': 'admin',
+          'source': 'admin',
           'shopId': widget.shopId,
+          'petCount': _pets.length,
+          'bookingCount': 0,
+          'tags': <String>[],
+          'blacklisted': false,
+          'blacklistReason': '',
           'createdAt': FieldValue.serverTimestamp(),
           'updatedAt': FieldValue.serverTimestamp(),
         });
@@ -872,35 +1027,73 @@ class _AdminCreateBookingPageState extends State<AdminCreateBookingPage> {
 
           if (petId.isEmpty) continue;
 
-          final petRef = memberRef.collection('pets').doc(petId);
-
-          batch.set(petRef, {
-            'name': pet['name'],
-            'type': pet['type'],
-            'breed': pet['breed'],
-            'gender': pet['gender'],
-            'age': pet['age'],
-            'isNeutered': pet['isNeutered'],
-            'vaccine': pet['vaccine'],
-            'litterType': pet['litterType'],
-            'note': pet['note'],
+          final petData = {
+            'petId': petId,
+            'name': pet['name'] ?? '',
+            'type': pet['type'] ?? '',
+            'breed': pet['breed'] ?? '',
+            'gender': pet['gender'] ?? '',
+            'age': pet['age'] ?? '',
+            'isNeutered': pet['isNeutered'] ?? false,
+            'vaccine': pet['vaccine'] ?? '',
+            'litterType': pet['litterType'] ?? '',
+            'note': pet['note'] ?? '',
             'shopId': widget.shopId,
             'createdFrom': 'admin',
             'createdAt': FieldValue.serverTimestamp(),
             'updatedAt': FieldValue.serverTimestamp(),
-          });
+          };
+
+          final petRef = memberRef.collection('pets').doc(petId);
+          batch.set(petRef, petData);
+
+          final memberPetRef = shopMemberRef.collection('pets').doc(petId);
+          batch.set(memberPetRef, petData);
         }
 
         await batch.commit();
       }
+      await FirebaseFirestore.instance
+          .collection('shops')
+          .doc(widget.shopId)
+          .collection('members')
+          .doc(finalUserId)
+          .set({
+            'userId': finalUserId,
+            'name': member['name'] ?? '',
+            'phone': member['phone'] ?? '',
+            'email': member['email'] ?? '',
+            'address': member['address'] ?? '',
+            'emergencyContact': member['emergencyContact'] ?? {},
+            'createdFrom': member['createdFrom'] ?? 'admin',
+            'shopId': widget.shopId,
+            'petCount': _selectedPetIds.length,
+            'tags': <String>[],
+            'blacklisted': false,
+            'blacklistReason': '',
+            'updatedAt': FieldValue.serverTimestamp(),
+            'lastBookingAt': FieldValue.serverTimestamp(),
+          }, SetOptions(merge: true));
 
       final nights = _endDate!.difference(_startDate!).inDays;
+
+      final discountInfo = _calculateAdminDiscountInfo(
+        shop: shop,
+        roomType: roomType,
+        nights: nights,
+      );
 
       await BookingService.instance.createAdminBooking(
         shopId: widget.shopId,
         userId: finalUserId,
         customerName: member['name'] ?? '',
         customerPhone: member['phone'] ?? '',
+        address: member['address'] ?? '',
+        emergencyName: member['emergencyContact']?['name'] ?? '',
+        emergencyPhone: member['emergencyContact']?['phone'] ?? '',
+        emergencyRelation: member['emergencyContact']?['relation'] ?? '',
+        emergencyAddress: member['emergencyContact']?['address'] ?? '',
+        emergencyPhone2: member['emergencyContact']?['phone2'] ?? '',
         petIds: _selectedPetIds.toList(),
 
         serviceType: '住宿',
@@ -926,17 +1119,35 @@ class _AdminCreateBookingPageState extends State<AdminCreateBookingPage> {
 
         roomImages: roomType['images'] ?? [],
 
-        totalPrice: _calculateAdminTotalPrice(
-          roomType: roomType,
-          nights: nights,
-        ),
-
+        totalPrice: (discountInfo['finalTotal'] ?? 0) as int,
+        originalTotal: (discountInfo['originalTotal'] ?? 0) as int,
+        applyLongStayDiscount: _applyLongStayDiscount,
+        discountAmount: (discountInfo['discountAmount'] ?? 0) as int,
+        discountPercent: (discountInfo['discountPercent'] ?? 0) as int,
+        discountMinNights: (discountInfo['discountMinNights'] ?? 0) as int,
+        discountBase: (discountInfo['discountBase'] ?? '').toString(),
         pets: _pets,
         addons: _buildAdminAddons(),
         note:
             '手動新增訂單｜$_adminOrderSource'
             '${_noteController.text.trim().isEmpty ? '' : '｜${_noteController.text.trim()}'}',
       );
+
+      final bookingCountSnap = await FirebaseFirestore.instance
+          .collection('bookings')
+          .where('shopId', isEqualTo: widget.shopId)
+          .where('userId', isEqualTo: finalUserId)
+          .get();
+
+      await FirebaseFirestore.instance
+          .collection('shops')
+          .doc(widget.shopId)
+          .collection('members')
+          .doc(finalUserId)
+          .set({
+            'bookingCount': bookingCountSnap.docs.length,
+            'updatedAt': FieldValue.serverTimestamp(),
+          }, SetOptions(merge: true));
 
       if (!mounted) return;
 
@@ -961,23 +1172,49 @@ class _AdminCreateBookingPageState extends State<AdminCreateBookingPage> {
   }
 
   Widget _confirmSection() {
-    return AdminCreateBookingConfirmSection(
-      member: _selectedMember,
-      roomType: _selectedRoomType,
-      startDate: _startDate,
-      endDate: _endDate,
-      selectedPetIds: _selectedPetIds,
-      selectedTimeAddon: _selectedTimeAddon,
-      selectedValueServices: _selectedValueServices,
-      selectedCustomServices: _selectedCustomServices,
-      addonData: _addonData,
-      adminOrderSource: _adminOrderSource,
-      noteController: _noteController,
-      formatDate: _formatDate,
-      onOrderSourceChanged: (value) {
-        setState(() {
-          _adminOrderSource = value;
-        });
+    final nights = _startDate != null && _endDate != null
+        ? _endDate!.difference(_startDate!).inDays
+        : 0;
+
+    return StreamBuilder<Map<String, dynamic>?>(
+      stream: ShopService.instance.streamShop(widget.shopId),
+      builder: (context, snapshot) {
+        final shop = snapshot.data ?? {};
+
+        final discountInfo = _selectedRoomType != null && nights > 0
+            ? _calculateAdminDiscountInfo(
+                shop: shop,
+                roomType: _selectedRoomType!,
+                nights: nights,
+              )
+            : null;
+
+        return AdminCreateBookingConfirmSection(
+          member: _selectedMember,
+          roomType: _selectedRoomType,
+          startDate: _startDate,
+          endDate: _endDate,
+          selectedPetIds: _selectedPetIds,
+          selectedTimeAddon: _selectedTimeAddon,
+          selectedValueServices: _selectedValueServices,
+          selectedCustomServices: _selectedCustomServices,
+          addonData: _addonData,
+          adminOrderSource: _adminOrderSource,
+          applyLongStayDiscount: _applyLongStayDiscount,
+          onApplyLongStayDiscountChanged: (value) {
+            setState(() {
+              _applyLongStayDiscount = value;
+            });
+          },
+          discountInfo: discountInfo,
+          noteController: _noteController,
+          formatDate: _formatDate,
+          onOrderSourceChanged: (value) {
+            setState(() {
+              _adminOrderSource = value;
+            });
+          },
+        );
       },
     );
   }

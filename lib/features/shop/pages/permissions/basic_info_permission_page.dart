@@ -40,9 +40,7 @@ class _BasicInfoPermissionPageState extends State<BasicInfoPermissionPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('基本資訊權限'),
-      ),
+      appBar: AppBar(title: const Text('基本資訊權限')),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
@@ -51,71 +49,46 @@ class _BasicInfoPermissionPageState extends State<BasicInfoPermissionPage> {
             subtitle: '可修改營業時間與服務項目',
             value:
                 widget.permissions[ShopPermissionKeys.editBusinessInfo] ??
-                    false,
+                false,
             enabled: widget.isOwner,
             onChanged: (value) {
-              _updatePermission(
-                ShopPermissionKeys.editBusinessInfo,
-                value,
-              );
+              _updatePermission(ShopPermissionKeys.editBusinessInfo, value);
             },
           ),
 
           PermissionSwitchTile(
             title: '店家封面',
             subtitle: '可修改 Logo 與封面圖片',
+            value: widget.permissions[ShopPermissionKeys.editMedia] ?? false,
+            enabled: widget.isOwner,
+            onChanged: (value) {
+              _updatePermission(ShopPermissionKeys.editMedia, value);
+            },
+          ),
+
+          PermissionSwitchTile(
+            title: '前台內容',
+            subtitle: '可管理環境介紹、關於我們、公告管理、常見問題',
             value:
-                widget.permissions[ShopPermissionKeys.editMedia] ?? false,
+                widget.permissions[ShopPermissionKeys.manageFrontendContent] ??
+                false,
             enabled: widget.isOwner,
             onChanged: (value) {
               _updatePermission(
-                ShopPermissionKeys.editMedia,
+                ShopPermissionKeys.manageFrontendContent,
                 value,
               );
             },
           ),
 
           PermissionSwitchTile(
-            title: '環境介紹',
-            subtitle: '可修改環境照片、介紹文案與展示內容',
+            title: '評價管理',
+            subtitle: '可查看、回覆、隱藏店家評價',
             value:
-                widget.permissions[ShopPermissionKeys.manageEnvironment] ??
-                    false,
+                widget.permissions[ShopPermissionKeys.manageReviews] ?? false,
             enabled: widget.isOwner,
             onChanged: (value) {
-              _updatePermission(
-                ShopPermissionKeys.manageEnvironment,
-                value,
-              );
-            },
-          ),
-
-          PermissionSwitchTile(
-            title: '關於我們',
-            subtitle: '可修改品牌故事、理念與介紹內容',
-            value:
-                widget.permissions[ShopPermissionKeys.manageAbout] ?? false,
-            enabled: widget.isOwner,
-            onChanged: (value) {
-              _updatePermission(
-                ShopPermissionKeys.manageAbout,
-                value,
-              );
-            },
-          ),
-
-          PermissionSwitchTile(
-            title: '會員管理',
-            subtitle: '可查看會員資料與訂單紀錄',
-            value:
-                widget.permissions[ShopPermissionKeys.manageMembers] ??
-                    false,
-            enabled: widget.isOwner,
-            onChanged: (value) {
-              _updatePermission(
-                ShopPermissionKeys.manageMembers,
-                value,
-              );
+              _updatePermission(ShopPermissionKeys.manageReviews, value);
             },
           ),
 
@@ -124,10 +97,7 @@ class _BasicInfoPermissionPageState extends State<BasicInfoPermissionPage> {
           Text(
             '店家基本資料固定只有老闆可以修改，不開放給員工。\n'
             '模組設定與權限設定也固定只有老闆可以操作。',
-            style: TextStyle(
-              color: Colors.grey.shade700,
-              fontSize: 13,
-            ),
+            style: TextStyle(color: Colors.grey.shade700, fontSize: 13),
           ),
         ],
       ),

@@ -59,9 +59,7 @@ class _MemberPermissionDetailPageState
   void initState() {
     super.initState();
 
-    _permissions = Map<String, bool>.from(
-      widget.permissions,
-    );
+    _permissions = Map<String, bool>.from(widget.permissions);
   }
 
   Future<void> _deleteMember() async {
@@ -103,17 +101,17 @@ class _MemberPermissionDetailPageState
 
       if (!mounted) return;
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('成員已刪除')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('成員已刪除')));
 
       Navigator.pop(context);
     } catch (e) {
       if (!mounted) return;
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('刪除失敗：$e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('刪除失敗：$e')));
     }
   }
 
@@ -137,17 +135,17 @@ class _MemberPermissionDetailPageState
 
       if (!mounted) return;
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('權限更新成功')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('權限更新成功')));
 
       Navigator.pop(context);
     } catch (e) {
       if (!mounted) return;
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('更新失敗：$e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('更新失敗：$e')));
     } finally {
       if (!mounted) return;
 
@@ -157,62 +155,25 @@ class _MemberPermissionDetailPageState
     }
   }
 
-  Widget _buildPermissionSwitch(String key) {
-  final isBookingGroup = key == ShopPermissionKeys.manageBookings;
+  Widget _buildPermissionSwitch(String key, {String? title, String? subtitle}) {
+    final value = _isOwnerMember ? true : (_permissions[key] ?? false);
 
-  final value = _isOwnerMember
-      ? true
-      : isBookingGroup
-          ? ((_permissions[ShopPermissionKeys.manageBookings] ?? false) ||
-              (_permissions[ShopPermissionKeys.manageRoomDashboard] ?? false))
-          : (_permissions[key] ?? false);
-
-  return SwitchListTile(
-    value: value,
-    title: Text(
-      isBookingGroup
-          ? '訂單 / 房務管理'
-          : widget.permissionLabelBuilder(key),
-    ),
-    onChanged: _canEdit
-        ? (value) {
-            setState(() {
-              if (isBookingGroup) {
-                _permissions[ShopPermissionKeys.manageBookings] = value;
-                _permissions[ShopPermissionKeys.manageRoomDashboard] = value;
-              } else {
+    return SwitchListTile(
+      value: value,
+      title: Text(title ?? widget.permissionLabelBuilder(key)),
+      subtitle: subtitle == null ? null : Text(subtitle),
+      onChanged: _canEdit
+          ? (value) {
+              setState(() {
                 _permissions[key] = value;
-              }
-            });
-          }
-        : null,
-  );
-}
+              });
+            }
+          : null,
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
-    final basicPermissionKeys = [
-      ShopPermissionKeys.manageMembers,
-      ShopPermissionKeys.editBusinessInfo,
-      ShopPermissionKeys.editMedia,
-      ShopPermissionKeys.manageEnvironment,
-      ShopPermissionKeys.manageAbout,
-    ];
-
-    final catHotelPermissionKeys = [
-  ShopPermissionKeys.manageBookings, 
-  ShopPermissionKeys.manageBookingSettings,
-  ShopPermissionKeys.manageRoomTypes,
-  ShopPermissionKeys.manageRooms,
-  ShopPermissionKeys.managePaymentSettings,
-  ShopPermissionKeys.managePolicy,
-];
-
-    final reportPermissionKeys = [
-      ShopPermissionKeys.viewReports,
-      ShopPermissionKeys.viewActionLogs,
-    ];
-
     return Scaffold(
       appBar: AppBar(
         title: const Text('成員權限'),
@@ -269,9 +230,33 @@ class _MemberPermissionDetailPageState
 
                   const SizedBox(height: 8),
 
-                  ...basicPermissionKeys.map(
-                    (key) => _buildPermissionSwitch(key),
-                  ),
+                  ...[
+                    _buildPermissionSwitch(
+                      ShopPermissionKeys.manageMembers,
+                      title: '會員管理',
+                      subtitle: '可查看與管理會員資料',
+                    ),
+                    _buildPermissionSwitch(
+                      ShopPermissionKeys.editBusinessInfo,
+                      title: '營業資訊',
+                      subtitle: '可修改營業時間與服務項目',
+                    ),
+                    _buildPermissionSwitch(
+                      ShopPermissionKeys.editMedia,
+                      title: '店家封面',
+                      subtitle: '可修改 Logo 與封面圖片',
+                    ),
+                    _buildPermissionSwitch(
+                      ShopPermissionKeys.manageFrontendContent,
+                      title: '前台內容',
+                      subtitle: '可管理環境介紹、關於我們、公告管理、常見問題',
+                    ),
+                    _buildPermissionSwitch(
+                      ShopPermissionKeys.manageReviews,
+                      title: '評價管理',
+                      subtitle: '可查看、回覆、隱藏店家評價',
+                    ),
+                  ],
 
                   const Divider(height: 28),
 
@@ -289,38 +274,59 @@ class _MemberPermissionDetailPageState
 
                   const SizedBox(height: 8),
 
-                  ...catHotelPermissionKeys.map(
-                    (key) => _buildPermissionSwitch(key),
-                  ),
-
-                  const Divider(height: 28),
-
-                  /// ===== 表格統計 =====
-                  const Align(
-                    alignment: Alignment.centerLeft,
-                    child: Text(
-                      '表格統計',
-                      style: TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.bold,
-                      ),
+                  ...[
+                    _buildPermissionSwitch(
+                      ShopPermissionKeys.manageBookings,
+                      title: '訂單管理',
+                      subtitle: '可查看與管理住宿訂單',
                     ),
-                  ),
-
-                  const SizedBox(height: 8),
-
-                  ...reportPermissionKeys.map(
-                    (key) => _buildPermissionSwitch(key),
-                  ),
+                    _buildPermissionSwitch(
+                      ShopPermissionKeys.manageBookingSettings,
+                      title: '預約管理',
+                      subtitle: '可開關前台預約、管理可預約日期',
+                    ),
+                    _buildPermissionSwitch(
+                      ShopPermissionKeys.manageRoomDashboard,
+                      title: '房務管理',
+                      subtitle: '可操作入住、退房、房間狀態',
+                    ),
+                    _buildPermissionSwitch(
+                      ShopPermissionKeys.manageRoomTypes,
+                      title: '房型管理',
+                      subtitle: '可新增與修改房型',
+                    ),
+                    _buildPermissionSwitch(
+                      ShopPermissionKeys.manageRooms,
+                      title: '房間管理',
+                      subtitle: '可新增與修改實際房間',
+                    ),
+                    _buildPermissionSwitch(
+                      ShopPermissionKeys.manageDevices,
+                      title: '設備管理',
+                      subtitle: '可管理攝影機、溫度監控與房間設備',
+                    ),
+                    _buildPermissionSwitch(
+                      ShopPermissionKeys.managePaymentSettings,
+                      title: '收款與優惠設定',
+                      subtitle: '可修改付款方式、訂金與長住優惠',
+                    ),
+                    _buildPermissionSwitch(
+                      ShopPermissionKeys.manageAddons,
+                      title: '住宿加購 / 附加服務',
+                      subtitle: '可管理住宿加購與額外服務',
+                    ),
+                    _buildPermissionSwitch(
+                      ShopPermissionKeys.managePolicy,
+                      title: '入住規則',
+                      subtitle: '可修改入住條款與規則',
+                    ),
+                  ],
 
                   const SizedBox(height: 8),
 
                   Text(
                     '店家基本資料、模組設定、權限設定固定只有老闆可操作，不開放給員工。',
-                    style: TextStyle(
-                      color: Colors.grey.shade700,
-                      fontSize: 12,
-                    ),
+                    style: TextStyle(color: Colors.grey.shade700, fontSize: 12),
                   ),
                 ],
               ),
@@ -332,21 +338,15 @@ class _MemberPermissionDetailPageState
           SizedBox(
             width: double.infinity,
             child: ElevatedButton.icon(
-              onPressed: (_saving || !_canEdit)
-                  ? null
-                  : _save,
+              onPressed: (_saving || !_canEdit) ? null : _save,
               icon: _saving
                   ? const SizedBox(
                       width: 18,
                       height: 18,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                      ),
+                      child: CircularProgressIndicator(strokeWidth: 2),
                     )
                   : const Icon(Icons.save),
-              label: Text(
-                _saving ? '儲存中...' : '儲存權限',
-              ),
+              label: Text(_saving ? '儲存中...' : '儲存權限'),
             ),
           ),
         ],

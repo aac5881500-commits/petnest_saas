@@ -6,6 +6,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:petnest_saas/features/auth/pages/home_page.dart';
 import 'package:petnest_saas/features/auth/pages/login_page.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:petnest_saas/core/services/shop_service.dart';
+import 'package:petnest_saas/features/shop/pages/shop_public_page.dart';
 import 'package:petnest_saas/firebase_options.dart';
 import 'package:petnest_saas/features/member/pages/member_page.dart';
 import 'package:petnest_saas/features/shop/pages/shop_code_redirect_page.dart';
@@ -140,26 +143,58 @@ class _SplashPageState extends State<SplashPage> {
 class AppEntryPage extends StatelessWidget {
   const AppEntryPage({super.key});
 
+  Future<Widget> _decideEntryPage() async {
+    final user = FirebaseAuth.instance.currentUser;
+
+    if (user == null) {
+      return const LoginPage();
+    }
+
+    Future.microtask(() {
+      FcmTokenService.instance.saveCurrentUserToken();
+    });
+
+    // 有店家身分：店主 / 員工照原本進 HomePage
+    final myShops = await ShopService.instance.getMyShops();
+    if (myShops.isNotEmpty) {
+      return const HomePage();
+    }
+
+    // 一般客戶：回到最後掃過 / 逛過的店
+    final prefs = await SharedPreferences.getInstance();
+    final lastShopId = prefs.getString('last_customer_shop_id');
+
+    if (lastShopId != null && lastShopId.isNotEmpty) {
+      return ShopPublicPage(shopId: lastShopId);
+    }
+
+    // 沒有最後店家，就照原本首頁
+    return const HomePage();
+  }
+
   @override
   Widget build(BuildContext context) {
     return StreamBuilder<User?>(
       stream: FirebaseAuth.instance.authStateChanges(),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
+      builder: (context, authSnapshot) {
+        if (authSnapshot.connectionState == ConnectionState.waiting) {
           return const Scaffold(
             body: Center(child: CircularProgressIndicator()),
           );
         }
 
-        if (snapshot.hasData) {
-          Future.microtask(() {
-            FcmTokenService.instance.saveCurrentUserToken();
-          });
+        return FutureBuilder<Widget>(
+          future: _decideEntryPage(),
+          builder: (context, pageSnapshot) {
+            if (pageSnapshot.connectionState == ConnectionState.waiting) {
+              return const Scaffold(
+                body: Center(child: CircularProgressIndicator()),
+              );
+            }
 
-          return const HomePage();
-        }
-
-        return const LoginPage();
+            return pageSnapshot.data ?? const LoginPage();
+          },
+        );
       },
     );
   }

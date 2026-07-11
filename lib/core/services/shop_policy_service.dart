@@ -111,6 +111,8 @@ class ShopPolicyService {
         .collection('policy_acceptances')
         .doc(shopId)
         .set({
+          'shopId': shopId,
+          'userId': userId,
           'acceptedVersion': version,
           'acceptedAt': FieldValue.serverTimestamp(),
           'email': _currentUser?.email ?? '',
@@ -118,26 +120,50 @@ class ShopPolicyService {
   }
 
   Future<List<Map<String, dynamic>>> getPolicyAcceptances(String shopId) async {
-    final usersSnapshot = await _firestore.collection('users').get();
+    final snapshot = await _firestore
+        .collection('bookings')
+        .where('shopId', isEqualTo: shopId)
+        .get();
 
-    final result = <Map<String, dynamic>>[];
+    final latestMap = <String, Map<String, dynamic>>{};
 
-    for (final userDoc in usersSnapshot.docs) {
-      final userId = userDoc.id;
+    for (final doc in snapshot.docs) {
+      final data = doc.data();
 
-      final doc = await _firestore
-          .collection('users')
-          .doc(userId)
-          .collection('policy_acceptances')
-          .doc(shopId)
-          .get();
+      final policyVersion = data['policyVersion'] ?? 0;
+      final policyAcceptedAt = data['policyAcceptedAt'];
 
-      if (!doc.exists) continue;
+      if (policyVersion == 0 || policyAcceptedAt == null) continue;
 
-      result.add({'userId': userId, ...doc.data()!});
+      final userId = data['userId'] ?? '';
+      final key = '${userId}_v$policyVersion';
+
+      final item = {
+        'bookingId': doc.id,
+        'userId': userId,
+        'email': data['customerEmail'] ?? '',
+        'customerName': data['customerName'] ?? '',
+        'customerPhone': data['customerPhone'] ?? '',
+        'acceptedVersion': policyVersion,
+        'acceptedAt': policyAcceptedAt,
+        'policyTitle': data['policyTitle'] ?? '入住須知',
+      };
+
+      final old = latestMap[key];
+      if (old == null) {
+        latestMap[key] = item;
+        continue;
+      }
+
+      final oldTime = old['acceptedAt'];
+      if (oldTime is Timestamp &&
+          policyAcceptedAt is Timestamp &&
+          policyAcceptedAt.compareTo(oldTime) > 0) {
+        latestMap[key] = item;
+      }
     }
 
-    return result;
+    return latestMap.values.toList();
   }
 
   Future<Map<String, dynamic>?> getUserProfile(String userId) async {

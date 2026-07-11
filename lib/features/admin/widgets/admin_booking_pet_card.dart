@@ -1,6 +1,6 @@
 // lib/features/admin/widgets/admin_booking_pet_card.dart
 // 🐱 後台訂單詳細頁：寵物資訊卡片
-// 功能：顯示寵物頭像、名字、年齡、品種、醫療狀態、客戶備註、員工備註、結紮狀態
+// 功能：顯示寵物頭像、名字、種類、性別、年齡、品種、醫療狀態、貓砂、客戶備註、員工備註、結紮狀態
 
 import 'package:flutter/material.dart';
 
@@ -11,12 +11,23 @@ class AdminBookingPetCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final medical = pet['medicalStatus'] ?? '';
-    final staffNote = pet['staffNote'] ?? '';
+    final name = (pet['name'] ?? '').toString();
+    final photoUrl = (pet['photoUrl'] ?? pet['imageUrl'] ?? '').toString();
+
+    final type = (pet['type'] ?? '').toString();
+    final gender = (pet['gender'] ?? '').toString();
+    final breed = (pet['breed'] ?? '').toString();
+    final age = (pet['age'] ?? '').toString();
+
+    final medical = (pet['medicalStatus'] ?? pet['vaccine'] ?? '').toString();
+    final litterType = (pet['litterType'] ?? '').toString();
+    final note = (pet['note'] ?? '').toString();
+    final staffNote = (pet['staffNote'] ?? '').toString();
     final isNeutered = pet['isNeutered'] == true;
 
     return Container(
-      padding: const EdgeInsets.all(10),
+      width: 290,
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
@@ -25,102 +36,57 @@ class AdminBookingPetCard extends StatelessWidget {
         ],
       ),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           CircleAvatar(
-            radius: 26,
+            radius: 30,
             backgroundColor: Colors.grey.shade200,
-            backgroundImage: (pet['photoUrl'] != null && pet['photoUrl'] != '')
-                ? NetworkImage(pet['photoUrl'])
+            backgroundImage: photoUrl.isNotEmpty
+                ? NetworkImage(photoUrl)
                 : null,
-            child: (pet['photoUrl'] == null || pet['photoUrl'] == '')
-                ? const Icon(Icons.pets)
-                : null,
+            child: photoUrl.isEmpty ? const Icon(Icons.pets) : null,
           ),
 
-          const SizedBox(height: 6),
+          const SizedBox(height: 8),
 
           Text(
-            pet['name'] ?? '',
+            name.isEmpty ? '未命名寵物' : name,
             style: const TextStyle(fontWeight: FontWeight.bold),
           ),
 
-          if ((pet['age'] ?? '').toString().isNotEmpty)
-            Text(
-              pet['age'],
-              style: const TextStyle(fontSize: 11, color: Colors.grey),
-            ),
+          if (age.isNotEmpty)
+            Text(age, style: const TextStyle(fontSize: 11, color: Colors.grey)),
 
-          Container(
-            margin: const EdgeInsets.only(top: 4),
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-            decoration: BoxDecoration(
-              color: Colors.orange.shade100,
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Text(
-              pet['breed'] ?? '',
-              style: const TextStyle(fontSize: 11),
-            ),
-          ),
+          const SizedBox(height: 10),
 
-          const SizedBox(height: 4),
+          _infoRow('種類', type),
+          _infoRow('性別', gender),
+          _infoRow('品種', breed),
+          _infoRow('結紮', isNeutered ? '已結紮' : '未結紮'),
+          _infoRow('疫苗', medical),
+          _infoRow('貓砂', litterType),
+          if (note.isNotEmpty) _infoRow('客戶備註', note),
+          if (staffNote.isNotEmpty)
+            _infoRow('員工備註', staffNote, color: Colors.red),
+        ],
+      ),
+    );
+  }
 
-          if (medical.toString().isNotEmpty)
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const Icon(Icons.warning, size: 14, color: Colors.red),
-                const SizedBox(width: 2),
-                Flexible(
-                  child: Text(
-                    medical,
-                    style: const TextStyle(color: Colors.red, fontSize: 11),
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-              ],
-            ),
+  Widget _infoRow(String label, String value, {Color? color}) {
+    final text = value.trim().isEmpty ? '未填' : value.trim();
 
-          if ((pet['note'] ?? '').toString().isNotEmpty)
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const Text('📝 ', style: TextStyle(fontSize: 12)),
-                Flexible(
-                  child: Text(
-                    '客戶：${pet['note']}',
-                    style: const TextStyle(fontSize: 11, color: Colors.black87),
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-              ],
-            ),
-
-          if (staffNote.toString().isNotEmpty)
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const Text('📌 ', style: TextStyle(fontSize: 12)),
-                Flexible(
-                  child: Text(
-                    '員工：$staffNote',
-                    style: const TextStyle(color: Colors.red, fontSize: 11),
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-              ],
-            ),
-
-          const SizedBox(height: 6),
-
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 4),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
           Text(
-            isNeutered ? '已結紮' : '未結紮',
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              fontSize: 11,
-              color: isNeutered ? Colors.green : Colors.grey,
-            ),
+            '$label：',
+            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+          ),
+          Expanded(
+            child: Text(text, style: TextStyle(fontSize: 12, color: color)),
           ),
         ],
       ),
