@@ -143,6 +143,24 @@ class _SplashPageState extends State<SplashPage> {
 class AppEntryPage extends StatelessWidget {
   const AppEntryPage({super.key});
 
+  Future<void> _enableNotifications(BuildContext context) async {
+    try {
+      await FcmTokenService.instance.saveCurrentUserToken();
+
+      if (!context.mounted) return;
+
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('通知設定完成')));
+    } catch (error) {
+      if (!context.mounted) return;
+
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('通知開啟失敗：$error')));
+    }
+  }
+
   Future<Widget> _decideEntryPage() async {
     final user = FirebaseAuth.instance.currentUser;
 
@@ -150,9 +168,9 @@ class AppEntryPage extends StatelessWidget {
       return const LoginPage();
     }
 
-    Future.microtask(() {
-      FcmTokenService.instance.saveCurrentUserToken();
-    });
+    // Future.microtask(() {
+    //  FcmTokenService.instance.saveCurrentUserToken();
+    //});
 
     // 有店家身分：店主 / 員工照原本進 HomePage
     final myShops = await ShopService.instance.getMyShops();
@@ -192,7 +210,28 @@ class AppEntryPage extends StatelessWidget {
               );
             }
 
-            return pageSnapshot.data ?? const LoginPage();
+            final page = pageSnapshot.data ?? const LoginPage();
+
+            if (authSnapshot.data == null) {
+              return page;
+            }
+
+            return Stack(
+              children: [
+                page,
+                Positioned(
+                  right: 20,
+                  bottom: 20,
+                  child: SafeArea(
+                    child: FloatingActionButton.extended(
+                      onPressed: () => _enableNotifications(context),
+                      icon: const Icon(Icons.notifications_active_outlined),
+                      label: const Text('開啟通知'),
+                    ),
+                  ),
+                ),
+              ],
+            );
           },
         );
       },

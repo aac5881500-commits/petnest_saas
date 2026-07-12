@@ -239,10 +239,11 @@ allow update: if signedIn() &&
       'igUrl',
       'lineUrl',
 
-      'showAnnouncementSection',
-      'showFaqSection',
-      'showTaxId',
-      'externalLinksEnabled',
+'showAnnouncementSection',
+'showFaqSection',
+'showCameraSection',
+'showTaxId',
+'externalLinksEnabled',
 
       'bankName',
       'accountName',
@@ -269,26 +270,87 @@ allow update: if signedIn() &&
         allow create, update, delete: if isShopOwner(shopId) || isRootAdmin();
       }
 
-      // 👤 店家會員
+   // 👤 店家會員
 match /members/{uid} {
-  allow read: if signedIn() && (isShopMember(shopId) || isRootAdmin());
 
-  allow create: if signedIn() && (isShopMember(shopId) || isRootAdmin());
+  // 店家成員、平台管理員，或會員本人可以讀取
+  allow read: if signedIn() &&
+    (
+      isShopMember(shopId)
+      || isRootAdmin()
+      || request.auth.uid == uid
+    );
 
-  allow update: if signedIn() && (isShopMember(shopId) || isRootAdmin());
+  // 店家可以建立會員
+  // 一般會員只能建立自己的會員快取
+  allow create: if signedIn() &&
+    (
+      isShopMember(shopId)
+      || isRootAdmin()
+      ||
+      (
+        request.auth.uid == uid
+        && request.resource.data.userId == request.auth.uid
+        && request.resource.data.blacklisted == false
+        && request.resource.data.isBlocked == false
+      )
+    );
 
-allow delete: if signedIn() &&
-  (isShopMember(shopId) || isRootAdmin());
+  // 店家可完整更新
+  // 一般會員只能更新自己的基本資料與同步欄位
+  allow update: if signedIn() &&
+    (
+      isShopMember(shopId)
+      || isRootAdmin()
+      ||
+      (
+        request.auth.uid == uid
+        && resource.data.userId == request.auth.uid
+        && request.resource.data.userId == request.auth.uid
+        && request.resource.data.diff(resource.data).changedKeys().hasOnly([
+          'email',
+          'name',
+          'phone',
+          'address',
+          'emergencyContact',
+          'petCount',
+          'bookingCount',
+          'updatedAt',
+          'lastLoginAt',
+          'lastBookingAt'
+        ])
+      )
+    );
 
+  // 只有店家成員或平台管理員可以刪除
+  allow delete: if signedIn() &&
+    (
+      isShopMember(shopId)
+      || isRootAdmin()
+    );
 
   // 🐾 店家會員底下的寵物快取
   match /pets/{petId} {
-    allow read: if signedIn() && (isShopMember(shopId) || isRootAdmin());
 
-    allow create, update: if signedIn() && (isShopMember(shopId) || isRootAdmin());
+    allow read: if signedIn() &&
+      (
+        isShopMember(shopId)
+        || isRootAdmin()
+        || request.auth.uid == uid
+      );
+
+    allow create, update: if signedIn() &&
+      (
+        isShopMember(shopId)
+        || isRootAdmin()
+        || request.auth.uid == uid
+      );
 
     allow delete: if signedIn() &&
-  (isShopMember(shopId) || isRootAdmin());
+      (
+        isShopMember(shopId)
+        || isRootAdmin()
+      );
   }
 }
 
@@ -510,7 +572,19 @@ match /reviews/{reviewId} {
 // 📦 訂單
 match /bookings/{bookingId} {
 
-allow read: if signedIn();
+allow read: if signedIn()
+  &&
+  (
+    isRootAdmin()
+    ||
+    resource.data.userId == request.auth.uid
+    ||
+    (
+      resource.data.shopId is string
+      &&
+      isShopMember(resource.data.shopId)
+    )
+  );
 
 allow create: if signedIn()
   &&
@@ -548,22 +622,47 @@ allow update: if signedIn() &&
       ])
     ) ||
 
-    (
-      resource.data.userId == request.auth.uid &&
-      request.resource.data.diff(resource.data).changedKeys().hasOnly([
-        'status',
-        'cancelReason',
-        'cancelBy',
-        'cancelledAt',
-        'updatedAt',
-        'transferImageUrl',
-        'transferLast5',
-        'depositStatus',
-        'depositSubmittedAt',
-        'depositExpired',
-        'assignStatus'
-      ])
-    )
+   (
+  // 🙋 會員取消自己的訂單
+  resource.data.userId == request.auth.uid
+  &&
+  resource.data.status in ['pending', 'confirmed']
+  &&
+  request.resource.data.status == 'cancelled'
+  &&
+  request.resource.data.cancelBy == 'customer'
+  &&
+  request.resource.data.cancelReason is string
+  &&
+  request.resource.data.diff(resource.data).changedKeys().hasOnly([
+    'status',
+    'cancelReason',
+    'cancelBy',
+    'cancelledAt',
+    'updatedAt'
+  ])
+)
+||
+(
+  // 💳 會員上傳或更新付款證明
+  resource.data.userId == request.auth.uid
+  &&
+  resource.data.status == 'pending'
+  &&
+  request.resource.data.diff(resource.data).changedKeys().hasOnly([
+    'transferImageUrl',
+    'transferLast5',
+    'depositStatus',
+    'depositSubmittedAt',
+    'updatedAt'
+  ])
+  &&
+  (
+    !request.resource.data.keys().hasAny(['depositStatus'])
+    ||
+    request.resource.data.depositStatus == 'pending_review'
+  )
+)
   );
 
 allow delete: if signedIn() &&

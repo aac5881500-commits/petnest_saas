@@ -494,16 +494,19 @@ class _ShopPublicPageState extends State<ShopPublicPage> {
                               );
                             },
                           ),
-                          ShopTemplateFeatureCard(
-                            icon: Icons.videocam,
-                            title: '觀看攝影機',
-                            subtitle: '即時查看毛孩狀況',
-                            onTap: () {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(content: Text('攝影機功能將於後續版本提供')),
-                              );
-                            },
-                          ),
+                          if (shop['showCameraSection'] != false)
+                            ShopTemplateFeatureCard(
+                              icon: Icons.videocam,
+                              title: '觀看攝影機',
+                              subtitle: '即時查看毛孩狀況',
+                              onTap: () {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text('攝影機功能將於後續版本提供'),
+                                  ),
+                                );
+                              },
+                            ),
                           ShopTemplateFeatureCard(
                             icon: Icons.favorite,
                             title: '關於我們',
@@ -518,59 +521,59 @@ class _ShopPublicPageState extends State<ShopPublicPage> {
                               );
                             },
                           ),
-                          if (shop['showFaqSection'] != false)
-                            StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-                              stream: FirebaseFirestore.instance
-                                  .collection('reviews')
-                                  .where('shopId', isEqualTo: widget.shopId)
-                                  .where('status', isEqualTo: 'visible')
-                                  .snapshots(),
-                              builder: (context, reviewSnapshot) {
-                                final reviewDocs =
-                                    reviewSnapshot.data?.docs ?? [];
+                          StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+                            stream: FirebaseFirestore.instance
+                                .collection('reviews')
+                                .where('shopId', isEqualTo: widget.shopId)
+                                .where('status', isEqualTo: 'visible')
+                                .snapshots(),
+                            builder: (context, reviewSnapshot) {
+                              final reviewDocs =
+                                  reviewSnapshot.data?.docs ?? [];
 
-                                double total = 0;
-                                for (final doc in reviewDocs) {
-                                  final data = doc.data();
-                                  total += ((data['rating'] ?? 0) as num)
-                                      .toDouble();
-                                }
+                              double total = 0;
+                              for (final doc in reviewDocs) {
+                                final data = doc.data();
+                                total += ((data['rating'] ?? 0) as num)
+                                    .toDouble();
+                              }
 
-                                final subtitle = reviewDocs.isEmpty
-                                    ? '目前尚無評價'
-                                    : '⭐ ${(total / reviewDocs.length).toStringAsFixed(1)}（${reviewDocs.length}）・查看全部評價';
+                              final subtitle = reviewDocs.isEmpty
+                                  ? '目前尚無評價'
+                                  : '⭐ ${(total / reviewDocs.length).toStringAsFixed(1)}（${reviewDocs.length}）・查看全部評價';
 
-                                return ShopTemplateFeatureCard(
-                                  icon: Icons.star,
-                                  title: '評價專區',
-                                  subtitle: subtitle,
-                                  onTap: () {
-                                    Navigator.push(
-                                      context,
-                                      MaterialPageRoute(
-                                        builder: (_) => ShopReviewListPage(
-                                          shopId: widget.shopId,
-                                        ),
+                              return ShopTemplateFeatureCard(
+                                icon: Icons.star,
+                                title: '評價專區',
+                                subtitle: subtitle,
+                                onTap: () {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (_) => ShopReviewListPage(
+                                        shopId: widget.shopId,
                                       ),
-                                    );
-                                  },
-                                );
-                              },
-                            ),
-                          ShopTemplateFeatureCard(
-                            icon: Icons.help,
-                            title: '常見問題',
-                            subtitle: '常見疑問・快速解答',
-                            onTap: () {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (_) =>
-                                      ShopFaqPage(shopId: widget.shopId),
-                                ),
+                                    ),
+                                  );
+                                },
                               );
                             },
                           ),
+                          if (shop['showFaqSection'] != false)
+                            ShopTemplateFeatureCard(
+                              icon: Icons.help,
+                              title: '常見問題',
+                              subtitle: '常見疑問・快速解答',
+                              onTap: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) =>
+                                        ShopFaqPage(shopId: widget.shopId),
+                                  ),
+                                );
+                              },
+                            ),
                         ],
                       ),
                     ],

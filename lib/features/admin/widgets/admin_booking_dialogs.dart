@@ -5,6 +5,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/services/booking_service.dart';
+import 'package:petnest_saas/core/utils/natural_sort.dart';
 
 Future<void> showAdminAssignRoomDialog({
   required BuildContext context,
@@ -40,6 +41,13 @@ Future<void> showAdminAssignRoomDialog({
   }
 
   if (!context.mounted) return;
+
+  availableRooms.sort((a, b) {
+    final roomA = (a.data()['name'] ?? '').toString();
+    final roomB = (b.data()['name'] ?? '').toString();
+
+    return naturalCompare(roomA, roomB);
+  });
 
   await showDialog(
     context: context,
@@ -81,9 +89,9 @@ Future<void> showAdminAssignRoomDialog({
                           }
                         } catch (e) {
                           if (context.mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(content: Text('分房失敗：$e')),
-                            );
+                            ScaffoldMessenger.of(
+                              context,
+                            ).showSnackBar(SnackBar(content: Text('分房失敗：$e')));
                           }
                         }
                       },
@@ -114,9 +122,9 @@ Future<void> showAdminChangeRoomDialog({
 
   if (oldRoomId.isEmpty || oldRoomName.isEmpty) {
     if (context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('此訂單尚未分房，不能更換房間')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('此訂單尚未分房，不能更換房間')));
     }
     return;
   }
@@ -154,6 +162,13 @@ Future<void> showAdminChangeRoomDialog({
 
   if (!context.mounted) return;
 
+  availableRooms.sort((a, b) {
+    final roomA = (a.data()['name'] ?? '').toString();
+    final roomB = (b.data()['name'] ?? '').toString();
+
+    return naturalCompare(roomA, roomB);
+  });
+
   await showDialog(
     context: context,
     builder: (dialogContext) {
@@ -179,30 +194,18 @@ Future<void> showAdminChangeRoomDialog({
                             value: '攝影機故障',
                             child: Text('攝影機故障'),
                           ),
-                          DropdownMenuItem(
-                            value: '冷氣異常',
-                            child: Text('冷氣異常'),
-                          ),
-                          DropdownMenuItem(
-                            value: '設備維修',
-                            child: Text('設備維修'),
-                          ),
+                          DropdownMenuItem(value: '冷氣異常', child: Text('冷氣異常')),
+                          DropdownMenuItem(value: '設備維修', child: Text('設備維修')),
                           DropdownMenuItem(
                             value: '貓咪適應問題',
                             child: Text('貓咪適應問題'),
                           ),
-                          DropdownMenuItem(
-                            value: '客戶要求',
-                            child: Text('客戶要求'),
-                          ),
+                          DropdownMenuItem(value: '客戶要求', child: Text('客戶要求')),
                           DropdownMenuItem(
                             value: '店家安排調整',
                             child: Text('店家安排調整'),
                           ),
-                          DropdownMenuItem(
-                            value: '其他',
-                            child: Text('其他'),
-                          ),
+                          DropdownMenuItem(value: '其他', child: Text('其他')),
                         ],
                         onChanged: (value) {
                           setDialogState(() {
@@ -237,8 +240,7 @@ Future<void> showAdminChangeRoomDialog({
                     shrinkWrap: true,
                     children: availableRooms.map((doc) {
                       final room = doc.data();
-                      final newRoomName =
-                          room['name']?.toString() ?? '未命名房間';
+                      final newRoomName = room['name']?.toString() ?? '未命名房間';
 
                       return ListTile(
                         leading: const Icon(Icons.swap_horiz),
@@ -386,8 +388,8 @@ Future<void> showAdminCancelBookingDialog({
   );
 
   if (context.mounted) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('訂單已取消並釋放房間')),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('訂單已取消並釋放房間')));
   }
 }

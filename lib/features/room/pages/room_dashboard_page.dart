@@ -9,6 +9,7 @@ import 'package:petnest_saas/features/auth/pages/room_calendar_page.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:petnest_saas/core/constants/shop_permission_keys.dart';
 import 'package:petnest_saas/features/admin/pages/admin_booking_detail_page.dart';
+import 'package:petnest_saas/core/utils/natural_sort.dart';
 
 class RoomDashboardPage extends StatefulWidget {
   const RoomDashboardPage({super.key, required this.shopId});
@@ -193,10 +194,22 @@ class _RoomDashboardPageState extends State<RoomDashboardPage> {
                 final rooms = snapshot.data ?? [];
 
                 rooms.sort((a, b) {
+                  final aRoomType = (a['roomTypeName'] ?? a['roomTypeId'] ?? '')
+                      .toString();
+
+                  final bRoomType = (b['roomTypeName'] ?? b['roomTypeId'] ?? '')
+                      .toString();
+
+                  final roomTypeResult = naturalCompare(aRoomType, bRoomType);
+
+                  if (roomTypeResult != 0) {
+                    return roomTypeResult;
+                  }
+
                   final aName = (a['name'] ?? '').toString();
                   final bName = (b['name'] ?? '').toString();
 
-                  return aName.compareTo(bName);
+                  return naturalCompare(aName, bName);
                 });
                 if (rooms.isEmpty) {
                   return const Center(child: Text('尚無房間'));

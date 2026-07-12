@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/services/shop_service.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:petnest_saas/core/services/shop_plan_service.dart';
+import 'package:petnest_saas/core/utils/natural_sort.dart';
 
 class ShopRoomPage extends StatefulWidget {
   const ShopRoomPage({super.key, required this.shopId});
@@ -425,11 +426,21 @@ class _ShopRoomPageState extends State<ShopRoomPage> {
                               final roomTypeName = roomType['name'] ?? '未命名房型';
                               final totalRooms = roomType['totalRooms'] ?? 0;
 
-                              final typeRooms = rooms
-                                  .where(
-                                    (room) => room['roomTypeId'] == roomTypeId,
-                                  )
-                                  .toList();
+                              final typeRooms =
+                                  rooms
+                                      .where(
+                                        (room) =>
+                                            room['roomTypeId'] == roomTypeId,
+                                      )
+                                      .toList()
+                                    ..sort((a, b) {
+                                      final roomA = (a['name'] ?? '')
+                                          .toString();
+                                      final roomB = (b['name'] ?? '')
+                                          .toString();
+
+                                      return naturalCompare(roomA, roomB);
+                                    });
 
                               final createdCount = typeRooms.length;
                               final remainingCount = totalRooms - createdCount;
