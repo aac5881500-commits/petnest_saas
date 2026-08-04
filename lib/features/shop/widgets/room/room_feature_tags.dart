@@ -2,11 +2,13 @@
 // 🔥 共用房型特色小卡：顯示房型設備與特色，例如獨立包廂、每日整理、全日監控
 
 import 'package:flutter/material.dart';
+import 'package:petnest_saas/core/models/home_theme_model.dart';
 
 class RoomFeatureTags extends StatelessWidget {
-  const RoomFeatureTags({super.key, required this.features});
+  const RoomFeatureTags({super.key, required this.features, this.theme});
 
   final List features;
+  final HomeThemeModel? theme;
 
   static final Map<String, Map<String, dynamic>> featureOptions = {
     'private_space': {'name': '獨立包廂', 'icon': Icons.home},
@@ -45,6 +47,7 @@ class RoomFeatureTags extends StatelessWidget {
                 child: RoomFeatureCard(
                   icon: item['icon'] as IconData,
                   text: item['name'] as String,
+                  theme: theme,
                 ),
               );
             }
@@ -57,6 +60,7 @@ class RoomFeatureTags extends StatelessWidget {
                   '${key.toString().split(' ').first} ',
                   '',
                 ),
+                theme: theme,
               ),
             );
           }).toList(),
@@ -67,21 +71,33 @@ class RoomFeatureTags extends StatelessWidget {
 }
 
 class RoomFeatureCard extends StatelessWidget {
-  const RoomFeatureCard({super.key, this.icon, this.emoji, required this.text});
+  const RoomFeatureCard({
+    super.key,
+    this.icon,
+    this.emoji,
+    required this.text,
+    this.theme,
+  });
 
   final IconData? icon;
   final String? emoji;
   final String text;
+  final HomeThemeModel? theme;
 
   @override
   Widget build(BuildContext context) {
+    final cardColor = theme?.cardColor ?? const Color(0xFFFFFCF7);
+    final borderColor = theme?.cardBorderColor ?? const Color(0xFFF0E0CC);
+    final primaryColor = theme?.primaryColor ?? const Color(0xFFB86B18);
+    final textColor = theme?.textColor ?? const Color(0xFF3A2A1A);
+
     return Container(
       height: 64,
       padding: const EdgeInsets.symmetric(horizontal: 8),
       decoration: BoxDecoration(
-        color: const Color(0xFFFFFCF7),
+        color: cardColor,
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: const Color(0xFFF0E0CC)),
+        border: Border.all(color: borderColor),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withOpacity(0.035),
@@ -100,7 +116,7 @@ class RoomFeatureCard extends StatelessWidget {
               shape: BoxShape.circle,
             ),
             child: icon != null
-                ? Icon(icon, size: 17, color: const Color(0xFFB86B18))
+                ? Icon(icon, size: 17, color: primaryColor)
                 : Text(
                     emoji ?? '⭐',
                     textAlign: TextAlign.center,
@@ -113,10 +129,10 @@ class RoomFeatureCard extends StatelessWidget {
               text,
               maxLines: 2,
               overflow: TextOverflow.visible,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 12,
                 fontWeight: FontWeight.w700,
-                color: Color(0xFF3A2A1A),
+                color: textColor,
               ),
             ),
           ),

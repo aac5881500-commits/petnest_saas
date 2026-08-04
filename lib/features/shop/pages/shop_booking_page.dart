@@ -15,6 +15,10 @@
 // - 若第二次點的日期 <= 入住日，則重新選入住日
 // - 顯示區間晚數 / 總價 / 最少剩餘房數
 
+// 💳 綠界線上付款
+import 'package:petnest_saas/core/models/create_payment_request_model.dart';
+import 'package:petnest_saas/core/services/payment_function_service.dart';
+import 'package:petnest_saas/features/payment/pages/ecpay_payment_page.dart';
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/services/booking_service.dart';
 import 'package:petnest_saas/core/services/shop_service.dart';
@@ -22,6 +26,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:petnest_saas/features/booking/pages/booking_success_page.dart';
 import 'package:petnest_saas/core/widgets/app_drawer.dart';
+import 'package:petnest_saas/features/shop/widgets/modern_home/modern_app_drawer.dart';
 import 'package:petnest_saas/features/shop/widgets/booking/booking_room_type_section.dart';
 import 'package:petnest_saas/features/shop/widgets/booking/booking_addon_section.dart';
 import 'package:petnest_saas/features/shop/widgets/booking/booking_pet_section.dart';
@@ -33,27 +38,59 @@ import 'package:petnest_saas/features/shop/widgets/booking/booking_addons_helper
 import 'package:petnest_saas/features/shop/widgets/booking/booking_calendar_dialog.dart';
 import 'package:petnest_saas/features/shop/widgets/booking/front_calendar_helper.dart';
 import 'package:petnest_saas/features/shop/widgets/booking/booking_submit_helper.dart';
+import 'package:petnest_saas/core/models/discount_campaign_model.dart';
+import 'package:petnest_saas/core/services/discount_campaign_service.dart';
+import 'package:petnest_saas/core/services/discount_campaign_calculator.dart';
+import 'package:petnest_saas/core/models/member_coupon_model.dart';
+import 'package:petnest_saas/core/services/member_coupon_service.dart';
+import 'package:petnest_saas/core/models/home_theme_model.dart';
+import 'package:petnest_saas/core/models/coupon_template_model.dart';
 
 class ShopBookingPage extends StatefulWidget {
   const ShopBookingPage({
     super.key,
     required this.shopId,
     this.preSelectedRoomType,
+    this.theme = HomeThemeModel.classicDefault,
+    this.useModernDrawer = false,
   });
 
   final String shopId;
   final Map<String, dynamic>? preSelectedRoomType;
+  final HomeThemeModel theme;
+  final bool useModernDrawer;
 
   @override
   State<ShopBookingPage> createState() => _ShopBookingPageState();
 }
 
 class _ShopBookingPageState extends State<ShopBookingPage> {
+  late final Stream<Map<String, dynamic>?> _shopStream;
+  List<DiscountCampaignModel> _enabledCampaigns =
+      const <DiscountCampaignModel>[];
+  bool _campaignsLoading = true;
+  Map<String, int> _memberCampaignUsage = <String, int>{};
+  Map<String, int> _memberCampaignUsedNights = <String, int>{};
+  bool _isFirstBooking = false;
+  bool _firstBookingLoading = true;
+  List<MemberCouponModel> _availableMemberCoupons = const <MemberCouponModel>[];
+  MemberCouponModel? _selectedMemberCoupon;
+  bool _memberCouponsLoading = true;
+  Map<String, dynamic>? _currentShopData;
+
+  final ScrollController _scrollController = ScrollController();
   @override
   void initState() {
     super.initState();
+
+    _shopStream = ShopService.instance.streamShop(widget.shopId);
+
     _loadMemberData();
     _loadAddons();
+    _loadDiscountCampaigns();
+    _loadFirstBookingStatus();
+    _loadMemberCampaignUsage();
+    _loadAvailableMemberCoupons();
   }
 
   final _formKey = GlobalKey<FormState>();
@@ -63,6 +100,13 @@ class _ShopBookingPageState extends State<ShopBookingPage> {
   final _noteController = TextEditingController();
 
   bool _submitting = false;
+
+  /// 🔒 同一次送出流程固定使用同一個請求 ID
+  String? _bookingRequestId;
+
+  /// 🔒 記錄產生 requestId 時的預約內容
+  String? _bookingRequestSignature;
+
   bool _checkingRange = false;
   bool _isBlacklisted = false;
 
@@ -75,6 +119,15 @@ class _ShopBookingPageState extends State<ShopBookingPage> {
   bool _showAddons = true;
   List<Map<String, dynamic>> _selectedValueServices = [];
   Map<String, List<String>> _selectedCustomServices = {};
+
+  /// 🕐 每日分時段服務選擇結果
+  ///
+  /// 第一層 key：服務 ID
+  /// 第二層 key：寵物 ID
+  /// 第三層 key：住宿日期 yyyy-MM-dd
+  /// value：該日期選擇的時段 ID 清單
+  final Map<String, Map<String, Map<String, List<String>>>>
+  _selectedDailyTimedServices = {};
   Map<String, dynamic>? _selectedTimeAddon;
   Map<String, dynamic>? _addonData;
   bool _addonLoading = true;
@@ -129,11 +182,193 @@ class _ShopBookingPageState extends State<ShopBookingPage> {
     });
   }
 
+  Future<void> _loadDiscountCampaigns() async {
+    try {
+      final List<DiscountCampaignModel> campaigns =
+          await DiscountCampaignService.instance.getEnabledCampaigns(
+            widget.shopId,
+          );
+
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _enabledCampaigns = campaigns;
+        _campaignsLoading = false;
+      });
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _enabledCampaigns = const <DiscountCampaignModel>[];
+        _campaignsLoading = false;
+      });
+
+      debugPrint('讀取優惠活動失敗：$error');
+    }
+  }
+
+  Future<void> _loadFirstBookingStatus() async {
+    final User? user = FirebaseAuth.instance.currentUser;
+
+    if (user == null) {
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _isFirstBooking = false;
+        _firstBookingLoading = false;
+      });
+      return;
+    }
+
+    try {
+      final QuerySnapshot<Map<String, dynamic>> snapshot =
+          await FirebaseFirestore.instance
+              .collection('bookings')
+              .where('shopId', isEqualTo: widget.shopId)
+              .where('userId', isEqualTo: user.uid)
+              .get();
+
+      final bool hasValidBooking = snapshot.docs.any((
+        QueryDocumentSnapshot<Map<String, dynamic>> document,
+      ) {
+        final String status = (document.data()['status'] ?? '').toString();
+
+        return status == 'pending' ||
+            status == 'confirmed' ||
+            status == 'checked_in' ||
+            status == 'completed';
+      });
+
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _isFirstBooking = !hasValidBooking;
+        _firstBookingLoading = false;
+      });
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+
+      // 查詢失敗時不套用首次優惠，避免誤折。
+      setState(() {
+        _isFirstBooking = false;
+        _firstBookingLoading = false;
+      });
+
+      debugPrint('判斷首次預約失敗：$error');
+    }
+  }
+
+  Future<void> _loadMemberCampaignUsage() async {
+    final User? user = FirebaseAuth.instance.currentUser;
+
+    if (user == null) {
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _memberCampaignUsage = <String, int>{};
+        _memberCampaignUsedNights = <String, int>{};
+      });
+      return;
+    }
+
+    try {
+      final List<Map<String, int>> results =
+          await Future.wait(<Future<Map<String, int>>>[
+            DiscountCampaignService.instance.getMemberCampaignUsage(
+              shopId: widget.shopId,
+              userId: user.uid,
+            ),
+            DiscountCampaignService.instance.getMemberCampaignUsedNights(
+              shopId: widget.shopId,
+              userId: user.uid,
+            ),
+          ]);
+
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _memberCampaignUsage = results[0];
+        _memberCampaignUsedNights = results[1];
+      });
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _memberCampaignUsage = <String, int>{};
+        _memberCampaignUsedNights = <String, int>{};
+      });
+
+      debugPrint('讀取會員優惠使用資料失敗：$error');
+    }
+  }
+
+  Future<void> _loadAvailableMemberCoupons() async {
+    final User? user = FirebaseAuth.instance.currentUser;
+
+    if (user == null) {
+      if (!mounted) return;
+
+      setState(() {
+        _availableMemberCoupons = const <MemberCouponModel>[];
+        _selectedMemberCoupon = null;
+        _memberCouponsLoading = false;
+      });
+      return;
+    }
+
+    try {
+      final List<MemberCouponModel> coupons = await MemberCouponService.instance
+          .getAvailableMemberCoupons(shopId: widget.shopId, userId: user.uid);
+
+      if (!mounted) return;
+
+      setState(() {
+        _availableMemberCoupons = coupons;
+        _memberCouponsLoading = false;
+
+        if (_selectedMemberCoupon != null &&
+            !coupons.any(
+              (MemberCouponModel coupon) =>
+                  coupon.id == _selectedMemberCoupon!.id,
+            )) {
+          _selectedMemberCoupon = null;
+        }
+      });
+    } catch (error) {
+      debugPrint('讀取會員優惠券失敗：$error');
+
+      if (!mounted) return;
+
+      setState(() {
+        _availableMemberCoupons = const <MemberCouponModel>[];
+        _selectedMemberCoupon = null;
+        _memberCouponsLoading = false;
+      });
+    }
+  }
+
   DateTime _calendarMonth = DateTime.now();
   Future<FrontCalendarPayload>? _calendarFuture;
 
   @override
   void dispose() {
+    _scrollController.dispose();
     _customerNameController.dispose();
     _customerPhoneController.dispose();
     _noteController.dispose();
@@ -155,12 +390,61 @@ class _ShopBookingPageState extends State<ShopBookingPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('我要預約')),
+      backgroundColor: widget.theme.backgroundColor,
+      appBar: AppBar(
+        backgroundColor: widget.theme.cardColor,
+        foregroundColor: widget.theme.textColor,
+        surfaceTintColor: Colors.transparent,
+        elevation: 0,
+        title: Text(
+          '我要預約',
+          style: TextStyle(
+            color: widget.theme.textColor,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+      ),
+      drawer: widget.useModernDrawer
+          ? StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+              stream: FirebaseFirestore.instance
+                  .collection('shops')
+                  .doc(widget.shopId)
+                  .snapshots(),
+              builder: (context, snapshot) {
+                if (snapshot.hasError) {
+                  return Drawer(
+                    child: Center(
+                      child: Text(
+                        '選單載入失敗',
+                        style: TextStyle(color: widget.theme.textColor),
+                      ),
+                    ),
+                  );
+                }
 
-      drawer: AppDrawer(shopId: widget.shopId),
+                final shop = snapshot.data?.data();
+
+                if (shop == null) {
+                  return Drawer(
+                    child: Center(
+                      child: CircularProgressIndicator(
+                        color: widget.theme.primaryColor,
+                      ),
+                    ),
+                  );
+                }
+
+                return ModernAppDrawer(
+                  shopId: widget.shopId,
+                  shop: shop,
+                  theme: widget.theme,
+                );
+              },
+            )
+          : AppDrawer(shopId: widget.shopId, theme: widget.theme),
 
       body: StreamBuilder<Map<String, dynamic>?>(
-        stream: ShopService.instance.streamShop(widget.shopId),
+        stream: _shopStream,
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
@@ -174,6 +458,8 @@ class _ShopBookingPageState extends State<ShopBookingPage> {
           if (shop == null) {
             return const Center(child: Text('找不到店家資料'));
           }
+
+          _currentShopData = shop;
 
           final List<dynamic> rawServiceTypes = shop['serviceTypes'] ?? [];
           final List<String> serviceTypes = rawServiceTypes
@@ -237,6 +523,8 @@ class _ShopBookingPageState extends State<ShopBookingPage> {
           }
 
           return SingleChildScrollView(
+            key: const PageStorageKey<String>('shop_booking_scroll'),
+            controller: _scrollController,
             padding: const EdgeInsets.all(16),
             child: Center(
               child: ConstrainedBox(
@@ -264,11 +552,15 @@ class _ShopBookingPageState extends State<ShopBookingPage> {
                         width: double.infinity,
                         padding: const EdgeInsets.all(14),
                         decoration: BoxDecoration(
-                          color: const Color(0xFFFFF7E8),
+                          color: widget.theme.cardColor,
                           borderRadius: BorderRadius.circular(16),
-                          border: Border.all(color: const Color(0xFFFFD59A)),
+                          border: Border.all(
+                            color: widget.theme.primaryColor.withValues(
+                              alpha: 0.35,
+                            ),
+                          ),
                         ),
-                        child: const Column(
+                        child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
@@ -276,24 +568,20 @@ class _ShopBookingPageState extends State<ShopBookingPage> {
                               style: TextStyle(
                                 fontSize: 15,
                                 fontWeight: FontWeight.w800,
-                                color: Color(0xFF6B3F00),
+                                color: widget.theme.textColor,
                               ),
                             ),
-
-                            SizedBox(height: 10),
-
+                            const SizedBox(height: 10),
                             Text(
                               '訂房安全提醒',
                               style: TextStyle(
                                 fontSize: 14,
                                 fontWeight: FontWeight.w700,
-                                color: Color(0xFF8B5E00),
+                                color: widget.theme.primaryColor,
                               ),
                             ),
-
-                            SizedBox(height: 6),
-
-                            Text(
+                            const SizedBox(height: 6),
+                            const Text(
                               '• 本平台僅提供預約系統服務，實際住宿與照護內容由店家負責。',
                               style: TextStyle(
                                 fontSize: 12,
@@ -330,6 +618,7 @@ class _ShopBookingPageState extends State<ShopBookingPage> {
                         endDate: _endDate,
                         selectedPetIds: _selectedPetIds,
                         selectedRoomType: _selectedRoomType,
+                        theme: widget.theme,
                         onSelectRoomType: (roomType) {
                           setState(() {
                             _selectedRoomType = roomType;
@@ -347,6 +636,13 @@ class _ShopBookingPageState extends State<ShopBookingPage> {
                         selectedValueServices: _selectedValueServices,
                         selectedCustomServices: _selectedCustomServices,
 
+                        startDate: _startDate,
+                        endDate: _endDate,
+                        selectedDailyTimedServices: _selectedDailyTimedServices,
+
+                        onDailyTimedServicesChanged: () {
+                          setState(() {});
+                        },
                         onToggleShowAddons: () {
                           setState(() {
                             _showAddons = !_showAddons;
@@ -422,11 +718,15 @@ class _ShopBookingPageState extends State<ShopBookingPage> {
                         ),
                       ],
 
-                      // 🔥 加在這裡
                       if (_selectedRoomType != null &&
                           _startDate != null &&
                           _endDate != null) ...[
                         const SizedBox(height: 16),
+
+                        _buildMemberCouponSection(),
+
+                        const SizedBox(height: 16),
+
                         _buildBookingSummary(shop),
                       ],
 
@@ -446,7 +746,28 @@ class _ShopBookingPageState extends State<ShopBookingPage> {
                         nights: _nights,
                         totalPrice: _selectedRoomType == null
                             ? 0
-                            : _calculateTotalPrice(shop: shop),
+                            : (_calculateMemberCouponInfo(
+                                        shop,
+                                      )['finalTotalAfterCoupon'] ??
+                                      0)
+                                  .toInt(),
+                        originalTotal: _selectedRoomType == null
+                            ? 0
+                            : (_calculateDiscountInfo(shop)['originalTotal'] ??
+                                      0)
+                                  .toInt(),
+                        discountAmount: _selectedRoomType == null
+                            ? 0
+                            : (_calculateDiscountInfo(shop)['discountAmount'] ??
+                                      0)
+                                  .toInt(),
+                        discountCampaignName: _selectedRoomType == null
+                            ? ''
+                            : (_calculateDiscountInfo(
+                                        shop,
+                                      )['discountCampaignName'] ??
+                                      '')
+                                  .toString(),
                         valueServices: _selectedValueServices,
                         formKey: _formKey,
                         shopId: widget.shopId,
@@ -472,8 +793,8 @@ class _ShopBookingPageState extends State<ShopBookingPage> {
                               depositAmount,
                               paymentMethod,
                               payAmountType,
-                            ) {
-                              _submitBooking(
+                            ) async {
+                              await _submitBooking(
                                 shop,
                                 address: address,
                                 emergencyName: emergencyName,
@@ -496,6 +817,403 @@ class _ShopBookingPageState extends State<ShopBookingPage> {
         },
       ),
     );
+  }
+
+  Widget _buildMemberCouponSection() {
+    final MemberCouponModel? selectedCoupon = _selectedMemberCoupon;
+
+    return Card(
+      margin: EdgeInsets.zero,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.confirmation_number_outlined),
+                const SizedBox(width: 8),
+                const Expanded(
+                  child: Text(
+                    '使用優惠券',
+                    style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
+                  ),
+                ),
+                if (selectedCoupon != null)
+                  TextButton(
+                    onPressed: () {
+                      setState(() {
+                        _selectedMemberCoupon = null;
+                      });
+                    },
+                    child: const Text('不使用'),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 12),
+
+            if (_memberCouponsLoading)
+              const Center(
+                child: Padding(
+                  padding: EdgeInsets.symmetric(vertical: 12),
+                  child: CircularProgressIndicator(),
+                ),
+              )
+            else if (_availableMemberCoupons.isEmpty)
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade100,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  '目前沒有可使用的優惠券',
+                  style: TextStyle(color: Colors.grey.shade700),
+                ),
+              )
+            else
+              InkWell(
+                borderRadius: BorderRadius.circular(12),
+                onTap: _showMemberCouponPicker,
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    border: Border.all(
+                      color: selectedCoupon == null
+                          ? widget.theme.cardBorderColor
+                          : widget.theme.primaryColor,
+                    ),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: selectedCoupon == null
+                            ? const Text('點擊選擇優惠券')
+                            : Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    selectedCoupon.name,
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    _memberCouponBenefitText(selectedCoupon),
+                                    style: TextStyle(
+                                      color: widget.theme.textColor.withValues(
+                                        alpha: 0.7,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                      ),
+                      const SizedBox(width: 8),
+                      const Icon(Icons.chevron_right),
+                    ],
+                  ),
+                ),
+              ),
+
+            if (selectedCoupon != null) ...[
+              const SizedBox(height: 10),
+              Builder(
+                builder: (context) {
+                  final Map<String, dynamic> couponInfo =
+                      _calculateMemberCouponInfo(_currentShopData);
+
+                  final int couponDiscountAmount =
+                      (couponInfo['couponDiscountAmount'] ?? 0).toInt();
+
+                  if (selectedCoupon.type == MemberCouponType.freeService &&
+                      couponDiscountAmount <= 0) {
+                    return Text(
+                      '免費服務券將在下一步比對加購服務後計算',
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: Colors.orange.shade800,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    );
+                  }
+
+                  return Text(
+                    '本次預估折抵：NT\$ $couponDiscountAmount',
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: Colors.green.shade700,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  );
+                },
+              ),
+            ],
+
+            if (selectedCoupon != null &&
+                selectedCoupon.description.trim().isNotEmpty) ...[
+              const SizedBox(height: 10),
+              Text(
+                selectedCoupon.description.trim(),
+                style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _showMemberCouponPicker() async {
+    final MemberCouponModel?
+    result = await showModalBottomSheet<MemberCouponModel>(
+      context: context,
+      isScrollControlled: true,
+      builder: (BuildContext bottomSheetContext) {
+        return SafeArea(
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              maxHeight: MediaQuery.of(bottomSheetContext).size.height * 0.75,
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 18, 12, 12),
+                  child: Row(
+                    children: [
+                      const Expanded(
+                        child: Text(
+                          '選擇優惠券',
+                          style: TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                      IconButton(
+                        onPressed: () {
+                          Navigator.pop(bottomSheetContext);
+                        },
+                        icon: const Icon(Icons.close),
+                      ),
+                    ],
+                  ),
+                ),
+                const Divider(height: 1),
+                Flexible(
+                  child: ListView.separated(
+                    padding: const EdgeInsets.all(16),
+                    itemCount: _availableMemberCoupons.length,
+                    separatorBuilder: (_, _) => const SizedBox(height: 10),
+                    itemBuilder: (BuildContext context, int index) {
+                      final MemberCouponModel coupon =
+                          _availableMemberCoupons[index];
+
+                      final bool isSelected =
+                          coupon.id == _selectedMemberCoupon?.id;
+
+                      return Card(
+                        margin: EdgeInsets.zero,
+                        shape: RoundedRectangleBorder(
+                          side: BorderSide(
+                            color: isSelected
+                                ? widget.theme.primaryColor
+                                : Colors.grey.shade300,
+                          ),
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        child: InkWell(
+                          borderRadius: BorderRadius.circular(14),
+                          onTap: () {
+                            Navigator.pop(bottomSheetContext, coupon);
+                          },
+                          child: Padding(
+                            padding: const EdgeInsets.all(14),
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                CircleAvatar(
+                                  backgroundColor: widget.theme.primaryColor
+                                      .withValues(alpha: 0.12),
+                                  child: Icon(
+                                    Icons.confirmation_number_outlined,
+                                    color: widget.theme.primaryColor,
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        coupon.name,
+                                        style: const TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 5),
+                                      Text(
+                                        _memberCouponBenefitText(coupon),
+                                        style: TextStyle(
+                                          color: widget.theme.textColor
+                                              .withValues(alpha: 0.7),
+                                        ),
+                                      ),
+                                      if (coupon.minimumAmount > 0) ...[
+                                        const SizedBox(height: 4),
+                                        Text(
+                                          '最低消費 NT\$ ${coupon.minimumAmount}',
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            color: Colors.orange.shade800,
+                                          ),
+                                        ),
+                                      ],
+                                      if (coupon.expireAt != null) ...[
+                                        const SizedBox(height: 4),
+                                        Text(
+                                          '有效期限：${_formatCouponDate(coupon.expireAt!)}',
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            color: Colors.grey.shade600,
+                                          ),
+                                        ),
+                                      ],
+                                    ],
+                                  ),
+                                ),
+                                if (isSelected)
+                                  Icon(
+                                    Icons.check_circle,
+                                    color: Theme.of(
+                                      context,
+                                    ).colorScheme.primary,
+                                  ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+
+    if (result == null || !mounted) {
+      return;
+    }
+
+    final String? unavailableReason = _memberCouponUnavailableReason(result);
+
+    if (unavailableReason != null) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(unavailableReason)));
+      return;
+    }
+
+    setState(() {
+      _selectedMemberCoupon = result;
+    });
+  }
+
+  String? _memberCouponUnavailableReason(MemberCouponModel coupon) {
+    if (!coupon.canUseNow) {
+      return '這張優惠券目前無法使用';
+    }
+
+    if (_selectedRoomType == null) {
+      return '請先選擇房型';
+    }
+
+    final String selectedRoomTypeId =
+        (_selectedRoomType!['id'] ?? _selectedRoomType!['roomTypeId'] ?? '')
+            .toString()
+            .trim();
+
+    if (coupon.roomTypeIds.isNotEmpty &&
+        !coupon.roomTypeIds.contains(selectedRoomTypeId)) {
+      return '這張優惠券不適用目前選擇的房型';
+    }
+
+    final Map<String, dynamic> priceParts =
+        BookingSummaryHelper.calculatePriceParts(
+          selectedRoomType: _selectedRoomType!,
+          nights: _nights,
+          selectedPetIds: _selectedPetIds,
+          selectedTimeAddon: _selectedTimeAddon,
+          selectedValueServices: _selectedValueServices,
+          selectedCustomServices: _selectedCustomServices,
+          selectedDailyTimedServices: _selectedDailyTimedServices,
+          addonData: _addonData,
+        );
+
+    final int originalTotal = (priceParts['subtotal'] ?? 0).toInt();
+
+    if (coupon.minimumAmount > 0 && originalTotal < coupon.minimumAmount) {
+      return '此優惠券最低消費為 NT\$ ${coupon.minimumAmount}';
+    }
+
+    final Map<String, dynamic> campaignInfo = _calculateDiscountInfo(
+      _currentShopData,
+    );
+    final int campaignDiscountAmount = (campaignInfo['discountAmount'] ?? 0)
+        .toInt();
+
+    final bool campaignAllowCouponTogether =
+        (campaignInfo['allowCouponTogether'] ?? false) == true;
+
+    if (campaignDiscountAmount > 0 && !campaignAllowCouponTogether) {
+      return '目前套用的自動優惠活動不可搭配會員優惠券';
+    }
+
+    return null;
+  }
+
+  String _memberCouponBenefitText(MemberCouponModel coupon) {
+    switch (coupon.type) {
+      case MemberCouponType.fixedAmount:
+        return '折抵 NT\$ ${coupon.discountValue.toInt()}';
+
+      case MemberCouponType.percent:
+        return '折抵 ${_couponNumberText(coupon.discountValue)}%';
+
+      case MemberCouponType.freeStay:
+        return '免費住宿 ${coupon.freeStayNights} 晚';
+
+      case MemberCouponType.freeService:
+        if (coupon.serviceName.trim().isEmpty) {
+          return '免費指定服務';
+        }
+
+        return '免費 ${coupon.serviceName.trim()}';
+    }
+  }
+
+  String _couponNumberText(num value) {
+    if (value == value.toInt()) {
+      return value.toInt().toString();
+    }
+
+    return value.toString();
+  }
+
+  String _formatCouponDate(DateTime date) {
+    final String month = date.month.toString().padLeft(2, '0');
+    final String day = date.day.toString().padLeft(2, '0');
+
+    return '${date.year}/$month/$day';
   }
 
   Future<FrontCalendarPayload> _buildFrontCalendarPayload({
@@ -636,6 +1354,73 @@ class _ShopBookingPageState extends State<ShopBookingPage> {
         serviceTypes.isNotEmpty;
   }
 
+  /// 🔒 建立目前預約內容的簡易簽章
+  ///
+  /// 內容相同時沿用原 requestId；
+  /// 日期、房型、寵物、服務或資料改變時，改用新的 requestId。
+  String _buildBookingRequestSignature({
+    required String address,
+    required String emergencyName,
+    required String emergencyPhone,
+    required String relation,
+    required String emergencyAddress,
+    required String phone2,
+    required int depositAmount,
+    required String paymentMethod,
+    required String payAmountType,
+  }) {
+    final List<String> sortedPetIds = List<String>.from(_selectedPetIds)
+      ..sort();
+
+    final List<String> valueServices = _selectedValueServices.map((
+      Map<String, dynamic> item,
+    ) {
+      return [
+        (item['id'] ?? '').toString(),
+        (item['name'] ?? '').toString(),
+        (item['price'] ?? 0).toString(),
+      ].join(':');
+    }).toList()..sort();
+
+    final List<String> customServices = _selectedCustomServices.entries.map((
+      MapEntry<String, List<String>> entry,
+    ) {
+      final List<String> petIds = List<String>.from(entry.value)..sort();
+      return '${entry.key}:${petIds.join(",")}';
+    }).toList()..sort();
+
+    return [
+      widget.shopId,
+      _startDate?.toIso8601String() ?? '',
+      _endDate?.toIso8601String() ?? '',
+      (_selectedRoomType?['id'] ??
+              _selectedRoomType?['roomTypeId'] ??
+              _selectedRoomType?['name'] ??
+              '')
+          .toString(),
+      _selectedServiceType ?? '',
+      sortedPetIds.join(','),
+      valueServices.join('|'),
+      customServices.join('|'),
+      _selectedDailyTimedServices.toString(),
+      (_selectedTimeAddon?['id'] ?? _selectedTimeAddon?['name'] ?? '')
+          .toString(),
+      _selectedMemberCoupon?.id ?? '',
+      _customerNameController.text.trim(),
+      _customerPhoneController.text.trim(),
+      _noteController.text.trim(),
+      address.trim(),
+      emergencyName.trim(),
+      emergencyPhone.trim(),
+      relation.trim(),
+      emergencyAddress.trim(),
+      phone2.trim(),
+      depositAmount.toString(),
+      paymentMethod,
+      payAmountType,
+    ].join('||');
+  }
+
   Future<void> _submitBooking(
     Map<String, dynamic> shop, {
     String address = '',
@@ -648,6 +1433,9 @@ class _ShopBookingPageState extends State<ShopBookingPage> {
     String paymentMethod = '',
     String payAmountType = '',
   }) async {
+    /// 🔒 防止卡頓、連點或其他事件重複進入建單流程
+    if (_submitting) return;
+
     if (!_formKey.currentState!.validate()) return;
 
     if (_startDate == null || _endDate == null) {
@@ -675,13 +1463,48 @@ class _ShopBookingPageState extends State<ShopBookingPage> {
       return;
     }
 
+    final String currentRequestSignature = _buildBookingRequestSignature(
+      address: address,
+      emergencyName: emergencyName,
+      emergencyPhone: emergencyPhone,
+      relation: relation,
+      emergencyAddress: emergencyAddress,
+      phone2: phone2,
+      depositAmount: depositAmount,
+      paymentMethod: paymentMethod,
+      payAmountType: payAmountType,
+    );
+
     setState(() {
       _submitting = true;
+
+      /// 預約內容有改變時，視為新的送出請求
+      if (_bookingRequestSignature != currentRequestSignature) {
+        _bookingRequestId = FirebaseFirestore.instance
+            .collection('bookings')
+            .doc()
+            .id;
+
+        _bookingRequestSignature = currentRequestSignature;
+      }
+
+      /// 同一內容重試時沿用原本 ID
+      _bookingRequestId ??= FirebaseFirestore.instance
+          .collection('bookings')
+          .doc()
+          .id;
+
+      _bookingRequestSignature ??= currentRequestSignature;
     });
 
+    String? createdBookingId;
+    Map<String, dynamic>? submittedDiscountInfo;
+
     try {
-      final discountInfo = _calculateDiscountInfo(shop);
-      await BookingSubmitHelper.submitBooking(
+      final discountInfo = _calculateMemberCouponInfo(shop);
+      submittedDiscountInfo = discountInfo;
+
+      createdBookingId = await BookingSubmitHelper.submitBooking(
         shopId: widget.shopId,
         customerName: _customerNameController.text,
         customerPhone: _customerPhoneController.text,
@@ -693,13 +1516,35 @@ class _ShopBookingPageState extends State<ShopBookingPage> {
         endDate: _endDate!,
         nights: _nights,
         note: _noteController.text,
-        totalPrice: _calculateTotalPrice(shop: shop),
+        totalPrice: (discountInfo['finalTotalAfterCoupon'] ?? 0).toInt(),
 
         originalTotal: discountInfo['originalTotal'] ?? 0,
         discountAmount: discountInfo['discountAmount'] ?? 0,
+        discountUsedNights: discountInfo['discountUsedNights'] ?? 0,
         discountPercent: discountInfo['discountPercent'] ?? 0,
         discountMinNights: discountInfo['discountMinNights'] ?? 0,
         discountBase: (discountInfo['discountBase'] ?? '').toString(),
+        discountCampaignId: (discountInfo['discountCampaignId'] ?? '')
+            .toString(),
+
+        discountCampaignName: (discountInfo['discountCampaignName'] ?? '')
+            .toString(),
+
+        discountCampaignType: (discountInfo['discountCampaignType'] ?? '')
+            .toString(),
+
+        discountValueType: (discountInfo['discountValueType'] ?? '').toString(),
+
+        discountValue: (discountInfo['discountValue'] ?? 0) as num,
+
+        allowCouponTogether:
+            (discountInfo['allowCouponTogether'] ?? false) as bool,
+
+        couponId: (discountInfo['couponId'] ?? '').toString(),
+        couponName: (discountInfo['couponName'] ?? '').toString(),
+        couponType: (discountInfo['couponType'] ?? '').toString(),
+        couponDiscountAmount: (discountInfo['couponDiscountAmount'] ?? 0)
+            .toInt(),
 
         addons: _buildAddonsData(),
         address: address,
@@ -711,10 +1556,68 @@ class _ShopBookingPageState extends State<ShopBookingPage> {
         depositAmount: depositAmount,
         paymentMethod: paymentMethod,
         payAmountType: payAmountType,
-      );
 
+        /// 🔒 同一次送出固定使用同一個訂單文件 ID
+        requestId: _bookingRequestId!,
+      );
       if (!mounted) return;
 
+      /// 💳 判斷是否為綠界線上付款
+      /// 功能：信用卡、ATM、超商代碼會建立綠界付款，
+      /// 到店付款與銀行轉帳則維持原本預約完成頁。
+      final bool isEcpayPayment =
+          paymentMethod == 'credit_card' ||
+          paymentMethod == 'atm' ||
+          paymentMethod == 'cvs_code';
+
+      if (isEcpayPayment) {
+        final int finalTotal = (discountInfo['finalTotalAfterCoupon'] ?? 0)
+            .toInt();
+
+        final int requestedAmount = payAmountType == 'deposit'
+            ? depositAmount
+            : finalTotal;
+
+        /// 🔒 每次付款建立獨立的防重複請求 ID
+        final String paymentRequestId = FirebaseFirestore.instance
+            .collection('payments')
+            .doc()
+            .id;
+
+        final paymentResult = await PaymentFunctionService.instance
+            .createPayment(
+              request: CreatePaymentRequestModel(
+                shopId: widget.shopId,
+                bookingId: createdBookingId,
+                paymentMethod: paymentMethod,
+                amountType: payAmountType,
+                amount: requestedAmount,
+                requestId: paymentRequestId,
+              ),
+            );
+
+        if (!mounted) return;
+
+        if (!paymentResult.hasPaymentHtml) {
+          throw const PaymentFunctionException(
+            code: 'missing-payment-html',
+            message: '綠界付款頁資料不完整，請稍後再試。',
+          );
+        }
+
+        /// 🌐 開啟綠界付款頁
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (_) =>
+                EcpayPaymentPage(paymentHtml: paymentResult.paymentHtml),
+          ),
+        );
+
+        return;
+      }
+
+      /// 💵 到店付款與銀行轉帳維持原本完成頁
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(
@@ -725,8 +1628,43 @@ class _ShopBookingPageState extends State<ShopBookingPage> {
         ),
       );
     } catch (e) {
+      final bool isEcpayPayment =
+          paymentMethod == 'credit_card' ||
+          paymentMethod == 'atm' ||
+          paymentMethod == 'cvs_code';
+
+      if (isEcpayPayment && createdBookingId != null) {
+        final String couponId = (submittedDiscountInfo?['couponId'] ?? '')
+            .toString()
+            .trim();
+
+        try {
+          if (couponId.isNotEmpty) {
+            await MemberCouponService.instance.restoreCouponForCancelledBooking(
+              shopId: widget.shopId,
+              couponId: couponId,
+              bookingId: createdBookingId,
+            );
+          }
+
+          await FirebaseFirestore.instance
+              .collection('bookings')
+              .doc(createdBookingId)
+              .delete();
+
+          _bookingRequestId = null;
+          _bookingRequestSignature = null;
+        } catch (rollbackError) {
+          debugPrint('EC_PAY_BOOKING_ROLLBACK_ERROR: $rollbackError');
+        }
+      }
+
       if (!mounted) return;
-      final message = e.toString().replaceFirst('Exception: ', '');
+
+      final String message = e is PaymentFunctionException
+          ? e.message
+          : e.toString().replaceFirst('Exception: ', '');
+
       _showSnackBar(message);
     } finally {
       if (mounted) {
@@ -878,12 +1816,109 @@ class _ShopBookingPageState extends State<ShopBookingPage> {
       selectedTimeAddon: _selectedTimeAddon,
       selectedValueServices: _selectedValueServices,
       selectedCustomServices: _selectedCustomServices,
+      selectedDailyTimedServices: _selectedDailyTimedServices,
       addonData: _addonData,
     );
 
     final roomTotal = priceParts['roomTotal'] ?? 0;
     final petTotal = priceParts['petTotal'] ?? 0;
     final originalTotal = priceParts['subtotal'] ?? 0;
+
+    final int extraServiceTotal = (originalTotal - roomTotal - petTotal)
+        .clamp(0, originalTotal)
+        .toInt();
+
+    if (!_campaignsLoading &&
+        _enabledCampaigns.isNotEmpty &&
+        _startDate != null &&
+        _endDate != null &&
+        _selectedRoomType != null) {
+      final String roomTypeId =
+          (_selectedRoomType!['id'] ?? _selectedRoomType!['roomTypeId'] ?? '')
+              .toString();
+
+      final DiscountCampaignCalculationResult? bestCampaign =
+          DiscountCampaignCalculator.findBestCampaign(
+            campaigns: _enabledCampaigns,
+            input: DiscountCampaignCalculationInput(
+              checkInDate: _startDate!,
+              checkOutDate: _endDate!,
+              roomTypeId: roomTypeId,
+              roomAmount: roomTotal,
+              petAmount: petTotal,
+              extraServiceAmount: extraServiceTotal,
+              isFirstBooking: !_firstBookingLoading && _isFirstBooking,
+              memberCampaignUsage: _memberCampaignUsage,
+              memberCampaignUsedNights: _memberCampaignUsedNights,
+
+              // 尚未建立 Google 評論驗證，因此先固定為 false。
+              hasVerifiedGoogleReview: false,
+            ),
+          );
+
+      if (bestCampaign != null) {
+        final DiscountCampaignModel campaign = bestCampaign.campaign;
+        final int discountAmount = bestCampaign.discountAmount;
+        final int finalTotal = (originalTotal - discountAmount)
+            .clamp(0, originalTotal)
+            .toInt();
+
+        String discountBase;
+
+        switch (campaign.applyTarget) {
+          case DiscountApplyTarget.room:
+            discountBase = 'room';
+
+          case DiscountApplyTarget.roomAndPet:
+            discountBase = 'room_pet';
+
+          case DiscountApplyTarget.total:
+            discountBase = 'total';
+        }
+
+        return <String, dynamic>{
+          'originalTotal': originalTotal,
+          'discountPercent': campaign.valueType == DiscountValueType.percent
+              ? campaign.discountValue.toInt()
+              : 0,
+          'discountAmount': discountAmount,
+          'discountUsedNights': bestCampaign.discountUsedNights,
+          'remainingDiscountNights':
+              campaign.type == DiscountCampaignType.newMember
+              ? (DiscountCampaignCalculator.remainingNewMemberDiscountNights(
+                          campaign: campaign,
+                          input: DiscountCampaignCalculationInput(
+                            checkInDate: _startDate!,
+                            checkOutDate: _endDate!,
+                            roomTypeId: roomTypeId,
+                            roomAmount: roomTotal,
+                            petAmount: petTotal,
+                            extraServiceAmount: extraServiceTotal,
+                            isFirstBooking:
+                                !_firstBookingLoading && _isFirstBooking,
+                            memberCampaignUsage: _memberCampaignUsage,
+                            memberCampaignUsedNights: _memberCampaignUsedNights,
+                            hasVerifiedGoogleReview: false,
+                          ),
+                        ) -
+                        bestCampaign.discountUsedNights)
+                    .clamp(0, campaign.newMemberDiscountNights)
+                    .toInt()
+              : 0,
+          'discountMinNights': campaign.minimumNights,
+          'discountBase': discountBase,
+          'finalTotal': finalTotal,
+
+          // 新優惠額外資料，之後會寫入 booking。
+          'discountCampaignId': campaign.id,
+          'discountCampaignName': campaign.name,
+          'discountCampaignType': campaign.type.name,
+          'discountValueType': campaign.valueType.name,
+          'discountValue': campaign.discountValue,
+          'allowCouponTogether': campaign.allowCouponTogether,
+        };
+      }
+    }
 
     if (shop == null || _nights <= 0) {
       return {
@@ -982,6 +2017,139 @@ class _ShopBookingPageState extends State<ShopBookingPage> {
     };
   }
 
+  Map<String, dynamic> _calculateMemberCouponInfo(Map<String, dynamic>? shop) {
+    final Map<String, dynamic> campaignInfo = _calculateDiscountInfo(shop);
+
+    final int campaignFinalTotal = (campaignInfo['finalTotal'] ?? 0).toInt();
+
+    final MemberCouponModel? coupon = _selectedMemberCoupon;
+
+    if (coupon == null || campaignFinalTotal <= 0) {
+      return <String, dynamic>{
+        ...campaignInfo,
+        'couponId': '',
+        'couponName': '',
+        'couponType': '',
+        'couponDiscountAmount': 0,
+        'finalTotalAfterCoupon': campaignFinalTotal,
+      };
+    }
+
+    final String? unavailableReason = _memberCouponUnavailableReason(coupon);
+
+    if (unavailableReason != null) {
+      return <String, dynamic>{
+        ...campaignInfo,
+        'couponId': '',
+        'couponName': '',
+        'couponType': '',
+        'couponDiscountAmount': 0,
+        'finalTotalAfterCoupon': campaignFinalTotal,
+      };
+    }
+
+    int couponDiscountAmount = 0;
+
+    switch (coupon.type) {
+      case MemberCouponType.fixedAmount:
+        couponDiscountAmount = coupon.discountValue.toInt().clamp(
+          0,
+          campaignFinalTotal,
+        );
+
+      case MemberCouponType.percent:
+        couponDiscountAmount = (campaignFinalTotal * coupon.discountValue / 100)
+            .round()
+            .clamp(0, campaignFinalTotal);
+
+      case MemberCouponType.freeStay:
+        final Map<String, dynamic> priceParts =
+            BookingSummaryHelper.calculatePriceParts(
+              selectedRoomType: _selectedRoomType!,
+              nights: _nights,
+              selectedPetIds: _selectedPetIds,
+              selectedTimeAddon: _selectedTimeAddon,
+              selectedValueServices: _selectedValueServices,
+              selectedCustomServices: _selectedCustomServices,
+              selectedDailyTimedServices: _selectedDailyTimedServices,
+              addonData: _addonData,
+            );
+
+        final int roomTotal = (priceParts['roomTotal'] ?? 0).toInt();
+
+        if (_nights > 0 && roomTotal > 0) {
+          final int usableFreeNights = coupon.freeStayNights.clamp(0, _nights);
+
+          final double averageRoomPricePerNight = roomTotal / _nights;
+
+          couponDiscountAmount = (averageRoomPricePerNight * usableFreeNights)
+              .round()
+              .clamp(0, campaignFinalTotal);
+        }
+
+      case MemberCouponType.freeService:
+        final String couponServiceId = coupon.serviceId.trim();
+
+        if (couponServiceId.isEmpty) {
+          couponDiscountAmount = 0;
+          break;
+        }
+
+        if (coupon.serviceCategory == CouponServiceCategory.value) {
+          final Map<String, dynamic> selectedService = _selectedValueServices
+              .firstWhere((Map<String, dynamic> item) {
+                return (item['id'] ?? '').toString().trim() == couponServiceId;
+              }, orElse: () => <String, dynamic>{});
+
+          couponDiscountAmount = ((selectedService['price'] ?? 0) as num)
+              .toInt()
+              .clamp(0, campaignFinalTotal);
+        } else if (coupon.serviceCategory == CouponServiceCategory.custom) {
+          final List<Map<String, dynamic>> customServices =
+              List<Map<String, dynamic>>.from(
+                _addonData?['customServices'] ?? <dynamic>[],
+              );
+
+          final Map<String, dynamic> matchedService = customServices.firstWhere(
+            (Map<String, dynamic> item) {
+              return (item['id'] ?? '').toString().trim() == couponServiceId;
+            },
+            orElse: () => <String, dynamic>{},
+          );
+
+          final String serviceName = (matchedService['name'] ?? '')
+              .toString()
+              .trim();
+
+          final int servicePrice = ((matchedService['price'] ?? 0) as num)
+              .toInt();
+
+          final int selectedPetCount =
+              _selectedCustomServices[serviceName]?.length ?? 0;
+
+          couponDiscountAmount = (servicePrice * selectedPetCount).clamp(
+            0,
+            campaignFinalTotal,
+          );
+        }
+    }
+
+    final int finalTotalAfterCoupon =
+        (campaignFinalTotal - couponDiscountAmount).clamp(
+          0,
+          campaignFinalTotal,
+        );
+
+    return <String, dynamic>{
+      ...campaignInfo,
+      'couponId': coupon.id,
+      'couponName': coupon.name,
+      'couponType': coupon.type.name,
+      'couponDiscountAmount': couponDiscountAmount,
+      'finalTotalAfterCoupon': finalTotalAfterCoupon,
+    };
+  }
+
   int _calculateTotalPrice({Map<String, dynamic>? shop}) {
     final discountInfo = _calculateDiscountInfo(shop);
 
@@ -989,8 +2157,9 @@ class _ShopBookingPageState extends State<ShopBookingPage> {
   }
 
   Widget _buildBookingSummary(Map<String, dynamic> shop) {
-    final discountInfo = _calculateDiscountInfo(shop);
-    final totalPrice = discountInfo['finalTotal'] ?? 0;
+    final Map<String, dynamic> discountInfo = _calculateMemberCouponInfo(shop);
+
+    final int totalPrice = (discountInfo['finalTotalAfterCoupon'] ?? 0).toInt();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1000,6 +2169,7 @@ class _ShopBookingPageState extends State<ShopBookingPage> {
           endDateText: _formatDate(_endDate!),
           nights: _nights,
           selectedPetIds: _selectedPetIds,
+          pets: _pets,
           selectedRoomType: _selectedRoomType!,
           totalPrice: totalPrice,
           originalTotal: discountInfo['originalTotal'],
@@ -1007,9 +2177,31 @@ class _ShopBookingPageState extends State<ShopBookingPage> {
           discountPercent: discountInfo['discountPercent'] ?? 0,
           discountMinNights: discountInfo['discountMinNights'] ?? 0,
           discountBase: (discountInfo['discountBase'] ?? '').toString(),
+
+          discountCampaignName: (discountInfo['discountCampaignName'] ?? '')
+              .toString(),
+
+          discountValueType: (discountInfo['discountValueType'] ?? '')
+              .toString(),
+
+          discountValue: (discountInfo['discountValue'] ?? 0) as num,
+
+          discountCampaignType: (discountInfo['discountCampaignType'] ?? '')
+              .toString(),
+
+          discountUsedNights: (discountInfo['discountUsedNights'] ?? 0) as int,
+
+          remainingDiscountNights:
+              (discountInfo['remainingDiscountNights'] ?? 0).toInt(),
+
+          couponName: (discountInfo['couponName'] ?? '').toString(),
+          couponDiscountAmount: (discountInfo['couponDiscountAmount'] ?? 0)
+              .toInt(),
+
           selectedTimeAddon: _selectedTimeAddon,
           selectedValueServices: _selectedValueServices,
           selectedCustomServices: _selectedCustomServices,
+          selectedDailyTimedServices: _selectedDailyTimedServices,
           addonData: _addonData,
         ),
       ],
@@ -1021,6 +2213,7 @@ class _ShopBookingPageState extends State<ShopBookingPage> {
       selectedTimeAddon: _selectedTimeAddon,
       selectedValueServices: _selectedValueServices,
       selectedCustomServices: _selectedCustomServices,
+      selectedDailyTimedServices: _selectedDailyTimedServices,
       addonData: _addonData,
       selectedPetIds: _selectedPetIds,
       pets: _pets,

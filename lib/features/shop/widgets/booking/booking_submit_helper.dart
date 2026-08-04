@@ -6,6 +6,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:petnest_saas/core/services/booking_service.dart';
 import 'package:petnest_saas/core/services/member_service.dart';
+import 'package:petnest_saas/core/services/member_coupon_service.dart';
 import 'package:petnest_saas/core/services/shop_policy_service.dart';
 
 class BookingSubmitHelper {
@@ -94,9 +95,20 @@ class BookingSubmitHelper {
     required int totalPrice,
     required int originalTotal,
     required int discountAmount,
+    required int discountUsedNights,
     required int discountPercent,
     required int discountMinNights,
     required String discountBase,
+    required String discountCampaignId,
+    required String discountCampaignName,
+    required String discountCampaignType,
+    required String discountValueType,
+    required num discountValue,
+    required bool allowCouponTogether,
+    required String couponId,
+    required String couponName,
+    required String couponType,
+    required int couponDiscountAmount,
     required List<Map<String, dynamic>> addons,
     required String address,
     required String emergencyName,
@@ -107,6 +119,9 @@ class BookingSubmitHelper {
     required int depositAmount,
     required String paymentMethod,
     required String payAmountType,
+
+    /// 🔒 同一次前台送出請求的唯一識別碼
+    required String requestId,
   }) async {
     await MemberService.instance.ensureMember(
       shopId: shopId,
@@ -224,9 +239,20 @@ class BookingSubmitHelper {
       totalPrice: totalPrice,
       originalTotal: originalTotal,
       discountAmount: discountAmount,
+      discountUsedNights: discountUsedNights,
       discountPercent: discountPercent,
       discountMinNights: discountMinNights,
       discountBase: discountBase,
+      discountCampaignId: discountCampaignId,
+      discountCampaignName: discountCampaignName,
+      discountCampaignType: discountCampaignType,
+      discountValueType: discountValueType,
+      discountValue: discountValue,
+      allowCouponTogether: allowCouponTogether,
+      couponId: couponId,
+      couponName: couponName,
+      couponType: couponType,
+      couponDiscountAmount: couponDiscountAmount,
       depositAmount: depositAmount,
       paymentMethod: paymentMethod,
       payAmountType: payAmountType,
@@ -234,7 +260,32 @@ class BookingSubmitHelper {
       policyVersion: policyVersion,
       policyTitle: policyTitle,
       policyAcceptedAt: policyAcceptedAt,
+
+      /// 🔒 傳入固定訂單文件 ID，避免同一請求重送建立兩筆
+      requestId: requestId,
     );
+
+    final String normalizedCouponId = couponId.trim();
+
+    if (normalizedCouponId.isNotEmpty) {
+      try {
+        await MemberCouponService.instance.reserveCoupon(
+          shopId: shopId,
+          couponId: normalizedCouponId,
+          userId: user.uid,
+          bookingId: bookingId,
+        );
+      } catch (error) {
+        // 優惠券保留失敗時刪除剛建立的訂單，
+        // 避免訂單享有折扣但優惠券仍可再次使用。
+        await FirebaseFirestore.instance
+            .collection('bookings')
+            .doc(bookingId)
+            .delete();
+
+        rethrow;
+      }
+    }
 
     final bookingCountSnap = await FirebaseFirestore.instance
         .collection('bookings')

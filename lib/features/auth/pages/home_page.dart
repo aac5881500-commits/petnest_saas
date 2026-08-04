@@ -20,6 +20,8 @@ import 'package:petnest_saas/features/auth/widgets/my_shop_open_status_helper.da
 import 'package:petnest_saas/features/auth/pages/my_shop_card_media_page.dart';
 import 'package:petnest_saas/features/auth/widgets/my_shop_meta_info.dart';
 import 'package:petnest_saas/features/auth/widgets/my_shop_qr_link_card.dart';
+import 'package:petnest_saas/core/services/notification_service.dart';
+import 'package:petnest_saas/features/notifications/pages/notification_center_page.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -119,6 +121,62 @@ class _HomePageState extends State<HomePage> {
           ),
         ),
         actions: [
+          StreamBuilder<int>(
+            stream: NotificationService.instance.unreadCountStream(),
+            builder: (context, snapshot) {
+              final int unreadCount = snapshot.data ?? 0;
+
+              return IconButton(
+                tooltip: '通知中心',
+                onPressed: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) => const NotificationCenterPage(),
+                    ),
+                  );
+                },
+                icon: Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    const Icon(Icons.notifications_outlined),
+                    if (unreadCount > 0)
+                      Positioned(
+                        top: -6,
+                        right: -7,
+                        child: Container(
+                          constraints: const BoxConstraints(
+                            minWidth: 18,
+                            minHeight: 18,
+                          ),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 5,
+                            vertical: 2,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.red,
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(
+                              color: Theme.of(context).colorScheme.surface,
+                              width: 1.5,
+                            ),
+                          ),
+                          child: Text(
+                            unreadCount > 99 ? '99+' : unreadCount.toString(),
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                              height: 1,
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              );
+            },
+          ),
           if (_isRootAdmin(uid))
             TextButton.icon(
               onPressed: () {

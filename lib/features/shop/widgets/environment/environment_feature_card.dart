@@ -3,6 +3,7 @@
 // 顯示環境特色：Icon、標題、描述、照片
 
 import 'package:flutter/material.dart';
+import 'package:petnest_saas/core/models/home_theme_model.dart';
 
 class EnvironmentFeatureCard extends StatelessWidget {
   const EnvironmentFeatureCard({
@@ -12,6 +13,7 @@ class EnvironmentFeatureCard extends StatelessWidget {
     required this.description,
     required this.imageUrl,
     required this.imageBuilder,
+    this.theme = HomeThemeModel.classicDefault,
     this.reverse = false,
   });
 
@@ -20,12 +22,14 @@ class EnvironmentFeatureCard extends StatelessWidget {
   final String description;
   final String imageUrl;
   final bool reverse;
+  final HomeThemeModel theme;
   final Widget Function({
     required String imageUrl,
     double? width,
     double? height,
     BoxFit fit,
-  }) imageBuilder;
+  })
+  imageBuilder;
 
   @override
   Widget build(BuildContext context) {
@@ -33,9 +37,9 @@ class EnvironmentFeatureCard extends StatelessWidget {
       margin: const EdgeInsets.fromLTRB(16, 0, 16, 12),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: theme.cardColor,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: const Color(0xFFF0E0CC)),
+        border: Border.all(color: theme.cardBorderColor),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withOpacity(0.045),
@@ -44,50 +48,47 @@ class EnvironmentFeatureCard extends StatelessWidget {
           ),
         ],
       ),
-     child: Row(
-  children: reverse
-      ? [
-          SizedBox(
-            width: 148,
-            height: 118,
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(16),
-              child: imageBuilder(
-                imageUrl: imageUrl,
-                width: 148,
-                height: 118,
-                fit: BoxFit.cover,
-              ),
-            ),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: _buildTextContent(),
-          ),
-        ]
-      : [
-          Expanded(
-            child: _buildTextContent(),
-          ),
-          const SizedBox(width: 16),
-          SizedBox(
-            width: 148,
-            height: 118,
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(16),
-              child: imageBuilder(
-                imageUrl: imageUrl,
-                width: 148,
-                height: 118,
-                fit: BoxFit.cover,
-              ),
-            ),
-          ),
-        ],
-),
+      child: Row(
+        children: reverse
+            ? [
+                SizedBox(
+                  width: 148,
+                  height: 118,
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(16),
+                    child: imageBuilder(
+                      imageUrl: imageUrl,
+                      width: 148,
+                      height: 118,
+                      fit: BoxFit.cover,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Expanded(child: _buildTextContent()),
+              ]
+            : [
+                Expanded(child: _buildTextContent()),
+                const SizedBox(width: 16),
+                SizedBox(
+                  width: 148,
+                  height: 118,
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(16),
+                    child: imageBuilder(
+                      imageUrl: imageUrl,
+                      width: 148,
+                      height: 118,
+                      fit: BoxFit.cover,
+                    ),
+                  ),
+                ),
+              ],
+      ),
     );
   }
-    Widget _buildTextContent() {
+
+  Widget _buildTextContent() {
     return Padding(
       padding: const EdgeInsets.only(left: 4, right: 6),
       child: Column(
@@ -95,19 +96,15 @@ class EnvironmentFeatureCard extends StatelessWidget {
         children: [
           Row(
             children: [
-              Icon(
-                icon,
-                color: const Color(0xFFB87535),
-                size: 20,
-              ),
+              Icon(icon, color: theme.primaryColor, size: 20),
               const SizedBox(width: 10),
               Expanded(
                 child: Text(
                   title,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.w900,
-                    color: Color(0xFF3A2A1A),
+                    color: theme.textColor,
                   ),
                 ),
               ),
@@ -118,10 +115,10 @@ class EnvironmentFeatureCard extends StatelessWidget {
             padding: const EdgeInsets.only(left: 30),
             child: Text(
               description,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 12.5,
                 height: 1.5,
-                color: Color(0xFF6F5A43),
+                color: theme.textColor.withOpacity(0.72),
               ),
             ),
           ),

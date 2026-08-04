@@ -24,6 +24,7 @@
 // - 房型可入住寵物條件
 
 import 'package:flutter/material.dart';
+import 'package:petnest_saas/core/models/home_theme_model.dart';
 import 'package:petnest_saas/features/shop/widgets/room/room_feature_tags.dart';
 import 'package:petnest_saas/features/shop/pages/shop_booking_page.dart';
 
@@ -34,6 +35,7 @@ class RoomTypeDetailPage extends StatefulWidget {
     required this.roomType,
     required this.startDate,
     required this.endDate,
+    required this.theme,
     this.isIntroMode = false,
   });
 
@@ -41,6 +43,7 @@ class RoomTypeDetailPage extends StatefulWidget {
   final Map<String, dynamic> roomType;
   final DateTime startDate;
   final DateTime endDate;
+  final HomeThemeModel theme;
   final bool isIntroMode;
 
   @override
@@ -55,16 +58,17 @@ class _RoomTypeDetailPageState extends State<RoomTypeDetailPage> {
     final images = List<String>.from(widget.roomType['images'] ?? []);
 
     return Scaffold(
-      backgroundColor: const Color(0xFFFFFAF4),
+      backgroundColor: widget.theme.backgroundColor,
       appBar: AppBar(
-        backgroundColor: const Color(0xFFFFFAF4),
+        backgroundColor: widget.theme.backgroundColor,
+        foregroundColor: widget.theme.textColor,
         elevation: 0,
         surfaceTintColor: Colors.transparent,
         title: Text(
           widget.roomType['name'] ?? '房型介紹',
-          style: const TextStyle(
+          style: TextStyle(
             fontWeight: FontWeight.w800,
-            color: Color(0xFF3A2A1A),
+            color: widget.theme.textColor,
           ),
         ),
         centerTitle: true,
@@ -73,7 +77,10 @@ class _RoomTypeDetailPageState extends State<RoomTypeDetailPage> {
           ? Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: const Color(0xFFFFFCF7),
+                color: widget.theme.cardColor,
+                border: Border(
+                  top: BorderSide(color: widget.theme.cardBorderColor),
+                ),
                 boxShadow: [
                   BoxShadow(
                     color: Colors.black.withOpacity(0.06),
@@ -87,12 +94,17 @@ class _RoomTypeDetailPageState extends State<RoomTypeDetailPage> {
                   Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (_) => ShopBookingPage(shopId: widget.shopId),
+                      builder: (_) => ShopBookingPage(
+                        shopId: widget.shopId,
+                        theme: widget.theme,
+                        useModernDrawer:
+                            widget.theme != HomeThemeModel.classicDefault,
+                      ),
                     ),
                   );
                 },
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFFB86B18),
+                  backgroundColor: widget.theme.primaryColor,
                   foregroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(vertical: 16),
                   shape: RoundedRectangleBorder(
@@ -107,11 +119,19 @@ class _RoomTypeDetailPageState extends State<RoomTypeDetailPage> {
             )
           : Container(
               padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: widget.theme.cardColor,
+                border: Border(
+                  top: BorderSide(color: widget.theme.cardBorderColor),
+                ),
+              ),
               child: ElevatedButton(
                 onPressed: () {
                   Navigator.pop(context, widget.roomType);
                 },
                 style: ElevatedButton.styleFrom(
+                  backgroundColor: widget.theme.primaryColor,
+                  foregroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(vertical: 16),
                 ),
                 child: const Text('查看您的選項'),
@@ -140,18 +160,25 @@ class _RoomTypeDetailPageState extends State<RoomTypeDetailPage> {
                           return Container(
                             height: 260,
                             width: double.infinity,
-                            color: Colors.grey.shade200,
+                            color: widget.theme.cardColor,
                             alignment: Alignment.center,
-                            child: const CircularProgressIndicator(),
+                            child: CircularProgressIndicator(
+                              color: widget.theme.primaryColor,
+                            ),
                           );
                         },
                         errorBuilder: (context, error, stackTrace) {
                           return Container(
                             height: 260,
                             width: double.infinity,
-                            color: Colors.grey.shade200,
+                            color: widget.theme.cardColor,
                             alignment: Alignment.center,
-                            child: const Icon(Icons.broken_image),
+                            child: Icon(
+                              Icons.broken_image,
+                              color: widget.theme.textColor.withValues(
+                                alpha: 0.5,
+                              ),
+                            ),
                           );
                         },
                       ),
@@ -178,8 +205,8 @@ class _RoomTypeDetailPageState extends State<RoomTypeDetailPage> {
                                 borderRadius: BorderRadius.circular(12),
                                 border: Border.all(
                                   color: selected
-                                      ? const Color(0xFFB86B18)
-                                      : Colors.transparent,
+                                      ? widget.theme.primaryColor
+                                      : widget.theme.cardBorderColor,
                                   width: 2,
                                 ),
                                 image: DecorationImage(
@@ -201,10 +228,18 @@ class _RoomTypeDetailPageState extends State<RoomTypeDetailPage> {
                 child: Container(
                   height: 240,
                   decoration: BoxDecoration(
-                    color: Colors.grey.shade200,
+                    color: widget.theme.cardColor,
                     borderRadius: BorderRadius.circular(18),
+                    border: Border.all(color: widget.theme.cardBorderColor),
                   ),
-                  child: const Center(child: Text('尚無圖片')),
+                  child: Center(
+                    child: Text(
+                      '尚無圖片',
+                      style: TextStyle(
+                        color: widget.theme.textColor.withValues(alpha: 0.6),
+                      ),
+                    ),
+                  ),
                 ),
               ),
 
@@ -214,9 +249,9 @@ class _RoomTypeDetailPageState extends State<RoomTypeDetailPage> {
               child: Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: Colors.white,
+                  color: widget.theme.cardColor,
                   borderRadius: BorderRadius.circular(18),
-                  border: Border.all(color: const Color(0xFFF0E0CC)),
+                  border: Border.all(color: widget.theme.cardBorderColor),
                   boxShadow: [
                     BoxShadow(
                       color: Colors.black.withOpacity(0.04),
@@ -231,9 +266,10 @@ class _RoomTypeDetailPageState extends State<RoomTypeDetailPage> {
                     /// 名稱
                     Text(
                       widget.roomType['name'] ?? '',
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 22,
                         fontWeight: FontWeight.bold,
+                        color: widget.theme.textColor,
                       ),
                     ),
 
@@ -242,8 +278,8 @@ class _RoomTypeDetailPageState extends State<RoomTypeDetailPage> {
                     /// 價格
                     Text(
                       'NT\$ ${widget.roomType['price']} / 晚',
-                      style: const TextStyle(
-                        color: Color(0xFFB86B18),
+                      style: TextStyle(
+                        color: widget.theme.primaryColor,
                         fontSize: 18,
                         fontWeight: FontWeight.bold,
                       ),
@@ -254,7 +290,9 @@ class _RoomTypeDetailPageState extends State<RoomTypeDetailPage> {
                     /// 容量
                     Text(
                       '可住 ${widget.roomType['capacity']} 隻',
-                      style: const TextStyle(color: Colors.grey),
+                      style: TextStyle(
+                        color: widget.theme.textColor.withValues(alpha: 0.65),
+                      ),
                     ),
 
                     /// 加價
@@ -263,8 +301,8 @@ class _RoomTypeDetailPageState extends State<RoomTypeDetailPage> {
                         padding: const EdgeInsets.only(top: 4),
                         child: Text(
                           '每多一隻 +${widget.roomType['extraPrice']} 元',
-                          style: const TextStyle(
-                            color: Colors.red,
+                          style: TextStyle(
+                            color: widget.theme.primaryColor,
                             fontWeight: FontWeight.bold,
                           ),
                         ),
@@ -275,22 +313,29 @@ class _RoomTypeDetailPageState extends State<RoomTypeDetailPage> {
                     RoomFeatureTags(
                       features: [
                         ...List<String>.from(widget.roomType['features'] ?? []),
-
                         ...List<Map<String, dynamic>>.from(
                           widget.roomType['customFeatures'] ?? [],
                         ).map((e) => '${e['icon']} ${e['name']}'),
                       ],
+                      theme: widget.theme,
                     ),
 
                     const SizedBox(height: 20),
 
                     Row(
-                      children: const [
-                        Icon(Icons.straighten, size: 16),
-                        SizedBox(width: 6),
+                      children: [
+                        Icon(
+                          Icons.straighten,
+                          size: 16,
+                          color: widget.theme.primaryColor,
+                        ),
+                        const SizedBox(width: 6),
                         Text(
                           '房間尺寸',
-                          style: TextStyle(fontWeight: FontWeight.bold),
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: widget.theme.textColor,
+                          ),
                         ),
                       ],
                     ),
@@ -304,16 +349,28 @@ class _RoomTypeDetailPageState extends State<RoomTypeDetailPage> {
                         vertical: 16,
                       ),
                       decoration: BoxDecoration(
-                        color: const Color(0xFFFFFCF7),
+                        color: widget.theme.backgroundColor,
                         borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: const Color(0xFFF0E0CC)),
+                        border: Border.all(color: widget.theme.cardBorderColor),
                       ),
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.spaceAround,
                         children: [
-                          _sizeItem('寬', widget.roomType['width']),
-                          _sizeItem('深', widget.roomType['depth']),
-                          _sizeItem('高', widget.roomType['height']),
+                          _sizeItem(
+                            '寬',
+                            widget.roomType['width'],
+                            widget.theme,
+                          ),
+                          _sizeItem(
+                            '深',
+                            widget.roomType['depth'],
+                            widget.theme,
+                          ),
+                          _sizeItem(
+                            '高',
+                            widget.roomType['height'],
+                            widget.theme,
+                          ),
                         ],
                       ),
                     ),
@@ -324,12 +381,12 @@ class _RoomTypeDetailPageState extends State<RoomTypeDetailPage> {
                     if ((widget.roomType['description'] ?? '')
                         .toString()
                         .isNotEmpty) ...[
-                      const Text(
+                      Text(
                         '房型介紹',
                         style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w800,
-                          color: Color(0xFF3A2A1A),
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: widget.theme.textColor,
                         ),
                       ),
                       const SizedBox(height: 10),
@@ -337,12 +394,20 @@ class _RoomTypeDetailPageState extends State<RoomTypeDetailPage> {
                         width: double.infinity,
                         padding: const EdgeInsets.all(14),
                         decoration: BoxDecoration(
-                          color: const Color(0xFFFFF8EE),
+                          color: widget.theme.backgroundColor,
                           borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: widget.theme.cardBorderColor,
+                          ),
                         ),
                         child: Text(
                           widget.roomType['description'],
-                          style: const TextStyle(height: 1.5),
+                          style: TextStyle(
+                            height: 1.5,
+                            color: widget.theme.textColor.withValues(
+                              alpha: 0.75,
+                            ),
+                          ),
                         ),
                       ),
                     ],
@@ -359,8 +424,9 @@ class _RoomTypeDetailPageState extends State<RoomTypeDetailPage> {
                 child: Container(
                   padding: const EdgeInsets.all(14),
                   decoration: BoxDecoration(
-                    color: Colors.grey.shade100,
+                    color: widget.theme.cardColor,
                     borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: widget.theme.cardBorderColor),
                   ),
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -368,20 +434,42 @@ class _RoomTypeDetailPageState extends State<RoomTypeDetailPage> {
                       Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Text('入住時間'),
+                          Text(
+                            '入住時間',
+                            style: TextStyle(
+                              color: widget.theme.textColor.withValues(
+                                alpha: 0.68,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 4),
                           Text(
                             '${widget.startDate.month}月${widget.startDate.day}日',
-                            style: const TextStyle(color: Colors.blue),
+                            style: TextStyle(
+                              color: widget.theme.primaryColor,
+                              fontWeight: FontWeight.w700,
+                            ),
                           ),
                         ],
                       ),
                       Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Text('退房時間'),
+                          Text(
+                            '退房時間',
+                            style: TextStyle(
+                              color: widget.theme.textColor.withValues(
+                                alpha: 0.68,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 4),
                           Text(
                             '${widget.endDate.month}月${widget.endDate.day}日',
-                            style: const TextStyle(color: Colors.blue),
+                            style: TextStyle(
+                              color: widget.theme.primaryColor,
+                              fontWeight: FontWeight.w700,
+                            ),
                           ),
                         ],
                       ),
@@ -399,8 +487,9 @@ class _RoomTypeDetailPageState extends State<RoomTypeDetailPage> {
                 child: Container(
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
-                    color: const Color(0xFFFFFCF7),
+                    color: widget.theme.cardColor,
                     borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: widget.theme.cardBorderColor),
                     boxShadow: [
                       BoxShadow(
                         color: Colors.black.withOpacity(0.05),
@@ -411,15 +500,28 @@ class _RoomTypeDetailPageState extends State<RoomTypeDetailPage> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text('1晚房價'),
                       Text(
-                        'TWD ${widget.roomType['price']}',
-                        style: const TextStyle(
-                          fontSize: 22,
-                          fontWeight: FontWeight.bold,
+                        '1晚房價',
+                        style: TextStyle(
+                          color: widget.theme.textColor.withValues(alpha: 0.68),
                         ),
                       ),
-                      const Text('含稅費與其他費用'),
+                      const SizedBox(height: 4),
+                      Text(
+                        'TWD ${widget.roomType['price']}',
+                        style: TextStyle(
+                          fontSize: 22,
+                          fontWeight: FontWeight.bold,
+                          color: widget.theme.primaryColor,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        '含稅費與其他費用',
+                        style: TextStyle(
+                          color: widget.theme.textColor.withValues(alpha: 0.58),
+                        ),
+                      ),
                     ],
                   ),
                 ),
@@ -434,14 +536,24 @@ class _RoomTypeDetailPageState extends State<RoomTypeDetailPage> {
 }
 
 /// 尺寸
-Widget _sizeItem(String label, dynamic value) {
+Widget _sizeItem(String label, dynamic value, HomeThemeModel theme) {
   return Column(
     children: [
-      Text(label, style: const TextStyle(fontSize: 12, color: Colors.grey)),
+      Text(
+        label,
+        style: TextStyle(
+          fontSize: 12,
+          color: theme.textColor.withValues(alpha: 0.6),
+        ),
+      ),
       const SizedBox(height: 4),
       Text(
         '${value ?? 0} cm',
-        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+        style: TextStyle(
+          fontSize: 16,
+          fontWeight: FontWeight.bold,
+          color: theme.textColor,
+        ),
       ),
     ],
   );

@@ -217,19 +217,90 @@ class _LoginPageState extends State<LoginPage> {
                     child: Text(_loading ? '登入中...' : '登入'),
                   ),
                 ),
+                const SizedBox(height: 18),
 
-                const SizedBox(height: 12),
-
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton.icon(
-                    icon: const Icon(Icons.g_mobiledata, size: 28),
-                    label: const Text('使用 Google 登入'),
-                    onPressed: _loading ? null : _googleLogin,
-                  ),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Divider(color: Theme.of(context).dividerColor),
+                    ),
+                    const Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 12),
+                      child: Text(
+                        '其他登入方式',
+                        style: TextStyle(fontSize: 13, color: Colors.grey),
+                      ),
+                    ),
+                    Expanded(
+                      child: Divider(color: Theme.of(context).dividerColor),
+                    ),
+                  ],
                 ),
 
-                const SizedBox(height: 12),
+                const SizedBox(height: 16),
+
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Tooltip(
+                      message: '使用 Google 登入',
+                      child: InkWell(
+                        onTap: _loading ? null : _googleLogin,
+                        borderRadius: BorderRadius.circular(28),
+                        child: Container(
+                          width: 52,
+                          height: 52,
+                          alignment: Alignment.center,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: Theme.of(context).colorScheme.surface,
+                            border: Border.all(
+                              color: Theme.of(context).dividerColor,
+                            ),
+                          ),
+                          child: const Text(
+                            'G',
+                            style: TextStyle(
+                              fontSize: 22,
+                              fontWeight: FontWeight.w700,
+                              color: Color(0xFF4285F4),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+
+                    const SizedBox(width: 18),
+
+                    Tooltip(
+                      message: 'Apple 登入即將開放',
+                      child: Container(
+                        width: 52,
+                        height: 52,
+                        alignment: Alignment.center,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: Theme.of(context)
+                              .colorScheme
+                              .surfaceContainerHighest
+                              .withOpacity(0.55),
+                          border: Border.all(
+                            color: Theme.of(context).dividerColor,
+                          ),
+                        ),
+                        child: Icon(
+                          Icons.apple,
+                          size: 25,
+                          color: Theme.of(
+                            context,
+                          ).colorScheme.onSurface.withValues(alpha: 0.35),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+
+                const SizedBox(height: 16),
 
                 TextButton(
                   onPressed: _loading

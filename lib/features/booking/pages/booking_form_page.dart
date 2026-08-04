@@ -23,6 +23,9 @@ class BookingFormPage extends StatefulWidget {
     required this.canSubmit,
     required this.isBlacklisted,
     required this.totalPrice,
+    this.originalTotal = 0,
+    this.discountAmount = 0,
+    this.discountCampaignName = '',
     required this.roomPrice,
   });
 
@@ -42,11 +45,14 @@ class BookingFormPage extends StatefulWidget {
   final bool canSubmit;
   final bool isBlacklisted;
   final int totalPrice;
+  final int originalTotal;
+  final int discountAmount;
+  final String discountCampaignName;
   final int roomPrice;
 
   final String shopId;
 
-  final Function(
+  final Future<void> Function(
     String address,
     String emergencyName,
     String emergencyPhone,
@@ -64,12 +70,20 @@ class BookingFormPage extends StatefulWidget {
 }
 
 class _BookingFormPageState extends State<BookingFormPage> {
+  bool _isSubmitting = false;
   bool _depositEnabled = false;
   int _depositAmount = 0;
   double _depositRate = 0;
   String _depositBase = 'total';
   bool _cashEnabled = true;
   bool _transferEnabled = true;
+
+  /// 💳 綠界線上付款方式
+  /// 功能：只有通過平台審核且店家有啟用時才顯示。
+  bool _creditCardEnabled = false;
+  bool _atmEnabled = false;
+  bool _cvsCodeEnabled = false;
+
   String? _paymentMethod;
   String _payAmountType = 'deposit';
   String? _city;
@@ -512,11 +526,61 @@ class _BookingFormPageState extends State<BookingFormPage> {
         _depositRate = 0;
       }
 
-      /// 🔥 新增（吃後台付款方式）
-      final methods = data['paymentMethods'] ?? {};
+      /// 💵 讀取原本的現場付款與銀行轉帳設定
+      final rawMethods = data['paymentMethods'];
+      final Map<String, dynamic> methods = rawMethods is Map
+          ? Map<String, dynamic>.from(rawMethods)
+          : <String, dynamic>{};
 
-      _cashEnabled = methods['cash'] ?? false;
-      _transferEnabled = methods['transfer'] ?? false;
+      _cashEnabled = methods['cash'] == true;
+      _transferEnabled = methods['transfer'] == true;
+
+      /// 💳 讀取已通過平台審核的綠界付款設定
+      final rawPaymentSetting = data['paymentSetting'];
+      final Map<String, dynamic> paymentSetting = rawPaymentSetting is Map
+          ? Map<String, dynamic>.from(rawPaymentSetting)
+          : <String, dynamic>{};
+
+      final String reviewStatus = (paymentSetting['reviewStatus'] ?? '')
+          .toString()
+          .trim()
+          .toLowerCase();
+
+      final bool onlinePaymentEnabled =
+          paymentSetting['enabled'] == true ||
+          paymentSetting['onlinePaymentEnabled'] == true;
+
+      final bool platformSuspended =
+          paymentSetting['platformSuspended'] == true;
+
+      final bool shopDisabled = paymentSetting['shopDisabled'] == true;
+
+      final bool canUseEcpay =
+          reviewStatus == 'approved' &&
+          onlinePaymentEnabled &&
+          !platformSuspended &&
+          !shopDisabled;
+
+      final rawEnabledMethods = paymentSetting['enabledMethods'];
+      final Map<String, dynamic> enabledMethods = rawEnabledMethods is Map
+          ? Map<String, dynamic>.from(rawEnabledMethods)
+          : <String, dynamic>{};
+
+      _creditCardEnabled =
+          canUseEcpay &&
+          (enabledMethods['creditCard'] == true ||
+              paymentSetting['creditCardEnabled'] == true);
+
+      _atmEnabled =
+          canUseEcpay &&
+          (enabledMethods['atm'] == true ||
+              paymentSetting['atmEnabled'] == true);
+
+      _cvsCodeEnabled =
+          canUseEcpay &&
+          (enabledMethods['cvsCode'] == true ||
+              paymentSetting['cvsCodeEnabled'] == true ||
+              paymentSetting['convenienceStoreCodeEnabled'] == true);
     });
   }
 
@@ -825,9 +889,43 @@ class _BookingFormPageState extends State<BookingFormPage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    /// 總金額
+                    if (widget.discountAmount > 0) ...[
+                      Text(
+                        '原價：NT\$ ${widget.originalTotal}',
+                        style: const TextStyle(
+                          color: Colors.grey,
+                          decoration: TextDecoration.lineThrough,
+                        ),
+                      ),
+
+                      const SizedBox(height: 4),
+
+                      if (widget.discountCampaignName.trim().isNotEmpty)
+                        Text(
+                          '優惠活動：${widget.discountCampaignName}',
+                          style: const TextStyle(
+                            color: Colors.green,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+
+                      const SizedBox(height: 4),
+
+                      Text(
+                        '優惠折抵：-NT\$ ${widget.discountAmount}',
+                        style: const TextStyle(
+                          color: Colors.green,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+
+                      const SizedBox(height: 6),
+                    ],
+
                     Text(
-                      '總金額：NT\$ ${widget.totalPrice}',
+                      widget.discountAmount > 0
+                          ? '折後總金額：NT\$ ${widget.totalPrice}'
+                          : '總金額：NT\$ ${widget.totalPrice}',
                       style: const TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.bold,
@@ -873,7 +971,12 @@ class _BookingFormPageState extends State<BookingFormPage> {
               /// 🔥 付款方式（先做UI）
               const SizedBox(height: 10),
 
-              if (!_cashEnabled && !_transferEnabled)
+              /// 🚫 所有付款方式都未開放時才顯示提醒
+              if (!_cashEnabled &&
+                  !_transferEnabled &&
+                  !_creditCardEnabled &&
+                  !_atmEnabled &&
+                  !_cvsCodeEnabled)
                 const Text('目前未開放付款方式', style: TextStyle(color: Colors.red)),
 
               if (_depositEnabled) ...[
@@ -933,49 +1036,124 @@ class _BookingFormPageState extends State<BookingFormPage> {
                   title: const Text('銀行轉帳'),
                 ),
 
+              /// 💳 綠界信用卡付款
+              /// 功能：店家已通過平台審核並啟用信用卡時顯示。
+              if (_creditCardEnabled)
+                RadioListTile(
+                  value: 'credit_card',
+                  groupValue: _paymentMethod,
+                  onChanged: (v) {
+                    setState(() {
+                      _paymentMethod = v as String;
+                    });
+                  },
+                  title: const Text('信用卡'),
+                  subtitle: const Text('透過綠界線上付款'),
+                ),
+
+              /// 🏧 綠界 ATM 虛擬帳號付款
+              /// 功能：付款建立後，由綠界提供 ATM 轉帳帳號。
+              if (_atmEnabled)
+                RadioListTile(
+                  value: 'atm',
+                  groupValue: _paymentMethod,
+                  onChanged: (v) {
+                    setState(() {
+                      _paymentMethod = v as String;
+                    });
+                  },
+                  title: const Text('ATM 虛擬帳號'),
+                  subtitle: const Text('透過綠界取得轉帳帳號'),
+                ),
+
+              /// 🏪 綠界超商代碼付款
+              /// 功能：付款建立後，由綠界提供超商繳費代碼。
+              if (_cvsCodeEnabled)
+                RadioListTile(
+                  value: 'cvs_code',
+                  groupValue: _paymentMethod,
+                  onChanged: (v) {
+                    setState(() {
+                      _paymentMethod = v as String;
+                    });
+                  },
+                  title: const Text('超商代碼'),
+                  subtitle: const Text('透過綠界取得繳費代碼'),
+                ),
+
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
-                  onPressed: () async {
-                    /// 🔥 預約前強制完整資料
-                    if (widget.customerNameController.text.trim().isEmpty ||
-                        widget.customerPhoneController.text.trim().isEmpty ||
-                        _city == null ||
-                        _district == null ||
-                        _detailAddressController.text.trim().isEmpty ||
-                        _emergencyNameController.text.trim().isEmpty ||
-                        _emergencyPhoneController.text.trim().isEmpty ||
-                        (_emergencyRelation ?? '').trim().isEmpty ||
-                        _emergencyAddressController.text.trim().isEmpty) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('送出預約前，請完整填寫會員資料')),
-                      );
+                  onPressed: _isSubmitting
+                      ? null
+                      : () async {
+                          if (_isSubmitting) return;
 
-                      return;
-                    }
-                    if (_paymentMethod == null) {
-                      ScaffoldMessenger.of(
-                        context,
-                      ).showSnackBar(const SnackBar(content: Text('請選擇付款方式')));
-                      return;
-                    }
-                    final fullAddress =
-                        '${_city ?? ''}${_district ?? ''}${_detailAddressController.text}';
+                          /// 🔥 預約前強制完整資料
+                          if (widget.customerNameController.text
+                                  .trim()
+                                  .isEmpty ||
+                              widget.customerPhoneController.text
+                                  .trim()
+                                  .isEmpty ||
+                              _city == null ||
+                              _district == null ||
+                              _detailAddressController.text.trim().isEmpty ||
+                              _emergencyNameController.text.trim().isEmpty ||
+                              _emergencyPhoneController.text.trim().isEmpty ||
+                              (_emergencyRelation ?? '').trim().isEmpty ||
+                              _emergencyAddressController.text.trim().isEmpty) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text('送出預約前，請完整填寫會員資料')),
+                            );
 
-                    /// 🔥 再送出預約（一定要放最後）
-                    widget.onSubmitWithData(
-                      fullAddress,
-                      _emergencyNameController.text,
-                      _emergencyPhoneController.text,
-                      _emergencyRelation ?? '',
-                      _emergencyAddressController.text,
-                      _phone2Controller.text,
-                      calculatedDeposit,
-                      _paymentMethod ?? '',
-                      _payAmountType,
-                    );
-                  },
-                  child: const Text('送出預約'),
+                            return;
+                          }
+
+                          if (_paymentMethod == null) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text('請選擇付款方式')),
+                            );
+
+                            return;
+                          }
+
+                          final fullAddress =
+                              '${_city ?? ''}${_district ?? ''}${_detailAddressController.text}';
+
+                          setState(() {
+                            _isSubmitting = true;
+                          });
+
+                          try {
+                            await widget.onSubmitWithData(
+                              fullAddress,
+                              _emergencyNameController.text,
+                              _emergencyPhoneController.text,
+                              _emergencyRelation ?? '',
+                              _emergencyAddressController.text,
+                              _phone2Controller.text,
+                              calculatedDeposit,
+                              _paymentMethod ?? '',
+                              _payAmountType,
+                            );
+                          } catch (_) {
+                            if (mounted) {
+                              setState(() {
+                                _isSubmitting = false;
+                              });
+                            }
+
+                            rethrow;
+                          }
+                        },
+                  child: _isSubmitting
+                      ? const SizedBox(
+                          width: 22,
+                          height: 22,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Text('送出預約'),
                 ),
               ),
             ],

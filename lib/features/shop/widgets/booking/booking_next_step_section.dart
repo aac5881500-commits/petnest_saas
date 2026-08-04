@@ -14,6 +14,9 @@ class BookingNextStepSection extends StatelessWidget {
     required this.selectedRoomType,
     required this.nights,
     required this.totalPrice,
+    required this.originalTotal,
+    required this.discountAmount,
+    required this.discountCampaignName,
     required this.selectedPetIds,
     required this.startDate,
     required this.endDate,
@@ -36,6 +39,9 @@ class BookingNextStepSection extends StatelessWidget {
   final Map<String, dynamic>? selectedRoomType;
   final int nights;
   final int totalPrice;
+  final int originalTotal;
+  final int discountAmount;
+  final String discountCampaignName;
   final List<Map<String, dynamic>> valueServices;
   final List<String> selectedPetIds;
   final DateTime? startDate;
@@ -51,7 +57,7 @@ class BookingNextStepSection extends StatelessWidget {
 
   final ValueChanged<String?> onServiceChanged;
 
-  final void Function(
+  final Future<void> Function(
     String address,
     String emergencyName,
     String emergencyPhone,
@@ -129,6 +135,9 @@ class BookingNextStepSection extends StatelessWidget {
                         builder: (_) => BookingFormPage(
                           shopId: shopId,
                           totalPrice: totalPrice,
+                          originalTotal: originalTotal,
+                          discountAmount: discountAmount,
+                          discountCampaignName: discountCampaignName,
                           roomPrice: roomSubtotal,
                           addons: valueServices,
                           formKey: formKey,

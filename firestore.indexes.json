@@ -212,6 +212,66 @@
     { "fieldPath": "__name__", "order": "DESCENDING" }
   ],
   "density": "SPARSE_ALL"
+},
+{
+  "collectionGroup": "notifications",
+  "queryScope": "COLLECTION",
+  "fields": [
+    { "fieldPath": "userId", "order": "ASCENDING" },
+    { "fieldPath": "createdAt", "order": "DESCENDING" },
+    { "fieldPath": "__name__", "order": "DESCENDING" }
+  ],
+  "density": "SPARSE_ALL"
+},
+{
+  "collectionGroup": "member_point_logs",
+  "queryScope": "COLLECTION",
+  "fields": [
+    { "fieldPath": "userId", "order": "ASCENDING" },
+    { "fieldPath": "createdAt", "order": "DESCENDING" },
+    { "fieldPath": "__name__", "order": "DESCENDING" }
+  ],
+  "density": "SPARSE_ALL"
+},
+{
+  "collectionGroup": "member_point_logs",
+  "queryScope": "COLLECTION",
+  "fields": [
+    { "fieldPath": "type", "order": "ASCENDING" },
+    { "fieldPath": "createdAt", "order": "DESCENDING" },
+    { "fieldPath": "__name__", "order": "DESCENDING" }
+  ],
+  "density": "SPARSE_ALL"
+},
+{
+  "collectionGroup": "point_redemptions",
+  "queryScope": "COLLECTION",
+  "fields": [
+    { "fieldPath": "userId", "order": "ASCENDING" },
+    { "fieldPath": "createdAt", "order": "DESCENDING" },
+    { "fieldPath": "__name__", "order": "DESCENDING" }
+  ],
+  "density": "SPARSE_ALL"
+},
+{
+  "collectionGroup": "point_redemptions",
+  "queryScope": "COLLECTION",
+  "fields": [
+    { "fieldPath": "status", "order": "ASCENDING" },
+    { "fieldPath": "createdAt", "order": "ASCENDING" },
+    { "fieldPath": "__name__", "order": "ASCENDING" }
+  ],
+  "density": "SPARSE_ALL"
+},
+{
+  "collectionGroup": "point_redemptions",
+  "queryScope": "COLLECTION",
+  "fields": [
+    { "fieldPath": "pickupCode", "order": "ASCENDING" },
+    { "fieldPath": "status", "order": "ASCENDING" },
+    { "fieldPath": "__name__", "order": "ASCENDING" }
+  ],
+  "density": "SPARSE_ALL"
 }
   ],
   "fieldOverrides": []

@@ -3,14 +3,20 @@
 // 功能：顯示評價星等、留言、照片、店家回覆
 
 import 'package:flutter/material.dart';
+import 'package:petnest_saas/core/models/home_theme_model.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:petnest_saas/core/models/review_model.dart';
 import 'package:petnest_saas/features/booking/widgets/review_rating_stars.dart';
 
 class ReviewCard extends StatelessWidget {
-  const ReviewCard({super.key, required this.review});
+  const ReviewCard({
+    super.key,
+    required this.review,
+    this.theme = HomeThemeModel.classicDefault,
+  });
 
   final ReviewModel review;
+  final HomeThemeModel theme;
 
   String _formatTimestamp(Timestamp? timestamp) {
     if (timestamp == null) return '';
@@ -38,17 +44,21 @@ class ReviewCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
       decoration: BoxDecoration(
-        color: Colors.grey.shade100,
-        borderRadius: BorderRadius.circular(999),
+        color: theme.cardColor,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: theme.cardBorderColor),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 14, color: Colors.grey.shade700),
+          Icon(icon, size: 14, color: theme.textColor.withOpacity(0.7)),
           const SizedBox(width: 4),
           Text(
             text,
-            style: TextStyle(fontSize: 12, color: Colors.grey.shade700),
+            style: TextStyle(
+              fontSize: 12,
+              color: theme.textColor.withOpacity(0.7),
+            ),
           ),
         ],
       ),
@@ -75,12 +85,18 @@ class ReviewCard extends StatelessWidget {
               const SizedBox(width: 8),
               Text(
                 '${review.rating} 分',
-                style: const TextStyle(fontWeight: FontWeight.bold),
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  color: theme.textColor,
+                ),
               ),
               const Spacer(),
               Text(
                 _formatTimestamp(review.createdAt),
-                style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                style: TextStyle(
+                  fontSize: 12,
+                  color: theme.textColor.withOpacity(0.6),
+                ),
               ),
             ],
           ),
@@ -103,7 +119,10 @@ class ReviewCard extends StatelessWidget {
           const SizedBox(height: 10),
 
           if (review.content.trim().isNotEmpty)
-            Text(review.content, style: const TextStyle(height: 1.5)),
+            Text(
+              review.content,
+              style: TextStyle(height: 1.5, color: theme.textColor),
+            ),
 
           if (review.imageUrls.isNotEmpty) ...[
             const SizedBox(height: 10),
@@ -142,12 +161,13 @@ class ReviewCard extends StatelessWidget {
               width: double.infinity,
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: Colors.blueGrey.shade50,
+                color: theme.primaryColor.withOpacity(0.08),
                 borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: theme.primaryColor.withOpacity(0.18)),
               ),
               child: Text(
                 '店家回覆${review.replyAt == null ? '' : '｜${_formatTimestamp(review.replyAt)}'}：\n${review.reply}',
-                style: const TextStyle(height: 1.5),
+                style: TextStyle(height: 1.5, color: theme.textColor),
               ),
             ),
           ],

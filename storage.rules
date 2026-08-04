@@ -27,8 +27,8 @@ service firebase.storage {
     }
 
     function isUnder5MB() {
-      return request.resource.size < 5 * 1024 * 1024;
-    }
+  return request.resource.size <= 5 * 1024 * 1024;
+}
 
     // 🐾 會員寵物照片：pets/{uid}/{petId}.jpg
     match /pets/{uid}/{fileName} {
@@ -52,11 +52,19 @@ service firebase.storage {
     // shops/{shopId}/platform_home_cover/xxx.jpg
     // shops/{shopId}/platform_home_logo/xxx.jpg
     match /shops/{shopId}/{allPaths=**} {
-      allow read: if true;
-      allow write: if (isShopMember(shopId) || isRootAdmin())
-        && isImage()
-        && isUnder5MB();
-    }
+  allow read: if true;
+
+  // 新增或更換圖片：
+  // 必須是店家成員或平台管理員，
+  // 並限制為圖片且最大 5 MB。
+  allow create, update: if (isShopMember(shopId) || isRootAdmin())
+    && isImage()
+    && isUnder5MB();
+
+  // 刪除圖片時 request.resource 不存在，
+  // 因此不能再檢查 contentType 或 size。
+  allow delete: if isShopMember(shopId) || isRootAdmin();
+}
 
 // 📸 客戶上傳匯款證明
 match /booking_images/{bookingId}/{fileName} {

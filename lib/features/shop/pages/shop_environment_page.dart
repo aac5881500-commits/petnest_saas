@@ -4,6 +4,7 @@
 // 第一版先用固定模板 + 假資料，之後再接後台設定與 Firestore
 
 import 'package:flutter/material.dart';
+import 'package:petnest_saas/core/models/home_theme_model.dart';
 import 'package:petnest_saas/features/shop/widgets/environment/environment_hero_section.dart';
 import 'package:petnest_saas/features/shop/widgets/environment/environment_feature_card.dart';
 import 'package:petnest_saas/features/shop/widgets/environment/environment_care_item.dart';
@@ -13,7 +14,6 @@ import 'package:petnest_saas/features/shop/widgets/environment/environment_botto
 import 'package:petnest_saas/features/shop/widgets/environment/environment_section_title.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:petnest_saas/features/shop/data/environment_facility_options.dart';
-
 
 const String _environmentHeroImageUrl =
     'https://images.unsplash.com/photo-1519052537078-e6302a4968d4?w=1200';
@@ -27,8 +27,7 @@ const String _environmentHeroSubtitle = '安心・舒適・乾淨的貓咪住宿
 
 const String _environmentBannerTitle = '用心打造每一個細節\n只為給貓咪更好的住宿體驗';
 
-const String _environmentBottomNote =
-    '每隻貓咪個性不同，實際住宿安排會依照貓咪狀況與店家現場評估調整。';
+const String _environmentBottomNote = '每隻貓咪個性不同，實際住宿安排會依照貓咪狀況與店家現場評估調整。';
 
 const List<Map<String, String>> _environmentFeatures = [
   {
@@ -65,203 +64,212 @@ const List<String> _environmentGalleryImages = [
 
 class ShopEnvironmentPage extends StatelessWidget {
   const ShopEnvironmentPage({
-  super.key,
-  required this.shopId,
-  this.heroTitle,
-  this.heroSubtitle,
-  this.bannerTitle,
-  this.bottomNote,
-});
+    super.key,
+    required this.shopId,
+    this.theme = HomeThemeModel.classicDefault,
+    this.heroTitle,
+    this.heroSubtitle,
+    this.bannerTitle,
+    this.bottomNote,
+  });
 
   final String shopId;
+  final HomeThemeModel theme;
   final String? heroTitle;
-final String? heroSubtitle;
-final String? bannerTitle;
-final String? bottomNote;
-
+  final String? heroSubtitle;
+  final String? bannerTitle;
+  final String? bottomNote;
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFFFFCF7),
+      backgroundColor: theme.backgroundColor,
       appBar: AppBar(
-        backgroundColor: const Color(0xFFFFFCF7),
+        backgroundColor: theme.backgroundColor,
         elevation: 0,
         surfaceTintColor: Colors.transparent,
         centerTitle: true,
-        title: const Text(
+        title: Text(
           '環境介紹',
-          style: TextStyle(
-            fontWeight: FontWeight.w800,
-            color: Color(0xFF3A2A1A),
-          ),
+          style: TextStyle(fontWeight: FontWeight.w800, color: theme.textColor),
         ),
       ),
       body: StreamBuilder<DocumentSnapshot>(
-  stream: FirebaseFirestore.instance
-      .collection('shops')
-      .doc(shopId)
-      .snapshots(),
-  builder: (context, snapshot) {
-    final shopData = snapshot.data?.data() as Map<String, dynamic>?;
+        stream: FirebaseFirestore.instance
+            .collection('shops')
+            .doc(shopId)
+            .snapshots(),
+        builder: (context, snapshot) {
+          final shopData = snapshot.data?.data() as Map<String, dynamic>?;
 
-    final environmentIntro =
-        shopData?['environmentIntro'] as Map<String, dynamic>?;
+          final environmentIntro =
+              shopData?['environmentIntro'] as Map<String, dynamic>?;
 
-    final displayHeroTitle =
-        heroTitle ?? environmentIntro?['heroTitle'] ?? _environmentHeroTitle;
+          final displayHeroTitle =
+              heroTitle ??
+              environmentIntro?['heroTitle'] ??
+              _environmentHeroTitle;
 
-    final displayHeroSubtitle =
-        heroSubtitle ?? environmentIntro?['heroSubtitle'] ?? _environmentHeroSubtitle;
+          final displayHeroSubtitle =
+              heroSubtitle ??
+              environmentIntro?['heroSubtitle'] ??
+              _environmentHeroSubtitle;
 
-    final displayBannerTitle =
-        bannerTitle ?? environmentIntro?['bannerTitle'] ?? _environmentBannerTitle;
+          final displayBannerTitle =
+              bannerTitle ??
+              environmentIntro?['bannerTitle'] ??
+              _environmentBannerTitle;
 
-    final displayBottomNote =
-        bottomNote ?? environmentIntro?['bottomNote'] ?? _environmentBottomNote;
-        final displayFeatures =
-    List<Map<String, dynamic>>.from(
-  environmentIntro?['features'] ?? _environmentFeatures,
-);
-            final displayGalleryImages =
-        List<String>.from(environmentIntro?['galleryImages'] ?? _environmentGalleryImages);
-final selectedFacilityKeys = List<String>.from(
-  environmentIntro?['facilityKeys'] ??
-      [
-        'air_cleaner',
-        'camera_24h',
-        'hospital',
-        'water',
-        'sunlight',
-        'disinfect',
-      ],
-);
-
-final displayCareItems = environmentFacilityOptions
-    .where((item) => selectedFacilityKeys.contains(item['key']))
-    .toList();
-
-            final displayHeroImageUrl =
-        environmentIntro?['heroImageUrl'] ?? _environmentHeroImageUrl;
-
-    final displayBannerImageUrl =
-        environmentIntro?['bannerImageUrl'] ?? _environmentBannerImageUrl;
-
-    return ListView(
-      padding: const EdgeInsets.only(bottom: 28),
-      children: [
-         EnvironmentHeroSection(
-  imageUrl: displayHeroImageUrl,
-  title: displayHeroTitle,
-  subtitle: displayHeroSubtitle,
-  imageBuilder: _networkImage,
-),
-
-          const SizedBox(height: 22),
-EnvironmentSectionTitle(
-  icon: Icons.pets,
-  title: '我們的環境特色',
-),
-          const SizedBox(height: 12),
-
-         ...displayFeatures.map((item) {
-  return EnvironmentFeatureCard(
-  icon: _environmentIcon(item['icon'] ?? ''),
-  title: item['title'] ?? '',
-  description: item['description'] ?? '',
-  imageUrl: item['imageUrl'] ?? '',
-  imageBuilder: _networkImage,
-  reverse: item['layout'] == 'imageLeft',
-);
-}),
-
-     const SizedBox(height: 24),
-
-          EnvironmentImageBanner(
-  imageUrl: displayBannerImageUrl,
-  title: displayBannerTitle,
-  imageBuilder: _networkImage,
-),
-
-          const SizedBox(height: 24),
-
-          const SizedBox(height: 18),
-
-          EnvironmentSectionTitle(
-            icon: Icons.verified_user_rounded,
-            title: '安心照護設備',
-          ),
-
-          const SizedBox(height: 12),
-
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: GridView.count(
-              crossAxisCount: 3,
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              mainAxisSpacing: 10,
-              crossAxisSpacing: 10,
-              childAspectRatio: 0.88,
-            children: displayCareItems.map((item) {
-  return EnvironmentCareItem(
-    icon: item['icon'] as IconData,
-    title: item['title'] ?? '',
-    subtitle: item['description'] ?? '',
-  );
-}).toList(),
-            ),
-          ),
-
-          EnvironmentSectionTitle(
-            icon: Icons.photo_library_rounded,
-            title: '環境照片',
-          ),
-
-          const SizedBox(height: 12),
-
-          EnvironmentGalleryGrid(
-  images: displayGalleryImages,
-  imageBuilder: _networkImage,
-),
-
-const SizedBox(height: 24),
-
-EnvironmentBottomNote(
-  text: displayBottomNote,
-),
+          final displayBottomNote =
+              bottomNote ??
+              environmentIntro?['bottomNote'] ??
+              _environmentBottomNote;
+          final displayFeatures = List<Map<String, dynamic>>.from(
+            environmentIntro?['features'] ?? _environmentFeatures,
+          );
+          final displayGalleryImages = List<String>.from(
+            environmentIntro?['galleryImages'] ?? _environmentGalleryImages,
+          );
+          final selectedFacilityKeys = List<String>.from(
+            environmentIntro?['facilityKeys'] ??
+                [
+                  'air_cleaner',
+                  'camera_24h',
+                  'hospital',
+                  'water',
+                  'sunlight',
+                  'disinfect',
                 ],
-      );
-    },
-  ),
-);
+          );
+
+          final displayCareItems = environmentFacilityOptions
+              .where((item) => selectedFacilityKeys.contains(item['key']))
+              .toList();
+
+          final displayHeroImageUrl =
+              environmentIntro?['heroImageUrl'] ?? _environmentHeroImageUrl;
+
+          final displayBannerImageUrl =
+              environmentIntro?['bannerImageUrl'] ?? _environmentBannerImageUrl;
+
+          return ListView(
+            padding: const EdgeInsets.only(bottom: 28),
+            children: [
+              EnvironmentHeroSection(
+                imageUrl: displayHeroImageUrl,
+                title: displayHeroTitle,
+                subtitle: displayHeroSubtitle,
+                imageBuilder: _networkImage,
+              ),
+
+              const SizedBox(height: 22),
+              EnvironmentSectionTitle(
+                icon: Icons.pets,
+                title: '我們的環境特色',
+                theme: theme,
+              ),
+              const SizedBox(height: 12),
+
+              ...displayFeatures.map((item) {
+                return EnvironmentFeatureCard(
+                  icon: _environmentIcon(item['icon'] ?? ''),
+                  title: item['title'] ?? '',
+                  description: item['description'] ?? '',
+                  imageUrl: item['imageUrl'] ?? '',
+                  imageBuilder: _networkImage,
+                  theme: theme,
+                  reverse: item['layout'] == 'imageLeft',
+                );
+              }),
+
+              const SizedBox(height: 24),
+
+              EnvironmentImageBanner(
+                imageUrl: displayBannerImageUrl,
+                title: displayBannerTitle,
+                imageBuilder: _networkImage,
+              ),
+
+              const SizedBox(height: 24),
+
+              const SizedBox(height: 18),
+
+              EnvironmentSectionTitle(
+                icon: Icons.verified_user_rounded,
+                title: '安心照護設備',
+                theme: theme,
+              ),
+
+              const SizedBox(height: 12),
+
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: GridView.count(
+                  crossAxisCount: 3,
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  mainAxisSpacing: 10,
+                  crossAxisSpacing: 10,
+                  childAspectRatio: 0.88,
+                  children: displayCareItems.map((item) {
+                    return EnvironmentCareItem(
+                      icon: item['icon'] as IconData,
+                      title: item['title'] ?? '',
+                      subtitle: item['description'] ?? '',
+                      theme: theme,
+                    );
+                  }).toList(),
+                ),
+              ),
+
+              EnvironmentSectionTitle(
+                icon: Icons.photo_library_rounded,
+                title: '環境照片',
+                theme: theme,
+              ),
+
+              const SizedBox(height: 12),
+
+              EnvironmentGalleryGrid(
+                images: displayGalleryImages,
+                imageBuilder: _networkImage,
+              ),
+
+              const SizedBox(height: 24),
+
+              EnvironmentBottomNote(text: displayBottomNote, theme: theme),
+            ],
+          );
+        },
+      ),
+    );
   }
 
-IconData _environmentIcon(String key) {
-  switch (key) {
-    case 'home':
-      return Icons.home_rounded;
-    case 'clean':
-      return Icons.cleaning_services_rounded;
-    case 'air':
-      return Icons.ac_unit_rounded;
-    case 'camera':
-      return Icons.videocam_rounded;
-    case 'hospital':
-      return Icons.local_hospital_rounded;
-    case 'water':
-      return Icons.water_drop_rounded;
-    case 'sun':
-      return Icons.wb_sunny_rounded;
-    case 'clean_hand':
-      return Icons.clean_hands_rounded;
-          case 'pets':
-      return Icons.pets_rounded;
-    case 'toys':
-      return Icons.toys_rounded;
-    default:
-      return Icons.pets_rounded;
+  IconData _environmentIcon(String key) {
+    switch (key) {
+      case 'home':
+        return Icons.home_rounded;
+      case 'clean':
+        return Icons.cleaning_services_rounded;
+      case 'air':
+        return Icons.ac_unit_rounded;
+      case 'camera':
+        return Icons.videocam_rounded;
+      case 'hospital':
+        return Icons.local_hospital_rounded;
+      case 'water':
+        return Icons.water_drop_rounded;
+      case 'sun':
+        return Icons.wb_sunny_rounded;
+      case 'clean_hand':
+        return Icons.clean_hands_rounded;
+      case 'pets':
+        return Icons.pets_rounded;
+      case 'toys':
+        return Icons.toys_rounded;
+      default:
+        return Icons.pets_rounded;
+    }
   }
-}
 }
 
 Widget _networkImage({
@@ -282,9 +290,7 @@ Widget _networkImage({
         width: width,
         height: height,
         color: const Color(0xFFF5EBDD),
-        child: const Center(
-          child: CircularProgressIndicator(strokeWidth: 2),
-        ),
+        child: const Center(child: CircularProgressIndicator(strokeWidth: 2)),
       );
     },
     errorBuilder: (context, error, stackTrace) {
@@ -300,4 +306,3 @@ Widget _networkImage({
     },
   );
 }
-

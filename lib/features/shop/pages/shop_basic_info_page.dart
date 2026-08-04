@@ -46,10 +46,13 @@ class _ShopBasicInfoPageState extends State<ShopBasicInfoPage> {
 
   bool _isInitialSetup = false;
 
+  /// 特寵字號與統編是否仍為首次設定
+  bool _licenseInitialSetup = false;
+  bool _taxIdInitialSetup = false;
+
   bool _lineInitialSetup = false;
   bool _igInitialSetup = false;
   bool _fbInitialSetup = false;
-
   String _businessType = 'cat';
 
   @override
@@ -86,6 +89,10 @@ class _ShopBasicInfoPageState extends State<ShopBasicInfoPage> {
         _phoneController.text.trim().isEmpty ||
         _addressController.text.trim().isEmpty;
 
+    /// 欄位沒有資料時，可以進行第一次設定；已有資料就鎖定
+    _licenseInitialSetup = _licenseController.text.trim().isEmpty;
+    _taxIdInitialSetup = _taxIdController.text.trim().isEmpty;
+
     _lineInitialSetup = _lineUrlController.text.trim().isEmpty;
 
     _igInitialSetup = _igUrlController.text.trim().isEmpty;
@@ -118,6 +125,10 @@ class _ShopBasicInfoPageState extends State<ShopBasicInfoPage> {
         taxId: _taxIdController.text,
         showTaxId: _showTaxId,
       );
+
+      /// 第一次儲存成功後，只要已有資料就立即改為鎖定狀態
+      _licenseInitialSetup = _licenseController.text.trim().isEmpty;
+      _taxIdInitialSetup = _taxIdController.text.trim().isEmpty;
 
       _lineInitialSetup = _lineUrlController.text.trim().isEmpty;
       _igInitialSetup = _igUrlController.text.trim().isEmpty;
@@ -423,10 +434,18 @@ class _ShopBasicInfoPageState extends State<ShopBasicInfoPage> {
                         const SizedBox(height: 8),
                         TextFormField(
                           controller: _licenseController,
-                          readOnly: false,
-                          decoration: _input(
-                            _isInitialSetup ? '特寵字號（首次設定）' : '特寵字號（需申請修改）',
-                          ).copyWith(filled: true, fillColor: Colors.white),
+                          readOnly: !_licenseInitialSetup,
+                          decoration:
+                              _input(
+                                _licenseInitialSetup
+                                    ? '特寵字號（首次設定）'
+                                    : '特寵字號（需申請修改）',
+                              ).copyWith(
+                                filled: true,
+                                fillColor: _licenseInitialSetup
+                                    ? Colors.white
+                                    : Colors.grey.shade100,
+                              ),
                         ),
                         const SizedBox(height: 8),
                         Text(
@@ -460,10 +479,16 @@ class _ShopBasicInfoPageState extends State<ShopBasicInfoPage> {
                         const SizedBox(height: 8),
                         TextFormField(
                           controller: _taxIdController,
-                          readOnly: false,
-                          decoration: _input(
-                            _isInitialSetup ? '統編（首次設定）' : '統編（需申請修改）',
-                          ).copyWith(filled: true, fillColor: Colors.white),
+                          readOnly: !_taxIdInitialSetup,
+                          decoration:
+                              _input(
+                                _taxIdInitialSetup ? '統編（首次設定）' : '統編（需申請修改）',
+                              ).copyWith(
+                                filled: true,
+                                fillColor: _taxIdInitialSetup
+                                    ? Colors.white
+                                    : Colors.grey.shade100,
+                              ),
                         ),
                         SwitchListTile(
                           contentPadding: EdgeInsets.zero,

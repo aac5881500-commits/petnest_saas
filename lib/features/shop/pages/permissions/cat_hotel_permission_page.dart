@@ -128,6 +128,21 @@ class _CatHotelPermissionPageState extends State<CatHotelPermissionPage> {
           ),
 
           PermissionSwitchTile(
+            title: '實體商品核銷中心',
+            subtitle: '可查看待領取商品、搜尋領取碼、完成交付及取消退點',
+            value:
+                widget.permissions[ShopPermissionKeys.managePointRedemptions] ??
+                false,
+            enabled: widget.isOwner,
+            onChanged: (value) {
+              _updatePermission(
+                ShopPermissionKeys.managePointRedemptions,
+                value,
+              );
+            },
+          ),
+
+          PermissionSwitchTile(
             title: '住宿與加購',
             subtitle: '可新增、修改住宿加購與附加服務',
             value: widget.permissions[ShopPermissionKeys.manageAddons] ?? false,

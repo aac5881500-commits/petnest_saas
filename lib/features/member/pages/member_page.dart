@@ -11,9 +11,18 @@ import 'package:petnest_saas/features/pet/pages/add_pet_page.dart';
 import 'package:petnest_saas/features/booking/pages/my_bookings_page.dart';
 import 'package:petnest_saas/core/constants/taiwan_city_data.dart';
 import 'package:petnest_saas/features/booking/pages/my_reviews_page.dart';
+import 'package:petnest_saas/features/member/pages/member_point_detail_page.dart';
+import 'package:petnest_saas/features/member/pages/member_coupon_page.dart';
+import 'package:petnest_saas/core/services/notification_service.dart';
+import 'package:petnest_saas/features/notifications/pages/notification_center_page.dart';
+import 'package:petnest_saas/features/notifications/pages/notification_setting_page.dart';
+import 'package:petnest_saas/features/member/pages/member_point_redemption_page.dart';
 
 class MemberPage extends StatefulWidget {
-  const MemberPage({super.key});
+  const MemberPage({super.key, required this.shopId, this.shopName = ''});
+
+  final String shopId;
+  final String shopName;
 
   @override
   State<MemberPage> createState() => _MemberPageState();
@@ -270,7 +279,68 @@ class _MemberPageState extends State<MemberPage> {
     }
 
     return Scaffold(
-      appBar: AppBar(title: const Text('會員中心')),
+      appBar: AppBar(
+        title: const Text('會員中心'),
+        actions: [
+          StreamBuilder<int>(
+            stream: NotificationService.instance.unreadCountStream(),
+            builder: (context, snapshot) {
+              final unreadCount = snapshot.data ?? 0;
+
+              return IconButton(
+                tooltip: '通知中心',
+                onPressed: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) => const NotificationCenterPage(),
+                    ),
+                  );
+                },
+                icon: Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    const Icon(Icons.notifications_outlined),
+                    if (unreadCount > 0)
+                      Positioned(
+                        top: -6,
+                        right: -7,
+                        child: Container(
+                          constraints: const BoxConstraints(
+                            minWidth: 18,
+                            minHeight: 18,
+                          ),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 5,
+                            vertical: 2,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.red,
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(
+                              color: Theme.of(context).colorScheme.surface,
+                              width: 1.5,
+                            ),
+                          ),
+                          child: Text(
+                            unreadCount > 99 ? '99+' : unreadCount.toString(),
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                              height: 1,
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              );
+            },
+          ),
+          const SizedBox(width: 4),
+        ],
+      ),
       body: Padding(
         padding: const EdgeInsets.all(16),
         child: Form(
@@ -1040,12 +1110,138 @@ class _MemberPageState extends State<MemberPage> {
                                   Navigator.push(
                                     context,
                                     MaterialPageRoute(
-                                      builder: (_) => const MyBookingsPage(),
+                                      builder: (_) => MyBookingsPage(
+                                        returnShopId: widget.shopId,
+                                      ),
                                     ),
                                   );
                                 },
                               ),
                               const Divider(height: 1),
+                              ListTile(
+                                contentPadding: EdgeInsets.zero,
+                                leading: CircleAvatar(
+                                  radius: 26,
+                                  backgroundColor: Colors.orange.shade50,
+                                  child: const Icon(Icons.stars_outlined),
+                                ),
+                                title: const Text(
+                                  '我的點數',
+                                  style: TextStyle(fontWeight: FontWeight.bold),
+                                ),
+                                subtitle: const Text('查看目前點數與點數紀錄'),
+                                trailing: const Icon(Icons.chevron_right),
+                                onTap: () async {
+                                  String currentShopId = widget.shopId.trim();
+                                  String currentShopName = widget.shopName
+                                      .trim();
+
+                                  // 舊入口沒有傳入店家時，暫時保留最新訂單作為相容處理。
+                                  // 等 Classic、Modern Drawer 都完成傳值後，再移除此備援。
+                                  if (currentShopId.isEmpty) {
+                                    final QuerySnapshot<Map<String, dynamic>>
+                                    bookingSnapshot = await FirebaseFirestore
+                                        .instance
+                                        .collection('bookings')
+                                        .where('userId', isEqualTo: user.uid)
+                                        .orderBy('createdAt', descending: true)
+                                        .limit(1)
+                                        .get();
+
+                                    if (!context.mounted) return;
+
+                                    if (bookingSnapshot.docs.isEmpty) {
+                                      ScaffoldMessenger.of(
+                                        context,
+                                      ).showSnackBar(
+                                        const SnackBar(
+                                          content: Text('目前沒有可查看的店家點數'),
+                                        ),
+                                      );
+                                      return;
+                                    }
+
+                                    final Map<String, dynamic> bookingData =
+                                        bookingSnapshot.docs.first.data();
+
+                                    currentShopId =
+                                        (bookingData['shopId'] ?? '')
+                                            .toString()
+                                            .trim();
+
+                                    currentShopName =
+                                        (bookingData['shopName'] ?? '')
+                                            .toString()
+                                            .trim();
+                                  }
+
+                                  if (currentShopId.isEmpty) {
+                                    if (!context.mounted) return;
+
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                        content: Text('找不到目前店家資料'),
+                                      ),
+                                    );
+                                    return;
+                                  }
+
+                                  if (!context.mounted) return;
+
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute<void>(
+                                      builder: (_) => MemberPointDetailPage(
+                                        shopId: currentShopId,
+                                        shopName: currentShopName,
+                                      ),
+                                    ),
+                                  );
+                                },
+                              ),
+                              const Divider(height: 1),
+
+                              ListTile(
+                                contentPadding: EdgeInsets.zero,
+                                leading: CircleAvatar(
+                                  radius: 26,
+                                  backgroundColor: Colors.purple.shade50,
+                                  child: Icon(
+                                    Icons.confirmation_number_outlined,
+                                    color: Colors.purple.shade700,
+                                  ),
+                                ),
+                                title: const Text(
+                                  '我的優惠券',
+                                  style: TextStyle(fontWeight: FontWeight.bold),
+                                ),
+                                subtitle: const Text('查看目前店家的可用與歷史優惠券'),
+                                trailing: const Icon(Icons.chevron_right),
+                                onTap: () {
+                                  final currentShopId = widget.shopId.trim();
+
+                                  if (currentShopId.isEmpty) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                        content: Text('找不到目前店家資料'),
+                                      ),
+                                    );
+                                    return;
+                                  }
+
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute<void>(
+                                      builder: (_) => MemberCouponPage(
+                                        shopId: currentShopId,
+                                        shopName: widget.shopName.trim(),
+                                      ),
+                                    ),
+                                  );
+                                },
+                              ),
+                              const Divider(height: 1),
+
                               ListTile(
                                 contentPadding: EdgeInsets.zero,
                                 leading: CircleAvatar(
@@ -1064,6 +1260,73 @@ class _MemberPageState extends State<MemberPage> {
                                     context,
                                     MaterialPageRoute(
                                       builder: (_) => const MyReviewsPage(),
+                                    ),
+                                  );
+                                },
+                              ),
+                              const Divider(height: 1),
+                              ListTile(
+                                contentPadding: EdgeInsets.zero,
+                                leading: CircleAvatar(
+                                  radius: 26,
+                                  backgroundColor: Colors.blueGrey.shade50,
+                                  child: Icon(
+                                    Icons.inventory_2_outlined,
+                                    color: Colors.blueGrey.shade700,
+                                  ),
+                                ),
+                                title: const Text(
+                                  '我的實體商品',
+                                  style: TextStyle(fontWeight: FontWeight.bold),
+                                ),
+                                subtitle: const Text('查看待領取商品、領取碼與兌換狀態'),
+                                trailing: const Icon(Icons.chevron_right),
+                                onTap: () {
+                                  final String currentShopId = widget.shopId
+                                      .trim();
+
+                                  if (currentShopId.isEmpty) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                        content: Text('找不到目前店家資料'),
+                                      ),
+                                    );
+                                    return;
+                                  }
+
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute<void>(
+                                      builder: (_) => MemberPointRedemptionPage(
+                                        shopId: currentShopId,
+                                        shopName: widget.shopName.trim(),
+                                      ),
+                                    ),
+                                  );
+                                },
+                              ),
+                              const Divider(height: 1),
+                              ListTile(
+                                contentPadding: EdgeInsets.zero,
+                                leading: CircleAvatar(
+                                  radius: 26,
+                                  backgroundColor: Colors.green.shade50,
+                                  child: const Icon(
+                                    Icons.notifications_active_outlined,
+                                  ),
+                                ),
+                                title: const Text(
+                                  '通知設定',
+                                  style: TextStyle(fontWeight: FontWeight.bold),
+                                ),
+                                subtitle: const Text('調整訂單、聊天、評價與入住提醒'),
+                                trailing: const Icon(Icons.chevron_right),
+                                onTap: () {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (_) =>
+                                          const NotificationSettingPage(),
                                     ),
                                   );
                                 },

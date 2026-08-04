@@ -1,6 +1,7 @@
 // lib/features/shop/widgets/booking/booking_addon_section.dart
-// 🔥 前台預約加值服務區塊：顯示營業時間外入住、加值服務、客製化服務
-// ✅ 防呆版：避免 addonData 缺少欄位時 Unexpected null value
+// 🔥 前台預約加值服務區塊
+// 功能：顯示營業時間外入住、一般加值服務、客製化服務、每日分時段服務
+// ✅ 防呆版：避免 addonData 缺少欄位時出現 Unexpected null value
 
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/features/shop/widgets/booking/addon_item_card.dart';
@@ -16,11 +17,15 @@ class BookingAddonSection extends StatelessWidget {
     required this.selectedTimeAddon,
     required this.selectedValueServices,
     required this.selectedCustomServices,
+    this.startDate,
+    this.endDate,
+    this.selectedDailyTimedServices = const {},
     required this.onToggleShowAddons,
     required this.onSelectTimeAddon,
     required this.onToggleValueService,
     required this.onToggleCustomService,
     required this.onToggleCustomPet,
+    required this.onDailyTimedServicesChanged,
   });
 
   final bool showAddons;
@@ -33,12 +38,160 @@ class BookingAddonSection extends StatelessWidget {
   final List<Map<String, dynamic>> selectedValueServices;
   final Map<String, List<String>> selectedCustomServices;
 
+  /// 入住日期
+  final DateTime? startDate;
+
+  /// 退房日期
+  ///
+  /// 每日服務不包含退房當天。
+  final DateTime? endDate;
+
+  /// 每日分時段服務選擇結果
+  ///
+  /// 結構：
+  /// serviceId → petId → yyyy-MM-dd → 時段 ID 清單
+  final Map<String, Map<String, Map<String, List<String>>>>
+  selectedDailyTimedServices;
+
   final VoidCallback onToggleShowAddons;
   final ValueChanged<Map<String, dynamic>> onSelectTimeAddon;
   final ValueChanged<Map<String, dynamic>> onToggleValueService;
   final ValueChanged<Map<String, dynamic>> onToggleCustomService;
+
   final void Function(String serviceName, String petId, bool selected)
   onToggleCustomPet;
+
+  /// 每日分時段服務資料改變後，通知外層重新整理畫面。
+  final VoidCallback onDailyTimedServicesChanged;
+
+  /// 取得每日分時段服務的穩定識別 ID。
+  ///
+  /// 優先使用 Firestore 中的 id；
+  /// 尚未有 id 時，暫時以服務名稱建立識別值。
+  String _dailyTimedServiceId(Map<String, dynamic> service, int index) {
+    final id = service['id']?.toString().trim() ?? '';
+
+    if (id.isNotEmpty) {
+      return id;
+    }
+
+    final name = service['name']?.toString().trim() ?? '';
+
+    if (name.isNotEmpty) {
+      return 'daily_timed_$name';
+    }
+
+    return 'daily_timed_$index';
+  }
+
+  /// 取得寵物 ID。
+  ///
+  /// 相容目前專案可能使用 petId 或 id 的資料格式。
+  String _petId(Map<String, dynamic> pet) {
+    final petId = pet['petId']?.toString().trim() ?? '';
+
+    if (petId.isNotEmpty) {
+      return petId;
+    }
+
+    return pet['id']?.toString().trim() ?? '';
+  }
+
+  /// 取得寵物名稱。
+  String _petName(Map<String, dynamic> pet, String fallbackPetId) {
+    final name = pet['name']?.toString().trim() ?? '';
+
+    if (name.isNotEmpty) {
+      return name;
+    }
+
+    return fallbackPetId.isNotEmpty ? fallbackPetId : '未命名寵物';
+  }
+
+  /// 產生住宿期間的服務日期。
+  ///
+  /// 包含入住日，不包含退房日。
+  List<DateTime> _buildServiceDates() {
+    if (startDate == null || endDate == null) {
+      return const [];
+    }
+
+    final normalizedStart = DateTime(
+      startDate!.year,
+      startDate!.month,
+      startDate!.day,
+    );
+
+    final normalizedEnd = DateTime(endDate!.year, endDate!.month, endDate!.day);
+
+    if (!normalizedEnd.isAfter(normalizedStart)) {
+      return const [];
+    }
+
+    final dates = <DateTime>[];
+    var currentDate = normalizedStart;
+
+    while (currentDate.isBefore(normalizedEnd)) {
+      dates.add(currentDate);
+      currentDate = currentDate.add(const Duration(days: 1));
+    }
+
+    return dates;
+  }
+
+  /// 將日期轉成儲存用格式。
+  String _dateKey(DateTime date) {
+    final month = date.month.toString().padLeft(2, '0');
+    final day = date.day.toString().padLeft(2, '0');
+
+    return '${date.year}-$month-$day';
+  }
+
+  /// 顯示日期文字。
+  String _dateLabel(DateTime date) {
+    const weekdays = <String>['一', '二', '三', '四', '五', '六', '日'];
+
+    return '${date.month}/${date.day}（週${weekdays[date.weekday - 1]}）';
+  }
+
+  /// 取得服務可選時段。
+  ///
+  /// 相容新版 Map 格式，也避免舊資料造成畫面錯誤。
+  List<Map<String, dynamic>> _serviceTimeSlots(Map<String, dynamic> service) {
+    final rawSlots = service['timeSlots'];
+
+    if (rawSlots is! List) {
+      return const [];
+    }
+
+    final slots = <Map<String, dynamic>>[];
+
+    for (var index = 0; index < rawSlots.length; index++) {
+      final rawSlot = rawSlots[index];
+
+      if (rawSlot is Map) {
+        final slot = Map<String, dynamic>.from(rawSlot);
+
+        final label = slot['label']?.toString().trim() ?? '';
+
+        if (label.isEmpty) {
+          continue;
+        }
+
+        final id = slot['id']?.toString().trim() ?? '';
+
+        slots.add({'id': id.isNotEmpty ? id : 'slot_$index', 'label': label});
+      } else {
+        final label = rawSlot?.toString().trim() ?? '';
+
+        if (label.isNotEmpty) {
+          slots.add({'id': 'slot_$index', 'label': label});
+        }
+      }
+    }
+
+    return slots;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -55,6 +208,11 @@ class BookingAddonSection extends StatelessWidget {
     final customServices = List<Map<String, dynamic>>.from(
       addonData?['customServices'] ?? [],
     );
+
+    final dailyTimedServices = List<Map<String, dynamic>>.from(
+      addonData?['dailyTimedServices'] ?? [],
+    );
+    final serviceDates = _buildServiceDates();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -117,22 +275,25 @@ class BookingAddonSection extends StatelessWidget {
                     ),
                   ),
 
+                /// ⏰ 營業時間外入住
                 if (addonEnabled && timeOptions.isNotEmpty) ...[
                   const SizedBox(height: 10),
                   const Text(
                     '營業時間外入住',
                     style: TextStyle(fontWeight: FontWeight.bold),
                   ),
-
                   const SizedBox(height: 6),
 
                   ...timeOptions.map((item) {
                     final label = item['label']?.toString() ?? '';
+
                     final isSelected =
                         selectedTimeAddon?['label'] == item['label'];
 
                     return GestureDetector(
-                      onTap: () => onSelectTimeAddon(item),
+                      onTap: () {
+                        onSelectTimeAddon(item);
+                      },
                       child: AddonItemCard(
                         item: {...item, 'name': label},
                         isSelected: isSelected,
@@ -141,6 +302,7 @@ class BookingAddonSection extends StatelessWidget {
                   }),
                 ],
 
+                /// 💰 一般加值服務
                 if (valueServices.isNotEmpty) ...[
                   const SizedBox(height: 16),
                   const Text(
@@ -152,17 +314,22 @@ class BookingAddonSection extends StatelessWidget {
                   ...valueServices.map((item) {
                     final itemName = item['name']?.toString() ?? '';
 
-                    final isSelected = selectedValueServices.any(
-                      (e) => e['name'] == itemName,
-                    );
+                    final isSelected = selectedValueServices.any((
+                      selectedItem,
+                    ) {
+                      return selectedItem['name'] == itemName;
+                    });
 
                     return GestureDetector(
-                      onTap: () => onToggleValueService(item),
+                      onTap: () {
+                        onToggleValueService(item);
+                      },
                       child: AddonItemCard(item: item, isSelected: isSelected),
                     );
                   }),
                 ],
 
+                /// 🛠 客製化服務
                 if (customServices.isNotEmpty) ...[
                   const SizedBox(height: 16),
                   const Text(
@@ -183,7 +350,9 @@ class BookingAddonSection extends StatelessWidget {
                     );
 
                     return GestureDetector(
-                      onTap: () => onToggleCustomService(item),
+                      onTap: () {
+                        onToggleCustomService(item);
+                      },
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
@@ -194,23 +363,29 @@ class BookingAddonSection extends StatelessWidget {
                               padding: const EdgeInsets.only(left: 30, top: 6),
                               child: Wrap(
                                 spacing: 6,
+                                runSpacing: 6,
                                 children: selectedPetIds.map((petId) {
                                   final pet = pets.firstWhere(
-                                    (p) => p['petId'] == petId,
-                                    orElse: () => {},
+                                    (pet) {
+                                      return _petId(pet) == petId;
+                                    },
+                                    orElse: () {
+                                      return <String, dynamic>{};
+                                    },
                                   );
 
-                                  final petName =
-                                      pet['name']?.toString() ?? petId;
+                                  final petName = _petName(pet, petId);
 
                                   final selectedList =
-                                      selectedCustomServices[serviceName] ?? [];
+                                      selectedCustomServices[serviceName] ??
+                                      <String>[];
 
                                   final selected = selectedList.contains(petId);
 
                                   return FilterChip(
                                     label: Text('🐱 $petName'),
                                     selected: selected,
+                                    showCheckmark: false,
                                     onSelected: (value) {
                                       onToggleCustomPet(
                                         serviceName,
@@ -223,6 +398,494 @@ class BookingAddonSection extends StatelessWidget {
                               ),
                             ),
                         ],
+                      ),
+                    );
+                  }),
+                ],
+
+                /// 🕐 每日分時段服務
+                if (dailyTimedServices.isNotEmpty) ...[
+                  const SizedBox(height: 18),
+
+                  const Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      '每日分時段服務',
+                      style: TextStyle(
+                        fontSize: 17,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+
+                  const SizedBox(height: 6),
+
+                  const Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      '請先選擇需要服務的寵物，再依住宿期間每天選擇服務時段。',
+                      style: TextStyle(fontSize: 13, color: Colors.grey),
+                    ),
+                  ),
+
+                  const SizedBox(height: 10),
+
+                  ...dailyTimedServices.asMap().entries.map((entry) {
+                    final serviceIndex = entry.key;
+                    final service = entry.value;
+
+                    final serviceId = _dailyTimedServiceId(
+                      service,
+                      serviceIndex,
+                    );
+
+                    final serviceName =
+                        service['name']?.toString().trim() ?? '';
+
+                    if (serviceName.isEmpty) {
+                      return const SizedBox.shrink();
+                    }
+
+                    final serviceDesc =
+                        service['desc']?.toString().trim() ?? '';
+
+                    final servicePrice =
+                        (service['price'] as num?)?.toInt() ?? 0;
+
+                    final selectedServicePets =
+                        selectedDailyTimedServices[serviceId] ??
+                        <String, Map<String, List<String>>>{};
+
+                    final availablePets = pets.where((pet) {
+                      final petId = _petId(pet);
+
+                      return petId.isNotEmpty && selectedPetIds.contains(petId);
+                    }).toList();
+
+                    return Card(
+                      margin: const EdgeInsets.only(bottom: 12),
+                      elevation: 0,
+                      color: Colors.white,
+                      surfaceTintColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                        side: BorderSide(color: Colors.grey.shade300),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Padding(
+                        padding: const EdgeInsets.all(12),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    serviceName,
+                                    style: const TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 10),
+                                Text(
+                                  '\$$servicePrice / 次',
+                                  style: const TextStyle(
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ],
+                            ),
+
+                            if (serviceDesc.isNotEmpty) ...[
+                              const SizedBox(height: 6),
+                              Text(
+                                serviceDesc,
+                                style: const TextStyle(
+                                  fontSize: 13,
+                                  color: Colors.grey,
+                                ),
+                              ),
+                            ],
+
+                            const Divider(height: 24),
+
+                            const Text(
+                              '選擇服務寵物',
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+
+                            const SizedBox(height: 6),
+
+                            if (selectedPetIds.isEmpty)
+                              const Padding(
+                                padding: EdgeInsets.symmetric(vertical: 8),
+                                child: Text(
+                                  '請先在前面選擇入住寵物。',
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    color: Colors.orange,
+                                  ),
+                                ),
+                              )
+                            else if (availablePets.isEmpty)
+                              const Padding(
+                                padding: EdgeInsets.symmetric(vertical: 8),
+                                child: Text(
+                                  '找不到已選擇的寵物資料。',
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    color: Colors.orange,
+                                  ),
+                                ),
+                              )
+                            else
+                              ...availablePets.map((pet) {
+                                final petId = _petId(pet);
+                                final petName = _petName(pet, petId);
+
+                                final isSelected = selectedServicePets
+                                    .containsKey(petId);
+
+                                final timeSlots = _serviceTimeSlots(service);
+
+                                final petDateSelections =
+                                    selectedServicePets[petId] ??
+                                    <String, List<String>>{};
+
+                                return Container(
+                                  margin: const EdgeInsets.only(bottom: 10),
+                                  decoration: BoxDecoration(
+                                    color: isSelected
+                                        ? Colors.white
+                                        : Colors.grey.shade50,
+                                    border: Border.all(
+                                      color: isSelected
+                                          ? Colors.blueGrey.shade300
+                                          : Colors.grey.shade200,
+                                      width: isSelected ? 1.2 : 1,
+                                    ),
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                  child: Column(
+                                    children: [
+                                      CheckboxListTile(
+                                        contentPadding:
+                                            const EdgeInsets.symmetric(
+                                              horizontal: 8,
+                                            ),
+                                        dense: true,
+                                        controlAffinity:
+                                            ListTileControlAffinity.leading,
+                                        title: Text('🐱 $petName'),
+                                        subtitle: isSelected
+                                            ? const Text(
+                                                '請選擇每天需要的服務時段',
+                                                style: TextStyle(fontSize: 12),
+                                              )
+                                            : null,
+                                        value: isSelected,
+                                        onChanged: (value) {
+                                          if (value == null || petId.isEmpty) {
+                                            return;
+                                          }
+
+                                          if (value) {
+                                            selectedDailyTimedServices
+                                                .putIfAbsent(serviceId, () {
+                                                  return <
+                                                    String,
+                                                    Map<String, List<String>>
+                                                  >{};
+                                                })
+                                                .putIfAbsent(petId, () {
+                                                  return <
+                                                    String,
+                                                    List<String>
+                                                  >{};
+                                                });
+                                          } else {
+                                            selectedDailyTimedServices[serviceId]
+                                                ?.remove(petId);
+
+                                            final serviceSelection =
+                                                selectedDailyTimedServices[serviceId];
+
+                                            if (serviceSelection == null ||
+                                                serviceSelection.isEmpty) {
+                                              selectedDailyTimedServices.remove(
+                                                serviceId,
+                                              );
+                                            }
+                                          }
+
+                                          onDailyTimedServicesChanged();
+                                        },
+                                      ),
+
+                                      if (isSelected)
+                                        Padding(
+                                          padding: const EdgeInsets.fromLTRB(
+                                            12,
+                                            0,
+                                            12,
+                                            12,
+                                          ),
+                                          child: Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
+                                            children: [
+                                              if (startDate == null ||
+                                                  endDate == null)
+                                                const Padding(
+                                                  padding: EdgeInsets.symmetric(
+                                                    vertical: 8,
+                                                  ),
+                                                  child: Text(
+                                                    '請先選擇入住與退房日期。',
+                                                    style: TextStyle(
+                                                      fontSize: 13,
+                                                      color: Colors.orange,
+                                                    ),
+                                                  ),
+                                                )
+                                              else if (serviceDates.isEmpty)
+                                                const Padding(
+                                                  padding: EdgeInsets.symmetric(
+                                                    vertical: 8,
+                                                  ),
+                                                  child: Text(
+                                                    '目前沒有可設定的住宿日期。',
+                                                    style: TextStyle(
+                                                      fontSize: 13,
+                                                      color: Colors.orange,
+                                                    ),
+                                                  ),
+                                                )
+                                              else if (timeSlots.isEmpty)
+                                                const Padding(
+                                                  padding: EdgeInsets.symmetric(
+                                                    vertical: 8,
+                                                  ),
+                                                  child: Text(
+                                                    '店家尚未設定此服務的可選時段。',
+                                                    style: TextStyle(
+                                                      fontSize: 13,
+                                                      color: Colors.orange,
+                                                    ),
+                                                  ),
+                                                )
+                                              else
+                                                ...serviceDates.map((date) {
+                                                  final dateKey = _dateKey(
+                                                    date,
+                                                  );
+
+                                                  final selectedSlotIds =
+                                                      petDateSelections[dateKey] ??
+                                                      <String>[];
+
+                                                  return Container(
+                                                    width: double.infinity,
+                                                    margin:
+                                                        const EdgeInsets.only(
+                                                          top: 8,
+                                                        ),
+                                                    padding:
+                                                        const EdgeInsets.all(
+                                                          10,
+                                                        ),
+                                                    decoration: BoxDecoration(
+                                                      color:
+                                                          Colors.grey.shade50,
+                                                      border: Border.all(
+                                                        color: Colors
+                                                            .grey
+                                                            .shade200,
+                                                      ),
+                                                      borderRadius:
+                                                          BorderRadius.circular(
+                                                            10,
+                                                          ),
+                                                    ),
+                                                    child: Column(
+                                                      crossAxisAlignment:
+                                                          CrossAxisAlignment
+                                                              .start,
+                                                      children: [
+                                                        Text(
+                                                          _dateLabel(date),
+                                                          style:
+                                                              const TextStyle(
+                                                                fontSize: 14,
+                                                                fontWeight:
+                                                                    FontWeight
+                                                                        .bold,
+                                                              ),
+                                                        ),
+                                                        const SizedBox(
+                                                          height: 8,
+                                                        ),
+                                                        Wrap(
+                                                          spacing: 8,
+                                                          runSpacing: 8,
+                                                          children: timeSlots.map((
+                                                            slot,
+                                                          ) {
+                                                            final slotId =
+                                                                slot['id']
+                                                                    ?.toString() ??
+                                                                '';
+
+                                                            final slotLabel =
+                                                                slot['label']
+                                                                    ?.toString() ??
+                                                                '';
+
+                                                            final selected =
+                                                                selectedSlotIds
+                                                                    .contains(
+                                                                      slotId,
+                                                                    );
+
+                                                            return FilterChip(
+                                                              label: Text(
+                                                                slotLabel,
+                                                                style: TextStyle(
+                                                                  fontSize: 13,
+                                                                  fontWeight:
+                                                                      selected
+                                                                      ? FontWeight
+                                                                            .w600
+                                                                      : FontWeight
+                                                                            .normal,
+                                                                ),
+                                                              ),
+                                                              selected:
+                                                                  selected,
+                                                              showCheckmark:
+                                                                  false,
+                                                              visualDensity:
+                                                                  VisualDensity
+                                                                      .compact,
+                                                              materialTapTargetSize:
+                                                                  MaterialTapTargetSize
+                                                                      .shrinkWrap,
+                                                              padding:
+                                                                  const EdgeInsets.symmetric(
+                                                                    horizontal:
+                                                                        8,
+                                                                    vertical: 6,
+                                                                  ),
+                                                              backgroundColor:
+                                                                  Colors.white,
+                                                              selectedColor:
+                                                                  Colors
+                                                                      .blueGrey
+                                                                      .shade100,
+                                                              side: BorderSide(
+                                                                color: selected
+                                                                    ? Colors
+                                                                          .blueGrey
+                                                                          .shade400
+                                                                    : Colors
+                                                                          .grey
+                                                                          .shade300,
+                                                              ),
+                                                              shape: RoundedRectangleBorder(
+                                                                borderRadius:
+                                                                    BorderRadius.circular(
+                                                                      8,
+                                                                    ),
+                                                              ),
+                                                              onSelected: (value) {
+                                                                final serviceSelections =
+                                                                    selectedDailyTimedServices.putIfAbsent(
+                                                                      serviceId,
+                                                                      () {
+                                                                        return <
+                                                                          String,
+                                                                          Map<
+                                                                            String,
+                                                                            List<
+                                                                              String
+                                                                            >
+                                                                          >
+                                                                        >{};
+                                                                      },
+                                                                    );
+
+                                                                final petSelections =
+                                                                    serviceSelections.putIfAbsent(
+                                                                      petId,
+                                                                      () {
+                                                                        return <
+                                                                          String,
+                                                                          List<
+                                                                            String
+                                                                          >
+                                                                        >{};
+                                                                      },
+                                                                    );
+
+                                                                final dateSelections =
+                                                                    petSelections.putIfAbsent(
+                                                                      dateKey,
+                                                                      () {
+                                                                        return <
+                                                                          String
+                                                                        >[];
+                                                                      },
+                                                                    );
+
+                                                                if (value) {
+                                                                  if (!dateSelections
+                                                                      .contains(
+                                                                        slotId,
+                                                                      )) {
+                                                                    dateSelections
+                                                                        .add(
+                                                                          slotId,
+                                                                        );
+                                                                  }
+                                                                } else {
+                                                                  dateSelections
+                                                                      .remove(
+                                                                        slotId,
+                                                                      );
+
+                                                                  if (dateSelections
+                                                                      .isEmpty) {
+                                                                    petSelections
+                                                                        .remove(
+                                                                          dateKey,
+                                                                        );
+                                                                  }
+                                                                }
+
+                                                                onDailyTimedServicesChanged();
+                                                              },
+                                                            );
+                                                          }).toList(),
+                                                        ),
+                                                      ],
+                                                    ),
+                                                  );
+                                                }),
+                                            ],
+                                          ),
+                                        ),
+                                    ],
+                                  ),
+                                );
+                              }),
+                          ],
+                        ),
                       ),
                     );
                   }),

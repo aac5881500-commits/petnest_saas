@@ -4,13 +4,19 @@
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:petnest_saas/core/models/home_theme_model.dart';
 import 'package:petnest_saas/core/models/review_model.dart';
 import 'package:petnest_saas/features/booking/widgets/review_card.dart';
 
 class ShopReviewListPage extends StatefulWidget {
-  const ShopReviewListPage({super.key, required this.shopId});
+  const ShopReviewListPage({
+    super.key,
+    required this.shopId,
+    this.theme = HomeThemeModel.classicDefault,
+  });
 
   final String shopId;
+  final HomeThemeModel theme;
 
   @override
   State<ShopReviewListPage> createState() => _ShopReviewListPageState();
@@ -25,10 +31,17 @@ class _ShopReviewListPageState extends State<ShopReviewListPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFFFFCF7),
+      backgroundColor: widget.theme.backgroundColor,
       appBar: AppBar(
-        title: const Text('顧客評價'),
-        backgroundColor: const Color(0xFFFFFCF7),
+        title: Text(
+          '顧客評價',
+          style: TextStyle(
+            color: widget.theme.textColor,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        backgroundColor: widget.theme.cardColor,
+        foregroundColor: widget.theme.textColor,
         elevation: 0,
         surfaceTintColor: Colors.transparent,
       ),
@@ -43,13 +56,20 @@ class _ShopReviewListPageState extends State<ShopReviewListPage> {
             return Center(
               child: Padding(
                 padding: const EdgeInsets.all(24),
-                child: Text('讀取評價失敗：${snapshot.error}'),
+                child: Text(
+                  '讀取評價失敗：${snapshot.error}',
+                  style: TextStyle(color: widget.theme.textColor),
+                ),
               ),
             );
           }
 
           if (!snapshot.hasData) {
-            return const Center(child: CircularProgressIndicator());
+            return Center(
+              child: CircularProgressIndicator(
+                color: widget.theme.primaryColor,
+              ),
+            );
           }
 
           final reviews = snapshot.data!.docs.map(ReviewModel.fromDoc).toList();
@@ -66,7 +86,12 @@ class _ShopReviewListPageState extends State<ShopReviewListPage> {
           });
 
           if (reviews.isEmpty) {
-            return const Center(child: Text('目前尚無評價'));
+            return Center(
+              child: Text(
+                '目前尚無評價',
+                style: TextStyle(color: widget.theme.textColor),
+              ),
+            );
           }
 
           double total = 0;
@@ -124,9 +149,9 @@ class _ShopReviewListPageState extends State<ShopReviewListPage> {
                 width: double.infinity,
                 padding: const EdgeInsets.all(18),
                 decoration: BoxDecoration(
-                  color: Colors.white,
+                  color: widget.theme.cardColor,
                   borderRadius: BorderRadius.circular(18),
-                  border: Border.all(color: const Color(0xFFF0E0CC)),
+                  border: Border.all(color: widget.theme.cardBorderColor),
                 ),
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -138,10 +163,10 @@ class _ShopReviewListPageState extends State<ShopReviewListPage> {
                         children: [
                           Text(
                             average.toStringAsFixed(1),
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: 36,
                               fontWeight: FontWeight.w900,
-                              color: Color(0xFF3A2A1A),
+                              color: widget.theme.textColor,
                             ),
                           ),
                           const SizedBox(height: 4),
@@ -180,7 +205,7 @@ class _ShopReviewListPageState extends State<ShopReviewListPage> {
                             '${reviews.length} 則評價',
                             style: TextStyle(
                               fontSize: 12,
-                              color: Colors.grey.shade700,
+                              color: widget.theme.textColor.withOpacity(0.65),
                               fontWeight: FontWeight.w700,
                             ),
                           ),
@@ -230,7 +255,13 @@ class _ShopReviewListPageState extends State<ShopReviewListPage> {
                 runSpacing: 8,
                 children: [
                   ChoiceChip(
-                    label: const Text('全部'),
+                    label: Text(
+                      '全部',
+                      style: TextStyle(color: widget.theme.textColor),
+                    ),
+                    selectedColor: widget.theme.primaryColor.withOpacity(0.18),
+                    backgroundColor: widget.theme.cardColor,
+                    side: BorderSide(color: widget.theme.cardBorderColor),
                     selected: _ratingFilter == null,
                     onSelected: (_) {
                       setState(() {
@@ -240,8 +271,16 @@ class _ShopReviewListPageState extends State<ShopReviewListPage> {
                   ),
                   for (final rating in [5, 4, 3, 2, 1])
                     ChoiceChip(
-                      label: Text('$rating 星'),
+                      label: Text(
+                        '$rating 星',
+                        style: TextStyle(color: widget.theme.textColor),
+                      ),
                       selected: _ratingFilter == rating,
+                      selectedColor: widget.theme.primaryColor.withOpacity(
+                        0.18,
+                      ),
+                      backgroundColor: widget.theme.cardColor,
+                      side: BorderSide(color: widget.theme.cardBorderColor),
                       onSelected: (_) {
                         setState(() {
                           _ratingFilter = rating;
@@ -257,7 +296,13 @@ class _ShopReviewListPageState extends State<ShopReviewListPage> {
                 runSpacing: 8,
                 children: [
                   ChoiceChip(
-                    label: const Text('最新優先'),
+                    label: Text(
+                      '最新優先',
+                      style: TextStyle(color: widget.theme.textColor),
+                    ),
+                    selectedColor: widget.theme.primaryColor.withOpacity(0.18),
+                    backgroundColor: widget.theme.cardColor,
+                    side: BorderSide(color: widget.theme.cardBorderColor),
                     selected: _sortNewestFirst,
                     onSelected: (_) {
                       setState(() {
@@ -266,8 +311,14 @@ class _ShopReviewListPageState extends State<ShopReviewListPage> {
                     },
                   ),
                   ChoiceChip(
-                    label: const Text('最舊優先'),
+                    label: Text(
+                      '最舊優先',
+                      style: TextStyle(color: widget.theme.textColor),
+                    ),
                     selected: !_sortNewestFirst,
+                    selectedColor: widget.theme.primaryColor.withOpacity(0.18),
+                    backgroundColor: widget.theme.cardColor,
+                    side: BorderSide(color: widget.theme.cardBorderColor),
                     onSelected: (_) {
                       setState(() {
                         _sortNewestFirst = false;
@@ -284,7 +335,13 @@ class _ShopReviewListPageState extends State<ShopReviewListPage> {
                 runSpacing: 8,
                 children: [
                   FilterChip(
-                    label: const Text('有圖片'),
+                    label: Text(
+                      '有圖片',
+                      style: TextStyle(color: widget.theme.textColor),
+                    ),
+                    selectedColor: widget.theme.primaryColor.withOpacity(0.18),
+                    backgroundColor: widget.theme.cardColor,
+                    side: BorderSide(color: widget.theme.cardBorderColor),
                     selected: _onlyWithImages,
                     onSelected: (selected) {
                       setState(() {
@@ -293,7 +350,13 @@ class _ShopReviewListPageState extends State<ShopReviewListPage> {
                     },
                   ),
                   FilterChip(
-                    label: const Text('有店家回覆'),
+                    label: Text(
+                      '有店家回覆',
+                      style: TextStyle(color: widget.theme.textColor),
+                    ),
+                    selectedColor: widget.theme.primaryColor.withOpacity(0.18),
+                    backgroundColor: widget.theme.cardColor,
+                    side: BorderSide(color: widget.theme.cardBorderColor),
                     selected: _onlyWithReply,
                     onSelected: (selected) {
                       setState(() {
@@ -307,12 +370,19 @@ class _ShopReviewListPageState extends State<ShopReviewListPage> {
               const SizedBox(height: 16),
 
               if (filteredReviews.isEmpty)
-                const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 32),
-                  child: Center(child: Text('目前沒有符合篩選條件的評價')),
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 32),
+                  child: Center(
+                    child: Text(
+                      '目前沒有符合篩選條件的評價',
+                      style: TextStyle(color: widget.theme.textColor),
+                    ),
+                  ),
                 )
               else
-                ...filteredReviews.map((review) => ReviewCard(review: review)),
+                ...filteredReviews.map(
+                  (review) => ReviewCard(review: review, theme: widget.theme),
+                ),
             ],
           );
         },
@@ -335,7 +405,11 @@ class _ShopReviewListPageState extends State<ShopReviewListPage> {
             width: 34,
             child: Text(
               '$star★',
-              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+                color: widget.theme.textColor,
+              ),
             ),
           ),
           Expanded(
@@ -343,7 +417,8 @@ class _ShopReviewListPageState extends State<ShopReviewListPage> {
               value: percent,
               minHeight: 7,
               borderRadius: BorderRadius.circular(999),
-              backgroundColor: const Color(0xFFFFF1DD),
+              color: widget.theme.primaryColor,
+              backgroundColor: widget.theme.primaryColor.withOpacity(0.12),
             ),
           ),
           const SizedBox(width: 8),
@@ -354,7 +429,7 @@ class _ShopReviewListPageState extends State<ShopReviewListPage> {
               textAlign: TextAlign.right,
               style: TextStyle(
                 fontSize: 12,
-                color: Colors.grey.shade700,
+                color: widget.theme.textColor.withOpacity(0.65),
                 fontWeight: FontWeight.w700,
               ),
             ),

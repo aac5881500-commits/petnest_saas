@@ -8,14 +8,40 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    // 👑 平台最高權限
-    function isRootAdmin() {
-      return signedIn()
-        && request.auth.uid in [
-          'LTk2AdDOAIVGhlkt97fnbD5TXIf1',
-          '7FNrECQeqAca9Vu8lBBzTSdcJcg1'
-        ];
-    }
+   // 👑 PetNest 永久根管理員
+// 功能：最高復原權限固定於後端規則，不依賴 platform_users 文件。
+function isRootAdmin() {
+  return signedIn()
+    && request.auth.uid == '7FNrECQeqAca9Vu8lBBzTSdcJcg1';
+}
+
+// 👤 是否為已啟用的平台人員
+// 功能：確認登入者在 platform_users 中存在，且帳號已啟用。
+function isEnabledPlatformUser() {
+  return signedIn()
+    && exists(
+      /databases/$(database)/documents/platform_users/$(request.auth.uid)
+    )
+    && get(
+      /databases/$(database)/documents/platform_users/$(request.auth.uid)
+    ).data.enabled == true;
+}
+
+// 🔑 是否具有指定平台權限
+// 功能：根管理員直接通過；其他平台人員需具備指定權限。
+function hasPlatformPermission(permission) {
+  return isRootAdmin()
+    || (
+      isEnabledPlatformUser()
+      && get(
+        /databases/$(database)/documents/platform_users/$(request.auth.uid)
+      ).data.permissions is list
+      && get(
+        /databases/$(database)/documents/platform_users/$(request.auth.uid)
+      ).data.permissions.hasAny([permission])
+    );
+}
+
 
     // 👤 是否本人
     function isSelf(uid) {
@@ -33,6 +59,54 @@ service cloud.firestore {
       return isShopMember(shopId)
         && get(/databases/$(database)/documents/shop_members/$(shopId + '_' + request.auth.uid)).data.role == 'owner';
     }
+ // 🎁 是否可以管理實體商品核銷
+function canManagePointRedemptions(shopId) {
+  return signedIn()
+    && exists(
+      /databases/$(database)/documents/shop_members/$(shopId + '_' + request.auth.uid)
+    )
+    && (
+      get(
+        /databases/$(database)/documents/shop_members/$(shopId + '_' + request.auth.uid)
+      ).data.role == 'owner'
+
+      || (
+        get(
+          /databases/$(database)/documents/shop_members/$(shopId + '_' + request.auth.uid)
+        ).data.permissions is map
+
+        && get(
+          /databases/$(database)/documents/shop_members/$(shopId + '_' + request.auth.uid)
+        ).data.permissions.get(
+          'manage_point_redemptions',
+          false
+        ) == true
+      )
+
+      || (
+        (
+          !(
+            get(
+              /databases/$(database)/documents/shop_members/$(shopId + '_' + request.auth.uid)
+            ).data.permissions is map
+          )
+
+          || !get(
+            /databases/$(database)/documents/shop_members/$(shopId + '_' + request.auth.uid)
+          ).data.permissions.keys().hasAny([
+            'manage_point_redemptions'
+          ])
+        )
+
+        && get(
+          /databases/$(database)/documents/shop_members/$(shopId + '_' + request.auth.uid)
+        ).data.role in [
+          'manager',
+          'staff'
+        ]
+      )
+    );
+}
 
     // 👤 會員帳號
     match /users/{uid} {
@@ -47,25 +121,38 @@ service cloud.firestore {
       allow create, update: if isSelf(uid) || isRootAdmin();
       allow delete: if false;
             // 🔔 使用者 FCM 推播 Token
-      match /fcm_tokens/{tokenId} {
-        allow read: if isSelf(uid) || isRootAdmin();
+match /fcm_tokens/{tokenId} {
+  allow read: if isSelf(uid) || isRootAdmin();
 
-        allow create, update: if isSelf(uid)
-          && request.resource.data.keys().hasOnly([
-            'token',
-            'platform',
-            'createdAt',
-            'updatedAt'
-          ])
-          && request.resource.data.token == tokenId;
+  allow create, update: if isSelf(uid)
+    && request.resource.data.keys().hasOnly([
+      'token',
+      'platform',
+      'enabled',
+      'createdAt',
+      'updatedAt',
+      'lastSeenAt'
+    ])
+    && request.resource.data.token == tokenId
+    && request.resource.data.platform is string
+    && request.resource.data.enabled is bool;
 
-        allow delete: if isSelf(uid) || isRootAdmin();
-      }
+  allow delete: if isSelf(uid) || isRootAdmin();
+}
 
       // 📜 個人條款同意紀錄
 match /policy_acceptances/{shopId} {
   allow read: if isSelf(uid) || isRootAdmin() || isShopMember(shopId);
   allow create, update: if isSelf(uid) || isRootAdmin();
+  allow delete: if false;
+}
+// 🔔 會員通知設定
+match /notification_settings/{settingId} {
+
+  allow read: if isSelf(uid) || isRootAdmin();
+
+  allow create, update: if isSelf(uid) || isRootAdmin();
+
   allow delete: if false;
 }
     }
@@ -222,6 +309,7 @@ allow update: if signedIn() &&
 'totalRooms',
 'cleaningRooms',
 'maintenanceRooms',
+'housekeepingSetting',
 'maxAdvanceBookingDays',
 'defaultPricePerNight',
 
@@ -244,7 +332,8 @@ allow update: if signedIn() &&
 'showCameraSection',
 'showTaxId',
 'externalLinksEnabled',
-
+'homeAppearance',
+'floatingContactButton',
       'bankName',
       'accountName',
       'accountNumber',
@@ -255,7 +344,7 @@ allow update: if signedIn() &&
       'depositAmount',
       'depositBase',
       'depositExpireHours',
-
+'discountSetting',
       'blockedDates',
       'blockedDateReasons',
       'specialPrices',
@@ -308,17 +397,23 @@ match /members/{uid} {
         && resource.data.userId == request.auth.uid
         && request.resource.data.userId == request.auth.uid
         && request.resource.data.diff(resource.data).changedKeys().hasOnly([
-          'email',
-          'name',
-          'phone',
-          'address',
-          'emergencyContact',
-          'petCount',
-          'bookingCount',
-          'updatedAt',
-          'lastLoginAt',
-          'lastBookingAt'
-        ])
+  'email',
+  'name',
+  'phone',
+  'address',
+  'emergencyContact',
+  'petCount',
+  'bookingCount',
+  'updatedAt',
+  'lastLoginAt',
+  'lastBookingAt',
+
+  'policyAccepted',
+  'policyVersion',
+  'policyTitle',
+  'policyAcceptedAt',
+  'policyAcceptedFrom'
+])
       )
     );
 
@@ -383,6 +478,1072 @@ match /room_calendar/{calendarId} {
       match /addons/{addonId} {
         allow read: if true;
         allow create, update, delete: if isShopMember(shopId) || isRootAdmin();
+      }
+
+      // 🏷️ 自動優惠活動
+// 功能：會員只能讀取已啟用活動，店家成員與平台管理員可完整管理
+match /discount_campaigns/{campaignId} {
+
+  // 店家成員與平台管理員可以查看全部活動
+  // 一般使用者只能查看已啟用的活動
+  allow read: if
+    isRootAdmin()
+    || isShopMember(shopId)
+    || resource.data.enabled == true;
+
+  // 建立優惠活動
+  allow create: if
+    (isRootAdmin() || isShopMember(shopId))
+    && request.resource.data.shopId == shopId
+    && request.resource.data.createdBy == request.auth.uid
+    && request.resource.data.name is string
+    && request.resource.data.name.size() > 0
+    && request.resource.data.type is string
+    && request.resource.data.valueType is string
+    && request.resource.data.applyTarget is string
+    && request.resource.data.discountValue is number
+    && request.resource.data.discountValue > 0
+    && request.resource.data.enabled is bool
+    && request.resource.data.minimumNights is int
+    && request.resource.data.minimumNights >= 0
+    && request.resource.data.minimumAmount is int
+    && request.resource.data.minimumAmount >= 0
+    && request.resource.data.maximumDiscountAmount is int
+    && request.resource.data.maximumDiscountAmount >= 0
+    && request.resource.data.memberUsageLimit is int
+    && request.resource.data.memberUsageLimit >= 0
+    && request.resource.data.totalUsageLimit is int
+    && request.resource.data.totalUsageLimit >= 0
+    && request.resource.data.usedCount == 0
+    && request.resource.data.firstBookingOnly is bool
+    && request.resource.data.allowCouponTogether is bool
+    && request.resource.data.roomTypeIds is list;
+
+  // 修改優惠活動
+  // shopId、createdBy、createdAt 與 usedCount 不可由一般頁面任意更改
+  allow update: if
+    (isRootAdmin() || isShopMember(shopId))
+    && resource.data.shopId == shopId
+    && request.resource.data.shopId == resource.data.shopId
+    && request.resource.data.createdBy == resource.data.createdBy
+    && request.resource.data.createdAt == resource.data.createdAt
+    && request.resource.data.usedCount == resource.data.usedCount
+    && request.resource.data.name is string
+    && request.resource.data.name.size() > 0
+    && request.resource.data.discountValue is number
+    && request.resource.data.discountValue > 0
+    && request.resource.data.enabled is bool
+    && request.resource.data.minimumNights is int
+    && request.resource.data.minimumNights >= 0
+    && request.resource.data.minimumAmount is int
+    && request.resource.data.minimumAmount >= 0
+    && request.resource.data.maximumDiscountAmount is int
+    && request.resource.data.maximumDiscountAmount >= 0
+    && request.resource.data.memberUsageLimit is int
+    && request.resource.data.memberUsageLimit >= 0
+    && request.resource.data.totalUsageLimit is int
+    && request.resource.data.totalUsageLimit >= 0
+    && request.resource.data.firstBookingOnly is bool
+    && request.resource.data.allowCouponTogether is bool
+    && request.resource.data.roomTypeIds is list;
+
+  // 目前尚未接訂單使用紀錄，因此先允許店家刪除
+  allow delete: if isRootAdmin() || isShopMember(shopId);
+}
+
+      // 🎟️ 會員持有優惠券
+      // 功能：
+      // 1. 店家成員與平台管理員可管理優惠券
+      // 2. 一般會員只能查看屬於自己的優惠券
+      // 3. 暫時不允許會員端自行建立或修改，避免竄改優惠內容
+            // 🎫 店家優惠券模板
+      // 功能：
+      // 1. 店家建立優惠券母版
+      // 2. 供手動發券、點數兌換與自動贈券共用
+      // 3. 一般會員不可直接讀寫模板
+      match /coupon_templates/{templateId} {
+
+        // 只有平台管理員與店家成員可以查看
+        allow read: if
+          isRootAdmin()
+          || isShopMember(shopId);
+
+        // 建立優惠券模板
+        allow create: if
+          (isRootAdmin() || isShopMember(shopId))
+          && request.resource.data.shopId == shopId
+          && request.resource.data.name is string
+          && request.resource.data.name.size() > 0
+
+          && request.resource.data.type in [
+            'fixedAmount',
+            'percent',
+            'freeStay',
+            'freeService'
+          ]
+
+          && request.resource.data.applyTarget in [
+            'room',
+            'roomAndPet',
+            'total',
+            'service'
+          ]
+
+          && request.resource.data.discountValue is number
+          && request.resource.data.discountValue >= 0
+
+          && request.resource.data.minimumAmount is int
+          && request.resource.data.minimumAmount >= 0
+
+          && request.resource.data.maximumDiscountAmount is int
+          && request.resource.data.maximumDiscountAmount >= 0
+
+          && request.resource.data.freeStayNights is int
+          && request.resource.data.freeStayNights >= 0
+
+          && request.resource.data.roomTypeIds is list
+
+          && request.resource.data.validDays is int
+          && request.resource.data.validDays >= 0
+
+          && request.resource.data.usageLimit is int
+          && request.resource.data.usageLimit > 0
+
+          && request.resource.data.enabled is bool
+          && request.resource.data.sortOrder is int
+
+          && request.resource.data.createdBy is string
+          && request.resource.data.updatedBy is string
+          && request.resource.data.createdAt is timestamp
+          && request.resource.data.updatedAt is timestamp;
+
+        // 修改優惠券模板
+        // 不允許修改所屬店家、建立人與建立時間
+        allow update: if
+          (isRootAdmin() || isShopMember(shopId))
+          && resource.data.shopId == shopId
+          && request.resource.data.shopId == resource.data.shopId
+          && request.resource.data.createdBy == resource.data.createdBy
+          && request.resource.data.createdAt == resource.data.createdAt
+
+          && request.resource.data.name is string
+          && request.resource.data.name.size() > 0
+
+          && request.resource.data.type in [
+            'fixedAmount',
+            'percent',
+            'freeStay',
+            'freeService'
+          ]
+
+          && request.resource.data.applyTarget in [
+            'room',
+            'roomAndPet',
+            'total',
+            'service'
+          ]
+
+          && request.resource.data.discountValue is number
+          && request.resource.data.discountValue >= 0
+
+          && request.resource.data.minimumAmount is int
+          && request.resource.data.minimumAmount >= 0
+
+          && request.resource.data.maximumDiscountAmount is int
+          && request.resource.data.maximumDiscountAmount >= 0
+
+          && request.resource.data.freeStayNights is int
+          && request.resource.data.freeStayNights >= 0
+
+          && request.resource.data.roomTypeIds is list
+
+          && request.resource.data.validDays is int
+          && request.resource.data.validDays >= 0
+
+          && request.resource.data.usageLimit is int
+          && request.resource.data.usageLimit > 0
+
+
+          && request.resource.data.enabled is bool
+          && request.resource.data.sortOrder is int
+
+          && request.resource.data.updatedBy is string
+          && request.resource.data.updatedAt is timestamp;
+
+        // 刪除模板不會刪除會員已領取的優惠券
+        allow delete: if
+          isRootAdmin()
+          || isShopMember(shopId);
+      }
+      match /member_coupons/{couponId} {
+
+        // 店家成員與平台管理員可以查看全部優惠券
+        // 一般會員只能查看自己的優惠券
+        allow read: if
+  isRootAdmin()
+  || isShopMember(shopId)
+  || (
+    signedIn()
+    && resource.data.shopId == shopId
+    && resource.data.userId == request.auth.uid
+  );
+
+                // 店家成員與平台管理員可以手動發券。
+        //
+        // 一般會員只能透過點數兌換建立自己的優惠券，
+        // 且優惠內容必須與兌換商品設定完全一致。
+        allow create: if
+          (
+            (isRootAdmin() || isShopMember(shopId))
+
+            && request.resource.data.shopId == shopId
+            && request.resource.data.userId is string
+            && request.resource.data.userId.size() > 0
+            && request.resource.data.name is string
+            && request.resource.data.name.size() > 0
+
+            && request.resource.data.type in [
+              'fixedAmount',
+              'percent',
+              'freeStay',
+              'freeService'
+            ]
+
+            && request.resource.data.applyTarget in [
+              'room',
+              'roomAndPet',
+              'total',
+              'service'
+            ]
+
+            && request.resource.data.source in [
+              'manual',
+              'pointsExchange'
+            ]
+
+            && request.resource.data.status == 'available'
+            && request.resource.data.discountValue is number
+            && request.resource.data.discountValue >= 0
+            && request.resource.data.minimumAmount is int
+            && request.resource.data.minimumAmount >= 0
+            && request.resource.data.maximumDiscountAmount is int
+            && request.resource.data.maximumDiscountAmount >= 0
+            && request.resource.data.freeStayNights is int
+            && request.resource.data.freeStayNights >= 0
+            && request.resource.data.roomTypeIds is list
+            && request.resource.data.usageLimit is int
+            && request.resource.data.usageLimit > 0
+            && request.resource.data.usedCount == 0
+            && request.resource.data.pointsCost is int
+            && request.resource.data.pointsCost >= 0
+            && request.resource.data.usedBookingId == ''
+          )
+
+          ||
+
+          (
+            signedIn()
+
+            // 優惠券必須屬於登入會員本人
+            && request.resource.data.shopId == shopId
+            && request.resource.data.userId == request.auth.uid
+
+            // 會員只能建立點數兌換券
+            && request.resource.data.source == 'pointsExchange'
+            && request.resource.data.status == 'available'
+
+            // 必須綁定兌換商品
+            && request.resource.data.pointRewardId is string
+            && request.resource.data.pointRewardId.size() > 0
+
+            // 發券人必須是會員本人
+            && request.resource.data.issuedBy == request.auth.uid
+            && request.resource.data.issuedReason == '會員使用點數兌換'
+
+            // 必須是尚未使用的新優惠券
+            && request.resource.data.usedCount == 0
+            && request.resource.data.usedBookingId == ''
+            && request.resource.data.usedAt == null
+            && request.resource.data.revokedBy == ''
+            && request.resource.data.revokedReason == ''
+            && request.resource.data.revokedAt == null
+
+            // 兌換商品必須存在並且已開放
+            && get(
+              /databases/$(database)/documents/shops/$(shopId)
+              /point_rewards/$(request.resource.data.pointRewardId)
+            ).data.enabled == true
+
+            // 優惠券內容必須與兌換商品一致
+            && request.resource.data.name
+              == get(
+                /databases/$(database)/documents/shops/$(shopId)
+                /point_rewards/$(request.resource.data.pointRewardId)
+              ).data.name
+
+            && request.resource.data.description
+              == get(
+                /databases/$(database)/documents/shops/$(shopId)
+                /point_rewards/$(request.resource.data.pointRewardId)
+              ).data.description
+
+            && request.resource.data.type
+              == get(
+                /databases/$(database)/documents/shops/$(shopId)
+                /point_rewards/$(request.resource.data.pointRewardId)
+              ).data.couponType
+
+            && request.resource.data.applyTarget
+              == get(
+                /databases/$(database)/documents/shops/$(shopId)
+                /point_rewards/$(request.resource.data.pointRewardId)
+              ).data.applyTarget
+
+            && request.resource.data.discountValue
+              == get(
+                /databases/$(database)/documents/shops/$(shopId)
+                /point_rewards/$(request.resource.data.pointRewardId)
+              ).data.discountValue
+
+            && request.resource.data.minimumAmount
+              == get(
+                /databases/$(database)/documents/shops/$(shopId)
+                /point_rewards/$(request.resource.data.pointRewardId)
+              ).data.minimumAmount
+
+            && request.resource.data.maximumDiscountAmount
+              == get(
+                /databases/$(database)/documents/shops/$(shopId)
+                /point_rewards/$(request.resource.data.pointRewardId)
+              ).data.maximumDiscountAmount
+
+            && request.resource.data.freeStayNights
+              == get(
+                /databases/$(database)/documents/shops/$(shopId)
+                /point_rewards/$(request.resource.data.pointRewardId)
+              ).data.freeStayNights
+
+            && request.resource.data.serviceId
+              == get(
+                /databases/$(database)/documents/shops/$(shopId)
+                /point_rewards/$(request.resource.data.pointRewardId)
+              ).data.serviceId
+
+            && request.resource.data.serviceName
+              == get(
+                /databases/$(database)/documents/shops/$(shopId)
+                /point_rewards/$(request.resource.data.pointRewardId)
+              ).data.serviceName
+
+            && request.resource.data.roomTypeIds
+              == get(
+                /databases/$(database)/documents/shops/$(shopId)
+                /point_rewards/$(request.resource.data.pointRewardId)
+              ).data.roomTypeIds
+
+            && request.resource.data.usageLimit
+              == get(
+                /databases/$(database)/documents/shops/$(shopId)
+                /point_rewards/$(request.resource.data.pointRewardId)
+              ).data.usageLimit
+
+            && request.resource.data.pointsCost
+              == get(
+                /databases/$(database)/documents/shops/$(shopId)
+                /point_rewards/$(request.resource.data.pointRewardId)
+              ).data.pointsCost
+
+            // 基本欄位格式檢查
+            && request.resource.data.pointsCost is int
+            && request.resource.data.pointsCost > 0
+            && request.resource.data.usageLimit is int
+            && request.resource.data.usageLimit > 0
+            && request.resource.data.createdAt is timestamp
+            && request.resource.data.updatedAt is timestamp
+          );
+
+        // 店家後台目前可執行核銷、退回與撤銷
+        // 會員端預約核銷之後再增加受限制的交易規則
+        allow update: if
+          (isRootAdmin() || isShopMember(shopId))
+          && resource.data.shopId == shopId
+          && request.resource.data.shopId == resource.data.shopId
+          && request.resource.data.userId == resource.data.userId
+          && request.resource.data.source == resource.data.source
+          && request.resource.data.createdAt == resource.data.createdAt;
+
+        // 優惠券需保留使用紀錄，不允許直接刪除
+        allow delete: if false;
+      }
+
+            // 🎁 點數兌換商品
+      // 功能：
+      // 1. 店家成員與平台管理員可完整管理
+      // 2. 一般會員只能查看已開啟的兌換商品
+      // 3. 會員端不可自行建立或修改商品設定
+      match /point_rewards/{rewardId} {
+
+        // 店家可查看全部商品
+        // 一般會員只能查看已啟用商品
+        allow read: if
+          isRootAdmin()
+          || isShopMember(shopId)
+          || resource.data.enabled == true;
+
+        // 只有店家成員或平台管理員可以新增
+        allow create: if
+          (isRootAdmin() || isShopMember(shopId))
+          && request.resource.data.shopId == shopId
+          && request.resource.data.name is string
+          && request.resource.data.name.size() > 0
+          && request.resource.data.pointsCost is int
+          && request.resource.data.pointsCost > 0
+          && request.resource.data.couponType in [
+            'fixedAmount',
+            'percent',
+            'freeStay',
+            'freeService'
+          ]
+          && request.resource.data.applyTarget in [
+            'room',
+            'roomAndPet',
+            'total',
+            'service'
+          ]
+          && request.resource.data.discountValue is number
+          && request.resource.data.discountValue >= 0
+          && request.resource.data.minimumAmount is int
+          && request.resource.data.minimumAmount >= 0
+          && request.resource.data.maximumDiscountAmount is int
+          && request.resource.data.maximumDiscountAmount >= 0
+          && request.resource.data.freeStayNights is int
+          && request.resource.data.freeStayNights >= 0
+          && request.resource.data.roomTypeIds is list
+          && request.resource.data.validDays is int
+          && request.resource.data.validDays >= 0
+          && request.resource.data.usageLimit is int
+          && request.resource.data.usageLimit > 0
+          && request.resource.data.exchangeLimitPerMember is int
+          && request.resource.data.exchangeLimitPerMember >= 0
+          && request.resource.data.totalExchangeLimit is int
+          && request.resource.data.totalExchangeLimit >= 0
+          && request.resource.data.exchangedCount == 0
+          && request.resource.data.enabled is bool
+          && request.resource.data.sortOrder is int
+          && request.resource.data.createdBy == request.auth.uid;
+
+                  // 店家可以修改商品內容。
+        // shopId、createdBy、createdAt 與 exchangedCount 不可任意改動。
+        //
+        // 一般會員兌換時，只能將 exchangedCount 增加 1，
+        // 不可修改商品的任何其他設定。
+        allow update: if
+          (
+            (isRootAdmin() || isShopMember(shopId))
+
+            && resource.data.shopId == shopId
+            && request.resource.data.shopId == resource.data.shopId
+            && request.resource.data.createdBy == resource.data.createdBy
+            && request.resource.data.createdAt == resource.data.createdAt
+
+            // 店家編輯商品時，不可直接改兌換數量
+            && request.resource.data.exchangedCount
+              == resource.data.exchangedCount
+
+            && request.resource.data.name is string
+            && request.resource.data.name.size() > 0
+            && request.resource.data.pointsCost is int
+            && request.resource.data.pointsCost > 0
+
+            && request.resource.data.couponType in [
+              'fixedAmount',
+              'percent',
+              'freeStay',
+              'freeService'
+            ]
+
+            && request.resource.data.applyTarget in [
+              'room',
+              'roomAndPet',
+              'total',
+              'service'
+            ]
+
+            && request.resource.data.discountValue is number
+            && request.resource.data.discountValue >= 0
+            && request.resource.data.minimumAmount is int
+            && request.resource.data.minimumAmount >= 0
+            && request.resource.data.maximumDiscountAmount is int
+            && request.resource.data.maximumDiscountAmount >= 0
+            && request.resource.data.freeStayNights is int
+            && request.resource.data.freeStayNights >= 0
+            && request.resource.data.roomTypeIds is list
+            && request.resource.data.validDays is int
+            && request.resource.data.validDays >= 0
+            && request.resource.data.usageLimit is int
+            && request.resource.data.usageLimit > 0
+            && request.resource.data.exchangeLimitPerMember is int
+            && request.resource.data.exchangeLimitPerMember >= 0
+            && request.resource.data.totalExchangeLimit is int
+            && request.resource.data.totalExchangeLimit >= 0
+            && request.resource.data.enabled is bool
+            && request.resource.data.sortOrder is int
+          )
+
+          ||
+
+          (
+            signedIn()
+
+            // 商品必須已開啟
+            && resource.data.enabled == true
+
+            // 兌換點數必須有效
+            && resource.data.pointsCost is int
+            && resource.data.pointsCost > 0
+
+            // 每次只能增加一次兌換數量
+            && request.resource.data.exchangedCount
+              == resource.data.exchangedCount + 1
+
+            // 有總兌換上限時，不可超過上限
+            && (
+              resource.data.totalExchangeLimit == 0
+              || request.resource.data.exchangedCount
+                <= resource.data.totalExchangeLimit
+            )
+
+            // 除 exchangedCount 與 updatedAt 外，
+            // 商品的其他欄位全部不得修改
+            && request.resource.data.diff(resource.data)
+              .affectedKeys()
+              .hasOnly([
+                'exchangedCount',
+                'updatedAt'
+              ])
+
+                   && request.resource.data.updatedAt is timestamp
+          )
+
+          ||
+
+          (
+            // 店家取消兌換時，只允許將兌換總數減少 1
+            (isRootAdmin() || isShopMember(shopId))
+
+            && resource.data.shopId == shopId
+            && request.resource.data.shopId
+              == resource.data.shopId
+
+            && resource.data.exchangedCount is int
+            && resource.data.exchangedCount > 0
+
+            && request.resource.data.exchangedCount
+              == resource.data.exchangedCount - 1
+
+            && request.resource.data.diff(resource.data)
+              .affectedKeys()
+              .hasOnly([
+                'exchangedCount',
+                'updatedAt'
+              ])
+
+            && request.resource.data.updatedAt is timestamp
+          );
+
+        // 只有尚未有人兌換的商品可以刪除
+        allow delete: if
+          (isRootAdmin() || isShopMember(shopId))
+          && resource.data.exchangedCount == 0;
+                  // 👤 會員兌換次數紀錄
+        // Firestore 路徑：
+        // shops/{shopId}/point_rewards/{rewardId}/member_exchanges/{userId}
+        match /member_exchanges/{userId} {
+
+          // 店家與平台管理員可查看
+          // 一般會員只能查看自己的兌換紀錄
+          allow read: if
+            isRootAdmin()
+            || isShopMember(shopId)
+            || isSelf(userId);
+
+          // 一般會員只能建立自己的兌換紀錄
+                    allow create: if
+            isSelf(userId)
+            && request.resource.data.shopId == shopId
+            && request.resource.data.rewardId == rewardId
+            && request.resource.data.userId == request.auth.uid
+            && request.resource.data.exchangedCount == 1
+
+            // 優惠券商品會記錄 lastCouponId；
+            // 實體商品會記錄 lastRedemptionId。
+            && request.resource.data.lastCouponId is string
+            && request.resource.data.lastRedemptionId is string
+
+            // 兩者至少必須有一個有效 ID
+            && (
+              request.resource.data.lastCouponId.size() > 0
+              || request.resource.data.lastRedemptionId.size() > 0
+            )
+
+            && request.resource.data.lastExchangedAt is timestamp
+            && request.resource.data.updatedAt is timestamp
+            && request.resource.data.createdAt is timestamp;
+
+                    // 一般會員兌換時增加 1；
+          // 店家取消實體商品兌換時減少 1。
+          allow update: if
+            (
+              isSelf(userId)
+
+              && resource.data.shopId == shopId
+              && resource.data.rewardId == rewardId
+              && resource.data.userId == request.auth.uid
+
+              && request.resource.data.shopId
+                == resource.data.shopId
+              && request.resource.data.rewardId
+                == resource.data.rewardId
+             && request.resource.data.userId
+  == resource.data.userId
+
+// 舊版兌換紀錄可能沒有 createdAt。
+// 已有 createdAt 時必須保留原值；
+// 沒有 createdAt 時，允許本次兌換補上一個時間戳。
+&& request.resource.data.createdAt is timestamp
+&& (
+  !resource.data.keys().hasAny(['createdAt'])
+  || request.resource.data.createdAt
+    == resource.data.createdAt
+)
+
+&& request.resource.data.exchangedCount
+  == resource.data.exchangedCount + 1
+
+              && request.resource.data.lastCouponId is string
+              && request.resource.data.lastRedemptionId is string
+
+              && (
+                request.resource.data.lastCouponId.size() > 0
+                || request.resource.data.lastRedemptionId.size() > 0
+              )
+
+              && request.resource.data.lastExchangedAt is timestamp
+              && request.resource.data.updatedAt is timestamp
+            )
+
+            ||
+
+            (
+              (isRootAdmin() || isShopMember(shopId))
+
+              && resource.data.shopId == shopId
+              && resource.data.rewardId == rewardId
+              && resource.data.userId == userId
+
+              && request.resource.data.shopId
+                == resource.data.shopId
+              && request.resource.data.rewardId
+                == resource.data.rewardId
+              && request.resource.data.userId
+                == resource.data.userId
+              && request.resource.data.createdAt
+                == resource.data.createdAt
+
+              && resource.data.exchangedCount is int
+              && resource.data.exchangedCount > 0
+
+              && request.resource.data.exchangedCount
+                == resource.data.exchangedCount - 1
+
+              && request.resource.data.diff(resource.data)
+                .affectedKeys()
+                .hasOnly([
+                  'exchangedCount',
+                  'updatedAt'
+                ])
+
+              && request.resource.data.updatedAt is timestamp
+            );
+
+          // 兌換次數紀錄不可刪除
+          allow delete: if false;
+        }
+      }
+            // ============================================================
+      // 🎁 點數實體商品兌換紀錄
+      // Firestore 路徑：
+      // shops/{shopId}/point_redemptions/{redemptionId}
+      // ============================================================
+      match /point_redemptions/{redemptionId} {
+
+        // 會員只能查看自己的兌換紀錄。
+        // 店家成員與平台管理員可以查看店內全部紀錄。
+        allow read: if
+  isRootAdmin()
+  || canManagePointRedemptions(shopId)
+  || (
+    signedIn()
+    && resource.data.shopId == shopId
+    && resource.data.userId == request.auth.uid
+  );
+
+        // 會員使用點數兌換實體商品時，
+        // 只能替自己建立「待領取」紀錄。
+        allow create: if
+          signedIn()
+
+          // 必須是登入會員自己的兌換紀錄
+          && request.resource.data.shopId == shopId
+          && request.resource.data.userId == request.auth.uid
+
+          // 必須綁定點數商品
+          && request.resource.data.rewardId is string
+          && request.resource.data.rewardId.size() > 0
+
+          // 商品必須存在、已啟用，而且是實體商品
+          && get(
+            /databases/$(database)/documents/shops/$(shopId)
+            /point_rewards/$(request.resource.data.rewardId)
+          ).data.enabled == true
+
+          && get(
+            /databases/$(database)/documents/shops/$(shopId)
+            /point_rewards/$(request.resource.data.rewardId)
+          ).data.fulfillmentType == 'physicalProduct'
+
+          // 商品名稱與扣除點數必須符合商城設定
+          && request.resource.data.rewardName
+            == get(
+              /databases/$(database)/documents/shops/$(shopId)
+              /point_rewards/$(request.resource.data.rewardId)
+            ).data.name
+
+          && request.resource.data.pointsCost
+            == get(
+              /databases/$(database)/documents/shops/$(shopId)
+              /point_rewards/$(request.resource.data.rewardId)
+            ).data.pointsCost
+
+          // 點數計算必須正確
+          && request.resource.data.pointsCost is int
+          && request.resource.data.pointsCost > 0
+          && request.resource.data.balanceBefore is int
+          && request.resource.data.balanceAfter is int
+          && request.resource.data.balanceAfter >= 0
+          && request.resource.data.balanceAfter
+            == request.resource.data.balanceBefore
+              - request.resource.data.pointsCost
+
+          // 新建立紀錄只能是待領取
+          && request.resource.data.status == 'pendingPickup'
+
+          // 必須產生領取碼
+          && request.resource.data.pickupCode is string
+          && request.resource.data.pickupCode.size() > 0
+
+          // 新紀錄不得直接變成已領取、取消或已退點
+          && request.resource.data.pickedUpBy == ''
+          && request.resource.data.pickedUpAt == null
+          && request.resource.data.cancelledBy == ''
+          && request.resource.data.cancelledAt == null
+          && request.resource.data.cancelReason == ''
+          && request.resource.data.pointsRefunded == false
+          && request.resource.data.pointsRefundedBy == ''
+          && request.resource.data.pointsRefundedAt == null
+
+          // 時間欄位
+          && request.resource.data.createdAt is timestamp
+          && request.resource.data.updatedAt is timestamp;
+
+        // 只有店家成員與平台管理員可以：
+        // 1. 核銷並交付商品
+        // 2. 取消兌換
+        // 3. 標記過期
+        allow update: if
+  (isRootAdmin() || canManagePointRedemptions(shopId))
+
+          // 不可更換店家與會員
+          && request.resource.data.shopId == resource.data.shopId
+          && request.resource.data.userId == resource.data.userId
+
+          // 不可修改原始商品及扣點資料
+          && request.resource.data.rewardId == resource.data.rewardId
+          && request.resource.data.rewardName == resource.data.rewardName
+          && request.resource.data.pointsCost == resource.data.pointsCost
+          && request.resource.data.balanceBefore == resource.data.balanceBefore
+          && request.resource.data.balanceAfter == resource.data.balanceAfter
+          && request.resource.data.pickupCode == resource.data.pickupCode
+          && request.resource.data.createdAt == resource.data.createdAt
+
+          // 狀態只能使用合法值
+          && request.resource.data.status in [
+            'pendingPickup',
+            'pickedUp',
+            'cancelled',
+            'expired'
+          ]
+
+          && request.resource.data.updatedAt is timestamp;
+
+        // 核銷與點數帳務紀錄不能直接刪除
+        allow delete: if false;
+      }
+           // 🪙 會員點數
+      match /member_points/{userId} {
+
+        // 店家成員、平台管理員及會員本人可以查看
+        allow read: if
+          isRootAdmin()
+          || isShopMember(shopId)
+          || isSelf(userId);
+
+        // 點數帳戶只能由店家成員或平台管理員建立
+        allow create: if
+          isRootAdmin()
+          || isShopMember(shopId);
+
+        // 店家成員與平台管理員可以正常修改
+        //
+        // 會員本人只能執行點數兌換扣點：
+        // 1. currentPoints 只能減少
+        // 2. totalUsedPoints 必須增加相同數量
+        // 3. 其他累積點數不可被修改
+        allow update: if
+          isRootAdmin()
+          || isShopMember(shopId)
+          || (
+            isSelf(userId)
+
+            && resource.data.shopId == shopId
+            && resource.data.userId == request.auth.uid
+
+            && request.resource.data.shopId
+              == resource.data.shopId
+            && request.resource.data.userId
+              == resource.data.userId
+            && request.resource.data.createdAt
+              == resource.data.createdAt
+
+            && request.resource.data.currentPoints >= 0
+            && request.resource.data.currentPoints
+              < resource.data.currentPoints
+
+            && request.resource.data.totalUsedPoints
+              == resource.data.totalUsedPoints
+                + (
+                  resource.data.currentPoints
+                  - request.resource.data.currentPoints
+                )
+
+            && request.resource.data.totalEarnedPoints
+              == resource.data.totalEarnedPoints
+            && request.resource.data.totalExpiredPoints
+              == resource.data.totalExpiredPoints
+
+            && request.resource.data.lastEarnedAt
+              == resource.data.lastEarnedAt
+            && request.resource.data.lastExpiredAt
+              == resource.data.lastExpiredAt
+
+            && request.resource.data.lastUsedAt is timestamp
+            && request.resource.data.updatedAt is timestamp
+          );
+
+        // 點數帳戶不允許直接刪除
+        allow delete: if false;
+      }
+
+      // 🧾 點數流水
+      match /member_point_logs/{logId} {
+
+        // 店家成員、平台管理員，以及會員本人可以查看
+        allow read: if
+          isRootAdmin()
+          || isShopMember(shopId)
+          || (
+            signedIn()
+            && resource.data.userId == request.auth.uid
+          );
+
+        // 店家成員與平台管理員可以建立一般流水。
+        //
+        // 會員本人只能建立「點數兌換」扣點流水。
+        allow create: if
+          isRootAdmin()
+          || isShopMember(shopId)
+          || (
+            signedIn()
+
+            // 限制只能寫入既定欄位
+                       && request.resource.data.keys().hasOnly([
+              'shopId',
+              'userId',
+              'type',
+              'points',
+              'balanceBefore',
+              'balanceAfter',
+              'reason',
+              'operatorUid',
+              'sourceId',
+              'bookingId',
+              'rewardId',
+              'couponId',
+              'redemptionId',
+              'expireAt',
+              'note',
+              'createdAt'
+            ])
+
+            // 必須是本人自己的流水
+            && request.resource.data.shopId == shopId
+            && request.resource.data.userId == request.auth.uid
+            && request.resource.data.operatorUid == request.auth.uid
+
+            // 會員只能建立兌換扣點紀錄
+            && request.resource.data.type == 'rewardExchange'
+            && request.resource.data.points is int
+            && request.resource.data.points < 0
+
+            // 扣點後餘額不可小於零
+            && request.resource.data.balanceBefore is int
+            && request.resource.data.balanceAfter is int
+            && request.resource.data.balanceAfter >= 0
+
+            // points 為負數，所以：
+            // balanceAfter = balanceBefore + points
+            && request.resource.data.balanceAfter
+              == request.resource.data.balanceBefore
+                + request.resource.data.points
+
+                        // 兌換時必須綁定點數商品
+            && request.resource.data.rewardId is string
+            && request.resource.data.rewardId.size() > 0
+            && request.resource.data.sourceId
+              == request.resource.data.rewardId
+
+            // 優惠券商品使用 couponId；
+            // 實體商品使用 redemptionId。
+            && request.resource.data.couponId is string
+            && request.resource.data.redemptionId is string
+
+            // 兩個欄位至少要有一個有效 ID
+            && (
+              request.resource.data.couponId.size() > 0
+              || request.resource.data.redemptionId.size() > 0
+            )
+
+            // 點數兌換不綁訂單與點數到期日
+            && request.resource.data.bookingId == ''
+            && request.resource.data.expireAt == null
+
+            && request.resource.data.reason is string
+            && request.resource.data.reason.size() > 0
+            && request.resource.data.note is string
+            && request.resource.data.createdAt is timestamp
+          );
+
+        // 流水建立後不可修改或刪除
+        allow update, delete: if false;
+      }
+
+            // 🪙 店家點數制度設定
+      // Firestore 路徑：
+      // shops/{shopId}/settings/points
+      match /settings/{settingId} {
+
+               // 點數設定可供已登入會員讀取
+        // 只有店家成員與平台管理員可以修改
+        allow read: if
+          settingId == 'points'
+          && signedIn();
+
+               // 第一次建立點數設定
+        allow create: if
+          settingId == 'points'
+          && (
+            isRootAdmin()
+            || isShopMember(shopId)
+          )
+          && request.resource.data.shopId == shopId
+          && request.resource.data.enabled is bool
+
+          // 發點計算方式
+          && request.resource.data.calculationType is string
+          && (
+            request.resource.data.calculationType == 'amount'
+            || request.resource.data.calculationType == 'night'
+          )
+
+          // 依消費金額發點設定
+          && request.resource.data.amountPerPoint is int
+          && request.resource.data.amountPerPoint > 0
+
+          // 依住宿晚數發點設定
+          && request.resource.data.pointsPerNight is int
+          && request.resource.data.pointsPerNight > 0
+
+          && request.resource.data.minimumOrderAmount is int
+          && request.resource.data.minimumOrderAmount >= 0
+          && request.resource.data.maximumPointsPerBooking is int
+          && request.resource.data.maximumPointsPerBooking >= 0
+          && request.resource.data.pointExpireDays is int
+          && request.resource.data.pointExpireDays >= 0
+          && request.resource.data.issueAfterCompleted is bool
+          && request.resource.data.allowManualAdjustment is bool
+          && request.resource.data.allowPointsExchange is bool
+          && request.resource.data.pointName is string
+          && request.resource.data.pointName.size() > 0
+          && request.resource.data.pointName.size() <= 10
+          && request.resource.data.description is string
+          && request.resource.data.createdBy == request.auth.uid
+          && request.resource.data.updatedBy == request.auth.uid;
+
+        // 修改既有點數設定
+        allow update: if
+          settingId == 'points'
+          && (
+            isRootAdmin()
+            || isShopMember(shopId)
+          )
+          && resource.data.shopId == shopId
+          && request.resource.data.shopId == resource.data.shopId
+          && request.resource.data.createdBy == resource.data.createdBy
+          && request.resource.data.createdAt == resource.data.createdAt
+          && request.resource.data.updatedBy == request.auth.uid
+          && request.resource.data.enabled is bool
+
+          // 發點計算方式
+          && request.resource.data.calculationType is string
+          && (
+            request.resource.data.calculationType == 'amount'
+            || request.resource.data.calculationType == 'night'
+          )
+
+          // 依消費金額發點設定
+          && request.resource.data.amountPerPoint is int
+          && request.resource.data.amountPerPoint > 0
+
+          // 依住宿晚數發點設定
+          && request.resource.data.pointsPerNight is int
+          && request.resource.data.pointsPerNight > 0
+
+          && request.resource.data.minimumOrderAmount is int
+          && request.resource.data.minimumOrderAmount >= 0
+          && request.resource.data.maximumPointsPerBooking is int
+          && request.resource.data.maximumPointsPerBooking >= 0
+          && request.resource.data.pointExpireDays is int
+          && request.resource.data.pointExpireDays >= 0
+          && request.resource.data.issueAfterCompleted is bool
+          && request.resource.data.allowManualAdjustment is bool
+          && request.resource.data.allowPointsExchange is bool
+          && request.resource.data.pointName is string
+          && request.resource.data.pointName.size() > 0
+          && request.resource.data.pointName.size() <= 10
+          && request.resource.data.description is string;
+
+        // 點數制度設定不直接刪除
+        allow delete: if false;
       }
 
       // 📜 店家條款
@@ -572,19 +1733,7 @@ match /reviews/{reviewId} {
 // 📦 訂單
 match /bookings/{bookingId} {
 
-allow read: if signedIn()
-  &&
-  (
-    isRootAdmin()
-    ||
-    resource.data.userId == request.auth.uid
-    ||
-    (
-      resource.data.shopId is string
-      &&
-      isShopMember(resource.data.shopId)
-    )
-  );
+allow read: if signedIn();
 
 allow create: if signedIn()
   &&
@@ -622,46 +1771,22 @@ allow update: if signedIn() &&
       ])
     ) ||
 
-   (
-  // 🙋 會員取消自己的訂單
+  (
   resource.data.userId == request.auth.uid
-  &&
-  resource.data.status in ['pending', 'confirmed']
-  &&
-  request.resource.data.status == 'cancelled'
-  &&
-  request.resource.data.cancelBy == 'customer'
-  &&
-  request.resource.data.cancelReason is string
   &&
   request.resource.data.diff(resource.data).changedKeys().hasOnly([
     'status',
     'cancelReason',
     'cancelBy',
     'cancelledAt',
-    'updatedAt'
-  ])
-)
-||
-(
-  // 💳 會員上傳或更新付款證明
-  resource.data.userId == request.auth.uid
-  &&
-  resource.data.status == 'pending'
-  &&
-  request.resource.data.diff(resource.data).changedKeys().hasOnly([
+    'updatedAt',
     'transferImageUrl',
     'transferLast5',
     'depositStatus',
     'depositSubmittedAt',
-    'updatedAt'
+    'depositExpired',
+    'assignStatus'
   ])
-  &&
-  (
-    !request.resource.data.keys().hasAny(['depositStatus'])
-    ||
-    request.resource.data.depositStatus == 'pending_review'
-  )
 )
   );
 
@@ -856,15 +1981,79 @@ match /activation_codes/{codeId} {
     allow update, delete: if isRootAdmin();
   }
 }
-    // 👑 平台管理員
-    match /platform_admins/{adminUid} {
-      allow read, write: if isRootAdmin();
-    }
+    // 👑 平台人員與權限資料
+// 功能：根管理員可管理平台人員；一般平台人員只能查看自己的權限資料。
+match /platform_users/{platformUid} {
+
+  // 根管理員可查看全部資料。
+  // 一般平台人員只能查看自己的資料。
+  allow read: if isRootAdmin() || isSelf(platformUid);
+
+  // 只有根管理員可以新增平台人員。
+  allow create: if isRootAdmin()
+    && request.resource.data.uid == platformUid
+    && (
+      platformUid != '7FNrECQeqAca9Vu8lBBzTSdcJcg1'
+      ||
+      (
+        request.resource.data.role == 'super_admin'
+        && request.resource.data.enabled == true
+        && request.resource.data.permissions is list
+        && request.resource.data.permissions.hasAll(['all'])
+      )
+    );
+
+  // 只有根管理員可以修改平台人員。
+  // 修改根管理員自己的文件時，必須維持最高權限。
+  allow update: if isRootAdmin()
+    && request.resource.data.uid == platformUid
+    && (
+      platformUid != '7FNrECQeqAca9Vu8lBBzTSdcJcg1'
+      ||
+      (
+        request.resource.data.role == 'super_admin'
+        && request.resource.data.enabled == true
+        && request.resource.data.permissions is list
+        && request.resource.data.permissions.hasAll(['all'])
+      )
+    );
+
+  // 可以刪除其他平台人員，
+  // 但永遠不能透過 App 刪除根管理員。
+  allow delete: if isRootAdmin()
+    && platformUid != '7FNrECQeqAca9Vu8lBBzTSdcJcg1';
+}
 
     // 📜 平台條款版本
     match /platform_policy_versions/{versionId} {
       allow read, write: if isRootAdmin();
     }
+
+// 🔔 App 通知中心
+match /notifications/{notificationId} {
+
+  // 本人可查看自己的通知
+  // Root Admin 可查看全部
+  allow read: if signedIn() &&
+    (
+      isRootAdmin() ||
+      resource.data.userId == request.auth.uid
+    );
+
+  // 只能由 Cloud Functions(Admin SDK) 建立
+  allow create: if false;
+
+  // 本人只能修改已讀狀態
+  allow update: if signedIn()
+    && resource.data.userId == request.auth.uid
+    && request.resource.data.diff(resource.data).changedKeys().hasOnly([
+      'isRead',
+      'readAt'
+    ]);
+
+  // 不允許刪除
+  allow delete: if false;
+}
 
     // 🔔 平台通知
 match /shop_notifications/{notificationId} {

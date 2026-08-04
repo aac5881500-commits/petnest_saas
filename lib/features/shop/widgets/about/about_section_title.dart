@@ -2,33 +2,32 @@
 // 🐾 關於我們頁 共用區塊標題
 
 import 'package:flutter/material.dart';
+import 'package:petnest_saas/core/models/home_theme_model.dart';
 
 class AboutSectionTitle extends StatelessWidget {
   const AboutSectionTitle({
     super.key,
     required this.icon,
     required this.title,
+    required this.theme,
   });
 
   final IconData icon;
   final String title;
+  final HomeThemeModel theme;
 
   @override
   Widget build(BuildContext context) {
     return Row(
       children: [
-        Icon(
-          icon,
-          size: 22,
-          color: const Color(0xFFC47A2C),
-        ),
+        Icon(icon, size: 22, color: theme.primaryColor),
         const SizedBox(width: 8),
         Text(
           title,
-          style: const TextStyle(
+          style: TextStyle(
             fontSize: 20,
             fontWeight: FontWeight.w900,
-            color: Color(0xFF3A2A1A),
+            color: theme.textColor,
           ),
         ),
       ],

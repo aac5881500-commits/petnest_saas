@@ -1004,6 +1004,8 @@ class ShopService {
     required String date,
     required String status,
     String roomName = '',
+    bool cleaningCompleted = false,
+    bool reopened = false,
   }) async {
     return ShopRoomService.instance.setRoomStatus(
       shopId: shopId,
@@ -1011,6 +1013,8 @@ class ShopService {
       date: date,
       status: status,
       roomName: roomName,
+      cleaningCompleted: cleaningCompleted,
+      reopened: reopened,
     );
   }
 

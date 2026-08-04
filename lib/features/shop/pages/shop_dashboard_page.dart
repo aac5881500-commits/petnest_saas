@@ -35,6 +35,7 @@ import 'package:petnest_saas/features/shop/pages/shop_about_manage_page.dart';
 import 'package:petnest_saas/features/shop/pages/shop_announcement_manage_page.dart';
 import 'package:petnest_saas/core/constants/shop_permission_keys.dart';
 import 'package:petnest_saas/features/shop/pages/shop_contact_platform_page.dart';
+import 'package:petnest_saas/features/shop/pages/shop_theme_setting_page.dart';
 import 'package:petnest_saas/features/shop/pages/shop_faq_manage_page.dart';
 import 'package:petnest_saas/features/shop/pages/shop_platform_notification_page.dart';
 import 'package:petnest_saas/core/services/shop_plan_service.dart';
@@ -42,6 +43,7 @@ import 'package:petnest_saas/features/shop/pages/shop_payout_setting_page.dart';
 import 'package:petnest_saas/features/shop/pages/shop_report_page.dart';
 import 'package:petnest_saas/features/shop/pages/shop_device_page.dart';
 import 'package:petnest_saas/features/admin/pages/admin_review_list_page.dart';
+import 'package:petnest_saas/features/admin/pages/admin_point_redemption_list_page.dart';
 
 class ShopDashboardPage extends StatefulWidget {
   const ShopDashboardPage({super.key, required this.shopId});
@@ -538,6 +540,22 @@ class _BasicInfoTab extends StatelessWidget {
 
         if (_can(ShopPermissionKeys.manageFrontendContent))
           _MenuTile(
+            title: '前台外觀設定',
+            subtitle: !isProfileComplete ? '請先完成基本資料' : '設定首頁版型、主題顏色與整體外觀',
+            icon: Icons.design_services_outlined,
+            enabled: isProfileComplete,
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => ShopThemeSettingPage(shopId: shopId),
+                ),
+              );
+            },
+          ),
+
+        if (_can(ShopPermissionKeys.manageFrontendContent))
+          _MenuTile(
             title: '環境介紹管理',
             subtitle: !isProfileComplete
                 ? '請先完成基本資料'
@@ -915,6 +933,24 @@ class _CatHotelTab extends StatelessWidget {
                 context,
                 MaterialPageRoute(
                   builder: (_) => ShopPaymentSettingPage(shopId: shopId),
+                ),
+              );
+            },
+          ),
+
+        if (_can(ShopPermissionKeys.managePointRedemptions))
+          _MenuTile(
+            title: '實體商品核銷中心',
+            subtitle: isProfileComplete ? '搜尋領取碼、查看待領取商品及完成交付' : '請先完成基本資料',
+            icon: Icons.inventory_2_outlined,
+            enabled: isProfileComplete,
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute<void>(
+                  builder: (BuildContext context) {
+                    return AdminPointRedemptionListPage(shopId: shopId);
+                  },
                 ),
               );
             },

@@ -64,11 +64,14 @@ class BookingDetailPaymentSection extends StatelessWidget {
               ),
               const SizedBox(height: 6),
               Text(
-                data['paymentMethod'] == 'transfer'
-                    ? '銀行轉帳'
-                    : data['paymentMethod'] == 'cash'
-                    ? '到店付款'
-                    : '未設定',
+                switch ((data['paymentMethod'] ?? '').toString()) {
+                  'transfer' => '銀行轉帳',
+                  'cash' => '到店付款',
+                  'credit_card' => '信用卡',
+                  'atm' => 'ATM 虛擬帳號',
+                  'cvs_code' => '超商代碼',
+                  _ => '未設定',
+                },
                 style: const TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.bold,

@@ -10,6 +10,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:petnest_saas/core/constants/shop_permission_keys.dart';
 import 'package:petnest_saas/features/admin/pages/admin_booking_detail_page.dart';
 import 'package:petnest_saas/core/utils/natural_sort.dart';
+import 'package:petnest_saas/features/room/pages/housekeeping_setting_page.dart';
 
 class RoomDashboardPage extends StatefulWidget {
   const RoomDashboardPage({super.key, required this.shopId});
@@ -26,6 +27,7 @@ class _RoomDashboardPageState extends State<RoomDashboardPage> {
   bool _loadingPermission = true;
   bool _hasPermission = false;
   bool _showUnassignedBookings = false;
+  String _selectedRoomTypeFilter = '__all__';
 
   DateTime get weekStart {
     final d = selectedDate;
@@ -90,7 +92,23 @@ class _RoomDashboardPageState extends State<RoomDashboardPage> {
       );
     }
     return Scaffold(
-      appBar: AppBar(title: const Text('房務管理')),
+      appBar: AppBar(
+        title: const Text('房務管理'),
+        actions: [
+          IconButton(
+            tooltip: '房務設定',
+            icon: const Icon(Icons.settings_outlined),
+            onPressed: () {
+              Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) =>
+                      HousekeepingSettingPage(shopId: widget.shopId),
+                ),
+              );
+            },
+          ),
+        ],
+      ),
       body: Column(
         children: [
           /// 📅 週日期切換
@@ -214,6 +232,35 @@ class _RoomDashboardPageState extends State<RoomDashboardPage> {
                 if (rooms.isEmpty) {
                   return const Center(child: Text('尚無房間'));
                 }
+                final roomTypeNames =
+                    rooms
+                        .map((room) {
+                          final name = (room['roomTypeName'] ?? '')
+                              .toString()
+                              .trim();
+
+                          return name.isEmpty ? '未分類' : name;
+                        })
+                        .toSet()
+                        .toList()
+                      ..sort(naturalCompare);
+
+                final effectiveRoomTypeFilter =
+                    _selectedRoomTypeFilter == '__all__' ||
+                        roomTypeNames.contains(_selectedRoomTypeFilter)
+                    ? _selectedRoomTypeFilter
+                    : '__all__';
+
+                final filteredRooms = effectiveRoomTypeFilter == '__all__'
+                    ? rooms
+                    : rooms.where((room) {
+                        final name = (room['roomTypeName'] ?? '')
+                            .toString()
+                            .trim();
+                        final roomTypeName = name.isEmpty ? '未分類' : name;
+
+                        return roomTypeName == effectiveRoomTypeFilter;
+                      }).toList();
 
                 return StreamBuilder<QuerySnapshot>(
                   stream: FirebaseFirestore.instance
@@ -257,7 +304,7 @@ class _RoomDashboardPageState extends State<RoomDashboardPage> {
                           roomCalendarStatus['$roomId|$date'] = status;
                         }
 
-                        final roomStatusList = rooms.map((room) {
+                        final roomStatusList = filteredRooms.map((room) {
                           Map<String, dynamic>? todayBooking;
 
                           for (var doc in bookings) {
@@ -283,8 +330,18 @@ class _RoomDashboardPageState extends State<RoomDashboardPage> {
                           final roomStatus =
                               roomCalendarStatus['$roomId|$dateStr'];
 
-                          if (roomStatus == 'blocked') {
+                          if (roomStatus == 'closed') {
+                            return '今日關閉';
+                          }
+
+                          if (roomStatus == 'blocked' ||
+                              roomStatus == 'maintenance' ||
+                              roomStatus == 'unavailable') {
                             return '維修中';
+                          }
+
+                          if (roomStatus == 'cleaning') {
+                            return '清潔中';
                           }
 
                           return _getRoomStatusText(todayBooking);
@@ -300,12 +357,76 @@ class _RoomDashboardPageState extends State<RoomDashboardPage> {
                               status == '已完成';
                         }).length;
 
+                        final cleaningCount = roomStatusList
+                            .where((status) => status == '清潔中')
+                            .length;
+
+                        final closedCount = roomStatusList
+                            .where((status) => status == '今日關閉')
+                            .length;
+
                         final blockedCount = roomStatusList
                             .where((status) => status == '維修中')
                             .length;
 
                         return Column(
                           children: [
+                            SizedBox(
+                              height: 52,
+                              child: ListView(
+                                scrollDirection: Axis.horizontal,
+                                padding: const EdgeInsets.fromLTRB(
+                                  12,
+                                  6,
+                                  12,
+                                  6,
+                                ),
+                                children: [
+                                  Padding(
+                                    padding: const EdgeInsets.only(right: 8),
+                                    child: ChoiceChip(
+                                      label: Text('全部 (${rooms.length})'),
+                                      selected:
+                                          effectiveRoomTypeFilter == '__all__',
+                                      onSelected: (_) {
+                                        setState(() {
+                                          _selectedRoomTypeFilter = '__all__';
+                                        });
+                                      },
+                                    ),
+                                  ),
+                                  ...roomTypeNames.map((roomTypeName) {
+                                    final count = rooms.where((room) {
+                                      final name = (room['roomTypeName'] ?? '')
+                                          .toString()
+                                          .trim();
+                                      final currentRoomTypeName = name.isEmpty
+                                          ? '未分類'
+                                          : name;
+
+                                      return currentRoomTypeName ==
+                                          roomTypeName;
+                                    }).length;
+
+                                    return Padding(
+                                      padding: const EdgeInsets.only(right: 8),
+                                      child: ChoiceChip(
+                                        label: Text('$roomTypeName ($count)'),
+                                        selected:
+                                            effectiveRoomTypeFilter ==
+                                            roomTypeName,
+                                        onSelected: (_) {
+                                          setState(() {
+                                            _selectedRoomTypeFilter =
+                                                roomTypeName;
+                                          });
+                                        },
+                                      ),
+                                    );
+                                  }),
+                                ],
+                              ),
+                            ),
                             if (unassignedBookings.isNotEmpty)
                               Container(
                                 width: double.infinity,
@@ -488,13 +609,25 @@ class _RoomDashboardPageState extends State<RoomDashboardPage> {
                                         emptyCount,
                                         Colors.green,
                                       ),
-                                      const SizedBox(width: 8),
+                                      const SizedBox(width: 6),
                                       _buildSummaryCard(
                                         '使用中',
                                         usingCount,
                                         Colors.blue,
                                       ),
-                                      const SizedBox(width: 8),
+                                      const SizedBox(width: 6),
+                                      _buildSummaryCard(
+                                        '清潔中',
+                                        cleaningCount,
+                                        Colors.orange,
+                                      ),
+                                      const SizedBox(width: 6),
+                                      _buildSummaryCard(
+                                        '今日關閉',
+                                        closedCount,
+                                        const Color(0xFF6D4C41),
+                                      ),
+                                      const SizedBox(width: 6),
                                       _buildSummaryCard(
                                         '維修中',
                                         blockedCount,
@@ -507,9 +640,9 @@ class _RoomDashboardPageState extends State<RoomDashboardPage> {
                             ),
                             Expanded(
                               child: ListView.builder(
-                                itemCount: rooms.length,
+                                itemCount: filteredRooms.length,
                                 itemBuilder: (context, index) {
-                                  final room = rooms[index];
+                                  final room = filteredRooms[index];
 
                                   /// 🔍 找今天訂單
                                   Map<String, dynamic>? todayBooking;
@@ -546,10 +679,14 @@ class _RoomDashboardPageState extends State<RoomDashboardPage> {
                                   final manualStatus =
                                       roomCalendarStatus['$roomId|$dateStr'];
 
-                                  if (manualStatus == 'blocked') {
+                                  if (manualStatus == 'closed') {
+                                    color = const Color(0xFF6D4C41);
+                                  } else if (manualStatus == 'blocked' ||
+                                      manualStatus == 'maintenance' ||
+                                      manualStatus == 'unavailable') {
                                     color = Colors.black;
-                                  } else if (manualStatus == 'booked') {
-                                    color = Colors.deepOrange;
+                                  } else if (manualStatus == 'cleaning') {
+                                    color = Colors.orange;
                                   } else if (todayBooking != null) {
                                     final status = todayBooking['status'] ?? '';
 
@@ -756,86 +893,125 @@ class _RoomDashboardPageState extends State<RoomDashboardPage> {
                                                         final manualStatus =
                                                             roomCalendarStatus['$roomId|$dayKey'];
 
+                                                        final bool
+                                                        hasManualStatus =
+                                                            manualStatus ==
+                                                                'closed' ||
+                                                            manualStatus ==
+                                                                'blocked' ||
+                                                            manualStatus ==
+                                                                'maintenance' ||
+                                                            manualStatus ==
+                                                                'unavailable' ||
+                                                            manualStatus ==
+                                                                'cleaning';
+
                                                         if (manualStatus ==
-                                                            'blocked') {
+                                                            'closed') {
+                                                          dotColor =
+                                                              const Color(
+                                                                0xFF6D4C41,
+                                                              );
+                                                        } else if (manualStatus ==
+                                                                'blocked' ||
+                                                            manualStatus ==
+                                                                'maintenance' ||
+                                                            manualStatus ==
+                                                                'unavailable') {
                                                           dotColor =
                                                               Colors.black;
+                                                        } else if (manualStatus ==
+                                                            'cleaning') {
+                                                          dotColor =
+                                                              Colors.orange;
                                                         }
-                                                        for (var doc
-                                                            in bookings) {
-                                                          final data =
-                                                              doc.data()
-                                                                  as Map<
-                                                                    String,
-                                                                    dynamic
-                                                                  >;
 
-                                                          if (data['roomId'] !=
-                                                              room['id'])
-                                                            continue;
+                                                        if (!hasManualStatus) {
+                                                          for (var doc
+                                                              in bookings) {
+                                                            final data =
+                                                                doc.data()
+                                                                    as Map<
+                                                                      String,
+                                                                      dynamic
+                                                                    >;
 
-                                                          final start =
-                                                              (data['startDate']
-                                                                      as Timestamp)
-                                                                  .toDate();
-                                                          final end =
-                                                              (data['endDate']
-                                                                      as Timestamp)
-                                                                  .toDate();
-                                                          final status =
-                                                              data['status'] ??
-                                                              '';
-
-                                                          final dayOnly =
-                                                              DateTime(
-                                                                day.year,
-                                                                day.month,
-                                                                day.day,
-                                                              );
-                                                          final startOnly =
-                                                              DateTime(
-                                                                start.year,
-                                                                start.month,
-                                                                start.day,
-                                                              );
-                                                          final endOnly =
-                                                              DateTime(
-                                                                end.year,
-                                                                end.month,
-                                                                end.day,
-                                                              );
-
-                                                          if (!dayOnly.isBefore(
-                                                                startOnly,
-                                                              ) &&
-                                                              dayOnly.isBefore(
-                                                                endOnly,
-                                                              )) {
-                                                            switch (status) {
-                                                              case 'pending':
-                                                              case 'confirmed':
-                                                                dotColor = Colors
-                                                                    .deepOrange;
-                                                                break;
-
-                                                              case 'checked_in':
-                                                                dotColor =
-                                                                    Colors.blue;
-                                                                break;
-
-                                                              case 'completed':
-                                                                dotColor =
-                                                                    Colors
-                                                                        .purple;
-                                                                break;
-
-                                                              default:
-                                                                dotColor =
-                                                                    Colors
-                                                                        .green;
+                                                            if (data['roomId'] !=
+                                                                room['id']) {
+                                                              continue;
                                                             }
 
-                                                            break;
+                                                            final start =
+                                                                (data['startDate']
+                                                                        as Timestamp)
+                                                                    .toDate();
+
+                                                            final end =
+                                                                (data['endDate']
+                                                                        as Timestamp)
+                                                                    .toDate();
+
+                                                            final status =
+                                                                data['status']
+                                                                    ?.toString() ??
+                                                                '';
+
+                                                            final dayOnly =
+                                                                DateTime(
+                                                                  day.year,
+                                                                  day.month,
+                                                                  day.day,
+                                                                );
+
+                                                            final startOnly =
+                                                                DateTime(
+                                                                  start.year,
+                                                                  start.month,
+                                                                  start.day,
+                                                                );
+
+                                                            final endOnly =
+                                                                DateTime(
+                                                                  end.year,
+                                                                  end.month,
+                                                                  end.day,
+                                                                );
+
+                                                            if (!dayOnly
+                                                                    .isBefore(
+                                                                      startOnly,
+                                                                    ) &&
+                                                                dayOnly
+                                                                    .isBefore(
+                                                                      endOnly,
+                                                                    )) {
+                                                              switch (status) {
+                                                                case 'pending':
+                                                                case 'confirmed':
+                                                                  dotColor = Colors
+                                                                      .deepOrange;
+                                                                  break;
+
+                                                                case 'checked_in':
+                                                                  dotColor =
+                                                                      Colors
+                                                                          .blue;
+                                                                  break;
+
+                                                                case 'completed':
+                                                                  dotColor =
+                                                                      Colors
+                                                                          .purple;
+                                                                  break;
+
+                                                                default:
+                                                                  dotColor =
+                                                                      Colors
+                                                                          .green;
+                                                              }
+
+                                                              break;
+                                                            }
                                                           }
                                                         }
 
@@ -854,9 +1030,27 @@ class _RoomDashboardPageState extends State<RoomDashboardPage> {
 
                                           /// 右邊狀態
                                           _buildStatusChip(
-                                            color: color,
-                                            text: manualStatus == 'blocked'
+                                            color: manualStatus == 'closed'
+                                                ? const Color(0xFF6D4C41)
+                                                : manualStatus == 'blocked' ||
+                                                      manualStatus ==
+                                                          'maintenance' ||
+                                                      manualStatus ==
+                                                          'unavailable'
+                                                ? Colors.black
+                                                : manualStatus == 'cleaning'
+                                                ? Colors.orange
+                                                : color,
+                                            text: manualStatus == 'closed'
+                                                ? '今日關閉'
+                                                : manualStatus == 'blocked' ||
+                                                      manualStatus ==
+                                                          'maintenance' ||
+                                                      manualStatus ==
+                                                          'unavailable'
                                                 ? '維修中'
+                                                : manualStatus == 'cleaning'
+                                                ? '清潔中'
                                                 : _getRoomStatusText(
                                                     todayBooking,
                                                   ),

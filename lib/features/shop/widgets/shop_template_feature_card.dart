@@ -3,6 +3,7 @@
 // 用於前台首頁的模板區塊，例如：環境介紹、房間介紹、入住須知
 
 import 'package:flutter/material.dart';
+import 'package:petnest_saas/core/models/home_theme_model.dart';
 
 class ShopTemplateFeatureCard extends StatelessWidget {
   const ShopTemplateFeatureCard({
@@ -11,12 +12,14 @@ class ShopTemplateFeatureCard extends StatelessWidget {
     required this.title,
     required this.subtitle,
     required this.onTap,
+    required this.theme,
   });
 
   final IconData icon;
   final String title;
   final String subtitle;
   final VoidCallback onTap;
+  final HomeThemeModel theme;
 
   @override
   Widget build(BuildContext context) {
@@ -25,9 +28,9 @@ class ShopTemplateFeatureCard extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: theme.cardColor,
           borderRadius: BorderRadius.circular(18),
-          border: Border.all(color: const Color(0xFFF0E0CC)),
+          border: Border.all(color: theme.cardBorderColor),
           boxShadow: [
             BoxShadow(
               color: Colors.black.withOpacity(0.045),
@@ -38,7 +41,7 @@ class ShopTemplateFeatureCard extends StatelessWidget {
         ),
         child: Row(
           children: [
-            Icon(icon, size: 22, color: const Color(0xFFB86B18)),
+            Icon(icon, size: 22, color: theme.primaryColor),
             const SizedBox(width: 6),
             Expanded(
               child: Column(
@@ -52,7 +55,7 @@ class ShopTemplateFeatureCard extends StatelessWidget {
                     style: TextStyle(
                       fontSize: title == '觀看攝影機' ? 16 : 18,
                       fontWeight: FontWeight.w800,
-                      color: const Color(0xFF3A2A1A),
+                      color: theme.textColor,
                     ),
                   ),
                 ],

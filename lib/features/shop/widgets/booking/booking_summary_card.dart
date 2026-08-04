@@ -12,15 +12,29 @@ class BookingSummaryCard extends StatelessWidget {
     required this.petCount,
     required this.roomTypeName,
     required this.totalPrice,
+    this.depositAmount = 0,
     this.originalTotal,
     this.discountAmount = 0,
     this.discountPercent = 0,
     this.discountMinNights = 0,
     this.discountBase = '',
+    this.discountCampaignName = '',
+    this.discountValueType = '',
+    this.discountValue = 0,
+    this.discountCampaignType = '',
+    this.discountUsedNights = 0,
+    this.remainingDiscountNights = 0,
+
+    this.couponName = '',
+    this.couponDiscountAmount = 0,
+
     required this.timeAddon,
     required this.valueServices,
     required this.customServices,
     required this.customServicePrices,
+    required this.dailyTimedServices,
+    required this.selectedDailyTimedServices,
+    this.petNamesById = const {},
   });
 
   final String startDateText;
@@ -29,15 +43,44 @@ class BookingSummaryCard extends StatelessWidget {
   final int petCount;
   final String roomTypeName;
   final int totalPrice;
+  final int depositAmount;
   final int? originalTotal;
   final int discountAmount;
   final int discountPercent;
   final int discountMinNights;
   final String discountBase;
+  final String discountCampaignName;
+
+  /// percent / fixedAmount
+  final String discountValueType;
+
+  /// 店家設定的折扣數值，例如 10% 或 1000 元
+  final num discountValue;
+
+  /// newMember / longStay / roomType 等活動類型
+  final String discountCampaignType;
+
+  /// 本次實際使用的優惠晚數
+  final int discountUsedNights;
+
+  /// 本次優惠使用完成後剩餘晚數
+  final int remainingDiscountNights;
+  final String couponName;
+  final int couponDiscountAmount;
   final Map<String, dynamic>? timeAddon;
   final List<Map<String, dynamic>> valueServices;
   final Map<String, List<String>> customServices;
   final Map<String, int> customServicePrices;
+
+  /// 店家設定的每日分時段服務。
+  final List<Map<String, dynamic>> dailyTimedServices;
+
+  /// serviceId → petId → yyyy-MM-dd → 時段 ID 清單
+  final Map<String, Map<String, Map<String, List<String>>>>
+  selectedDailyTimedServices;
+
+  /// petId → 寵物名稱
+  final Map<String, String> petNamesById;
 
   @override
   Widget build(BuildContext context) {
@@ -87,36 +130,279 @@ class BookingSummaryCard extends StatelessWidget {
                 return _infoRow('$name ($count隻)', '+NT\$ ${price * count}');
               }),
 
+            if (_hasDailyTimedSelections()) ...[
+              const SizedBox(height: 10),
+              const Text(
+                '每日分時段服務',
+                style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 8),
+              ..._buildDailyTimedServiceWidgets(),
+            ],
             const Divider(),
 
             if (discountAmount > 0 && originalTotal != null) ...[
               _infoRow('原價', 'NT\$ $originalTotal'),
               const SizedBox(height: 6),
-              _infoRow('長住優惠', '滿 $discountMinNights 晚折扣 $discountPercent%'),
+              _infoRow(
+                '優惠活動',
+                discountCampaignName.trim().isNotEmpty
+                    ? discountCampaignName
+                    : '長住優惠：滿 $discountMinNights 晚折扣 $discountPercent%',
+              ),
               const SizedBox(height: 6),
-              _infoRow('折扣範圍', _discountBaseText()),
+              _infoRow('優惠內容', _discountContentText()),
               const SizedBox(height: 6),
+
+              if (discountCampaignType == 'newMember' &&
+                  discountUsedNights > 0) ...[
+                _infoRow('本次優惠晚數', '$discountUsedNights 晚'),
+                const SizedBox(height: 6),
+                _infoRow('使用後剩餘', '$remainingDiscountNights 晚'),
+                const SizedBox(height: 6),
+              ],
+
               _infoRow('折扣金額', '-NT\$ $discountAmount'),
               const SizedBox(height: 6),
+
+              if (couponDiscountAmount > 0) ...[
+                _infoRow(
+                  couponName.isEmpty ? '會員優惠券' : couponName,
+                  '-NT\$ $couponDiscountAmount',
+                ),
+                const SizedBox(height: 6),
+              ],
             ],
 
-            _infoRow(discountAmount > 0 ? '折後總價' : '總價', 'NT\$ $totalPrice'),
+            _infoRow(
+              (discountAmount > 0 || couponDiscountAmount > 0) ? '折後總價' : '總價',
+              'NT\$ $totalPrice',
+            ),
+            if (depositAmount > 0) ...[
+              const SizedBox(height: 6),
+              _infoRow('本次應付訂金', 'NT\$ $depositAmount'),
+            ],
           ],
         ),
       ),
     );
   }
 
+  bool _hasDailyTimedSelections() {
+    return selectedDailyTimedServices.values.any((petSelections) {
+      return petSelections.values.any((dateSelections) {
+        return dateSelections.values.any((slotIds) => slotIds.isNotEmpty);
+      });
+    });
+  }
+
+  List<Widget> _buildDailyTimedServiceWidgets() {
+    final widgets = <Widget>[];
+
+    for (final entry in dailyTimedServices.asMap().entries) {
+      final serviceIndex = entry.key;
+      final service = entry.value;
+
+      final serviceId = _dailyTimedServiceId(service, serviceIndex);
+      final serviceSelections = selectedDailyTimedServices[serviceId];
+
+      if (serviceSelections == null || serviceSelections.isEmpty) {
+        continue;
+      }
+
+      final serviceName = service['name']?.toString().trim().isNotEmpty == true
+          ? service['name'].toString().trim()
+          : '每日服務';
+
+      final servicePrice = ((service['price'] ?? 0) as num).toInt();
+      final timeSlotLabels = _timeSlotLabels(service);
+
+      int selectedCount = 0;
+
+      for (final petSelections in serviceSelections.values) {
+        for (final slotIds in petSelections.values) {
+          selectedCount += slotIds.length;
+        }
+      }
+
+      if (selectedCount == 0) {
+        continue;
+      }
+
+      widgets.add(
+        Container(
+          width: double.infinity,
+          margin: const EdgeInsets.only(bottom: 10),
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            border: Border.all(color: Colors.grey.shade300),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: Text(
+                      serviceName,
+                      style: const TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                  Text(
+                    '+NT\$ ${servicePrice * selectedCount}',
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              ...serviceSelections.entries.map((petEntry) {
+                final petId = petEntry.key;
+                final petName = petNamesById[petId] ?? petId;
+                final dateSelections = petEntry.value;
+
+                final sortedDates = dateSelections.entries.toList()
+                  ..sort((a, b) => a.key.compareTo(b.key));
+
+                return Padding(
+                  padding: const EdgeInsets.only(top: 6),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        '🐱 $petName',
+                        style: const TextStyle(fontWeight: FontWeight.w600),
+                      ),
+                      const SizedBox(height: 4),
+                      ...sortedDates
+                          .where((dateEntry) {
+                            return dateEntry.value.isNotEmpty;
+                          })
+                          .map((dateEntry) {
+                            final labels = dateEntry.value
+                                .map((slotId) {
+                                  return timeSlotLabels[slotId] ?? slotId;
+                                })
+                                .join('、');
+
+                            return Padding(
+                              padding: const EdgeInsets.only(left: 18, top: 3),
+                              child: Text(
+                                '├─ ${_formatDailyTimedDate(dateEntry.key)}　$labels',
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  color: Colors.grey.shade700,
+                                ),
+                              ),
+                            );
+                          }),
+                    ],
+                  ),
+                );
+              }),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return widgets;
+  }
+
+  String _dailyTimedServiceId(Map<String, dynamic> service, int serviceIndex) {
+    final rawServiceId = service['id']?.toString().trim() ?? '';
+    final serviceName = service['name']?.toString().trim() ?? '';
+
+    if (rawServiceId.isNotEmpty) {
+      return rawServiceId;
+    }
+
+    if (serviceName.isNotEmpty) {
+      return 'daily_timed_$serviceName';
+    }
+
+    return 'daily_timed_$serviceIndex';
+  }
+
+  Map<String, String> _timeSlotLabels(Map<String, dynamic> service) {
+    final result = <String, String>{};
+
+    final rawSlots = service['timeSlots'];
+
+    if (rawSlots is! List) {
+      return result;
+    }
+
+    for (final rawSlot in rawSlots) {
+      if (rawSlot is! Map) {
+        continue;
+      }
+
+      final slot = Map<String, dynamic>.from(rawSlot);
+      final id = slot['id']?.toString().trim() ?? '';
+      final label = slot['label']?.toString().trim() ?? '';
+
+      if (id.isNotEmpty) {
+        result[id] = label.isNotEmpty ? label : id;
+      }
+    }
+
+    return result;
+  }
+
+  String _formatDailyTimedDate(String dateKey) {
+    final parts = dateKey.split('-');
+
+    if (parts.length != 3) {
+      return dateKey;
+    }
+
+    return '${parts[0]}/${parts[1]}/${parts[2]}';
+  }
+
+  String _discountContentText() {
+    String discountText;
+
+    switch (discountValueType) {
+      case 'percent':
+        discountText = '折扣 ${_formatDiscountValue(discountValue)}%';
+        break;
+
+      case 'fixedAmount':
+        discountText = '折 NT\$ ${_formatDiscountValue(discountValue)}';
+        break;
+
+      default:
+        discountText = '已套用優惠';
+    }
+
+    return '$discountText（${_discountBaseText()}）';
+  }
+
+  String _formatDiscountValue(num value) {
+    if (value == value.roundToDouble()) {
+      return value.toInt().toString();
+    }
+
+    return value.toStringAsFixed(1);
+  }
+
   String _discountBaseText() {
     switch (discountBase) {
       case 'room':
         return '只折房價';
+
       case 'room_pet':
-        return '房價＋寵物加價';
+      case 'roomAndPet':
+        return '房價與寵物費';
+
       case 'total':
-        return '總金額（含加值服務）';
+        return '全部金額';
+
       default:
-        return '長住優惠';
+        return '依活動設定';
     }
   }
 

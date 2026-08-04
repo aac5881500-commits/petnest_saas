@@ -3,13 +3,19 @@
 // 顯示店家的房型介紹，讀取 Firestore 房型資料，點擊可進房型詳細頁
 
 import 'package:flutter/material.dart';
+import 'package:petnest_saas/core/models/home_theme_model.dart';
 import 'package:petnest_saas/core/services/shop_service.dart';
 import 'package:petnest_saas/features/shop/pages/room_type_detail_page.dart';
 
 class ShopRoomIntroPage extends StatelessWidget {
-  const ShopRoomIntroPage({super.key, required this.shopId});
+  const ShopRoomIntroPage({
+    super.key,
+    required this.shopId,
+    required this.theme,
+  });
 
   final String shopId;
+  final HomeThemeModel theme;
 
   void _openRoomDetail(BuildContext context, Map<String, dynamic> roomType) {
     Navigator.push(
@@ -20,6 +26,7 @@ class ShopRoomIntroPage extends StatelessWidget {
           roomType: roomType,
           startDate: DateTime.now(),
           endDate: DateTime.now().add(const Duration(days: 1)),
+          theme: theme,
           isIntroMode: true,
         ),
       ),
@@ -29,35 +36,36 @@ class ShopRoomIntroPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFFFFCF7),
+      backgroundColor: theme.backgroundColor,
       appBar: AppBar(
-        backgroundColor: const Color(0xFFFFFCF7),
+        backgroundColor: theme.backgroundColor,
+        foregroundColor: theme.textColor,
         elevation: 0,
         surfaceTintColor: Colors.transparent,
-        title: const Text(
+        title: Text(
           '房間介紹',
-          style: TextStyle(
-            fontWeight: FontWeight.w800,
-            color: Color(0xFF3A2A1A),
-          ),
+          style: TextStyle(fontWeight: FontWeight.w800, color: theme.textColor),
         ),
         centerTitle: true,
       ),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          const Text(
+          Text(
             '選擇適合毛孩的安心房型',
             style: TextStyle(
               fontSize: 20,
               fontWeight: FontWeight.w800,
-              color: Color(0xFF3A2A1A),
+              color: theme.textColor,
             ),
           ),
           const SizedBox(height: 6),
-          const Text(
+          Text(
             '每個房型都會顯示可入住數量、價格與特色，方便快速了解。',
-            style: TextStyle(fontSize: 13, color: Color(0xFF8A6A45)),
+            style: TextStyle(
+              fontSize: 13,
+              color: theme.textColor.withValues(alpha: 0.68),
+            ),
           ),
           const SizedBox(height: 20),
 
@@ -65,10 +73,10 @@ class ShopRoomIntroPage extends StatelessWidget {
             stream: ShopService.instance.streamRoomTypes(shopId),
             builder: (context, snapshot) {
               if (snapshot.connectionState == ConnectionState.waiting) {
-                return const Center(
+                return Center(
                   child: Padding(
-                    padding: EdgeInsets.only(top: 40),
-                    child: CircularProgressIndicator(),
+                    padding: const EdgeInsets.only(top: 40),
+                    child: CircularProgressIndicator(color: theme.primaryColor),
                   ),
                 );
               }
@@ -76,12 +84,14 @@ class ShopRoomIntroPage extends StatelessWidget {
               final roomTypes = snapshot.data ?? [];
 
               if (roomTypes.isEmpty) {
-                return const Center(
+                return Center(
                   child: Padding(
-                    padding: EdgeInsets.only(top: 40),
+                    padding: const EdgeInsets.only(top: 40),
                     child: Text(
                       '目前尚無房型介紹',
-                      style: TextStyle(color: Colors.grey),
+                      style: TextStyle(
+                        color: theme.textColor.withValues(alpha: 0.6),
+                      ),
                     ),
                   ),
                 );
@@ -107,6 +117,7 @@ class ShopRoomIntroPage extends StatelessWidget {
                     roomType: roomType,
                     imageUrl: imageUrl,
                     isFullWidth: crossAxisCount == 1,
+                    theme: theme,
                     onTap: () => _openRoomDetail(context, roomType),
                   );
                 },
@@ -124,12 +135,14 @@ class _RoomIntroGridCard extends StatelessWidget {
     required this.roomType,
     required this.imageUrl,
     required this.isFullWidth,
+    required this.theme,
     required this.onTap,
   });
 
   final Map<String, dynamic> roomType;
   final String imageUrl;
   final bool isFullWidth;
+  final HomeThemeModel theme;
   final VoidCallback onTap;
 
   @override
@@ -139,9 +152,9 @@ class _RoomIntroGridCard extends StatelessWidget {
       onTap: onTap,
       child: Container(
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: theme.cardColor,
           borderRadius: BorderRadius.circular(22),
-          border: Border.all(color: const Color(0xFFF0E0CC)),
+          border: Border.all(color: theme.cardBorderColor),
           boxShadow: [
             BoxShadow(
               color: Colors.black.withValues(alpha: 0.04),
@@ -164,12 +177,8 @@ class _RoomIntroGridCard extends StatelessWidget {
                 : Container(
                     height: imageHeight,
                     width: double.infinity,
-                    color: const Color(0xFFFFF1DD),
-                    child: const Icon(
-                      Icons.bed,
-                      size: 44,
-                      color: Color(0xFFB86B18),
-                    ),
+                    color: theme.primaryColor.withValues(alpha: 0.12),
+                    child: Icon(Icons.bed, size: 44, color: theme.primaryColor),
                   ),
 
             Expanded(
@@ -185,7 +194,7 @@ class _RoomIntroGridCard extends StatelessWidget {
                       style: TextStyle(
                         fontSize: isFullWidth ? 20 : 16,
                         fontWeight: FontWeight.w800,
-                        color: const Color(0xFF3A2A1A),
+                        color: theme.textColor,
                       ),
                     ),
                     const SizedBox(height: 3),
@@ -193,18 +202,18 @@ class _RoomIntroGridCard extends StatelessWidget {
                       'NT\$ ${roomType['price'] ?? 0} / 晚',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 14,
-                        color: Color(0xFFB86B18),
+                        color: theme.primaryColor,
                         fontWeight: FontWeight.w800,
                       ),
                     ),
                     const SizedBox(height: 2),
                     Text(
                       '可住 ${roomType['capacity'] ?? 0} 隻',
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 12,
-                        color: Color(0xFF8A6A45),
+                        color: theme.textColor.withValues(alpha: 0.68),
                       ),
                     ),
                     const SizedBox(height: 14),
@@ -214,15 +223,15 @@ class _RoomIntroGridCard extends StatelessWidget {
                         vertical: 6,
                       ),
                       decoration: BoxDecoration(
-                        color: const Color(0xFFFFF1DD),
+                        color: theme.primaryColor.withValues(alpha: 0.12),
                         borderRadius: BorderRadius.circular(30),
                       ),
-                      child: const Text(
+                      child: Text(
                         '查看房型介紹',
                         style: TextStyle(
                           fontSize: 11,
                           fontWeight: FontWeight.w700,
-                          color: Color(0xFFB86B18),
+                          color: theme.primaryColor,
                         ),
                       ),
                     ),

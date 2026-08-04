@@ -3,6 +3,7 @@
 // 顯示照護設備：Icon、標題、簡短說明
 
 import 'package:flutter/material.dart';
+import 'package:petnest_saas/core/models/home_theme_model.dart';
 
 class EnvironmentCareItem extends StatelessWidget {
   const EnvironmentCareItem({
@@ -10,20 +11,22 @@ class EnvironmentCareItem extends StatelessWidget {
     required this.icon,
     required this.title,
     required this.subtitle,
+    this.theme = HomeThemeModel.classicDefault,
   });
 
   final IconData icon;
   final String title;
   final String subtitle;
+  final HomeThemeModel theme;
 
   @override
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: theme.cardColor,
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: const Color(0xFFF0E0CC)),
+        border: Border.all(color: theme.cardBorderColor),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withOpacity(0.035),
@@ -37,30 +40,26 @@ class EnvironmentCareItem extends StatelessWidget {
         children: [
           CircleAvatar(
             radius: 21,
-            backgroundColor: const Color(0xFFFFF1DD),
-            child: Icon(
-              icon,
-              color: const Color(0xFFB87535),
-              size: 23,
-            ),
+            backgroundColor: theme.primaryColor.withOpacity(0.12),
+            child: Icon(icon, color: theme.primaryColor, size: 23),
           ),
           const SizedBox(height: 9),
           Text(
             title,
             textAlign: TextAlign.center,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 13,
               fontWeight: FontWeight.w900,
-              color: Color(0xFF3A2A1A),
+              color: theme.textColor,
             ),
           ),
           const SizedBox(height: 4),
           Text(
             subtitle,
             textAlign: TextAlign.center,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 11,
-              color: Color(0xFF8A6A45),
+              color: theme.textColor.withOpacity(0.68),
             ),
           ),
         ],

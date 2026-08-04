@@ -20,6 +20,9 @@ import 'package:petnest_saas/features/admin/widgets/admin_booking_date_section.d
 import 'package:petnest_saas/features/admin/widgets/admin_booking_room_type_section.dart';
 import 'package:petnest_saas/core/services/shop_plan_service.dart';
 import 'package:petnest_saas/core/services/shop_permission_service.dart';
+import 'package:petnest_saas/core/models/discount_campaign_model.dart';
+import 'package:petnest_saas/core/services/discount_campaign_service.dart';
+import 'package:petnest_saas/core/services/discount_campaign_calculator.dart';
 
 class AdminCreateBookingPage extends StatefulWidget {
   const AdminCreateBookingPage({super.key, required this.shopId});
@@ -50,19 +53,48 @@ class _AdminCreateBookingPageState extends State<AdminCreateBookingPage> {
   String _adminOrderSource = '電話預約';
   Map<String, dynamic>? _selectedRoomType;
   bool _applyLongStayDiscount = true;
+
+  /// ===============================
+  /// 💰 手動訂單訂金與付款設定
+  /// ===============================
+  bool _depositEnabled = false;
+  int _depositAmount = 0;
+  double _depositRate = 0;
+  String _depositBase = 'total';
+
+  bool _cashEnabled = true;
+  bool _transferEnabled = true;
+
+  String? _paymentMethod;
+  String _payAmountType = 'deposit';
+  bool _submitting = false;
   bool _addonLoading = true;
   Map<String, dynamic>? _addonData;
+  bool _campaignsLoading = true;
 
+  List<DiscountCampaignModel> _enabledCampaigns =
+      const <DiscountCampaignModel>[];
+  Map<String, int> _memberCampaignUsage = <String, int>{};
+  Map<String, int> _memberCampaignUsedNights = <String, int>{};
+  bool _isFirstBooking = false;
+  bool _firstBookingLoading = false;
   Map<String, dynamic>? _selectedTimeAddon;
   List<Map<String, dynamic>> _selectedValueServices = [];
   final Set<String> _selectedAddonNames = <String>{};
   Map<String, List<String>> _selectedCustomServices = {};
+
+  Map<String, Map<String, Map<String, List<String>>>>
+  _selectedDailyTimedServices = {};
+
   List<Map<String, dynamic>> _pets = [];
 
   @override
   void initState() {
     super.initState();
+
     _loadAddons();
+    _loadDiscountCampaigns();
+    _loadShopPaymentSettings();
   }
 
   @override
@@ -86,6 +118,98 @@ class _AdminCreateBookingPageState extends State<AdminCreateBookingPage> {
       _addonData = data;
       _addonLoading = false;
     });
+  }
+
+  /// 讀取店家訂金與付款方式設定。
+  Future<void> _loadShopPaymentSettings() async {
+    try {
+      final doc = await FirebaseFirestore.instance
+          .collection('shops')
+          .doc(widget.shopId)
+          .get();
+
+      final data = doc.data();
+
+      if (data == null || !mounted) {
+        return;
+      }
+
+      final depositType = (data['depositType'] ?? 'fixed').toString();
+      final rawDepositValue = data['depositValue'] ?? 0;
+
+      final depositValue = rawDepositValue is num
+          ? rawDepositValue.toInt()
+          : int.tryParse(rawDepositValue.toString()) ?? 0;
+
+      final rawPaymentMethods = data['paymentMethods'];
+
+      final paymentMethods = rawPaymentMethods is Map
+          ? Map<String, dynamic>.from(rawPaymentMethods)
+          : <String, dynamic>{};
+
+      final cashEnabled = paymentMethods['cash'] == true;
+      final transferEnabled = paymentMethods['transfer'] == true;
+
+      String? defaultPaymentMethod;
+
+      if (cashEnabled) {
+        defaultPaymentMethod = 'cash';
+      } else if (transferEnabled) {
+        defaultPaymentMethod = 'transfer';
+      }
+
+      setState(() {
+        _depositEnabled = data['depositEnabled'] == true;
+        _depositBase = (data['depositBase'] ?? 'room').toString();
+
+        if (depositType == 'percent') {
+          _depositAmount = 0;
+          _depositRate = depositValue / 100;
+        } else {
+          _depositAmount = depositValue;
+          _depositRate = 0;
+        }
+
+        _cashEnabled = cashEnabled;
+        _transferEnabled = transferEnabled;
+        _paymentMethod = defaultPaymentMethod;
+
+        if (!_depositEnabled) {
+          _payAmountType = 'full';
+        }
+      });
+    } catch (error) {
+      debugPrint('手動訂單讀取付款設定失敗：$error');
+    }
+  }
+
+  Future<void> _loadDiscountCampaigns() async {
+    try {
+      final List<DiscountCampaignModel> campaigns =
+          await DiscountCampaignService.instance.getEnabledCampaigns(
+            widget.shopId,
+          );
+
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _enabledCampaigns = campaigns;
+        _campaignsLoading = false;
+      });
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _enabledCampaigns = const <DiscountCampaignModel>[];
+        _campaignsLoading = false;
+      });
+
+      debugPrint('手動訂單讀取優惠失敗：$error');
+    }
   }
 
   @override
@@ -174,9 +298,9 @@ class _AdminCreateBookingPageState extends State<AdminCreateBookingPage> {
           SizedBox(
             width: double.infinity,
             child: ElevatedButton(
-              onPressed: _selectedMember == null
+              onPressed: _selectedMember == null || _submitting
                   ? null
-                  : () {
+                  : () async {
                       if (_step == 0) {
                         setState(() {
                           _step = 1;
@@ -224,7 +348,6 @@ class _AdminCreateBookingPageState extends State<AdminCreateBookingPage> {
                         setState(() {
                           _step = 4;
                         });
-
                         return;
                       }
 
@@ -232,15 +355,20 @@ class _AdminCreateBookingPageState extends State<AdminCreateBookingPage> {
                         setState(() {
                           _step = 5;
                         });
-
                         return;
                       }
+
                       if (_step == 5) {
-                        _submitBooking();
-                        return;
+                        await _submitBooking();
                       }
                     },
-              child: const Text('下一步'),
+              child: _submitting
+                  ? const SizedBox(
+                      width: 22,
+                      height: 22,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : Text(_step == 5 ? '建立訂單' : '下一步'),
             ),
           ),
         ],
@@ -325,6 +453,10 @@ class _AdminCreateBookingPageState extends State<AdminCreateBookingPage> {
 
       _keywordController.text = result['phone'] ?? '';
       _keyword = result['phone'] ?? '';
+      _memberCampaignUsage = <String, int>{};
+      _memberCampaignUsedNights = <String, int>{};
+      _isFirstBooking = true;
+      _firstBookingLoading = false;
     });
 
     if (!mounted) return;
@@ -334,18 +466,123 @@ class _AdminCreateBookingPageState extends State<AdminCreateBookingPage> {
     ).showSnackBar(const SnackBar(content: Text('已暫存會員，送出訂單後才會正式建立')));
   }
 
+  Future<void> _loadMemberCampaignUsage(String userId) async {
+    if (userId.isEmpty) {
+      if (!mounted) return;
+
+      setState(() {
+        _memberCampaignUsage = <String, int>{};
+        _memberCampaignUsedNights = <String, int>{};
+      });
+      return;
+    }
+
+    try {
+      final List<Map<String, int>> results =
+          await Future.wait(<Future<Map<String, int>>>[
+            DiscountCampaignService.instance.getMemberCampaignUsage(
+              shopId: widget.shopId,
+              userId: userId,
+            ),
+            DiscountCampaignService.instance.getMemberCampaignUsedNights(
+              shopId: widget.shopId,
+              userId: userId,
+            ),
+          ]);
+
+      if (!mounted) return;
+
+      setState(() {
+        _memberCampaignUsage = results[0];
+        _memberCampaignUsedNights = results[1];
+      });
+    } catch (error) {
+      if (!mounted) return;
+
+      setState(() {
+        _memberCampaignUsage = <String, int>{};
+        _memberCampaignUsedNights = <String, int>{};
+      });
+
+      debugPrint('讀取手動訂單會員優惠資料失敗：$error');
+    }
+  }
+
+  Future<void> _loadFirstBookingStatus(String userId) async {
+    if (userId.isEmpty) {
+      if (!mounted) return;
+
+      setState(() {
+        _isFirstBooking = false;
+        _firstBookingLoading = false;
+      });
+      return;
+    }
+
+    setState(() {
+      _firstBookingLoading = true;
+    });
+
+    try {
+      final QuerySnapshot<Map<String, dynamic>> snapshot =
+          await FirebaseFirestore.instance
+              .collection('bookings')
+              .where('shopId', isEqualTo: widget.shopId)
+              .where('userId', isEqualTo: userId)
+              .get();
+
+      final bool hasValidBooking = snapshot.docs.any((
+        QueryDocumentSnapshot<Map<String, dynamic>> document,
+      ) {
+        final String status = (document.data()['status'] ?? '').toString();
+
+        return status == 'pending' ||
+            status == 'confirmed' ||
+            status == 'checked_in' ||
+            status == 'completed';
+      });
+
+      if (!mounted) return;
+
+      setState(() {
+        _isFirstBooking = !hasValidBooking;
+        _firstBookingLoading = false;
+      });
+    } catch (error) {
+      if (!mounted) return;
+
+      // 查詢失敗時不套用首次預約優惠，避免錯誤折扣。
+      setState(() {
+        _isFirstBooking = false;
+        _firstBookingLoading = false;
+      });
+
+      debugPrint('手動訂單判斷首次預約失敗：$error');
+    }
+  }
+
   Widget _memberSearchResult() {
     return AdminMemberSearchSection(
       shopId: widget.shopId,
       keyword: _keyword,
-      onSelectMember: (userId, data) {
+      onSelectMember: (userId, data) async {
         setState(() {
           _selectedMember = {'userId': userId, ...data};
 
           _selectedPetIds.clear();
           _pets.clear();
+
+          _memberCampaignUsage = <String, int>{};
+          _isFirstBooking = false;
+          _firstBookingLoading = true;
+
           _step = 0;
         });
+
+        await Future.wait<void>([
+          _loadMemberCampaignUsage(userId),
+          _loadFirstBookingStatus(userId),
+        ]);
       },
     );
   }
@@ -641,6 +878,12 @@ class _AdminCreateBookingPageState extends State<AdminCreateBookingPage> {
       selectedTimeAddon: _selectedTimeAddon,
       selectedAddonNames: _selectedAddonNames,
       selectedCustomServices: _selectedCustomServices,
+      startDate: _startDate,
+      endDate: _endDate,
+      selectedDailyTimedServices: _selectedDailyTimedServices,
+      onDailyTimedServicesChanged: () {
+        setState(() {});
+      },
       onSelectTimeAddon: (item) {
         final label = item['label']?.toString() ?? '';
         final price = item['price'] ?? 0;
@@ -738,7 +981,149 @@ class _AdminCreateBookingPageState extends State<AdminCreateBookingPage> {
       });
     });
 
+    final dailyTimedServices = List<Map<String, dynamic>>.from(
+      _addonData?['dailyTimedServices'] ?? [],
+    );
+
+    for (final entry in dailyTimedServices.asMap().entries) {
+      final serviceIndex = entry.key;
+      final service = entry.value;
+
+      final rawServiceId = service['id']?.toString().trim() ?? '';
+      final serviceName = service['name']?.toString().trim() ?? '';
+
+      final serviceId = rawServiceId.isNotEmpty
+          ? rawServiceId
+          : serviceName.isNotEmpty
+          ? 'daily_timed_$serviceName'
+          : 'daily_timed_$serviceIndex';
+
+      final serviceSelections = _selectedDailyTimedServices[serviceId];
+
+      if (serviceSelections == null || serviceSelections.isEmpty) {
+        continue;
+      }
+
+      final price = ((service['price'] ?? 0) as num).toInt();
+
+      final timeSlots = List<Map<String, dynamic>>.from(
+        service['timeSlots'] ?? [],
+      );
+
+      final slotLabels = <String, String>{};
+
+      for (final slot in timeSlots) {
+        final slotId = slot['id']?.toString().trim() ?? '';
+        final slotLabel = slot['label']?.toString().trim() ?? '';
+
+        if (slotId.isNotEmpty) {
+          slotLabels[slotId] = slotLabel.isNotEmpty ? slotLabel : slotId;
+        }
+      }
+
+      final selections = <Map<String, dynamic>>[];
+      var count = 0;
+
+      for (final petEntry in serviceSelections.entries) {
+        final petId = petEntry.key;
+
+        final pet = _pets.firstWhere((item) {
+          final itemPetId =
+              item['petId']?.toString() ?? item['id']?.toString() ?? '';
+
+          return itemPetId == petId;
+        }, orElse: () => <String, dynamic>{});
+
+        final petName = pet['name']?.toString().trim().isNotEmpty == true
+            ? pet['name'].toString().trim()
+            : petId;
+
+        final dates = <Map<String, dynamic>>[];
+
+        final sortedDateEntries = petEntry.value.entries.toList()
+          ..sort((a, b) => a.key.compareTo(b.key));
+
+        for (final dateEntry in sortedDateEntries) {
+          final slotIds = dateEntry.value;
+
+          if (slotIds.isEmpty) {
+            continue;
+          }
+
+          count += slotIds.length;
+
+          dates.add({
+            'date': dateEntry.key,
+            'slotIds': List<String>.from(slotIds),
+            'slotLabels': slotIds
+                .map((slotId) => slotLabels[slotId] ?? slotId)
+                .toList(),
+          });
+        }
+
+        if (dates.isNotEmpty) {
+          selections.add({'petId': petId, 'petName': petName, 'dates': dates});
+        }
+      }
+
+      if (count == 0) {
+        continue;
+      }
+
+      addons.add({
+        'serviceId': serviceId,
+        'name': serviceName.isNotEmpty ? serviceName : '每日分時段服務',
+        'price': price,
+        'count': count,
+        'total': price * count,
+        'selections': selections,
+        'type': 'daily_timed',
+      });
+    }
+
     return addons;
+  }
+
+  int _calculateDailyTimedTotal() {
+    final dailyTimedServices = List<Map<String, dynamic>>.from(
+      _addonData?['dailyTimedServices'] ?? [],
+    );
+
+    var total = 0;
+
+    for (final entry in dailyTimedServices.asMap().entries) {
+      final serviceIndex = entry.key;
+      final service = entry.value;
+
+      final rawServiceId = service['id']?.toString().trim() ?? '';
+      final serviceName = service['name']?.toString().trim() ?? '';
+
+      final serviceId = rawServiceId.isNotEmpty
+          ? rawServiceId
+          : serviceName.isNotEmpty
+          ? 'daily_timed_$serviceName'
+          : 'daily_timed_$serviceIndex';
+
+      final serviceSelections = _selectedDailyTimedServices[serviceId];
+
+      if (serviceSelections == null || serviceSelections.isEmpty) {
+        continue;
+      }
+
+      final servicePrice = ((service['price'] ?? 0) as num).toInt();
+
+      var selectedCount = 0;
+
+      for (final petSelections in serviceSelections.values) {
+        for (final selectedSlotIds in petSelections.values) {
+          selectedCount += selectedSlotIds.length;
+        }
+      }
+
+      total += selectedCount * servicePrice;
+    }
+
+    return total;
   }
 
   Map<String, dynamic> _calculateAdminDiscountInfo({
@@ -775,8 +1160,90 @@ class _AdminCreateBookingPageState extends State<AdminCreateBookingPage> {
       return sum + (price * entry.value.length);
     });
 
+    final dailyTimedTotal = _calculateDailyTimedTotal();
+
     final originalTotal =
-        roomTotal + petTotal + timeTotal + valueTotal + customTotal;
+        roomTotal +
+        petTotal +
+        timeTotal +
+        valueTotal +
+        customTotal +
+        dailyTimedTotal;
+    if (_applyLongStayDiscount &&
+        !_campaignsLoading &&
+        _enabledCampaigns.isNotEmpty &&
+        _startDate != null &&
+        _endDate != null &&
+        nights > 0) {
+      final String roomTypeId = (roomType['roomTypeId'] ?? roomType['id'] ?? '')
+          .toString();
+
+      final int extraServiceTotal =
+          timeTotal + valueTotal + customTotal + dailyTimedTotal;
+
+      final DiscountCampaignCalculationResult? bestCampaign =
+          DiscountCampaignCalculator.findBestCampaign(
+            campaigns: _enabledCampaigns,
+            input: DiscountCampaignCalculationInput(
+              checkInDate: _startDate!,
+              checkOutDate: _endDate!,
+              roomTypeId: roomTypeId,
+              roomAmount: roomTotal,
+              petAmount: petTotal,
+              extraServiceAmount: extraServiceTotal,
+
+              // 手動訂單的首次預約判斷之後再接。
+              isFirstBooking: !_firstBookingLoading && _isFirstBooking,
+
+              memberCampaignUsage: _memberCampaignUsage,
+              memberCampaignUsedNights: _memberCampaignUsedNights,
+              // Google 評論尚未有驗證流程。
+              hasVerifiedGoogleReview: false,
+            ),
+          );
+
+      if (bestCampaign != null) {
+        final DiscountCampaignModel campaign = bestCampaign.campaign;
+        final int discountAmount = bestCampaign.discountAmount;
+
+        String discountBase;
+
+        switch (campaign.applyTarget) {
+          case DiscountApplyTarget.room:
+            discountBase = 'room';
+            break;
+
+          case DiscountApplyTarget.roomAndPet:
+            discountBase = 'room_pet';
+            break;
+
+          case DiscountApplyTarget.total:
+            discountBase = 'total';
+            break;
+        }
+
+        return <String, dynamic>{
+          'originalTotal': originalTotal,
+          'discountAmount': discountAmount,
+          'discountUsedNights': bestCampaign.discountUsedNights,
+          'discountPercent': campaign.valueType == DiscountValueType.percent
+              ? campaign.discountValue.toInt()
+              : 0,
+          'discountMinNights': campaign.minimumNights,
+          'discountBase': discountBase,
+          'finalTotal': (originalTotal - discountAmount)
+              .clamp(0, originalTotal)
+              .toInt(),
+
+          'discountCampaignId': campaign.id,
+          'discountCampaignName': campaign.name,
+          'discountCampaignType': campaign.type.name,
+          'discountValueType': campaign.valueType.name,
+          'discountValue': campaign.discountValue,
+          'allowCouponTogether': campaign.allowCouponTogether,
+        };
+      }
+    }
 
     if (!_applyLongStayDiscount || nights <= 0) {
       return {
@@ -916,66 +1383,127 @@ class _AdminCreateBookingPageState extends State<AdminCreateBookingPage> {
       return sum + (price * entry.value.length);
     });
 
+    final dailyTimedTotal = _calculateDailyTimedTotal();
+
     return (basePrice * nights) +
         extraPetTotal +
         timeTotal +
         valueTotal +
-        customTotal;
+        customTotal +
+        dailyTimedTotal;
+  }
+
+  int _calculateDepositAmount({
+    required int roomSubtotal,
+    required int finalTotal,
+  }) {
+    if (!_depositEnabled) {
+      return 0;
+    }
+
+    final depositBaseAmount = _depositBase == 'room'
+        ? roomSubtotal
+        : finalTotal;
+
+    int deposit;
+
+    if (_depositRate > 0) {
+      deposit = (depositBaseAmount * _depositRate).round();
+    } else {
+      deposit = _depositAmount;
+    }
+
+    if (deposit < 0) {
+      deposit = 0;
+    }
+
+    if (deposit > finalTotal) {
+      deposit = finalTotal;
+    }
+
+    return deposit;
   }
 
   Future<void> _submitBooking() async {
-    final member = _selectedMember;
-    final roomType = _selectedRoomType;
-    final shopDoc = await FirebaseFirestore.instance
-        .collection('shops')
-        .doc(widget.shopId)
-        .get();
+    /// 🔒 防止卡頓連點或其他入口重複呼叫
+    if (_submitting) return;
 
-    final shop = shopDoc.data() as Map<String, dynamic>? ?? {};
-    if (!ShopPermissionService.canCreateOrder(shop)) {
-      if (!mounted) return;
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(ShopPermissionService.restrictedMessage())),
-      );
-
-      return;
-    }
-
-    final dailyLimit = ShopPlanService.manualBookingDailyLimit(shop);
-
-    final now = DateTime.now();
-    final todayStart = DateTime(now.year, now.month, now.day);
-    final tomorrowStart = todayStart.add(const Duration(days: 1));
-
-    final todayAdminBookings = await FirebaseFirestore.instance
-        .collection('bookings')
-        .where('shopId', isEqualTo: widget.shopId)
-        .where('source', isEqualTo: 'admin')
-        .where(
-          'createdAt',
-          isGreaterThanOrEqualTo: Timestamp.fromDate(todayStart),
-        )
-        .where('createdAt', isLessThan: Timestamp.fromDate(tomorrowStart))
-        .get();
-
-    if (todayAdminBookings.docs.length >= dailyLimit) {
-      if (!mounted) return;
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('免費版每日最多手動新增 $dailyLimit 筆訂單，升級方案即可解除限制')),
-      );
-      return;
-    }
-
-    if (member == null ||
-        roomType == null ||
-        _startDate == null ||
-        _endDate == null) {
-      return;
-    }
+    setState(() {
+      _submitting = true;
+    });
 
     try {
+      final member = _selectedMember;
+      final roomType = _selectedRoomType;
+      final shopDoc = await FirebaseFirestore.instance
+          .collection('shops')
+          .doc(widget.shopId)
+          .get();
+
+      final shop = shopDoc.data() as Map<String, dynamic>? ?? {};
+      if (!ShopPermissionService.canCreateOrder(shop)) {
+        if (!mounted) return;
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(ShopPermissionService.restrictedMessage())),
+        );
+
+        return;
+      }
+
+      final dailyLimit = ShopPlanService.manualBookingDailyLimit(shop);
+
+      final now = DateTime.now();
+      final todayStart = DateTime(now.year, now.month, now.day);
+      final tomorrowStart = todayStart.add(const Duration(days: 1));
+
+      final todayAdminBookings = await FirebaseFirestore.instance
+          .collection('bookings')
+          .where('shopId', isEqualTo: widget.shopId)
+          .where('source', isEqualTo: 'admin')
+          .where(
+            'createdAt',
+            isGreaterThanOrEqualTo: Timestamp.fromDate(todayStart),
+          )
+          .where('createdAt', isLessThan: Timestamp.fromDate(tomorrowStart))
+          .get();
+
+      if (todayAdminBookings.docs.length >= dailyLimit) {
+        if (!mounted) return;
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('免費版每日最多手動新增 $dailyLimit 筆訂單，升級方案即可解除限制')),
+        );
+        return;
+      }
+
+      if (member == null ||
+          roomType == null ||
+          _startDate == null ||
+          _endDate == null) {
+        return;
+      }
+
+      if (!_cashEnabled && !_transferEnabled) {
+        if (!mounted) return;
+
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('店家尚未啟用任何付款方式，請先到收款設定開啟')));
+
+        return;
+      }
+
+      if (_paymentMethod == null || _paymentMethod!.isEmpty) {
+        if (!mounted) return;
+
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('請選擇付款方式')));
+
+        return;
+      }
+
       String finalUserId = member['userId'] ?? '';
 
       if (member['isTempAdminMember'] == true) {
@@ -1083,6 +1611,21 @@ class _AdminCreateBookingPageState extends State<AdminCreateBookingPage> {
         nights: nights,
       );
 
+      final roomSubtotal = ((roomType['price'] ?? 0) as num).toInt() * nights;
+
+      final finalTotal = ((discountInfo['finalTotal'] ?? 0) as num).toInt();
+
+      final calculatedDepositAmount = _calculateDepositAmount(
+        roomSubtotal: roomSubtotal,
+        finalTotal: finalTotal,
+      );
+
+      final bookingDepositAmount = _payAmountType == 'full'
+          ? finalTotal
+          : calculatedDepositAmount;
+
+      final bookingPaymentMethod = _paymentMethod ?? '';
+
       await BookingService.instance.createAdminBooking(
         shopId: widget.shopId,
         userId: finalUserId,
@@ -1119,13 +1662,34 @@ class _AdminCreateBookingPageState extends State<AdminCreateBookingPage> {
 
         roomImages: roomType['images'] ?? [],
 
-        totalPrice: (discountInfo['finalTotal'] ?? 0) as int,
-        originalTotal: (discountInfo['originalTotal'] ?? 0) as int,
+        totalPrice: finalTotal,
+        originalTotal: ((discountInfo['originalTotal'] ?? 0) as num).toInt(),
+
+        depositAmount: bookingDepositAmount,
+        paymentMethod: bookingPaymentMethod,
+        payAmountType: _payAmountType,
         applyLongStayDiscount: _applyLongStayDiscount,
         discountAmount: (discountInfo['discountAmount'] ?? 0) as int,
+        discountUsedNights: (discountInfo['discountUsedNights'] ?? 0) as int,
         discountPercent: (discountInfo['discountPercent'] ?? 0) as int,
         discountMinNights: (discountInfo['discountMinNights'] ?? 0) as int,
         discountBase: (discountInfo['discountBase'] ?? '').toString(),
+        discountCampaignId: (discountInfo['discountCampaignId'] ?? '')
+            .toString(),
+
+        discountCampaignName: (discountInfo['discountCampaignName'] ?? '')
+            .toString(),
+
+        discountCampaignType: (discountInfo['discountCampaignType'] ?? '')
+            .toString(),
+
+        discountValueType: (discountInfo['discountValueType'] ?? '').toString(),
+
+        discountValue: discountInfo['discountValue'] is num
+            ? discountInfo['discountValue'] as num
+            : 0,
+
+        allowCouponTogether: discountInfo['allowCouponTogether'] == true,
         pets: _pets,
         addons: _buildAdminAddons(),
         note:
@@ -1163,11 +1727,17 @@ class _AdminCreateBookingPageState extends State<AdminCreateBookingPage> {
       debugPrint(stackTrace.toString());
       debugPrint('====================');
 
-      if (!mounted) return;
-
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('建立失敗：$e')));
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('建立失敗：$e')));
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _submitting = false;
+        });
+      }
     }
   }
 
@@ -1198,6 +1768,8 @@ class _AdminCreateBookingPageState extends State<AdminCreateBookingPage> {
           selectedTimeAddon: _selectedTimeAddon,
           selectedValueServices: _selectedValueServices,
           selectedCustomServices: _selectedCustomServices,
+          selectedDailyTimedServices: _selectedDailyTimedServices,
+          pets: _pets,
           addonData: _addonData,
           adminOrderSource: _adminOrderSource,
           applyLongStayDiscount: _applyLongStayDiscount,
@@ -1208,6 +1780,35 @@ class _AdminCreateBookingPageState extends State<AdminCreateBookingPage> {
           },
           discountInfo: discountInfo,
           noteController: _noteController,
+          depositEnabled: _depositEnabled,
+
+          depositAmount: _payAmountType == 'full'
+              ? (discountInfo?['finalTotal'] ?? 0) as int
+              : _calculateDepositAmount(
+                  roomSubtotal:
+                      ((_selectedRoomType?['price'] ?? 0) as int) * nights,
+                  finalTotal: (discountInfo?['finalTotal'] ?? 0) as int,
+                ),
+
+          payAmountType: _payAmountType,
+
+          paymentMethod: _paymentMethod,
+
+          cashEnabled: _cashEnabled,
+
+          transferEnabled: _transferEnabled,
+
+          onPayAmountTypeChanged: (value) {
+            setState(() {
+              _payAmountType = value;
+            });
+          },
+
+          onPaymentMethodChanged: (value) {
+            setState(() {
+              _paymentMethod = value;
+            });
+          },
           formatDate: _formatDate,
           onOrderSourceChanged: (value) {
             setState(() {

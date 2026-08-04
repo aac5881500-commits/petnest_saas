@@ -45,6 +45,9 @@ class AdminBookingPriceSection extends StatelessWidget {
     final discountPercent = (data['discountPercent'] ?? 0) as num;
     final discountMinNights = (data['discountMinNights'] ?? 0) as num;
     final discountBase = (data['discountBase'] ?? '').toString();
+    final discountCampaignName = (data['discountCampaignName'] ?? '')
+        .toString()
+        .trim();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -220,6 +223,8 @@ class AdminBookingPriceSection extends StatelessWidget {
                             ),
                           ),
                         ),
+                      if ((item['type'] ?? '').toString() == 'daily_timed')
+                        ..._buildDailyTimedSelections(item),
                     ],
                   ),
                 );
@@ -264,7 +269,9 @@ class AdminBookingPriceSection extends StatelessWidget {
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Text(
-                      '長住優惠（滿${discountMinNights.toInt()}晚 ${discountPercent.toInt()}%）',
+                      discountCampaignName.isNotEmpty
+                          ? discountCampaignName
+                          : '長住優惠（滿${discountMinNights.toInt()}晚 ${discountPercent.toInt()}%）',
                       style: const TextStyle(
                         color: Colors.green,
                         fontWeight: FontWeight.bold,
@@ -512,5 +519,100 @@ class AdminBookingPriceSection extends StatelessWidget {
           ),
       ],
     );
+  }
+
+  List<Widget> _buildDailyTimedSelections(dynamic item) {
+    final rawSelections = item['selections'];
+
+    if (rawSelections is! List || rawSelections.isEmpty) {
+      return const [];
+    }
+
+    final widgets = <Widget>[];
+
+    for (final rawSelection in rawSelections) {
+      if (rawSelection is! Map) {
+        continue;
+      }
+
+      final selection = Map<String, dynamic>.from(rawSelection);
+
+      final petName = (selection['petName'] ?? selection['petId'] ?? '寵物')
+          .toString();
+
+      final rawDates = selection['dates'];
+
+      if (rawDates is! List || rawDates.isEmpty) {
+        continue;
+      }
+
+      widgets.add(
+        Padding(
+          padding: const EdgeInsets.only(top: 10),
+          child: Text(
+            '🐾 $petName',
+            style: const TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.bold,
+              color: Colors.deepOrange,
+            ),
+          ),
+        ),
+      );
+
+      for (final rawDate in rawDates) {
+        if (rawDate is! Map) {
+          continue;
+        }
+
+        final dateData = Map<String, dynamic>.from(rawDate);
+
+        final date = _formatDailyTimedDate((dateData['date'] ?? '').toString());
+
+        final slotLabels = dateData['slotLabels'] is List
+            ? List<String>.from(dateData['slotLabels'])
+            : <String>[];
+
+        final slotIds = dateData['slotIds'] is List
+            ? List<String>.from(dateData['slotIds'])
+            : <String>[];
+
+        final labels = slotLabels.isNotEmpty ? slotLabels : slotIds;
+
+        if (date.isEmpty || labels.isEmpty) {
+          continue;
+        }
+
+        widgets.add(
+          Padding(
+            padding: const EdgeInsets.only(left: 18, top: 4),
+            child: Text(
+              '├─ $date　${labels.join('、')}',
+              style: TextStyle(
+                fontSize: 12,
+                height: 1.4,
+                color: Colors.grey.shade700,
+              ),
+            ),
+          ),
+        );
+      }
+    }
+
+    return widgets;
+  }
+
+  String _formatDailyTimedDate(String value) {
+    if (value.isEmpty) {
+      return '';
+    }
+
+    final parts = value.split('-');
+
+    if (parts.length != 3) {
+      return value;
+    }
+
+    return '${parts[0]}/${parts[1]}/${parts[2]}';
   }
 }

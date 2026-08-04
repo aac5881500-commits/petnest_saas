@@ -4,11 +4,17 @@
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:petnest_saas/core/models/home_theme_model.dart';
 
 class ShopAnnouncementCard extends StatelessWidget {
-  const ShopAnnouncementCard({super.key, required this.data});
+  const ShopAnnouncementCard({
+    super.key,
+    required this.data,
+    this.theme = HomeThemeModel.classicDefault,
+  });
 
   final Map<String, dynamic> data;
+  final HomeThemeModel theme;
 
   @override
   Widget build(BuildContext context) {
@@ -25,9 +31,9 @@ class ShopAnnouncementCard extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: theme.cardColor,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFF0E0CC)),
+        border: Border.all(color: theme.cardBorderColor),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withOpacity(0.04),
@@ -42,11 +48,11 @@ class ShopAnnouncementCard extends StatelessWidget {
           Container(
             width: 38,
             height: 38,
-            decoration: const BoxDecoration(
-              color: Color(0xFFFFF1DD),
+            decoration: BoxDecoration(
+              color: theme.primaryColor.withOpacity(0.12),
               shape: BoxShape.circle,
             ),
-            child: Icon(typeIcon, size: 22, color: const Color(0xFFB86B18)),
+            child: Icon(typeIcon, size: 22, color: theme.primaryColor),
           ),
           const SizedBox(width: 12),
 
@@ -62,7 +68,7 @@ class ShopAnnouncementCard extends StatelessWidget {
                       vertical: 4,
                     ),
                     decoration: BoxDecoration(
-                      color: const Color(0xFFFF9800),
+                      color: theme.primaryColor,
                       borderRadius: BorderRadius.circular(999),
                     ),
                     child: const Row(
@@ -88,10 +94,10 @@ class ShopAnnouncementCard extends StatelessWidget {
 
                 Text(
                   typeLabel,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.bold,
-                    color: Color(0xFFB86B18),
+                    color: theme.primaryColor,
                   ),
                 ),
 
@@ -99,10 +105,10 @@ class ShopAnnouncementCard extends StatelessWidget {
 
                 Text(
                   title,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.w900,
-                    color: Color(0xFF3A2A1A),
+                    color: theme.textColor,
                   ),
                 ),
 
@@ -112,10 +118,10 @@ class ShopAnnouncementCard extends StatelessWidget {
                   content.isEmpty ? '無公告內容' : content,
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 14,
                     height: 1.4,
-                    color: Color(0xFF5A4632),
+                    color: theme.textColor.withOpacity(0.75),
                   ),
                 ),
 
@@ -123,9 +129,9 @@ class ShopAnnouncementCard extends StatelessWidget {
 
                 Text(
                   _formatTime(createdAt),
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 12,
-                    color: Color(0xFF9A7B55),
+                    color: theme.textColor.withOpacity(0.55),
                   ),
                 ),
               ],
@@ -133,7 +139,7 @@ class ShopAnnouncementCard extends StatelessWidget {
           ),
 
           const SizedBox(width: 8),
-          const Icon(Icons.chevron_right, color: Color(0xFFB86B18)),
+          Icon(Icons.chevron_right, color: theme.primaryColor),
         ],
       ),
     );

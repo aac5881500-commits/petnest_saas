@@ -5,6 +5,7 @@
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/services/shop_service.dart';
 import 'package:petnest_saas/features/shop/pages/room_type_detail_page.dart';
+import 'package:petnest_saas/core/models/home_theme_model.dart';
 
 class BookingRoomTypeSection extends StatelessWidget {
   const BookingRoomTypeSection({
@@ -15,6 +16,7 @@ class BookingRoomTypeSection extends StatelessWidget {
     required this.selectedPetIds,
     required this.selectedRoomType,
     required this.onSelectRoomType,
+    required this.theme,
   });
 
   final String shopId;
@@ -23,6 +25,7 @@ class BookingRoomTypeSection extends StatelessWidget {
   final List<String> selectedPetIds;
   final Map<String, dynamic>? selectedRoomType;
   final ValueChanged<Map<String, dynamic>> onSelectRoomType;
+  final HomeThemeModel theme;
 
   @override
   Widget build(BuildContext context) {
@@ -120,6 +123,7 @@ class BookingRoomTypeSection extends StatelessWidget {
                               roomType: type,
                               startDate: startDate!,
                               endDate: endDate!,
+                              theme: theme,
                             ),
                           ),
                         );

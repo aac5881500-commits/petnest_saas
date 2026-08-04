@@ -55,28 +55,27 @@ class FrontCalendarHelper {
         .collection('room_calendar')
         .get();
 
-    final blockedRoomDateSet = <String>{};
+    final unavailableRoomDateSet = <String>{};
 
     for (final doc in calendarSnapshot.docs) {
       final data = doc.data();
+      final status = (data['status'] ?? '').toString();
 
-      if (data['status'] != 'blocked') continue;
+      if (status != 'blocked' && status != 'cleaning') {
+        continue;
+      }
 
       final roomId = (data['roomId'] ?? '').toString();
       final date = (data['date'] ?? '').toString();
 
       if (roomId.isEmpty || date.isEmpty) continue;
 
-      blockedRoomDateSet.add('$roomId|$date');
+      unavailableRoomDateSet.add('$roomId|$date');
     }
 
     DateTime cursor = DateTime(firstDate.year, firstDate.month, firstDate.day);
 
     final last = DateTime(lastDate.year, lastDate.month, lastDate.day);
-
-    final monthStart = DateTime(firstDate.year, firstDate.month, firstDate.day);
-
-    final monthEnd = DateTime(lastDate.year, lastDate.month, lastDate.day);
 
     final occupiedRoomDateSet = <String>{};
 
@@ -110,7 +109,7 @@ class FrontCalendarHelper {
 
         if (roomTypeId.isEmpty) continue;
 
-        if (blockedRoomDateSet.contains('$roomId|$key')) {
+        if (unavailableRoomDateSet.contains('$roomId|$key')) {
           blockedRoomsByRoomType[roomTypeId] =
               (blockedRoomsByRoomType[roomTypeId] ?? 0) + 1;
         }

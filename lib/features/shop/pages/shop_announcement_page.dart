@@ -4,23 +4,33 @@
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:petnest_saas/core/models/home_theme_model.dart';
 import 'package:petnest_saas/features/shop/widgets/announcement/shop_announcement_card.dart';
 import 'package:petnest_saas/features/shop/pages/shop_announcement_detail_page.dart';
 
 class ShopAnnouncementPage extends StatelessWidget {
-  const ShopAnnouncementPage({super.key, required this.shopId});
+  const ShopAnnouncementPage({
+    super.key,
+    required this.shopId,
+    this.theme = HomeThemeModel.classicDefault,
+  });
 
   final String shopId;
+  final HomeThemeModel theme;
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFFFFCF7),
+      backgroundColor: theme.backgroundColor,
       appBar: AppBar(
-        backgroundColor: const Color(0xFFFFFCF7),
+        backgroundColor: theme.cardColor,
+        foregroundColor: theme.textColor,
         elevation: 0,
         surfaceTintColor: Colors.transparent,
-        title: const Text('最新公告'),
+        title: Text(
+          '最新公告',
+          style: TextStyle(color: theme.textColor, fontWeight: FontWeight.w700),
+        ),
       ),
       body: StreamBuilder<DocumentSnapshot>(
         stream: FirebaseFirestore.instance
@@ -29,7 +39,9 @@ class ShopAnnouncementPage extends StatelessWidget {
             .snapshots(),
         builder: (context, shopSnapshot) {
           if (!shopSnapshot.hasData) {
-            return const Center(child: CircularProgressIndicator());
+            return Center(
+              child: CircularProgressIndicator(color: theme.primaryColor),
+            );
           }
 
           final shopData = shopSnapshot.data!.data() as Map<String, dynamic>?;
@@ -38,7 +50,12 @@ class ShopAnnouncementPage extends StatelessWidget {
               shopData?['showAnnouncementSection'] != false;
 
           if (!showAnnouncementSection) {
-            return const Center(child: Text('此功能尚未開放'));
+            return Center(
+              child: Text(
+                '此功能尚未開放',
+                style: TextStyle(color: theme.textColor.withOpacity(0.65)),
+              ),
+            );
           }
 
           return StreamBuilder<QuerySnapshot>(
@@ -50,7 +67,9 @@ class ShopAnnouncementPage extends StatelessWidget {
                 .snapshots(),
             builder: (context, snapshot) {
               if (!snapshot.hasData) {
-                return const Center(child: CircularProgressIndicator());
+                return Center(
+                  child: CircularProgressIndicator(color: theme.primaryColor),
+                );
               }
 
               final docs = snapshot.data!.docs.toList();
@@ -68,10 +87,13 @@ class ShopAnnouncementPage extends StatelessWidget {
               });
 
               if (docs.isEmpty) {
-                return const Center(
+                return Center(
                   child: Text(
                     '目前尚無公告',
-                    style: TextStyle(fontSize: 16, color: Color(0xFF9A7B55)),
+                    style: TextStyle(
+                      fontSize: 16,
+                      color: theme.textColor.withOpacity(0.65),
+                    ),
                   ),
                 );
               }
@@ -87,12 +109,14 @@ class ShopAnnouncementPage extends StatelessWidget {
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (_) =>
-                              ShopAnnouncementDetailPage(data: data),
+                          builder: (_) => ShopAnnouncementDetailPage(
+                            data: data,
+                            theme: theme,
+                          ),
                         ),
                       );
                     },
-                    child: ShopAnnouncementCard(data: data),
+                    child: ShopAnnouncementCard(data: data, theme: theme),
                   );
                 },
               );

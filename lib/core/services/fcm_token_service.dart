@@ -16,72 +16,96 @@ class FcmTokenService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
 
-  static const String _webVapidKey =
-      'BCmwv1rQ9DVSrIUz72Jqaxh9ctFDK60YInGhSV8HK0euWKHnMuxVB8fOII8R9RtCLOgxXgjINoGL5oGOUaIZ1Pg';
+  bool _isListeningTokenRefresh = false;
+  bool _isSyncingToken = false;
 
+  /// 📱 同步目前登入使用者的手機 FCM Token
+  ///
+  /// Web 版不執行。
+  /// 手機尚未決定通知權限時，才會顯示授權要求。
   Future<void> saveCurrentUserToken() async {
-    debugPrint('========== FCM saveCurrentUserToken ==========');
+    if (kIsWeb) {
+      debugPrint('FCM：Web 版不啟用推播 Token');
+      return;
+    }
 
-    final user = _auth.currentUser;
+    if (_isSyncingToken) {
+      debugPrint('FCM：Token 正在同步，本次略過');
+      return;
+    }
+
+    final User? user = _auth.currentUser;
 
     if (user == null) {
       debugPrint('FCM：目前沒有登入使用者');
       return;
     }
 
+    _isSyncingToken = true;
+
     try {
-      final permission = await _messaging.requestPermission(
-        alert: true,
-        badge: true,
-        sound: true,
-      );
+      NotificationSettings settings = await _messaging
+          .getNotificationSettings();
 
-      debugPrint(
-        'FCM：要求權限後 authorizationStatus = '
-        '${permission.authorizationStatus}',
-      );
+      debugPrint('FCM：目前通知權限 = ${settings.authorizationStatus}');
 
-      if (permission.authorizationStatus == AuthorizationStatus.denied) {
-        debugPrint('FCM：使用者拒絕通知權限');
+      if (settings.authorizationStatus == AuthorizationStatus.notDetermined) {
+        settings = await _messaging.requestPermission(
+          alert: true,
+          badge: true,
+          sound: true,
+        );
+
+        debugPrint('FCM：要求權限後 = ${settings.authorizationStatus}');
+      }
+
+      final bool permissionGranted =
+          settings.authorizationStatus == AuthorizationStatus.authorized ||
+          settings.authorizationStatus == AuthorizationStatus.provisional;
+
+      if (!permissionGranted) {
+        debugPrint('FCM：通知權限未開啟，不取得 Token');
         return;
       }
 
-      if (permission.authorizationStatus == AuthorizationStatus.notDetermined) {
-        debugPrint('FCM：通知權限尚未決定');
-        return;
-      }
+      final String? token = await _messaging.getToken();
 
-      final token = await _messaging.getToken(
-        vapidKey: kIsWeb ? _webVapidKey : null,
-      );
-
-      debugPrint('FCM Token = $token');
-
-      if (token == null || token.isEmpty) {
+      if (token == null || token.trim().isEmpty) {
         debugPrint('FCM：無法取得 Token');
         return;
       }
 
-      debugPrint('FCM：成功取得 Token');
-      debugPrint('開始寫入 Firestore...');
-
       await _saveToken(userId: user.uid, token: token);
 
-      debugPrint('Firestore 寫入完成');
-      debugPrint('FCM：Token 已成功寫入 Firestore');
+      debugPrint('FCM：Token 已成功同步');
     } catch (error, stackTrace) {
       debugPrint('FCM：取得或儲存 Token 失敗：$error');
       debugPrintStack(stackTrace: stackTrace);
-      rethrow;
+    } finally {
+      _isSyncingToken = false;
     }
   }
 
+  /// 🔄 監聽 Firebase 自動更新 FCM Token
+  ///
+  /// 整個 App 只允許啟動一次監聽。
   void listenTokenRefresh() {
-    _messaging.onTokenRefresh.listen(
-      (token) async {
-        final user = _auth.currentUser;
+    if (kIsWeb) {
+      debugPrint('FCM：Web 版不監聽 Token 更新');
+      return;
+    }
 
-        if (user == null || token.isEmpty) {
+    if (_isListeningTokenRefresh) {
+      return;
+    }
+
+    _isListeningTokenRefresh = true;
+
+    _messaging.onTokenRefresh.listen(
+      (String token) async {
+        final User? user = _auth.currentUser;
+
+        if (user == null || token.trim().isEmpty) {
           return;
         }
 
@@ -105,24 +129,31 @@ class FcmTokenService {
     required String userId,
     required String token,
   }) async {
-    await _firestore
+    final DocumentReference<Map<String, dynamic>> tokenReference = _firestore
         .collection('users')
         .doc(userId)
         .collection('fcm_tokens')
-        .doc(token)
-        .set({
-          'token': token,
-          'platform': _platformName,
-          'createdAt': FieldValue.serverTimestamp(),
-          'updatedAt': FieldValue.serverTimestamp(),
-        }, SetOptions(merge: true));
+        .doc(token);
+
+    final DocumentSnapshot<Map<String, dynamic>> tokenSnapshot =
+        await tokenReference.get();
+
+    final Map<String, dynamic> tokenData = <String, dynamic>{
+      'token': token,
+      'platform': _platformName,
+      'enabled': true,
+      'updatedAt': FieldValue.serverTimestamp(),
+      'lastSeenAt': FieldValue.serverTimestamp(),
+    };
+
+    if (!tokenSnapshot.exists) {
+      tokenData['createdAt'] = FieldValue.serverTimestamp();
+    }
+
+    await tokenReference.set(tokenData, SetOptions(merge: true));
   }
 
   String get _platformName {
-    if (kIsWeb) {
-      return 'web';
-    }
-
     return defaultTargetPlatform.name;
   }
 }

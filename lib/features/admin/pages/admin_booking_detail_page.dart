@@ -14,6 +14,11 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:petnest_saas/core/services/booking_service.dart';
+import 'package:petnest_saas/core/services/member_point_service.dart';
+import 'package:petnest_saas/core/services/member_coupon_service.dart';
+import 'package:petnest_saas/core/services/point_setting_service.dart';
+import 'package:petnest_saas/core/services/housekeeping_setting_service.dart';
+import 'package:petnest_saas/core/services/shop_room_service.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:petnest_saas/features/admin/widgets/admin_booking_pet_card.dart';
@@ -680,6 +685,97 @@ class AdminBookingDetailPage extends StatelessWidget {
           'status': 'completed',
           'updatedAt': now,
         });
+
+    final String shopId = (data['shopId'] ?? '').toString().trim();
+    final String userId = (data['userId'] ?? '').toString().trim();
+    final String couponId = (data['couponId'] ?? '').toString().trim();
+
+    if (couponId.isNotEmpty) {
+      try {
+        await MemberCouponService.instance.redeemCoupon(
+          shopId: shopId,
+          couponId: couponId,
+          userId: userId,
+          bookingId: bookingId,
+        );
+      } catch (error, stackTrace) {
+        debugPrint('優惠券核銷失敗：$error');
+        debugPrintStack(stackTrace: stackTrace);
+      }
+    }
+    final String roomId = (data['roomId'] ?? '').toString().trim();
+    final String roomName = (data['roomName'] ?? '').toString().trim();
+
+    /// 退房後依房務設定，將退房當日設為清潔中。
+    ///
+    /// 清潔狀態寫入失敗時，不阻斷後續的點數、報表與操作紀錄流程。
+    if (shopId.isNotEmpty && roomId.isNotEmpty) {
+      try {
+        final setting = await HousekeepingSettingService.instance.getSetting(
+          shopId,
+        );
+
+        if (setting.autoCleaningAfterCheckout) {
+          final dynamic rawCheckoutDate = data['endDate'];
+
+          DateTime? checkoutDate;
+
+          if (rawCheckoutDate is Timestamp) {
+            checkoutDate = rawCheckoutDate.toDate();
+          } else if (rawCheckoutDate is DateTime) {
+            checkoutDate = rawCheckoutDate;
+          } else if (rawCheckoutDate is String) {
+            checkoutDate = DateTime.tryParse(rawCheckoutDate);
+          }
+
+          if (checkoutDate != null) {
+            await ShopRoomService.instance.startCleaningAfterCheckout(
+              shopId: shopId,
+              roomId: roomId,
+              roomName: roomName,
+              bookingId: bookingId,
+              checkoutDate: checkoutDate,
+            );
+          } else {
+            debugPrint('退房完成，但無法解析退房日期：$rawCheckoutDate');
+          }
+        }
+      } catch (error, stackTrace) {
+        debugPrint('退房完成，但建立清潔中狀態失敗：$error');
+        debugPrintStack(stackTrace: stackTrace);
+      }
+    }
+
+    final bool rewardPointIssued = data['rewardPointIssued'] == true;
+
+    if (!rewardPointIssued && shopId.isNotEmpty && userId.isNotEmpty) {
+      try {
+        final int orderAmount =
+            ((data['totalPrice'] ?? data['total'] ?? 0) as num).toInt();
+
+        final int nights = ((data['nights'] ?? 0) as num).toInt();
+
+        final int rewardPoints = await PointSettingService.instance
+            .calculateBookingPoints(
+              shopId: shopId,
+              orderAmount: orderAmount,
+              nights: nights,
+            );
+
+        if (rewardPoints > 0) {
+          await MemberPointService.instance.addBookingPoints(
+            shopId: shopId,
+            userId: userId,
+            bookingId: bookingId,
+            points: rewardPoints,
+            note: '訂單完成自動發放',
+          );
+        }
+      } catch (error, stackTrace) {
+        debugPrint('訂單完成，但自動發放點數失敗：$error');
+        debugPrintStack(stackTrace: stackTrace);
+      }
+    }
 
     await FirebaseFirestore.instance.collection('reports').add({
       'shopId': data['shopId'],

@@ -12,6 +12,13 @@ dependencies:
     sdk: flutter
 
   url_launcher: ^6.2.5
+
+  # 🌐 綠界付款 WebView
+  # 功能：載入 Cloud Function 回傳的付款 HTML，
+  # 支援 Android、iOS 與 Web 測試環境。
+  webview_flutter: ^4.14.1
+  webview_flutter_web: ^0.2.3+4
+
   intl: ^0.19.0
   cupertino_icons: ^1.0.8
   image_picker: ^1.1.2
@@ -19,11 +26,14 @@ dependencies:
   mobile_scanner: ^7.0.0
 
   # Firebase
-  firebase_core: ^3.13.0
-  firebase_auth: ^5.5.0
-  cloud_firestore: ^5.6.7
-  firebase_storage: ^12.4.5
+  firebase_core: ^4.12.1
+  firebase_auth: ^6.5.6
+  cloud_firestore: ^6.7.1
+  firebase_storage: ^13.4.5
+  cloud_functions: ^6.1.0
+
   image: ^4.1.7
+
   # 🔥 Google 登入
   google_sign_in: ^6.2.1
 
@@ -34,11 +44,12 @@ dependencies:
 
   excel: ^4.0.6
   universal_html: ^2.2.4
-  firebase_messaging: ^15.2.10
+  firebase_messaging: ^16.4.3
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
+
   flutter_lints: ^6.0.0
 
 flutter:

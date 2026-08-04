@@ -216,12 +216,22 @@ class _MyBookingsPageState extends State<MyBookingsPage> {
         ),
       ),
       body: StreamBuilder<QuerySnapshot>(
-        stream: FirebaseFirestore.instance
-            .collection('bookings')
-            .where('userId', isEqualTo: user.uid)
-            .orderBy('createdAt', descending: true)
-            .limit(30)
-            .snapshots(),
+        stream: () {
+          Query<Map<String, dynamic>> query = FirebaseFirestore.instance
+              .collection('bookings')
+              .where('userId', isEqualTo: user.uid);
+
+          final String currentShopId = widget.returnShopId?.trim() ?? '';
+
+          if (currentShopId.isNotEmpty) {
+            query = query.where('shopId', isEqualTo: currentShopId);
+          }
+
+          return query
+              .orderBy('createdAt', descending: true)
+              .limit(30)
+              .snapshots();
+        }(),
 
         builder: (context, snapshot) {
           if (snapshot.hasError) {

@@ -7,6 +7,16 @@ import 'package:petnest_saas/features/admin/widgets/admin_member_booking_card.da
 import 'package:petnest_saas/features/admin/widgets/admin_member_detail_badges.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:petnest_saas/features/admin/pages/admin_member_review_list_page.dart';
+import 'package:petnest_saas/core/models/coupon_template_model.dart';
+import 'package:petnest_saas/core/services/coupon_template_service.dart';
+import 'package:petnest_saas/core/services/member_coupon_service.dart';
+import 'package:petnest_saas/core/models/member_coupon_model.dart';
+import 'package:petnest_saas/core/models/member_point_model.dart';
+import 'package:petnest_saas/core/services/member_point_service.dart';
+import 'package:petnest_saas/core/models/member_point_log_model.dart';
+import 'package:petnest_saas/core/models/point_redemption_model.dart';
+import 'package:petnest_saas/core/services/point_redemption_service.dart';
+import 'package:petnest_saas/core/widgets/point_module_visibility.dart';
 
 class AdminMemberDetailPage extends StatelessWidget {
   const AdminMemberDetailPage({
@@ -31,6 +41,50 @@ class AdminMemberDetailPage extends StatelessWidget {
             _buildMemberProfile(),
 
             const SizedBox(height: 20),
+
+            PointModuleVisibility(
+              shopId: shopId,
+              enabledChild: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildMemberPointSection(),
+
+                  const SizedBox(height: 12),
+
+                  _buildMemberPointLogs(),
+
+                  const SizedBox(height: 20),
+                ],
+              ),
+            ),
+
+            _sectionTitle(
+              icon: Icons.card_giftcard,
+              color: Colors.deepOrange,
+              title: '會員優惠券',
+            ),
+
+            _buildMemberCoupons(),
+
+            PointModuleVisibility(
+              shopId: shopId,
+              enabledChild: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const SizedBox(height: 20),
+
+                  _sectionTitle(
+                    icon: Icons.inventory_2_outlined,
+                    color: Colors.brown,
+                    title: '實體商品兌換',
+                  ),
+
+                  _buildMemberRedemptions(),
+
+                  const SizedBox(height: 20),
+                ],
+              ),
+            ),
 
             _sectionTitle(
               icon: Icons.note_alt_outlined,
@@ -1055,6 +1109,654 @@ class AdminMemberDetailPage extends StatelessWidget {
     );
   }
 
+  /// 會員點數管理區塊。
+  ///
+  /// APP 會員直接顯示點數。
+  /// 手動會員尚未擁有點數帳戶時，不會自動建立 0 點資料。
+  Widget _buildMemberPointSection() {
+    final DocumentReference<Map<String, dynamic>> memberReference =
+        FirebaseFirestore.instance
+            .collection('shops')
+            .doc(shopId)
+            .collection('members')
+            .doc(userId);
+
+    final DocumentReference<Map<String, dynamic>> pointReference =
+        FirebaseFirestore.instance
+            .collection('shops')
+            .doc(shopId)
+            .collection('member_points')
+            .doc(userId);
+
+    return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+      stream: memberReference.snapshots(),
+      builder: (context, memberSnapshot) {
+        if (memberSnapshot.hasError) {
+          return Text('會員資料讀取失敗：${memberSnapshot.error}');
+        }
+
+        if (!memberSnapshot.hasData) {
+          return const Center(child: CircularProgressIndicator());
+        }
+
+        final Map<String, dynamic> memberData =
+            memberSnapshot.data?.data() ?? <String, dynamic>{};
+
+        final bool isManualMember = memberData['source']?.toString() == 'admin';
+
+        return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+          stream: pointReference.snapshots(),
+          builder: (context, pointSnapshot) {
+            if (pointSnapshot.hasError) {
+              return Text('會員點數讀取失敗：${pointSnapshot.error}');
+            }
+
+            if (!pointSnapshot.hasData) {
+              return const Center(child: CircularProgressIndicator());
+            }
+
+            final bool pointAccountExists =
+                pointSnapshot.data?.exists == true &&
+                pointSnapshot.data?.data() != null;
+
+            final Map<String, dynamic>? pointData = pointSnapshot.data?.data();
+
+            final MemberPointModel memberPoint =
+                pointAccountExists && pointData != null
+                ? MemberPointModel.fromMap(
+                    shopId: shopId,
+                    userId: userId,
+                    data: pointData,
+                  )
+                : MemberPointModel.empty(shopId: shopId, userId: userId);
+
+            return Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: Colors.orange.shade100),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Row(
+                    children: [
+                      Icon(Icons.pets, color: Colors.orange),
+                      SizedBox(width: 8),
+                      Text(
+                        '會員點數',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 14),
+
+                  if (isManualMember && !pointAccountExists) ...[
+                    Text(
+                      '此為手動建立會員，目前尚未建立點數帳戶。',
+                      style: TextStyle(
+                        color: Colors.grey.shade700,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      '店主第一次補發點數時，系統才會建立點數帳戶。',
+                      style: TextStyle(
+                        color: Colors.grey.shade600,
+                        fontSize: 13,
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+
+                    SizedBox(
+                      width: double.infinity,
+                      child: FilledButton.icon(
+                        onPressed: () => _showAddPointsDialog(context),
+                        icon: const Icon(Icons.add_circle_outline),
+                        label: const Text('首次補發點數'),
+                        style: FilledButton.styleFrom(
+                          backgroundColor: Colors.orange,
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ] else ...[
+                    Row(
+                      children: [
+                        Text(
+                          '${memberPoint.currentPoints}',
+                          style: const TextStyle(
+                            fontSize: 30,
+                            fontWeight: FontWeight.w900,
+                            color: Colors.orange,
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        const Text(
+                          '點',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      '累積獲得 ${memberPoint.totalEarnedPoints} 點・'
+                      '已使用 ${memberPoint.totalUsedPoints} 點',
+                      style: TextStyle(
+                        color: Colors.grey.shade700,
+                        fontSize: 13,
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+
+                    Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            onPressed: () => _showAddPointsDialog(context),
+                            icon: const Icon(Icons.add_circle_outline),
+                            label: const Text(
+                              '增加點數',
+                              style: TextStyle(fontWeight: FontWeight.bold),
+                            ),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: Colors.green,
+                              side: const BorderSide(color: Colors.green),
+                              padding: const EdgeInsets.symmetric(vertical: 12),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            onPressed: memberPoint.currentPoints <= 0
+                                ? null
+                                : () => _showDeductPointsDialog(
+                                    context,
+                                    currentPoints: memberPoint.currentPoints,
+                                  ),
+                            icon: const Icon(Icons.remove_circle_outline),
+                            label: const Text(
+                              '扣除點數',
+                              style: TextStyle(fontWeight: FontWeight.bold),
+                            ),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: Colors.red,
+                              side: const BorderSide(color: Colors.red),
+                              padding: const EdgeInsets.symmetric(vertical: 12),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  /// 顯示此會員的點數異動流水。
+  Widget _buildMemberPointLogs() {
+    return StreamBuilder<List<MemberPointLogModel>>(
+      stream: MemberPointService.instance.streamMemberPointLogs(
+        shopId: shopId,
+        userId: userId,
+      ),
+      builder:
+          (
+            BuildContext context,
+            AsyncSnapshot<List<MemberPointLogModel>> snapshot,
+          ) {
+            if (snapshot.hasError) {
+              return Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: Colors.red.shade50,
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: Colors.red.shade100),
+                ),
+                child: Text(
+                  '點數紀錄讀取失敗：${snapshot.error}',
+                  style: const TextStyle(color: Colors.red),
+                ),
+              );
+            }
+
+            if (!snapshot.hasData) {
+              return const Center(
+                child: Padding(
+                  padding: EdgeInsets.all(16),
+                  child: CircularProgressIndicator(),
+                ),
+              );
+            }
+
+            final List<MemberPointLogModel> logs = snapshot.data!;
+
+            return Container(
+              width: double.infinity,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: Colors.orange.shade100),
+              ),
+              child: ExpansionTile(
+                initiallyExpanded: false,
+                leading: const Icon(Icons.history, color: Colors.orange),
+                title: const Text(
+                  '點數流水',
+                  style: TextStyle(fontSize: 17, fontWeight: FontWeight.w900),
+                ),
+                subtitle: Text(
+                  logs.isEmpty ? '目前沒有點數紀錄' : '共 ${logs.length} 筆紀錄',
+                ),
+                childrenPadding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+                children: [
+                  if (logs.isEmpty)
+                    const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 20),
+                      child: Text(
+                        '目前沒有點數紀錄',
+                        style: TextStyle(color: Colors.grey),
+                      ),
+                    )
+                  else
+                    for (int index = 0; index < logs.length; index++) ...[
+                      _buildMemberPointLogCard(logs[index]),
+                      if (index != logs.length - 1) const Divider(height: 1),
+                    ],
+                ],
+              ),
+            );
+          },
+    );
+  }
+
+  /// 建立單筆會員點數流水。
+  Widget _buildMemberPointLogCard(MemberPointLogModel log) {
+    final bool isIncrease = log.points > 0;
+    final Color pointColor = isIncrease ? Colors.green : Colors.red;
+    final IconData pointIcon = isIncrease
+        ? Icons.add_circle_outline
+        : Icons.remove_circle_outline;
+
+    final String pointText = isIncrease ? '+${log.points}' : '${log.points}';
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 12),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(9),
+            decoration: BoxDecoration(
+              color: pointColor.withValues(alpha: 0.10),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Icon(pointIcon, color: pointColor, size: 22),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  log.reason.trim().isEmpty
+                      ? log.type.label
+                      : log.reason.trim(),
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w900,
+                    fontSize: 15,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  log.type.label,
+                  style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  '異動前 ${log.balanceBefore} 點 → '
+                  '異動後 ${log.balanceAfter} 點',
+                  style: TextStyle(color: Colors.grey.shade700, fontSize: 13),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  _formatPointLogTime(log.createdAt),
+                  style: TextStyle(color: Colors.grey.shade500, fontSize: 12),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 10),
+          Text(
+            '$pointText 點',
+            style: TextStyle(
+              color: pointColor,
+              fontSize: 17,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// 顯示店主手動增加會員點數視窗。
+  Future<void> _showAddPointsDialog(BuildContext context) async {
+    final TextEditingController pointsController = TextEditingController();
+    final TextEditingController reasonController = TextEditingController();
+
+    final bool? confirmed = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext dialogContext) {
+        return AlertDialog(
+          title: const Row(
+            children: [
+              Icon(Icons.add_circle_outline, color: Colors.green),
+              SizedBox(width: 8),
+              Text('增加會員點數'),
+            ],
+          ),
+          content: SizedBox(
+            width: 420,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: pointsController,
+                  keyboardType: TextInputType.number,
+                  autofocus: true,
+                  decoration: const InputDecoration(
+                    labelText: '增加點數',
+                    hintText: '例如：100',
+                    prefixIcon: Icon(Icons.pets),
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 14),
+                TextField(
+                  controller: reasonController,
+                  maxLength: 100,
+                  maxLines: 2,
+                  decoration: const InputDecoration(
+                    labelText: '增加原因',
+                    hintText: '例如：熟客贈點、活動補發、客訴補償',
+                    prefixIcon: Icon(Icons.edit_note),
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: const Text('取消'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(dialogContext, true),
+              style: FilledButton.styleFrom(backgroundColor: Colors.green),
+              child: const Text('確認增加'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirmed != true) {
+      pointsController.dispose();
+      reasonController.dispose();
+      return;
+    }
+
+    final int? points = int.tryParse(pointsController.text.trim());
+    final String reason = reasonController.text.trim();
+
+    if (points == null || points <= 0) {
+      pointsController.dispose();
+      reasonController.dispose();
+
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('請輸入大於 0 的點數'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+      return;
+    }
+
+    if (reason.isEmpty) {
+      pointsController.dispose();
+      reasonController.dispose();
+
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('請輸入增加點數原因'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+      return;
+    }
+
+    try {
+      await MemberPointService.instance.addPoints(
+        shopId: shopId,
+        userId: userId,
+        points: points,
+        reason: reason,
+      );
+
+      pointsController.dispose();
+      reasonController.dispose();
+
+      if (!context.mounted) {
+        return;
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('已增加 $points 點'), backgroundColor: Colors.green),
+      );
+    } catch (error) {
+      pointsController.dispose();
+      reasonController.dispose();
+
+      if (!context.mounted) {
+        return;
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('增加點數失敗：$error'), backgroundColor: Colors.red),
+      );
+    }
+  }
+
+  /// 顯示店主手動扣除會員點數視窗。
+  Future<void> _showDeductPointsDialog(
+    BuildContext context, {
+    required int currentPoints,
+  }) async {
+    final TextEditingController pointsController = TextEditingController();
+    final TextEditingController reasonController = TextEditingController();
+
+    final bool? confirmed = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext dialogContext) {
+        return AlertDialog(
+          title: const Row(
+            children: [
+              Icon(Icons.remove_circle_outline, color: Colors.red),
+              SizedBox(width: 8),
+              Text('扣除會員點數'),
+            ],
+          ),
+          content: SizedBox(
+            width: 420,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    '目前點數：$currentPoints 點',
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                ),
+                const SizedBox(height: 14),
+                TextField(
+                  controller: pointsController,
+                  keyboardType: TextInputType.number,
+                  autofocus: true,
+                  decoration: const InputDecoration(
+                    labelText: '扣除點數',
+                    hintText: '例如：10',
+                    prefixIcon: Icon(Icons.pets),
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 14),
+                TextField(
+                  controller: reasonController,
+                  maxLength: 100,
+                  maxLines: 2,
+                  decoration: const InputDecoration(
+                    labelText: '扣除原因',
+                    hintText: '例如：誤發更正、現場兌換、人工調整',
+                    prefixIcon: Icon(Icons.edit_note),
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: const Text('取消'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(dialogContext, true),
+              style: FilledButton.styleFrom(backgroundColor: Colors.red),
+              child: const Text('確認扣除'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirmed != true) {
+      pointsController.dispose();
+      reasonController.dispose();
+      return;
+    }
+
+    final int? points = int.tryParse(pointsController.text.trim());
+    final String reason = reasonController.text.trim();
+
+    if (points == null || points <= 0) {
+      pointsController.dispose();
+      reasonController.dispose();
+
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('請輸入大於 0 的點數'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+      return;
+    }
+
+    if (points > currentPoints) {
+      pointsController.dispose();
+      reasonController.dispose();
+
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('扣除點數不能超過目前的 $currentPoints 點'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+      return;
+    }
+
+    if (reason.isEmpty) {
+      pointsController.dispose();
+      reasonController.dispose();
+
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('請輸入扣除點數原因'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+      return;
+    }
+
+    try {
+      await MemberPointService.instance.deductPoints(
+        shopId: shopId,
+        userId: userId,
+        points: points,
+        reason: reason,
+      );
+
+      pointsController.dispose();
+      reasonController.dispose();
+
+      if (!context.mounted) {
+        return;
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('已扣除 $points 點'), backgroundColor: Colors.green),
+      );
+    } catch (error) {
+      pointsController.dispose();
+      reasonController.dispose();
+
+      if (!context.mounted) {
+        return;
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('扣除點數失敗：$error'), backgroundColor: Colors.red),
+      );
+    }
+  }
+
   Widget _buildMemberProfile() {
     return StreamBuilder<DocumentSnapshot>(
       stream: FirebaseFirestore.instance
@@ -1224,6 +1926,28 @@ class AdminMemberDetailPage extends StatelessWidget {
                   ),
                 ),
               ],
+              const SizedBox(height: 10),
+
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed: () => _showIssueCouponDialog(context),
+                  icon: const Icon(Icons.card_giftcard),
+                  label: const Text(
+                    '發放優惠券',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: Colors.deepOrange,
+                    side: const BorderSide(color: Colors.deepOrange),
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                  ),
+                ),
+              ),
+
               const SizedBox(height: 10),
 
               SizedBox(
@@ -1539,6 +2263,774 @@ class AdminMemberDetailPage extends StatelessWidget {
     });
   }
 
+  Future<void> _showIssueCouponDialog(BuildContext context) async {
+    final List<CouponTemplateModel> templates = await CouponTemplateService
+        .instance
+        .getTemplates(shopId: shopId, enabledOnly: true);
+
+    if (!context.mounted) {
+      return;
+    }
+
+    if (templates.isEmpty) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('目前沒有可發放的優惠券模板，請先建立並啟用模板')));
+      return;
+    }
+
+    CouponTemplateModel? selectedTemplate;
+    final TextEditingController reasonController = TextEditingController();
+
+    final bool? confirmed = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext dialogContext) {
+        return StatefulBuilder(
+          builder:
+              (
+                BuildContext context,
+                void Function(void Function()) setDialogState,
+              ) {
+                return AlertDialog(
+                  title: const Text('發放優惠券'),
+                  content: SizedBox(
+                    width: 480,
+                    child: SingleChildScrollView(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            '選擇優惠券模板',
+                            style: TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                          const SizedBox(height: 8),
+
+                          DropdownButtonFormField<CouponTemplateModel>(
+                            value: selectedTemplate,
+                            isExpanded: true,
+                            decoration: const InputDecoration(
+                              border: OutlineInputBorder(),
+                              hintText: '請選擇優惠券',
+                            ),
+                            items: templates.map((
+                              CouponTemplateModel template,
+                            ) {
+                              return DropdownMenuItem<CouponTemplateModel>(
+                                value: template,
+                                child: Text(
+                                  template.name,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              );
+                            }).toList(),
+                            onChanged: (CouponTemplateModel? value) {
+                              setDialogState(() {
+                                selectedTemplate = value;
+                              });
+                            },
+                          ),
+
+                          if (selectedTemplate != null) ...[
+                            const SizedBox(height: 12),
+                            Container(
+                              width: double.infinity,
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: Colors.orange.shade50,
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(
+                                  color: Colors.orange.shade100,
+                                ),
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    selectedTemplate!.name,
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                  if (selectedTemplate!.description
+                                      .trim()
+                                      .isNotEmpty) ...[
+                                    const SizedBox(height: 4),
+                                    Text(selectedTemplate!.description),
+                                  ],
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    selectedTemplate!.validDays > 0
+                                        ? '有效期限：發放後 ${selectedTemplate!.validDays} 天'
+                                        : '有效期限：永久有效',
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+
+                          const SizedBox(height: 16),
+
+                          TextField(
+                            controller: reasonController,
+                            maxLength: 100,
+                            maxLines: 2,
+                            decoration: const InputDecoration(
+                              labelText: '發放原因',
+                              hintText: '例如：客訴補償、熟客贈送',
+                              border: OutlineInputBorder(),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(dialogContext, false),
+                      child: const Text('取消'),
+                    ),
+                    FilledButton(
+                      onPressed: selectedTemplate == null
+                          ? null
+                          : () => Navigator.pop(dialogContext, true),
+                      child: const Text('確認發放'),
+                    ),
+                  ],
+                );
+              },
+        );
+      },
+    );
+
+    if (confirmed != true || selectedTemplate == null) {
+      reasonController.dispose();
+      return;
+    }
+
+    try {
+      await MemberCouponService.instance.issueManualCouponFromTemplate(
+        template: selectedTemplate!,
+        userId: userId,
+        issuedReason: reasonController.text.trim(),
+      );
+
+      reasonController.dispose();
+
+      if (!context.mounted) {
+        return;
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('已成功發放「${selectedTemplate!.name}」')),
+      );
+    } catch (error) {
+      reasonController.dispose();
+
+      if (!context.mounted) {
+        return;
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('優惠券發放失敗：$error'), backgroundColor: Colors.red),
+      );
+    }
+  }
+
+  /// 顯示指定會員的實體商品兌換紀錄。
+  Widget _buildMemberRedemptions() {
+    return StreamBuilder<List<PointRedemptionModel>>(
+      stream: PointRedemptionService.instance.streamMemberRedemptions(
+        shopId: shopId,
+        userId: userId,
+      ),
+      builder:
+          (
+            BuildContext context,
+            AsyncSnapshot<List<PointRedemptionModel>> snapshot,
+          ) {
+            if (snapshot.hasError) {
+              return Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.red.shade50,
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: Colors.red.shade100),
+                ),
+                child: Text(
+                  '實體商品紀錄讀取失敗：${snapshot.error}',
+                  style: const TextStyle(color: Colors.red),
+                ),
+              );
+            }
+
+            if (!snapshot.hasData) {
+              return const Center(
+                child: Padding(
+                  padding: EdgeInsets.all(20),
+                  child: CircularProgressIndicator(),
+                ),
+              );
+            }
+
+            final List<PointRedemptionModel> redemptions = snapshot.data!;
+
+            if (redemptions.isEmpty) {
+              return Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: const Column(
+                  children: [
+                    Icon(
+                      Icons.inventory_2_outlined,
+                      size: 38,
+                      color: Colors.grey,
+                    ),
+                    SizedBox(height: 8),
+                    Text('此會員尚未兌換實體商品', style: TextStyle(color: Colors.grey)),
+                  ],
+                ),
+              );
+            }
+
+            final int pendingCount = redemptions
+                .where(
+                  (PointRedemptionModel item) =>
+                      item.status == PointRedemptionStatus.pendingPickup,
+                )
+                .length;
+
+            return Container(
+              width: double.infinity,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: ExpansionTile(
+                initiallyExpanded: false,
+                leading: const Icon(Icons.inventory_2, color: Colors.brown),
+                title: Text(
+                  '共 ${redemptions.length} 筆兌換紀錄',
+                  style: const TextStyle(
+                    fontSize: 17,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                subtitle: Text(
+                  pendingCount > 0 ? '目前有 $pendingCount 件待領取' : '目前沒有待領取商品',
+                ),
+                childrenPadding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+                children: redemptions.map(_buildMemberRedemptionCard).toList(),
+              ),
+            );
+          },
+    );
+  }
+
+  /// 建立單筆實體商品兌換卡片。
+  Widget _buildMemberRedemptionCard(PointRedemptionModel redemption) {
+    final Color statusColor = _redemptionStatusColor(redemption.status);
+
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(top: 10),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: statusColor.withValues(alpha: 0.05),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: statusColor.withValues(alpha: 0.30)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(12),
+            child: redemption.rewardImageUrl.trim().isNotEmpty
+                ? Image.network(
+                    redemption.rewardImageUrl,
+                    width: 64,
+                    height: 64,
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) {
+                      return _buildRedemptionImagePlaceholder();
+                    },
+                  )
+                : _buildRedemptionImagePlaceholder(),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: Text(
+                        redemption.rewardName,
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 9,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: statusColor.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                      child: Text(
+                        _redemptionStatusText(redemption.status),
+                        style: TextStyle(
+                          color: statusColor,
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  '扣除點數：${redemption.pointsCost} 點',
+                  style: const TextStyle(
+                    color: Colors.deepOrange,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                SelectableText(
+                  '領取碼：${redemption.pickupCode}',
+                  style: const TextStyle(fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  '兌換時間：${_formatRedemptionTime(redemption.createdAt)}',
+                  style: TextStyle(color: Colors.grey.shade700, fontSize: 13),
+                ),
+                if (redemption.pickedUpAt != null)
+                  Text(
+                    '領取時間：'
+                    '${_formatRedemptionTime(redemption.pickedUpAt!)}',
+                    style: TextStyle(color: Colors.grey.shade700, fontSize: 13),
+                  ),
+                if (redemption.cancelledAt != null)
+                  Text(
+                    '取消時間：'
+                    '${_formatRedemptionTime(redemption.cancelledAt!)}',
+                    style: TextStyle(color: Colors.grey.shade700, fontSize: 13),
+                  ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildRedemptionImagePlaceholder() {
+    return Container(
+      width: 64,
+      height: 64,
+      color: Colors.brown.shade50,
+      alignment: Alignment.center,
+      child: const Icon(
+        Icons.inventory_2_outlined,
+        color: Colors.brown,
+        size: 30,
+      ),
+    );
+  }
+
+  String _redemptionStatusText(PointRedemptionStatus status) {
+    switch (status) {
+      case PointRedemptionStatus.pendingPickup:
+        return '待領取';
+      case PointRedemptionStatus.pickedUp:
+        return '已領取';
+      case PointRedemptionStatus.cancelled:
+        return '已取消';
+      case PointRedemptionStatus.expired:
+        return '已過期';
+    }
+  }
+
+  Color _redemptionStatusColor(PointRedemptionStatus status) {
+    switch (status) {
+      case PointRedemptionStatus.pendingPickup:
+        return Colors.orange;
+      case PointRedemptionStatus.pickedUp:
+        return Colors.green;
+      case PointRedemptionStatus.cancelled:
+        return Colors.red;
+      case PointRedemptionStatus.expired:
+        return Colors.grey;
+    }
+  }
+
+  String _formatRedemptionTime(DateTime value) {
+    String two(int number) => number.toString().padLeft(2, '0');
+
+    return '${value.year}/${two(value.month)}/${two(value.day)} '
+        '${two(value.hour)}:${two(value.minute)}';
+  }
+
+  Widget _buildMemberCoupons() {
+    return StreamBuilder<List<MemberCouponModel>>(
+      stream: MemberCouponService.instance.streamMemberCoupons(
+        shopId: shopId,
+        userId: userId,
+      ),
+      builder:
+          (
+            BuildContext context,
+            AsyncSnapshot<List<MemberCouponModel>> snapshot,
+          ) {
+            if (snapshot.hasError) {
+              return Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Text(
+                  '優惠券讀取失敗：${snapshot.error}',
+                  style: const TextStyle(color: Colors.red),
+                ),
+              );
+            }
+
+            if (!snapshot.hasData) {
+              return const Center(
+                child: Padding(
+                  padding: EdgeInsets.all(20),
+                  child: CircularProgressIndicator(),
+                ),
+              );
+            }
+
+            final List<MemberCouponModel> coupons = snapshot.data!;
+
+            if (coupons.isEmpty) {
+              return Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: const Column(
+                  children: [
+                    Icon(
+                      Icons.confirmation_number_outlined,
+                      size: 38,
+                      color: Colors.grey,
+                    ),
+                    SizedBox(height: 8),
+                    Text('此會員目前沒有優惠券', style: TextStyle(color: Colors.grey)),
+                  ],
+                ),
+              );
+            }
+
+            return Container(
+              width: double.infinity,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: ExpansionTile(
+                initiallyExpanded: false,
+                leading: const Icon(
+                  Icons.confirmation_number,
+                  color: Colors.deepOrange,
+                ),
+                title: Text(
+                  '共 ${coupons.length} 張優惠券',
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 17,
+                  ),
+                ),
+                childrenPadding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+                children: coupons.map((MemberCouponModel coupon) {
+                  return _buildMemberCouponCard(context, coupon);
+                }).toList(),
+              ),
+            );
+          },
+    );
+  }
+
+  Widget _buildMemberCouponCard(
+    BuildContext context,
+    MemberCouponModel coupon,
+  ) {
+    final Color statusColor = _memberCouponStatusColor(coupon.status);
+
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(top: 10),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: statusColor.withValues(alpha: 0.06),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: statusColor.withValues(alpha: 0.35)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Text(
+                  coupon.name,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w900,
+                    fontSize: 16,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+                decoration: BoxDecoration(
+                  color: statusColor.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: Text(
+                  _memberCouponStatusText(coupon.status),
+                  style: TextStyle(
+                    color: statusColor,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 12,
+                  ),
+                ),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 8),
+
+          Text(
+            _memberCouponBenefitText(coupon),
+            style: TextStyle(
+              color: Colors.grey.shade800,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+
+          if (coupon.description.trim().isNotEmpty) ...[
+            const SizedBox(height: 5),
+            Text(coupon.description.trim()),
+          ],
+
+          const SizedBox(height: 8),
+
+          Text(
+            '使用次數：${coupon.usedCount} / ${coupon.usageLimit}',
+            style: TextStyle(color: Colors.grey.shade700, fontSize: 13),
+          ),
+
+          Text(
+            coupon.expireAt == null
+                ? '有效期限：永久有效'
+                : '有效期限：${_formatCouponDate(coupon.expireAt!)}',
+            style: TextStyle(color: Colors.grey.shade700, fontSize: 13),
+          ),
+
+          if (coupon.issuedReason.trim().isNotEmpty)
+            Text(
+              '發放原因：${coupon.issuedReason.trim()}',
+              style: TextStyle(color: Colors.grey.shade700, fontSize: 13),
+            ),
+          if (coupon.status == MemberCouponStatus.available &&
+              coupon.usedCount == 0) ...[
+            const SizedBox(height: 12),
+            const Divider(height: 1),
+            const SizedBox(height: 8),
+
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton.icon(
+                onPressed: () => _confirmRevokeCoupon(context, coupon),
+                icon: const Icon(Icons.block, size: 18),
+                label: const Text('撤銷優惠券'),
+                style: TextButton.styleFrom(foregroundColor: Colors.red),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Future<void> _confirmRevokeCoupon(
+    BuildContext context,
+    MemberCouponModel coupon,
+  ) async {
+    final TextEditingController reasonController = TextEditingController();
+
+    final bool? confirmed = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext dialogContext) {
+        return AlertDialog(
+          title: const Text('撤銷優惠券'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                '確定要撤銷「${coupon.name}」嗎？',
+                style: const TextStyle(fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                '撤銷後會員將無法再使用，但優惠券紀錄仍會保留。',
+                style: TextStyle(color: Colors.grey),
+              ),
+              const SizedBox(height: 16),
+
+              TextField(
+                controller: reasonController,
+                maxLength: 100,
+                maxLines: 2,
+                decoration: const InputDecoration(
+                  labelText: '撤銷原因',
+                  hintText: '例如：重複發放、發放錯誤',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: const Text('取消'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(dialogContext, true),
+              style: FilledButton.styleFrom(backgroundColor: Colors.red),
+              child: const Text('確認撤銷'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirmed != true) {
+      reasonController.dispose();
+      return;
+    }
+
+    try {
+      await MemberCouponService.instance.revokeCoupon(
+        shopId: shopId,
+        couponId: coupon.id,
+        reason: reasonController.text.trim(),
+      );
+
+      reasonController.dispose();
+
+      if (!context.mounted) {
+        return;
+      }
+
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('已撤銷「${coupon.name}」')));
+    } catch (error) {
+      reasonController.dispose();
+
+      if (!context.mounted) {
+        return;
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('撤銷失敗：$error'), backgroundColor: Colors.red),
+      );
+    }
+  }
+
+  String _memberCouponStatusText(MemberCouponStatus status) {
+    switch (status) {
+      case MemberCouponStatus.available:
+        return '可使用';
+
+      case MemberCouponStatus.reserved:
+        return '訂單使用中';
+
+      case MemberCouponStatus.used:
+        return '已使用';
+
+      case MemberCouponStatus.expired:
+        return '已過期';
+
+      case MemberCouponStatus.revoked:
+        return '已撤銷';
+    }
+  }
+
+  Color _memberCouponStatusColor(MemberCouponStatus status) {
+    switch (status) {
+      case MemberCouponStatus.available:
+        return Colors.green;
+
+      case MemberCouponStatus.reserved:
+        return Colors.orange;
+
+      case MemberCouponStatus.used:
+        return Colors.blueGrey;
+
+      case MemberCouponStatus.expired:
+        return Colors.grey;
+
+      case MemberCouponStatus.revoked:
+        return Colors.red;
+    }
+  }
+
+  String _memberCouponBenefitText(MemberCouponModel coupon) {
+    switch (coupon.type) {
+      case MemberCouponType.fixedAmount:
+        return '固定折抵 NT\$${coupon.discountValue.toInt()}';
+
+      case MemberCouponType.percent:
+        final num payablePercent = 100 - coupon.discountValue;
+        return '折抵 ${coupon.discountValue}%（約 ${payablePercent}% 付款）';
+
+      case MemberCouponType.freeStay:
+        return '免費住宿 ${coupon.freeStayNights} 晚';
+
+      case MemberCouponType.freeService:
+        if (coupon.serviceName.trim().isNotEmpty) {
+          return '免費服務：${coupon.serviceName.trim()}';
+        }
+
+        return '免費指定服務';
+    }
+  }
+
+  String _formatCouponDate(DateTime value) {
+    final String year = value.year.toString();
+    final String month = value.month.toString().padLeft(2, '0');
+    final String day = value.day.toString().padLeft(2, '0');
+
+    return '$year/$month/$day';
+  }
+
   Widget _sectionTitle({
     required IconData icon,
     required Color color,
@@ -1841,6 +3333,16 @@ class AdminMemberDetailPage extends StatelessWidget {
       default:
         return type.isEmpty ? '操作紀錄' : type;
     }
+  }
+
+  /// 格式化點數流水時間。
+  String _formatPointLogTime(DateTime value) {
+    String twoDigits(int number) {
+      return number.toString().padLeft(2, '0');
+    }
+
+    return '${value.year}/${twoDigits(value.month)}/${twoDigits(value.day)} '
+        '${twoDigits(value.hour)}:${twoDigits(value.minute)}';
   }
 
   String _formatTime(dynamic value) {

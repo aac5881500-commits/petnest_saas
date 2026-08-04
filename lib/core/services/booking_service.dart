@@ -5,7 +5,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:petnest_saas/core/services/shop_service.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:petnest_saas/core/services/member_coupon_service.dart';
 import 'package:flutter/foundation.dart';
 
 class BookingService {
@@ -75,9 +75,22 @@ class BookingService {
 
     int originalTotal = 0,
     int discountAmount = 0,
+    int discountUsedNights = 0,
     int discountPercent = 0,
     int discountMinNights = 0,
     String discountBase = '',
+
+    String discountCampaignId = '',
+    String discountCampaignName = '',
+    String discountCampaignType = '',
+    String discountValueType = '',
+    num discountValue = 0,
+    bool allowCouponTogether = false,
+
+    String couponId = '',
+    String couponName = '',
+    String couponType = '',
+    int couponDiscountAmount = 0,
 
     int depositAmount = 0,
     String paymentMethod = '',
@@ -87,12 +100,30 @@ class BookingService {
     int policyVersion = 0,
     String policyTitle = '入住須知',
     Timestamp? policyAcceptedAt,
+
+    /// 🔒 同一次送出請求的唯一識別碼，用來避免網路重送建立兩筆訂單
+    String requestId = '',
   }) async {
     final user = _currentUser;
-    final doc = _bookings.doc();
-    debugPrint('ADMIN_BOOKING_STEP: generate code start');
+
+    /// 🔒 有 requestId 時固定使用同一個訂單文件 ID
+    final normalizedRequestId = requestId.trim();
+
+    final doc = normalizedRequestId.isNotEmpty
+        ? _bookings.doc(normalizedRequestId)
+        : _bookings.doc();
+
+    /// 🔒 相同請求已經建立過，就直接回傳原訂單，不再重建
+    if (normalizedRequestId.isNotEmpty) {
+      final existingBooking = await doc.get();
+
+      if (existingBooking.exists) {
+        return doc.id;
+      }
+    }
+    debugPrint('FRONT_BOOKING_STEP: generate code start');
     final bookingCode = await _generateBookingCode(shopId);
-    debugPrint('ADMIN_BOOKING_STEP: generate code ok');
+    debugPrint('FRONT_BOOKING_STEP: generate code ok');
     final normalizedStart = _dateOnly(startDate);
     final normalizedEnd = _dateOnly(endDate);
 
@@ -138,91 +169,117 @@ class BookingService {
       };
     }).toList();
 
-    await doc.set({
-      'addons': (addons ?? []).isNotEmpty ? addons : [],
-      'bookingId': doc.id,
-      'bookingCode': bookingCode,
-      'shopId': shopId,
-      'shopName': shopData['name'],
-      'userId': user.uid,
-      'policyVersion': policyVersion,
-      'policyTitle': policyTitle,
-      'policyAcceptedAt': policyAcceptedAt ?? FieldValue.serverTimestamp(),
-      'customerName': customerName.trim(),
-      'customerPhone': customerPhone.trim(),
-      'address': address,
-      'roomTypeName': roomTypeName,
-      'basePrice': basePrice,
-      'extraPetPrice': extraPetPrice,
-      'extraPetCount': extraPetCount,
-      'extraPetTotal': extraPetTotal,
-      'roomSubtotal': roomSubtotal,
-      'roomImages': roomImages,
-      'emergencyContact': {
-        'name': emergencyName,
-        'phone': emergencyPhone,
-        'relation': emergencyRelation,
-        'address': emergencyAddress,
-        'phone2': emergencyPhone2,
-      },
-      'petIds': petIds,
-      'pets': finalPets,
-      'roomTypeId': roomId,
-      'roomId': null,
-      'roomName': null,
-      'assignStatus': 'unassigned',
-      'serviceType': serviceType,
+    return _firestore.runTransaction<String>((transaction) async {
+      /// 🔒 Transaction 內重新讀取，防止兩個請求同時建立
+      final existingBooking = await transaction.get(doc);
 
-      /// 區間日期
-      'startDate': Timestamp.fromDate(normalizedStart),
-      'endDate': Timestamp.fromDate(normalizedEnd),
-      'nights': nights,
+      if (existingBooking.exists) {
+        debugPrint('BOOKING_IDEMPOTENCY: 已存在，直接回傳 ${doc.id}');
+        return doc.id;
+      }
 
-      /// 狀態
-      'status': 'pending', // pending / confirmed / completed / cancelled
-      /// 備註
-      'note': note.trim(),
+      transaction.set(doc, {
+        'requestId': normalizedRequestId,
+        'addons': (addons ?? []).isNotEmpty ? addons : [],
+        'bookingId': doc.id,
+        'bookingCode': bookingCode,
+        'shopId': shopId,
+        'shopName': shopData['name'],
+        'userId': user.uid,
+        'policyVersion': policyVersion,
+        'policyTitle': policyTitle,
+        'policyAcceptedAt': policyAcceptedAt ?? FieldValue.serverTimestamp(),
+        'customerName': customerName.trim(),
+        'customerPhone': customerPhone.trim(),
+        'address': address,
+        'roomTypeName': roomTypeName,
+        'basePrice': basePrice,
+        'extraPetPrice': extraPetPrice,
+        'extraPetCount': extraPetCount,
+        'extraPetTotal': extraPetTotal,
+        'roomSubtotal': roomSubtotal,
+        'roomImages': roomImages,
+        'emergencyContact': {
+          'name': emergencyName,
+          'phone': emergencyPhone,
+          'relation': emergencyRelation,
+          'address': emergencyAddress,
+          'phone2': emergencyPhone2,
+        },
+        'petIds': petIds,
+        'pets': finalPets,
+        'roomTypeId': roomId,
+        'roomId': null,
+        'roomName': null,
+        'assignStatus': 'unassigned',
+        'serviceType': serviceType,
 
-      /// 價格欄位
-      'totalPrice': totalPrice,
+        /// 區間日期
+        'startDate': Timestamp.fromDate(normalizedStart),
+        'endDate': Timestamp.fromDate(normalizedEnd),
+        'nights': nights,
 
-      'originalTotal': originalTotal,
-      'discountAmount': discountAmount,
-      'discountPercent': discountPercent,
-      'discountMinNights': discountMinNights,
-      'discountBase': discountBase,
+        /// 狀態
+        'status': 'pending', // pending / confirmed / completed / cancelled
+        /// 備註
+        'note': note.trim(),
 
-      'depositAmount': depositAmount,
-      'paymentMethod': paymentMethod,
-      'payAmountType': payAmountType,
+        /// 價格欄位
+        'totalPrice': totalPrice,
 
-      /// 🔥 店家轉帳資訊快照
-      'bankName': bankName,
-      'accountName': accountName,
-      'accountNumber': accountNumber,
-      'depositExpireHours': depositExpireHours,
-      'depositExpireAt': paymentMethod == 'transfer' || paymentMethod == 'cash'
-          ? Timestamp.fromDate(
-              DateTime.now().add(
-                depositExpireHours == 0
-                    ? const Duration(minutes: 1)
-                    : Duration(hours: depositExpireHours),
-              ),
-            )
-          : null,
+        'originalTotal': originalTotal,
+        'discountAmount': discountAmount,
+        'discountUsedNights': discountUsedNights,
+        'discountPercent': discountPercent,
+        'discountMinNights': discountMinNights,
+        'discountBase': discountBase,
 
-      /// 未來預留
-      'checkedInAt': null,
-      'checkedOutAt': null,
-      'cameraAccessEnabled': false,
-      'cameraUrl': null,
+        'discountCampaignId': discountCampaignId,
+        'discountCampaignName': discountCampaignName,
+        'discountCampaignType': discountCampaignType,
+        'discountValueType': discountValueType,
+        'discountValue': discountValue,
+        'allowCouponTogether': allowCouponTogether,
 
-      /// 系統欄位
-      'createdAt': FieldValue.serverTimestamp(),
-      'updatedAt': FieldValue.serverTimestamp(),
+        'couponId': couponId,
+        'couponName': couponName,
+        'couponType': couponType,
+        'couponDiscountAmount': couponDiscountAmount,
+
+        'depositAmount': depositAmount,
+        'paymentMethod': paymentMethod,
+        'payAmountType': payAmountType,
+
+        /// 🔥 店家轉帳資訊快照
+        'bankName': bankName,
+        'accountName': accountName,
+        'accountNumber': accountNumber,
+        'depositExpireHours': depositExpireHours,
+        'depositExpireAt':
+            paymentMethod == 'transfer' || paymentMethod == 'cash'
+            ? Timestamp.fromDate(
+                DateTime.now().add(
+                  depositExpireHours == 0
+                      ? const Duration(minutes: 1)
+                      : Duration(hours: depositExpireHours),
+                ),
+              )
+            : null,
+
+        /// 未來預留
+        'checkedInAt': null,
+        'checkedOutAt': null,
+        'cameraAccessEnabled': false,
+        'cameraUrl': null,
+
+        /// 系統欄位
+        'createdAt': FieldValue.serverTimestamp(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+
+      debugPrint('BOOKING_IDEMPOTENCY: 建立成功 ${doc.id}');
+      return doc.id;
     });
-
-    return doc.id;
   }
 
   Future<String> createAdminBooking({
@@ -257,7 +314,14 @@ class BookingService {
     int discountAmount = 0,
     int discountPercent = 0,
     int discountMinNights = 0,
+    int discountUsedNights = 0,
     String discountBase = '',
+    String discountCampaignId = '',
+    String discountCampaignName = '',
+    String discountCampaignType = '',
+    String discountValueType = '',
+    num discountValue = 0,
+    bool allowCouponTogether = false,
     int depositAmount = 0,
     String paymentMethod = '',
     String payAmountType = '', // deposit / full
@@ -359,9 +423,16 @@ class BookingService {
       'originalTotal': originalTotal,
       'applyLongStayDiscount': applyLongStayDiscount,
       'discountAmount': discountAmount,
+      'discountUsedNights': discountUsedNights,
       'discountPercent': discountPercent,
       'discountMinNights': discountMinNights,
       'discountBase': discountBase,
+      'discountCampaignId': discountCampaignId,
+      'discountCampaignName': discountCampaignName,
+      'discountCampaignType': discountCampaignType,
+      'discountValueType': discountValueType,
+      'discountValue': discountValue,
+      'allowCouponTogether': allowCouponTogether,
       'depositAmount': depositAmount,
       'paymentMethod': paymentMethod,
       'payAmountType': payAmountType,
@@ -495,6 +566,21 @@ class BookingService {
       'cancelledAt': FieldValue.serverTimestamp(),
       'updatedAt': FieldValue.serverTimestamp(),
     });
+    final String couponShopId = (data['shopId'] ?? '').toString().trim();
+    final String couponId = (data['couponId'] ?? '').toString().trim();
+
+    if (couponShopId.isNotEmpty && couponId.isNotEmpty) {
+      try {
+        await MemberCouponService.instance.restoreCouponForCancelledBooking(
+          shopId: couponShopId,
+          couponId: couponId,
+          bookingId: bookingId,
+        );
+      } catch (error, stackTrace) {
+        debugPrint('取消訂單退回優惠券失敗：$error');
+        debugPrintStack(stackTrace: stackTrace);
+      }
+    }
 
     final shopId = data['shopId'];
     final roomId = data['roomId'];
@@ -638,6 +724,18 @@ class BookingService {
     required DateTime startDate,
     required DateTime endDate,
   }) async {
+    final bookingDoc = await _bookings.doc(bookingId).get();
+
+    if (!bookingDoc.exists) {
+      throw Exception('找不到這筆訂單');
+    }
+
+    final bookingData = bookingDoc.data() ?? <String, dynamic>{};
+    final bookingStatus = bookingData['status']?.toString() ?? '';
+
+    if (bookingStatus != 'confirmed') {
+      throw Exception('此訂單尚未確認，不能進行分房');
+    }
     final available = await isRoomAvailable(
       shopId: shopId,
       roomId: roomId,
@@ -794,8 +892,12 @@ class BookingService {
 
         if (status == 'blocked' ||
             status == 'maintenance' ||
+            status == 'closed' ||
+            status == 'cleaning' ||
+            status == 'unavailable' ||
             status == 'booked' ||
-            status == 'checked_in') {
+            status == 'checked_in' ||
+            status == 'occupied') {
           return false;
         }
       }
@@ -982,7 +1084,16 @@ class BookingService {
         if (calendarDoc.exists) {
           final data = calendarDoc.data();
 
-          if (data?['status'] == 'blocked') {
+          final String calendarStatus = data?['status']?.toString() ?? '';
+
+          if (calendarStatus == 'blocked' ||
+              calendarStatus == 'maintenance' ||
+              calendarStatus == 'closed' ||
+              calendarStatus == 'cleaning' ||
+              calendarStatus == 'unavailable' ||
+              calendarStatus == 'booked' ||
+              calendarStatus == 'checked_in' ||
+              calendarStatus == 'occupied') {
             blocked = true;
             break;
           }

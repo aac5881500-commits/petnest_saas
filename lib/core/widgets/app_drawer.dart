@@ -20,19 +20,26 @@ import 'package:petnest_saas/features/shop/pages/shop_announcement_page.dart';
 import 'package:petnest_saas/features/shop/pages/shop_environment_page.dart';
 import 'package:petnest_saas/features/shop/pages/shop_about_page.dart';
 import 'package:petnest_saas/features/shop/pages/shop_room_intro_page.dart';
+import 'package:petnest_saas/core/models/home_theme_model.dart';
+import 'package:petnest_saas/features/member/pages/member_page.dart';
 
 class AppDrawer extends StatelessWidget {
   const AppDrawer({
     super.key,
     required this.shopId,
+    this.theme = HomeThemeModel.classicDefault,
     this.platformPreview = false,
   });
 
   final String shopId;
+  final HomeThemeModel theme;
   final bool platformPreview;
 
-  Color get _orange => const Color(0xFFFF8A3D);
-  Color get _brown => const Color(0xFF4A2C18);
+  Color get _orange => theme.primaryColor;
+  Color get _brown => theme.textColor;
+  Color get _background => theme.backgroundColor;
+  Color get _card => theme.cardColor;
+  Color get _border => theme.cardBorderColor;
 
   @override
   Widget build(BuildContext context) {
@@ -40,7 +47,7 @@ class AppDrawer extends StatelessWidget {
 
     return Drawer(
       width: MediaQuery.of(context).size.width * 0.78,
-      backgroundColor: Colors.white,
+      backgroundColor: _background,
       child: SafeArea(
         child: Column(
           children: [
@@ -85,7 +92,12 @@ class AppDrawer extends StatelessWidget {
                           ),
                         );
                       } else {
-                        Navigator.pushNamed(context, '/member');
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => MemberPage(shopId: shopId),
+                          ),
+                        );
                       }
                     },
                   ),
@@ -177,8 +189,10 @@ class AppDrawer extends StatelessWidget {
                               Navigator.push(
                                 context,
                                 MaterialPageRoute(
-                                  builder: (_) =>
-                                      ShopEnvironmentPage(shopId: shopId),
+                                  builder: (_) => ShopEnvironmentPage(
+                                    shopId: shopId,
+                                    theme: theme,
+                                  ),
                                 ),
                               );
                             },
@@ -192,8 +206,10 @@ class AppDrawer extends StatelessWidget {
                               Navigator.push(
                                 context,
                                 MaterialPageRoute(
-                                  builder: (_) =>
-                                      ShopRoomIntroPage(shopId: shopId),
+                                  builder: (_) => ShopRoomIntroPage(
+                                    shopId: shopId,
+                                    theme: theme,
+                                  ),
                                 ),
                               );
                             },
@@ -209,6 +225,7 @@ class AppDrawer extends StatelessWidget {
                                 MaterialPageRoute(
                                   builder: (_) => ShopPolicyViewPage(
                                     shopId: shopId,
+                                    theme: theme,
                                     readOnly: true,
                                   ),
                                 ),
@@ -224,7 +241,10 @@ class AppDrawer extends StatelessWidget {
                               Navigator.push(
                                 context,
                                 MaterialPageRoute(
-                                  builder: (_) => ShopAboutPage(shopId: shopId),
+                                  builder: (_) => ShopAboutPage(
+                                    shopId: shopId,
+                                    theme: theme,
+                                  ),
                                 ),
                               );
                             },
@@ -238,8 +258,10 @@ class AppDrawer extends StatelessWidget {
                                 Navigator.push(
                                   context,
                                   MaterialPageRoute(
-                                    builder: (_) =>
-                                        ShopAnnouncementPage(shopId: shopId),
+                                    builder: (_) => ShopAnnouncementPage(
+                                      shopId: shopId,
+                                      theme: theme,
+                                    ),
                                   ),
                                 );
                               },
@@ -253,7 +275,10 @@ class AppDrawer extends StatelessWidget {
                                 Navigator.push(
                                   context,
                                   MaterialPageRoute(
-                                    builder: (_) => ShopFaqPage(shopId: shopId),
+                                    builder: (_) => ShopFaqPage(
+                                      shopId: shopId,
+                                      theme: theme,
+                                    ),
                                   ),
                                 );
                               },
@@ -354,9 +379,9 @@ class AppDrawer extends StatelessWidget {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.fromLTRB(24, 26, 24, 24),
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         gradient: LinearGradient(
-          colors: [Color(0xFFFFF5E8), Color(0xFFFFFFFF)],
+          colors: [_orange.withValues(alpha: 0.12), _card],
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
         ),
@@ -367,7 +392,7 @@ class AppDrawer extends StatelessWidget {
               children: [
                 CircleAvatar(
                   radius: 36,
-                  backgroundColor: const Color(0xFFFFE5C8),
+                  backgroundColor: _orange.withValues(alpha: 0.16),
                   child: Icon(Icons.pets, color: _orange, size: 34),
                 ),
                 const SizedBox(height: 14),
@@ -380,9 +405,9 @@ class AppDrawer extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 6),
-                const Text(
+                Text(
                   '登入後可查看訂單與寵物資料',
-                  style: TextStyle(color: Colors.black54),
+                  style: TextStyle(color: _brown.withValues(alpha: 0.65)),
                 ),
                 const SizedBox(height: 14),
                 SizedBox(
@@ -425,7 +450,7 @@ class AppDrawer extends StatelessWidget {
                       children: [
                         CircleAvatar(
                           radius: 38,
-                          backgroundColor: const Color(0xFFFFE5C8),
+                          backgroundColor: _orange.withValues(alpha: 0.16),
                           child: Icon(Icons.pets, color: _orange, size: 34),
                         ),
 
@@ -449,9 +474,9 @@ class AppDrawer extends StatelessWidget {
                               if (phone.toString().isNotEmpty)
                                 Text(
                                   phone,
-                                  style: const TextStyle(
+                                  style: TextStyle(
                                     fontSize: 14,
-                                    color: Colors.black87,
+                                    color: _brown.withValues(alpha: 0.85),
                                   ),
                                 ),
 
@@ -461,9 +486,9 @@ class AppDrawer extends StatelessWidget {
                                 user.email ?? '',
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(
+                                style: TextStyle(
                                   fontSize: 13,
-                                  color: Colors.black54,
+                                  color: _brown.withValues(alpha: 0.6),
                                 ),
                               ),
                             ],
@@ -528,17 +553,17 @@ class AppDrawer extends StatelessWidget {
   }) {
     return ListTile(
       contentPadding: EdgeInsets.zero,
-      leading: Icon(icon, color: iconColor ?? Colors.black54, size: 24),
+      leading: Icon(icon, color: iconColor ?? _orange, size: 24),
       title: Text(
         title,
         style: TextStyle(
-          color: textColor ?? Colors.black87,
+          color: textColor ?? _brown,
           fontSize: 16,
           fontWeight: FontWeight.w600,
         ),
       ),
       trailing: showArrow
-          ? const Icon(Icons.chevron_right, color: Colors.black38)
+          ? Icon(Icons.chevron_right, color: _brown.withValues(alpha: 0.45))
           : null,
       onTap: onTap,
     );
@@ -559,13 +584,16 @@ class AppDrawer extends StatelessWidget {
             margin: const EdgeInsets.only(top: 6, bottom: 10),
             padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
-              color: const Color(0xFFFFF7EF),
+              color: _card,
               borderRadius: BorderRadius.circular(18),
-              border: Border.all(color: const Color(0xFFFFD8B0)),
+              border: Border.all(color: _border),
             ),
-            child: const Text(
+            child: Text(
               '目前沒有最新訂單',
-              style: TextStyle(fontSize: 13, color: Colors.black54),
+              style: TextStyle(
+                fontSize: 13,
+                color: _brown.withValues(alpha: 0.6),
+              ),
             ),
           );
         }
@@ -647,8 +675,7 @@ class AppDrawer extends StatelessWidget {
 
         final nights = data['nights'] ?? 1;
 
-        Color statusColor = const Color(0xFFFF8A3D);
-
+        Color statusColor = _orange;
         if (status == '已完成') {
           statusColor = Colors.green;
         } else if (status == '已取消') {
@@ -670,16 +697,16 @@ class AppDrawer extends StatelessWidget {
             margin: const EdgeInsets.only(top: 8, bottom: 14),
             padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                colors: [Color(0xFFFFF8F1), Colors.white],
+              gradient: LinearGradient(
+                colors: [_orange.withValues(alpha: 0.08), _card],
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
               ),
               borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: const Color(0xFFFFD2AA)),
+              border: Border.all(color: _border),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.orange.withOpacity(0.08),
+                  color: _orange.withValues(alpha: 0.08),
                   blurRadius: 10,
                   offset: const Offset(0, 4),
                 ),
@@ -730,8 +757,9 @@ class AppDrawer extends StatelessWidget {
                       width: 76,
                       height: 76,
                       decoration: BoxDecoration(
-                        color: Colors.grey.shade200,
+                        color: _orange.withValues(alpha: 0.08),
                         borderRadius: BorderRadius.circular(14),
+                        border: Border.all(color: _border),
                         image: roomImage != null
                             ? DecorationImage(
                                 image: NetworkImage(roomImage),
@@ -740,9 +768,9 @@ class AppDrawer extends StatelessWidget {
                             : null,
                       ),
                       child: roomImage == null
-                          ? const Icon(
+                          ? Icon(
                               Icons.home_work_rounded,
-                              color: Colors.black26,
+                              color: _brown.withValues(alpha: 0.3),
                               size: 34,
                             )
                           : null,
@@ -759,10 +787,10 @@ class AppDrawer extends StatelessWidget {
                               if (shopName.isNotEmpty)
                                 Row(
                                   children: [
-                                    const Icon(
+                                    Icon(
                                       Icons.storefront,
                                       size: 14,
-                                      color: Colors.orange,
+                                      color: _orange,
                                     ),
                                     const SizedBox(width: 4),
                                     Expanded(
@@ -770,10 +798,10 @@ class AppDrawer extends StatelessWidget {
                                         shopName,
                                         maxLines: 1,
                                         overflow: TextOverflow.ellipsis,
-                                        style: const TextStyle(
+                                        style: TextStyle(
                                           fontSize: 13,
                                           fontWeight: FontWeight.w700,
-                                          color: Colors.orange,
+                                          color: _orange,
                                         ),
                                       ),
                                     ),
@@ -786,9 +814,10 @@ class AppDrawer extends StatelessWidget {
                                 '$roomTypeName $roomName',
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(
+                                style: TextStyle(
                                   fontSize: 18,
                                   fontWeight: FontWeight.bold,
+                                  color: _brown,
                                 ),
                               ),
                             ],
@@ -798,18 +827,18 @@ class AppDrawer extends StatelessWidget {
 
                           Row(
                             children: [
-                              const Icon(
+                              Icon(
                                 Icons.calendar_month,
                                 size: 17,
-                                color: Colors.black45,
+                                color: _brown.withValues(alpha: 0.55),
                               ),
                               const SizedBox(width: 6),
                               Expanded(
                                 child: Text(
                                   '$startDate - $endDate ($nights晚)',
-                                  style: const TextStyle(
+                                  style: TextStyle(
                                     fontSize: 13,
-                                    color: Colors.black87,
+                                    color: _brown.withValues(alpha: 0.85),
                                   ),
                                 ),
                               ),
@@ -820,18 +849,19 @@ class AppDrawer extends StatelessWidget {
 
                           Row(
                             children: [
-                              const Icon(
+                              Icon(
                                 Icons.payments_outlined,
                                 size: 17,
-                                color: Colors.black45,
+                                color: _brown.withValues(alpha: 0.55),
                               ),
                               const SizedBox(width: 6),
 
                               Text(
                                 'NT\$ $totalPrice',
-                                style: const TextStyle(
+                                style: TextStyle(
                                   fontSize: 15,
                                   fontWeight: FontWeight.bold,
+                                  color: _brown,
                                 ),
                               ),
                             ],
@@ -869,13 +899,13 @@ class AppDrawer extends StatelessWidget {
                                     vertical: 5,
                                   ),
                                   decoration: BoxDecoration(
-                                    color: Colors.orange.shade50,
+                                    color: _orange.withValues(alpha: 0.12),
                                     borderRadius: BorderRadius.circular(30),
                                   ),
                                   child: Text(
                                     '訂金 NT\$ $depositAmount',
                                     style: TextStyle(
-                                      color: Colors.orange.shade800,
+                                      color: _orange,
                                       fontWeight: FontWeight.bold,
                                       fontSize: 12,
                                     ),
@@ -924,8 +954,7 @@ class AppDrawer extends StatelessWidget {
 
                 const SizedBox(height: 14),
 
-                Container(height: 1, color: Colors.orange.shade100),
-
+                Container(height: 1, color: _border),
                 const SizedBox(height: 12),
 
                 InkWell(
@@ -980,7 +1009,7 @@ class AppDrawer extends StatelessWidget {
   Widget _divider() {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 10),
-      child: Divider(color: Colors.grey.shade200, thickness: 1),
+      child: Divider(color: _border, thickness: 1),
     );
   }
 
@@ -1013,18 +1042,25 @@ class AppDrawer extends StatelessWidget {
         children: [
           Icon(Icons.pets, color: _orange, size: 30),
           const SizedBox(width: 10),
-          const Expanded(
+          Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
                   'PetNest 寵物旅社',
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                  style: TextStyle(
+                    color: _brown,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 15,
+                  ),
                 ),
                 SizedBox(height: 3),
                 Text(
                   '用心・專業・愛護每一位毛孩 ❤',
-                  style: TextStyle(color: Colors.black54, fontSize: 12),
+                  style: TextStyle(
+                    color: _brown.withValues(alpha: 0.6),
+                    fontSize: 12,
+                  ),
                 ),
               ],
             ),
@@ -1055,7 +1091,9 @@ class AppDrawer extends StatelessWidget {
     if (!hasAccepted) {
       final result = await Navigator.push(
         context,
-        MaterialPageRoute(builder: (_) => ShopPolicyViewPage(shopId: shopId)),
+        MaterialPageRoute(
+          builder: (_) => ShopPolicyViewPage(shopId: shopId, theme: theme),
+        ),
       );
 
       if (result != true) return;
@@ -1065,7 +1103,9 @@ class AppDrawer extends StatelessWidget {
 
     Navigator.push(
       context,
-      MaterialPageRoute(builder: (_) => ShopBookingPage(shopId: shopId)),
+      MaterialPageRoute(
+        builder: (_) => ShopBookingPage(shopId: shopId, theme: theme),
+      ),
     );
   }
 }

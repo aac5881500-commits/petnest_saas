@@ -98,12 +98,11 @@ class _RoomCalendarPageState extends State<RoomCalendarPage> {
 
             final oldStatus = map[dateKey];
 
-            // 維修中優先，但如果新狀態是恢復開放 available，要允許覆蓋
-            if (_isBlockedStatus(oldStatus ?? '') && status != 'available') {
-              continue;
+            // Firestore 狀態有改變時，一律使用最新狀態。
+            // 避免 cleaning → closed、closed → available 時被舊快取擋住。
+            if (oldStatus != status) {
+              map[dateKey] = status;
             }
-
-            map[dateKey] = status;
           }
 
           _calendarStatusCache
@@ -395,10 +394,16 @@ class _RoomCalendarPageState extends State<RoomCalendarPage> {
                               color = Colors.purple;
                               break;
 
+                            case 'cleaning':
+                              color = Colors.orange;
+                              break;
+
+                            case 'closed':
+                              color = const Color(0xFF6D4C41);
+                              break;
+
                             case 'blocked':
                             case 'maintenance':
-                            case 'closed':
-                            case 'cleaning':
                             case 'unavailable':
                               color = Colors.black;
                               break;
@@ -520,6 +525,8 @@ class _RoomCalendarPageState extends State<RoomCalendarPage> {
                         _legend(Colors.deepOrange, '已訂'),
                         _legend(Colors.blue, '入住'),
                         _legend(Colors.purple, '退房/完成'),
+                        _legend(Colors.orange, '清潔中'),
+                        _legend(const Color(0xFF6D4C41), '今日關閉'),
                         _legend(Colors.black, '維修中'),
                       ],
                     ),
@@ -673,29 +680,111 @@ class _RoomCalendarPageState extends State<RoomCalendarPage> {
               ),
             ),
 
-          Row(
-            children: [
-              Expanded(
-                child: _smallActionButton(
-                  label: '關閉此日',
-                  color: Colors.black,
-                  status: 'blocked',
-                  dateKey: key,
-                  enabled: !lockedByBooking,
+          if (status == 'cleaning') ...[
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton.icon(
+                style: FilledButton.styleFrom(
+                  backgroundColor: Colors.orange,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 13),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                onPressed: () {
+                  _showCleaningCompleteDialog(dateKey: key);
+                },
+                icon: const Icon(Icons.check_circle_outline),
+                label: const Text(
+                  '清潔完成',
+                  style: TextStyle(fontWeight: FontWeight.w800),
                 ),
               ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: _smallActionButton(
-                  label: '恢復開放',
-                  color: Colors.green,
-                  status: 'available',
-                  dateKey: key,
-                  enabled: !lockedByBooking,
+            ),
+            const SizedBox(height: 10),
+          ],
+
+          if (status == 'closed')
+            Row(
+              children: [
+                Expanded(
+                  child: _smallActionButton(
+                    label: '恢復開放',
+                    color: Colors.green,
+                    status: 'available',
+                    dateKey: key,
+                    enabled: !lockedByBooking,
+                  ),
                 ),
-              ),
-            ],
-          ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: _smallActionButton(
+                    label: '轉為維修中',
+                    color: Colors.black,
+                    status: 'maintenance',
+                    dateKey: key,
+                    enabled: !lockedByBooking,
+                  ),
+                ),
+              ],
+            ),
+
+          if (status == 'blocked' ||
+              status == 'maintenance' ||
+              status == 'unavailable')
+            Row(
+              children: [
+                Expanded(
+                  child: _smallActionButton(
+                    label: '維修完成並開放',
+                    color: Colors.green,
+                    status: 'available',
+                    dateKey: key,
+                    enabled: !lockedByBooking,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: _smallActionButton(
+                    label: '維修完成但今日關閉',
+                    color: const Color(0xFF6D4C41),
+                    status: 'closed',
+                    dateKey: key,
+                    enabled: !lockedByBooking,
+                  ),
+                ),
+              ],
+            ),
+
+          if (status != 'cleaning' &&
+              status != 'closed' &&
+              status != 'blocked' &&
+              status != 'maintenance' &&
+              status != 'unavailable')
+            Row(
+              children: [
+                Expanded(
+                  child: _smallActionButton(
+                    label: '關閉此日',
+                    color: const Color(0xFF6D4C41),
+                    status: 'closed',
+                    dateKey: key,
+                    enabled: !lockedByBooking,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: _smallActionButton(
+                    label: '設為維修中',
+                    color: Colors.black,
+                    status: 'maintenance',
+                    dateKey: key,
+                    enabled: !lockedByBooking,
+                  ),
+                ),
+              ],
+            ),
         ],
       ),
     );
@@ -726,8 +815,7 @@ class _RoomCalendarPageState extends State<RoomCalendarPage> {
                 .collection('action_logs')
                 .where('shopId', isEqualTo: widget.shopId)
                 .where('roomId', isEqualTo: widget.roomId)
-                .where('type', isEqualTo: 'room_calendar_status_update')
-                .limit(10)
+                .limit(30)
                 .snapshots(),
             builder: (context, snapshot) {
               if (!snapshot.hasData) {
@@ -737,7 +825,30 @@ class _RoomCalendarPageState extends State<RoomCalendarPage> {
                 );
               }
 
-              final logs = snapshot.data!.docs;
+              final logs =
+                  snapshot.data!.docs.where((doc) {
+                    final data = doc.data() as Map<String, dynamic>;
+                    final type = data['type']?.toString() ?? '';
+
+                    return type == 'room_cleaning_started' ||
+                        type == 'room_cleaning_completed' ||
+                        type == 'room_maintenance_started' ||
+                        type == 'room_maintenance_completed' ||
+                        type == 'room_maintenance_completed_closed' ||
+                        type == 'room_calendar_status_update';
+                  }).toList()..sort((a, b) {
+                    final aData = a.data() as Map<String, dynamic>;
+                    final bData = b.data() as Map<String, dynamic>;
+
+                    final aTime = aData['createdAt'] as Timestamp?;
+                    final bTime = bData['createdAt'] as Timestamp?;
+
+                    if (aTime == null && bTime == null) return 0;
+                    if (aTime == null) return 1;
+                    if (bTime == null) return -1;
+
+                    return bTime.compareTo(aTime);
+                  });
 
               if (logs.isEmpty) {
                 return const Text(
@@ -765,16 +876,78 @@ class _RoomCalendarPageState extends State<RoomCalendarPage> {
   }
 
   Widget _roomActionLogItem(Map<String, dynamic> log) {
-    final date = log['date'] ?? '-';
-    final operatorEmail = log['operatorEmail'] ?? '-';
-    final fromStatus = _statusText(log['fromStatus'] ?? '');
-    final toStatus = _statusText(log['toStatus'] ?? '');
-    final createdAt = (log['createdAt'] as Timestamp?)?.toDate();
+    final String type = log['type']?.toString() ?? '';
+    final String date = log['date']?.toString() ?? '-';
 
-    final timeText = createdAt != null
+    final String operatorName = log['operatorName']?.toString().trim() ?? '';
+    final String operatorEmail = log['operatorEmail']?.toString().trim() ?? '';
+
+    final String operatorText = operatorName.isNotEmpty
+        ? operatorName
+        : operatorEmail.isNotEmpty
+        ? operatorEmail
+        : '未知人員';
+
+    final String fromStatus = _statusText(log['fromStatus']?.toString() ?? '');
+
+    final String toStatus = _statusText(log['toStatus']?.toString() ?? '');
+
+    final bool reopened = log['reopened'] == true;
+    final DateTime? createdAt = (log['createdAt'] as Timestamp?)?.toDate();
+
+    final String timeText = createdAt != null
         ? '${createdAt.hour.toString().padLeft(2, '0')}:'
               '${createdAt.minute.toString().padLeft(2, '0')}'
         : '--:--';
+
+    IconData icon;
+    Color iconColor;
+    String title;
+    String detail;
+
+    switch (type) {
+      case 'room_cleaning_started':
+        icon = Icons.cleaning_services_outlined;
+        iconColor = Colors.orange;
+        title = '開始清潔';
+        detail = '房間已進入清潔中';
+        break;
+
+      case 'room_cleaning_completed':
+        icon = Icons.check_circle_outline;
+        iconColor = Colors.green;
+        title = '清潔完成';
+        detail = reopened ? '完成後已立即開放' : '完成後今日維持關閉';
+        break;
+
+      case 'room_maintenance_started':
+        icon = Icons.build_outlined;
+        iconColor = Colors.black;
+        title = '開始維修';
+        detail = '$fromStatus → 維修中';
+        break;
+
+      case 'room_maintenance_completed':
+        icon = Icons.handyman_outlined;
+        iconColor = Colors.green;
+        title = '維修完成';
+        detail = '維修完成並恢復開放';
+        break;
+
+      case 'room_maintenance_completed_closed':
+        icon = Icons.handyman_outlined;
+        iconColor = const Color(0xFF6D4C41);
+        title = '維修完成';
+        detail = '維修完成，但今日維持關閉';
+        break;
+
+      default:
+        icon = Icons.edit_calendar_outlined;
+        iconColor = Colors.blueGrey;
+        title = '房間狀態調整';
+        detail = '$fromStatus → $toStatus';
+        break;
+    }
 
     return Container(
       width: double.infinity,
@@ -785,19 +958,152 @@ class _RoomCalendarPageState extends State<RoomCalendarPage> {
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: Colors.grey.shade200),
       ),
-      child: Column(
+      child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            '$date $timeText：$fromStatus → $toStatus',
-            style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+          Container(
+            width: 34,
+            height: 34,
+            decoration: BoxDecoration(
+              color: iconColor.withValues(alpha: 0.12),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(icon, size: 19, color: iconColor),
           ),
-          const SizedBox(height: 4),
-          Text(
-            '操作者：$operatorEmail',
-            style: const TextStyle(fontSize: 12, color: Colors.grey),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w800,
+                    fontSize: 13,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  detail,
+                  style: TextStyle(fontSize: 12, color: Colors.grey.shade700),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  '操作者：$operatorText',
+                  style: const TextStyle(fontSize: 12, color: Colors.grey),
+                ),
+                Text(
+                  '時間：$date $timeText',
+                  style: const TextStyle(fontSize: 12, color: Colors.grey),
+                ),
+              ],
+            ),
           ),
         ],
+      ),
+    );
+  }
+
+  /// 🧹 完成清潔操作
+  Future<void> _showCleaningCompleteDialog({required String dateKey}) async {
+    String selectedResult = 'available';
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              title: const Row(
+                children: [
+                  Icon(Icons.cleaning_services_outlined, color: Colors.orange),
+                  SizedBox(width: 8),
+                  Text('清潔完成'),
+                ],
+              ),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  RadioListTile<String>(
+                    value: 'available',
+                    groupValue: selectedResult,
+                    activeColor: Colors.green,
+                    title: const Text(
+                      '完成並立即開放',
+                      style: TextStyle(fontWeight: FontWeight.w700),
+                    ),
+                    subtitle: const Text('此日期恢復為空房，可再次接受預約'),
+                    onChanged: (value) {
+                      if (value == null) return;
+
+                      setDialogState(() {
+                        selectedResult = value;
+                      });
+                    },
+                  ),
+                  RadioListTile<String>(
+                    value: 'closed',
+                    groupValue: selectedResult,
+                    activeColor: Colors.grey,
+                    title: const Text(
+                      '完成但今日維持關閉',
+                      style: TextStyle(fontWeight: FontWeight.w700),
+                    ),
+                    subtitle: const Text('完成清潔，但此日期仍不開放預約'),
+                    onChanged: (value) {
+                      if (value == null) return;
+
+                      setDialogState(() {
+                        selectedResult = value;
+                      });
+                    },
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () {
+                    Navigator.of(dialogContext).pop(false);
+                  },
+                  child: const Text('取消'),
+                ),
+                FilledButton(
+                  onPressed: () {
+                    Navigator.of(dialogContext).pop(true);
+                  },
+                  child: const Text('確認'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+
+    if (confirmed != true) return;
+
+    await ShopService.instance.setRoomStatus(
+      shopId: widget.shopId,
+      roomId: widget.roomId,
+      roomName: widget.roomName,
+      date: dateKey,
+      status: selectedResult,
+
+      cleaningCompleted: true,
+      reopened: selectedResult == 'available',
+    );
+
+    if (!mounted) return;
+
+    setState(() {
+      _selectedStatus = selectedResult;
+    });
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          selectedResult == 'available' ? '清潔完成，房間已恢復開放' : '清潔完成，今日繼續維持關閉',
+        ),
       ),
     );
   }
@@ -872,10 +1178,14 @@ class _RoomCalendarPageState extends State<RoomCalendarPage> {
       case 'completed':
         return '退房/完成';
 
+      case 'cleaning':
+        return '清潔中';
+
+      case 'closed':
+        return '今日關閉';
+
       case 'blocked':
       case 'maintenance':
-      case 'closed':
-      case 'cleaning':
       case 'unavailable':
         return '維修中';
 

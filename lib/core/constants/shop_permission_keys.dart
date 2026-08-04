@@ -54,6 +54,10 @@ class ShopPermissionKeys {
   static const manageRoomTypes = 'manage_room_types';
   static const manageRooms = 'manage_rooms';
   static const managePaymentSettings = 'manage_payment_settings';
+
+  /// 📦 管理實體商品領取、核銷、取消與退點
+  static const managePointRedemptions = 'manage_point_redemptions';
+
   static const managePolicy = 'manage_policy';
 
   /// 📊 查看報表統計
@@ -80,6 +84,7 @@ class ShopPermissionKeys {
     manageRooms,
     manageDevices,
     managePaymentSettings,
+    managePointRedemptions,
     manageAddons,
     managePolicy,
   ];

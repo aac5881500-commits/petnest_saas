@@ -15,12 +15,24 @@ class AdminCreateBookingConfirmSection extends StatelessWidget {
     required this.selectedTimeAddon,
     required this.selectedValueServices,
     required this.selectedCustomServices,
+    required this.selectedDailyTimedServices,
+    required this.pets,
     required this.addonData,
     required this.adminOrderSource,
     required this.applyLongStayDiscount,
     required this.onApplyLongStayDiscountChanged,
     required this.discountInfo,
     required this.noteController,
+
+    required this.depositEnabled,
+    required this.depositAmount,
+    required this.payAmountType,
+    required this.paymentMethod,
+    required this.cashEnabled,
+    required this.transferEnabled,
+    required this.onPayAmountTypeChanged,
+    required this.onPaymentMethodChanged,
+
     required this.onOrderSourceChanged,
     required this.formatDate,
   });
@@ -38,6 +50,11 @@ class AdminCreateBookingConfirmSection extends StatelessWidget {
 
   final Map<String, List<String>> selectedCustomServices;
 
+  final Map<String, Map<String, Map<String, List<String>>>>
+  selectedDailyTimedServices;
+
+  final List<Map<String, dynamic>> pets;
+
   final Map<String, dynamic>? addonData;
 
   final String adminOrderSource;
@@ -45,6 +62,22 @@ class AdminCreateBookingConfirmSection extends StatelessWidget {
   final ValueChanged<bool> onApplyLongStayDiscountChanged;
   final Map<String, dynamic>? discountInfo;
   final TextEditingController noteController;
+
+  final bool depositEnabled;
+
+  final int depositAmount;
+
+  final String payAmountType;
+
+  final String? paymentMethod;
+
+  final bool cashEnabled;
+
+  final bool transferEnabled;
+
+  final ValueChanged<String> onPayAmountTypeChanged;
+
+  final ValueChanged<String?> onPaymentMethodChanged;
 
   final void Function(String value) onOrderSourceChanged;
 
@@ -93,9 +126,59 @@ class AdminCreateBookingConfirmSection extends StatelessWidget {
       return sum + ((price as int) * entry.value.length);
     });
 
-    final addonTotal = valueAddonTotal + timeAddonTotal + customAddonTotal;
+    final dailyTimedServices = List<Map<String, dynamic>>.from(
+      addonData?['dailyTimedServices'] ?? [],
+    );
 
+    var dailyTimedAddonTotal = 0;
+
+    for (final entry in dailyTimedServices.asMap().entries) {
+      final serviceIndex = entry.key;
+      final service = entry.value;
+
+      final rawServiceId = service['id']?.toString().trim() ?? '';
+      final serviceName = service['name']?.toString().trim() ?? '';
+
+      final serviceId = rawServiceId.isNotEmpty
+          ? rawServiceId
+          : serviceName.isNotEmpty
+          ? 'daily_timed_$serviceName'
+          : 'daily_timed_$serviceIndex';
+
+      final selections = selectedDailyTimedServices[serviceId];
+
+      if (selections == null) {
+        continue;
+      }
+
+      final servicePrice = ((service['price'] ?? 0) as num).toInt();
+
+      var count = 0;
+
+      for (final petSelections in selections.values) {
+        for (final slotIds in petSelections.values) {
+          count += slotIds.length;
+        }
+      }
+
+      dailyTimedAddonTotal += servicePrice * count;
+    }
+
+    final addonTotal =
+        valueAddonTotal +
+        timeAddonTotal +
+        customAddonTotal +
+        dailyTimedAddonTotal;
     final totalPrice = (price * nights) + extraPetTotal + addonTotal;
+    final finalTotal = discountInfo != null
+        ? ((discountInfo!['finalTotal'] ?? totalPrice) as num).toInt()
+        : totalPrice;
+
+    final currentPayAmount = depositAmount.clamp(0, finalTotal).toInt();
+
+    final remainingAmount = (finalTotal - currentPayAmount)
+        .clamp(0, finalTotal)
+        .toInt();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -140,6 +223,106 @@ class AdminCreateBookingConfirmSection extends StatelessWidget {
             labelText: '訂單備註',
             hintText: '例如：電話預約、LINE 預約、已口頭確認、特殊照顧事項',
             border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
+          ),
+        ),
+
+        const SizedBox(height: 16),
+
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: Colors.grey.shade300),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                '付款設定',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900),
+              ),
+
+              const SizedBox(height: 8),
+
+              if (depositEnabled)
+                RadioListTile<String>(
+                  contentPadding: EdgeInsets.zero,
+                  dense: true,
+                  title: const Text(
+                    '收訂金',
+                    style: TextStyle(fontWeight: FontWeight.w700),
+                  ),
+                  value: 'deposit',
+                  groupValue: payAmountType,
+                  onChanged: (value) {
+                    if (value != null) {
+                      onPayAmountTypeChanged(value);
+                    }
+                  },
+                ),
+
+              RadioListTile<String>(
+                contentPadding: EdgeInsets.zero,
+                dense: true,
+                title: const Text(
+                  '收全額',
+                  style: TextStyle(fontWeight: FontWeight.w700),
+                ),
+                value: 'full',
+                groupValue: payAmountType,
+                onChanged: (value) {
+                  if (value != null) {
+                    onPayAmountTypeChanged(value);
+                  }
+                },
+              ),
+
+              const Divider(height: 24),
+
+              const Text('付款方式', style: TextStyle(fontWeight: FontWeight.w800)),
+
+              if (cashEnabled)
+                RadioListTile<String>(
+                  contentPadding: EdgeInsets.zero,
+                  dense: true,
+                  title: const Text('現金'),
+                  value: 'cash',
+                  groupValue: paymentMethod,
+                  onChanged: onPaymentMethodChanged,
+                ),
+
+              if (transferEnabled)
+                RadioListTile<String>(
+                  contentPadding: EdgeInsets.zero,
+                  dense: true,
+                  title: const Text('銀行轉帳'),
+                  value: 'transfer',
+                  groupValue: paymentMethod,
+                  onChanged: onPaymentMethodChanged,
+                ),
+
+              if (!cashEnabled && !transferEnabled)
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 8),
+                  child: Text(
+                    '店家尚未啟用付款方式',
+                    style: TextStyle(color: Colors.red),
+                  ),
+                ),
+
+              const Divider(height: 24),
+
+              _confirmRow('訂單總金額', 'NT\$ $finalTotal'),
+
+              _confirmRow(
+                payAmountType == 'full' ? '本次收全額' : '本次收訂金',
+                'NT\$ $currentPayAmount',
+              ),
+
+              _confirmRow('剩餘尾款', 'NT\$ $remainingAmount'),
+            ],
           ),
         ),
 
@@ -232,6 +415,91 @@ class AdminCreateBookingConfirmSection extends StatelessWidget {
                   );
                 }),
 
+              if (selectedDailyTimedServices.isNotEmpty)
+                ...dailyTimedServices.asMap().entries.expand((entry) {
+                  final serviceIndex = entry.key;
+                  final service = entry.value;
+
+                  final rawServiceId = service['id']?.toString().trim() ?? '';
+                  final serviceName =
+                      service['name']?.toString().trim().isNotEmpty == true
+                      ? service['name'].toString().trim()
+                      : '每日分時段服務';
+
+                  final serviceId = rawServiceId.isNotEmpty
+                      ? rawServiceId
+                      : serviceName.isNotEmpty
+                      ? 'daily_timed_$serviceName'
+                      : 'daily_timed_$serviceIndex';
+
+                  final servicePrice = ((service['price'] ?? 0) as num).toInt();
+
+                  final selections = selectedDailyTimedServices[serviceId];
+
+                  if (selections == null || selections.isEmpty) {
+                    return <Widget>[];
+                  }
+
+                  final rows = <Widget>[];
+
+                  for (final petEntry in selections.entries) {
+                    final petId = petEntry.key;
+
+                    final pet = pets.firstWhere((item) {
+                      final itemPetId =
+                          item['petId']?.toString() ??
+                          item['id']?.toString() ??
+                          '';
+
+                      return itemPetId == petId;
+                    }, orElse: () => <String, dynamic>{});
+
+                    final petName =
+                        pet['name']?.toString().trim().isNotEmpty == true
+                        ? pet['name'].toString().trim()
+                        : petId;
+
+                    final sortedDates = petEntry.value.entries.toList()
+                      ..sort((a, b) => a.key.compareTo(b.key));
+
+                    for (final dateEntry in sortedDates) {
+                      final slotIds = dateEntry.value;
+
+                      if (slotIds.isEmpty) {
+                        continue;
+                      }
+
+                      final timeSlots = List<Map<String, dynamic>>.from(
+                        service['timeSlots'] ?? [],
+                      );
+
+                      final slotLabels = slotIds.map((slotId) {
+                        final slot = timeSlots.firstWhere((item) {
+                          final itemId = item['id']?.toString() ?? '';
+                          return itemId == slotId;
+                        }, orElse: () => <String, dynamic>{});
+
+                        final label = slot['label']?.toString().trim() ?? '';
+
+                        return label.isNotEmpty ? label : slotId;
+                      }).toList();
+
+                      final total = servicePrice * slotIds.length;
+
+                      rows.add(
+                        _confirmRow(
+                          '每日服務',
+                          '$serviceName｜$petName\n'
+                              '${dateEntry.key}｜${slotLabels.join('、')}\n'
+                              '${slotIds.length} 次 × NT\$ $servicePrice = NT\$ $total',
+                        ),
+                      );
+                    }
+                  }
+
+                  return rows;
+                }),
+
               if (selectedValueServices.isNotEmpty)
                 ...selectedValueServices.map((item) {
                   final name = item['name']?.toString() ?? '加值服務';
@@ -246,12 +514,7 @@ class AdminCreateBookingConfirmSection extends StatelessWidget {
               if (discountInfo != null &&
                   ((discountInfo!['discountAmount'] ?? 0) as int) > 0) ...[
                 _confirmRow('原價', 'NT\$ ${discountInfo!['originalTotal']}'),
-                _confirmRow(
-                  '多日折扣',
-                  '滿 ${discountInfo!['discountMinNights']} 晚 / '
-                      '${discountInfo!['discountPercent']}%｜'
-                      '- NT\$ ${discountInfo!['discountAmount']}',
-                ),
+                _confirmRow('優惠活動', _buildDiscountDescription(discountInfo!)),
                 _confirmRow('折扣後金額', 'NT\$ ${discountInfo!['finalTotal']}'),
               ] else ...[
                 _confirmRow('總金額', 'NT\$ $totalPrice'),
@@ -288,5 +551,74 @@ class AdminCreateBookingConfirmSection extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  String _buildDiscountDescription(Map<String, dynamic> info) {
+    final campaignName = info['discountCampaignName']?.toString().trim() ?? '';
+
+    final campaignType = info['discountCampaignType']?.toString().trim() ?? '';
+
+    final valueType = info['discountValueType']?.toString().trim() ?? '';
+
+    final discountValue = info['discountValue'];
+
+    final discountAmount = ((info['discountAmount'] ?? 0) as num).toInt();
+
+    final discountPercent = ((info['discountPercent'] ?? 0) as num).toInt();
+
+    final minimumNights = ((info['discountMinNights'] ?? 0) as num).toInt();
+
+    final lines = <String>[];
+
+    if (campaignName.isNotEmpty) {
+      lines.add(campaignName);
+    } else {
+      switch (campaignType) {
+        case 'newMember':
+          lines.add('新會員優惠');
+          break;
+
+        case 'firstBooking':
+          lines.add('首次預約優惠');
+          break;
+
+        case 'longStay':
+          lines.add('長住優惠');
+          break;
+
+        case 'specificDate':
+          lines.add('指定日期優惠');
+          break;
+
+        case 'specificRoom':
+          lines.add('指定房型優惠');
+          break;
+
+        case 'minimumAmount':
+          lines.add('滿額優惠');
+          break;
+
+        case 'limitedTime':
+          lines.add('限時優惠');
+          break;
+
+        default:
+          lines.add('訂單優惠');
+      }
+    }
+
+    if (campaignType == 'longStay' && minimumNights > 0) {
+      lines.add('滿 $minimumNights 晚');
+    }
+
+    if (valueType == 'percent' && discountValue is num) {
+      lines.add('${discountValue.toInt()}%');
+    } else if (discountPercent > 0) {
+      lines.add('$discountPercent%');
+    }
+
+    lines.add('- NT\$ $discountAmount');
+
+    return lines.join('｜');
   }
 }

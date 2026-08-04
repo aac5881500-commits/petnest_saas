@@ -295,6 +295,9 @@ class ShopRoomService {
     required String date,
     required String status,
     String roomName = '',
+
+    bool cleaningCompleted = false,
+    bool reopened = false,
   }) async {
     final docId = '${roomId}_$date';
 
@@ -307,20 +310,119 @@ class ShopRoomService {
       'status': status,
       'updatedAt': FieldValue.serverTimestamp(),
     });
+    String actionType = 'room_calendar_status_update';
 
+    if (cleaningCompleted) {
+      actionType = 'room_cleaning_completed';
+    } else if (status == 'maintenance' &&
+        oldStatus != 'maintenance' &&
+        oldStatus != 'blocked' &&
+        oldStatus != 'unavailable') {
+      actionType = 'room_maintenance_started';
+    } else if ((oldStatus == 'maintenance' ||
+            oldStatus == 'blocked' ||
+            oldStatus == 'unavailable') &&
+        status == 'available') {
+      actionType = 'room_maintenance_completed';
+    } else if ((oldStatus == 'maintenance' ||
+            oldStatus == 'blocked' ||
+            oldStatus == 'unavailable') &&
+        status == 'closed') {
+      actionType = 'room_maintenance_completed_closed';
+    }
     await _firestore.collection('action_logs').add({
-      'type': 'room_calendar_status_update',
+      'type': actionType,
+
       'shopId': shopId,
       'roomId': roomId,
       'roomName': roomName,
+
       'date': date,
+
       'fromStatus': oldStatus,
       'toStatus': status,
+
       'operatorUid': _currentUser?.uid,
+      'operatorName': _currentUser?.displayName,
+      'operatorEmail': _currentUser?.email,
+      'operatorRole': 'staff',
+
+      'cleaningCompleted': cleaningCompleted,
+      'reopened': reopened,
+
+      'createdAt': FieldValue.serverTimestamp(),
+    });
+  }
+
+  /// 退房完成後，將退房當日設為清潔中。
+  ///
+  /// 只影響傳入的 checkoutDate，不會修改後續日期。
+  Future<void> startCleaningAfterCheckout({
+    required String shopId,
+    required String roomId,
+    required String bookingId,
+    required DateTime checkoutDate,
+    String roomName = '',
+  }) async {
+    final String normalizedShopId = shopId.trim();
+    final String normalizedRoomId = roomId.trim();
+    final String normalizedBookingId = bookingId.trim();
+
+    if (normalizedShopId.isEmpty) {
+      throw ArgumentError('缺少店家 ID');
+    }
+
+    if (normalizedRoomId.isEmpty) {
+      throw ArgumentError('缺少房間 ID');
+    }
+
+    if (normalizedBookingId.isEmpty) {
+      throw ArgumentError('缺少訂單 ID');
+    }
+
+    final String dateKey = formatDateKey(checkoutDate);
+    final String calendarDocId = '${normalizedRoomId}_$dateKey';
+
+    final DocumentReference<Map<String, dynamic>> calendarDoc = roomCalendarRef(
+      normalizedShopId,
+    ).doc(calendarDocId);
+
+    final DocumentReference<Map<String, dynamic>> actionLogDoc = _firestore
+        .collection('action_logs')
+        .doc();
+
+    final WriteBatch batch = _firestore.batch();
+
+    batch.set(calendarDoc, <String, dynamic>{
+      'roomId': normalizedRoomId,
+      'roomName': roomName.trim(),
+      'date': dateKey,
+      'status': 'cleaning',
+      'bookingId': normalizedBookingId,
+      'cleaningStartedAt': FieldValue.serverTimestamp(),
+      'cleaningStartedByUid': _currentUser?.uid,
+      'cleaningStartedByName': _currentUser?.displayName,
+      'cleaningStartedByEmail': _currentUser?.email,
+      'updatedAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
+
+    batch.set(actionLogDoc, <String, dynamic>{
+      'type': 'room_cleaning_started',
+      'shopId': normalizedShopId,
+      'roomId': normalizedRoomId,
+      'roomName': roomName.trim(),
+      'bookingId': normalizedBookingId,
+      'date': dateKey,
+      'fromStatus': 'checked_in',
+      'toStatus': 'cleaning',
+      'operatorUid': _currentUser?.uid,
+      'operatorName': _currentUser?.displayName,
       'operatorEmail': _currentUser?.email,
       'operatorRole': 'staff',
       'createdAt': FieldValue.serverTimestamp(),
     });
+
+    await batch.commit();
   }
 
   String formatDateKey(DateTime date) {
@@ -441,9 +543,13 @@ class ShopRoomService {
           final cal = calendarMap[roomId];
           final status = cal?['status'] ?? 'available';
 
-          // 🔥 前台庫存已經用 bookings 扣掉訂單
-          // 這裡只扣後台手動關閉 / 維修的房間
-          if (status == 'blocked') {
+          // 前台庫存已經透過 bookings 扣除訂單。
+          // room_calendar 額外排除手動關閉、維修與清潔中的房間。
+          if (status == 'blocked' ||
+              status == 'cleaning' ||
+              status == 'closed' ||
+              status == 'maintenance' ||
+              status == 'unavailable') {
             continue;
           }
 

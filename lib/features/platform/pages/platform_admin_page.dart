@@ -12,6 +12,8 @@ import 'package:petnest_saas/features/platform/pages/platform_shop_request_manag
 import 'package:petnest_saas/features/platform/pages/platform_contact_request_list_page.dart';
 import 'package:petnest_saas/features/platform/pages/platform_account_delete_request_page.dart';
 import 'package:petnest_saas/features/platform/pages/platform_review_manage_page.dart';
+import 'package:petnest_saas/features/platform/pages/platform_user_management_page.dart';
+import 'package:petnest_saas/features/platform/pages/platform_payment_review_page.dart';
 
 class PlatformAdminPage extends StatelessWidget {
   const PlatformAdminPage({super.key});
@@ -94,6 +96,33 @@ class PlatformAdminPage extends StatelessWidget {
 
           const _AdminSectionTitle(icon: Icons.payments, title: '方案與收費'),
 
+          // 💳 顯示等待平台審核的綠界金流申請數量
+          StreamBuilder<QuerySnapshot>(
+            stream: FirebaseFirestore.instance
+                .collection('shops')
+                .where('paymentSetting.reviewStatus', isEqualTo: 'pending')
+                .snapshots(),
+            builder: (context, snapshot) {
+              final int count = snapshot.data?.docs.length ?? 0;
+
+              return _AdminEntryCard(
+                icon: Icons.account_balance_wallet_outlined,
+                title: '綠界金流審核中心',
+                subtitle: '審核店家綠界申請、付款方式與金流啟用狀態',
+                badgeCount: count,
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const PlatformPaymentReviewPage(),
+                    ),
+                  );
+                },
+              );
+            },
+          ),
+          const SizedBox(height: 12),
+
           _AdminEntryCard(
             icon: Icons.payments,
             title: '方案 / 付款管理',
@@ -167,6 +196,21 @@ class PlatformAdminPage extends StatelessWidget {
             title: '平台設定',
           ),
 
+          const SizedBox(height: 12),
+
+          _AdminEntryCard(
+            icon: Icons.admin_panel_settings_outlined,
+            title: '平台人員與權限',
+            subtitle: '新增平台員工、分配個別權限與停用帳號',
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => const PlatformUserManagementPage(),
+                ),
+              );
+            },
+          ),
           const SizedBox(height: 12),
 
           _AdminEntryCard(

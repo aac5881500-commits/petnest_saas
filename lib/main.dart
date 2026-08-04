@@ -14,6 +14,8 @@ import 'package:petnest_saas/features/member/pages/member_page.dart';
 import 'package:petnest_saas/features/shop/pages/shop_code_redirect_page.dart';
 import 'package:flutter/foundation.dart';
 import 'package:petnest_saas/core/services/fcm_token_service.dart';
+import 'package:petnest_saas/core/services/fcm_message_service.dart';
+import 'package:petnest_saas/core/navigation/app_navigator.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -36,13 +38,16 @@ class PetNestApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
+      navigatorKey: AppNavigator.key,
       title: 'PetNest SaaS',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(useMaterial3: true, colorSchemeSeed: Colors.blue),
 
       /// 🔥 一定要有這段
       routes: {
-        '/member': (context) => const MemberPage(),
+        '/member': (context) {
+          throw UnimplementedError('MemberPage 必須傳入 shopId，請由 Drawer 或首頁進入。');
+        },
         '/login': (context) => const LoginPage(),
         '/home': (context) => const HomePage(),
 
@@ -143,24 +148,6 @@ class _SplashPageState extends State<SplashPage> {
 class AppEntryPage extends StatelessWidget {
   const AppEntryPage({super.key});
 
-  Future<void> _enableNotifications(BuildContext context) async {
-    try {
-      await FcmTokenService.instance.saveCurrentUserToken();
-
-      if (!context.mounted) return;
-
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('通知設定完成')));
-    } catch (error) {
-      if (!context.mounted) return;
-
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('通知開啟失敗：$error')));
-    }
-  }
-
   Future<Widget> _decideEntryPage() async {
     final user = FirebaseAuth.instance.currentUser;
 
@@ -168,9 +155,13 @@ class AppEntryPage extends StatelessWidget {
       return const LoginPage();
     }
 
-    // Future.microtask(() {
-    //  FcmTokenService.instance.saveCurrentUserToken();
-    //});
+    // 🔔 手機使用者登入後，自動同步 FCM Token
+    // Web 會由 FcmTokenService 自動略過
+    Future<void>.microtask(() async {
+      await FcmTokenService.instance.saveCurrentUserToken();
+
+      await FcmMessageService.instance.initialize();
+    });
 
     // 有店家身分：店主 / 員工照原本進 HomePage
     final myShops = await ShopService.instance.getMyShops();
@@ -216,22 +207,7 @@ class AppEntryPage extends StatelessWidget {
               return page;
             }
 
-            return Stack(
-              children: [
-                page,
-                Positioned(
-                  right: 20,
-                  bottom: 20,
-                  child: SafeArea(
-                    child: FloatingActionButton.extended(
-                      onPressed: () => _enableNotifications(context),
-                      icon: const Icon(Icons.notifications_active_outlined),
-                      label: const Text('開啟通知'),
-                    ),
-                  ),
-                ),
-              ],
-            );
+            return page;
           },
         );
       },

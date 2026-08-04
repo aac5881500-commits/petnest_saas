@@ -38,6 +38,7 @@ class ShopMemberPermissionService {
       ShopPermissionKeys.editBusinessInfo: true,
       ShopPermissionKeys.editMedia: true,
       ShopPermissionKeys.manageBookings: true,
+      ShopPermissionKeys.managePointRedemptions: true,
       ShopPermissionKeys.viewReports: true,
       ShopPermissionKeys.viewActionLogs: true,
     };
@@ -50,6 +51,10 @@ class ShopMemberPermissionService {
       ShopPermissionKeys.editBusinessInfo: false,
       ShopPermissionKeys.editMedia: false,
       ShopPermissionKeys.manageBookings: true,
+
+      // 店員預設可以處理會員到店領取實體商品。
+      ShopPermissionKeys.managePointRedemptions: true,
+
       ShopPermissionKeys.viewReports: false,
       ShopPermissionKeys.viewActionLogs: false,
     };
@@ -57,11 +62,12 @@ class ShopMemberPermissionService {
 
   Map<String, bool> defaultPermissionsByRole(String role) {
     switch (role) {
-      case ShopRoles.staff:
-        return staffDefaultPermissions();
       case ShopRoles.owner:
-      default:
         return ownerDefaultPermissions();
+
+      case ShopRoles.staff:
+      default:
+        return staffDefaultPermissions();
     }
   }
 

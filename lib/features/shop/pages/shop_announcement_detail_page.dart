@@ -4,12 +4,17 @@
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:petnest_saas/core/models/home_theme_model.dart';
 
 class ShopAnnouncementDetailPage extends StatelessWidget {
-  const ShopAnnouncementDetailPage({super.key, required this.data});
+  const ShopAnnouncementDetailPage({
+    super.key,
+    required this.data,
+    this.theme = HomeThemeModel.classicDefault,
+  });
 
   final Map<String, dynamic> data;
-
+  final HomeThemeModel theme;
   @override
   Widget build(BuildContext context) {
     final title = data['title']?.toString() ?? '未命名公告';
@@ -22,12 +27,16 @@ class ShopAnnouncementDetailPage extends StatelessWidget {
     final typeName = _labelByType(type);
 
     return Scaffold(
-      backgroundColor: const Color(0xFFFFFCF7),
+      backgroundColor: theme.backgroundColor,
       appBar: AppBar(
-        backgroundColor: const Color(0xFFFFFCF7),
+        backgroundColor: theme.cardColor,
+        foregroundColor: theme.textColor,
         elevation: 0,
         surfaceTintColor: Colors.transparent,
-        title: const Text('公告詳情'),
+        title: Text(
+          '公告詳情',
+          style: TextStyle(color: theme.textColor, fontWeight: FontWeight.w700),
+        ),
       ),
       body: ListView(
         padding: const EdgeInsets.all(20),
@@ -39,15 +48,15 @@ class ShopAnnouncementDetailPage extends StatelessWidget {
               _TagChip(
                 icon: typeIcon,
                 label: typeName,
-                backgroundColor: const Color(0xFFFFF1DD),
-                foregroundColor: const Color(0xFFB86B18),
+                backgroundColor: theme.primaryColor.withOpacity(0.12),
+                foregroundColor: theme.primaryColor,
               ),
 
               if (isPinned)
-                const _TagChip(
+                _TagChip(
                   icon: Icons.workspace_premium,
                   label: '置頂公告',
-                  backgroundColor: Color(0xFFFF9800),
+                  backgroundColor: theme.primaryColor,
                   foregroundColor: Colors.white,
                 ),
             ],
@@ -57,10 +66,10 @@ class ShopAnnouncementDetailPage extends StatelessWidget {
 
           Text(
             title,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 24,
               fontWeight: FontWeight.w900,
-              color: Color(0xFF3A2A1A),
+              color: theme.textColor,
             ),
           ),
 
@@ -68,11 +77,18 @@ class ShopAnnouncementDetailPage extends StatelessWidget {
 
           Row(
             children: [
-              const Icon(Icons.access_time, size: 16, color: Color(0xFF9A7B55)),
+              Icon(
+                Icons.access_time,
+                size: 16,
+                color: theme.textColor.withOpacity(0.55),
+              ),
               const SizedBox(width: 6),
               Text(
                 _formatTime(createdAt),
-                style: const TextStyle(fontSize: 13, color: Color(0xFF9A7B55)),
+                style: TextStyle(
+                  fontSize: 13,
+                  color: theme.textColor.withOpacity(0.55),
+                ),
               ),
             ],
           ),
@@ -83,9 +99,9 @@ class ShopAnnouncementDetailPage extends StatelessWidget {
             width: double.infinity,
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: theme.cardColor,
               borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: const Color(0xFFF0E0CC)),
+              border: Border.all(color: theme.cardBorderColor),
               boxShadow: [
                 BoxShadow(
                   color: Colors.black.withOpacity(0.03),
@@ -97,19 +113,19 @@ class ShopAnnouncementDetailPage extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Row(
+                Row(
                   children: [
                     Icon(
                       Icons.article_outlined,
                       size: 18,
-                      color: Color(0xFFB86B18),
+                      color: theme.primaryColor,
                     ),
-                    SizedBox(width: 6),
+                    const SizedBox(width: 6),
                     Text(
                       '公告內容',
                       style: TextStyle(
                         fontWeight: FontWeight.bold,
-                        color: Color(0xFFB86B18),
+                        color: theme.primaryColor,
                       ),
                     ),
                   ],
@@ -119,10 +135,10 @@ class ShopAnnouncementDetailPage extends StatelessWidget {
 
                 Text(
                   content.isEmpty ? '無公告內容' : content,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 16,
                     height: 1.8,
-                    color: Color(0xFF3A2A1A),
+                    color: theme.textColor,
                   ),
                 ),
               ],

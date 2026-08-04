@@ -3,16 +3,19 @@
 // 顯示 icon + 標題
 
 import 'package:flutter/material.dart';
+import 'package:petnest_saas/core/models/home_theme_model.dart';
 
 class EnvironmentSectionTitle extends StatelessWidget {
   const EnvironmentSectionTitle({
     super.key,
     required this.icon,
     required this.title,
+    this.theme = HomeThemeModel.classicDefault,
   });
 
   final IconData icon;
   final String title;
+  final HomeThemeModel theme;
 
   @override
   Widget build(BuildContext context) {
@@ -20,18 +23,14 @@ class EnvironmentSectionTitle extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 18),
       child: Row(
         children: [
-          Icon(
-            icon,
-            size: 21,
-            color: const Color(0xFFB87535),
-          ),
+          Icon(icon, size: 21, color: theme.primaryColor),
           const SizedBox(width: 8),
           Text(
             title,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.w900,
-              color: Color(0xFF3A2A1A),
+              color: theme.textColor,
             ),
           ),
         ],

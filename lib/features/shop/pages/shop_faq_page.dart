@@ -4,19 +4,29 @@
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:petnest_saas/core/models/home_theme_model.dart';
 
 class ShopFaqPage extends StatelessWidget {
-  const ShopFaqPage({super.key, required this.shopId});
+  const ShopFaqPage({
+    super.key,
+    required this.shopId,
+    this.theme = HomeThemeModel.classicDefault,
+  });
 
   final String shopId;
+  final HomeThemeModel theme;
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFFFFCF7),
+      backgroundColor: theme.backgroundColor,
       appBar: AppBar(
-        title: const Text('常見問題'),
-        backgroundColor: const Color(0xFFFFFCF7),
+        title: Text(
+          '常見問題',
+          style: TextStyle(color: theme.textColor, fontWeight: FontWeight.w700),
+        ),
+        backgroundColor: theme.cardColor,
+        foregroundColor: theme.textColor,
         elevation: 0,
         surfaceTintColor: Colors.transparent,
       ),
@@ -27,7 +37,9 @@ class ShopFaqPage extends StatelessWidget {
             .snapshots(),
         builder: (context, shopSnapshot) {
           if (!shopSnapshot.hasData) {
-            return const Center(child: CircularProgressIndicator());
+            return Center(
+              child: CircularProgressIndicator(color: theme.primaryColor),
+            );
           }
 
           final shopData = shopSnapshot.data!.data() as Map<String, dynamic>?;
@@ -35,7 +47,12 @@ class ShopFaqPage extends StatelessWidget {
           final showFaqSection = shopData?['showFaqSection'] != false;
 
           if (!showFaqSection) {
-            return const Center(child: Text('此功能尚未開放'));
+            return Center(
+              child: Text(
+                '此功能尚未開放',
+                style: TextStyle(color: theme.textColor.withOpacity(0.65)),
+              ),
+            );
           }
 
           return StreamBuilder<QuerySnapshot>(
@@ -47,7 +64,9 @@ class ShopFaqPage extends StatelessWidget {
                 .snapshots(),
             builder: (context, snapshot) {
               if (!snapshot.hasData) {
-                return const Center(child: CircularProgressIndicator());
+                return Center(
+                  child: CircularProgressIndicator(color: theme.primaryColor),
+                );
               }
 
               final docs = snapshot.data!.docs.toList();
@@ -63,7 +82,12 @@ class ShopFaqPage extends StatelessWidget {
               });
 
               if (docs.isEmpty) {
-                return const Center(child: Text('目前尚無常見問題'));
+                return Center(
+                  child: Text(
+                    '目前尚無常見問題',
+                    style: TextStyle(color: theme.textColor.withOpacity(0.65)),
+                  ),
+                );
               }
 
               return ListView.builder(
@@ -79,9 +103,9 @@ class ShopFaqPage extends StatelessWidget {
                     margin: const EdgeInsets.only(bottom: 14),
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
-                      color: Colors.white,
+                      color: theme.cardColor,
                       borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: const Color(0xFFF0E0CC)),
+                      border: Border.all(color: theme.cardBorderColor),
                       boxShadow: [
                         BoxShadow(
                           color: Colors.black.withOpacity(0.04),
@@ -96,19 +120,19 @@ class ShopFaqPage extends StatelessWidget {
                         Row(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            const Icon(
+                            Icon(
                               Icons.help_outline,
-                              color: Color(0xFFB86B18),
+                              color: theme.primaryColor,
                               size: 22,
                             ),
                             const SizedBox(width: 10),
                             Expanded(
                               child: Text(
                                 question,
-                                style: const TextStyle(
+                                style: TextStyle(
                                   fontSize: 16,
                                   fontWeight: FontWeight.w800,
-                                  color: Color(0xFF3A2A1A),
+                                  color: theme.textColor,
                                 ),
                               ),
                             ),
@@ -117,16 +141,16 @@ class ShopFaqPage extends StatelessWidget {
 
                         const SizedBox(height: 12),
 
-                        const Divider(height: 1, color: Color(0xFFF0E0CC)),
+                        Divider(height: 1, color: theme.cardBorderColor),
 
                         const SizedBox(height: 12),
 
                         Text(
                           answer.isEmpty ? '尚未填寫回答' : answer,
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 14,
                             height: 1.7,
-                            color: Color(0xFF5C4A3A),
+                            color: theme.textColor.withOpacity(0.75),
                           ),
                         ),
                       ],
