@@ -39,6 +39,16 @@ function sendCallbackResponse(res, value) {
 exports.ecpayPaymentCallback = onRequest(
     {
       region: "asia-east1",
+
+      /*
+       * 綠界 Callback 是由綠界伺服器直接呼叫，
+       * 不會攜帶 Firebase Auth Token。
+       *
+       * 因此必須允許公開呼叫，
+       * 實際安全性由 CheckMacValue、交易編號、
+       * Payment ID 與付款金額驗證負責。
+       */
+      invoker: "public",
     },
     async (req, res) => {
       try {
@@ -388,16 +398,26 @@ exports.ecpayPaymentCallback = onRequest(
               }
 
               const rawBookingTotalAmount =
-  booking.totalAmount !== undefined &&
-  booking.totalAmount !== null ?
-    booking.totalAmount :
-    booking.total;
+  booking.totalPayableAmount !== undefined &&
+  booking.totalPayableAmount !== null ?
+    booking.totalPayableAmount :
+    booking.totalPrice !== undefined &&
+    booking.totalPrice !== null ?
+      booking.totalPrice :
+      booking.totalAmount !== undefined &&
+      booking.totalAmount !== null ?
+        booking.totalAmount :
+        booking.total;
 
-              const bookingTotalAmount =
-  normalizeInteger(
-      rawBookingTotalAmount,
-  );
+              const bookingTotalAmount = normalizeInteger(
+                  rawBookingTotalAmount,
+              );
 
+              if (bookingTotalAmount <= 0) {
+                throw new Error(
+                    "訂單總金額不正確，停止更新付款彙總。",
+                );
+              }
               const currentPaidAmount =
                 normalizeInteger(
                     booking.paidAmount,
@@ -456,13 +476,35 @@ exports.ecpayPaymentCallback = onRequest(
                   },
               );
 
+              const lastPaymentMethod =
+                normalizeString(
+                    latestPayment.paymentMethod,
+                );
+
+              const lastPaymentPurpose =
+                normalizeString(
+                    latestPayment.paymentPurpose,
+                );
+
               const bookingUpdate = {
                 paidAmount: safePaidAmount,
                 remainingAmount,
                 paymentStatus,
+
+                /*
+                 * 最近一筆成功付款摘要。
+                 *
+                 * Booking 只保存付款彙總，
+                 * 完整付款資料仍以 payments 集合為準。
+                 */
                 lastPaymentId: paymentId,
                 lastMerchantTradeNo:
                   merchantTradeNo,
+                lastPaymentAmount:
+                  callbackAmount,
+                lastPaymentMethod,
+                lastPaymentPurpose,
+
                 paymentUpdatedAt:
                   admin.firestore.FieldValue
                       .serverTimestamp(),

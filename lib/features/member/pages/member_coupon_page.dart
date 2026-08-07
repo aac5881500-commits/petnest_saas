@@ -6,6 +6,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/models/member_coupon_model.dart';
 import 'package:petnest_saas/core/services/member_coupon_service.dart';
+import 'package:petnest_saas/core/services/shop_room_service.dart';
 
 class MemberCouponPage extends StatelessWidget {
   const MemberCouponPage({super.key, required this.shopId, this.shopName = ''});
@@ -54,15 +55,21 @@ class MemberCouponPage extends StatelessWidget {
           if (coupons.isEmpty) {
             return const _EmptyCouponView();
           }
-
           final availableCoupons = coupons
               .where((coupon) => coupon.canUseNow)
               .toList();
 
-          final unavailableCoupons = coupons
-              .where((coupon) => !coupon.canUseNow)
+          final reservedCoupons = coupons
+              .where((coupon) => coupon.status == MemberCouponStatus.reserved)
               .toList();
 
+          final unavailableCoupons = coupons
+              .where(
+                (coupon) =>
+                    !coupon.canUseNow &&
+                    coupon.status != MemberCouponStatus.reserved,
+              )
+              .toList();
           return ListView(
             padding: const EdgeInsets.all(16),
             children: [
@@ -73,6 +80,21 @@ class MemberCouponPage extends StatelessWidget {
                 const _EmptySectionCard(text: '目前沒有可使用的優惠券')
               else
                 ...availableCoupons.map(
+                  (coupon) => Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: _CouponCard(coupon: coupon),
+                  ),
+                ),
+
+              const SizedBox(height: 16),
+
+              _SectionHeader(title: '使用中', count: reservedCoupons.length),
+              const SizedBox(height: 10),
+
+              if (reservedCoupons.isEmpty)
+                const _EmptySectionCard(text: '目前沒有使用中的優惠券')
+              else
+                ...reservedCoupons.map(
                   (coupon) => Padding(
                     padding: const EdgeInsets.only(bottom: 12),
                     child: _CouponCard(coupon: coupon),
@@ -207,6 +229,43 @@ class _CouponCard extends StatelessWidget {
                         style: TextStyle(color: Colors.grey.shade700),
                       ),
                     ],
+                    if (coupon.status == MemberCouponStatus.reserved) ...[
+                      const SizedBox(height: 10),
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 10,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.blue.shade50,
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: Colors.blue.shade200),
+                        ),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Icon(
+                              Icons.info_outline,
+                              size: 18,
+                              color: Colors.blue,
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                '此優惠券已保留於目前預約\n取消訂單後會自動退回',
+                                style: TextStyle(
+                                  color: Colors.blue.shade800,
+                                  fontSize: 13,
+                                  height: 1.45,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                     const SizedBox(height: 12),
                     _InfoRow(
                       icon: Icons.calendar_month_outlined,
@@ -231,6 +290,17 @@ class _CouponCard extends StatelessWidget {
                         text: '最低消費 NT\$ ${coupon.minimumAmount}',
                       ),
                     ],
+                    const SizedBox(height: 14),
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: TextButton.icon(
+                        onPressed: () {
+                          _showCouponDetail(context, coupon);
+                        },
+                        icon: const Icon(Icons.info_outline, size: 18),
+                        label: const Text('查看詳情'),
+                      ),
+                    ),
                   ],
                 ),
               ),
@@ -238,6 +308,181 @@ class _CouponCard extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+
+  Future<void> _showCouponDetail(
+    BuildContext context,
+    MemberCouponModel coupon,
+  ) async {
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (BuildContext bottomSheetContext) {
+        return SafeArea(
+          child: FractionallySizedBox(
+            heightFactor: 0.82,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    coupon.name,
+                    style: Theme.of(bottomSheetContext).textTheme.titleLarge
+                        ?.copyWith(fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    _benefitText(coupon),
+                    style: TextStyle(
+                      color: Theme.of(bottomSheetContext).colorScheme.primary,
+                      fontSize: 17,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Expanded(
+                    child: SingleChildScrollView(
+                      child: Column(
+                        children: [
+                          _CouponDetailRow(
+                            title: '目前狀態',
+                            value: _statusData(coupon).text,
+                          ),
+                          if (coupon.status == MemberCouponStatus.reserved)
+                            Container(
+                              width: double.infinity,
+                              margin: const EdgeInsets.only(bottom: 14),
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: Colors.blue.shade50,
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(color: Colors.blue.shade200),
+                              ),
+                              child: Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Icon(
+                                    Icons.info_outline,
+                                    size: 18,
+                                    color: Colors.blue,
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Text(
+                                      '此優惠券目前已保留給預約使用。\n'
+                                      '若該筆訂單取消，優惠券會依系統流程退回。',
+                                      style: TextStyle(
+                                        color: Colors.blue.shade800,
+                                        fontSize: 13,
+                                        height: 1.5,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          _CouponDetailRow(
+                            title: '適用範圍',
+                            value: _applyTargetText(coupon),
+                          ),
+                          _CouponDetailRow(
+                            title: '有效期限',
+                            value: _dateRangeText(coupon),
+                          ),
+                          _CouponDetailRow(
+                            title: '最低消費',
+                            value: coupon.minimumAmount > 0
+                                ? 'NT\$ ${coupon.minimumAmount}'
+                                : '無最低消費限制',
+                          ),
+                          _CouponDetailRow(
+                            title: '最高折抵',
+                            value: coupon.maximumDiscountAmount > 0
+                                ? 'NT\$ ${coupon.maximumDiscountAmount}'
+                                : '未限制最高折抵金額',
+                          ),
+                          _CouponRoomTypeDetail(
+                            shopId: coupon.shopId,
+                            roomTypeIds: coupon.roomTypeIds,
+                          ),
+                          _CouponDetailRow(
+                            title: '使用次數',
+                            value: coupon.usageLimit > 0
+                                ? '可使用 ${coupon.usageLimit} 次，已使用 ${coupon.usedCount} 次'
+                                : '未限制使用次數',
+                          ),
+                          _CouponDetailRow(
+                            title: '取得方式',
+                            value: coupon.isPointsExchange
+                                ? '使用 ${coupon.pointsCost} 點兌換'
+                                : '店家贈送',
+                          ),
+                          if (coupon.issuedReason.trim().isNotEmpty)
+                            _CouponDetailRow(
+                              title: '發放原因',
+                              value: coupon.issuedReason.trim(),
+                            ),
+                          const SizedBox(height: 8),
+                          Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(
+                              color: Colors.grey.shade100,
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text(
+                                  '特殊說明',
+                                  style: TextStyle(fontWeight: FontWeight.bold),
+                                ),
+                                const SizedBox(height: 8),
+                                SelectableText(
+                                  coupon.description.trim().isEmpty
+                                      ? '店家目前沒有填寫其他特殊說明。'
+                                      : coupon.description.trim(),
+                                  style: TextStyle(
+                                    color: Colors.grey.shade800,
+                                    height: 1.6,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          Text(
+                            '優惠券實際是否能套用，仍會依預約日期、房型、訂單金額與使用狀態重新判斷。',
+                            style: TextStyle(
+                              color: Colors.grey.shade600,
+                              fontSize: 13,
+                              height: 1.5,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  SizedBox(
+                    width: double.infinity,
+                    child: FilledButton(
+                      onPressed: () {
+                        Navigator.pop(bottomSheetContext);
+                      },
+                      child: const Text('關閉'),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 
@@ -310,6 +555,10 @@ class _CouponCard extends StatelessWidget {
   }
 
   _CouponStatusData _statusData(MemberCouponModel coupon) {
+    if (coupon.status == MemberCouponStatus.reserved) {
+      return const _CouponStatusData(text: '使用中', color: Colors.blue);
+    }
+
     if (coupon.status == MemberCouponStatus.revoked) {
       return const _CouponStatusData(text: '已撤銷', color: Colors.grey);
     }
@@ -328,6 +577,100 @@ class _CouponCard extends StatelessWidget {
     }
 
     return const _CouponStatusData(text: '可使用', color: Colors.green);
+  }
+}
+
+class _CouponRoomTypeDetail extends StatelessWidget {
+  const _CouponRoomTypeDetail({
+    required this.shopId,
+    required this.roomTypeIds,
+  });
+
+  final String shopId;
+  final List<String> roomTypeIds;
+
+  @override
+  Widget build(BuildContext context) {
+    if (roomTypeIds.isEmpty) {
+      return const _CouponDetailRow(title: '適用房型', value: '所有房型');
+    }
+
+    return StreamBuilder<List<Map<String, dynamic>>>(
+      stream: ShopRoomService.instance.streamRoomTypes(shopId),
+      builder:
+          (
+            BuildContext context,
+            AsyncSnapshot<List<Map<String, dynamic>>> snapshot,
+          ) {
+            if (snapshot.hasError) {
+              return const _CouponDetailRow(
+                title: '適用房型',
+                value: '指定房型，暫時無法讀取房型名稱',
+              );
+            }
+
+            if (!snapshot.hasData) {
+              return const _CouponDetailRow(title: '適用房型', value: '房型資料讀取中…');
+            }
+
+            final Map<String, String> roomTypeNameMap = <String, String>{
+              for (final Map<String, dynamic> roomType in snapshot.data!)
+                (roomType['id'] ?? '').toString(): (roomType['name'] ?? '未命名房型')
+                    .toString(),
+            };
+
+            final List<String> roomTypeNames = roomTypeIds.map((String id) {
+              final String? name = roomTypeNameMap[id];
+
+              if (name == null || name.trim().isEmpty) {
+                return '已刪除房型';
+              }
+
+              return name.trim();
+            }).toList();
+
+            return _CouponDetailRow(
+              title: '適用房型',
+              value: roomTypeNames.join('、'),
+            );
+          },
+    );
+  }
+}
+
+class _CouponDetailRow extends StatelessWidget {
+  const _CouponDetailRow({required this.title, required this.value});
+
+  final String title;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 14),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 88,
+            child: Text(
+              title,
+              style: TextStyle(
+                color: Colors.grey.shade600,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              value,
+              style: const TextStyle(fontWeight: FontWeight.w500, height: 1.45),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
 

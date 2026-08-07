@@ -1,12 +1,12 @@
 // lib/features/platform/pages/platform_user_create_page.dart
 // ➕ 新增平台人員頁
-// 功能：由根管理員新增開發管理員或平台員工，
+// 功能：由具備平台人員管理權限的管理員，新增開發管理員或平台員工，
 // 並設定帳號啟用狀態與初始平台權限。
+// 即使直接開啟此頁，也會先驗證 managePlatformAdmins 權限。
 
 import 'package:flutter/material.dart';
 
 import '../../../core/constants/platform_permission_keys.dart';
-import '../../../core/constants/platform_root_admin.dart';
 import '../../../core/services/platform_admin_service.dart';
 
 class PlatformUserCreatePage extends StatefulWidget {
@@ -19,7 +19,6 @@ class PlatformUserCreatePage extends StatefulWidget {
 class _PlatformUserCreatePageState extends State<PlatformUserCreatePage> {
   final _formKey = GlobalKey<FormState>();
 
-  final _uidController = TextEditingController();
   final _nameController = TextEditingController();
   final _emailController = TextEditingController();
 
@@ -31,36 +30,30 @@ class _PlatformUserCreatePageState extends State<PlatformUserCreatePage> {
 
   @override
   void dispose() {
-    _uidController.dispose();
     _nameController.dispose();
     _emailController.dispose();
     super.dispose();
   }
 
   Future<void> _save() async {
-    if (!_formKey.currentState!.validate()) return;
+    final formState = _formKey.currentState;
 
-    final uid = _uidController.text.trim();
-
-    if (PlatformRootAdmin.isRoot(uid)) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('此 UID 已是永久根管理員，不需要再次新增')));
+    if (formState == null || !formState.validate()) {
       return;
     }
+
+    FocusScope.of(context).unfocus();
 
     setState(() => _saving = true);
 
     try {
-      await PlatformAdminService.instance.createAdmin(
-        uid: uid,
-        name: _nameController.text.trim(),
+      await PlatformAdminService.instance.createAdminByEmail(
         email: _emailController.text.trim(),
+        name: _nameController.text.trim(),
         role: _role,
         enabled: _enabled,
         permissions: _selectedPermissions.toList(),
       );
-
       if (!mounted) return;
 
       ScaffoldMessenger.of(
@@ -93,34 +86,95 @@ class _PlatformUserCreatePageState extends State<PlatformUserCreatePage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('新增平台人員')),
-      body: Form(
-        key: _formKey,
-        child: ListView(
-          padding: const EdgeInsets.all(16),
-          children: [
-            _buildAccountCard(),
-            const SizedBox(height: 16),
-            _buildRoleCard(),
-            const SizedBox(height: 16),
-            _buildPermissionCard(),
-            const SizedBox(height: 24),
-            FilledButton.icon(
-              onPressed: _saving ? null : _save,
-              icon: _saving
-                  ? const SizedBox(
-                      width: 18,
-                      height: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Icon(Icons.person_add_alt_1),
-              label: Text(_saving ? '建立中' : '建立平台人員'),
-            ),
-            const SizedBox(height: 24),
-          ],
-        ),
+    return FutureBuilder<bool>(
+      future: PlatformAdminService.instance.hasPermission(
+        PlatformPermissionKeys.managePlatformAdmins,
       ),
+      builder: (context, permissionSnapshot) {
+        if (permissionSnapshot.connectionState == ConnectionState.waiting) {
+          return const Scaffold(
+            body: Center(child: CircularProgressIndicator()),
+          );
+        }
+
+        if (permissionSnapshot.hasError) {
+          return Scaffold(
+            appBar: AppBar(title: const Text('新增平台人員')),
+            body: Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Text(
+                  '讀取平台權限失敗：${permissionSnapshot.error}',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(color: Colors.red),
+                ),
+              ),
+            ),
+          );
+        }
+
+        final canManageAdmins = permissionSnapshot.data ?? false;
+
+        if (!canManageAdmins) {
+          return Scaffold(
+            appBar: AppBar(title: const Text('新增平台人員')),
+            body: const Center(
+              child: Padding(
+                padding: EdgeInsets.all(24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.lock_outline, size: 56, color: Colors.orange),
+                    SizedBox(height: 16),
+                    Text(
+                      '你沒有新增平台人員的權限',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    SizedBox(height: 8),
+                    Text(
+                      '請由根管理員或其他授權人員分配「管理平台員工與權限」。',
+                      textAlign: TextAlign.center,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        }
+
+        return Scaffold(
+          appBar: AppBar(title: const Text('新增平台人員')),
+          body: Form(
+            key: _formKey,
+            child: ListView(
+              padding: const EdgeInsets.all(16),
+              children: [
+                _buildAccountCard(),
+                const SizedBox(height: 16),
+                _buildRoleCard(),
+                const SizedBox(height: 16),
+                _buildPermissionCard(),
+                const SizedBox(height: 24),
+                FilledButton.icon(
+                  onPressed: _saving ? null : _save,
+                  icon: _saving
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.person_add_alt_1),
+                  label: Text(_saving ? '建立中' : '建立平台人員'),
+                ),
+                const SizedBox(height: 24),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 
@@ -136,34 +190,16 @@ class _PlatformUserCreatePageState extends State<PlatformUserCreatePage> {
               style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 8),
-            const Text('請先到 Firebase Authentication 找到該帳號的 UID。'),
-            const SizedBox(height: 16),
-            TextFormField(
-              controller: _uidController,
-              decoration: const InputDecoration(
-                labelText: 'Firebase UID',
-                hintText: '貼上 Authentication 使用者 UID',
-                border: OutlineInputBorder(),
-              ),
-              validator: (value) {
-                final text = value?.trim() ?? '';
-
-                if (text.isEmpty) {
-                  return '請輸入 Firebase UID';
-                }
-
-                if (text.length < 10) {
-                  return 'UID 格式看起來不正確';
-                }
-
-                return null;
-              },
-            ),
+            const Text('請輸入員工註冊 PetNest 時使用的 Email，系統會自動查找對應帳號。'),
             const SizedBox(height: 16),
             TextFormField(
               controller: _nameController,
+              enabled: !_saving,
+              textInputAction: TextInputAction.next,
               decoration: const InputDecoration(
                 labelText: '姓名或稱呼',
+                hintText: '請輸入平台人員姓名',
+                prefixIcon: Icon(Icons.person_outline),
                 border: OutlineInputBorder(),
               ),
               validator: (value) {
@@ -177,9 +213,13 @@ class _PlatformUserCreatePageState extends State<PlatformUserCreatePage> {
             const SizedBox(height: 16),
             TextFormField(
               controller: _emailController,
+              enabled: !_saving,
               keyboardType: TextInputType.emailAddress,
+              textInputAction: TextInputAction.done,
               decoration: const InputDecoration(
                 labelText: '登入 Email',
+                hintText: '請輸入員工的 PetNest 登入 Email',
+                prefixIcon: Icon(Icons.email_outlined),
                 border: OutlineInputBorder(),
               ),
               validator: (value) {
@@ -189,7 +229,9 @@ class _PlatformUserCreatePageState extends State<PlatformUserCreatePage> {
                   return '請輸入 Email';
                 }
 
-                if (!text.contains('@')) {
+                final emailPattern = RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$');
+
+                if (!emailPattern.hasMatch(text)) {
                   return 'Email 格式不正確';
                 }
 
@@ -230,11 +272,13 @@ class _PlatformUserCreatePageState extends State<PlatformUserCreatePage> {
                   child: Text('平台員工'),
                 ),
               ],
-              onChanged: (value) {
-                if (value == null) return;
+              onChanged: _saving
+                  ? null
+                  : (value) {
+                      if (value == null) return;
 
-                setState(() => _role = value);
-              },
+                      setState(() => _role = value);
+                    },
             ),
             const SizedBox(height: 12),
             SwitchListTile(
@@ -242,9 +286,11 @@ class _PlatformUserCreatePageState extends State<PlatformUserCreatePage> {
               value: _enabled,
               title: const Text('建立後立即啟用'),
               subtitle: Text(_enabled ? '建立後可以立即使用已分配權限' : '建立後先保持停用狀態'),
-              onChanged: (value) {
-                setState(() => _enabled = value);
-              },
+              onChanged: _saving
+                  ? null
+                  : (value) {
+                      setState(() => _enabled = value);
+                    },
             ),
           ],
         ),
@@ -299,9 +345,11 @@ class _PlatformUserCreatePageState extends State<PlatformUserCreatePage> {
                   ],
                 ),
                 subtitle: description.isEmpty ? null : Text(description),
-                onChanged: (value) {
-                  _updatePermission(permission, value);
-                },
+                onChanged: _saving
+                    ? null
+                    : (value) {
+                        _updatePermission(permission, value);
+                      },
               );
             }),
           ],

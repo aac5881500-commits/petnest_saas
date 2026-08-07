@@ -82,6 +82,7 @@ class BookingService {
 
     String discountCampaignId = '',
     String discountCampaignName = '',
+    String discountCampaignDescription = '',
     String discountCampaignType = '',
     String discountValueType = '',
     num discountValue = 0,
@@ -236,6 +237,7 @@ class BookingService {
 
         'discountCampaignId': discountCampaignId,
         'discountCampaignName': discountCampaignName,
+        'discountCampaignDescription': discountCampaignDescription.trim(),
         'discountCampaignType': discountCampaignType,
         'discountValueType': discountValueType,
         'discountValue': discountValue,
@@ -249,6 +251,20 @@ class BookingService {
         'depositAmount': depositAmount,
         'paymentMethod': paymentMethod,
         'payAmountType': payAmountType,
+
+        /// 💰 Booking 付款摘要初始值
+        ///
+        /// Booking 與 Payment 採分離架構：
+        /// - Booking 建立後永久保留
+        /// - 每次付款另外建立 payments 紀錄
+        /// - 付款成功後再由 Cloud Functions 更新以下摘要
+        'paidAmount': 0,
+        'remainingAmount': totalPrice,
+        'paymentStatus': 'unpaid',
+        'lastPaymentId': null,
+        'lastMerchantTradeNo': null,
+        'paymentUpdatedAt': null,
+        'paidAt': null,
 
         /// 🔥 店家轉帳資訊快照
         'bankName': bankName,
@@ -436,6 +452,18 @@ class BookingService {
       'depositAmount': depositAmount,
       'paymentMethod': paymentMethod,
       'payAmountType': payAmountType,
+
+      /// 💰 Booking 付款摘要初始值
+      ///
+      /// 後台手動建立的訂單也使用相同付款摘要格式，
+      /// 避免會員訂單與手動訂單的資料結構不同。
+      'paidAmount': 0,
+      'remainingAmount': totalPrice,
+      'paymentStatus': 'unpaid',
+      'lastPaymentId': null,
+      'lastMerchantTradeNo': null,
+      'paymentUpdatedAt': null,
+      'paidAt': null,
 
       /// 🔥 店家轉帳資訊快照
       'bankName': bankName,

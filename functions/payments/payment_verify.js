@@ -64,19 +64,41 @@ function resolvePaidAmount(booking) {
  * @return {number}
  */
 function resolveTotalAmount(booking) {
-  const finalAmount = normalizeInteger(booking.finalAmount);
+  const totalPayableAmount = normalizeInteger(
+      booking.totalPayableAmount,
+  );
+
+  if (totalPayableAmount > 0) {
+    return totalPayableAmount;
+  }
+
+  const totalPrice = normalizeInteger(
+      booking.totalPrice,
+  );
+
+  if (totalPrice > 0) {
+    return totalPrice;
+  }
+
+  const finalAmount = normalizeInteger(
+      booking.finalAmount,
+  );
 
   if (finalAmount > 0) {
     return finalAmount;
   }
 
-  const totalAmount = normalizeInteger(booking.totalAmount);
+  const totalAmount = normalizeInteger(
+      booking.totalAmount,
+  );
 
   if (totalAmount > 0) {
     return totalAmount;
   }
 
-  return normalizeInteger(booking.total);
+  return normalizeInteger(
+      booking.total,
+  );
 }
 
 /**

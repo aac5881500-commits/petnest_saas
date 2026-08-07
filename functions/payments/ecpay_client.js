@@ -2,6 +2,7 @@
 // 🟢 綠界付款 Client
 // 功能：使用綠界官方 Node.js SDK 建立信用卡、ATM、
 // 超商代碼付款表單 HTML，供前端導向綠界付款頁。
+// 除錯期間會將 SDK 最終產生的付款表單輸出到 Functions Log。
 
 const {HttpsError} = require("firebase-functions/v2/https");
 const ECPayment = require("ecpay_aio_nodejs");
@@ -33,7 +34,6 @@ function formatMerchantTradeDate(date = new Date()) {
   );
 
   const parts = formatter.formatToParts(date);
-
   const valueMap = {};
 
   for (const part of parts) {
@@ -240,6 +240,35 @@ function createEcpayPaymentHtml({
               baseParameters,
           );
   }
+
+  /*
+   * 暫時除錯紀錄：
+   * 印出 SDK 最終產生的付款 HTML，
+   * 用來核對 MerchantID、交易編號、金額與 CheckMacValue。
+   *
+   * 注意：
+   * 找到問題後必須移除此區塊，避免正式環境長期紀錄付款資料。
+   */
+  console.log("========== ECPAY PAYMENT DEBUG ==========");
+  console.log({
+    environment: isProduction ?
+      "production" :
+      "test",
+    merchantId: normalizeString(merchantId),
+    merchantTradeNo: normalizedMerchantTradeNo,
+    merchantTradeDate: baseParameters.MerchantTradeDate,
+    amount: normalizedAmount,
+    paymentMethod: ecpayPaymentMethod,
+    returnUrl: normalizedReturnUrl,
+    hasClientBackUrl: Boolean(normalizedClientBackUrl),
+  });
+
+  console.log("========== ECPAY HTML ==========");
+  console.log(paymentHtml);
+  console.log("=========================================");
+  console.log("===== ECPAY HTML START =====");
+  console.log(paymentHtml);
+  console.log("===== ECPAY HTML END =====");
 
   if (!normalizeString(paymentHtml)) {
     throw new HttpsError(

@@ -7,102 +7,170 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:flutter/material.dart';
+import '../../../core/constants/platform_permission_keys.dart';
+import '../../../core/services/platform_admin_service.dart';
 
 class PlatformPaymentReviewPage extends StatelessWidget {
   const PlatformPaymentReviewPage({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFF6F7FB),
-      appBar: AppBar(title: const Text('綠界金流審核中心')),
-      body: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-        stream: FirebaseFirestore.instance.collection('shops').snapshots(),
-        builder:
-            (
-              BuildContext context,
-              AsyncSnapshot<QuerySnapshot<Map<String, dynamic>>> snapshot,
-            ) {
-              if (snapshot.connectionState == ConnectionState.waiting) {
-                return const Center(child: CircularProgressIndicator());
-              }
+    return FutureBuilder<bool>(
+      future: PlatformAdminService.instance.hasPermission(
+        PlatformPermissionKeys.reviewPaymentApplications,
+      ),
+      builder: (context, permissionSnapshot) {
+        if (permissionSnapshot.connectionState == ConnectionState.waiting) {
+          return const Scaffold(
+            backgroundColor: Color(0xFFF6F7FB),
+            body: Center(child: CircularProgressIndicator()),
+          );
+        }
 
-              if (snapshot.hasError) {
-                return Center(
-                  child: Padding(
-                    padding: const EdgeInsets.all(24),
-                    child: Text(
-                      '讀取金流申請失敗：${snapshot.error}',
+        if (permissionSnapshot.hasError) {
+          return Scaffold(
+            backgroundColor: const Color(0xFFF6F7FB),
+            appBar: AppBar(title: const Text('綠界金流審核中心')),
+            body: Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Text(
+                  '讀取平台權限失敗：${permissionSnapshot.error}',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(color: Colors.red),
+                ),
+              ),
+            ),
+          );
+        }
+
+        final canReviewPayments = permissionSnapshot.data ?? false;
+
+        if (!canReviewPayments) {
+          return Scaffold(
+            backgroundColor: const Color(0xFFF6F7FB),
+            appBar: AppBar(title: const Text('綠界金流審核中心')),
+            body: const Center(
+              child: Padding(
+                padding: EdgeInsets.all(24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.lock_outline, size: 56, color: Colors.orange),
+                    SizedBox(height: 16),
+                    Text(
+                      '你沒有審核金流申請的權限',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    SizedBox(height: 8),
+                    Text(
+                      '請由根管理員或其他授權人員分配「審核金流申請」權限。',
                       textAlign: TextAlign.center,
                     ),
-                  ),
-                );
-              }
+                  ],
+                ),
+              ),
+            ),
+          );
+        }
 
-              final List<QueryDocumentSnapshot<Map<String, dynamic>>> shops =
-                  snapshot.data?.docs.where((document) {
-                    final Map<String, dynamic> shop = document.data();
-                    final dynamic rawPaymentSetting = shop['paymentSetting'];
+        return Scaffold(
+          backgroundColor: const Color(0xFFF6F7FB),
+          appBar: AppBar(title: const Text('綠界金流審核中心')),
+          body: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+            stream: FirebaseFirestore.instance.collection('shops').snapshots(),
+            builder:
+                (
+                  BuildContext context,
+                  AsyncSnapshot<QuerySnapshot<Map<String, dynamic>>> snapshot,
+                ) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const Center(child: CircularProgressIndicator());
+                  }
 
-                    if (rawPaymentSetting is! Map) {
-                      return false;
-                    }
-
-                    final Map<String, dynamic> paymentSetting =
-                        Map<String, dynamic>.from(rawPaymentSetting);
-
-                    final String reviewStatus =
-                        (paymentSetting['reviewStatus'] ?? '')
-                            .toString()
-                            .trim();
-
-                    return reviewStatus.isNotEmpty &&
-                        reviewStatus != 'notSubmitted';
-                  }).toList() ??
-                  <QueryDocumentSnapshot<Map<String, dynamic>>>[];
-
-              shops.sort((
-                QueryDocumentSnapshot<Map<String, dynamic>> first,
-                QueryDocumentSnapshot<Map<String, dynamic>> second,
-              ) {
-                final int firstOrder = _statusSortOrder(first.data());
-                final int secondOrder = _statusSortOrder(second.data());
-
-                return firstOrder.compareTo(secondOrder);
-              });
-
-              if (shops.isEmpty) {
-                return const _EmptyPaymentReviewView();
-              }
-
-              final int pendingCount = shops.where((document) {
-                final Map<String, dynamic> paymentSetting =
-                    _paymentSettingFromShop(document.data());
-
-                return paymentSetting['reviewStatus'] == 'pending';
-              }).length;
-
-              return ListView(
-                padding: const EdgeInsets.all(16),
-                children: <Widget>[
-                  _SummaryCard(
-                    totalCount: shops.length,
-                    pendingCount: pendingCount,
-                  ),
-                  const SizedBox(height: 16),
-                  ...shops.map((document) {
-                    return Padding(
-                      padding: const EdgeInsets.only(bottom: 12),
-                      child: _PaymentReviewCard(
-                        shopId: document.id,
-                        shop: document.data(),
+                  if (snapshot.hasError) {
+                    return Center(
+                      child: Padding(
+                        padding: const EdgeInsets.all(24),
+                        child: Text(
+                          '讀取金流申請失敗：${snapshot.error}',
+                          textAlign: TextAlign.center,
+                        ),
                       ),
                     );
-                  }),
-                ],
-              );
-            },
-      ),
+                  }
+
+                  final List<QueryDocumentSnapshot<Map<String, dynamic>>>
+                  shops =
+                      snapshot.data?.docs.where((document) {
+                        final Map<String, dynamic> shop = document.data();
+                        final dynamic rawPaymentSetting =
+                            shop['paymentSetting'];
+
+                        if (rawPaymentSetting is! Map) {
+                          return false;
+                        }
+
+                        final Map<String, dynamic> paymentSetting =
+                            Map<String, dynamic>.from(rawPaymentSetting);
+
+                        final String reviewStatus =
+                            (paymentSetting['reviewStatus'] ?? '')
+                                .toString()
+                                .trim();
+
+                        return reviewStatus.isNotEmpty &&
+                            reviewStatus != 'notSubmitted';
+                      }).toList() ??
+                      <QueryDocumentSnapshot<Map<String, dynamic>>>[];
+
+                  shops.sort((
+                    QueryDocumentSnapshot<Map<String, dynamic>> first,
+                    QueryDocumentSnapshot<Map<String, dynamic>> second,
+                  ) {
+                    final int firstOrder = _statusSortOrder(first.data());
+                    final int secondOrder = _statusSortOrder(second.data());
+
+                    return firstOrder.compareTo(secondOrder);
+                  });
+
+                  if (shops.isEmpty) {
+                    return const _EmptyPaymentReviewView();
+                  }
+
+                  final int pendingCount = shops.where((document) {
+                    final Map<String, dynamic> paymentSetting =
+                        _paymentSettingFromShop(document.data());
+
+                    return paymentSetting['reviewStatus'] == 'pending';
+                  }).length;
+
+                  return ListView(
+                    padding: const EdgeInsets.all(16),
+                    children: <Widget>[
+                      _SummaryCard(
+                        totalCount: shops.length,
+                        pendingCount: pendingCount,
+                      ),
+                      const SizedBox(height: 16),
+                      ...shops.map((document) {
+                        return Padding(
+                          padding: const EdgeInsets.only(bottom: 12),
+                          child: _PaymentReviewCard(
+                            shopId: document.id,
+                            shop: document.data(),
+                          ),
+                        );
+                      }),
+                    ],
+                  );
+                },
+          ),
+        );
+      },
     );
   }
 

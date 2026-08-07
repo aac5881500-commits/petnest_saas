@@ -493,30 +493,113 @@ class _BookingFormPageState extends State<BookingFormPage> {
     super.dispose();
   }
 
+  /// 💳 讀取店家訂金與收款方式設定
+  ///
+  /// 收款方式統一讀取 paymentSetting.operationSettings。
+  /// 綠界付款需同時符合：
+  /// 1. 平台審核已核准
+  /// 2. 店家未被平台停用
+  /// 3. 店家已開啟綠界總開關
+  /// 4. 對應的付款方式已核准且已開啟
   Future<void> _loadShopPaymentSettings() async {
-    final doc = await FirebaseFirestore.instance
-        .collection('shops')
-        .doc(widget.shopId)
-        .get();
+    final DocumentSnapshot<Map<String, dynamic>> document =
+        await FirebaseFirestore.instance
+            .collection('shops')
+            .doc(widget.shopId)
+            .get();
 
-    final data = doc.data();
-    if (data == null) return;
+    final Map<String, dynamic>? data = document.data();
 
-    if (!mounted) return;
+    if (data == null || !mounted) {
+      return;
+    }
+
+    // 💰 訂金設定
+    final bool depositEnabled = data['depositEnabled'] == true;
+    final String depositType = (data['depositType'] ?? 'fixed').toString();
+    final String depositBase = (data['depositBase'] ?? 'room').toString();
+
+    final dynamic rawDepositValue = data['depositValue'];
+
+    final int depositValue = rawDepositValue is int
+        ? rawDepositValue
+        : rawDepositValue is double
+        ? rawDepositValue.toInt()
+        : int.tryParse(rawDepositValue?.toString() ?? '') ?? 0;
+
+    // 💳 綠界公開設定
+    final dynamic rawPaymentSetting = data['paymentSetting'];
+
+    final Map<String, dynamic> paymentSetting = rawPaymentSetting is Map
+        ? Map<String, dynamic>.from(rawPaymentSetting)
+        : <String, dynamic>{};
+
+    final String reviewStatus = (paymentSetting['reviewStatus'] ?? '')
+        .toString()
+        .trim()
+        .toLowerCase();
+
+    final bool platformSuspended = paymentSetting['platformSuspended'] == true;
+
+    final bool shopDisabled = paymentSetting['shopDisabled'] == true;
+
+    // 🏪 店家的實際營運開關
+    final dynamic rawOperationSettings = paymentSetting['operationSettings'];
+
+    final Map<String, dynamic> operationSettings = rawOperationSettings is Map
+        ? Map<String, dynamic>.from(rawOperationSettings)
+        : <String, dynamic>{};
+
+    final bool cashEnabled = operationSettings['cashPaymentEnabled'] ?? true;
+
+    final bool transferEnabled =
+        operationSettings['bankTransferEnabled'] ?? true;
+
+    final bool ecpayEnabled = operationSettings['ecpayEnabled'] == true;
+
+    // ✅ 平台核准的綠界付款方式
+    final dynamic rawApprovedMethods = paymentSetting['enabledMethods'];
+
+    final Map<String, dynamic> approvedMethods = rawApprovedMethods is Map
+        ? Map<String, dynamic>.from(rawApprovedMethods)
+        : <String, dynamic>{};
+
+    final bool approvedCreditCard =
+        approvedMethods['creditCard'] == true ||
+        paymentSetting['creditCardEnabled'] == true;
+
+    final bool approvedAtm =
+        approvedMethods['atm'] == true || paymentSetting['atmEnabled'] == true;
+
+    final bool approvedCvsCode =
+        approvedMethods['cvsCode'] == true ||
+        paymentSetting['cvsCodeEnabled'] == true ||
+        paymentSetting['convenienceStoreCodeEnabled'] == true;
+
+    // 🔐 綠界總資格
+    final bool canUseEcpay =
+        reviewStatus == 'approved' &&
+        !platformSuspended &&
+        !shopDisabled &&
+        ecpayEnabled;
+
+    // 🎛️ 店家實際開啟的綠界付款方式
+    final bool creditCardEnabled =
+        canUseEcpay &&
+        approvedCreditCard &&
+        operationSettings['creditCardEnabled'] == true;
+
+    final bool atmEnabled =
+        canUseEcpay && approvedAtm && operationSettings['atmEnabled'] == true;
+
+    final bool cvsCodeEnabled =
+        canUseEcpay &&
+        approvedCvsCode &&
+        operationSettings['cvsCodeEnabled'] == true;
 
     setState(() {
-      _depositEnabled = data['depositEnabled'] ?? false;
-
-      final depositType = data['depositType'] ?? 'fixed';
-
-      _depositBase = (data['depositBase'] ?? 'room').toString();
-
-      final rawValue = data['depositValue'] ?? 0;
-      final depositValue = rawValue is int
-          ? rawValue
-          : rawValue is double
-          ? rawValue.toInt()
-          : int.tryParse(rawValue.toString()) ?? 0;
+      _depositEnabled = depositEnabled;
+      _depositBase = depositBase;
 
       if (depositType == 'percent') {
         _depositAmount = 0;
@@ -526,61 +609,24 @@ class _BookingFormPageState extends State<BookingFormPage> {
         _depositRate = 0;
       }
 
-      /// 💵 讀取原本的現場付款與銀行轉帳設定
-      final rawMethods = data['paymentMethods'];
-      final Map<String, dynamic> methods = rawMethods is Map
-          ? Map<String, dynamic>.from(rawMethods)
-          : <String, dynamic>{};
+      _cashEnabled = cashEnabled;
+      _transferEnabled = transferEnabled;
 
-      _cashEnabled = methods['cash'] == true;
-      _transferEnabled = methods['transfer'] == true;
+      _creditCardEnabled = creditCardEnabled;
+      _atmEnabled = atmEnabled;
+      _cvsCodeEnabled = cvsCodeEnabled;
 
-      /// 💳 讀取已通過平台審核的綠界付款設定
-      final rawPaymentSetting = data['paymentSetting'];
-      final Map<String, dynamic> paymentSetting = rawPaymentSetting is Map
-          ? Map<String, dynamic>.from(rawPaymentSetting)
-          : <String, dynamic>{};
+      // 目前選擇的方式若已被店家關閉，就清除選擇
+      final bool selectedMethodStillAvailable =
+          (_paymentMethod == 'cash' && _cashEnabled) ||
+          (_paymentMethod == 'transfer' && _transferEnabled) ||
+          (_paymentMethod == 'credit_card' && _creditCardEnabled) ||
+          (_paymentMethod == 'atm' && _atmEnabled) ||
+          (_paymentMethod == 'cvs_code' && _cvsCodeEnabled);
 
-      final String reviewStatus = (paymentSetting['reviewStatus'] ?? '')
-          .toString()
-          .trim()
-          .toLowerCase();
-
-      final bool onlinePaymentEnabled =
-          paymentSetting['enabled'] == true ||
-          paymentSetting['onlinePaymentEnabled'] == true;
-
-      final bool platformSuspended =
-          paymentSetting['platformSuspended'] == true;
-
-      final bool shopDisabled = paymentSetting['shopDisabled'] == true;
-
-      final bool canUseEcpay =
-          reviewStatus == 'approved' &&
-          onlinePaymentEnabled &&
-          !platformSuspended &&
-          !shopDisabled;
-
-      final rawEnabledMethods = paymentSetting['enabledMethods'];
-      final Map<String, dynamic> enabledMethods = rawEnabledMethods is Map
-          ? Map<String, dynamic>.from(rawEnabledMethods)
-          : <String, dynamic>{};
-
-      _creditCardEnabled =
-          canUseEcpay &&
-          (enabledMethods['creditCard'] == true ||
-              paymentSetting['creditCardEnabled'] == true);
-
-      _atmEnabled =
-          canUseEcpay &&
-          (enabledMethods['atm'] == true ||
-              paymentSetting['atmEnabled'] == true);
-
-      _cvsCodeEnabled =
-          canUseEcpay &&
-          (enabledMethods['cvsCode'] == true ||
-              paymentSetting['cvsCodeEnabled'] == true ||
-              paymentSetting['convenienceStoreCodeEnabled'] == true);
+      if (_paymentMethod != null && !selectedMethodStillAvailable) {
+        _paymentMethod = null;
+      }
     });
   }
 

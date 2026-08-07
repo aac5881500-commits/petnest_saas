@@ -2,6 +2,7 @@
 // 🔐 平台人員角色與權限編輯頁
 // 功能：調整開發管理員與平台員工的姓名、Email、角色、
 // 啟用狀態及個別權限。
+// 進入頁面前會檢查 managePlatformAdmins 權限。
 // 根管理員為永久最高權限，不允許透過此頁修改。
 
 import 'package:flutter/material.dart';
@@ -73,13 +74,32 @@ class _PlatformUserPermissionPageState
 
     FocusScope.of(context).unfocus();
 
+    final name = _nameController.text.trim();
+    final email = _emailController.text.trim();
+
+    if (name.isEmpty) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('請輸入姓名或稱呼')));
+      return;
+    }
+
+    final emailPattern = RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$');
+
+    if (email.isEmpty || !emailPattern.hasMatch(email)) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('請輸入正確的 Email')));
+      return;
+    }
+
     setState(() => _saving = true);
 
     try {
       await PlatformAdminService.instance.updateBasicInfo(
         uid: widget.admin.uid,
-        name: _nameController.text,
-        email: _emailController.text,
+        name: name,
+        email: email,
       );
 
       await PlatformAdminService.instance.updateRoleAndPermissions(
@@ -127,31 +147,92 @@ class _PlatformUserPermissionPageState
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('角色與權限設定')),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          _buildAccountCard(),
-          const SizedBox(height: 16),
-          _buildRoleCard(),
-          const SizedBox(height: 16),
-          _buildPermissionCard(),
-          const SizedBox(height: 24),
-          FilledButton.icon(
-            onPressed: _saving || _isRootAdmin ? null : _save,
-            icon: _saving
-                ? const SizedBox(
-                    width: 18,
-                    height: 18,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : const Icon(Icons.save_outlined),
-            label: Text(_saving ? '儲存中' : '儲存平台人員資料'),
-          ),
-          const SizedBox(height: 24),
-        ],
+    return FutureBuilder<bool>(
+      future: PlatformAdminService.instance.hasPermission(
+        PlatformPermissionKeys.managePlatformAdmins,
       ),
+      builder: (context, permissionSnapshot) {
+        if (permissionSnapshot.connectionState == ConnectionState.waiting) {
+          return const Scaffold(
+            body: Center(child: CircularProgressIndicator()),
+          );
+        }
+
+        if (permissionSnapshot.hasError) {
+          return Scaffold(
+            appBar: AppBar(title: const Text('角色與權限設定')),
+            body: Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Text(
+                  '讀取平台權限失敗：${permissionSnapshot.error}',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(color: Colors.red),
+                ),
+              ),
+            ),
+          );
+        }
+
+        final canManageAdmins = permissionSnapshot.data ?? false;
+
+        if (!canManageAdmins) {
+          return Scaffold(
+            appBar: AppBar(title: const Text('角色與權限設定')),
+            body: const Center(
+              child: Padding(
+                padding: EdgeInsets.all(24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.lock_outline, size: 56, color: Colors.orange),
+                    SizedBox(height: 16),
+                    Text(
+                      '你沒有編輯平台人員的權限',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    SizedBox(height: 8),
+                    Text(
+                      '請由根管理員或其他授權人員分配「管理平台員工與權限」。',
+                      textAlign: TextAlign.center,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        }
+
+        return Scaffold(
+          appBar: AppBar(title: const Text('角色與權限設定')),
+          body: ListView(
+            padding: const EdgeInsets.all(16),
+            children: [
+              _buildAccountCard(),
+              const SizedBox(height: 16),
+              _buildRoleCard(),
+              const SizedBox(height: 16),
+              _buildPermissionCard(),
+              const SizedBox(height: 24),
+              FilledButton.icon(
+                onPressed: _saving || _isRootAdmin ? null : _save,
+                icon: _saving
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.save_outlined),
+                label: Text(_saving ? '儲存中' : '儲存平台人員資料'),
+              ),
+              const SizedBox(height: 24),
+            ],
+          ),
+        );
+      },
     );
   }
 
@@ -167,7 +248,6 @@ class _PlatformUserPermissionPageState
               style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 12),
-
             TextFormField(
               controller: _nameController,
               enabled: !_isRootAdmin && !_saving,
@@ -179,9 +259,7 @@ class _PlatformUserPermissionPageState
                 border: OutlineInputBorder(),
               ),
             ),
-
             const SizedBox(height: 12),
-
             TextFormField(
               controller: _emailController,
               enabled: !_isRootAdmin && !_saving,
@@ -194,14 +272,11 @@ class _PlatformUserPermissionPageState
                 border: OutlineInputBorder(),
               ),
             ),
-
             const SizedBox(height: 12),
-
             SelectableText(
               'UID：${widget.admin.uid}',
               style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
             ),
-
             if (_isRootAdmin) ...[
               const SizedBox(height: 12),
               Container(
@@ -242,7 +317,6 @@ class _PlatformUserPermissionPageState
               style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 12),
-
             DropdownButtonFormField<String>(
               initialValue: _role,
               decoration: const InputDecoration(
@@ -267,9 +341,7 @@ class _PlatformUserPermissionPageState
                       setState(() => _role = value);
                     },
             ),
-
             const SizedBox(height: 12),
-
             SwitchListTile(
               contentPadding: EdgeInsets.zero,
               value: _enabled,
@@ -306,7 +378,6 @@ class _PlatformUserPermissionPageState
               child: Text('只開啟此人員工作上需要使用的功能。'),
             ),
             const Divider(),
-
             ...PlatformPermissionKeys.assignableValues.map((permission) {
               final selected = _selectedPermissions.contains(permission);
 

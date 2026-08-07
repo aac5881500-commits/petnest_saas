@@ -229,6 +229,56 @@ class PaymentFunctionService {
       );
     }
   }
+
+  /// ⚙️ 更新店家收款方式營運設定
+  ///
+  /// 功能：
+  /// - 呼叫 updatePaymentOperationSettings Cloud Function
+  /// - 更新銀行轉帳與綠界付款營運開關
+  /// - 到店付款由後端固定維持啟用
+  Future<void> updatePaymentOperationSettings({
+    required String shopId,
+    required bool bankTransferEnabled,
+    required bool ecpayEnabled,
+    required bool creditCardEnabled,
+    required bool atmEnabled,
+    required bool cvsCodeEnabled,
+  }) async {
+    if (shopId.trim().isEmpty) {
+      throw const PaymentFunctionException(
+        code: 'invalid-shop-id',
+        message: '店家資料不完整，請重新整理後再試。',
+      );
+    }
+
+    try {
+      final HttpsCallable callable = _functions.httpsCallable(
+        'updatePaymentOperationSettings',
+        options: HttpsCallableOptions(timeout: const Duration(seconds: 30)),
+      );
+
+      await callable.call<dynamic>({
+        'shopId': shopId.trim(),
+        'bankTransferEnabled': bankTransferEnabled,
+        'ecpayEnabled': ecpayEnabled,
+        'creditCardEnabled': creditCardEnabled,
+        'atmEnabled': atmEnabled,
+        'cvsCodeEnabled': cvsCodeEnabled,
+      });
+    } on FirebaseFunctionsException catch (error) {
+      throw PaymentFunctionException(
+        code: error.code,
+        message: _messageOrDefault(error.message, '更新收款方式失敗，請稍後再試。'),
+        details: error.details,
+      );
+    } catch (error) {
+      throw PaymentFunctionException(
+        code: 'unknown',
+        message: '更新收款方式時發生錯誤，請稍後再試。',
+        details: error.toString(),
+      );
+    }
+  }
 }
 
 /// Flutter 金流 Functions 統一例外

@@ -307,8 +307,8 @@ class _MemberPermissionDetailPageState
                     ),
                     _buildPermissionSwitch(
                       ShopPermissionKeys.managePaymentSettings,
-                      title: '收款與優惠設定',
-                      subtitle: '可修改付款方式、訂金與長住優惠',
+                      title: '營運設定',
+                      subtitle: '設定訂金、優惠與點數制度',
                     ),
                     _buildPermissionSwitch(
                       ShopPermissionKeys.manageAddons,

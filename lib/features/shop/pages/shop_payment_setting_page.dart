@@ -18,7 +18,7 @@ class ShopPaymentSettingPage extends StatelessWidget {
       length: 3,
       child: Scaffold(
         appBar: AppBar(
-          title: const Text('收款與優惠設定'),
+          title: const Text('營運設定'),
           bottom: const TabBar(
             tabs: <Widget>[
               Tab(

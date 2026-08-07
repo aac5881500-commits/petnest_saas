@@ -13,6 +13,7 @@ class CreatePaymentRequestModel {
     required this.amountType,
     required this.amount,
     required this.requestId,
+    this.paymentPurpose,
   });
 
   /// 店家 ID
@@ -35,6 +36,28 @@ class CreatePaymentRequestModel {
 
   /// 本次付款金額
   final int amount;
+
+  /// 本次付款用途
+  ///
+  /// 支援：
+  /// deposit、balance、full、additional、other
+  ///
+  /// 暫時允許為 null，兼容尚未更新的舊付款入口。
+  /// 未傳入時會依 amountType 自動判斷。
+  final String? paymentPurpose;
+
+  /// 實際送往 Cloud Functions 的付款用途
+  String get resolvedPaymentPurpose {
+    final String value = paymentPurpose?.trim() ?? '';
+
+    if (PaymentPurpose.isValid(value)) {
+      return value;
+    }
+
+    return amountType == PaymentAmountType.deposit
+        ? PaymentPurpose.deposit
+        : PaymentPurpose.full;
+  }
 
   /// 前端建立的防重複請求 ID
   ///
@@ -62,7 +85,8 @@ class CreatePaymentRequestModel {
         requestId.trim().isNotEmpty &&
         amount > 0 &&
         hasValidPaymentMethod &&
-        hasValidAmountType;
+        hasValidAmountType &&
+        PaymentPurpose.isValid(resolvedPaymentPurpose);
   }
 
   /// 轉成 Cloud Functions callable 參數
@@ -72,6 +96,7 @@ class CreatePaymentRequestModel {
       'bookingId': bookingId.trim(),
       'paymentMethod': paymentMethod,
       'amountType': amountType,
+      'paymentPurpose': resolvedPaymentPurpose,
       'amount': amount,
       'requestId': requestId.trim(),
     };
@@ -82,6 +107,7 @@ class CreatePaymentRequestModel {
     String? bookingId,
     String? paymentMethod,
     String? amountType,
+    String? paymentPurpose,
     int? amount,
     String? requestId,
   }) {
@@ -90,6 +116,7 @@ class CreatePaymentRequestModel {
       bookingId: bookingId ?? this.bookingId,
       paymentMethod: paymentMethod ?? this.paymentMethod,
       amountType: amountType ?? this.amountType,
+      paymentPurpose: paymentPurpose ?? this.paymentPurpose,
       amount: amount ?? this.amount,
       requestId: requestId ?? this.requestId,
     );

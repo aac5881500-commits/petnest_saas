@@ -22,6 +22,8 @@ import 'package:petnest_saas/features/shop/pages/shop_about_page.dart';
 import 'package:petnest_saas/features/shop/pages/shop_room_intro_page.dart';
 import 'package:petnest_saas/core/models/home_theme_model.dart';
 import 'package:petnest_saas/features/member/pages/member_page.dart';
+import 'package:petnest_saas/features/member/pages/member_point_detail_page.dart';
+import 'package:petnest_saas/core/widgets/drawer_point_balance_card.dart';
 
 class AppDrawer extends StatelessWidget {
   const AppDrawer({
@@ -57,6 +59,42 @@ class AppDrawer extends StatelessWidget {
                 padding: const EdgeInsets.symmetric(horizontal: 20),
                 children: [
                   const SizedBox(height: 16),
+
+                  if (!platformPreview && user != null)
+                    DrawerPointBalanceCard(
+                      shopId: shopId,
+                      primaryColor: _orange,
+                      textColor: _brown,
+                      cardColor: _card,
+                      borderColor: _border,
+                      onTap: () async {
+                        final shopSnapshot = await FirebaseFirestore.instance
+                            .collection('shops')
+                            .doc(shopId)
+                            .get();
+
+                        final shopData = shopSnapshot.data();
+                        final shopName = (shopData?['name'] ?? '')
+                            .toString()
+                            .trim();
+
+                        if (!context.mounted) return;
+
+                        Navigator.pop(context);
+
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute<void>(
+                            builder: (_) => MemberPointDetailPage(
+                              shopId: shopId,
+                              shopName: shopName,
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+
+                  const SizedBox(height: 8),
 
                   if (platformPreview) ...[
                     _sectionTitle('平台巡檢'),

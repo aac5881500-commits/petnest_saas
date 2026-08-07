@@ -128,6 +128,40 @@ abstract final class PaymentAmountType {
   static const String full = 'full';
 }
 
+/// 本次付款用途
+///
+/// 與 PaymentAmountType 不同：
+/// PaymentAmountType 負責決定後端如何計算付款金額；
+/// PaymentPurpose 負責記錄這筆付款實際是用來支付什麼。
+abstract final class PaymentPurpose {
+  /// 預約訂金
+  static const String deposit = 'deposit';
+
+  /// 預約尾款
+  static const String balance = 'balance';
+
+  /// 預約一次付清
+  static const String full = 'full';
+
+  /// 加購服務、延長住宿或其他補款
+  static const String additional = 'additional';
+
+  /// 其他人工指定付款
+  static const String other = 'other';
+
+  static const List<String> values = <String>[
+    deposit,
+    balance,
+    full,
+    additional,
+    other,
+  ];
+
+  static bool isValid(String value) {
+    return values.contains(value);
+  }
+}
+
 /// 店家金流申請類型
 abstract final class PaymentGatewayRequestType {
   /// 首次申請設定

@@ -22,6 +22,9 @@ import 'package:petnest_saas/features/auth/widgets/my_shop_meta_info.dart';
 import 'package:petnest_saas/features/auth/widgets/my_shop_qr_link_card.dart';
 import 'package:petnest_saas/core/services/notification_service.dart';
 import 'package:petnest_saas/features/notifications/pages/notification_center_page.dart';
+import 'package:petnest_saas/core/constants/platform_root_admin.dart';
+import 'package:petnest_saas/core/models/platform_admin_model.dart';
+import 'package:petnest_saas/core/services/platform_admin_service.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -85,11 +88,6 @@ class _HomePageState extends State<HomePage> {
       default:
         return value;
     }
-  }
-
-  bool _isRootAdmin(String? uid) {
-    return uid == 'LTk2AdDOAIVGhlkt97fnbD5TXIf1' ||
-        uid == '7FNrECQeqAca9Vu8lBBzTSdcJcg1';
   }
 
   Future<void> _logout() async {
@@ -177,18 +175,33 @@ class _HomePageState extends State<HomePage> {
               );
             },
           ),
-          if (_isRootAdmin(uid))
-            TextButton.icon(
-              onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => const PlatformAdminPage()),
-                );
-              },
-              icon: const Icon(Icons.admin_panel_settings, size: 18),
-              label: const Text('平台後台'),
-            ),
+          StreamBuilder<PlatformAdminModel?>(
+            stream: PlatformAdminService.instance.streamCurrentAdmin(),
+            builder: (context, snapshot) {
+              final isRootAdmin = PlatformRootAdmin.isRoot(uid);
+              final currentAdmin = snapshot.data;
 
+              final canEnterPlatformAdmin =
+                  isRootAdmin || (currentAdmin != null && currentAdmin.enabled);
+
+              if (!canEnterPlatformAdmin) {
+                return const SizedBox.shrink();
+              }
+
+              return TextButton.icon(
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const PlatformAdminPage(),
+                    ),
+                  );
+                },
+                icon: const Icon(Icons.admin_panel_settings, size: 18),
+                label: const Text('平台後台'),
+              );
+            },
+          ),
           PopupMenuButton<String>(
             icon: const CircleAvatar(
               radius: 16,

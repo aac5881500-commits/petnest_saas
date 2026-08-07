@@ -16,6 +16,7 @@ class PaymentModel {
     required this.gateway,
     required this.paymentMethod,
     required this.amountType,
+    required this.paymentPurpose,
     required this.amount,
     required this.status,
     required this.requestId,
@@ -68,6 +69,15 @@ class PaymentModel {
   /// deposit：訂金。
   /// full：全額。
   final String amountType;
+
+  /// 本次付款用途
+  ///
+  /// deposit：訂金
+  /// balance：尾款
+  /// full：全額付款
+  /// additional：加購、延長住宿或補款
+  /// other：其他付款
+  final String paymentPurpose;
 
   /// 本次應付金額，單位為新臺幣元
   final int amount;
@@ -164,6 +174,16 @@ class PaymentModel {
     return amountType == PaymentAmountType.full;
   }
 
+  /// 是否為尾款
+  bool get isBalancePayment {
+    return paymentPurpose == PaymentPurpose.balance;
+  }
+
+  /// 是否為加購或補款
+  bool get isAdditionalPayment {
+    return paymentPurpose == PaymentPurpose.additional;
+  }
+
   /// 是否付款成功
   bool get isPaid {
     return status == PaymentTransactionStatus.paid;
@@ -226,6 +246,7 @@ class PaymentModel {
       gateway: (data['gateway'] ?? PaymentGateway.ecpay).toString(),
       paymentMethod: (data['paymentMethod'] ?? '').toString(),
       amountType: (data['amountType'] ?? '').toString(),
+      paymentPurpose: _resolvePaymentPurpose(data),
       amount: _intFromValue(data['amount']),
       currency: (data['currency'] ?? 'TWD').toString(),
       status: (data['status'] ?? PaymentTransactionStatus.pending).toString(),
@@ -261,6 +282,7 @@ class PaymentModel {
       'gateway': gateway,
       'paymentMethod': paymentMethod,
       'amountType': amountType,
+      'paymentPurpose': paymentPurpose,
       'amount': amount,
       'currency': currency,
       'status': status,
@@ -297,6 +319,7 @@ class PaymentModel {
     String? gateway,
     String? paymentMethod,
     String? amountType,
+    String? paymentPurpose,
     int? amount,
     String? currency,
     String? status,
@@ -334,6 +357,7 @@ class PaymentModel {
       gateway: gateway ?? this.gateway,
       paymentMethod: paymentMethod ?? this.paymentMethod,
       amountType: amountType ?? this.amountType,
+      paymentPurpose: paymentPurpose ?? this.paymentPurpose,
       amount: amount ?? this.amount,
       currency: currency ?? this.currency,
       status: status ?? this.status,
@@ -359,6 +383,20 @@ class PaymentModel {
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
     );
+  }
+
+  static String _resolvePaymentPurpose(Map<String, dynamic> data) {
+    final String purpose = (data['paymentPurpose'] ?? '').toString().trim();
+
+    if (PaymentPurpose.isValid(purpose)) {
+      return purpose;
+    }
+
+    final String amountType = (data['amountType'] ?? '').toString().trim();
+
+    return amountType == PaymentAmountType.deposit
+        ? PaymentPurpose.deposit
+        : PaymentPurpose.full;
   }
 
   static int _intFromValue(dynamic value) {

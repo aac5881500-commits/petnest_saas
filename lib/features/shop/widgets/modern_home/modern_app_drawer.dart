@@ -15,6 +15,8 @@ import 'package:petnest_saas/features/booking/pages/my_bookings_page.dart';
 import 'package:petnest_saas/features/booking/pages/my_reviews_page.dart';
 import 'package:petnest_saas/features/auth/pages/login_page.dart';
 import 'package:petnest_saas/features/member/pages/member_page.dart';
+import 'package:petnest_saas/features/member/pages/member_point_detail_page.dart';
+import 'package:petnest_saas/core/widgets/drawer_point_balance_card.dart';
 import 'package:petnest_saas/core/constants/shop_permission_keys.dart';
 import 'package:petnest_saas/features/booking/pages/booking_detail_page.dart';
 import 'package:petnest_saas/features/platform/pages/platform_shop_manage_page.dart';
@@ -78,6 +80,30 @@ class ModernAppDrawer extends StatelessWidget {
                     padding: const EdgeInsets.symmetric(horizontal: 12),
                     children: [
                       const SizedBox(height: 16),
+
+                      if (!platformPreview && user != null)
+                        DrawerPointBalanceCard(
+                          shopId: shopId,
+                          primaryColor: _primaryColor,
+                          textColor: _textColor,
+                          cardColor: _cardColor,
+                          borderColor: _borderColor,
+                          onTap: () {
+                            Navigator.pop(context);
+
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute<void>(
+                                builder: (_) => MemberPointDetailPage(
+                                  shopId: shopId,
+                                  shopName: (shop['name'] ?? '').toString(),
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+
+                      const SizedBox(height: 8),
 
                       if (platformPreview) ...[
                         _sectionTitle('平台巡檢'),

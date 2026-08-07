@@ -19,6 +19,10 @@ import 'package:image_picker/image_picker.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/services.dart';
 import 'package:petnest_saas/core/services/booking_service.dart';
+import 'package:petnest_saas/core/models/create_payment_request_model.dart';
+import 'package:petnest_saas/core/models/payment_gateway_status.dart';
+import 'package:petnest_saas/core/services/payment_function_service.dart';
+import 'package:petnest_saas/features/payment/pages/ecpay_payment_page.dart';
 import 'dart:async';
 import 'package:petnest_saas/features/booking/widgets/booking_detail/booking_detail_status_card.dart';
 import 'package:petnest_saas/features/booking/widgets/booking_detail/booking_detail_header_section.dart';
@@ -44,6 +48,9 @@ class _BookingDetailPageState extends State<BookingDetailPage> {
   final TextEditingController _last5Controller = TextEditingController();
   final FocusNode _last5FocusNode = FocusNode();
   bool _loading = false;
+
+  /// 💳 是否正在建立新的線上付款
+  bool _creatingPayment = false;
   bool _autoCancelling = false;
   Timer? _expireTimer;
   final GlobalKey _messageSectionKey = GlobalKey();
@@ -499,6 +506,133 @@ class _BookingDetailPageState extends State<BookingDetailPage> {
                       ),
                     ),
                   ),
+
+                StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+                  stream: FirebaseFirestore.instance
+                      .collection('shops')
+                      .doc((data['shopId'] ?? '').toString())
+                      .snapshots(),
+                  builder:
+                      (
+                        BuildContext context,
+                        AsyncSnapshot<DocumentSnapshot<Map<String, dynamic>>>
+                        shopSnapshot,
+                      ) {
+                        if (!shopSnapshot.hasData) {
+                          return const SizedBox.shrink();
+                        }
+
+                        final Map<String, dynamic> shopData =
+                            shopSnapshot.data?.data() ?? <String, dynamic>{};
+
+                        final dynamic rawPaymentSetting =
+                            shopData['paymentSetting'];
+
+                        final Map<String, dynamic> paymentSetting =
+                            rawPaymentSetting is Map
+                            ? Map<String, dynamic>.from(rawPaymentSetting)
+                            : <String, dynamic>{};
+
+                        final dynamic rawOperationSettings =
+                            paymentSetting['operationSettings'];
+
+                        final Map<String, dynamic> operationSettings =
+                            rawOperationSettings is Map
+                            ? Map<String, dynamic>.from(rawOperationSettings)
+                            : <String, dynamic>{};
+
+                        final String reviewStatus =
+                            (paymentSetting['reviewStatus'] ?? '')
+                                .toString()
+                                .trim()
+                                .toLowerCase();
+
+                        final bool ecpayEnabled =
+                            operationSettings['ecpayEnabled'] == true;
+
+                        final bool hasEnabledEcpayMethod =
+                            operationSettings['creditCardEnabled'] == true ||
+                            operationSettings['atmEnabled'] == true ||
+                            operationSettings['cvsCodeEnabled'] == true;
+
+                        final bool platformSuspended =
+                            paymentSetting['platformSuspended'] == true;
+
+                        final bool shopDisabled =
+                            paymentSetting['shopDisabled'] == true;
+
+                        final int totalAmount =
+                            ((data['totalPayableAmount'] ??
+                                        data['totalPrice'] ??
+                                        data['totalAmount'] ??
+                                        data['total'] ??
+                                        0)
+                                    as num)
+                                .toInt();
+
+                        final int paidAmount =
+                            ((data['paidAmount'] ?? 0) as num).toInt();
+
+                        final int remainingAmount =
+                            ((data['remainingAmount'] ??
+                                        (totalAmount - paidAmount))
+                                    as num)
+                                .toInt()
+                                .clamp(0, totalAmount);
+
+                        final bool canCreateOnlinePayment =
+                            reviewStatus == 'approved' &&
+                            ecpayEnabled &&
+                            hasEnabledEcpayMethod &&
+                            !platformSuspended &&
+                            !shopDisabled &&
+                            remainingAmount > 0 &&
+                            bookingStatus != 'cancelled' &&
+                            bookingStatus != 'completed';
+
+                        if (!canCreateOnlinePayment) {
+                          return const SizedBox.shrink();
+                        }
+
+                        return Padding(
+                          padding: const EdgeInsets.only(top: 12),
+                          child: SizedBox(
+                            width: double.infinity,
+                            child: ElevatedButton.icon(
+                              onPressed: _creatingPayment
+                                  ? null
+                                  : () async {
+                                      await _showOnlinePaymentMethodSheet(
+                                        booking: data,
+                                      );
+                                    },
+                              icon: _creatingPayment
+                                  ? const SizedBox(
+                                      width: 18,
+                                      height: 18,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                      ),
+                                    )
+                                  : const Icon(Icons.payment),
+                              label: Text(
+                                _creatingPayment
+                                    ? '正在建立付款...'
+                                    : paidAmount > 0
+                                    ? '支付剩餘金額 NT\$ $remainingAmount'
+                                    : '立即付款 NT\$ $remainingAmount',
+                              ),
+                              style: ElevatedButton.styleFrom(
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 14,
+                                ),
+                              ),
+                            ),
+                          ),
+                        );
+                      },
+                ),
+
                 BookingDetailPaymentSection(
                   data: data,
                   depositStatus: depositStatus.toString(),
@@ -554,6 +688,248 @@ class _BookingDetailPageState extends State<BookingDetailPage> {
         curve: Curves.easeInOut,
       );
     });
+  }
+
+  /// 💳 顯示線上付款方式選擇視窗
+  ///
+  /// 顧客選擇付款方式後，
+  /// 針對同一筆 Booking 建立新的 Payment。
+  Future<void> _showOnlinePaymentMethodSheet({
+    required Map<String, dynamic> booking,
+  }) async {
+    if (_creatingPayment) {
+      return;
+    }
+
+    final String? selectedMethod = await showModalBottomSheet<String>(
+      context: context,
+      showDragHandle: true,
+      builder: (BuildContext bottomSheetContext) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  '選擇付款方式',
+                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  '請選擇這次要使用的線上付款方式。',
+                  style: TextStyle(color: Colors.grey.shade700),
+                ),
+                const SizedBox(height: 16),
+
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: const CircleAvatar(child: Icon(Icons.credit_card)),
+                  title: const Text(
+                    '信用卡',
+                    style: TextStyle(fontWeight: FontWeight.w700),
+                  ),
+                  subtitle: const Text('前往綠界信用卡付款頁'),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () {
+                    Navigator.pop(
+                      bottomSheetContext,
+                      PaymentMethodType.creditCard,
+                    );
+                  },
+                ),
+
+                const Divider(height: 1),
+
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: const CircleAvatar(
+                    child: Icon(Icons.account_balance),
+                  ),
+                  title: const Text(
+                    'ATM 虛擬帳號',
+                    style: TextStyle(fontWeight: FontWeight.w700),
+                  ),
+                  subtitle: const Text('取得 ATM 繳費帳號'),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () {
+                    Navigator.pop(bottomSheetContext, PaymentMethodType.atm);
+                  },
+                ),
+
+                const Divider(height: 1),
+
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: const CircleAvatar(
+                    child: Icon(Icons.storefront_outlined),
+                  ),
+                  title: const Text(
+                    '超商代碼',
+                    style: TextStyle(fontWeight: FontWeight.w700),
+                  ),
+                  subtitle: const Text('取得超商繳費代碼'),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () {
+                    Navigator.pop(
+                      bottomSheetContext,
+                      PaymentMethodType.convenienceStoreCode,
+                    );
+                  },
+                ),
+
+                const SizedBox(height: 12),
+
+                SizedBox(
+                  width: double.infinity,
+                  child: TextButton(
+                    onPressed: () {
+                      Navigator.pop(bottomSheetContext);
+                    },
+                    child: const Text('取消'),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+
+    if (selectedMethod == null || !mounted) {
+      return;
+    }
+
+    await _createRemainingPayment(
+      booking: booking,
+      paymentMethod: selectedMethod,
+    );
+  }
+
+  /// 💳 針對同一筆 Booking 建立新的綠界付款
+  ///
+  /// - 完全未付款：建立全額付款 full
+  /// - 已支付部分金額：建立尾款 balance
+  /// - Booking 永久保留，不重新建立訂單
+  Future<void> _createRemainingPayment({
+    required Map<String, dynamic> booking,
+    required String paymentMethod,
+  }) async {
+    if (_creatingPayment) {
+      return;
+    }
+
+    final String shopId = (booking['shopId'] ?? '').toString().trim();
+
+    final int totalAmount =
+        ((booking['totalPayableAmount'] ??
+                    booking['totalPrice'] ??
+                    booking['totalAmount'] ??
+                    booking['total'] ??
+                    0)
+                as num)
+            .toInt();
+
+    final int paidAmount = ((booking['paidAmount'] ?? 0) as num).toInt();
+
+    final int remainingAmount =
+        ((booking['remainingAmount'] ?? (totalAmount - paidAmount)) as num)
+            .toInt()
+            .clamp(0, totalAmount);
+
+    if (shopId.isEmpty) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('找不到店家資料。')));
+      return;
+    }
+
+    if (!PaymentMethodType.isOnlinePayment(paymentMethod)) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('請選擇有效的線上付款方式。')));
+      return;
+    }
+
+    if (totalAmount <= 0 || remainingAmount <= 0) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('這筆訂單目前沒有待支付金額。')));
+      return;
+    }
+
+    final String paymentPurpose = paidAmount > 0
+        ? PaymentPurpose.balance
+        : PaymentPurpose.full;
+
+    /*
+     * 後端目前的 PaymentAmountType 只有 deposit / full。
+     *
+     * 尾款仍使用 full 作為金額類型，
+     * 實際用途則由 paymentPurpose = balance 標記。
+     */
+    const String amountType = PaymentAmountType.full;
+
+    final String paymentRequestId = FirebaseFirestore.instance
+        .collection('payments')
+        .doc()
+        .id;
+
+    setState(() {
+      _creatingPayment = true;
+    });
+
+    try {
+      final paymentResult = await PaymentFunctionService.instance.createPayment(
+        request: CreatePaymentRequestModel(
+          shopId: shopId,
+          bookingId: widget.docId,
+          paymentMethod: paymentMethod,
+          amountType: amountType,
+          paymentPurpose: paymentPurpose,
+          amount: remainingAmount,
+          requestId: paymentRequestId,
+        ),
+      );
+
+      if (!mounted) {
+        return;
+      }
+
+      if (!paymentResult.hasPaymentHtml) {
+        throw const PaymentFunctionException(
+          code: 'missing-payment-html',
+          message: '綠界付款頁資料不完整，請稍後再試。',
+        );
+      }
+
+      await Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) =>
+              EcpayPaymentPage(paymentHtml: paymentResult.paymentHtml),
+        ),
+      );
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+
+      final String message = error is PaymentFunctionException
+          ? error.message
+          : error.toString().replaceFirst('Exception: ', '');
+
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(message)));
+    } finally {
+      if (mounted) {
+        setState(() {
+          _creatingPayment = false;
+        });
+      }
+    }
   }
 
   Future<String?> _showCancelReasonDialog(BuildContext context) async {

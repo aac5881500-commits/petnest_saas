@@ -47,7 +47,7 @@ const {
  * ✅ requestId 防止重複付款
  * ✅ 讀取店家綠界後端憑證
  * ✅ 產生綠界付款 HTML
- * ❌ 尚未完成付款 Callback 更新訂單
+ * ✅ 付款 Callback 更新付款與訂單彙總狀態
  */
 exports.createEcpayPayment = onCall(
     {
@@ -78,6 +78,13 @@ exports.createEcpayPayment = onCall(
       const amountType = normalizeString(
           requestData.amountType,
       ).toLowerCase();
+
+      const requestedPaymentPurpose = normalizeString(
+          requestData.paymentPurpose,
+      ).toLowerCase();
+
+      const paymentPurpose = requestedPaymentPurpose ||
+        (amountType === "deposit" ? "deposit" : "full");
 
       const requestId = normalizeString(
           requestData.requestId,
@@ -129,6 +136,21 @@ exports.createEcpayPayment = onCall(
         );
       }
 
+      const allowedPaymentPurposes = [
+        "deposit",
+        "balance",
+        "full",
+        "additional",
+        "other",
+      ];
+
+      if (!allowedPaymentPurposes.includes(paymentPurpose)) {
+        throw new HttpsError(
+            "invalid-argument",
+            "付款用途不正確。",
+        );
+      }
+
       const verifiedBooking = await verifyBookingForPayment({
         bookingId,
         userId: request.auth.uid,
@@ -156,6 +178,7 @@ exports.createEcpayPayment = onCall(
         userId: verifiedBooking.userId,
         paymentMethod,
         amountType,
+        paymentPurpose,
         amount: paymentAmount,
         totalAmount: verifiedBooking.totalAmount,
         paidAmount: verifiedBooking.paidAmount,
@@ -192,8 +215,8 @@ exports.createEcpayPayment = onCall(
         "https://asia-east1-petnest-saas.cloudfunctions.net/" +
         "ecpayPaymentCallback",
         clientBackUrl: "",
-        itemName: "PetNest 寵物住宿訂單",
-        tradeDesc: "PetNest 訂單付款",
+        itemName: "PetNest Booking",
+        tradeDesc: "PetNest Payment",
         customField1: paymentRecord.paymentId,
       });
 
@@ -238,6 +261,7 @@ exports.createEcpayPayment = onCall(
 
         paymentMethod,
         amountType,
+        paymentPurpose,
         amount: paymentAmount,
         status: "pending",
         requestId,

@@ -43,6 +43,18 @@ class BookingDetailPriceSection extends StatelessWidget {
         .toString()
         .trim();
 
+    final discountCampaignDescription =
+        (data['discountCampaignDescription'] ?? '').toString().trim();
+
+    final String couponId = (data['couponId'] ?? '').toString().trim();
+    final String couponName = (data['couponName'] ?? '').toString().trim();
+    final num couponDiscountAmount = (data['couponDiscountAmount'] ?? 0) as num;
+
+    final bool hasCampaignDiscount = discountAmount > 0;
+    final bool hasCouponDiscount =
+        couponId.isNotEmpty && couponDiscountAmount > 0;
+    final bool hasAnyDiscount = hasCampaignDiscount || hasCouponDiscount;
+
     final paymentLabel = payAmountType == 'full' ? '需支付全額' : '需支付訂金';
 
     final paymentAmount = payAmountType == 'full'
@@ -240,7 +252,7 @@ class BookingDetailPriceSection extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              if (discountAmount > 0) ...[
+              if (hasAnyDiscount) ...[
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
@@ -255,50 +267,133 @@ class BookingDetailPriceSection extends StatelessWidget {
                   ],
                 ),
 
-                const SizedBox(height: 6),
+                if (hasCampaignDiscount) ...[
+                  const SizedBox(height: 8),
 
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      discountCampaignName.isNotEmpty
-                          ? discountCampaignName
-                          : '長住優惠（滿${discountMinNights.toInt()}晚 ${discountPercent.toInt()}%）',
-                      style: const TextStyle(color: Colors.greenAccent),
-                    ),
-                    Text(
-                      '- NT\$ ${discountAmount.toInt()}',
-                      style: const TextStyle(
-                        color: Colors.greenAccent,
-                        fontWeight: FontWeight.bold,
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      Expanded(
+                        child: Row(
+                          children: [
+                            Flexible(
+                              child: Text(
+                                discountCampaignName.isNotEmpty
+                                    ? discountCampaignName
+                                    : '優惠活動',
+                                style: const TextStyle(
+                                  color: Colors.greenAccent,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                            if (discountCampaignDescription.isNotEmpty) ...[
+                              const SizedBox(width: 4),
+                              InkWell(
+                                borderRadius: BorderRadius.circular(20),
+                                onTap: () {
+                                  _showDiscountDescription(
+                                    context,
+                                    campaignName:
+                                        discountCampaignName.isNotEmpty
+                                        ? discountCampaignName
+                                        : '優惠活動',
+                                    description: discountCampaignDescription,
+                                  );
+                                },
+                                child: const Padding(
+                                  padding: EdgeInsets.all(4),
+                                  child: Icon(
+                                    Icons.info_outline,
+                                    size: 18,
+                                    color: Colors.greenAccent,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
                       ),
-                    ),
-                  ],
-                ),
+                      const SizedBox(width: 10),
+                      Text(
+                        '- NT\$ ${discountAmount.toInt()}',
+                        style: const TextStyle(
+                          color: Colors.greenAccent,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
 
-                const SizedBox(height: 6),
+                  const SizedBox(height: 6),
 
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    const Text('折扣範圍', style: TextStyle(color: Colors.white70)),
-                    Text(
-                      discountBase == 'room'
-                          ? '只折房價'
-                          : discountBase == 'room_pet'
-                          ? '房價＋寵物加價'
-                          : '總金額（含加值服務）',
-                      style: const TextStyle(color: Colors.white70),
-                    ),
-                  ],
-                ),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text(
+                        '折扣範圍',
+                        style: TextStyle(color: Colors.white70),
+                      ),
+                      Text(
+                        discountBase == 'room'
+                            ? '只折房價'
+                            : discountBase == 'room_pet'
+                            ? '房價＋寵物加價'
+                            : '總金額（含加值服務）',
+                        style: const TextStyle(color: Colors.white70),
+                      ),
+                    ],
+                  ),
+                ],
+
+                if (hasCouponDiscount) ...[
+                  const SizedBox(height: 8),
+
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Expanded(
+                        child: Row(
+                          children: [
+                            const Icon(
+                              Icons.confirmation_number_outlined,
+                              size: 18,
+                              color: Colors.amberAccent,
+                            ),
+                            const SizedBox(width: 6),
+                            Flexible(
+                              child: Text(
+                                couponName.isNotEmpty ? couponName : '會員優惠券',
+                                style: const TextStyle(
+                                  color: Colors.amberAccent,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Text(
+                        '- NT\$ ${couponDiscountAmount.toInt()}',
+                        style: const TextStyle(
+                          color: Colors.amberAccent,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
 
                 const Divider(color: Colors.white24, height: 24),
               ],
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Text('總金額', style: TextStyle(color: Colors.white70)),
+                  Text(
+                    hasAnyDiscount ? '折後總價' : '總金額',
+                    style: const TextStyle(color: Colors.white70),
+                  ),
                   Text(
                     'NT\$ $finalTotal',
                     style: const TextStyle(
@@ -337,6 +432,73 @@ class BookingDetailPriceSection extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+
+  Future<void> _showDiscountDescription(
+    BuildContext context, {
+    required String campaignName,
+    required String description,
+  }) async {
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (BuildContext bottomSheetContext) {
+        return SafeArea(
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              maxHeight: MediaQuery.of(bottomSheetContext).size.height * 0.65,
+            ),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      const Icon(
+                        Icons.card_giftcard_outlined,
+                        color: Color(0xFF2E8B47),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          campaignName,
+                          style: Theme.of(bottomSheetContext)
+                              .textTheme
+                              .titleLarge
+                              ?.copyWith(fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 18),
+                  Flexible(
+                    child: SingleChildScrollView(
+                      child: SelectableText(
+                        description,
+                        style: const TextStyle(fontSize: 15, height: 1.65),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 18),
+                  SizedBox(
+                    width: double.infinity,
+                    child: FilledButton(
+                      onPressed: () {
+                        Navigator.pop(bottomSheetContext);
+                      },
+                      child: const Text('關閉'),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 

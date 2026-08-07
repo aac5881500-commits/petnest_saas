@@ -862,15 +862,78 @@ match /discount_campaigns/{campaignId} {
             && request.resource.data.updatedAt is timestamp
           );
 
-        // 店家後台目前可執行核銷、退回與撤銷
-        // 會員端預約核銷之後再增加受限制的交易規則
-        allow update: if
-          (isRootAdmin() || isShopMember(shopId))
-          && resource.data.shopId == shopId
-          && request.resource.data.shopId == resource.data.shopId
-          && request.resource.data.userId == resource.data.userId
-          && request.resource.data.source == resource.data.source
-          && request.resource.data.createdAt == resource.data.createdAt;
+// 店家後台可執行核銷、退回與撤銷。
+//
+// 一般會員只能在建立自己的訂單後，
+// 將自己的優惠券由 available 改成 reserved。
+allow update: if
+  (
+    // 平台或店家人員更新
+    (isRootAdmin() || isShopMember(shopId))
+
+    && resource.data.shopId == shopId
+    && request.resource.data.shopId == resource.data.shopId
+    && request.resource.data.userId == resource.data.userId
+    && request.resource.data.source == resource.data.source
+    && request.resource.data.createdAt == resource.data.createdAt
+  )
+
+  ||
+
+  (
+    // 一般會員只能操作自己的優惠券
+    signedIn()
+    && resource.data.shopId == shopId
+    && resource.data.userId == request.auth.uid
+
+    // 優惠券目前必須尚未使用
+    && resource.data.status == 'available'
+    && resource.data.usedBookingId == ''
+    && resource.data.usedAt == null
+
+    // 只能改成訂單保留狀態
+    && request.resource.data.status == 'reserved'
+    && request.resource.data.usedBookingId is string
+    && request.resource.data.usedBookingId.size() > 0
+    && request.resource.data.usedAt == null
+
+    // 對應的訂單必須存在
+    && exists(
+      /databases/$(database)/documents/bookings/$(request.resource.data.usedBookingId)
+    )
+
+    // 必須是登入會員自己的訂單
+    && get(
+      /databases/$(database)/documents/bookings/$(request.resource.data.usedBookingId)
+    ).data.userId == request.auth.uid
+
+    // 訂單與優惠券必須屬於同一家店
+    && get(
+      /databases/$(database)/documents/bookings/$(request.resource.data.usedBookingId)
+    ).data.shopId == shopId
+
+    // 訂單必須確實使用這張優惠券
+    && get(
+      /databases/$(database)/documents/bookings/$(request.resource.data.usedBookingId)
+    ).data.couponId == couponId
+
+    // 會員只能修改以下四個欄位
+    && request.resource.data
+      .diff(resource.data)
+      .affectedKeys()
+      .hasOnly([
+        'status',
+        'usedBookingId',
+        'usedAt',
+        'updatedAt'
+      ])
+
+    // 重要不可變欄位必須保留
+    && request.resource.data.shopId == resource.data.shopId
+    && request.resource.data.userId == resource.data.userId
+    && request.resource.data.source == resource.data.source
+    && request.resource.data.createdAt == resource.data.createdAt
+  );
 
         // 優惠券需保留使用紀錄，不允許直接刪除
         allow delete: if false;

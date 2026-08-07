@@ -616,3 +616,21 @@ exports.submitEcpayPaymentSetting =
 exports.approveEcpayPaymentSetting =
   require("./payments/review_payment_setting")
       .approveEcpayPaymentSetting;
+/**
+ * ➕ 使用 Email 新增平台人員
+ *
+ * 實際邏輯放在：
+ * functions/platform/create_platform_user.js
+ */
+exports.createPlatformUserByEmail =
+  require("./platform/create_platform_user")
+      .createPlatformUserByEmail;
+/**
+ * ⚙️ 更新店家收款方式營運設定
+ *
+ * 實際邏輯放在：
+ * functions/payments/update_operation_settings.js
+ */
+exports.updatePaymentOperationSettings =
+  require("./payments/update_operation_settings")
+      .updatePaymentOperationSettings;

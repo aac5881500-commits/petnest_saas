@@ -1,11 +1,14 @@
 // lib/core/widgets/point_module_visibility.dart
-// 🪙 點數模組總開關共用元件
-// 功能：監聽店家的點數設定，只有 enabled = true 時才顯示點數相關內容。
-// 關閉時只隱藏功能，不會刪除任何 Firestore 點數資料。
+// 🪙 點數模組狀態共用元件
+// 功能：監聽店家的點數設定，依照目前啟用、曾經啟用但已關閉、
+// 從未啟用三種狀態，顯示不同內容。
+// 關閉點數制度不會刪除任何 Firestore 點數資料。
 
 import 'package:flutter/material.dart';
 
+import '../models/point_module_status.dart';
 import '../models/point_setting_model.dart';
+import '../services/point_module_access_service.dart';
 import '../services/point_setting_service.dart';
 
 class PointModuleVisibility extends StatelessWidget {
@@ -13,7 +16,8 @@ class PointModuleVisibility extends StatelessWidget {
     super.key,
     required this.shopId,
     required this.enabledChild,
-    this.disabledChild = const SizedBox.shrink(),
+    this.historyChild = const SizedBox.shrink(),
+    this.neverUsedChild = const SizedBox.shrink(),
     this.loadingChild = const SizedBox.shrink(),
     this.errorChild = const SizedBox.shrink(),
   });
@@ -21,22 +25,27 @@ class PointModuleVisibility extends StatelessWidget {
   /// 店家 ID
   final String shopId;
 
-  /// 點數制度開啟時顯示的內容
+  /// 點數制度目前啟用時顯示的內容
   final Widget enabledChild;
 
-  /// 點數制度關閉時顯示的內容
+  /// 點數制度曾經啟用，但目前已關閉時顯示的內容
   ///
-  /// 預設為完全隱藏。
-  final Widget disabledChild;
+  /// 適合顯示唯讀點數、點數紀錄及既有兌換紀錄。
+  final Widget historyChild;
+
+  /// 店家從未啟用點數制度時顯示的內容
+  ///
+  /// 預設完全隱藏。
+  final Widget neverUsedChild;
 
   /// 讀取設定期間顯示的內容
   ///
-  /// 預設為完全隱藏，避免選單讀取時跳動。
+  /// 預設完全隱藏，避免畫面閃動。
   final Widget loadingChild;
 
   /// 讀取設定失敗時顯示的內容
   ///
-  /// 預設為完全隱藏，避免錯誤時誤顯示點數功能。
+  /// 預設完全隱藏，避免錯誤時誤顯示點數功能。
   final Widget errorChild;
 
   @override
@@ -44,7 +53,7 @@ class PointModuleVisibility extends StatelessWidget {
     final String normalizedShopId = shopId.trim();
 
     if (normalizedShopId.isEmpty) {
-      return disabledChild;
+      return neverUsedChild;
     }
 
     return StreamBuilder<PointSettingModel>(
@@ -60,12 +69,21 @@ class PointModuleVisibility extends StatelessWidget {
             }
 
             final PointSettingModel setting = snapshot.data!;
+            final PointModuleAccess access = PointModuleAccessService.resolve(
+              setting,
+            );
+            final PointModuleStatus status = access.status;
 
-            if (!setting.enabled) {
-              return disabledChild;
+            switch (status) {
+              case PointModuleStatus.enabled:
+                return enabledChild;
+
+              case PointModuleStatus.disabledWithHistory:
+                return historyChild;
+
+              case PointModuleStatus.neverUsed:
+                return neverUsedChild;
             }
-
-            return enabledChild;
           },
     );
   }

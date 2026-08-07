@@ -101,6 +101,7 @@ class BookingSubmitHelper {
     required String discountBase,
     required String discountCampaignId,
     required String discountCampaignName,
+    required String discountCampaignDescription,
     required String discountCampaignType,
     required String discountValueType,
     required num discountValue,
@@ -245,6 +246,7 @@ class BookingSubmitHelper {
       discountBase: discountBase,
       discountCampaignId: discountCampaignId,
       discountCampaignName: discountCampaignName,
+      discountCampaignDescription: discountCampaignDescription,
       discountCampaignType: discountCampaignType,
       discountValueType: discountValueType,
       discountValue: discountValue,
@@ -276,17 +278,32 @@ class BookingSubmitHelper {
           bookingId: bookingId,
         );
       } catch (error) {
-        // 優惠券保留失敗時刪除剛建立的訂單，
-        // 避免訂單享有折扣但優惠券仍可再次使用。
-        await FirebaseFirestore.instance
-            .collection('bookings')
-            .doc(bookingId)
-            .delete();
+        // 優惠券保留失敗時，不直接刪除訂單。
+        //
+        // 一般會員沒有刪除 Booking 的權限，
+        // 若呼叫 delete()，會蓋掉原本真正的錯誤，
+        // 最後前端只會看到 permission-denied。
+        //
+        // 改成將剛建立的訂單標記為取消，
+        // 避免訂單繼續占用房間與住宿日期。
+        try {
+          await FirebaseFirestore.instance
+              .collection('bookings')
+              .doc(bookingId)
+              .update({
+                'status': 'cancelled',
+                'cancelReason': '優惠券保留失敗，系統自動取消訂單',
+                'cancelBy': 'system',
+                'cancelledAt': FieldValue.serverTimestamp(),
+                'updatedAt': FieldValue.serverTimestamp(),
+              });
+        } catch (_) {
+          // 回復訂單失敗時，不覆蓋原本的優惠券錯誤。
+        }
 
         rethrow;
       }
     }
-
     final bookingCountSnap = await FirebaseFirestore.instance
         .collection('bookings')
         .where('shopId', isEqualTo: shopId)
@@ -299,6 +316,12 @@ class BookingSubmitHelper {
         .collection('members')
         .doc(user.uid)
         .set({
+          // 第一次建立會員快取時，Firestore Rules 必須驗證這些欄位。
+          'userId': user.uid,
+          'blacklisted': false,
+          'isBlocked': false,
+
+          // 預約與會員統計資料。
           'bookingCount': bookingCountSnap.docs.length,
           'petCount': selectedPetIds.length,
           'policyAccepted': policyVersion > 0,

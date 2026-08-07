@@ -37,6 +37,16 @@ class _ShopPayoutSettingPageState extends State<ShopPayoutSettingPage> {
   bool _atmEnabled = false;
   bool _cvsCodeEnabled = false;
 
+  // 🏪 收款方式營運設定
+  bool _cashPaymentEnabled = true;
+  bool _bankTransferEnabled = true;
+
+  bool _ecpayEnabled = false;
+
+  bool _ecpayCreditCardEnabled = true;
+  bool _ecpayAtmEnabled = false;
+  bool _ecpayCvsCodeEnabled = false;
+
   // 📋 綠界審核狀態
   String _paymentReviewStatus = 'notSubmitted';
   String _paymentRejectionReason = '';
@@ -130,6 +140,25 @@ class _ShopPayoutSettingPageState extends State<ShopPayoutSettingPage> {
           enabledMethods['cvsCode'] == true ||
           paymentSetting['cvsCodeEnabled'] == true;
 
+      // 🏪 收款方式營運設定
+      final dynamic rawOperationSettings = paymentSetting['operationSettings'];
+
+      final Map<String, dynamic> operationSettings = rawOperationSettings is Map
+          ? Map<String, dynamic>.from(rawOperationSettings)
+          : <String, dynamic>{};
+
+      _cashPaymentEnabled = true;
+
+      _bankTransferEnabled = operationSettings['bankTransferEnabled'] ?? true;
+
+      _ecpayEnabled = operationSettings['ecpayEnabled'] ?? false;
+
+      _ecpayCreditCardEnabled = operationSettings['creditCardEnabled'] ?? true;
+
+      _ecpayAtmEnabled = operationSettings['atmEnabled'] ?? false;
+
+      _ecpayCvsCodeEnabled = operationSettings['cvsCodeEnabled'] ?? false;
+
       // 🔐 敏感資料不從前端讀取
       _hashKeyCtrl.clear();
       _hashIvCtrl.clear();
@@ -192,6 +221,38 @@ class _ShopPayoutSettingPageState extends State<ShopPayoutSettingPage> {
           _saving = false;
         });
       }
+    }
+  }
+
+  /// 💾 儲存收款方式營運設定
+  Future<void> _saveOperationSettings() async {
+    try {
+      await PaymentFunctionService.instance.updatePaymentOperationSettings(
+        shopId: widget.shopId,
+        bankTransferEnabled: _bankTransferEnabled,
+        ecpayEnabled: _ecpayEnabled,
+        creditCardEnabled: _ecpayCreditCardEnabled,
+        atmEnabled: _ecpayAtmEnabled,
+        cvsCodeEnabled: _ecpayCvsCodeEnabled,
+      );
+
+      if (!mounted) {
+        return;
+      }
+
+      _showMessage('收款方式營運設定已儲存');
+    } on PaymentFunctionException catch (error) {
+      if (!mounted) {
+        return;
+      }
+
+      _showMessage(error.message);
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+
+      _showMessage('儲存收款方式失敗，請稍後再試。');
     }
   }
 
@@ -338,6 +399,11 @@ class _ShopPayoutSettingPageState extends State<ShopPayoutSettingPage> {
         _paymentReviewStatus != 'approved';
   }
 
+  /// ✅ 是否可啟用綠界營運
+  bool get _canEnableEcpay {
+    return _paymentReviewStatus == 'approved';
+  }
+
   /// 📋 取得審核狀態顯示文字
   String get _reviewStatusText {
     switch (_paymentReviewStatus) {
@@ -431,70 +497,210 @@ class _ShopPayoutSettingPageState extends State<ShopPayoutSettingPage> {
     );
   }
 
+  /// 💳 收款方式設定
+  Widget _buildPaymentMethodCard() {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            const Text(
+              '收款方式',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 16),
+
+            SwitchListTile(
+              value: true,
+              title: const Text('到店付款'),
+              subtitle: const Text('會員到店付款（固定啟用）'),
+              onChanged: null,
+            ),
+
+            SwitchListTile(
+              value: _bankTransferEnabled,
+              title: const Text('銀行轉帳'),
+              subtitle: const Text('會員依銀行帳戶付款'),
+              onChanged: (bool value) async {
+                setState(() {
+                  _bankTransferEnabled = value;
+                });
+
+                await _saveOperationSettings();
+              },
+            ),
+            if (_bankTransferEnabled) ...[
+              const Divider(),
+
+              const ListTile(
+                leading: Icon(Icons.account_balance_outlined),
+                title: Text(
+                  '銀行收款帳戶',
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
+                subtitle: Text('會員選擇銀行轉帳時使用此帳戶付款'),
+              ),
+
+              TextField(
+                controller: _bankNameCtrl,
+                decoration: const InputDecoration(
+                  labelText: '銀行名稱',
+                  prefixIcon: Icon(Icons.account_balance_outlined),
+                  border: OutlineInputBorder(),
+                ),
+              ),
+
+              const SizedBox(height: 12),
+
+              TextField(
+                controller: _accountNameCtrl,
+                decoration: const InputDecoration(
+                  labelText: '戶名',
+                  prefixIcon: Icon(Icons.person_outline),
+                  border: OutlineInputBorder(),
+                ),
+              ),
+
+              const SizedBox(height: 12),
+
+              TextField(
+                controller: _accountNumberCtrl,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(
+                  labelText: '帳號',
+                  prefixIcon: Icon(Icons.numbers),
+                  border: OutlineInputBorder(),
+                ),
+              ),
+
+              const SizedBox(height: 20),
+
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton.icon(
+                  onPressed: _saving ? null : _saveBankAccount,
+                  icon: _saving
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.save_outlined),
+                  label: Text(_saving ? '儲存中...' : '儲存銀行帳戶'),
+                ),
+              ),
+
+              const SizedBox(height: 16),
+            ],
+
+            const Divider(height: 32),
+
+            const ListTile(
+              leading: Icon(Icons.public),
+              title: Text(
+                '線上付款',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+            ),
+
+            SwitchListTile(
+              contentPadding: const EdgeInsets.only(left: 16, right: 8),
+              value: _ecpayEnabled,
+              title: const Text('啟用綠界付款'),
+              subtitle: Text(_canEnableEcpay ? '會員可使用綠界付款' : '綠界尚未通過平台審核'),
+              onChanged: _canEnableEcpay
+                  ? (value) {
+                      setState(() {
+                        _ecpayEnabled = value;
+                      });
+                    }
+                  : null,
+            ),
+
+            if (_ecpayEnabled) ...[
+              Padding(
+                padding: const EdgeInsets.only(left: 28),
+                child: CheckboxListTile(
+                  value: _ecpayCreditCardEnabled,
+                  title: const Text('信用卡'),
+                  secondary: const Icon(Icons.credit_card_outlined),
+                  onChanged: _canEnableEcpay
+                      ? (value) {
+                          setState(() {
+                            _ecpayCreditCardEnabled = value ?? false;
+                          });
+                        }
+                      : null,
+                ),
+              ),
+
+              Padding(
+                padding: const EdgeInsets.only(left: 28),
+                child: CheckboxListTile(
+                  value: _ecpayAtmEnabled,
+                  title: const Text('ATM 虛擬帳號'),
+                  secondary: const Icon(Icons.account_balance_outlined),
+                  onChanged: _canEnableEcpay
+                      ? (value) {
+                          setState(() {
+                            _ecpayAtmEnabled = value ?? false;
+                          });
+                        }
+                      : null,
+                ),
+              ),
+
+              Padding(
+                padding: const EdgeInsets.only(left: 28),
+                child: CheckboxListTile(
+                  value: _ecpayCvsCodeEnabled,
+                  title: const Text('超商代碼'),
+                  secondary: const Icon(Icons.store_outlined),
+                  onChanged: _canEnableEcpay
+                      ? (value) {
+                          setState(() {
+                            _ecpayCvsCodeEnabled = value ?? false;
+                          });
+                        }
+                      : null,
+                ),
+              ),
+            ],
+            if (!_canEnableEcpay) ...[
+              const SizedBox(height: 8),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.orange.shade50,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.orange.shade200),
+                ),
+                child: const Row(
+                  children: <Widget>[
+                    Icon(Icons.info_outline, color: Colors.orange),
+                    SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        '綠界尚未通過平台審核，目前無法啟用線上付款。',
+                        style: TextStyle(color: Colors.orange),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
   /// 🏦 建立銀行轉帳設定分頁
   Widget _buildBankTransferTab() {
     return ListView(
       padding: const EdgeInsets.all(16),
-      children: <Widget>[
-        Container(
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: Colors.blue.shade50,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: Colors.blue.shade100),
-          ),
-          child: const Text(
-            '設定會員選擇銀行轉帳時顯示的店家收款帳戶。',
-            style: TextStyle(color: Colors.blue, fontWeight: FontWeight.bold),
-          ),
-        ),
-        const SizedBox(height: 20),
-        TextField(
-          controller: _bankNameCtrl,
-          decoration: const InputDecoration(
-            labelText: '銀行名稱',
-            hintText: '例如：台新銀行',
-            prefixIcon: Icon(Icons.account_balance_outlined),
-            border: OutlineInputBorder(),
-          ),
-        ),
-        const SizedBox(height: 12),
-        TextField(
-          controller: _accountNameCtrl,
-          decoration: const InputDecoration(
-            labelText: '戶名',
-            hintText: '請輸入銀行帳戶戶名',
-            prefixIcon: Icon(Icons.person_outline),
-            border: OutlineInputBorder(),
-          ),
-        ),
-        const SizedBox(height: 12),
-        TextField(
-          controller: _accountNumberCtrl,
-          keyboardType: TextInputType.number,
-          decoration: const InputDecoration(
-            labelText: '帳號',
-            hintText: '請輸入銀行帳號',
-            prefixIcon: Icon(Icons.numbers),
-            border: OutlineInputBorder(),
-          ),
-        ),
-        const SizedBox(height: 28),
-        SizedBox(
-          width: double.infinity,
-          child: ElevatedButton.icon(
-            onPressed: _saving ? null : _saveBankAccount,
-            icon: _saving
-                ? const SizedBox(
-                    width: 18,
-                    height: 18,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : const Icon(Icons.save_outlined),
-            label: Text(_saving ? '儲存中...' : '儲存銀行帳戶'),
-          ),
-        ),
-      ],
+      children: <Widget>[_buildPaymentMethodCard()],
     );
   }
 
@@ -533,7 +739,9 @@ class _ShopPayoutSettingPageState extends State<ShopPayoutSettingPage> {
         ),
         const SizedBox(height: 16),
         _buildReviewStatusCard(),
+
         const SizedBox(height: 16),
+
         Card(
           child: Padding(
             padding: const EdgeInsets.all(16),
@@ -672,63 +880,6 @@ class _ShopPayoutSettingPageState extends State<ShopPayoutSettingPage> {
                       ),
                     ],
                   ),
-                ),
-              ],
-            ),
-          ),
-        ),
-        const SizedBox(height: 16),
-        Card(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 8),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[
-                const Padding(
-                  padding: EdgeInsets.fromLTRB(16, 8, 16, 4),
-                  child: Text(
-                    '申請啟用的付款方式',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                  ),
-                ),
-                CheckboxListTile(
-                  value: _creditCardEnabled,
-                  onChanged: editable
-                      ? (bool? value) {
-                          setState(() {
-                            _creditCardEnabled = value ?? false;
-                          });
-                        }
-                      : null,
-                  secondary: const Icon(Icons.credit_card_outlined),
-                  title: const Text('信用卡'),
-                  subtitle: const Text('讓會員使用信用卡完成付款。'),
-                ),
-                CheckboxListTile(
-                  value: _atmEnabled,
-                  onChanged: editable
-                      ? (bool? value) {
-                          setState(() {
-                            _atmEnabled = value ?? false;
-                          });
-                        }
-                      : null,
-                  secondary: const Icon(Icons.account_balance_outlined),
-                  title: const Text('ATM 虛擬帳號'),
-                  subtitle: const Text('產生虛擬帳號，讓會員透過 ATM 或網路銀行轉帳。'),
-                ),
-                CheckboxListTile(
-                  value: _cvsCodeEnabled,
-                  onChanged: editable
-                      ? (bool? value) {
-                          setState(() {
-                            _cvsCodeEnabled = value ?? false;
-                          });
-                        }
-                      : null,
-                  secondary: const Icon(Icons.store_outlined),
-                  title: const Text('超商代碼'),
-                  subtitle: const Text('產生超商繳費代碼供會員付款。'),
                 ),
               ],
             ),

@@ -5,7 +5,7 @@
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-
+import 'package:cloud_functions/cloud_functions.dart';
 import '../constants/platform_permission_keys.dart';
 import '../constants/platform_root_admin.dart';
 import '../models/platform_admin_model.dart';
@@ -16,6 +16,9 @@ class PlatformAdminService {
   static final PlatformAdminService instance = PlatformAdminService._();
 
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final FirebaseFunctions _functions = FirebaseFunctions.instanceFor(
+    region: 'asia-east1',
+  );
   final FirebaseAuth _auth = FirebaseAuth.instance;
 
   CollectionReference<Map<String, dynamic>> get _adminsReference {
@@ -154,6 +157,62 @@ class PlatformAdminService {
             return PlatformAdminModel.fromMap(data);
           }).toList();
         });
+  }
+
+  /// 使用 Email 新增平台人員
+  ///
+  /// 後端會透過 Firebase Authentication 查詢 Email 對應 UID，
+  /// 再建立 platform_users/{uid}。
+  Future<void> createAdminByEmail({
+    required String email,
+    required String name,
+    required String role,
+    required bool enabled,
+    required List<String> permissions,
+  }) async {
+    final normalizedEmail = email.trim().toLowerCase();
+    final normalizedName = name.trim();
+
+    if (normalizedEmail.isEmpty) {
+      throw ArgumentError('Email 不能為空');
+    }
+
+    if (normalizedName.isEmpty) {
+      throw ArgumentError('姓名或稱呼不能為空');
+    }
+
+    if (!PlatformAdminRoles.values.contains(role)) {
+      throw ArgumentError('無效的平台人員角色：$role');
+    }
+
+    if (role == PlatformAdminRoles.superAdmin) {
+      throw StateError('不能透過新增頁建立平台最高管理員');
+    }
+
+    final sanitizedPermissions = permissions
+        .where(PlatformPermissionKeys.assignableValues.contains)
+        .toSet()
+        .toList();
+
+    try {
+      final callable = _functions.httpsCallable('createPlatformUserByEmail');
+
+      await callable.call(<String, dynamic>{
+        'email': normalizedEmail,
+        'name': normalizedName,
+        'role': role,
+        'enabled': enabled,
+        'permissions': sanitizedPermissions,
+      });
+    } on FirebaseFunctionsException catch (error) {
+      final message = error.message?.trim();
+
+      if (message != null && message.isNotEmpty) {
+        throw StateError(message);
+      }
+
+      throw StateError('新增平台人員失敗，請稍後再試');
+    }
   }
 
   /// 新增平台人員

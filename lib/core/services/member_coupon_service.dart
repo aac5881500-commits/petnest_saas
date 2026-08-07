@@ -444,9 +444,18 @@ class MemberCouponService {
       if (coupon.status != MemberCouponStatus.available) {
         throw StateError('此優惠券目前不可保留');
       }
-      if (coupon.usedBookingId.trim() != normalizedBookingId) {
-        throw StateError('此優惠券保留的訂單不一致');
+
+      /// 尚未使用的優惠券不應綁定其他訂單。
+      ///
+      /// 如果 usedBookingId 已經有值，而且不是目前這張訂單，
+      /// 代表優惠券可能已被其他訂單占用。
+      final String existingBookingId = coupon.usedBookingId.trim();
+
+      if (existingBookingId.isNotEmpty &&
+          existingBookingId != normalizedBookingId) {
+        throw StateError('此優惠券已被其他訂單使用');
       }
+
       transaction.update(couponReference, <String, dynamic>{
         'status': MemberCouponStatus.reserved.name,
         'usedBookingId': normalizedBookingId,

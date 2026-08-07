@@ -296,13 +296,6 @@ async function verifyPaymentSettings({
     );
   }
 
-  if (!isShopVerified(shop)) {
-    throw new HttpsError(
-        "failed-precondition",
-        "店家尚未完成認證，無法使用線上付款。",
-    );
-  }
-
   const reviewStatus = normalizeString(
       paymentSetting.reviewStatus ||
       paymentSetting.status,

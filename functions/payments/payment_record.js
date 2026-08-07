@@ -11,6 +11,7 @@ const {
   normalizeInteger,
   normalizeString,
 } = require("./payment_verify");
+
 const {
   createMerchantTradeNo,
 } = require("./ecpay_utils");
@@ -49,12 +50,40 @@ function createPaymentId({
 }
 
 /**
+ * 解析付款用途
+ *
+ * 舊付款紀錄可能沒有 paymentPurpose，
+ * 此時依 amountType 推算，確保舊資料仍可重試。
+ *
+ * @param {Object} payment 付款資料
+ * @return {string}
+ */
+function resolvePaymentPurpose(payment) {
+  const paymentPurpose = normalizeString(
+      payment.paymentPurpose,
+  ).toLowerCase();
+
+  if (paymentPurpose) {
+    return paymentPurpose;
+  }
+
+  const amountType = normalizeString(
+      payment.amountType,
+  ).toLowerCase();
+
+  return amountType === "deposit" ?
+    "deposit" :
+    "full";
+}
+
+/**
  * 檢查既有付款紀錄是否與目前請求完全相同
  *
  * 避免同一個 requestId 被拿來支付：
  * - 不同訂單
  * - 不同店家
  * - 不同付款方式
+ * - 不同付款用途
  * - 不同金額
  *
  * @param {Object} params 比對參數
@@ -79,10 +108,12 @@ function verifyExistingPaymentRequest({
       normalizeString(expectedPayment.paymentMethod) &&
     normalizeString(existingPayment.amountType) ===
       normalizeString(expectedPayment.amountType) &&
-normalizeInteger(existingPayment.amount) ===
-  normalizeInteger(expectedPayment.amount) &&
-normalizeString(existingPayment.merchantTradeNo) ===
-  normalizeString(expectedPayment.merchantTradeNo);
+    resolvePaymentPurpose(existingPayment) ===
+      resolvePaymentPurpose(expectedPayment) &&
+    normalizeInteger(existingPayment.amount) ===
+      normalizeInteger(expectedPayment.amount) &&
+    normalizeString(existingPayment.merchantTradeNo) ===
+      normalizeString(expectedPayment.merchantTradeNo);
 
   if (!sameRequest) {
     throw new HttpsError(
@@ -106,7 +137,8 @@ normalizeString(existingPayment.merchantTradeNo) ===
  * @param {string} params.shopId 店家 ID
  * @param {string} params.userId 會員 UID
  * @param {string} params.paymentMethod 付款方式
- * @param {string} params.amountType 訂金或全額
+ * @param {string} params.amountType 金額計算方式
+ * @param {string} params.paymentPurpose 本次付款用途
  * @param {number} params.amount 本次付款金額
  * @param {number} params.totalAmount 訂單總金額
  * @param {number} params.paidAmount 建立前已付款金額
@@ -119,6 +151,7 @@ async function createOrGetPendingPayment({
   userId,
   paymentMethod,
   amountType,
+  paymentPurpose,
   amount,
   totalAmount,
   paidAmount,
@@ -127,11 +160,17 @@ async function createOrGetPendingPayment({
   const normalizedBookingId = normalizeString(bookingId);
   const normalizedShopId = normalizeString(shopId);
   const normalizedUserId = normalizeString(userId);
+
   const normalizedPaymentMethod = normalizeString(
       paymentMethod,
   ).toLowerCase();
+
   const normalizedAmountType = normalizeString(
       amountType,
+  ).toLowerCase();
+
+  const normalizedPaymentPurpose = normalizeString(
+      paymentPurpose,
   ).toLowerCase();
 
   const normalizedAmount = normalizeInteger(amount);
@@ -150,10 +189,48 @@ async function createOrGetPendingPayment({
     );
   }
 
+  if (!normalizedPaymentMethod) {
+    throw new HttpsError(
+        "invalid-argument",
+        "缺少付款方式。",
+    );
+  }
+
+  const allowedAmountTypes = [
+    "deposit",
+    "full",
+  ];
+
+  if (!allowedAmountTypes.includes(normalizedAmountType)) {
+    throw new HttpsError(
+        "invalid-argument",
+        "付款金額類型不正確。",
+    );
+  }
+
   if (normalizedAmount <= 0) {
     throw new HttpsError(
         "invalid-argument",
         "付款金額必須大於零。",
+    );
+  }
+
+  const allowedPaymentPurposes = [
+    "deposit",
+    "balance",
+    "full",
+    "additional",
+    "other",
+  ];
+
+  if (
+    !allowedPaymentPurposes.includes(
+        normalizedPaymentPurpose,
+    )
+  ) {
+    throw new HttpsError(
+        "invalid-argument",
+        "付款用途不正確。",
     );
   }
 
@@ -182,6 +259,7 @@ async function createOrGetPendingPayment({
     gateway: "ecpay",
     paymentMethod: normalizedPaymentMethod,
     amountType: normalizedAmountType,
+    paymentPurpose: normalizedPaymentPurpose,
 
     amount: normalizedAmount,
     totalAmount: normalizedTotalAmount,
@@ -201,8 +279,10 @@ async function createOrGetPendingPayment({
     failureCode: "",
     failureMessage: "",
 
-    createdAt: admin.firestore.FieldValue.serverTimestamp(),
-    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    createdAt:
+      admin.firestore.FieldValue.serverTimestamp(),
+    updatedAt:
+      admin.firestore.FieldValue.serverTimestamp(),
   };
 
   const transactionResult = await firestore.runTransaction(

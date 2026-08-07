@@ -922,10 +922,10 @@ class _CatHotelTab extends StatelessWidget {
 
         if (_can(ShopPermissionKeys.managePaymentSettings))
           _MenuTile(
-            title: '收款與優惠設定',
+            title: '營運設定',
             subtitle: !isProfileComplete
                 ? '請先完成基本資料'
-                : (canUseDepositSettings ? '設定收款方式、訂金規則與長住優惠' : '升級方案解鎖'),
+                : (canUseDepositSettings ? '設定訂金、優惠與點數制度' : '升級方案解鎖'),
             icon: Icons.payments,
             enabled: isProfileComplete && canUseDepositSettings,
             onTap: () {

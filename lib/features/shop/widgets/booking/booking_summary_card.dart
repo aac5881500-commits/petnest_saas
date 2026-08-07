@@ -141,9 +141,13 @@ class BookingSummaryCard extends StatelessWidget {
             ],
             const Divider(),
 
-            if (discountAmount > 0 && originalTotal != null) ...[
+            if ((discountAmount > 0 || couponDiscountAmount > 0) &&
+                originalTotal != null) ...[
               _infoRow('原價', 'NT\$ $originalTotal'),
               const SizedBox(height: 6),
+            ],
+
+            if (discountAmount > 0) ...[
               _infoRow(
                 '優惠活動',
                 discountCampaignName.trim().isNotEmpty
@@ -162,16 +166,16 @@ class BookingSummaryCard extends StatelessWidget {
                 const SizedBox(height: 6),
               ],
 
-              _infoRow('折扣金額', '-NT\$ $discountAmount'),
+              _infoRow('活動折扣', '-NT\$ $discountAmount'),
               const SizedBox(height: 6),
+            ],
 
-              if (couponDiscountAmount > 0) ...[
-                _infoRow(
-                  couponName.isEmpty ? '會員優惠券' : couponName,
-                  '-NT\$ $couponDiscountAmount',
-                ),
-                const SizedBox(height: 6),
-              ],
+            if (couponDiscountAmount > 0) ...[
+              _infoRow(
+                couponName.trim().isEmpty ? '會員優惠券' : couponName.trim(),
+                '-NT\$ $couponDiscountAmount',
+              ),
+              const SizedBox(height: 6),
             ],
 
             _infoRow(

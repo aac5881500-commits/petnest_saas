@@ -9,6 +9,7 @@ class CreatePaymentResultModel {
     required this.paymentId,
     required this.paymentMethod,
     required this.amountType,
+    required this.paymentPurpose,
     required this.amount,
     required this.status,
     this.message = '',
@@ -44,6 +45,11 @@ class CreatePaymentResultModel {
   ///
   /// deposit、full
   final String amountType;
+
+  /// 本次付款用途
+  ///
+  /// deposit、balance、full、additional、other
+  final String paymentPurpose;
 
   /// 本次付款金額
   final int amount;
@@ -108,6 +114,7 @@ class CreatePaymentResultModel {
       paymentId: (data['paymentId'] ?? '').toString(),
       paymentMethod: (data['paymentMethod'] ?? '').toString(),
       amountType: (data['amountType'] ?? '').toString(),
+      paymentPurpose: (data['paymentPurpose'] ?? '').toString(),
       amount: _intFromValue(data['amount']),
       status: (data['status'] ?? '').toString(),
       message: (data['message'] ?? '').toString(),
@@ -131,6 +138,7 @@ class CreatePaymentResultModel {
       'paymentId': paymentId.trim(),
       'paymentMethod': paymentMethod,
       'amountType': amountType,
+      'paymentPurpose': paymentPurpose,
       'amount': amount,
       'status': status,
       'message': message.trim(),
@@ -150,6 +158,7 @@ class CreatePaymentResultModel {
     String? paymentId,
     String? paymentMethod,
     String? amountType,
+    String? paymentPurpose,
     int? amount,
     String? status,
     String? message,
@@ -169,6 +178,7 @@ class CreatePaymentResultModel {
       paymentId: paymentId ?? this.paymentId,
       paymentMethod: paymentMethod ?? this.paymentMethod,
       amountType: amountType ?? this.amountType,
+      paymentPurpose: paymentPurpose ?? this.paymentPurpose,
       amount: amount ?? this.amount,
       status: status ?? this.status,
       message: message ?? this.message,

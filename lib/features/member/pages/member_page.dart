@@ -8,7 +8,6 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:petnest_saas/core/services/pet_service.dart';
 import 'package:petnest_saas/features/pet/pages/pet_detail_page.dart';
 import 'package:petnest_saas/features/pet/pages/add_pet_page.dart';
-import 'package:petnest_saas/features/booking/pages/my_bookings_page.dart';
 import 'package:petnest_saas/core/constants/taiwan_city_data.dart';
 import 'package:petnest_saas/features/booking/pages/my_reviews_page.dart';
 import 'package:petnest_saas/features/member/pages/member_point_detail_page.dart';
@@ -17,6 +16,8 @@ import 'package:petnest_saas/core/services/notification_service.dart';
 import 'package:petnest_saas/features/notifications/pages/notification_center_page.dart';
 import 'package:petnest_saas/features/notifications/pages/notification_setting_page.dart';
 import 'package:petnest_saas/features/member/pages/member_point_redemption_page.dart';
+import 'package:petnest_saas/core/widgets/point_module_visibility.dart';
+import 'package:petnest_saas/core/widgets/member_point_history_visibility.dart';
 
 class MemberPage extends StatefulWidget {
   const MemberPage({super.key, required this.shopId, this.shopName = ''});
@@ -268,6 +269,111 @@ class _MemberPageState extends State<MemberPage> {
     ScaffoldMessenger.of(
       context,
     ).showSnackBar(const SnackBar(content: Text('已送出刪除帳號申請，平台會盡快處理')));
+  }
+
+  Widget _buildMyPointsTile(User user) {
+    return ListTile(
+      contentPadding: EdgeInsets.zero,
+      leading: CircleAvatar(
+        radius: 26,
+        backgroundColor: Colors.orange.shade50,
+        child: const Icon(Icons.stars_outlined),
+      ),
+      title: const Text('我的點數', style: TextStyle(fontWeight: FontWeight.bold)),
+      subtitle: const Text('查看目前點數與點數紀錄'),
+      trailing: const Icon(Icons.chevron_right),
+      onTap: () async {
+        String currentShopId = widget.shopId.trim();
+        String currentShopName = widget.shopName.trim();
+
+        // 舊入口沒有傳入店家時，保留最新訂單作為相容處理。
+        if (currentShopId.isEmpty) {
+          final QuerySnapshot<Map<String, dynamic>> bookingSnapshot =
+              await FirebaseFirestore.instance
+                  .collection('bookings')
+                  .where('userId', isEqualTo: user.uid)
+                  .orderBy('createdAt', descending: true)
+                  .limit(1)
+                  .get();
+
+          if (!mounted) return;
+
+          if (bookingSnapshot.docs.isEmpty) {
+            ScaffoldMessenger.of(
+              context,
+            ).showSnackBar(const SnackBar(content: Text('目前沒有可查看的店家點數')));
+            return;
+          }
+
+          final Map<String, dynamic> bookingData = bookingSnapshot.docs.first
+              .data();
+
+          currentShopId = (bookingData['shopId'] ?? '').toString().trim();
+          currentShopName = (bookingData['shopName'] ?? '').toString().trim();
+        }
+
+        if (currentShopId.isEmpty) {
+          if (!mounted) return;
+
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(const SnackBar(content: Text('找不到目前店家資料')));
+          return;
+        }
+
+        if (!mounted) return;
+
+        Navigator.push(
+          context,
+          MaterialPageRoute<void>(
+            builder: (_) => MemberPointDetailPage(
+              shopId: currentShopId,
+              shopName: currentShopName,
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildMyPointRedemptionTile() {
+    return ListTile(
+      contentPadding: EdgeInsets.zero,
+      leading: CircleAvatar(
+        radius: 26,
+        backgroundColor: Colors.blueGrey.shade50,
+        child: Icon(
+          Icons.inventory_2_outlined,
+          color: Colors.blueGrey.shade700,
+        ),
+      ),
+      title: const Text(
+        '我的實體商品',
+        style: TextStyle(fontWeight: FontWeight.bold),
+      ),
+      subtitle: const Text('查看待領取商品、領取碼與兌換狀態'),
+      trailing: const Icon(Icons.chevron_right),
+      onTap: () {
+        final String currentShopId = widget.shopId.trim();
+
+        if (currentShopId.isEmpty) {
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(const SnackBar(content: Text('找不到目前店家資料')));
+          return;
+        }
+
+        Navigator.push(
+          context,
+          MaterialPageRoute<void>(
+            builder: (_) => MemberPointRedemptionPage(
+              shopId: currentShopId,
+              shopName: widget.shopName.trim(),
+            ),
+          ),
+        );
+      },
+    );
   }
 
   @override
@@ -1093,113 +1199,29 @@ class _MemberPageState extends State<MemberPage> {
                           _buildSectionCard(
                             title: '訂單中心',
                             children: [
-                              ListTile(
-                                contentPadding: EdgeInsets.zero,
-                                leading: CircleAvatar(
-                                  radius: 26,
-                                  backgroundColor: Colors.blue.shade50,
-                                  child: const Icon(Icons.receipt_long),
+                              MemberPointHistoryVisibility(
+                                shopId: widget.shopId,
+                                userId: user.uid,
+
+                                // 店家目前開啟點數制度：正常顯示。
+                                enabledChild: Column(
+                                  children: [
+                                    _buildMyPointsTile(user),
+                                    const Divider(height: 1),
+                                  ],
                                 ),
-                                title: const Text(
-                                  '我的訂單',
-                                  style: TextStyle(fontWeight: FontWeight.bold),
+
+                                // 店家已關閉，但會員有點數或歷史紀錄：保留唯讀入口。
+                                historyChild: Column(
+                                  children: [
+                                    _buildMyPointsTile(user),
+                                    const Divider(height: 1),
+                                  ],
                                 ),
-                                subtitle: const Text('查看所有預約紀錄與付款狀態'),
-                                trailing: const Icon(Icons.chevron_right),
-                                onTap: () {
-                                  Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder: (_) => MyBookingsPage(
-                                        returnShopId: widget.shopId,
-                                      ),
-                                    ),
-                                  );
-                                },
+
+                                // 店家已關閉，而且會員完全沒有點數相關資料：隱藏。
+                                emptyChild: const SizedBox.shrink(),
                               ),
-                              const Divider(height: 1),
-                              ListTile(
-                                contentPadding: EdgeInsets.zero,
-                                leading: CircleAvatar(
-                                  radius: 26,
-                                  backgroundColor: Colors.orange.shade50,
-                                  child: const Icon(Icons.stars_outlined),
-                                ),
-                                title: const Text(
-                                  '我的點數',
-                                  style: TextStyle(fontWeight: FontWeight.bold),
-                                ),
-                                subtitle: const Text('查看目前點數與點數紀錄'),
-                                trailing: const Icon(Icons.chevron_right),
-                                onTap: () async {
-                                  String currentShopId = widget.shopId.trim();
-                                  String currentShopName = widget.shopName
-                                      .trim();
-
-                                  // 舊入口沒有傳入店家時，暫時保留最新訂單作為相容處理。
-                                  // 等 Classic、Modern Drawer 都完成傳值後，再移除此備援。
-                                  if (currentShopId.isEmpty) {
-                                    final QuerySnapshot<Map<String, dynamic>>
-                                    bookingSnapshot = await FirebaseFirestore
-                                        .instance
-                                        .collection('bookings')
-                                        .where('userId', isEqualTo: user.uid)
-                                        .orderBy('createdAt', descending: true)
-                                        .limit(1)
-                                        .get();
-
-                                    if (!context.mounted) return;
-
-                                    if (bookingSnapshot.docs.isEmpty) {
-                                      ScaffoldMessenger.of(
-                                        context,
-                                      ).showSnackBar(
-                                        const SnackBar(
-                                          content: Text('目前沒有可查看的店家點數'),
-                                        ),
-                                      );
-                                      return;
-                                    }
-
-                                    final Map<String, dynamic> bookingData =
-                                        bookingSnapshot.docs.first.data();
-
-                                    currentShopId =
-                                        (bookingData['shopId'] ?? '')
-                                            .toString()
-                                            .trim();
-
-                                    currentShopName =
-                                        (bookingData['shopName'] ?? '')
-                                            .toString()
-                                            .trim();
-                                  }
-
-                                  if (currentShopId.isEmpty) {
-                                    if (!context.mounted) return;
-
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      const SnackBar(
-                                        content: Text('找不到目前店家資料'),
-                                      ),
-                                    );
-                                    return;
-                                  }
-
-                                  if (!context.mounted) return;
-
-                                  Navigator.push(
-                                    context,
-                                    MaterialPageRoute<void>(
-                                      builder: (_) => MemberPointDetailPage(
-                                        shopId: currentShopId,
-                                        shopName: currentShopName,
-                                      ),
-                                    ),
-                                  );
-                                },
-                              ),
-                              const Divider(height: 1),
 
                               ListTile(
                                 contentPadding: EdgeInsets.zero,
@@ -1265,47 +1287,52 @@ class _MemberPageState extends State<MemberPage> {
                                 },
                               ),
                               const Divider(height: 1),
-                              ListTile(
-                                contentPadding: EdgeInsets.zero,
-                                leading: CircleAvatar(
-                                  radius: 26,
-                                  backgroundColor: Colors.blueGrey.shade50,
-                                  child: Icon(
-                                    Icons.inventory_2_outlined,
-                                    color: Colors.blueGrey.shade700,
-                                  ),
-                                ),
-                                title: const Text(
-                                  '我的實體商品',
-                                  style: TextStyle(fontWeight: FontWeight.bold),
-                                ),
-                                subtitle: const Text('查看待領取商品、領取碼與兌換狀態'),
-                                trailing: const Icon(Icons.chevron_right),
-                                onTap: () {
-                                  final String currentShopId = widget.shopId
-                                      .trim();
+                              StreamBuilder<
+                                QuerySnapshot<Map<String, dynamic>>
+                              >(
+                                stream: FirebaseFirestore.instance
+                                    .collection('shops')
+                                    .doc(widget.shopId.trim())
+                                    .collection('point_redemptions')
+                                    .where('userId', isEqualTo: user.uid)
+                                    .limit(1)
+                                    .snapshots(),
+                                builder:
+                                    (
+                                      BuildContext context,
+                                      AsyncSnapshot<
+                                        QuerySnapshot<Map<String, dynamic>>
+                                      >
+                                      snapshot,
+                                    ) {
+                                      final bool hasRedemptionHistory =
+                                          snapshot.hasData &&
+                                          snapshot.data!.docs.isNotEmpty;
 
-                                  if (currentShopId.isEmpty) {
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      const SnackBar(
-                                        content: Text('找不到目前店家資料'),
-                                      ),
-                                    );
-                                    return;
-                                  }
+                                      return MemberPointHistoryVisibility(
+                                        shopId: widget.shopId,
+                                        userId: user.uid,
 
-                                  Navigator.push(
-                                    context,
-                                    MaterialPageRoute<void>(
-                                      builder: (_) => MemberPointRedemptionPage(
-                                        shopId: currentShopId,
-                                        shopName: widget.shopName.trim(),
-                                      ),
-                                    ),
-                                  );
-                                },
+                                        enabledChild: Column(
+                                          children: [
+                                            _buildMyPointRedemptionTile(),
+                                            const Divider(height: 1),
+                                          ],
+                                        ),
+
+                                        historyChild: hasRedemptionHistory
+                                            ? Column(
+                                                children: [
+                                                  _buildMyPointRedemptionTile(),
+                                                  const Divider(height: 1),
+                                                ],
+                                              )
+                                            : const SizedBox.shrink(),
+
+                                        emptyChild: const SizedBox.shrink(),
+                                      );
+                                    },
                               ),
-                              const Divider(height: 1),
                               ListTile(
                                 contentPadding: EdgeInsets.zero,
                                 leading: CircleAvatar(
