@@ -155,31 +155,46 @@ class _ShopAboutManagePageState extends State<ShopAboutManagePage> {
   }
 
   Future<void> _saveAboutData() async {
+    if (_saving) return;
+
     setState(() {
       _saving = true;
     });
 
-    await FirebaseFirestore.instance
-        .collection('shops')
-        .doc(widget.shopId)
-        .set({
-          'aboutTitle': _titleController.text.trim(),
-          'aboutDescription': _descriptionController.text.trim(),
-          'aboutMessage': _messageController.text.trim(),
-          'aboutImageUrl': _aboutImageUrl,
-          'updatedAt': FieldValue.serverTimestamp(),
-        }, SetOptions(merge: true));
+    try {
+      await FirebaseFirestore.instance
+          .collection('shops')
+          .doc(widget.shopId)
+          .set({
+            'aboutTitle': _titleController.text.trim(),
+            'aboutDescription': _descriptionController.text.trim(),
+            'aboutMessage': _messageController.text.trim(),
+            'aboutImageUrl': _aboutImageUrl,
+            'updatedAt': FieldValue.serverTimestamp(),
+          }, SetOptions(merge: true));
 
-    if (!mounted) return;
+      if (!mounted) return;
 
-    setState(() {
-      _saving = false;
-      _hasEdited = false;
-    });
+      setState(() {
+        _hasEdited = false;
+      });
 
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text('關於我們已儲存')));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('關於我們已儲存')));
+    } catch (e) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('儲存失敗：$e')));
+    } finally {
+      if (!mounted) return;
+
+      setState(() {
+        _saving = false;
+      });
+    }
   }
 
   @override

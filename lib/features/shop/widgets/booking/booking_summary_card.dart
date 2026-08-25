@@ -24,7 +24,8 @@ class BookingSummaryCard extends StatelessWidget {
     this.discountCampaignType = '',
     this.discountUsedNights = 0,
     this.remainingDiscountNights = 0,
-
+    this.specialDateSurchargeAmount = 0,
+    this.specialDateSurchargeDetails = const [],
     this.couponName = '',
     this.couponDiscountAmount = 0,
 
@@ -65,6 +66,12 @@ class BookingSummaryCard extends StatelessWidget {
 
   /// 本次優惠使用完成後剩餘晚數
   final int remainingDiscountNights;
+
+  /// 特殊日期住宿夜固定加價總額
+  final int specialDateSurchargeAmount;
+
+  final List<Map<String, dynamic>> specialDateSurchargeDetails;
+
   final String couponName;
   final int couponDiscountAmount;
   final Map<String, dynamic>? timeAddon;
@@ -140,6 +147,45 @@ class BookingSummaryCard extends StatelessWidget {
               ..._buildDailyTimedServiceWidgets(),
             ],
             const Divider(),
+
+            if (specialDateSurchargeAmount > 0) ...[
+              _infoRow('特殊日期加價', '+NT\$ $specialDateSurchargeAmount'),
+
+              if (specialDateSurchargeDetails.isNotEmpty) ...[
+                const SizedBox(height: 8),
+
+                ...specialDateSurchargeDetails.map((detail) {
+                  final String date = _formatSurchargeDate(
+                    (detail['date'] ?? '').toString(),
+                  );
+
+                  final int amount = ((detail['amount'] ?? 0) as num).toInt();
+
+                  final List<Map<String, dynamic>> items =
+                      List<Map<String, dynamic>>.from(
+                        detail['items'] ?? const <dynamic>[],
+                      );
+
+                  final String names = items
+                      .map((item) => (item['name'] ?? '').toString().trim())
+                      .where((name) => name.isNotEmpty)
+                      .join('、');
+
+                  return Padding(
+                    padding: const EdgeInsets.only(left: 16, bottom: 5),
+                    child: Text(
+                      '$date${names.isEmpty ? '' : '　$names'}　+NT\$ $amount',
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: Colors.grey.shade700,
+                      ),
+                    ),
+                  );
+                }),
+              ],
+
+              const SizedBox(height: 6),
+            ],
 
             if ((discountAmount > 0 || couponDiscountAmount > 0) &&
                 originalTotal != null) ...[
@@ -408,6 +454,16 @@ class BookingSummaryCard extends StatelessWidget {
       default:
         return '依活動設定';
     }
+  }
+
+  String _formatSurchargeDate(String dateKey) {
+    final List<String> parts = dateKey.split('-');
+
+    if (parts.length != 3) {
+      return dateKey;
+    }
+
+    return '${parts[0]}/${parts[1]}/${parts[2]}';
   }
 
   Widget _infoRow(String label, String value) {

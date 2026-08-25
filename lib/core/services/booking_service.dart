@@ -74,6 +74,9 @@ class BookingService {
     int totalPrice = 0,
 
     int originalTotal = 0,
+    int specialDateSurchargeAmount = 0,
+    List<Map<String, dynamic>> specialDateSurchargeDetails =
+        const <Map<String, dynamic>>[],
     int discountAmount = 0,
     int discountUsedNights = 0,
     int discountPercent = 0,
@@ -229,6 +232,14 @@ class BookingService {
         'totalPrice': totalPrice,
 
         'originalTotal': originalTotal,
+
+        /// 📅 特殊日期加價快照
+        ///
+        /// 與特殊日期加價設定文件分離保存，
+        /// 避免店家日後修改或刪除設定影響歷史訂單。
+        'specialDateSurchargeAmount': specialDateSurchargeAmount,
+        'specialDateSurchargeDetails': specialDateSurchargeDetails,
+
         'discountAmount': discountAmount,
         'discountUsedNights': discountUsedNights,
         'discountPercent': discountPercent,
@@ -326,6 +337,11 @@ class BookingService {
     String emergencyPhone2 = '',
     int totalPrice = 0,
     int originalTotal = 0,
+
+    int specialDateSurchargeAmount = 0,
+    List<Map<String, dynamic>> specialDateSurchargeDetails =
+        const <Map<String, dynamic>>[],
+
     bool applyLongStayDiscount = false,
     int discountAmount = 0,
     int discountPercent = 0,
@@ -334,6 +350,7 @@ class BookingService {
     String discountBase = '',
     String discountCampaignId = '',
     String discountCampaignName = '',
+    String discountCampaignDescription = '',
     String discountCampaignType = '',
     String discountValueType = '',
     num discountValue = 0,
@@ -437,6 +454,11 @@ class BookingService {
       /// 價格欄位
       'totalPrice': totalPrice,
       'originalTotal': originalTotal,
+
+      /// 📅 特殊日期加價快照
+      'specialDateSurchargeAmount': specialDateSurchargeAmount,
+      'specialDateSurchargeDetails': specialDateSurchargeDetails,
+
       'applyLongStayDiscount': applyLongStayDiscount,
       'discountAmount': discountAmount,
       'discountUsedNights': discountUsedNights,
@@ -445,6 +467,7 @@ class BookingService {
       'discountBase': discountBase,
       'discountCampaignId': discountCampaignId,
       'discountCampaignName': discountCampaignName,
+      'discountCampaignDescription': discountCampaignDescription.trim(),
       'discountCampaignType': discountCampaignType,
       'discountValueType': discountValueType,
       'discountValue': discountValue,

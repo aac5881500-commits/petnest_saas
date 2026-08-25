@@ -226,75 +226,91 @@ class PlatformAdminPage extends StatelessWidget {
 
               const SizedBox(height: 12),
 
-              _AdminEntryCard(
-                icon: Icons.payments,
-                title: '方案 / 付款管理',
-                subtitle: '之後管理月費方案、付款期限與功能開關',
-                onTap: () {},
-              ),
+              if (hasPermission(
+                PlatformPermissionKeys.manageShopSubscriptions,
+              )) ...[
+                _AdminEntryCard(
+                  icon: Icons.payments,
+                  title: '方案 / 付款管理',
+                  subtitle: '之後管理月費方案、付款期限與功能開關',
+                  onTap: () {},
+                ),
+              ],
 
               const SizedBox(height: 12),
 
-              _AdminEntryCard(
-                icon: Icons.key_outlined,
-                title: '激活碼管理',
-                subtitle: '建立創店激活碼、查看使用次數與啟用狀態',
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => const PlatformActivationCodeManagePage(),
-                    ),
-                  );
-                },
-              ),
+              if (hasPermission(
+                PlatformPermissionKeys.manageActivationCodes,
+              )) ...[
+                _AdminEntryCard(
+                  icon: Icons.key_outlined,
+                  title: '激活碼管理',
+                  subtitle: '建立創店激活碼、查看使用次數與啟用狀態',
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) =>
+                            const PlatformActivationCodeManagePage(),
+                      ),
+                    );
+                  },
+                ),
+              ],
 
               const _AdminSectionTitle(
                 icon: Icons.people_alt_outlined,
                 title: '會員管理',
               ),
 
-              _AdminEntryCard(
-                icon: Icons.people_alt_outlined,
-                title: '平台會員管理',
-                subtitle: '管理平台會員、封鎖狀態與平台備註',
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => const PlatformMemberManagePage(),
-                    ),
-                  );
-                },
-              ),
+              if (hasAnyPermission([
+                PlatformPermissionKeys.viewPlatformMembers,
+                PlatformPermissionKeys.managePlatformMembers,
+              ])) ...[
+                _AdminEntryCard(
+                  icon: Icons.people_alt_outlined,
+                  title: '平台會員管理',
+                  subtitle: '管理平台會員、封鎖狀態與平台備註',
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const PlatformMemberManagePage(),
+                      ),
+                    );
+                  },
+                ),
+                const SizedBox(height: 12),
+              ],
+              if (hasPermission(
+                PlatformPermissionKeys.manageAccountDeleteRequests,
+              )) ...[
+                StreamBuilder<QuerySnapshot>(
+                  stream: FirebaseFirestore.instance
+                      .collection('account_delete_requests')
+                      .where('status', isEqualTo: 'pending')
+                      .snapshots(),
+                  builder: (context, snapshot) {
+                    final count = snapshot.data?.docs.length ?? 0;
 
-              const SizedBox(height: 12),
-
-              StreamBuilder<QuerySnapshot>(
-                stream: FirebaseFirestore.instance
-                    .collection('account_delete_requests')
-                    .where('status', isEqualTo: 'pending')
-                    .snapshots(),
-                builder: (context, snapshot) {
-                  final count = snapshot.data?.docs.length ?? 0;
-
-                  return _AdminEntryCard(
-                    icon: Icons.delete_outline,
-                    title: '帳號刪除申請',
-                    subtitle: '查看會員刪除帳號申請與處理狀態',
-                    badgeCount: count,
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) =>
-                              const PlatformAccountDeleteRequestPage(),
-                        ),
-                      );
-                    },
-                  );
-                },
-              ),
+                    return _AdminEntryCard(
+                      icon: Icons.delete_outline,
+                      title: '帳號刪除申請',
+                      subtitle: '查看會員刪除帳號申請與處理狀態',
+                      badgeCount: count,
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) =>
+                                const PlatformAccountDeleteRequestPage(),
+                          ),
+                        );
+                      },
+                    );
+                  },
+                ),
+              ],
 
               const _AdminSectionTitle(
                 icon: Icons.settings_outlined,
@@ -322,44 +338,54 @@ class PlatformAdminPage extends StatelessWidget {
                 const SizedBox(height: 12),
               ],
 
-              _AdminEntryCard(
-                icon: Icons.rate_review_outlined,
-                title: '評價管理',
-                subtitle: '查看全平台評價、店家回覆與處理不當評論',
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => const PlatformReviewManagePage(),
-                    ),
-                  );
-                },
-              ),
+              if (hasPermission(
+                PlatformPermissionKeys.managePlatformReviews,
+              )) ...[
+                _AdminEntryCard(
+                  icon: Icons.rate_review_outlined,
+                  title: '評價管理',
+                  subtitle: '查看全平台評價、店家回覆與處理不當評論',
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const PlatformReviewManagePage(),
+                      ),
+                    );
+                  },
+                ),
+                const SizedBox(height: 12),
+              ],
 
               const SizedBox(height: 12),
 
-              _AdminEntryCard(
-                icon: Icons.article_outlined,
-                title: '平台條款管理',
-                subtitle: '管理平台會員條款與創店主條款版本',
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => const PlatformPolicyManagePage(),
-                    ),
-                  );
-                },
-              ),
+              if (hasPermission(
+                PlatformPermissionKeys.managePlatformPolicies,
+              )) ...[
+                _AdminEntryCard(
+                  icon: Icons.article_outlined,
+                  title: '平台條款管理',
+                  subtitle: '管理平台會員條款與創店主條款版本',
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const PlatformPolicyManagePage(),
+                      ),
+                    );
+                  },
+                ),
+                const SizedBox(height: 12),
+              ],
 
-              const SizedBox(height: 12),
-
-              _AdminEntryCard(
-                icon: Icons.history,
-                title: '平台操作紀錄',
-                subtitle: '之後查看誰修改店家、方案、停權狀態',
-                onTap: () {},
-              ),
+              if (hasPermission(PlatformPermissionKeys.viewPlatformLogs)) ...[
+                _AdminEntryCard(
+                  icon: Icons.history,
+                  title: '平台操作紀錄',
+                  subtitle: '之後查看誰修改店家、方案、停權狀態',
+                  onTap: () {},
+                ),
+              ],
             ],
           ),
         );

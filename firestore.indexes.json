@@ -263,16 +263,60 @@
   ],
   "density": "SPARSE_ALL"
 },
-{
-  "collectionGroup": "point_redemptions",
+    {
+      "collectionGroup": "point_redemptions",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "pickupCode", "order": "ASCENDING" },
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "__name__", "order": "ASCENDING" }
+      ],
+      "density": "SPARSE_ALL"
+    },
+   {
+  "collectionGroup": "daily_care_photos",
   "queryScope": "COLLECTION",
   "fields": [
-    { "fieldPath": "pickupCode", "order": "ASCENDING" },
-    { "fieldPath": "status", "order": "ASCENDING" },
+    { "fieldPath": "shopId", "order": "ASCENDING" },
+    { "fieldPath": "bookingId", "order": "ASCENDING" },
+    { "fieldPath": "roomId", "order": "ASCENDING" },
+    { "fieldPath": "recordDate", "order": "ASCENDING" },
     { "fieldPath": "__name__", "order": "ASCENDING" }
   ],
   "density": "SPARSE_ALL"
-}
+},
+{
+  "collectionGroup": "payments",
+  "queryScope": "COLLECTION",
+  "fields": [
+    { "fieldPath": "shopId", "order": "ASCENDING" },
+    { "fieldPath": "createdAt", "order": "DESCENDING" },
+    { "fieldPath": "__name__", "order": "DESCENDING" }
   ],
-  "fieldOverrides": []
+  "density": "SPARSE_ALL"
+},
+{
+  "collectionGroup": "payments",
+  "queryScope": "COLLECTION",
+  "fields": [
+    { "fieldPath": "shopId", "order": "ASCENDING" },
+    { "fieldPath": "bookingId", "order": "ASCENDING" },
+    { "fieldPath": "createdAt", "order": "DESCENDING" },
+    { "fieldPath": "__name__", "order": "DESCENDING" }
+  ],
+  "density": "SPARSE_ALL"
+},
+{
+  "collectionGroup": "payments",
+  "queryScope": "COLLECTION",
+  "fields": [
+    { "fieldPath": "shopId", "order": "ASCENDING" },
+    { "fieldPath": "userId", "order": "ASCENDING" },
+    { "fieldPath": "createdAt", "order": "DESCENDING" },
+    { "fieldPath": "__name__", "order": "DESCENDING" }
+  ],
+  "density": "SPARSE_ALL"
+}
+],
+"fieldOverrides": []
 }

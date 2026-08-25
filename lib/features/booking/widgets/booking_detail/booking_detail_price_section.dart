@@ -16,6 +16,8 @@ class BookingDetailPriceSection extends StatelessWidget {
     required this.petPriceTotal,
     required this.correctSubtotal,
     required this.addonTotal,
+    required this.specialDateSurchargeAmount,
+    required this.specialDateSurchargeDetails,
     required this.finalTotal,
   });
 
@@ -28,6 +30,8 @@ class BookingDetailPriceSection extends StatelessWidget {
   final dynamic petPriceTotal;
   final dynamic correctSubtotal;
   final int addonTotal;
+  final int specialDateSurchargeAmount;
+  final List<Map<String, dynamic>> specialDateSurchargeDetails;
   final dynamic finalTotal;
 
   @override
@@ -238,6 +242,77 @@ class BookingDetailPriceSection extends StatelessWidget {
                   ),
                 ],
               ),
+            ],
+          ),
+
+        if (specialDateSurchargeAmount > 0)
+          _sectionCard(
+            title: '特殊日期加價',
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text(
+                    '加價合計',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  Text(
+                    '+ NT\$ $specialDateSurchargeAmount',
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: Colors.deepOrange,
+                    ),
+                  ),
+                ],
+              ),
+
+              if (specialDateSurchargeDetails.isNotEmpty) ...[
+                const Divider(height: 22),
+
+                ...specialDateSurchargeDetails.map((detail) {
+                  final String rawDate = (detail['date'] ?? '').toString();
+                  final String date = _formatDailyTimedDate(rawDate);
+
+                  final int amount = ((detail['amount'] ?? 0) as num).toInt();
+
+                  final List<Map<String, dynamic>> items =
+                      List<Map<String, dynamic>>.from(
+                        detail['items'] ?? const <dynamic>[],
+                      );
+
+                  final String names = items
+                      .map((item) => (item['name'] ?? '').toString().trim())
+                      .where((name) => name.isNotEmpty)
+                      .join('、');
+
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: Text(
+                            '$date${names.isEmpty ? '' : '　$names'}',
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: Colors.grey.shade700,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Text(
+                          '+ NT\$ $amount',
+                          style: const TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.deepOrange,
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                }),
+              ],
             ],
           ),
 

@@ -10,6 +10,7 @@ import 'package:petnest_saas/features/admin/pages/admin_point_exchange_history_p
 import 'package:petnest_saas/features/admin/pages/admin_point_redemption_list_page.dart';
 import 'package:petnest_saas/features/admin/pages/admin_point_reward_list_page.dart';
 import 'package:petnest_saas/features/shop/pages/shop_discount_campaign_page.dart';
+import 'package:petnest_saas/features/shop/pages/shop_special_date_surcharge_page.dart';
 
 class ShopDiscountSettingPage extends StatelessWidget {
   const ShopDiscountSettingPage({
@@ -31,6 +32,20 @@ class ShopDiscountSettingPage extends StatelessWidget {
       children: <Widget>[
         const _PageIntroduction(),
         const SizedBox(height: 20),
+
+        _SurchargeEntryCard(
+          onTap: () {
+            Navigator.of(context).push(
+              MaterialPageRoute<void>(
+                builder: (BuildContext context) {
+                  return ShopSpecialDateSurchargePage(shopId: shopId);
+                },
+              ),
+            );
+          },
+        ),
+
+        const SizedBox(height: 14),
 
         _SettingEntryCard(
           icon: Icons.local_offer_outlined,
@@ -67,6 +82,8 @@ class ShopDiscountSettingPage extends StatelessWidget {
         ),
 
         const SizedBox(height: 14),
+
+        const SizedBox(height: 22),
 
         PointModuleVisibility(
           shopId: shopId,
@@ -319,6 +336,111 @@ class _FutureFeatureNotice extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _SurchargeEntryCard extends StatelessWidget {
+  const _SurchargeEntryCard({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.deepOrange.shade50,
+      borderRadius: BorderRadius.circular(16),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(16),
+        child: Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: Colors.deepOrange.shade200),
+          ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  color: Colors.deepOrange.shade100,
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                alignment: Alignment.center,
+                child: Icon(
+                  Icons.add_circle_outline,
+                  color: Colors.deepOrange.shade700,
+                  size: 27,
+                ),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Text(
+                      '特殊日期加價',
+                      style: TextStyle(
+                        color: Colors.deepOrange.shade900,
+                        fontSize: 17,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      '設定春節、跨年或旺日等住宿夜的額外加價，'
+                      '並可個別控制是否允許其他優惠活動與優惠券。',
+                      style: TextStyle(
+                        color: Colors.deepOrange.shade800,
+                        height: 1.45,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Wrap(
+                      spacing: 7,
+                      runSpacing: 7,
+                      children: <Widget>[
+                        _surchargeTag('＋住宿加價'),
+                        _surchargeTag('優惠活動相容性'),
+                        _surchargeTag('優惠券相容性'),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              Padding(
+                padding: const EdgeInsets.only(top: 12),
+                child: Icon(
+                  Icons.chevron_right,
+                  color: Colors.deepOrange.shade700,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _surchargeTag(String text) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+      decoration: BoxDecoration(
+        color: Colors.deepOrange.shade100,
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Text(
+        text,
+        style: TextStyle(
+          color: Colors.deepOrange.shade800,
+          fontSize: 12,
+          fontWeight: FontWeight.w600,
+        ),
       ),
     );
   }

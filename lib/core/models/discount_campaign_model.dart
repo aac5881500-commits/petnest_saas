@@ -18,6 +18,15 @@ enum DiscountCampaignType {
 /// 折扣計算方式
 enum DiscountValueType { percent, fixedAmount }
 
+/// 新會員優惠資格判斷方式
+enum NewMemberEligibilityMode {
+  /// 僅活動建立後才加入本店的會員可使用
+  createdAfterCampaign,
+
+  /// 只要會員在本店沒有過往有效訂單即可使用
+  noPreviousBooking,
+}
+
 /// 折扣適用範圍
 enum DiscountApplyTarget { room, roomAndPet, total }
 
@@ -56,6 +65,8 @@ class DiscountCampaignModel {
     this.totalUsageLimit = 0,
     this.usedCount = 0,
     this.firstBookingOnly = false,
+    this.newMemberEligibilityMode =
+        NewMemberEligibilityMode.createdAfterCampaign,
     this.allowCouponTogether = false,
     this.roomTypeIds = const <String>[],
     this.newMemberDiscountNights = 0,
@@ -120,6 +131,9 @@ class DiscountCampaignModel {
 
   /// 是否限首次預約
   final bool firstBookingOnly;
+
+  /// 新會員優惠資格判斷方式
+  final NewMemberEligibilityMode newMemberEligibilityMode;
 
   /// 是否允許與會員折價券同時使用
   final bool allowCouponTogether;
@@ -199,6 +213,7 @@ class DiscountCampaignModel {
       'totalUsageLimit': totalUsageLimit,
       'usedCount': usedCount,
       'firstBookingOnly': firstBookingOnly,
+      'newMemberEligibilityMode': newMemberEligibilityMode.name,
       'allowCouponTogether': allowCouponTogether,
       'roomTypeIds': roomTypeIds,
       'newMemberDiscountNights': newMemberDiscountNights,
@@ -244,6 +259,9 @@ class DiscountCampaignModel {
       totalUsageLimit: ((data['totalUsageLimit'] ?? 0) as num).toInt(),
       usedCount: ((data['usedCount'] ?? 0) as num).toInt(),
       firstBookingOnly: data['firstBookingOnly'] == true,
+      newMemberEligibilityMode: _newMemberEligibilityModeFromString(
+        (data['newMemberEligibilityMode'] ?? '').toString(),
+      ),
       allowCouponTogether: data['allowCouponTogether'] == true,
       roomTypeIds: _stringListFromValue(data['roomTypeIds']),
       newMemberDiscountNights: ((data['newMemberDiscountNights'] ?? 0) as num)
@@ -277,6 +295,7 @@ class DiscountCampaignModel {
     int? totalUsageLimit,
     int? usedCount,
     bool? firstBookingOnly,
+    NewMemberEligibilityMode? newMemberEligibilityMode,
     bool? allowCouponTogether,
     List<String>? roomTypeIds,
     int? newMemberDiscountNights,
@@ -308,6 +327,8 @@ class DiscountCampaignModel {
       totalUsageLimit: totalUsageLimit ?? this.totalUsageLimit,
       usedCount: usedCount ?? this.usedCount,
       firstBookingOnly: firstBookingOnly ?? this.firstBookingOnly,
+      newMemberEligibilityMode:
+          newMemberEligibilityMode ?? this.newMemberEligibilityMode,
       allowCouponTogether: allowCouponTogether ?? this.allowCouponTogether,
       roomTypeIds: roomTypeIds ?? this.roomTypeIds,
       newMemberDiscountNights:
@@ -381,5 +402,14 @@ class DiscountCampaignModel {
     }
 
     return null;
+  }
+
+  static NewMemberEligibilityMode _newMemberEligibilityModeFromString(
+    String value,
+  ) {
+    return NewMemberEligibilityMode.values.firstWhere(
+      (NewMemberEligibilityMode item) => item.name == value,
+      orElse: () => NewMemberEligibilityMode.createdAfterCampaign,
+    );
   }
 }

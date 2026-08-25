@@ -310,6 +310,7 @@ allow update: if signedIn() &&
 'cleaningRooms',
 'maintenanceRooms',
 'housekeepingSetting',
+'dailyCareSetting',
 'maxAdvanceBookingDays',
 'defaultPricePerNight',
 
@@ -322,6 +323,11 @@ allow update: if signedIn() &&
       'platformHomeCoverUrl',
       'platformHomeLogoUrl',
       'environmentIntro',
+
+      'aboutTitle',
+      'aboutDescription',
+      'aboutMessage',
+      'aboutImageUrl',
 
       'fbUrl',
       'igUrl',
@@ -480,6 +486,54 @@ match /room_calendar/{calendarId} {
         allow create, update, delete: if isShopMember(shopId) || isRootAdmin();
       }
 
+      // 🔺 特殊日期加價
+// 功能：
+// 1. 店家成員與平台管理員可以查看、建立、修改、刪除全部設定
+// 2. 一般使用者只能讀取已啟用的特殊日期加價
+// 3. 每筆設定可獨立控制是否允許 Campaign 與優惠券
+match /special_date_surcharges/{surchargeId} {
+
+  // 店家可看全部。
+  // 一般使用者只可讀取已啟用設定。
+  allow read: if
+    isRootAdmin()
+    || isShopMember(shopId)
+    || resource.data.enabled == true;
+
+  // 建立特殊日期加價
+  allow create: if
+    (isRootAdmin() || isShopMember(shopId))
+    && request.resource.data.shopId == shopId
+    && request.resource.data.name is string
+    && request.resource.data.name.size() > 0
+    && request.resource.data.amountPerNight is int
+    && request.resource.data.amountPerNight > 0
+&& request.resource.data.enabled is bool
+&& request.resource.data.allowCampaignDiscount is bool
+&& request.resource.data.allowCoupon is bool
+&& request.resource.data.roomTypeIds is list;
+
+  // 修改特殊日期加價
+  // 不允許把資料改到其他店家
+  allow update: if
+    (isRootAdmin() || isShopMember(shopId))
+    && resource.data.shopId == shopId
+    && request.resource.data.shopId == resource.data.shopId
+    && request.resource.data.name is string
+    && request.resource.data.name.size() > 0
+    && request.resource.data.amountPerNight is int
+    && request.resource.data.amountPerNight > 0
+&& request.resource.data.enabled is bool
+&& request.resource.data.allowCampaignDiscount is bool
+&& request.resource.data.allowCoupon is bool
+&& request.resource.data.roomTypeIds is list;
+  // 店家可刪除設定。
+  // 歷史訂單依 Booking 快照保存，不依賴目前設定。
+  allow delete: if
+    isRootAdmin()
+    || isShopMember(shopId);
+}
+
       // 🏷️ 自動優惠活動
 // 功能：會員只能讀取已啟用活動，店家成員與平台管理員可完整管理
 match /discount_campaigns/{campaignId} {
@@ -588,6 +642,33 @@ match /discount_campaigns/{campaignId} {
             'total',
             'service'
           ]
+          && (
+  (
+    request.resource.data.type in [
+      'fixedAmount',
+      'percent'
+    ]
+    && request.resource.data.applyTarget in [
+      'room',
+      'roomAndPet',
+      'total'
+    ]
+  )
+
+  ||
+
+  (
+    request.resource.data.type == 'freeStay'
+    && request.resource.data.applyTarget == 'room'
+  )
+
+  ||
+
+  (
+    request.resource.data.type == 'freeService'
+    && request.resource.data.applyTarget == 'service'
+  )
+)
 
           && request.resource.data.discountValue is number
           && request.resource.data.discountValue >= 0
@@ -642,6 +723,33 @@ match /discount_campaigns/{campaignId} {
             'total',
             'service'
           ]
+          && (
+  (
+    request.resource.data.type in [
+      'fixedAmount',
+      'percent'
+    ]
+    && request.resource.data.applyTarget in [
+      'room',
+      'roomAndPet',
+      'total'
+    ]
+  )
+
+  ||
+
+  (
+    request.resource.data.type == 'freeStay'
+    && request.resource.data.applyTarget == 'room'
+  )
+
+  ||
+
+  (
+    request.resource.data.type == 'freeService'
+    && request.resource.data.applyTarget == 'service'
+  )
+)
 
           && request.resource.data.discountValue is number
           && request.resource.data.discountValue >= 0
@@ -715,6 +823,33 @@ match /discount_campaigns/{campaignId} {
               'total',
               'service'
             ]
+            && (
+  (
+    request.resource.data.type in [
+      'fixedAmount',
+      'percent'
+    ]
+    && request.resource.data.applyTarget in [
+      'room',
+      'roomAndPet',
+      'total'
+    ]
+  )
+
+  ||
+
+  (
+    request.resource.data.type == 'freeStay'
+    && request.resource.data.applyTarget == 'room'
+  )
+
+  ||
+
+  (
+    request.resource.data.type == 'freeService'
+    && request.resource.data.applyTarget == 'service'
+  )
+)
 
             && request.resource.data.source in [
               'manual',
@@ -973,6 +1108,33 @@ allow update: if
             'total',
             'service'
           ]
+          && (
+  (
+    request.resource.data.couponType in [
+      'fixedAmount',
+      'percent'
+    ]
+    && request.resource.data.applyTarget in [
+      'room',
+      'roomAndPet',
+      'total'
+    ]
+  )
+
+  ||
+
+  (
+    request.resource.data.couponType == 'freeStay'
+    && request.resource.data.applyTarget == 'room'
+  )
+
+  ||
+
+  (
+    request.resource.data.couponType == 'freeService'
+    && request.resource.data.applyTarget == 'service'
+  )
+)
           && request.resource.data.discountValue is number
           && request.resource.data.discountValue >= 0
           && request.resource.data.minimumAmount is int
@@ -1031,6 +1193,33 @@ allow update: if
               'total',
               'service'
             ]
+            && (
+  (
+    request.resource.data.couponType in [
+      'fixedAmount',
+      'percent'
+    ]
+    && request.resource.data.applyTarget in [
+      'room',
+      'roomAndPet',
+      'total'
+    ]
+  )
+
+  ||
+
+  (
+    request.resource.data.couponType == 'freeStay'
+    && request.resource.data.applyTarget == 'room'
+  )
+
+  ||
+
+  (
+    request.resource.data.couponType == 'freeService'
+    && request.resource.data.applyTarget == 'service'
+  )
+)
 
             && request.resource.data.discountValue is number
             && request.resource.data.discountValue >= 0
@@ -1895,6 +2084,7 @@ allow delete: if signedIn() &&
     allow update, delete: if false;
   }
 }
+
        // 📮 店主 / 店家聯絡平台
     match /platform_contact_requests/{requestId} {
       allow read: if signedIn() &&
@@ -2144,6 +2334,340 @@ allow update: if
     &&
     request.resource.data.createdAt == resource.data.createdAt
   );
+}
+// ============================================================
+// 🐾 每日照護紀錄
+// Firestore：daily_care_records/{recordId}
+// 功能：
+// 1. 店家人員在入住期間填寫 / 修改
+// 2. 該訂單會員只能查看自己的紀錄
+// 3. 一般會員不能自行建立或修改
+// ============================================================
+match /daily_care_records/{recordId} {
+
+  // 店家人員、Root Admin、該訂單會員可以讀取
+  allow read: if signedIn()
+    && (
+      isRootAdmin()
+
+      ||
+
+      (
+        resource.data.shopId is string
+        && isShopMember(resource.data.shopId)
+      )
+
+      ||
+
+      (
+        resource.data.bookingId is string
+        && exists(
+          /databases/$(database)/documents/bookings/$(resource.data.bookingId)
+        )
+        && get(
+          /databases/$(database)/documents/bookings/$(resource.data.bookingId)
+        ).data.userId == request.auth.uid
+      )
+    );
+
+  // 只有店家人員 / Root Admin 可以新增
+  // 而且必須真的是該店訂單，並且目前已入住
+  allow create: if signedIn()
+    && request.resource.data.shopId is string
+    && request.resource.data.bookingId is string
+    && exists(
+      /databases/$(database)/documents/bookings/$(request.resource.data.bookingId)
+    )
+    && get(
+      /databases/$(database)/documents/bookings/$(request.resource.data.bookingId)
+    ).data.shopId == request.resource.data.shopId
+    && get(
+      /databases/$(database)/documents/bookings/$(request.resource.data.bookingId)
+    ).data.status == 'checked_in'
+    && (
+      isRootAdmin()
+      || isShopMember(request.resource.data.shopId)
+    );
+
+  // 店家人員可以修改已存在的照護紀錄
+  // 不允許把紀錄轉移到別家店 / 別張訂單 / 別房間
+  allow update: if signedIn()
+    && (
+      isRootAdmin()
+      ||
+      (
+        resource.data.shopId is string
+        && isShopMember(resource.data.shopId)
+      )
+    )
+        && resource.data.bookingId is string
+    && exists(
+      /databases/$(database)/documents/bookings/$(resource.data.bookingId)
+    )
+    && get(
+      /databases/$(database)/documents/bookings/$(resource.data.bookingId)
+    ).data.status == 'checked_in'
+    && request.resource.data.shopId == resource.data.shopId
+    && request.resource.data.bookingId == resource.data.bookingId
+    && request.resource.data.roomId == resource.data.roomId
+    && request.resource.data.recordDate == resource.data.recordDate
+    && request.resource.data.sessionIndex == resource.data.sessionIndex;
+
+  // 照護紀錄保留作為住宿紀錄，不由 App 直接刪除
+  allow delete: if false;
+}
+
+
+// ============================================================
+// 📷 每日照護照片資料
+// Firestore：daily_care_photos/{photoId}
+// 注意：真正圖片檔案的權限下一步在 storage.rules 補。
+// ============================================================
+match /daily_care_photos/{photoId} {
+
+  // 店家人員、Root Admin、該訂單會員可以查看
+  allow read: if signedIn()
+    && (
+      isRootAdmin()
+
+      ||
+
+      (
+        resource.data.shopId is string
+        && isShopMember(resource.data.shopId)
+      )
+
+      ||
+
+      (
+        resource.data.bookingId is string
+        && exists(
+          /databases/$(database)/documents/bookings/$(resource.data.bookingId)
+        )
+        && get(
+          /databases/$(database)/documents/bookings/$(resource.data.bookingId)
+        ).data.userId == request.auth.uid
+      )
+    );
+
+  // 只有店家人員 / Root Admin 可以建立照片紀錄
+  allow create: if signedIn()
+    && request.resource.data.shopId is string
+    && request.resource.data.bookingId is string
+    && exists(
+      /databases/$(database)/documents/bookings/$(request.resource.data.bookingId)
+    )
+    && get(
+      /databases/$(database)/documents/bookings/$(request.resource.data.bookingId)
+    ).data.shopId == request.resource.data.shopId
+    && get(
+      /databases/$(database)/documents/bookings/$(request.resource.data.bookingId)
+    ).data.status == 'checked_in'
+    && (
+      isRootAdmin()
+      || isShopMember(request.resource.data.shopId)
+    );
+
+  // 前端目前不需要直接修改照片 metadata
+  allow update: if false;
+
+  // 店員誤傳照片時允許刪除
+  allow delete: if signedIn()
+    && (
+      isRootAdmin()
+      ||
+      (
+        resource.data.shopId is string
+        && isShopMember(resource.data.shopId)
+      )
+    );
+}
+// ============================================================
+// 📥 每日照護高清照片下載資料
+// Firestore：daily_care_photo_downloads/{photoId}
+//
+// 功能：
+// 1. 保存受保護的高清 downloadStoragePath 與下載 metadata
+// 2. 一般會員入住期間不可讀取
+// 3. 目前先只允許店家人員 / Root Admin 存取
+// 4. 後續再加入 completed + checkOutAt + expiresAt 的會員下載條件
+// ============================================================
+match /daily_care_photo_downloads/{photoId} {
+
+  // 目前只有店家人員 / Root Admin 可以讀取高清資料。
+allow read: if signedIn()
+  && (
+    isRootAdmin()
+
+    ||
+
+    (
+      resource.data.shopId is string
+      && isShopMember(resource.data.shopId)
+    )
+
+    ||
+
+    (
+      resource.data.bookingId is string
+
+      && resource.data.expiresAt is timestamp
+
+      && exists(
+        /databases/$(database)/documents/bookings/$(resource.data.bookingId)
+      )
+
+      && get(
+        /databases/$(database)/documents/bookings/$(resource.data.bookingId)
+      ).data.userId == request.auth.uid
+
+      && get(
+        /databases/$(database)/documents/bookings/$(resource.data.bookingId)
+      ).data.status == 'completed'
+
+      && get(
+  /databases/$(database)/documents/bookings/$(resource.data.bookingId)
+).data.shopId == resource.data.shopId
+
+      && request.time < resource.data.expiresAt
+    )
+  );
+
+   // 建立高清資料時：
+  // - 只能保存必要的高清 metadata
+  // - 不允許保存 downloadUrl
+  // - 必須是店家 / Root Admin
+  // - booking 必須存在
+  // - booking 必須屬於相同 shop
+  // - booking 必須正在 checked_in
+  allow create: if signedIn()
+
+    && request.resource.data.keys().hasOnly([
+      'shopId',
+      'bookingId',
+      'photoId',
+      'downloadStoragePath',
+      'downloadBytes',
+      'expiresAt',
+      'createdAt'
+    ])
+
+    && request.resource.data.shopId is string
+    && request.resource.data.bookingId is string
+    && request.resource.data.photoId == photoId
+
+    && request.resource.data.downloadStoragePath is string
+    && request.resource.data.downloadStoragePath.size() > 0
+
+    && (
+      request.resource.data.downloadBytes == null
+      || request.resource.data.downloadBytes is int
+    )
+
+    && request.resource.data.expiresAt == null
+
+    && exists(
+      /databases/$(database)/documents/bookings/$(request.resource.data.bookingId)
+    )
+
+    && get(
+      /databases/$(database)/documents/bookings/$(request.resource.data.bookingId)
+    ).data.shopId == request.resource.data.shopId
+
+    && get(
+      /databases/$(database)/documents/bookings/$(request.resource.data.bookingId)
+    ).data.status == 'checked_in'
+
+    && (
+      isRootAdmin()
+      || isShopMember(request.resource.data.shopId)
+    );
+  // 退房後只允許店家 / Root Admin 更新下載期限。
+  // 其他高清資料不可修改，也不能新增 downloadUrl。
+  allow update: if signedIn()
+
+    && (
+      isRootAdmin()
+      ||
+      (
+        resource.data.shopId is string
+        && isShopMember(resource.data.shopId)
+      )
+    )
+
+    && request.resource.data.keys().hasOnly([
+      'shopId',
+      'bookingId',
+      'photoId',
+      'downloadStoragePath',
+      'downloadBytes',
+      'expiresAt',
+      'createdAt'
+    ])
+
+    && request.resource.data.shopId == resource.data.shopId
+    && request.resource.data.bookingId == resource.data.bookingId
+    && request.resource.data.photoId == resource.data.photoId
+    && request.resource.data.downloadStoragePath
+      == resource.data.downloadStoragePath
+    && request.resource.data.downloadBytes
+      == resource.data.downloadBytes
+    && request.resource.data.createdAt
+      == resource.data.createdAt
+
+    && request.resource.data
+      .diff(resource.data)
+      .affectedKeys()
+      .hasOnly([
+        'expiresAt'
+      ])
+
+    && request.resource.data.expiresAt is timestamp;
+  // 高清下載 metadata 只允許店家 / Root Admin 刪除。
+  allow delete: if signedIn()
+    && (
+      isRootAdmin()
+      ||
+      (
+        resource.data.shopId is string
+        && isShopMember(resource.data.shopId)
+      )
+    );
+}
+// ============================================================
+// 💳 金流交易紀錄
+// Firestore：payments/{paymentId}
+// 功能：
+// 1. 店家成員只能查看自己店家的交易
+// 2. 會員只能查看自己的交易
+// 3. Root Admin 可查看全部交易
+// 4. Payment 建立與狀態更新只允許後端 Cloud Functions 處理
+// ============================================================
+match /payments/{paymentId} {
+
+  allow read: if signedIn()
+    && (
+      isRootAdmin()
+
+      ||
+
+      (
+        resource.data.shopId is string
+        && isShopMember(resource.data.shopId)
+      )
+
+      ||
+
+      (
+        resource.data.userId is string
+        && resource.data.userId == request.auth.uid
+      )
+    );
+
+  // Payment 屬於敏感金流資料。
+  // Flutter / Web 前端不可直接建立、修改或刪除。
+  // Cloud Functions 使用 Admin SDK，不受 Firestore Rules 限制。
+  allow create, update, delete: if false;
 }
     // 🚫 其他全部拒絕
     match /{document=**} {

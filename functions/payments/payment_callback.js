@@ -2,6 +2,8 @@
 // 🟢 綠界付款完成 Callback
 // 功能：接收綠界付款通知、驗證交易資料與 CheckMacValue，
 // 並在付款成功後同步更新 payments 與 bookings 的付款狀態。
+// 注意：僅使用 Callback 做驗證與必要欄位同步，
+// 不永久保存完整 Callback 原始資料。
 
 const {onRequest} = require("firebase-functions/v2/https");
 const admin = require("firebase-admin");
@@ -73,7 +75,6 @@ exports.ecpayPaymentCallback = onRequest(
         if (!paymentId) {
           console.error(
               "ECPay Callback 缺少 CustomField1",
-              callbackData,
           );
 
           sendCallbackResponse(
@@ -86,7 +87,9 @@ exports.ecpayPaymentCallback = onRequest(
         if (!merchantTradeNo) {
           console.error(
               "ECPay Callback 缺少 MerchantTradeNo",
-              callbackData,
+              {
+                paymentId,
+              },
           );
 
           sendCallbackResponse(
@@ -268,7 +271,6 @@ exports.ecpayPaymentCallback = onRequest(
                 gatewayStatus: "amount_mismatch",
                 callbackAmount,
                 expectedAmount,
-                callbackData,
                 callbackReceivedAt:
                   admin.firestore.FieldValue
                       .serverTimestamp(),
@@ -301,7 +303,6 @@ exports.ecpayPaymentCallback = onRequest(
                 gatewayRtnMessage: rtnMessage,
                 gatewayTradeNo,
                 callbackAmount,
-                callbackData,
                 callbackReceivedAt:
                   admin.firestore.FieldValue
                       .serverTimestamp(),
@@ -356,6 +357,10 @@ exports.ecpayPaymentCallback = onRequest(
               const booking =
                 bookingSnapshot.data() || {};
 
+              const bookingCode = normalizeString(
+                  booking.bookingCode,
+              );
+
               /*
                * 綠界可能重複發送 Callback。
                * 已付款完成時直接結束，
@@ -398,16 +403,16 @@ exports.ecpayPaymentCallback = onRequest(
               }
 
               const rawBookingTotalAmount =
-  booking.totalPayableAmount !== undefined &&
-  booking.totalPayableAmount !== null ?
-    booking.totalPayableAmount :
-    booking.totalPrice !== undefined &&
-    booking.totalPrice !== null ?
-      booking.totalPrice :
-      booking.totalAmount !== undefined &&
-      booking.totalAmount !== null ?
-        booking.totalAmount :
-        booking.total;
+                booking.totalPayableAmount !== undefined &&
+                booking.totalPayableAmount !== null ?
+                  booking.totalPayableAmount :
+                  booking.totalPrice !== undefined &&
+                  booking.totalPrice !== null ?
+                    booking.totalPrice :
+                    booking.totalAmount !== undefined &&
+                    booking.totalAmount !== null ?
+                      booking.totalAmount :
+                      booking.total;
 
               const bookingTotalAmount = normalizeInteger(
                   rawBookingTotalAmount,
@@ -418,6 +423,7 @@ exports.ecpayPaymentCallback = onRequest(
                     "訂單總金額不正確，停止更新付款彙總。",
                 );
               }
+
               const currentPaidAmount =
                 normalizeInteger(
                     booking.paidAmount,
@@ -459,8 +465,8 @@ exports.ecpayPaymentCallback = onRequest(
                     gatewayRtnMessage:
                       rtnMessage,
                     gatewayTradeNo,
+                    bookingCode,
                     callbackAmount,
-                    callbackData,
                     paidAt:
                       admin.firestore.FieldValue
                           .serverTimestamp(),
@@ -486,6 +492,22 @@ exports.ecpayPaymentCallback = onRequest(
                     latestPayment.paymentPurpose,
                 );
 
+              /*
+               * 是否為「訂金付款」。
+               *
+               * 新付款紀錄優先使用 paymentPurpose，
+               * 舊資料若沒有 paymentPurpose，
+               * 則退回判斷 amountType。
+               */
+              const lastAmountType =
+                normalizeString(
+                    latestPayment.amountType,
+                );
+
+              const isDepositPayment =
+                lastPaymentPurpose === "deposit" ||
+                lastAmountType === "deposit";
+
               const bookingUpdate = {
                 paidAmount: safePaidAmount,
                 remainingAmount,
@@ -500,6 +522,8 @@ exports.ecpayPaymentCallback = onRequest(
                 lastPaymentId: paymentId,
                 lastMerchantTradeNo:
                   merchantTradeNo,
+                lastGatewayTradeNo:
+                  gatewayTradeNo,
                 lastPaymentAmount:
                   callbackAmount,
                 lastPaymentMethod,
@@ -517,6 +541,35 @@ exports.ecpayPaymentCallback = onRequest(
                 bookingUpdate.paidAt =
                   admin.firestore.FieldValue
                       .serverTimestamp();
+              }
+
+              /*
+               * 綠界訂金付款成功後，自動確認訂金。
+               *
+               * 銀行轉帳不會走綠界 Callback，
+               * 因此仍維持原本店家人工確認流程。
+               */
+              if (isDepositPayment) {
+                bookingUpdate.depositPaid = true;
+                bookingUpdate.depositStatus = "confirmed";
+                bookingUpdate.depositPaidAt =
+                  admin.firestore.FieldValue
+                      .serverTimestamp();
+
+                /*
+                 * 與目前店主端「確認訂金」流程一致：
+                 * pending 訂單在訂金確認後正式 confirmed。
+                 *
+                 * 避免覆蓋已入住、已完成等後續狀態。
+                 */
+                if (
+                  normalizeString(booking.status) === "pending"
+                ) {
+                  bookingUpdate.status = "confirmed";
+                  bookingUpdate.confirmedAt =
+                    admin.firestore.FieldValue
+                        .serverTimestamp();
+                }
               }
 
               transaction.set(

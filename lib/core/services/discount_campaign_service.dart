@@ -87,17 +87,26 @@ class DiscountCampaignService {
       return const <DiscountCampaignModel>[];
     }
 
+    final List<dynamic> results = await Future.wait<dynamic>([
+      _campaignCollection(
+        normalizedShopId,
+      ).where('enabled', isEqualTo: true).get(),
+      getCampaignTotalUsage(shopId: normalizedShopId),
+    ]);
+
     final QuerySnapshot<Map<String, dynamic>> snapshot =
-        await _campaignCollection(
-          normalizedShopId,
-        ).where('enabled', isEqualTo: true).get();
+        results[0] as QuerySnapshot<Map<String, dynamic>>;
+
+    final Map<String, int> totalUsage = results[1] as Map<String, int>;
 
     final List<DiscountCampaignModel> campaigns = snapshot.docs
         .map((QueryDocumentSnapshot<Map<String, dynamic>> document) {
-          return DiscountCampaignModel.fromMap(
+          final DiscountCampaignModel campaign = DiscountCampaignModel.fromMap(
             id: document.id,
             data: document.data(),
           );
+
+          return campaign.copyWith(usedCount: totalUsage[campaign.id] ?? 0);
         })
         .where((DiscountCampaignModel campaign) {
           return !campaign.isUsageLimitReached;
@@ -140,8 +149,14 @@ class DiscountCampaignService {
 
       final String status = (data['status'] ?? '').toString();
 
-      // 已取消的訂單不計入優惠使用次數。
-      if (status == 'cancelled') {
+      /// 只有有效訂單才計入已使用優惠晚數。
+      final bool isValidBookingStatus =
+          status == 'pending' ||
+          status == 'confirmed' ||
+          status == 'checked_in' ||
+          status == 'completed';
+
+      if (!isValidBookingStatus) {
         continue;
       }
 
@@ -185,14 +200,18 @@ class DiscountCampaignService {
     for (final QueryDocumentSnapshot<Map<String, dynamic>> document
         in snapshot.docs) {
       final Map<String, dynamic> data = document.data();
-
       final String status = (data['status'] ?? '').toString();
 
-      // 已取消訂單不計入已使用優惠晚數。
-      if (status == 'cancelled') {
+      /// 只有有效訂單才計入已使用優惠晚數。
+      final bool isValidBookingStatus =
+          status == 'pending' ||
+          status == 'confirmed' ||
+          status == 'checked_in' ||
+          status == 'completed';
+
+      if (!isValidBookingStatus) {
         continue;
       }
-
       final String campaignId = (data['discountCampaignId'] ?? '')
           .toString()
           .trim();
@@ -216,6 +235,111 @@ class DiscountCampaignService {
     }
 
     return usedNights;
+  }
+
+  /// 統計店家各優惠活動目前的有效使用次數
+  ///
+  /// 只有有效訂單會計算：
+  /// pending / confirmed / checked_in / completed
+  ///
+  /// cancelled 或其他狀態不計算，
+  /// 因此訂單取消後活動額度會自然恢復。
+  Future<Map<String, int>> getCampaignTotalUsage({
+    required String shopId,
+  }) async {
+    final String normalizedShopId = shopId.trim();
+
+    if (normalizedShopId.isEmpty) {
+      return const <String, int>{};
+    }
+
+    final QuerySnapshot<Map<String, dynamic>> snapshot = await _firestore
+        .collection('bookings')
+        .where('shopId', isEqualTo: normalizedShopId)
+        .get();
+
+    final Map<String, int> usage = <String, int>{};
+
+    for (final QueryDocumentSnapshot<Map<String, dynamic>> document
+        in snapshot.docs) {
+      final Map<String, dynamic> data = document.data();
+
+      final String status = (data['status'] ?? '').toString();
+
+      final bool isValidBookingStatus =
+          status == 'pending' ||
+          status == 'confirmed' ||
+          status == 'checked_in' ||
+          status == 'completed';
+
+      if (!isValidBookingStatus) {
+        continue;
+      }
+
+      final String campaignId = (data['discountCampaignId'] ?? '')
+          .toString()
+          .trim();
+
+      if (campaignId.isEmpty) {
+        continue;
+      }
+
+      usage[campaignId] = (usage[campaignId] ?? 0) + 1;
+    }
+
+    return usage;
+  }
+
+  /// 即時監聽店家各優惠活動目前的有效使用次數
+  ///
+  /// 只有有效訂單會計算：
+  /// pending / confirmed / checked_in / completed
+  ///
+  /// cancelled 或其他狀態不計算，
+  /// 因此新增、取消訂單後，活動使用次數會即時更新。
+  Stream<Map<String, int>> streamCampaignTotalUsage({required String shopId}) {
+    final String normalizedShopId = shopId.trim();
+
+    if (normalizedShopId.isEmpty) {
+      return Stream<Map<String, int>>.value(const <String, int>{});
+    }
+
+    return _firestore
+        .collection('bookings')
+        .where('shopId', isEqualTo: normalizedShopId)
+        .snapshots()
+        .map((QuerySnapshot<Map<String, dynamic>> snapshot) {
+          final Map<String, int> usage = <String, int>{};
+
+          for (final QueryDocumentSnapshot<Map<String, dynamic>> document
+              in snapshot.docs) {
+            final Map<String, dynamic> data = document.data();
+
+            final String status = (data['status'] ?? '').toString();
+
+            final bool isValidBookingStatus =
+                status == 'pending' ||
+                status == 'confirmed' ||
+                status == 'checked_in' ||
+                status == 'completed';
+
+            if (!isValidBookingStatus) {
+              continue;
+            }
+
+            final String campaignId = (data['discountCampaignId'] ?? '')
+                .toString()
+                .trim();
+
+            if (campaignId.isEmpty) {
+              continue;
+            }
+
+            usage[campaignId] = (usage[campaignId] ?? 0) + 1;
+          }
+
+          return usage;
+        });
   }
 
   /// 取得單一優惠活動
@@ -259,6 +383,8 @@ class DiscountCampaignService {
     int memberUsageLimit = 1,
     int totalUsageLimit = 0,
     bool firstBookingOnly = false,
+    NewMemberEligibilityMode newMemberEligibilityMode =
+        NewMemberEligibilityMode.createdAfterCampaign,
     bool allowCouponTogether = false,
     List<String> roomTypeIds = const <String>[],
     int newMemberDiscountNights = 0,
@@ -307,6 +433,7 @@ class DiscountCampaignService {
       totalUsageLimit: totalUsageLimit,
       usedCount: 0,
       firstBookingOnly: firstBookingOnly,
+      newMemberEligibilityMode: newMemberEligibilityMode,
       allowCouponTogether: allowCouponTogether,
       roomTypeIds: roomTypeIds,
       newMemberDiscountNights: newMemberDiscountNights,
@@ -343,6 +470,8 @@ class DiscountCampaignService {
     int memberUsageLimit = 1,
     int totalUsageLimit = 0,
     bool firstBookingOnly = false,
+    NewMemberEligibilityMode newMemberEligibilityMode =
+        NewMemberEligibilityMode.createdAfterCampaign,
     bool allowCouponTogether = false,
     List<String> roomTypeIds = const <String>[],
     int newMemberDiscountNights = 0,
@@ -386,6 +515,7 @@ class DiscountCampaignService {
       'memberUsageLimit': memberUsageLimit,
       'totalUsageLimit': totalUsageLimit,
       'firstBookingOnly': firstBookingOnly,
+      'newMemberEligibilityMode': newMemberEligibilityMode.name,
       'allowCouponTogether': allowCouponTogether,
       'roomTypeIds': roomTypeIds,
       'newMemberDiscountNights': newMemberDiscountNights,
@@ -416,16 +546,63 @@ class DiscountCampaignService {
 
   /// 刪除優惠活動
   ///
-  /// 注意：之後若活動已被訂單使用，會再補上不可直接刪除的保護。
+  /// 已經被有效訂單使用過的活動不可直接刪除，
+  /// 避免歷史訂單對應不到原本活動。
+  /// 刪除優惠活動
+  ///
+  /// 只要仍有進行中的訂單使用此活動，就不可刪除。
+  /// completed / cancelled 不阻止刪除，
+  /// 因為歷史訂單已保存優惠活動快照。
   Future<void> deleteCampaign({
     required String shopId,
     required String campaignId,
   }) async {
-    if (shopId.trim().isEmpty || campaignId.trim().isEmpty) {
+    final String normalizedShopId = shopId.trim();
+    final String normalizedCampaignId = campaignId.trim();
+
+    if (normalizedShopId.isEmpty || normalizedCampaignId.isEmpty) {
       throw ArgumentError('店家 ID 或優惠活動 ID 不可為空');
     }
 
-    await _campaignCollection(shopId).doc(campaignId).delete();
+    final QuerySnapshot<Map<String, dynamic>> snapshot = await _firestore
+        .collection('bookings')
+        .where('shopId', isEqualTo: normalizedShopId)
+        .get();
+
+    bool hasActiveBooking = false;
+
+    for (final QueryDocumentSnapshot<Map<String, dynamic>> document
+        in snapshot.docs) {
+      final Map<String, dynamic> data = document.data();
+
+      final String bookingCampaignId = (data['discountCampaignId'] ?? '')
+          .toString()
+          .trim();
+
+      if (bookingCampaignId != normalizedCampaignId) {
+        continue;
+      }
+
+      final String status = (data['status'] ?? '').toString();
+
+      final bool isActiveBooking =
+          status == 'pending' ||
+          status == 'confirmed' ||
+          status == 'checked_in';
+
+      if (isActiveBooking) {
+        hasActiveBooking = true;
+        break;
+      }
+    }
+
+    if (hasActiveBooking) {
+      throw StateError('此優惠活動目前仍有訂單使用中，請等待訂單完成或取消後再刪除。');
+    }
+
+    await _campaignCollection(
+      normalizedShopId,
+    ).doc(normalizedCampaignId).delete();
   }
 
   void _validateCampaign({

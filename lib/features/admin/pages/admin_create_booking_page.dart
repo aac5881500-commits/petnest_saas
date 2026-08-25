@@ -23,6 +23,9 @@ import 'package:petnest_saas/core/services/shop_permission_service.dart';
 import 'package:petnest_saas/core/models/discount_campaign_model.dart';
 import 'package:petnest_saas/core/services/discount_campaign_service.dart';
 import 'package:petnest_saas/core/services/discount_campaign_calculator.dart';
+import 'package:petnest_saas/core/models/special_date_surcharge_model.dart';
+import 'package:petnest_saas/core/services/special_date_surcharge_service.dart';
+import 'package:petnest_saas/core/services/special_date_surcharge_calculator.dart';
 
 class AdminCreateBookingPage extends StatefulWidget {
   const AdminCreateBookingPage({super.key, required this.shopId});
@@ -72,10 +75,20 @@ class _AdminCreateBookingPageState extends State<AdminCreateBookingPage> {
   Map<String, dynamic>? _addonData;
   bool _campaignsLoading = true;
 
+  List<SpecialDateSurchargeModel> _enabledSpecialDateSurcharges =
+      const <SpecialDateSurchargeModel>[];
+
+  bool _specialDateSurchargesLoading = true;
+
   List<DiscountCampaignModel> _enabledCampaigns =
       const <DiscountCampaignModel>[];
   Map<String, int> _memberCampaignUsage = <String, int>{};
   Map<String, int> _memberCampaignUsedNights = <String, int>{};
+
+  /// 👤 目前選擇會員加入本店的時間
+  /// 來源：shops/{shopId}/members/{uid}.createdAt
+  DateTime? _memberJoinedAt;
+
   bool _isFirstBooking = false;
   bool _firstBookingLoading = false;
   Map<String, dynamic>? _selectedTimeAddon;
@@ -94,6 +107,7 @@ class _AdminCreateBookingPageState extends State<AdminCreateBookingPage> {
 
     _loadAddons();
     _loadDiscountCampaigns();
+    _loadSpecialDateSurcharges();
     _loadShopPaymentSettings();
   }
 
@@ -209,6 +223,35 @@ class _AdminCreateBookingPageState extends State<AdminCreateBookingPage> {
       });
 
       debugPrint('手動訂單讀取優惠失敗：$error');
+    }
+  }
+
+  Future<void> _loadSpecialDateSurcharges() async {
+    try {
+      final List<SpecialDateSurchargeModel> surcharges =
+          await SpecialDateSurchargeService.instance.getEnabledSurcharges(
+            widget.shopId,
+          );
+
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _enabledSpecialDateSurcharges = surcharges;
+        _specialDateSurchargesLoading = false;
+      });
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _enabledSpecialDateSurcharges = const <SpecialDateSurchargeModel>[];
+        _specialDateSurchargesLoading = false;
+      });
+
+      debugPrint('後台讀取特殊日期加價失敗：$error');
     }
   }
 
@@ -432,6 +475,8 @@ class _AdminCreateBookingPageState extends State<AdminCreateBookingPage> {
 
     if (!mounted) return;
 
+    final DateTime joinedAt = DateTime.now();
+
     setState(() {
       _selectedMember = {
         'userId': FirebaseFirestore.instance
@@ -453,6 +498,10 @@ class _AdminCreateBookingPageState extends State<AdminCreateBookingPage> {
 
       _keywordController.text = result['phone'] ?? '';
       _keyword = result['phone'] ?? '';
+
+      /// 👤 快速建立會員視為現在加入本店
+      _memberJoinedAt = joinedAt;
+
       _memberCampaignUsage = <String, int>{};
       _memberCampaignUsedNights = <String, int>{};
       _isFirstBooking = true;
@@ -566,13 +615,33 @@ class _AdminCreateBookingPageState extends State<AdminCreateBookingPage> {
       shopId: widget.shopId,
       keyword: _keyword,
       onSelectMember: (userId, data) async {
+        final DocumentSnapshot<Map<String, dynamic>> memberDoc =
+            await FirebaseFirestore.instance
+                .collection('shops')
+                .doc(widget.shopId)
+                .collection('members')
+                .doc(userId)
+                .get();
+
+        final dynamic rawCreatedAt = memberDoc.data()?['createdAt'];
+
+        DateTime? memberJoinedAt;
+
+        if (rawCreatedAt is Timestamp) {
+          memberJoinedAt = rawCreatedAt.toDate();
+        }
+
+        if (!mounted) return;
+
         setState(() {
           _selectedMember = {'userId': userId, ...data};
 
           _selectedPetIds.clear();
           _pets.clear();
 
+          _memberJoinedAt = memberJoinedAt;
           _memberCampaignUsage = <String, int>{};
+          _memberCampaignUsedNights = <String, int>{};
           _isFirstBooking = false;
           _firstBookingLoading = true;
 
@@ -1127,7 +1196,6 @@ class _AdminCreateBookingPageState extends State<AdminCreateBookingPage> {
   }
 
   Map<String, dynamic> _calculateAdminDiscountInfo({
-    required Map<String, dynamic> shop,
     required Map<String, dynamic> roomType,
     required int nights,
   }) {
@@ -1138,8 +1206,70 @@ class _AdminCreateBookingPageState extends State<AdminCreateBookingPage> {
         ? _selectedPetIds.length - 1
         : 0;
 
-    final roomTotal = basePrice * nights;
-    final petTotal = extraPetPrice * extraPetCount * nights;
+    final int baseRoomTotal = basePrice * nights;
+    final int petTotal = extraPetPrice * extraPetCount * nights;
+
+    int specialDateSurchargeAmount = 0;
+    List<Map<String, dynamic>> specialDateSurchargeDetails =
+        <Map<String, dynamic>>[];
+    bool campaignBlockedBySpecialDate = false;
+    bool couponBlockedBySpecialDate = false;
+    if (!_specialDateSurchargesLoading &&
+        _startDate != null &&
+        _endDate != null &&
+        _enabledSpecialDateSurcharges.isNotEmpty) {
+      final String roomTypeId =
+          (_selectedRoomType?['id'] ?? _selectedRoomType?['roomTypeId'] ?? '')
+              .toString()
+              .trim();
+      final SpecialDateSurchargeCalculationResult surchargeResult =
+          SpecialDateSurchargeCalculator.calculate(
+            checkInDate: _startDate!,
+            checkOutDate: _endDate!,
+            roomTypeId: roomTypeId,
+            surcharges: _enabledSpecialDateSurcharges,
+          );
+
+      specialDateSurchargeAmount = surchargeResult.totalAmount;
+      campaignBlockedBySpecialDate = surchargeResult.nightDetails.any(
+        (SpecialDateSurchargeNightDetail detail) => detail.surcharges.any(
+          (SpecialDateSurchargeModel surcharge) =>
+              !surcharge.allowCampaignDiscount,
+        ),
+      );
+      couponBlockedBySpecialDate = surchargeResult.nightDetails.any(
+        (SpecialDateSurchargeNightDetail detail) => detail.surcharges.any(
+          (SpecialDateSurchargeModel surcharge) => !surcharge.allowCoupon,
+        ),
+      );
+
+      specialDateSurchargeDetails = surchargeResult.nightDetails
+          .where(
+            (SpecialDateSurchargeNightDetail detail) => detail.hasSurcharge,
+          )
+          .map((SpecialDateSurchargeNightDetail detail) {
+            return <String, dynamic>{
+              'date': _formatDate(detail.stayDate),
+              'amount': detail.amount,
+              'items': detail.surcharges.map((
+                SpecialDateSurchargeModel surcharge,
+              ) {
+                return <String, dynamic>{
+                  'id': surcharge.id,
+                  'name': surcharge.name,
+                  'amountPerNight': surcharge.amountPerNight,
+                  'allowCampaignDiscount': surcharge.allowCampaignDiscount,
+                  'allowCoupon': surcharge.allowCoupon,
+                  'roomTypeIds': List<String>.from(surcharge.roomTypeIds),
+                };
+              }).toList(),
+            };
+          })
+          .toList();
+    }
+
+    /// 特殊日期加價視為住宿價格的一部分。
+    final int roomTotal = baseRoomTotal + specialDateSurchargeAmount;
 
     final timeTotal = (_selectedTimeAddon?['total'] ?? 0) as int;
 
@@ -1170,6 +1300,7 @@ class _AdminCreateBookingPageState extends State<AdminCreateBookingPage> {
         customTotal +
         dailyTimedTotal;
     if (_applyLongStayDiscount &&
+        !campaignBlockedBySpecialDate &&
         !_campaignsLoading &&
         _enabledCampaigns.isNotEmpty &&
         _startDate != null &&
@@ -1192,11 +1323,11 @@ class _AdminCreateBookingPageState extends State<AdminCreateBookingPage> {
               petAmount: petTotal,
               extraServiceAmount: extraServiceTotal,
 
-              // 手動訂單的首次預約判斷之後再接。
+              // 👤 手動訂單也使用會員實際首次預約狀態。
               isFirstBooking: !_firstBookingLoading && _isFirstBooking,
-
               memberCampaignUsage: _memberCampaignUsage,
               memberCampaignUsedNights: _memberCampaignUsedNights,
+              memberJoinedAt: _memberJoinedAt,
               // Google 評論尚未有驗證流程。
               hasVerifiedGoogleReview: false,
             ),
@@ -1224,8 +1355,36 @@ class _AdminCreateBookingPageState extends State<AdminCreateBookingPage> {
 
         return <String, dynamic>{
           'originalTotal': originalTotal,
+          'baseRoomTotal': baseRoomTotal,
+          'specialDateSurchargeAmount': specialDateSurchargeAmount,
+          'specialDateSurchargeDetails': specialDateSurchargeDetails,
+          'couponBlockedBySpecialDate': couponBlockedBySpecialDate,
+          'campaignBlockedBySpecialDate': campaignBlockedBySpecialDate,
           'discountAmount': discountAmount,
           'discountUsedNights': bestCampaign.discountUsedNights,
+          'remainingDiscountNights':
+              campaign.type == DiscountCampaignType.newMember
+              ? (DiscountCampaignCalculator.remainingNewMemberDiscountNights(
+                          campaign: campaign,
+                          input: DiscountCampaignCalculationInput(
+                            checkInDate: _startDate!,
+                            checkOutDate: _endDate!,
+                            roomTypeId: roomTypeId,
+                            roomAmount: roomTotal,
+                            petAmount: petTotal,
+                            extraServiceAmount: extraServiceTotal,
+                            isFirstBooking:
+                                !_firstBookingLoading && _isFirstBooking,
+                            memberJoinedAt: _memberJoinedAt,
+                            memberCampaignUsage: _memberCampaignUsage,
+                            memberCampaignUsedNights: _memberCampaignUsedNights,
+                            hasVerifiedGoogleReview: false,
+                          ),
+                        ) -
+                        bestCampaign.discountUsedNights)
+                    .clamp(0, campaign.newMemberDiscountNights)
+                    .toInt()
+              : 0,
           'discountPercent': campaign.valueType == DiscountValueType.percent
               ? campaign.discountValue.toInt()
               : 0,
@@ -1237,6 +1396,7 @@ class _AdminCreateBookingPageState extends State<AdminCreateBookingPage> {
 
           'discountCampaignId': campaign.id,
           'discountCampaignName': campaign.name,
+          'discountCampaignDescription': campaign.description.trim(),
           'discountCampaignType': campaign.type.name,
           'discountValueType': campaign.valueType.name,
           'discountValue': campaign.discountValue,
@@ -1245,152 +1405,32 @@ class _AdminCreateBookingPageState extends State<AdminCreateBookingPage> {
       }
     }
 
-    if (!_applyLongStayDiscount || nights <= 0) {
-      return {
-        'originalTotal': originalTotal,
-        'discountAmount': 0,
-        'discountPercent': 0,
-        'discountMinNights': 0,
-        'discountBase': '',
-        'finalTotal': originalTotal,
-      };
-    }
-
-    final discountSetting = shop['discountSetting'] as Map<String, dynamic>?;
-
-    if (discountSetting == null || discountSetting['enabled'] != true) {
-      return {
-        'originalTotal': originalTotal,
-        'discountAmount': 0,
-        'discountPercent': 0,
-        'discountMinNights': 0,
-        'discountBase': '',
-        'finalTotal': originalTotal,
-      };
-    }
-
-    final rules = discountSetting['rules'];
-
-    if (rules is! List || rules.isEmpty) {
-      return {
-        'originalTotal': originalTotal,
-        'discountAmount': 0,
-        'discountPercent': 0,
-        'discountMinNights': 0,
-        'discountBase': '',
-        'finalTotal': originalTotal,
-      };
-    }
-
-    Map<String, dynamic>? matchedRule;
-
-    for (final rule in rules) {
-      if (rule is! Map) continue;
-
-      final minNights = ((rule['minNights'] ?? 0) as num).toInt();
-
-      if (nights >= minNights) {
-        if (matchedRule == null ||
-            minNights > ((matchedRule['minNights'] ?? 0) as num).toInt()) {
-          matchedRule = Map<String, dynamic>.from(rule);
-        }
-      }
-    }
-
-    if (matchedRule == null) {
-      return {
-        'originalTotal': originalTotal,
-        'discountAmount': 0,
-        'discountPercent': 0,
-        'discountMinNights': 0,
-        'discountBase': '',
-        'finalTotal': originalTotal,
-      };
-    }
-
-    final discountPercent = ((matchedRule['discountPercent'] ?? 0) as num)
-        .toInt();
-
-    if (discountPercent <= 0) {
-      return {
-        'originalTotal': originalTotal,
-        'discountAmount': 0,
-        'discountPercent': 0,
-        'discountMinNights': 0,
-        'discountBase': '',
-        'finalTotal': originalTotal,
-      };
-    }
-
-    final discountBase = (discountSetting['base'] ?? 'total').toString();
-
-    int discountTargetAmount;
-
-    switch (discountBase) {
-      case 'room':
-        discountTargetAmount = roomTotal;
-        break;
-      case 'room_pet':
-        discountTargetAmount = roomTotal + petTotal;
-        break;
-      case 'total':
-      default:
-        discountTargetAmount = originalTotal;
-        break;
-    }
-
-    final discountAmount = (discountTargetAmount * discountPercent / 100)
-        .round();
-
-    return {
+    /// 沒有符合新的優惠活動時，不再套用舊版 discountSetting。
+    ///
+    /// 前後台統一只使用 DiscountCampaign 系統。
+    return <String, dynamic>{
       'originalTotal': originalTotal,
-      'discountAmount': discountAmount,
-      'discountPercent': discountPercent,
-      'discountMinNights': ((matchedRule['minNights'] ?? 0) as num).toInt(),
-      'discountBase': discountBase,
-      'finalTotal': originalTotal - discountAmount,
+      'baseRoomTotal': baseRoomTotal,
+      'specialDateSurchargeAmount': specialDateSurchargeAmount,
+      'specialDateSurchargeDetails': specialDateSurchargeDetails,
+      'couponBlockedBySpecialDate': couponBlockedBySpecialDate,
+      'campaignBlockedBySpecialDate': campaignBlockedBySpecialDate,
+      'discountAmount': 0,
+      'discountUsedNights': 0,
+      'remainingDiscountNights': 0,
+      'discountPercent': 0,
+      'discountMinNights': 0,
+      'discountBase': '',
+      'finalTotal': originalTotal,
+      'discountCampaignId': '',
+      'discountCampaignName': '',
+      'discountCampaignDescription': '',
+      'discountCampaignType': '',
+      'discountValueType': '',
+      'discountValue': 0,
+      'discountApplyTarget': '',
+      'allowCouponTogether': false,
     };
-  }
-
-  int _calculateAdminTotalPrice({
-    required Map<String, dynamic> roomType,
-    required int nights,
-  }) {
-    final basePrice = (roomType['price'] ?? 0) as int;
-
-    final extraPetPrice = (roomType['extraPrice'] ?? 0) as int;
-    final extraPetCount = _selectedPetIds.length > 1
-        ? _selectedPetIds.length - 1
-        : 0;
-    final extraPetTotal = extraPetPrice * extraPetCount * nights;
-
-    final timeTotal = (_selectedTimeAddon?['total'] ?? 0) as int;
-
-    final valueTotal = _selectedValueServices.fold<int>(
-      0,
-      (sum, item) => sum + ((item['total'] ?? 0) as int),
-    );
-
-    final customTotal = _selectedCustomServices.entries.fold<int>(0, (
-      sum,
-      entry,
-    ) {
-      final service = List<Map<String, dynamic>>.from(
-        _addonData?['customServices'] ?? [],
-      ).firstWhere((item) => item['name'] == entry.key, orElse: () => {});
-
-      final price = (service['price'] ?? 0) as int;
-      return sum + (price * entry.value.length);
-    });
-
-    final dailyTimedTotal = _calculateDailyTimedTotal();
-
-    return (basePrice * nights) +
-        extraPetTotal +
-        timeTotal +
-        valueTotal +
-        customTotal +
-        dailyTimedTotal;
   }
 
   int _calculateDepositAmount({
@@ -1606,13 +1646,16 @@ class _AdminCreateBookingPageState extends State<AdminCreateBookingPage> {
       final nights = _endDate!.difference(_startDate!).inDays;
 
       final discountInfo = _calculateAdminDiscountInfo(
-        shop: shop,
         roomType: roomType,
         nights: nights,
       );
 
-      final roomSubtotal = ((roomType['price'] ?? 0) as num).toInt() * nights;
-
+      final int roomSubtotal =
+          (((roomType['price'] ?? 0) as num).toInt() * nights) +
+          ((((roomType['extraPrice'] ?? 0) as num).toInt()) *
+              (_selectedPetIds.length > 1 ? _selectedPetIds.length - 1 : 0) *
+              nights) +
+          ((discountInfo['specialDateSurchargeAmount'] ?? 0) as num).toInt();
       final finalTotal = ((discountInfo['finalTotal'] ?? 0) as num).toInt();
 
       final calculatedDepositAmount = _calculateDepositAmount(
@@ -1658,13 +1701,17 @@ class _AdminCreateBookingPageState extends State<AdminCreateBookingPage> {
             ((roomType['extraPrice'] ?? 0) as int) *
             (_selectedPetIds.length > 1 ? _selectedPetIds.length - 1 : 0) *
             nights,
-        roomSubtotal: (roomType['price'] ?? 0) * nights,
-
+        roomSubtotal: roomSubtotal,
         roomImages: roomType['images'] ?? [],
 
         totalPrice: finalTotal,
         originalTotal: ((discountInfo['originalTotal'] ?? 0) as num).toInt(),
+        specialDateSurchargeAmount:
+            ((discountInfo['specialDateSurchargeAmount'] ?? 0) as num).toInt(),
 
+        specialDateSurchargeDetails: List<Map<String, dynamic>>.from(
+          discountInfo['specialDateSurchargeDetails'] ?? const <dynamic>[],
+        ),
         depositAmount: bookingDepositAmount,
         paymentMethod: bookingPaymentMethod,
         payAmountType: _payAmountType,
@@ -1679,6 +1726,9 @@ class _AdminCreateBookingPageState extends State<AdminCreateBookingPage> {
 
         discountCampaignName: (discountInfo['discountCampaignName'] ?? '')
             .toString(),
+
+        discountCampaignDescription:
+            (discountInfo['discountCampaignDescription'] ?? '').toString(),
 
         discountCampaignType: (discountInfo['discountCampaignType'] ?? '')
             .toString(),
@@ -1753,7 +1803,6 @@ class _AdminCreateBookingPageState extends State<AdminCreateBookingPage> {
 
         final discountInfo = _selectedRoomType != null && nights > 0
             ? _calculateAdminDiscountInfo(
-                shop: shop,
                 roomType: _selectedRoomType!,
                 nights: nights,
               )

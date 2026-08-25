@@ -174,6 +174,17 @@ class AdminCreateBookingConfirmSection extends StatelessWidget {
         ? ((discountInfo!['finalTotal'] ?? totalPrice) as num).toInt()
         : totalPrice;
 
+    final int specialDateSurchargeAmount = discountInfo == null
+        ? 0
+        : ((discountInfo!['specialDateSurchargeAmount'] ?? 0) as num).toInt();
+
+    final List<Map<String, dynamic>> specialDateSurchargeDetails =
+        discountInfo == null
+        ? <Map<String, dynamic>>[]
+        : List<Map<String, dynamic>>.from(
+            discountInfo!['specialDateSurchargeDetails'] ?? const <dynamic>[],
+          );
+
     final currentPayAmount = depositAmount.clamp(0, finalTotal).toInt();
 
     final remainingAmount = (finalTotal - currentPayAmount)
@@ -356,15 +367,40 @@ class AdminCreateBookingConfirmSection extends StatelessWidget {
 
               _confirmRow('房型單價', 'NT\$ $price'),
 
+              if (specialDateSurchargeAmount > 0) ...[
+                _confirmRow('特殊日期加價', '+NT\$ $specialDateSurchargeAmount'),
+
+                ...specialDateSurchargeDetails.map((detail) {
+                  final String date = (detail['date'] ?? '').toString();
+
+                  final int amount = ((detail['amount'] ?? 0) as num).toInt();
+
+                  final List<Map<String, dynamic>> items =
+                      List<Map<String, dynamic>>.from(
+                        detail['items'] ?? const <dynamic>[],
+                      );
+
+                  final String names = items
+                      .map((item) => (item['name'] ?? '').toString().trim())
+                      .where((name) => name.isNotEmpty)
+                      .join('、');
+
+                  return _confirmRow(
+                    '加價明細',
+                    '$date${names.isEmpty ? '' : '｜$names'}｜+NT\$ $amount',
+                  );
+                }),
+              ],
+
               const SizedBox(height: 4),
 
               SwitchListTile(
                 contentPadding: EdgeInsets.zero,
                 title: const Text(
-                  '套用多日折扣',
+                  '套用自動優惠',
                   style: TextStyle(fontWeight: FontWeight.w800),
                 ),
-                subtitle: const Text('符合店家設定時，系統會自動折抵多日入住優惠'),
+                subtitle: const Text('開啟後，符合店家優惠活動條件時會自動套用最佳優惠'),
                 value: applyLongStayDiscount,
                 onChanged: onApplyLongStayDiscountChanged,
               ),
@@ -515,9 +551,23 @@ class AdminCreateBookingConfirmSection extends StatelessWidget {
                   ((discountInfo!['discountAmount'] ?? 0) as int) > 0) ...[
                 _confirmRow('原價', 'NT\$ ${discountInfo!['originalTotal']}'),
                 _confirmRow('優惠活動', _buildDiscountDescription(discountInfo!)),
+                if ((discountInfo!['discountCampaignType'] ?? '').toString() ==
+                    'newMember') ...[
+                  if (((discountInfo!['discountUsedNights'] ?? 0) as num)
+                          .toInt() >
+                      0)
+                    _confirmRow(
+                      '本次優惠晚數',
+                      '${((discountInfo!['discountUsedNights'] ?? 0) as num).toInt()} 晚',
+                    ),
+                  _confirmRow(
+                    '剩餘優惠晚數',
+                    '${((discountInfo!['remainingDiscountNights'] ?? 0) as num).toInt()} 晚',
+                  ),
+                ],
                 _confirmRow('折扣後金額', 'NT\$ ${discountInfo!['finalTotal']}'),
               ] else ...[
-                _confirmRow('總金額', 'NT\$ $totalPrice'),
+                _confirmRow('總金額', 'NT\$ $finalTotal'),
               ],
             ],
           ),
@@ -578,19 +628,15 @@ class AdminCreateBookingConfirmSection extends StatelessWidget {
           lines.add('新會員優惠');
           break;
 
-        case 'firstBooking':
-          lines.add('首次預約優惠');
-          break;
-
         case 'longStay':
           lines.add('長住優惠');
           break;
 
-        case 'specificDate':
-          lines.add('指定日期優惠');
+        case 'stayDate':
+          lines.add('特定住宿日期優惠');
           break;
 
-        case 'specificRoom':
+        case 'roomType':
           lines.add('指定房型優惠');
           break;
 
@@ -599,7 +645,11 @@ class AdminCreateBookingConfirmSection extends StatelessWidget {
           break;
 
         case 'limitedTime':
-          lines.add('限時優惠');
+          lines.add('限時下單優惠');
+          break;
+
+        case 'googleReview':
+          lines.add('Google 評論優惠');
           break;
 
         default:

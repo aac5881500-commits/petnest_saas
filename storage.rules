@@ -182,6 +182,145 @@ match /platform_contact_requests/{requestId}/{fileName} {
           isShopMember(shopId)
         );
     }
+// ============================================================
+// 📷 每日照護照片
+// 路徑：
+// daily_care_photos/{shopId}/{bookingId}/{roomId}/{dateKey}/{sessionIndex}/{photoId}/...
+//
+// preview.jpg：
+// - 店家 / Root Admin 可讀
+// - 該訂單會員可讀
+//
+// download.jpg：
+// - 目前先只允許店家 / Root Admin 讀取
+// - 後續再加入 completed + 下載期限判斷
+//
+// 上傳 / 修改：
+// - 僅店家 / Root Admin
+// - 訂單必須 checked_in
+// ============================================================
+
+// 👁 Preview 小圖
+match /daily_care_photos/{shopId}/{bookingId}/{roomId}/{dateKey}/{sessionIndex}/{photoId}/preview.jpg {
+
+  allow read: if signedIn()
+    && (
+      isRootAdmin()
+      ||
+      isShopMember(shopId)
+      ||
+      (
+        firestore.exists(
+          /databases/(default)/documents/bookings/$(bookingId)
+        )
+        &&
+        firestore.get(
+          /databases/(default)/documents/bookings/$(bookingId)
+        ).data.userId == request.auth.uid
+        &&
+        firestore.get(
+          /databases/(default)/documents/bookings/$(bookingId)
+        ).data.shopId == shopId
+      )
+    );
+
+  allow create, update: if signedIn()
+    && (
+      isRootAdmin()
+      || isShopMember(shopId)
+    )
+    && firestore.exists(
+      /databases/(default)/documents/bookings/$(bookingId)
+    )
+    && firestore.get(
+      /databases/(default)/documents/bookings/$(bookingId)
+    ).data.shopId == shopId
+    && firestore.get(
+      /databases/(default)/documents/bookings/$(bookingId)
+    ).data.status == 'checked_in'
+    && isImage()
+    && isUnder5MB();
+
+  allow delete: if signedIn()
+    && (
+      isRootAdmin()
+      || isShopMember(shopId)
+    );
+}
+
+// 📥 高清下載圖
+match /daily_care_photos/{shopId}/{bookingId}/{roomId}/{dateKey}/{sessionIndex}/{photoId}/download.jpg {
+
+// 店家 / Root Admin 可讀；
+// 訂單會員只有完成退房且仍在下載期限內才可讀。
+allow read: if signedIn()
+&& (
+  isRootAdmin()
+  ||
+  isShopMember(shopId)
+  ||
+  (
+    firestore.exists(
+      /databases/(default)/documents/bookings/$(bookingId)
+    )
+    &&
+    firestore.get(
+      /databases/(default)/documents/bookings/$(bookingId)
+    ).data.userId == request.auth.uid
+    &&
+    firestore.get(
+      /databases/(default)/documents/bookings/$(bookingId)
+    ).data.shopId == shopId
+    &&
+    firestore.get(
+      /databases/(default)/documents/bookings/$(bookingId)
+    ).data.status == 'completed'
+    &&
+    firestore.exists(
+      /databases/(default)/documents/daily_care_photo_downloads/$(photoId)
+    )
+    &&
+    firestore.get(
+      /databases/(default)/documents/daily_care_photo_downloads/$(photoId)
+    ).data.bookingId == bookingId
+    &&
+    firestore.get(
+      /databases/(default)/documents/daily_care_photo_downloads/$(photoId)
+    ).data.shopId == shopId
+    &&
+    firestore.get(
+      /databases/(default)/documents/daily_care_photo_downloads/$(photoId)
+    ).data.expiresAt is timestamp
+    &&
+    request.time
+      < firestore.get(
+          /databases/(default)/documents/daily_care_photo_downloads/$(photoId)
+        ).data.expiresAt
+  )
+);
+  allow create, update: if signedIn()
+    && (
+      isRootAdmin()
+      || isShopMember(shopId)
+    )
+    && firestore.exists(
+      /databases/(default)/documents/bookings/$(bookingId)
+    )
+    && firestore.get(
+      /databases/(default)/documents/bookings/$(bookingId)
+    ).data.shopId == shopId
+    && firestore.get(
+      /databases/(default)/documents/bookings/$(bookingId)
+    ).data.status == 'checked_in'
+    && isImage()
+    && isUnder5MB();
+
+  allow delete: if signedIn()
+    && (
+      isRootAdmin()
+      || isShopMember(shopId)
+    );
+}
 
     // 🚫 其他 Storage 路徑全部拒絕
     match /{allPaths=**} {

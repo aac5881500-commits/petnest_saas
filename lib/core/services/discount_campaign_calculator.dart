@@ -14,6 +14,7 @@ class DiscountCampaignCalculationInput {
     required this.petAmount,
     required this.extraServiceAmount,
     this.isFirstBooking = false,
+    this.memberJoinedAt,
     this.hasVerifiedGoogleReview = false,
     this.memberCampaignUsage = const <String, int>{},
     this.memberCampaignUsedNights = const <String, int>{},
@@ -40,9 +41,11 @@ class DiscountCampaignCalculationInput {
   /// 是否為該會員在此店的第一次有效預約
   final bool isFirstBooking;
 
+  /// 👤 會員加入目前店家的時間
+  /// 來源：shops/{shopId}/members/{uid}.createdAt
+  final DateTime? memberJoinedAt;
+
   /// 是否已完成並通過 Google 評論驗證
-  ///
-  /// 目前尚未接驗證流程，前台接線時先傳 false。
   final bool hasVerifiedGoogleReview;
 
   /// 該會員對各活動已使用的次數
@@ -257,10 +260,10 @@ class DiscountCampaignCalculator {
     if (discountBaseAmount <= 0) {
       return null;
     }
-
     final int discountAmount = _calculateDiscountAmount(
       campaign: campaign,
       discountBaseAmount: discountBaseAmount,
+      discountUsedNights: discountUsedNights,
     );
 
     if (discountAmount <= 0) {
@@ -285,9 +288,7 @@ class DiscountCampaignCalculator {
             input.nights >= campaign.minimumNights;
 
       case DiscountCampaignType.newMember:
-        return input.nights > 0 &&
-            remainingNewMemberDiscountNights(campaign: campaign, input: input) >
-                0;
+        return _matchesNewMemberEligibility(campaign, input);
 
       case DiscountCampaignType.googleReview:
         return input.hasVerifiedGoogleReview;
@@ -348,6 +349,50 @@ class DiscountCampaignCalculator {
 
       case DiscountCampaignType.limitedTime:
         return true;
+    }
+  }
+
+  static bool _matchesNewMemberEligibility(
+    DiscountCampaignModel campaign,
+    DiscountCampaignCalculationInput input,
+  ) {
+    if (input.nights <= 0) {
+      return false;
+    }
+
+    final int remainingNights = remainingNewMemberDiscountNights(
+      campaign: campaign,
+      input: input,
+    );
+
+    if (remainingNights <= 0) {
+      return false;
+    }
+
+    /// 已經使用過這個活動，代表先前已取得資格。
+    /// 即使後續已經有有效訂單，仍可繼續使用剩餘優惠晚數。
+    final int usedNights = input.usedNightsForCampaign(campaign.id);
+
+    if (usedNights > 0) {
+      return true;
+    }
+
+    switch (campaign.newMemberEligibilityMode) {
+      case NewMemberEligibilityMode.createdAfterCampaign:
+        final DateTime? memberJoinedAt = input.memberJoinedAt;
+
+        /// 沒有可靠的加入本店時間時，不冒險套用優惠。
+        if (memberJoinedAt == null) {
+          return false;
+        }
+
+        final DateTime campaignCreatedAt = campaign.createdAt;
+
+        return memberJoinedAt.isAtSameMomentAs(campaignCreatedAt) ||
+            memberJoinedAt.isAfter(campaignCreatedAt);
+
+      case NewMemberEligibilityMode.noPreviousBooking:
+        return input.isFirstBooking;
     }
   }
 
@@ -450,6 +495,7 @@ class DiscountCampaignCalculator {
   static int _calculateDiscountAmount({
     required DiscountCampaignModel campaign,
     required num discountBaseAmount,
+    required int discountUsedNights,
   }) {
     num discountAmount;
 
@@ -464,7 +510,12 @@ class DiscountCampaignCalculator {
         }
 
       case DiscountValueType.fixedAmount:
-        discountAmount = campaign.discountValue;
+        if (campaign.type == DiscountCampaignType.newMember &&
+            discountUsedNights > 0) {
+          discountAmount = campaign.discountValue * discountUsedNights;
+        } else {
+          discountAmount = campaign.discountValue;
+        }
     }
 
     if (discountAmount > discountBaseAmount) {

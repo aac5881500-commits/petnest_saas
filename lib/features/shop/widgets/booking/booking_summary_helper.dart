@@ -173,7 +173,8 @@ class BookingSummaryHelper {
     String discountCampaignType = '',
     int discountUsedNights = 0,
     int remainingDiscountNights = 0,
-
+    int specialDateSurchargeAmount = 0,
+    List<Map<String, dynamic>> specialDateSurchargeDetails = const [],
     String couponName = '',
     int couponDiscountAmount = 0,
 
@@ -236,7 +237,8 @@ class BookingSummaryHelper {
       discountCampaignType: discountCampaignType,
       discountUsedNights: discountUsedNights,
       remainingDiscountNights: remainingDiscountNights,
-
+      specialDateSurchargeAmount: specialDateSurchargeAmount,
+      specialDateSurchargeDetails: specialDateSurchargeDetails,
       couponName: couponName,
       couponDiscountAmount: couponDiscountAmount,
 

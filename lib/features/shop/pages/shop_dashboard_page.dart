@@ -8,6 +8,7 @@
 // - 其他模組先保留模板位置
 // - 表格統計先保留入口，部分內容可鎖 owner
 
+import 'daily_care_setting_page.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -25,6 +26,7 @@ import 'package:petnest_saas/features/shop/pages/shop_room_type_page.dart';
 import 'package:petnest_saas/features/shop/pages/shop_room_page.dart';
 import 'package:petnest_saas/features/admin/pages/admin_booking_list_page.dart';
 import 'package:petnest_saas/features/admin/pages/admin_member_list_page.dart';
+import 'package:petnest_saas/features/admin/pages/admin_payment_center_page.dart';
 import 'package:petnest_saas/features/shop/pages/shop_policy_page.dart';
 import 'package:petnest_saas/features/shop/pages/shop_policy_logs_page.dart';
 import 'package:petnest_saas/features/room/pages/room_dashboard_page.dart';
@@ -902,7 +904,23 @@ class _CatHotelTab extends StatelessWidget {
             },
           ),
 
-        const _MenuSectionTitle('付款與加購'),
+        const _MenuSectionTitle('價格、付款與加購'),
+
+        if (_can(ShopPermissionKeys.managePaymentSettings))
+          _MenuTile(
+            title: '金流中心',
+            subtitle: isProfileComplete ? '查看交易紀錄、付款狀態與金流資料' : '請先完成基本資料',
+            icon: Icons.payments_outlined,
+            enabled: isProfileComplete,
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => AdminPaymentCenterPage(shopId: shopId),
+                ),
+              );
+            },
+          ),
 
         if (_can(ShopPermissionKeys.manageAddons))
           _MenuTile(
@@ -986,6 +1004,20 @@ class _CatHotelTab extends StatelessWidget {
               context,
               MaterialPageRoute(
                 builder: (_) => ShopPolicyLogsPage(shopId: shopId),
+              ),
+            );
+          },
+        ),
+        _MenuTile(
+          title: '每日照護紀錄設定',
+          subtitle: isProfileComplete ? '設定每日回報次數、照護項目、照片與退房下載期限' : '請先完成基本資料',
+          icon: Icons.pets_outlined,
+          enabled: isProfileComplete,
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => DailyCareSettingPage(shopId: shopId),
               ),
             );
           },

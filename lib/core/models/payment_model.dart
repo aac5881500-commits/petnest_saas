@@ -12,7 +12,9 @@ class PaymentModel {
     required this.id,
     required this.shopId,
     required this.bookingId,
+    required this.bookingCode,
     required this.userId,
+    this.customerName = '',
     required this.gateway,
     required this.paymentMethod,
     required this.amountType,
@@ -51,8 +53,16 @@ class PaymentModel {
   /// 對應的預約訂單 ID
   final String bookingId;
 
+  /// 對應的預約訂單編號
+  ///
+  /// 例如：SHOP0001-B000079
+  final String bookingCode;
+
   /// 付款會員 UID
   final String userId;
+
+  /// 會員姓名
+  final String customerName;
 
   /// 金流服務商
   ///
@@ -242,7 +252,9 @@ class PaymentModel {
       id: id,
       shopId: (data['shopId'] ?? '').toString(),
       bookingId: (data['bookingId'] ?? '').toString(),
+      bookingCode: (data['bookingCode'] ?? '').toString(),
       userId: (data['userId'] ?? '').toString(),
+      customerName: (data['customerName'] ?? '').toString(),
       gateway: (data['gateway'] ?? PaymentGateway.ecpay).toString(),
       paymentMethod: (data['paymentMethod'] ?? '').toString(),
       amountType: (data['amountType'] ?? '').toString(),
@@ -278,7 +290,9 @@ class PaymentModel {
     return <String, dynamic>{
       'shopId': shopId,
       'bookingId': bookingId,
+      'bookingCode': bookingCode,
       'userId': userId,
+      'customerName': customerName,
       'gateway': gateway,
       'paymentMethod': paymentMethod,
       'amountType': amountType,
@@ -315,7 +329,9 @@ class PaymentModel {
     String? id,
     String? shopId,
     String? bookingId,
+    String? bookingCode,
     String? userId,
+    String? customerName,
     String? gateway,
     String? paymentMethod,
     String? amountType,
@@ -353,7 +369,9 @@ class PaymentModel {
       id: id ?? this.id,
       shopId: shopId ?? this.shopId,
       bookingId: bookingId ?? this.bookingId,
+      bookingCode: bookingCode ?? this.bookingCode,
       userId: userId ?? this.userId,
+      customerName: customerName ?? this.customerName,
       gateway: gateway ?? this.gateway,
       paymentMethod: paymentMethod ?? this.paymentMethod,
       amountType: amountType ?? this.amountType,

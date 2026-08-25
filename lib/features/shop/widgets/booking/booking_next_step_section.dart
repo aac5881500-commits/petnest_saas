@@ -17,6 +17,7 @@ class BookingNextStepSection extends StatelessWidget {
     required this.originalTotal,
     required this.discountAmount,
     required this.discountCampaignName,
+    required this.specialDateSurchargeAmount,
     required this.selectedPetIds,
     required this.startDate,
     required this.endDate,
@@ -42,6 +43,7 @@ class BookingNextStepSection extends StatelessWidget {
   final int originalTotal;
   final int discountAmount;
   final String discountCampaignName;
+  final int specialDateSurchargeAmount;
   final List<Map<String, dynamic>> valueServices;
   final List<String> selectedPetIds;
   final DateTime? startDate;
@@ -127,7 +129,8 @@ class BookingNextStepSection extends StatelessWidget {
 
                     final int roomSubtotal =
                         (basePrice * nights) +
-                        (extraPetCount * extraPrice * nights);
+                        (extraPetCount * extraPrice * nights) +
+                        specialDateSurchargeAmount;
 
                     Navigator.push(
                       context,

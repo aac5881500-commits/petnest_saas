@@ -94,6 +94,9 @@ class BookingSubmitHelper {
     required String note,
     required int totalPrice,
     required int originalTotal,
+    int specialDateSurchargeAmount = 0,
+    List<Map<String, dynamic>> specialDateSurchargeDetails =
+        const <Map<String, dynamic>>[],
     required int discountAmount,
     required int discountUsedNights,
     required int discountPercent,
@@ -193,7 +196,8 @@ class BookingSubmitHelper {
     final extraPrice = (selectedRoomType['extraPrice'] ?? 0).toInt();
     final extraPetCount = petCount > 1 ? petCount - 1 : 0;
     final extraPetTotal = (extraPetCount * extraPrice * nights).toInt();
-    final roomSubtotal = basePrice + extraPetTotal;
+    final int roomSubtotal =
+        (basePrice * nights) + extraPetTotal + specialDateSurchargeAmount;
     final pricePerNight = nights > 0 ? (totalPrice ~/ nights) : 0;
 
     final bookingId = await BookingService.instance.createBooking(
@@ -239,6 +243,8 @@ class BookingSubmitHelper {
       emergencyPhone2: phone2,
       totalPrice: totalPrice,
       originalTotal: originalTotal,
+      specialDateSurchargeAmount: specialDateSurchargeAmount,
+      specialDateSurchargeDetails: specialDateSurchargeDetails,
       discountAmount: discountAmount,
       discountUsedNights: discountUsedNights,
       discountPercent: discountPercent,

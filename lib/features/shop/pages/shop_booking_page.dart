@@ -41,6 +41,9 @@ import 'package:petnest_saas/features/shop/widgets/booking/booking_submit_helper
 import 'package:petnest_saas/core/models/discount_campaign_model.dart';
 import 'package:petnest_saas/core/services/discount_campaign_service.dart';
 import 'package:petnest_saas/core/services/discount_campaign_calculator.dart';
+import 'package:petnest_saas/core/models/special_date_surcharge_model.dart';
+import 'package:petnest_saas/core/services/special_date_surcharge_service.dart';
+import 'package:petnest_saas/core/services/special_date_surcharge_calculator.dart';
 import 'package:petnest_saas/core/models/member_coupon_model.dart';
 import 'package:petnest_saas/core/services/member_coupon_service.dart';
 import 'package:petnest_saas/core/models/home_theme_model.dart';
@@ -70,8 +73,16 @@ class _ShopBookingPageState extends State<ShopBookingPage> {
   List<DiscountCampaignModel> _enabledCampaigns =
       const <DiscountCampaignModel>[];
   bool _campaignsLoading = true;
+  List<SpecialDateSurchargeModel> _enabledSpecialDateSurcharges =
+      const <SpecialDateSurchargeModel>[];
+  bool _specialDateSurchargesLoading = true;
   Map<String, int> _memberCampaignUsage = <String, int>{};
   Map<String, int> _memberCampaignUsedNights = <String, int>{};
+
+  /// 👤 會員加入目前店家的時間
+  /// 來源：shops/{shopId}/members/{uid}.createdAt
+  DateTime? _memberJoinedAt;
+
   bool _isFirstBooking = false;
   bool _firstBookingLoading = true;
   List<MemberCouponModel> _availableMemberCoupons = const <MemberCouponModel>[];
@@ -89,6 +100,7 @@ class _ShopBookingPageState extends State<ShopBookingPage> {
     _loadMemberData();
     _loadAddons();
     _loadDiscountCampaigns();
+    _loadSpecialDateSurcharges();
     _loadFirstBookingStatus();
     _loadMemberCampaignUsage();
     _loadAvailableMemberCoupons();
@@ -162,10 +174,22 @@ class _ShopBookingPageState extends State<ShopBookingPage> {
     final shopMemberData = shopMemberDoc.data() ?? {};
     final isShopBlacklisted = shopMemberData['blacklisted'] == true;
 
+    /// 👤 會員加入目前店家的時間
+    final dynamic memberCreatedAt = shopMemberData['createdAt'];
+
+    DateTime? memberJoinedAt;
+
+    if (memberCreatedAt is Timestamp) {
+      memberJoinedAt = memberCreatedAt.toDate();
+    }
+
+    if (!mounted) return;
+
     setState(() {
       _customerNameController.text = data['name'] ?? '';
       _customerPhoneController.text = data['phone'] ?? '';
       _isBlacklisted = isShopBlacklisted;
+      _memberJoinedAt = memberJoinedAt;
     });
   }
 
@@ -209,6 +233,35 @@ class _ShopBookingPageState extends State<ShopBookingPage> {
       });
 
       debugPrint('讀取優惠活動失敗：$error');
+    }
+  }
+
+  Future<void> _loadSpecialDateSurcharges() async {
+    try {
+      final List<SpecialDateSurchargeModel> surcharges =
+          await SpecialDateSurchargeService.instance.getEnabledSurcharges(
+            widget.shopId,
+          );
+
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _enabledSpecialDateSurcharges = surcharges;
+        _specialDateSurchargesLoading = false;
+      });
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _enabledSpecialDateSurcharges = const <SpecialDateSurchargeModel>[];
+        _specialDateSurchargesLoading = false;
+      });
+
+      debugPrint('讀取特殊日期加價失敗：$error');
     }
   }
 
@@ -772,6 +825,13 @@ class _ShopBookingPageState extends State<ShopBookingPage> {
                                       )['discountCampaignName'] ??
                                       '')
                                   .toString(),
+                        specialDateSurchargeAmount: _selectedRoomType == null
+                            ? 0
+                            : (_calculateDiscountInfo(
+                                        shop,
+                                      )['specialDateSurchargeAmount'] ??
+                                      0)
+                                  .toInt(),
                         valueServices: _selectedValueServices,
                         formKey: _formKey,
                         shopId: widget.shopId,
@@ -825,6 +885,74 @@ class _ShopBookingPageState extends State<ShopBookingPage> {
 
   Widget _buildMemberCouponSection() {
     final MemberCouponModel? selectedCoupon = _selectedMemberCoupon;
+
+    final Map<String, dynamic> discountInfo = _calculateDiscountInfo(
+      _currentShopData,
+    );
+
+    final bool couponBlockedBySpecialDate =
+        (discountInfo['couponBlockedBySpecialDate'] ?? false) == true;
+
+    if (couponBlockedBySpecialDate) {
+      return Card(
+        margin: EdgeInsets.zero,
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Row(
+                children: [
+                  Icon(Icons.confirmation_number_outlined),
+                  SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      '使用優惠券',
+                      style: TextStyle(
+                        fontSize: 17,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: Colors.orange.shade50,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.orange.shade300),
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Icon(
+                      Icons.info_outline,
+                      color: Colors.orange.shade800,
+                      size: 20,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        '目前住宿日期包含特殊日期加價，本次不可使用優惠券。',
+                        style: TextStyle(
+                          color: Colors.orange.shade900,
+                          fontSize: 13.5,
+                          height: 1.5,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
 
     return Card(
       margin: EdgeInsets.zero,
@@ -1207,27 +1335,22 @@ class _ShopBookingPageState extends State<ShopBookingPage> {
       return '這張優惠券不適用目前選擇的房型';
     }
 
-    final Map<String, dynamic> priceParts =
-        BookingSummaryHelper.calculatePriceParts(
-          selectedRoomType: _selectedRoomType!,
-          nights: _nights,
-          selectedPetIds: _selectedPetIds,
-          selectedTimeAddon: _selectedTimeAddon,
-          selectedValueServices: _selectedValueServices,
-          selectedCustomServices: _selectedCustomServices,
-          selectedDailyTimedServices: _selectedDailyTimedServices,
-          addonData: _addonData,
-        );
+    final Map<String, dynamic> campaignInfo = _calculateDiscountInfo(
+      _currentShopData,
+    );
 
-    final int originalTotal = (priceParts['subtotal'] ?? 0).toInt();
+    final bool couponBlockedBySpecialDate =
+        (campaignInfo['couponBlockedBySpecialDate'] ?? false) == true;
+
+    if (couponBlockedBySpecialDate) {
+      return '目前住宿日期包含不可使用優惠券的特殊日期';
+    }
+
+    final int originalTotal = (campaignInfo['originalTotal'] ?? 0).toInt();
 
     if (coupon.minimumAmount > 0 && originalTotal < coupon.minimumAmount) {
       return '此優惠券最低消費為 NT\$ ${coupon.minimumAmount}';
     }
-
-    final Map<String, dynamic> campaignInfo = _calculateDiscountInfo(
-      _currentShopData,
-    );
     final int campaignDiscountAmount = (campaignInfo['discountAmount'] ?? 0)
         .toInt();
 
@@ -1602,6 +1725,12 @@ class _ShopBookingPageState extends State<ShopBookingPage> {
         totalPrice: (discountInfo['finalTotalAfterCoupon'] ?? 0).toInt(),
 
         originalTotal: discountInfo['originalTotal'] ?? 0,
+        specialDateSurchargeAmount:
+            (discountInfo['specialDateSurchargeAmount'] ?? 0).toInt(),
+
+        specialDateSurchargeDetails: List<Map<String, dynamic>>.from(
+          discountInfo['specialDateSurchargeDetails'] ?? const <dynamic>[],
+        ),
         discountAmount: discountInfo['discountAmount'] ?? 0,
         discountUsedNights: discountInfo['discountUsedNights'] ?? 0,
         discountPercent: discountInfo['discountPercent'] ?? 0,
@@ -1703,8 +1832,11 @@ class _ShopBookingPageState extends State<ShopBookingPage> {
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(
-            builder: (_) =>
-                EcpayPaymentPage(paymentHtml: paymentResult.paymentHtml),
+            builder: (_) => EcpayPaymentPage(
+              paymentHtml: paymentResult.paymentHtml,
+              paymentId: paymentResult.paymentId,
+              bookingId: createdBookingId!,
+            ),
           ),
         );
 
@@ -2066,8 +2198,13 @@ class _ShopBookingPageState extends State<ShopBookingPage> {
                           ),
                           detailRow(
                             title: '會員限制',
-                            value: campaign.firstBookingOnly
-                                ? '僅限首次預約會員'
+                            value:
+                                campaign.type == DiscountCampaignType.newMember
+                                ? campaign.newMemberEligibilityMode ==
+                                          NewMemberEligibilityMode
+                                              .createdAfterCampaign
+                                      ? '活動建立後加入的新會員'
+                                      : '本店尚未有有效訂單的會員'
                                 : '依活動設定判斷',
                           ),
                           detailRow(
@@ -2076,7 +2213,14 @@ class _ShopBookingPageState extends State<ShopBookingPage> {
                                 ? '可與會員優惠券一起使用'
                                 : '不可與會員優惠券一起使用',
                           ),
-                          if (campaign.memberUsageLimit > 0)
+                          if (campaign.type == DiscountCampaignType.newMember)
+                            detailRow(
+                              title: '優惠額度',
+                              value: campaign.newMemberDiscountNights > 0
+                                  ? '共 ${campaign.newMemberDiscountNights} 晚，可分次使用'
+                                  : '依活動設定',
+                            )
+                          else if (campaign.memberUsageLimit > 0)
                             detailRow(
                               title: '使用次數',
                               value: '每位會員最多使用 ${campaign.memberUsageLimit} 次',
@@ -2123,6 +2267,40 @@ class _ShopBookingPageState extends State<ShopBookingPage> {
     }
 
     final Map<String, dynamic> discountInfo = _calculateDiscountInfo(shop);
+
+    final bool campaignBlockedBySpecialDate =
+        (discountInfo['campaignBlockedBySpecialDate'] ?? false) == true;
+
+    if (campaignBlockedBySpecialDate) {
+      return Container(
+        width: double.infinity,
+        margin: const EdgeInsets.only(top: 14, bottom: 4),
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: Colors.orange.shade50,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: Colors.orange.shade300),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(Icons.info_outline, color: Colors.orange.shade800, size: 21),
+            const SizedBox(width: 9),
+            Expanded(
+              child: Text(
+                '目前住宿日期包含特殊日期加價，本次不適用自動優惠活動。',
+                style: TextStyle(
+                  color: Colors.orange.shade900,
+                  fontSize: 13.5,
+                  height: 1.5,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
 
     final String campaignId = (discountInfo['discountCampaignId'] ?? '')
         .toString()
@@ -2237,23 +2415,85 @@ class _ShopBookingPageState extends State<ShopBookingPage> {
       addonData: _addonData,
     );
 
-    final roomTotal = priceParts['roomTotal'] ?? 0;
-    final petTotal = priceParts['petTotal'] ?? 0;
-    final originalTotal = priceParts['subtotal'] ?? 0;
+    final int baseRoomTotal = (priceParts['roomTotal'] ?? 0).toInt();
+    final int petTotal = (priceParts['petTotal'] ?? 0).toInt();
+    final int baseSubtotal = (priceParts['subtotal'] ?? 0).toInt();
 
-    final int extraServiceTotal = (originalTotal - roomTotal - petTotal)
-        .clamp(0, originalTotal)
+    final int extraServiceTotal = (baseSubtotal - baseRoomTotal - petTotal)
+        .clamp(0, baseSubtotal)
         .toInt();
 
-    if (!_campaignsLoading &&
+    int specialDateSurchargeAmount = 0;
+    List<Map<String, dynamic>> specialDateSurchargeDetails =
+        <Map<String, dynamic>>[];
+
+    bool campaignBlockedBySpecialDate = false;
+    bool couponBlockedBySpecialDate = false;
+
+    final String roomTypeId =
+        (_selectedRoomType?['id'] ?? _selectedRoomType?['roomTypeId'] ?? '')
+            .toString()
+            .trim();
+
+    if (!_specialDateSurchargesLoading &&
+        _startDate != null &&
+        _endDate != null &&
+        _enabledSpecialDateSurcharges.isNotEmpty) {
+      final SpecialDateSurchargeCalculationResult surchargeResult =
+          SpecialDateSurchargeCalculator.calculate(
+            checkInDate: _startDate!,
+            checkOutDate: _endDate!,
+            roomTypeId: roomTypeId,
+            surcharges: _enabledSpecialDateSurcharges,
+          );
+      specialDateSurchargeAmount = surchargeResult.totalAmount;
+      campaignBlockedBySpecialDate = surchargeResult.nightDetails.any(
+        (SpecialDateSurchargeNightDetail detail) => detail.surcharges.any(
+          (SpecialDateSurchargeModel surcharge) =>
+              !surcharge.allowCampaignDiscount,
+        ),
+      );
+      couponBlockedBySpecialDate = surchargeResult.nightDetails.any(
+        (SpecialDateSurchargeNightDetail detail) => detail.surcharges.any(
+          (SpecialDateSurchargeModel surcharge) => !surcharge.allowCoupon,
+        ),
+      );
+      specialDateSurchargeDetails = surchargeResult.nightDetails
+          .where(
+            (SpecialDateSurchargeNightDetail detail) => detail.hasSurcharge,
+          )
+          .map((SpecialDateSurchargeNightDetail detail) {
+            return <String, dynamic>{
+              'date': _formatDate(detail.stayDate),
+              'amount': detail.amount,
+              'items': detail.surcharges.map((
+                SpecialDateSurchargeModel surcharge,
+              ) {
+                return <String, dynamic>{
+                  'id': surcharge.id,
+                  'name': surcharge.name,
+                  'amountPerNight': surcharge.amountPerNight,
+                  'allowCampaignDiscount': surcharge.allowCampaignDiscount,
+                  'allowCoupon': surcharge.allowCoupon,
+                  'roomTypeIds': List<String>.from(surcharge.roomTypeIds),
+                };
+              }).toList(),
+            };
+          })
+          .toList();
+    }
+
+    /// 價格順序：
+    /// 原始房價 → 特殊日期加價 → Campaign → 優惠券
+    final int roomTotal = baseRoomTotal + specialDateSurchargeAmount;
+    final int originalTotal = baseSubtotal + specialDateSurchargeAmount;
+
+    if (!campaignBlockedBySpecialDate &&
+        !_campaignsLoading &&
         _enabledCampaigns.isNotEmpty &&
         _startDate != null &&
         _endDate != null &&
         _selectedRoomType != null) {
-      final String roomTypeId =
-          (_selectedRoomType!['id'] ?? _selectedRoomType!['roomTypeId'] ?? '')
-              .toString();
-
       final DiscountCampaignCalculationResult? bestCampaign =
           DiscountCampaignCalculator.findBestCampaign(
             campaigns: _enabledCampaigns,
@@ -2265,6 +2505,10 @@ class _ShopBookingPageState extends State<ShopBookingPage> {
               petAmount: petTotal,
               extraServiceAmount: extraServiceTotal,
               isFirstBooking: !_firstBookingLoading && _isFirstBooking,
+
+              /// 👤 會員加入目前店家的時間
+              memberJoinedAt: _memberJoinedAt,
+
               memberCampaignUsage: _memberCampaignUsage,
               memberCampaignUsedNights: _memberCampaignUsedNights,
 
@@ -2295,6 +2539,13 @@ class _ShopBookingPageState extends State<ShopBookingPage> {
 
         return <String, dynamic>{
           'originalTotal': originalTotal,
+          'baseSubtotal': baseSubtotal,
+          'baseRoomTotal': baseRoomTotal,
+          'petTotal': petTotal,
+          'specialDateSurchargeAmount': specialDateSurchargeAmount,
+          'specialDateSurchargeDetails': specialDateSurchargeDetails,
+          'campaignBlockedBySpecialDate': campaignBlockedBySpecialDate,
+          'couponBlockedBySpecialDate': couponBlockedBySpecialDate,
           'discountPercent': campaign.valueType == DiscountValueType.percent
               ? campaign.discountValue.toInt()
               : 0,
@@ -2313,6 +2564,7 @@ class _ShopBookingPageState extends State<ShopBookingPage> {
                             extraServiceAmount: extraServiceTotal,
                             isFirstBooking:
                                 !_firstBookingLoading && _isFirstBooking,
+                            memberJoinedAt: _memberJoinedAt,
                             memberCampaignUsage: _memberCampaignUsage,
                             memberCampaignUsedNights: _memberCampaignUsedNights,
                             hasVerifiedGoogleReview: false,
@@ -2339,100 +2591,33 @@ class _ShopBookingPageState extends State<ShopBookingPage> {
       }
     }
 
-    if (shop == null || _nights <= 0) {
-      return {
-        'originalTotal': originalTotal,
-        'discountPercent': 0,
-        'discountAmount': 0,
-        'finalTotal': originalTotal,
-      };
-    }
-
-    final discountSetting = shop['discountSetting'] as Map<String, dynamic>?;
-
-    if (discountSetting == null || discountSetting['enabled'] != true) {
-      return {
-        'originalTotal': originalTotal,
-        'discountPercent': 0,
-        'discountAmount': 0,
-        'finalTotal': originalTotal,
-      };
-    }
-
-    final rules = discountSetting['rules'];
-
-    if (rules is! List || rules.isEmpty) {
-      return {
-        'originalTotal': originalTotal,
-        'discountPercent': 0,
-        'discountAmount': 0,
-        'finalTotal': originalTotal,
-      };
-    }
-
-    Map<String, dynamic>? matchedRule;
-
-    for (final rule in rules) {
-      if (rule is! Map) continue;
-
-      final minNights = ((rule['minNights'] ?? 0) as num).toInt();
-
-      if (_nights >= minNights) {
-        if (matchedRule == null ||
-            minNights > ((matchedRule['minNights'] ?? 0) as num).toInt()) {
-          matchedRule = Map<String, dynamic>.from(rule);
-        }
-      }
-    }
-
-    if (matchedRule == null) {
-      return {
-        'originalTotal': originalTotal,
-        'discountPercent': 0,
-        'discountAmount': 0,
-        'finalTotal': originalTotal,
-      };
-    }
-
-    final discountPercent = ((matchedRule['discountPercent'] ?? 0) as num)
-        .toInt();
-
-    if (discountPercent <= 0) {
-      return {
-        'originalTotal': originalTotal,
-        'discountPercent': 0,
-        'discountAmount': 0,
-        'finalTotal': originalTotal,
-      };
-    }
-
-    final discountBase = (discountSetting['base'] ?? 'total').toString();
-
-    int discountTargetAmount;
-
-    switch (discountBase) {
-      case 'room':
-        discountTargetAmount = roomTotal;
-        break;
-      case 'room_pet':
-        discountTargetAmount = roomTotal + petTotal;
-        break;
-      case 'total':
-      default:
-        discountTargetAmount = originalTotal;
-        break;
-    }
-
-    final discountAmount = (discountTargetAmount * discountPercent / 100)
-        .round();
-
-    return {
+    /// 沒有符合新的優惠活動時，不再套用舊版 discountSetting。
+    ///
+    /// 之後所有自動折扣統一由 DiscountCampaign 系統處理。
+    return <String, dynamic>{
       'originalTotal': originalTotal,
-      'discountPercent': discountPercent,
-      'discountAmount': discountAmount,
-      'discountMinNights': ((matchedRule['minNights'] ?? 0) as num).toInt(),
-      'discountBase': discountBase,
-      'finalTotal': originalTotal - discountAmount,
+      'baseSubtotal': baseSubtotal,
+      'baseRoomTotal': baseRoomTotal,
+      'petTotal': petTotal,
+      'specialDateSurchargeAmount': specialDateSurchargeAmount,
+      'specialDateSurchargeDetails': specialDateSurchargeDetails,
+      'campaignBlockedBySpecialDate': campaignBlockedBySpecialDate,
+      'couponBlockedBySpecialDate': couponBlockedBySpecialDate,
+      'discountPercent': 0,
+      'discountAmount': 0,
+      'discountUsedNights': 0,
+      'remainingDiscountNights': 0,
+      'discountMinNights': 0,
+      'discountBase': '',
+      'finalTotal': originalTotal,
+      'discountCampaignId': '',
+      'discountCampaignName': '',
+      'discountCampaignDescription': '',
+      'discountCampaignType': '',
+      'discountValueType': '',
+      'discountValue': 0,
+      'discountApplyTarget': '',
+      'allowCouponTogether': false,
     };
   }
 
@@ -2467,19 +2652,114 @@ class _ShopBookingPageState extends State<ShopBookingPage> {
       };
     }
 
+    final int baseRoomTotal = (campaignInfo['baseRoomTotal'] ?? 0).toInt();
+
+    final int petTotal = (campaignInfo['petTotal'] ?? 0).toInt();
+
+    final int specialDateSurchargeAmount =
+        (campaignInfo['specialDateSurchargeAmount'] ?? 0).toInt();
+
+    final int roomDiscountBase = baseRoomTotal + specialDateSurchargeAmount;
+
+    final int roomAndPetDiscountBase = roomDiscountBase + petTotal;
+
+    final int campaignDiscountAmount = (campaignInfo['discountAmount'] ?? 0)
+        .toInt();
+
+    final String campaignDiscountBase = (campaignInfo['discountBase'] ?? '')
+        .toString();
+
+    int remainingRoomDiscountBase = roomDiscountBase;
+    int remainingRoomAndPetDiscountBase = roomAndPetDiscountBase;
+
+    if (campaignDiscountAmount > 0) {
+      switch (campaignDiscountBase) {
+        case 'room':
+          remainingRoomDiscountBase =
+              (roomDiscountBase - campaignDiscountAmount).clamp(
+                0,
+                roomDiscountBase,
+              );
+
+          remainingRoomAndPetDiscountBase =
+              remainingRoomDiscountBase + petTotal;
+
+        case 'room_pet':
+          remainingRoomAndPetDiscountBase =
+              (roomAndPetDiscountBase - campaignDiscountAmount).clamp(
+                0,
+                roomAndPetDiscountBase,
+              );
+
+          remainingRoomDiscountBase = remainingRoomAndPetDiscountBase.clamp(
+            0,
+            roomDiscountBase,
+          );
+
+        case 'total':
+          // Campaign 是折整單時，無法精準拆回房價占比。
+          // 為避免 Coupon 對同一筆金額重複折扣，
+          // 這裡最多只能折 Campaign 後剩餘總額。
+          remainingRoomDiscountBase = roomDiscountBase.clamp(
+            0,
+            campaignFinalTotal,
+          );
+
+          remainingRoomAndPetDiscountBase = roomAndPetDiscountBase.clamp(
+            0,
+            campaignFinalTotal,
+          );
+
+        default:
+          break;
+      }
+    }
+
+    final int couponDiscountBase;
+
+    switch (coupon.applyTarget) {
+      case MemberCouponApplyTarget.room:
+        couponDiscountBase = remainingRoomDiscountBase.clamp(
+          0,
+          campaignFinalTotal,
+        );
+
+      case MemberCouponApplyTarget.roomAndPet:
+        couponDiscountBase = remainingRoomAndPetDiscountBase.clamp(
+          0,
+          campaignFinalTotal,
+        );
+
+      case MemberCouponApplyTarget.total:
+        couponDiscountBase = campaignFinalTotal;
+
+      case MemberCouponApplyTarget.service:
+        couponDiscountBase = 0;
+    }
+
     int couponDiscountAmount = 0;
 
     switch (coupon.type) {
       case MemberCouponType.fixedAmount:
         couponDiscountAmount = coupon.discountValue.toInt().clamp(
           0,
-          campaignFinalTotal,
+          couponDiscountBase,
         );
 
       case MemberCouponType.percent:
-        couponDiscountAmount = (campaignFinalTotal * coupon.discountValue / 100)
+        couponDiscountAmount = (couponDiscountBase * coupon.discountValue / 100)
             .round()
-            .clamp(0, campaignFinalTotal);
+            .clamp(0, couponDiscountBase);
+
+        if (coupon.maximumDiscountAmount > 0 &&
+            couponDiscountAmount > coupon.maximumDiscountAmount) {
+          couponDiscountAmount = coupon.maximumDiscountAmount;
+        }
+
+        couponDiscountAmount = couponDiscountAmount.clamp(
+          0,
+          campaignFinalTotal,
+        );
 
       case MemberCouponType.freeStay:
         final Map<String, dynamic> priceParts =
@@ -2494,7 +2774,12 @@ class _ShopBookingPageState extends State<ShopBookingPage> {
               addonData: _addonData,
             );
 
-        final int roomTotal = (priceParts['roomTotal'] ?? 0).toInt();
+        final int baseRoomTotal = (priceParts['roomTotal'] ?? 0).toInt();
+
+        final int specialDateSurchargeAmount =
+            (campaignInfo['specialDateSurchargeAmount'] ?? 0).toInt();
+
+        final int roomTotal = baseRoomTotal + specialDateSurchargeAmount;
 
         if (_nights > 0 && roomTotal > 0) {
           final int usableFreeNights = coupon.freeStayNights.clamp(0, _nights);
@@ -2618,6 +2903,13 @@ class _ShopBookingPageState extends State<ShopBookingPage> {
 
           remainingDiscountNights:
               (discountInfo['remainingDiscountNights'] ?? 0).toInt(),
+
+          specialDateSurchargeAmount:
+              (discountInfo['specialDateSurchargeAmount'] ?? 0).toInt(),
+
+          specialDateSurchargeDetails: List<Map<String, dynamic>>.from(
+            discountInfo['specialDateSurchargeDetails'] ?? const <dynamic>[],
+          ),
 
           couponName: (discountInfo['couponName'] ?? '').toString(),
           couponDiscountAmount: (discountInfo['couponDiscountAmount'] ?? 0)

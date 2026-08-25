@@ -361,6 +361,258 @@ class _PaymentReviewCard extends StatelessWidget {
     }
   }
 
+  Future<void> _showPaymentSettingDetail(BuildContext context) async {
+    final Map<String, dynamic> paymentSetting = _paymentSettingFromShop(shop);
+    final Map<String, dynamic> enabledMethods =
+        _enabledMethodsFromPaymentSetting(paymentSetting);
+
+    final String shopName = _resolveShopName(shop);
+    final String merchantName = (paymentSetting['merchantName'] ?? '')
+        .toString()
+        .trim();
+    final String merchantId = (paymentSetting['merchantId'] ?? '')
+        .toString()
+        .trim();
+    final String environment = (paymentSetting['environment'] ?? 'test')
+        .toString()
+        .trim();
+    final String reviewStatus = (paymentSetting['reviewStatus'] ?? '')
+        .toString()
+        .trim();
+    final String rejectionReason = (paymentSetting['rejectionReason'] ?? '')
+        .toString()
+        .trim();
+
+    final bool platformSuspended = paymentSetting['platformSuspended'] == true;
+
+    final List<String> methods = <String>[
+      if (enabledMethods['creditCard'] == true) '信用卡',
+      if (enabledMethods['atm'] == true) 'ATM',
+      if (enabledMethods['cvsCode'] == true) '超商代碼',
+    ];
+
+    await showDialog<void>(
+      context: context,
+      builder: (BuildContext dialogContext) {
+        return AlertDialog(
+          title: Text('$shopName｜綠界申請資料'),
+          content: SizedBox(
+            width: 520,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: <Widget>[
+                  _InformationRow(label: 'Shop ID', value: shopId),
+                  _InformationRow(
+                    label: '綠界商店名稱',
+                    value: merchantName.isEmpty ? '未填寫' : merchantName,
+                  ),
+                  _InformationRow(
+                    label: 'MerchantID',
+                    value: merchantId.isEmpty ? '未填寫' : merchantId,
+                  ),
+                  _InformationRow(
+                    label: '環境',
+                    value: environment == 'production' ? '正式環境' : '測試環境',
+                  ),
+                  _InformationRow(
+                    label: '付款方式',
+                    value: methods.isEmpty ? '未選擇' : methods.join('、'),
+                  ),
+                  _InformationRow(label: '審核狀態', value: reviewStatus),
+                  _InformationRow(
+                    label: '平台狀態',
+                    value: platformSuspended ? '平台已停用' : '正常',
+                  ),
+                  if (rejectionReason.isNotEmpty)
+                    _InformationRow(label: '退件原因', value: rejectionReason),
+                ],
+              ),
+            ),
+          ),
+          actions: <Widget>[
+            TextButton(
+              onPressed: () {
+                Navigator.of(dialogContext).pop();
+              },
+              child: const Text('關閉'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Future<void> _setPlatformSuspended(
+    BuildContext context, {
+    required bool suspended,
+  }) async {
+    final bool? confirmed = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext dialogContext) {
+        return AlertDialog(
+          title: Text(suspended ? '確認停用綠界金流' : '確認重新啟用綠界金流'),
+          content: Text(
+            suspended ? '停用後，這間店家將立即無法建立新的綠界付款。' : '重新啟用後，這間店家可再次使用已核准的綠界金流。',
+          ),
+          actions: <Widget>[
+            TextButton(
+              onPressed: () {
+                Navigator.of(dialogContext).pop(false);
+              },
+              child: const Text('取消'),
+            ),
+            FilledButton(
+              onPressed: () {
+                Navigator.of(dialogContext).pop(true);
+              },
+              child: Text(suspended ? '確認停用' : '確認啟用'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirmed != true || !context.mounted) {
+      return;
+    }
+
+    try {
+      final FirebaseFunctions functions = FirebaseFunctions.instanceFor(
+        region: 'asia-east1',
+      );
+
+      final HttpsCallable callable = functions.httpsCallable(
+        'setEcpayPaymentPlatformSuspended',
+        options: HttpsCallableOptions(timeout: const Duration(seconds: 60)),
+      );
+
+      await callable.call<dynamic>({'shopId': shopId, 'suspended': suspended});
+
+      if (!context.mounted) {
+        return;
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(suspended ? '店家綠界金流已停用' : '店家綠界金流已重新啟用')),
+      );
+    } on FirebaseFunctionsException catch (error) {
+      if (!context.mounted) {
+        return;
+      }
+
+      final String message = error.message?.trim().isNotEmpty == true
+          ? error.message!.trim()
+          : '金流狀態更新失敗，請稍後再試。';
+
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(message)));
+    } catch (_) {
+      if (!context.mounted) {
+        return;
+      }
+
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('更新金流狀態時發生錯誤，請稍後再試。')));
+    }
+  }
+
+  Future<void> _rejectPaymentSetting(BuildContext context) async {
+    final TextEditingController reasonController = TextEditingController();
+
+    final bool? confirmed = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext dialogContext) {
+        return AlertDialog(
+          title: const Text('退回金流申請'),
+          content: TextField(
+            controller: reasonController,
+            maxLines: 4,
+            decoration: const InputDecoration(
+              labelText: '退件原因',
+              hintText: '請輸入退件原因',
+              border: OutlineInputBorder(),
+            ),
+          ),
+          actions: <Widget>[
+            TextButton(
+              onPressed: () {
+                Navigator.of(dialogContext).pop(false);
+              },
+              child: const Text('取消'),
+            ),
+            FilledButton(
+              onPressed: () {
+                if (reasonController.text.trim().isEmpty) {
+                  ScaffoldMessenger.of(
+                    dialogContext,
+                  ).showSnackBar(const SnackBar(content: Text('請先填寫退件原因')));
+                  return;
+                }
+
+                Navigator.of(dialogContext).pop(true);
+              },
+              child: const Text('確認退件'),
+            ),
+          ],
+        );
+      },
+    );
+
+    final String rejectionReason = reasonController.text.trim();
+    reasonController.dispose();
+
+    if (confirmed != true || rejectionReason.isEmpty || !context.mounted) {
+      return;
+    }
+
+    try {
+      final FirebaseFunctions functions = FirebaseFunctions.instanceFor(
+        region: 'asia-east1',
+      );
+
+      final HttpsCallable callable = functions.httpsCallable(
+        'rejectEcpayPaymentSetting',
+        options: HttpsCallableOptions(timeout: const Duration(seconds: 60)),
+      );
+
+      await callable.call<dynamic>({
+        'shopId': shopId,
+        'rejectionReason': rejectionReason,
+      });
+
+      if (!context.mounted) {
+        return;
+      }
+
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('店家綠界金流申請已退件')));
+    } on FirebaseFunctionsException catch (error) {
+      if (!context.mounted) {
+        return;
+      }
+
+      final String message = error.message?.trim().isNotEmpty == true
+          ? error.message!.trim()
+          : '退件失敗，請稍後再試。';
+
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(message)));
+    } catch (error) {
+      if (!context.mounted) {
+        return;
+      }
+
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('退件時發生錯誤，請稍後再試。')));
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final Map<String, dynamic> paymentSetting = _paymentSettingFromShop(shop);
@@ -376,6 +628,7 @@ class _PaymentReviewCard extends StatelessWidget {
         .toString();
     final String reviewStatus =
         (paymentSetting['reviewStatus'] ?? 'notSubmitted').toString();
+    final bool platformSuspended = paymentSetting['platformSuspended'] == true;
 
     final _ReviewStatusView statusView = _ReviewStatusView.fromStatus(
       reviewStatus,
@@ -478,7 +731,7 @@ class _PaymentReviewCard extends StatelessWidget {
                 Expanded(
                   child: OutlinedButton.icon(
                     onPressed: () {
-                      // 下一步做查看詳情
+                      _showPaymentSettingDetail(context);
                     },
                     icon: const Icon(Icons.visibility_outlined),
                     label: const Text('查看'),
@@ -505,7 +758,7 @@ class _PaymentReviewCard extends StatelessWidget {
                   child: OutlinedButton.icon(
                     onPressed: reviewStatus == 'pending'
                         ? () {
-                            // 下一步做退件
+                            _rejectPaymentSetting(context);
                           }
                         : null,
                     icon: const Icon(Icons.close),
@@ -517,11 +770,18 @@ class _PaymentReviewCard extends StatelessWidget {
                   child: FilledButton.tonalIcon(
                     onPressed: reviewStatus == 'approved'
                         ? () {
-                            // 下一步做停用
+                            _setPlatformSuspended(
+                              context,
+                              suspended: !platformSuspended,
+                            );
                           }
                         : null,
-                    icon: const Icon(Icons.block),
-                    label: const Text('停用'),
+                    icon: Icon(
+                      platformSuspended
+                          ? Icons.play_circle_outline
+                          : Icons.block,
+                    ),
+                    label: Text(platformSuspended ? '啟用' : '停用'),
                   ),
                 ),
               ],

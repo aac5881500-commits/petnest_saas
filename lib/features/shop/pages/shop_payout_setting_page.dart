@@ -51,6 +51,9 @@ class _ShopPayoutSettingPageState extends State<ShopPayoutSettingPage> {
   String _paymentReviewStatus = 'notSubmitted';
   String _paymentRejectionReason = '';
 
+  // ⛔ 平台是否暫停此店家的綠界金流
+  bool _platformSuspended = false;
+
   // ⏳ 畫面操作狀態
   bool _loading = true;
   bool _saving = false;
@@ -122,6 +125,8 @@ class _ShopPayoutSettingPageState extends State<ShopPayoutSettingPage> {
 
       _paymentRejectionReason = (paymentSetting['rejectionReason'] ?? '')
           .toString();
+
+      _platformSuspended = paymentSetting['platformSuspended'] == true;
 
       final dynamic rawEnabledMethods = paymentSetting['enabledMethods'];
 
@@ -401,7 +406,7 @@ class _ShopPayoutSettingPageState extends State<ShopPayoutSettingPage> {
 
   /// ✅ 是否可啟用綠界營運
   bool get _canEnableEcpay {
-    return _paymentReviewStatus == 'approved';
+    return _paymentReviewStatus == 'approved' && !_platformSuspended;
   }
 
   /// 📋 取得審核狀態顯示文字
@@ -596,79 +601,142 @@ class _ShopPayoutSettingPageState extends State<ShopPayoutSettingPage> {
 
             const Divider(height: 32),
 
-            const ListTile(
-              leading: Icon(Icons.public),
-              title: Text(
-                '線上付款',
-                style: TextStyle(fontWeight: FontWeight.bold),
+            Opacity(
+              opacity: _platformSuspended ? 0.45 : 1,
+              child: IgnorePointer(
+                ignoring: _platformSuspended,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: <Widget>[
+                    const ListTile(
+                      leading: Icon(Icons.public),
+                      title: Text(
+                        '線上付款',
+                        style: TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                    ),
+
+                    SwitchListTile(
+                      contentPadding: const EdgeInsets.only(left: 16, right: 8),
+                      value: _platformSuspended ? false : _ecpayEnabled,
+                      title: const Text('啟用綠界付款'),
+                      subtitle: Text(
+                        _platformSuspended
+                            ? '平台目前已停用此店家的綠界金流'
+                            : _canEnableEcpay
+                            ? '會員可使用綠界付款'
+                            : '綠界尚未通過平台審核',
+                      ),
+                      onChanged: _canEnableEcpay
+                          ? (bool value) async {
+                              setState(() {
+                                _ecpayEnabled = value;
+                              });
+
+                              await _saveOperationSettings();
+                            }
+                          : null,
+                    ),
+
+                    if (_ecpayEnabled || _platformSuspended) ...[
+                      Padding(
+                        padding: const EdgeInsets.only(left: 28),
+                        child: CheckboxListTile(
+                          value: _platformSuspended
+                              ? false
+                              : _ecpayCreditCardEnabled,
+                          title: const Text('信用卡'),
+                          secondary: const Icon(Icons.credit_card_outlined),
+                          onChanged: _canEnableEcpay
+                              ? (value) {
+                                  setState(() {
+                                    _ecpayCreditCardEnabled = value ?? false;
+                                  });
+                                }
+                              : null,
+                        ),
+                      ),
+
+                      Padding(
+                        padding: const EdgeInsets.only(left: 28),
+                        child: CheckboxListTile(
+                          value: _platformSuspended ? false : _ecpayAtmEnabled,
+                          title: const Text('ATM 虛擬帳號'),
+                          secondary: const Icon(Icons.account_balance_outlined),
+                          onChanged: _canEnableEcpay
+                              ? (value) {
+                                  setState(() {
+                                    _ecpayAtmEnabled = value ?? false;
+                                  });
+                                }
+                              : null,
+                        ),
+                      ),
+
+                      Padding(
+                        padding: const EdgeInsets.only(left: 28),
+                        child: CheckboxListTile(
+                          value: _platformSuspended
+                              ? false
+                              : _ecpayCvsCodeEnabled,
+                          title: const Text('超商代碼'),
+                          secondary: const Icon(Icons.store_outlined),
+                          onChanged: _canEnableEcpay
+                              ? (value) {
+                                  setState(() {
+                                    _ecpayCvsCodeEnabled = value ?? false;
+                                  });
+                                }
+                              : null,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
               ),
             ),
 
-            SwitchListTile(
-              contentPadding: const EdgeInsets.only(left: 16, right: 8),
-              value: _ecpayEnabled,
-              title: const Text('啟用綠界付款'),
-              subtitle: Text(_canEnableEcpay ? '會員可使用綠界付款' : '綠界尚未通過平台審核'),
-              onChanged: _canEnableEcpay
-                  ? (value) {
-                      setState(() {
-                        _ecpayEnabled = value;
-                      });
-                    }
-                  : null,
-            ),
+            if (_platformSuspended) ...[
+              const SizedBox(height: 12),
 
-            if (_ecpayEnabled) ...[
-              Padding(
-                padding: const EdgeInsets.only(left: 28),
-                child: CheckboxListTile(
-                  value: _ecpayCreditCardEnabled,
-                  title: const Text('信用卡'),
-                  secondary: const Icon(Icons.credit_card_outlined),
-                  onChanged: _canEnableEcpay
-                      ? (value) {
-                          setState(() {
-                            _ecpayCreditCardEnabled = value ?? false;
-                          });
-                        }
-                      : null,
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: Colors.red.shade50,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: Colors.red.shade200),
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Icon(Icons.block, color: Colors.red.shade700),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: <Widget>[
+                          Text(
+                            '綠界金流已由平台停用',
+                            style: TextStyle(
+                              color: Colors.red.shade800,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            '目前無法啟用或修改線上付款設定，如需恢復使用請聯絡平台管理員。',
+                            style: TextStyle(color: Colors.red.shade700),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
               ),
-
-              Padding(
-                padding: const EdgeInsets.only(left: 28),
-                child: CheckboxListTile(
-                  value: _ecpayAtmEnabled,
-                  title: const Text('ATM 虛擬帳號'),
-                  secondary: const Icon(Icons.account_balance_outlined),
-                  onChanged: _canEnableEcpay
-                      ? (value) {
-                          setState(() {
-                            _ecpayAtmEnabled = value ?? false;
-                          });
-                        }
-                      : null,
-                ),
-              ),
-
-              Padding(
-                padding: const EdgeInsets.only(left: 28),
-                child: CheckboxListTile(
-                  value: _ecpayCvsCodeEnabled,
-                  title: const Text('超商代碼'),
-                  secondary: const Icon(Icons.store_outlined),
-                  onChanged: _canEnableEcpay
-                      ? (value) {
-                          setState(() {
-                            _ecpayCvsCodeEnabled = value ?? false;
-                          });
-                        }
-                      : null,
-                ),
-              ),
-            ],
-            if (!_canEnableEcpay) ...[
+            ] else if (!_canEnableEcpay) ...[
               const SizedBox(height: 8),
+
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(

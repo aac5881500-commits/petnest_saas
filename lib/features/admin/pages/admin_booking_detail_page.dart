@@ -35,6 +35,8 @@ import 'package:petnest_saas/features/admin/widgets/admin_booking_action_section
 import 'package:petnest_saas/features/admin/widgets/admin_booking_dialogs.dart';
 import 'package:petnest_saas/features/shop/pages/policy_version_detail_page.dart';
 import 'package:petnest_saas/features/booking/widgets/booking_detail/booking_detail_message_section.dart';
+import 'package:petnest_saas/features/admin/pages/admin_payment_center_page.dart';
+import 'package:petnest_saas/core/services/daily_care_setting_service.dart';
 
 class AdminBookingDetailPage extends StatelessWidget {
   const AdminBookingDetailPage({
@@ -176,6 +178,14 @@ class AdminBookingDetailPage extends StatelessWidget {
                 _sectionTitle('價格'),
 
                 AdminBookingPriceSection(data: data, pets: pets),
+
+                const SizedBox(height: 16),
+
+                _sectionTitle('付款摘要'),
+
+                _buildPaymentSummary(context, data),
+
+                const SizedBox(height: 12),
 
                 const SizedBox(height: 12),
 
@@ -478,6 +488,136 @@ class AdminBookingDetailPage extends StatelessWidget {
     );
   }
 
+  Widget _buildPaymentSummary(BuildContext context, Map<String, dynamic> data) {
+    final int totalAmount = ((data['totalPrice'] ?? data['total'] ?? 0) as num)
+        .toInt();
+
+    final int paidAmount = ((data['paidAmount'] ?? 0) as num).toInt();
+
+    final int remainingAmount =
+        ((data['remainingAmount'] ?? totalAmount) as num).toInt();
+
+    final String paymentStatus = (data['paymentStatus'] ?? '').toString();
+
+    final String paymentMethod =
+        (data['lastPaymentMethod'] ?? data['paymentMethod'] ?? '').toString();
+
+    final bool depositPaid = data['depositPaid'] == true;
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.blueGrey.shade100),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _paymentSummaryRow('總金額', 'NT\$ $totalAmount'),
+          _paymentSummaryRow('已付款', 'NT\$ $paidAmount'),
+          _paymentSummaryRow('剩餘金額', 'NT\$ $remainingAmount'),
+          const Divider(height: 24),
+          _paymentSummaryRow('付款狀態', _paymentStatusText(paymentStatus)),
+          _paymentSummaryRow('最近付款方式', _paymentMethodText(paymentMethod)),
+          if (depositPaid) _paymentSummaryRow('訂金', '已確認'),
+          const SizedBox(height: 12),
+
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: () {
+                final String shopId = (data['shopId'] ?? '').toString().trim();
+
+                if (shopId.isEmpty) {
+                  ScaffoldMessenger.of(
+                    context,
+                  ).showSnackBar(const SnackBar(content: Text('找不到店家資料')));
+                  return;
+                }
+
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => AdminPaymentCenterPage(
+                      shopId: shopId,
+                      bookingId: bookingId,
+                      bookingCode: (data['bookingCode'] ?? '').toString(),
+                    ),
+                  ),
+                );
+              },
+              icon: const Icon(Icons.receipt_long_outlined),
+              label: const Text('查看完整交易'),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _paymentSummaryRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 5),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 110,
+            child: Text(
+              label,
+              style: TextStyle(
+                color: Colors.grey.shade700,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+          Expanded(
+            child: Text(
+              value,
+              style: const TextStyle(fontWeight: FontWeight.w800),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _paymentStatusText(String value) {
+    switch (value) {
+      case 'paid':
+        return '已付清';
+      case 'partially_paid':
+        return '部分付款';
+      case 'awaiting_payment':
+      case 'pending':
+        return '待付款';
+      case 'failed':
+        return '付款失敗';
+      case 'refunded':
+        return '已退款';
+      default:
+        return value.isEmpty ? '尚無付款紀錄' : value;
+    }
+  }
+
+  String _paymentMethodText(String value) {
+    switch (value) {
+      case 'credit_card':
+        return '信用卡';
+      case 'atm':
+        return 'ATM';
+      case 'cvs_code':
+        return '超商代碼';
+      case 'transfer':
+        return '銀行轉帳';
+      case 'cash':
+        return '到店付款';
+      default:
+        return value.isEmpty ? '尚無付款紀錄' : value;
+    }
+  }
+
   Future<void> _handleCheckOut({
     required BuildContext context,
     required Map<String, dynamic> data,
@@ -685,6 +825,67 @@ class AdminBookingDetailPage extends StatelessWidget {
           'status': 'completed',
           'updatedAt': now,
         });
+    try {
+      final String checkoutShopId = (data['shopId'] ?? '').toString().trim();
+
+      if (checkoutShopId.isNotEmpty) {
+        final setting = await DailyCareSettingService.instance.getSetting(
+          checkoutShopId,
+        );
+
+        final int downloadHours = setting.downloadHoursAfterCheckout;
+
+        final DocumentSnapshot<Map<String, dynamic>> updatedBookingSnapshot =
+            await FirebaseFirestore.instance
+                .collection('bookings')
+                .doc(bookingId)
+                .get();
+
+        final Map<String, dynamic> updatedBookingData =
+            updatedBookingSnapshot.data() ?? <String, dynamic>{};
+
+        final dynamic rawCheckOutAt = updatedBookingData['checkOutAt'];
+
+        DateTime? checkoutCompletedAt;
+
+        if (rawCheckOutAt is Timestamp) {
+          checkoutCompletedAt = rawCheckOutAt.toDate();
+        } else if (rawCheckOutAt is DateTime) {
+          checkoutCompletedAt = rawCheckOutAt;
+        } else if (rawCheckOutAt is String) {
+          checkoutCompletedAt = DateTime.tryParse(rawCheckOutAt);
+        }
+
+        if (checkoutCompletedAt == null) {
+          throw StateError('退房完成，但找不到有效的 checkOutAt');
+        }
+
+        final DateTime expiresAt = checkoutCompletedAt.add(
+          Duration(hours: downloadHours),
+        );
+
+        final QuerySnapshot<Map<String, dynamic>> downloadSnapshot =
+            await FirebaseFirestore.instance
+                .collection('daily_care_photo_downloads')
+                .where('bookingId', isEqualTo: bookingId)
+                .get();
+
+        if (downloadSnapshot.docs.isNotEmpty) {
+          final WriteBatch batch = FirebaseFirestore.instance.batch();
+
+          for (final doc in downloadSnapshot.docs) {
+            batch.update(doc.reference, <String, dynamic>{
+              'expiresAt': Timestamp.fromDate(expiresAt),
+            });
+          }
+
+          await batch.commit();
+        }
+      }
+    } catch (error, stackTrace) {
+      debugPrint('退房完成，但更新照護照片下載期限失敗：$error');
+      debugPrintStack(stackTrace: stackTrace);
+    }
 
     final String shopId = (data['shopId'] ?? '').toString().trim();
     final String userId = (data['userId'] ?? '').toString().trim();

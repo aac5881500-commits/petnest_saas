@@ -77,6 +77,28 @@ function resolvePaymentPurpose(payment) {
 }
 
 /**
+ * 判斷 Payment 是否仍屬於未完成付款。
+ *
+ * 這些狀態代表交易尚未正式結束，
+ * 不應再替同一張訂單建立另一筆相同用途的付款。
+ *
+ * @param {Object} payment Payment 資料
+ * @return {boolean}
+ */
+function isActivePayment(payment) {
+  const status = normalizeString(
+      payment.status,
+  ).toLowerCase();
+
+  return [
+    "creating",
+    "pending",
+    "awaiting_payment",
+    "processing",
+  ].includes(status);
+}
+
+/**
  * 檢查既有付款紀錄是否與目前請求完全相同
  *
  * 避免同一個 requestId 被拿來支付：
@@ -245,9 +267,89 @@ async function createOrGetPendingPayment({
 
   const firestore = admin.firestore();
 
-  const paymentRef = firestore
+  const activePaymentsSnapshot = await firestore
       .collection("payments")
-      .doc(paymentId);
+      .where(
+          "bookingId",
+          "==",
+          normalizedBookingId,
+      )
+      .get();
+
+  const existingActivePayment =
+    activePaymentsSnapshot.docs.find((doc) => {
+      const payment = doc.data() || {};
+
+      if (!isActivePayment(payment)) {
+        return false;
+      }
+
+      const sameGateway =
+        normalizeString(payment.gateway)
+            .toLowerCase() === "ecpay";
+
+      const samePaymentMethod =
+        normalizeString(payment.paymentMethod)
+            .toLowerCase() ===
+        normalizedPaymentMethod;
+
+      const samePaymentPurpose =
+        resolvePaymentPurpose(payment) ===
+        normalizedPaymentPurpose;
+
+      return (
+        sameGateway &&
+        samePaymentMethod &&
+        samePaymentPurpose
+      );
+    });
+
+  if (existingActivePayment) {
+    const existingPayment =
+      existingActivePayment.data() || {};
+
+    throw new HttpsError(
+        "already-exists",
+        "此訂單已有一筆尚未完成的付款，請先確認原付款結果。",
+        {
+          paymentId: existingActivePayment.id,
+          bookingId: normalizedBookingId,
+          merchantTradeNo: normalizeString(
+              existingPayment.merchantTradeNo,
+          ),
+          status: normalizeString(
+              existingPayment.status,
+          ),
+        },
+    );
+  }
+
+  const bookingRef = firestore
+      .collection("bookings")
+      .doc(normalizedBookingId);
+
+  const bookingSnapshot = await bookingRef.get();
+
+  if (!bookingSnapshot.exists) {
+    throw new HttpsError(
+        "not-found",
+        "找不到付款對應的訂單。",
+    );
+  }
+
+  const booking = bookingSnapshot.data() || {};
+
+  const bookingCode = normalizeString(
+      booking.bookingCode,
+  );
+
+const customerName = normalizeString(
+    booking.customerName,
+);
+
+const paymentRef = firestore
+    .collection("payments")
+    .doc(paymentId);
 
   const paymentData = {
     paymentId,
@@ -255,30 +357,26 @@ async function createOrGetPendingPayment({
     bookingId: normalizedBookingId,
     shopId: normalizedShopId,
     userId: normalizedUserId,
-
+    bookingCode,
+    customerName,
     gateway: "ecpay",
     paymentMethod: normalizedPaymentMethod,
     amountType: normalizedAmountType,
     paymentPurpose: normalizedPaymentPurpose,
-
     amount: normalizedAmount,
     totalAmount: normalizedTotalAmount,
     paidAmountBeforePayment: normalizedPaidAmount,
-
     status: "creating",
     gatewayStatus: "",
     merchantTradeNo,
-
     paymentUrl: "",
     atmBankCode: "",
     atmAccount: "",
     atmExpireAt: null,
     cvsPaymentCode: "",
     cvsExpireAt: null,
-
     failureCode: "",
     failureMessage: "",
-
     createdAt:
       admin.firestore.FieldValue.serverTimestamp(),
     updatedAt:

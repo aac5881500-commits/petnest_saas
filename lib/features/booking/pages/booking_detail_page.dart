@@ -33,6 +33,11 @@ import 'package:petnest_saas/features/booking/widgets/booking_detail/booking_det
 import 'package:petnest_saas/features/shop/pages/policy_version_detail_page.dart';
 import 'package:petnest_saas/features/booking/widgets/booking_detail/booking_detail_message_section.dart';
 import 'package:petnest_saas/features/booking/widgets/booking_detail/booking_detail_review_section.dart';
+import 'package:petnest_saas/features/booking/pages/customer_daily_care_page.dart';
+import 'package:petnest_saas/features/booking/pages/customer_daily_care_download_page.dart';
+import 'package:petnest_saas/features/booking/pages/customer_daily_care_photo_page.dart';
+import 'package:petnest_saas/core/models/daily_care_setting_model.dart';
+import 'package:petnest_saas/core/services/daily_care_setting_service.dart';
 
 class BookingDetailPage extends StatefulWidget {
   final Map<String, dynamic> data;
@@ -55,6 +60,7 @@ class _BookingDetailPageState extends State<BookingDetailPage> {
   Timer? _expireTimer;
   final GlobalKey _messageSectionKey = GlobalKey();
   final ScrollController _scrollController = ScrollController();
+  Future<DailyCareSettingModel>? _dailyCareSettingFuture;
 
   @override
   void initState() {
@@ -68,6 +74,16 @@ class _BookingDetailPageState extends State<BookingDetailPage> {
     _last5FocusNode.dispose();
     _scrollController.dispose();
     super.dispose();
+  }
+
+  Future<DailyCareSettingModel> _loadDailyCareSetting(String shopId) async {
+    final String normalizedShopId = shopId.trim();
+
+    if (normalizedShopId.isEmpty) {
+      return const DailyCareSettingModel();
+    }
+
+    return DailyCareSettingService.instance.getSetting(normalizedShopId);
   }
 
   @override
@@ -88,6 +104,7 @@ class _BookingDetailPageState extends State<BookingDetailPage> {
 
         final data = snapshot.data!.data() as Map<String, dynamic>;
         final shopName = (data['shopName'] ?? '').toString();
+        final String shopId = (data['shopId'] ?? '').toString().trim();
         final reviewed = data['reviewed'] == true;
         final basePrice = data['basePrice'] ?? 0;
         final nights = data['nights'] ?? 1;
@@ -117,6 +134,13 @@ class _BookingDetailPageState extends State<BookingDetailPage> {
 
         /// 🔥 最終總價：優先使用訂單已存的 totalPrice（折後金額）
         final finalTotal = data['totalPrice'] ?? (correctSubtotal + addonTotal);
+        final int specialDateSurchargeAmount =
+            ((data['specialDateSurchargeAmount'] ?? 0) as num).toInt();
+
+        final List<Map<String, dynamic>> specialDateSurchargeDetails =
+            List<Map<String, dynamic>>.from(
+              data['specialDateSurchargeDetails'] ?? const <dynamic>[],
+            );
         final depositStatus = data['depositStatus'] ?? '';
         final bookingStatus = data['status'] ?? 'unpaid';
         final transferLast5 = (data['transferLast5'] ?? '').toString();
@@ -137,6 +161,31 @@ class _BookingDetailPageState extends State<BookingDetailPage> {
 
         final start = (data['startDate'] as Timestamp).toDate();
         final end = (data['endDate'] as Timestamp).toDate();
+
+        final bool isCheckedIn = bookingStatus == 'checked_in';
+
+        final bool isCompleted = bookingStatus == 'completed';
+
+        /// 真正完成退房的時間。
+        ///
+        /// 店主按下「確認退房」時，後台會將 checkOutAt
+        /// 寫入 Firebase serverTimestamp。
+        ///
+        /// 退房後的照護紀錄／照片下載期限，
+        /// 必須從這個時間開始計算，不能使用預約的 endDate。
+        final dynamic rawCheckOutAt = data['checkOutAt'];
+
+        DateTime? checkOutAt;
+
+        if (rawCheckOutAt is Timestamp) {
+          checkOutAt = rawCheckOutAt.toDate();
+        } else if (rawCheckOutAt is DateTime) {
+          checkOutAt = rawCheckOutAt;
+        } else if (rawCheckOutAt is String) {
+          checkOutAt = DateTime.tryParse(rawCheckOutAt);
+        }
+
+        _dailyCareSettingFuture ??= _loadDailyCareSetting(shopId);
 
         return Scaffold(
           appBar: AppBar(
@@ -339,6 +388,220 @@ class _BookingDetailPageState extends State<BookingDetailPage> {
 
                 BookingDetailCustomerPetSection(data: data),
 
+                FutureBuilder<DailyCareSettingModel>(
+                  future: _dailyCareSettingFuture,
+                  builder: (context, dailyCareSettingSnapshot) {
+                    final DailyCareSettingModel setting =
+                        dailyCareSettingSnapshot.data ??
+                        const DailyCareSettingModel();
+
+                    final int downloadHours =
+                        setting.downloadHoursAfterCheckout;
+
+                    final DateTime? downloadDeadline = checkOutAt?.add(
+                      Duration(hours: downloadHours),
+                    );
+
+                    final bool withinDownloadPeriod =
+                        downloadDeadline != null &&
+                        DateTime.now().isBefore(downloadDeadline);
+
+                    final bool canViewDailyCare =
+                        isCheckedIn || (isCompleted && withinDownloadPeriod);
+
+                    if (!canViewDailyCare && !isCompleted) {
+                      return const SizedBox.shrink();
+                    }
+
+                    return Padding(
+                      padding: const EdgeInsets.only(top: 16),
+                      child: Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(14),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(
+                            color: const Color(
+                              0xFF3D6F9F,
+                            ).withValues(alpha: 0.18),
+                          ),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: <Widget>[
+                            const Row(
+                              children: <Widget>[
+                                Icon(
+                                  Icons.pets_outlined,
+                                  color: Color(0xFF3D6F9F),
+                                ),
+                                SizedBox(width: 10),
+                                Expanded(
+                                  child: Text(
+                                    '每日照護紀錄',
+                                    style: TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w900,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+
+                            const SizedBox(height: 6),
+
+                            Text(
+                              isCheckedIn
+                                  ? '查看住宿期間店家回報的飲食、環境與每日照護狀況。'
+                                  : withinDownloadPeriod
+                                  ? '已退房，照護紀錄與照片目前仍在下載期限內。'
+                                  : '退房後下載期限已結束，照護照片入口已關閉。',
+                              style: TextStyle(
+                                fontSize: 13,
+                                color: Colors.grey.shade600,
+                                height: 1.4,
+                              ),
+                            ),
+
+                            if (isCompleted) ...<Widget>[
+                              const SizedBox(height: 8),
+
+                              Container(
+                                width: double.infinity,
+                                padding: const EdgeInsets.all(10),
+                                decoration: BoxDecoration(
+                                  color: withinDownloadPeriod
+                                      ? Colors.orange.shade50
+                                      : Colors.grey.shade100,
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                                child: Row(
+                                  children: <Widget>[
+                                    Icon(
+                                      withinDownloadPeriod
+                                          ? Icons.schedule_outlined
+                                          : Icons.lock_clock_outlined,
+                                      size: 18,
+                                      color: withinDownloadPeriod
+                                          ? Colors.orange.shade700
+                                          : Colors.grey.shade600,
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      child: Text(
+                                        downloadDeadline == null
+                                            ? '此訂單沒有退房完成時間，無法計算下載期限'
+                                            : withinDownloadPeriod
+                                            ? '下載期限：${_formatPlainDateTime(downloadDeadline)}'
+                                            : '下載期限已於 ${_formatPlainDateTime(downloadDeadline)} 結束',
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          color: withinDownloadPeriod
+                                              ? Colors.orange.shade900
+                                              : Colors.grey.shade700,
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+
+                            if (canViewDailyCare) ...<Widget>[
+                              const SizedBox(height: 12),
+
+                              SizedBox(
+                                width: double.infinity,
+                                child: FilledButton.icon(
+                                  onPressed: () {
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (_) => CustomerDailyCarePage(
+                                          shopId: shopId,
+                                          bookingId: widget.docId,
+                                          roomName:
+                                              (data['roomName'] ??
+                                                      data['roomNumber'] ??
+                                                      '')
+                                                  .toString(),
+                                        ),
+                                      ),
+                                    );
+                                  },
+                                  icon: const Icon(Icons.visibility_outlined),
+                                  label: const Text('查看每日照護紀錄'),
+                                ),
+                              ),
+
+                              const SizedBox(height: 10),
+
+                              SizedBox(
+                                width: double.infinity,
+                                child: OutlinedButton.icon(
+                                  onPressed: () {
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (_) =>
+                                            CustomerDailyCarePhotoPage(
+                                              bookingId: widget.docId,
+                                              roomName:
+                                                  (data['roomName'] ??
+                                                          data['roomNumber'] ??
+                                                          '')
+                                                      .toString(),
+                                            ),
+                                      ),
+                                    );
+                                  },
+                                  icon: const Icon(
+                                    Icons.photo_library_outlined,
+                                  ),
+                                  label: Text('查看照護照片'),
+                                ),
+                              ),
+                              if (isCompleted &&
+                                  downloadDeadline != null &&
+                                  withinDownloadPeriod) ...<Widget>[
+                                const SizedBox(height: 10),
+
+                                SizedBox(
+                                  width: double.infinity,
+                                  child: FilledButton.icon(
+                                    onPressed: () {
+                                      Navigator.of(context).push(
+                                        MaterialPageRoute(
+                                          builder: (_) =>
+                                              CustomerDailyCareDownloadPage(
+                                                shopId: shopId,
+                                                bookingId: widget.docId,
+                                                roomName:
+                                                    (data['roomName'] ??
+                                                            data['roomNumber'] ??
+                                                            '')
+                                                        .toString(),
+                                              ),
+                                        ),
+                                      );
+                                    },
+                                    icon: const Icon(Icons.download_outlined),
+                                    label: const Text('退房下載區'),
+                                  ),
+                                ),
+                              ],
+                            ],
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                ),
+
+                const SizedBox(height: 16),
+
                 BookingDetailPriceSection(
                   data: data,
                   basePrice: basePrice,
@@ -349,6 +612,8 @@ class _BookingDetailPageState extends State<BookingDetailPage> {
                   petPriceTotal: petPriceTotal,
                   correctSubtotal: correctSubtotal,
                   addonTotal: addonTotal,
+                  specialDateSurchargeAmount: specialDateSurchargeAmount,
+                  specialDateSurchargeDetails: specialDateSurchargeDetails,
                   finalTotal: finalTotal,
                 ),
 
@@ -907,8 +1172,11 @@ class _BookingDetailPageState extends State<BookingDetailPage> {
       await Navigator.push(
         context,
         MaterialPageRoute(
-          builder: (_) =>
-              EcpayPaymentPage(paymentHtml: paymentResult.paymentHtml),
+          builder: (_) => EcpayPaymentPage(
+            paymentHtml: paymentResult.paymentHtml,
+            paymentId: paymentResult.paymentId,
+            bookingId: widget.docId,
+          ),
         ),
       );
     } catch (error) {
@@ -1208,6 +1476,20 @@ class _BookingDetailPageState extends State<BookingDetailPage> {
         });
       }
     }
+  }
+
+  String _formatPlainDateTime(DateTime date) {
+    final String y = date.year.toString().padLeft(4, '0');
+
+    final String m = date.month.toString().padLeft(2, '0');
+
+    final String d = date.day.toString().padLeft(2, '0');
+
+    final String h = date.hour.toString().padLeft(2, '0');
+
+    final String min = date.minute.toString().padLeft(2, '0');
+
+    return '$y-$m-$d $h:$min';
   }
 
   String? _formatDateTime(dynamic value) {

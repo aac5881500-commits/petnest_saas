@@ -79,6 +79,10 @@ class _ShopDiscountCampaignFormPageState
   final Set<String> _selectedRoomTypeIds = <String>{};
 
   bool _enabled = true;
+
+  NewMemberEligibilityMode _newMemberEligibilityMode =
+      NewMemberEligibilityMode.createdAfterCampaign;
+
   bool _allowCouponTogether = false;
   bool _saving = false;
 
@@ -397,7 +401,8 @@ class _ShopDiscountCampaignFormPageState
             : 0,
         memberUsageLimit: _readInt(_memberUsageLimitController),
         totalUsageLimit: _readInt(_totalUsageLimitController),
-        firstBookingOnly: _isNewMember,
+        firstBookingOnly: false,
+        newMemberEligibilityMode: _newMemberEligibilityMode,
         allowCouponTogether: _allowCouponTogether,
         roomTypeIds: _selectedRoomTypeIds.toList(),
         newMemberDiscountNights: _isNewMember
@@ -614,6 +619,34 @@ class _ShopDiscountCampaignFormPageState
           ),
 
         if (_isNewMember) ...<Widget>[
+          DropdownButtonFormField<NewMemberEligibilityMode>(
+            initialValue: _newMemberEligibilityMode,
+            decoration: const InputDecoration(
+              labelText: '新會員資格判斷',
+              border: OutlineInputBorder(),
+            ),
+            items: const <DropdownMenuItem<NewMemberEligibilityMode>>[
+              DropdownMenuItem<NewMemberEligibilityMode>(
+                value: NewMemberEligibilityMode.createdAfterCampaign,
+                child: Text('活動建立後才加入的新會員'),
+              ),
+              DropdownMenuItem<NewMemberEligibilityMode>(
+                value: NewMemberEligibilityMode.noPreviousBooking,
+                child: Text('本店尚未有有效訂單的會員'),
+              ),
+            ],
+            onChanged: (NewMemberEligibilityMode? value) {
+              if (value == null) {
+                return;
+              }
+
+              setState(() {
+                _newMemberEligibilityMode = value;
+              });
+            },
+          ),
+
+          const SizedBox(height: 14),
           TextFormField(
             controller: _newMemberDiscountNightsController,
             keyboardType: TextInputType.number,
@@ -649,11 +682,21 @@ class _ShopDiscountCampaignFormPageState
             title: Text('此優惠固定只折房價'),
             subtitle: Text('寵物加價與其他加購服務不會套用新會員優惠。'),
           ),
-          const ListTile(
+          ListTile(
             contentPadding: EdgeInsets.zero,
-            leading: Icon(Icons.verified_user_outlined),
-            title: Text('依有效訂單與已使用晚數判斷'),
-            subtitle: Text('不依註冊或登入時間判斷，系統會計算會員在此店已使用的優惠晚數。'),
+            leading: const Icon(Icons.verified_user_outlined),
+            title: Text(
+              _newMemberEligibilityMode ==
+                      NewMemberEligibilityMode.createdAfterCampaign
+                  ? '僅限活動建立後加入的新會員'
+                  : '僅限本店尚未有有效訂單的會員',
+            ),
+            subtitle: Text(
+              _newMemberEligibilityMode ==
+                      NewMemberEligibilityMode.createdAfterCampaign
+                  ? '既有會員不會取得此活動資格；符合資格的會員一旦開始使用，仍可繼續使用剩餘優惠晚數。'
+                  : '只要會員在本店從未有過有效訂單即可取得資格；開始使用後仍可繼續使用剩餘優惠晚數。',
+            ),
           ),
         ],
 
@@ -907,17 +950,19 @@ class _ShopDiscountCampaignFormPageState
     return _SectionCard(
       title: '使用限制',
       children: <Widget>[
-        TextFormField(
-          controller: _memberUsageLimitController,
-          keyboardType: TextInputType.number,
-          decoration: const InputDecoration(
-            labelText: '每位會員最多使用次數',
-            hintText: '輸入 0 代表不限制',
-            suffixText: '次',
-            border: OutlineInputBorder(),
+        if (!_isNewMember) ...[
+          TextFormField(
+            controller: _memberUsageLimitController,
+            keyboardType: TextInputType.number,
+            decoration: const InputDecoration(
+              labelText: '每位會員最多使用次數',
+              hintText: '輸入 0 代表不限制',
+              suffixText: '次',
+              border: OutlineInputBorder(),
+            ),
           ),
-        ),
-        const SizedBox(height: 14),
+          const SizedBox(height: 14),
+        ],
         TextFormField(
           controller: _totalUsageLimitController,
           keyboardType: TextInputType.number,

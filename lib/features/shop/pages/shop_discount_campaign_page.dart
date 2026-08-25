@@ -210,7 +210,7 @@ class _ShopDiscountCampaignPageState extends State<ShopDiscountCampaignPage> {
 
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(SnackBar(content: Text('更新失敗：$error')));
+      ).showSnackBar(SnackBar(content: Text('更新優惠活動狀態失敗：$error')));
     } finally {
       if (mounted) {
         setState(() {
@@ -278,6 +278,14 @@ class _ShopDiscountCampaignPageState extends State<ShopDiscountCampaignPage> {
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(const SnackBar(content: Text('優惠活動已刪除')));
+    } on StateError catch (error) {
+      if (!mounted) {
+        return;
+      }
+
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(error.message)));
     } catch (error) {
       if (!mounted) {
         return;
@@ -285,7 +293,7 @@ class _ShopDiscountCampaignPageState extends State<ShopDiscountCampaignPage> {
 
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(SnackBar(content: Text('刪除失敗：$error')));
+      ).showSnackBar(SnackBar(content: Text('刪除優惠活動失敗：$error')));
     } finally {
       if (mounted) {
         setState(() {
@@ -379,63 +387,91 @@ class _ShopDiscountCampaignPageState extends State<ShopDiscountCampaignPage> {
               return _EmptyState(onCreatePressed: _chooseCampaignType);
             }
 
-            return StreamBuilder<List<Map<String, dynamic>>>(
-              stream: _roomService.streamRoomTypes(widget.shopId),
+            return StreamBuilder<Map<String, int>>(
+              stream: _service.streamCampaignTotalUsage(shopId: widget.shopId),
               builder:
                   (
                     BuildContext context,
-                    AsyncSnapshot<List<Map<String, dynamic>>> roomSnapshot,
+                    AsyncSnapshot<Map<String, int>> usageSnapshot,
                   ) {
-                    final List<Map<String, dynamic>> roomTypes =
-                        roomSnapshot.data ?? const <Map<String, dynamic>>[];
+                    final Map<String, int> totalUsage =
+                        usageSnapshot.data ?? const <String, int>{};
 
-                    final Map<String, String> roomTypeNameMap =
-                        <String, String>{
-                          for (final Map<String, dynamic> roomType in roomTypes)
-                            (roomType['id'] ?? '').toString():
-                                (roomType['name'] ?? '未命名房型').toString(),
-                        };
+                    return StreamBuilder<List<Map<String, dynamic>>>(
+                      stream: _roomService.streamRoomTypes(widget.shopId),
+                      builder:
+                          (
+                            BuildContext context,
+                            AsyncSnapshot<List<Map<String, dynamic>>>
+                            roomSnapshot,
+                          ) {
+                            final List<Map<String, dynamic>> roomTypes =
+                                roomSnapshot.data ??
+                                const <Map<String, dynamic>>[];
 
-                    return ListView.separated(
-                      padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
-                      itemCount: campaigns.length,
-                      separatorBuilder: (BuildContext context, int index) {
-                        return const SizedBox(height: 12);
-                      },
-                      itemBuilder: (BuildContext context, int index) {
-                        final DiscountCampaignModel campaign = campaigns[index];
+                            final Map<String, String> roomTypeNameMap =
+                                <String, String>{
+                                  for (final Map<String, dynamic> roomType
+                                      in roomTypes)
+                                    (roomType['id'] ?? '').toString():
+                                        (roomType['name'] ?? '未命名房型')
+                                            .toString(),
+                                };
 
-                        final List<String> roomTypeNames = campaign.roomTypeIds
-                            .map(
-                              (String roomTypeId) =>
-                                  roomTypeNameMap[roomTypeId],
-                            )
-                            .whereType<String>()
-                            .toList();
+                            return ListView.separated(
+                              padding: const EdgeInsets.fromLTRB(
+                                16,
+                                16,
+                                16,
+                                100,
+                              ),
+                              itemCount: campaigns.length,
+                              separatorBuilder:
+                                  (BuildContext context, int index) {
+                                    return const SizedBox(height: 12);
+                                  },
+                              itemBuilder: (BuildContext context, int index) {
+                                final DiscountCampaignModel campaign =
+                                    campaigns[index].copyWith(
+                                      usedCount:
+                                          totalUsage[campaigns[index].id] ?? 0,
+                                    );
 
-                        return _CampaignCard(
-                          campaign: campaign,
-                          roomTypeNames: roomTypeNames,
-                          typeLabel: _campaignTypeLabel(campaign.type),
-                          valueLabel: _valueLabel(campaign),
-                          applyTargetLabel: _applyTargetLabel(
-                            campaign.applyTarget,
-                          ),
-                          dateRangeLabel:
-                              '${_dateText(campaign.startAt)} ～ '
-                              '${_dateText(campaign.endAt)}',
-                          processing: _processingCampaignId == campaign.id,
-                          onEnabledChanged: (bool value) {
-                            _setCampaignEnabled(
-                              campaign: campaign,
-                              enabled: value,
+                                final List<String> roomTypeNames = campaign
+                                    .roomTypeIds
+                                    .map(
+                                      (String roomTypeId) =>
+                                          roomTypeNameMap[roomTypeId],
+                                    )
+                                    .whereType<String>()
+                                    .toList();
+
+                                return _CampaignCard(
+                                  campaign: campaign,
+                                  roomTypeNames: roomTypeNames,
+                                  typeLabel: _campaignTypeLabel(campaign.type),
+                                  valueLabel: _valueLabel(campaign),
+                                  applyTargetLabel: _applyTargetLabel(
+                                    campaign.applyTarget,
+                                  ),
+                                  dateRangeLabel:
+                                      '${_dateText(campaign.startAt)} ～ '
+                                      '${_dateText(campaign.endAt)}',
+                                  processing:
+                                      _processingCampaignId == campaign.id,
+                                  onEnabledChanged: (bool value) {
+                                    _setCampaignEnabled(
+                                      campaign: campaign,
+                                      enabled: value,
+                                    );
+                                  },
+                                  onDelete: () {
+                                    _confirmDeleteCampaign(campaign);
+                                  },
+                                );
+                              },
                             );
                           },
-                          onDelete: () {
-                            _confirmDeleteCampaign(campaign);
-                          },
-                        );
-                      },
                     );
                   },
             );
@@ -570,7 +606,7 @@ class _CampaignCard extends StatelessWidget {
       return '活動不限總次數';
     }
 
-    return '活動共 ${campaign.totalUsageLimit} 次';
+    return '已使用 ${campaign.usedCount} / ${campaign.totalUsageLimit} 次';
   }
 
   @override
@@ -669,10 +705,20 @@ class _CampaignCard extends StatelessWidget {
               spacing: 8,
               runSpacing: 8,
               children: <Widget>[
-                _InfoChip(
-                  icon: Icons.person_outline,
-                  label: _memberUsageLabel(),
-                ),
+                if (campaign.type == DiscountCampaignType.newMember)
+                  _InfoChip(
+                    icon: Icons.person_add_alt_1_outlined,
+                    label:
+                        campaign.newMemberEligibilityMode ==
+                            NewMemberEligibilityMode.createdAfterCampaign
+                        ? '活動建立後加入的新會員'
+                        : '本店尚未有有效訂單的會員',
+                  )
+                else
+                  _InfoChip(
+                    icon: Icons.person_outline,
+                    label: _memberUsageLabel(),
+                  ),
                 _InfoChip(
                   icon: Icons.confirmation_number_outlined,
                   label: _totalUsageLabel(),
@@ -696,9 +742,15 @@ class _CampaignCard extends StatelessWidget {
             Row(
               children: <Widget>[
                 Text(
-                  campaign.enabled ? '目前啟用中' : '目前已停用',
+                  campaign.isUsageLimitReached
+                      ? '已達使用上限'
+                      : campaign.enabled
+                      ? '目前啟用中'
+                      : '目前已停用',
                   style: TextStyle(
-                    color: campaign.enabled
+                    color: campaign.isUsageLimitReached
+                        ? Colors.orange.shade700
+                        : campaign.enabled
                         ? Colors.green.shade700
                         : Colors.grey.shade600,
                     fontWeight: FontWeight.w600,

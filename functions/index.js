@@ -616,6 +616,26 @@ exports.submitEcpayPaymentSetting =
 exports.approveEcpayPaymentSetting =
   require("./payments/review_payment_setting")
       .approveEcpayPaymentSetting;
+
+/**
+ * ❌ 平台退回店家綠界金流申請
+ *
+ * 實際邏輯放在：
+ * functions/payments/review_payment_setting.js
+ */
+exports.rejectEcpayPaymentSetting =
+  require("./payments/review_payment_setting")
+      .rejectEcpayPaymentSetting;
+
+ /**
+ * ⛔ 平台停用 / 重新啟用店家綠界金流
+ *
+ * 實際邏輯放在：
+ * functions/payments/review_payment_setting.js
+ */
+exports.setEcpayPaymentPlatformSuspended =
+  require("./payments/review_payment_setting")
+      .setEcpayPaymentPlatformSuspended;     
 /**
  * ➕ 使用 Email 新增平台人員
  *

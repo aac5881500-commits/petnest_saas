@@ -191,6 +191,7 @@ exports.approveEcpayPaymentSetting = onCall(
         transaction.update(shopRef, {
           "paymentSetting.reviewStatus": "approved",
           "paymentSetting.enabled": true,
+          "paymentSetting.platformSuspended": false,
           "paymentSetting.reviewedBy": request.auth.uid,
           "paymentSetting.reviewedAt": now,
           "paymentSetting.approvedBy": request.auth.uid,
@@ -216,6 +217,255 @@ exports.approveEcpayPaymentSetting = onCall(
         shopId,
         reviewStatus: "approved",
         message: "店家綠界金流已核准。",
+      };
+    },
+);
+/**
+ * 退回店家的綠界金流申請
+ */
+exports.rejectEcpayPaymentSetting = onCall(
+    {
+      region: "asia-east1",
+    },
+    async (request) => {
+      if (!request.auth) {
+        throw new HttpsError(
+            "unauthenticated",
+            "請先登入平台管理帳號。",
+        );
+      }
+
+      const requestData = request.data || {};
+
+      const shopId = normalizeString(
+          requestData.shopId,
+      );
+
+      const rejectionReason = normalizeString(
+          requestData.rejectionReason,
+      );
+
+      if (!shopId) {
+        throw new HttpsError(
+            "invalid-argument",
+            "缺少店家編號。",
+        );
+      }
+
+      if (!rejectionReason) {
+        throw new HttpsError(
+            "invalid-argument",
+            "請填寫退件原因。",
+        );
+      }
+
+      await verifyPaymentReviewer(
+          request.auth.uid,
+      );
+
+      const firestore = admin.firestore();
+
+      const shopRef = firestore
+          .collection("shops")
+          .doc(shopId);
+
+      const reviewLogRef = firestore
+          .collection("payment_review_logs")
+          .doc();
+
+      await firestore.runTransaction(async (transaction) => {
+        const shopSnapshot = await transaction.get(shopRef);
+
+        if (!shopSnapshot.exists) {
+          throw new HttpsError(
+              "not-found",
+              "找不到指定的店家。",
+          );
+        }
+
+        const shop = shopSnapshot.data() || {};
+
+        const rawPaymentSetting = shop.paymentSetting;
+
+        const paymentSetting =
+          rawPaymentSetting &&
+          typeof rawPaymentSetting === "object" &&
+          !Array.isArray(rawPaymentSetting) ?
+            rawPaymentSetting :
+            {};
+
+        const reviewStatus = normalizeString(
+            paymentSetting.reviewStatus,
+        ).toLowerCase();
+
+        if (reviewStatus !== "pending") {
+          throw new HttpsError(
+              "failed-precondition",
+              "只有等待審核中的申請可以退件。",
+          );
+        }
+
+        const now =
+          admin.firestore.FieldValue.serverTimestamp();
+
+        transaction.update(shopRef, {
+          "paymentSetting.reviewStatus": "rejected",
+          "paymentSetting.enabled": false,
+          "paymentSetting.reviewedBy": request.auth.uid,
+          "paymentSetting.reviewedAt": now,
+          "paymentSetting.rejectedBy": request.auth.uid,
+          "paymentSetting.rejectedAt": now,
+          "paymentSetting.rejectionReason": rejectionReason,
+          "paymentSetting.updatedAt": now,
+          "updatedAt": now,
+        });
+
+        transaction.set(reviewLogRef, {
+          shopId,
+          action: "rejected",
+          previousStatus: reviewStatus,
+          newStatus: "rejected",
+          rejectionReason,
+          operatedBy: request.auth.uid,
+          createdAt: now,
+        });
+      });
+
+      return {
+        success: true,
+        shopId,
+        reviewStatus: "rejected",
+        message: "店家綠界金流申請已退件。",
+      };
+    },
+);
+/**
+ * 平台停用 / 重新啟用店家的綠界金流
+ */
+exports.setEcpayPaymentPlatformSuspended = onCall(
+    {
+      region: "asia-east1",
+    },
+    async (request) => {
+      if (!request.auth) {
+        throw new HttpsError(
+            "unauthenticated",
+            "請先登入平台管理帳號。",
+        );
+      }
+
+      const requestData = request.data || {};
+
+      const shopId = normalizeString(
+          requestData.shopId,
+      );
+
+      const suspended =
+        requestData.suspended === true;
+
+      if (!shopId) {
+        throw new HttpsError(
+            "invalid-argument",
+            "缺少店家編號。",
+        );
+      }
+
+      await verifyPaymentReviewer(
+          request.auth.uid,
+      );
+
+      const firestore = admin.firestore();
+
+      const shopRef = firestore
+          .collection("shops")
+          .doc(shopId);
+
+      const reviewLogRef = firestore
+          .collection("payment_review_logs")
+          .doc();
+
+      await firestore.runTransaction(async (transaction) => {
+        const shopSnapshot = await transaction.get(shopRef);
+
+        if (!shopSnapshot.exists) {
+          throw new HttpsError(
+              "not-found",
+              "找不到指定的店家。",
+          );
+        }
+
+        const shop = shopSnapshot.data() || {};
+
+        const rawPaymentSetting = shop.paymentSetting;
+
+        const paymentSetting =
+          rawPaymentSetting &&
+          typeof rawPaymentSetting === "object" &&
+          !Array.isArray(rawPaymentSetting) ?
+            rawPaymentSetting :
+            {};
+
+        const reviewStatus = normalizeString(
+            paymentSetting.reviewStatus,
+        ).toLowerCase();
+
+        if (reviewStatus !== "approved") {
+          throw new HttpsError(
+              "failed-precondition",
+              "只有已核准的綠界金流可以停用或重新啟用。",
+          );
+        }
+
+        const currentlySuspended =
+          paymentSetting.platformSuspended === true;
+
+        if (currentlySuspended === suspended) {
+          throw new HttpsError(
+              "failed-precondition",
+              suspended ?
+                "這間店家的綠界金流已經是停用狀態。" :
+                "這間店家的綠界金流已經是啟用狀態。",
+          );
+        }
+
+        const now =
+          admin.firestore.FieldValue.serverTimestamp();
+
+        transaction.update(shopRef, {
+          "paymentSetting.platformSuspended": suspended,
+          "paymentSetting.enabled": !suspended,
+          "paymentSetting.suspendedBy":
+            suspended ? request.auth.uid : null,
+          "paymentSetting.suspendedAt":
+            suspended ? now : null,
+          "paymentSetting.resumedBy":
+            suspended ? null : request.auth.uid,
+          "paymentSetting.resumedAt":
+            suspended ? null : now,
+          "paymentSetting.updatedAt": now,
+          "updatedAt": now,
+        });
+
+        transaction.set(reviewLogRef, {
+          shopId,
+          action:
+            suspended ? "platform_suspended" : "platform_resumed",
+          previousStatus: "approved",
+          newStatus: "approved",
+          platformSuspended: suspended,
+          operatedBy: request.auth.uid,
+          createdAt: now,
+        });
+      });
+
+      return {
+        success: true,
+        shopId,
+        reviewStatus: "approved",
+        platformSuspended: suspended,
+        message: suspended ?
+          "店家綠界金流已由平台停用。" :
+          "店家綠界金流已重新啟用。",
       };
     },
 );

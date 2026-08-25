@@ -27,7 +27,13 @@ class AdminBookingPriceSection extends StatelessWidget {
     final roomPriceTotal = basePrice * nights;
     final petPriceTotal = extraPetTotal;
     final correctSubtotal = roomPriceTotal + petPriceTotal;
+    final int specialDateSurchargeAmount =
+        ((data['specialDateSurchargeAmount'] ?? 0) as num).toInt();
 
+    final List<Map<String, dynamic>> specialDateSurchargeDetails =
+        List<Map<String, dynamic>>.from(
+          data['specialDateSurchargeDetails'] ?? const <dynamic>[],
+        );
     final depositPaid = data['depositPaid'] == true;
     final depositAmount = data['depositAmount'] ?? 0;
     final payAmountType = (data['payAmountType'] ?? 'deposit').toString();
@@ -250,6 +256,95 @@ class AdminBookingPriceSection extends StatelessWidget {
           ),
 
         const SizedBox(height: 10),
+
+        if (specialDateSurchargeAmount > 0) ...[
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: Colors.orange.shade50,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.orange.shade200),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const Expanded(
+                      child: Text(
+                        '特殊日期加價',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                        ),
+                      ),
+                    ),
+                    Text(
+                      '+ NT\$ $specialDateSurchargeAmount',
+                      style: const TextStyle(
+                        color: Colors.deepOrange,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                      ),
+                    ),
+                  ],
+                ),
+
+                if (specialDateSurchargeDetails.isNotEmpty) ...[
+                  const Divider(height: 22),
+
+                  ...specialDateSurchargeDetails.map((detail) {
+                    final String date = _formatDailyTimedDate(
+                      (detail['date'] ?? '').toString(),
+                    );
+
+                    final int amount = ((detail['amount'] ?? 0) as num).toInt();
+
+                    final List<Map<String, dynamic>> items =
+                        List<Map<String, dynamic>>.from(
+                          detail['items'] ?? const <dynamic>[],
+                        );
+
+                    final String names = items
+                        .map((item) => (item['name'] ?? '').toString().trim())
+                        .where((name) => name.isNotEmpty)
+                        .join('、');
+
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(
+                            child: Text(
+                              '$date${names.isEmpty ? '' : '　$names'}',
+                              style: TextStyle(
+                                fontSize: 13,
+                                color: Colors.grey.shade700,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Text(
+                            '+ NT\$ $amount',
+                            style: const TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.deepOrange,
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  }),
+                ],
+              ],
+            ),
+          ),
+
+          const SizedBox(height: 10),
+        ],
 
         Container(
           width: double.infinity,

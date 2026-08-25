@@ -5,6 +5,11 @@ import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/services/shop_service.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:petnest_saas/features/admin/pages/admin_booking_detail_page.dart';
+import 'package:petnest_saas/core/models/daily_care_setting_model.dart';
+import 'package:petnest_saas/core/services/daily_care_setting_service.dart';
+import 'package:petnest_saas/core/models/daily_care_record_model.dart';
+import 'package:petnest_saas/core/services/daily_care_record_service.dart';
+import 'package:petnest_saas/features/room/pages/daily_care_record_edit_page.dart';
 
 class RoomCalendarPage extends StatefulWidget {
   const RoomCalendarPage({
@@ -36,10 +41,15 @@ class _RoomCalendarPageState extends State<RoomCalendarPage> {
 
   int bookingRangeDays = 30;
 
+  DailyCareSettingModel _dailyCareSetting = const DailyCareSettingModel();
+
+  bool _dailyCareSettingLoaded = false;
+
   @override
   void initState() {
     super.initState();
     _loadBookingRangeDays();
+    _loadDailyCareSetting();
   }
 
   Future<void> _loadBookingRangeDays() async {
@@ -502,6 +512,13 @@ class _RoomCalendarPageState extends State<RoomCalendarPage> {
                           : _selectedStatus,
                     ),
 
+                  if (_selectedDate != null &&
+                      _dailyCareSettingLoaded &&
+                      _dailyCareSetting.enabled &&
+                      _selectedBooking != null &&
+                      _selectedBooking!['status'] == 'checked_in')
+                    _dailyCarePanel(),
+
                   _roomActionLogsPanel(),
 
                   /// 🔥 圖例
@@ -538,6 +555,29 @@ class _RoomCalendarPageState extends State<RoomCalendarPage> {
         },
       ),
     );
+  }
+
+  Future<void> _loadDailyCareSetting() async {
+    try {
+      final DailyCareSettingModel setting = await DailyCareSettingService
+          .instance
+          .getSetting(widget.shopId);
+
+      if (!mounted) return;
+
+      setState(() {
+        _dailyCareSetting = setting;
+        _dailyCareSettingLoaded = true;
+      });
+    } catch (e) {
+      if (!mounted) return;
+
+      setState(() {
+        _dailyCareSettingLoaded = true;
+      });
+
+      debugPrint('讀取每日照護紀錄設定失敗：$e');
+    }
   }
 
   /// 🔥 選取日期操作區
@@ -788,6 +828,231 @@ class _RoomCalendarPageState extends State<RoomCalendarPage> {
         ],
       ),
     );
+  }
+
+  /// 🐾 每日照護紀錄
+  /// 店家已啟用功能，而且房間目前正在入住時才會顯示。
+  Widget _dailyCarePanel() {
+    final int sessionCount = _dailyCareSetting.sessionCount;
+
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.grey.shade200),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Row(
+            children: [
+              Icon(Icons.pets_outlined, size: 20, color: Color(0xFF3D6F9F)),
+              SizedBox(width: 8),
+              Text(
+                '每日照護紀錄',
+                style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 5),
+
+          Text(
+            '此房今日需填寫 $sessionCount 次照護紀錄',
+            style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+          ),
+
+          const SizedBox(height: 14),
+
+          ...List.generate(sessionCount, (index) {
+            final String sessionName = _dailyCareSessionName(
+              index: index,
+              sessionCount: sessionCount,
+            );
+
+            final String? bookingId = _selectedBookingId;
+            final DateTime? selectedDate = _selectedDate;
+
+            if (bookingId == null ||
+                bookingId.isEmpty ||
+                selectedDate == null) {
+              return const SizedBox.shrink();
+            }
+            return StreamBuilder<DailyCareRecordModel?>(
+              stream: DailyCareRecordService.instance.streamRecord(
+                shopId: widget.shopId,
+                bookingId: bookingId,
+                recordDate: selectedDate,
+                sessionIndex: index,
+              ),
+              builder: (context, recordSnapshot) {
+                final DailyCareRecordModel? record = recordSnapshot.data;
+
+                final bool completed = record != null;
+
+                return Container(
+                  margin: EdgeInsets.only(
+                    bottom: index == sessionCount - 1 ? 0 : 10,
+                  ),
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: completed
+                        ? Colors.green.withValues(alpha: 0.04)
+                        : Colors.grey.shade50,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: completed
+                          ? Colors.green.withValues(alpha: 0.20)
+                          : Colors.grey.shade200,
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 38,
+                        height: 38,
+                        decoration: BoxDecoration(
+                          color: completed
+                              ? Colors.green.withValues(alpha: 0.12)
+                              : const Color(0xFF3D6F9F).withValues(alpha: 0.10),
+                          shape: BoxShape.circle,
+                        ),
+                        child: Icon(
+                          completed
+                              ? Icons.check_circle_outline
+                              : _dailyCareSessionIcon(
+                                  index: index,
+                                  sessionCount: sessionCount,
+                                ),
+                          size: 20,
+                          color: completed
+                              ? Colors.green
+                              : const Color(0xFF3D6F9F),
+                        ),
+                      ),
+
+                      const SizedBox(width: 12),
+
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              sessionName,
+                              style: const TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+
+                            const SizedBox(height: 2),
+
+                            Text(
+                              completed ? '已填寫' : '尚未填寫',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: completed ? Colors.green : Colors.orange,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+
+                            if (completed && record.updatedAt != null) ...[
+                              const SizedBox(height: 2),
+                              Text(
+                                '最後更新 ${_dailyCareTimeText(record.updatedAt!)}',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: Colors.grey.shade600,
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+
+                      FilledButton(
+                        onPressed: () async {
+                          await Navigator.push<bool>(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => DailyCareRecordEditPage(
+                                shopId: widget.shopId,
+                                bookingId: bookingId,
+                                roomId: widget.roomId,
+                                roomName: widget.roomName,
+                                recordDate: selectedDate,
+                                sessionIndex: index,
+                                sessionName: sessionName,
+                                enabledFields: _dailyCareSetting.enabledFields,
+                                customFields: _dailyCareSetting.customFields,
+                                photoEnabled: _dailyCareSetting.photoEnabled,
+                              ),
+                            ),
+                          );
+                        },
+                        child: Text(completed ? '查看 / 修改' : '填寫'),
+                      ),
+                    ],
+                  ),
+                );
+              },
+            );
+          }),
+        ],
+      ),
+    );
+  }
+
+  String _dailyCareTimeText(DateTime dateTime) {
+    return '${dateTime.hour.toString().padLeft(2, '0')}:'
+        '${dateTime.minute.toString().padLeft(2, '0')}';
+  }
+
+  String _dailyCareSessionName({
+    required int index,
+    required int sessionCount,
+  }) {
+    if (sessionCount == 1) {
+      return '每日紀錄';
+    }
+
+    if (sessionCount == 2) {
+      return index == 0 ? '上午場' : '晚上場';
+    }
+
+    switch (index) {
+      case 0:
+        return '上午場';
+      case 1:
+        return '下午場';
+      default:
+        return '晚上場';
+    }
+  }
+
+  IconData _dailyCareSessionIcon({
+    required int index,
+    required int sessionCount,
+  }) {
+    if (sessionCount == 1) {
+      return Icons.edit_note_outlined;
+    }
+
+    if (sessionCount == 2) {
+      return index == 0 ? Icons.wb_sunny_outlined : Icons.nightlight_outlined;
+    }
+
+    switch (index) {
+      case 0:
+        return Icons.wb_sunny_outlined;
+      case 1:
+        return Icons.light_mode_outlined;
+      default:
+        return Icons.nightlight_outlined;
+    }
   }
 
   /// 🔥 房務操作紀錄
