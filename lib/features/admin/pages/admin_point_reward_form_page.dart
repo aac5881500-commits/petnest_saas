@@ -10,8 +10,10 @@ import 'package:image_picker/image_picker.dart';
 import 'package:petnest_saas/core/models/coupon_template_model.dart';
 import 'package:petnest_saas/core/models/member_coupon_model.dart';
 import 'package:petnest_saas/core/models/point_reward_model.dart';
+import 'package:petnest_saas/core/models/inventory_item_model.dart';
 import 'package:petnest_saas/core/services/point_reward_service.dart';
 import 'package:petnest_saas/core/services/point_reward_image_service.dart';
+import 'package:petnest_saas/features/shop/pages/inventory/shop_inventory_item_picker_page.dart';
 import 'admin_coupon_template_picker_page.dart';
 
 class AdminPointRewardFormPage extends StatefulWidget {
@@ -50,6 +52,11 @@ class _AdminPointRewardFormPageState extends State<AdminPointRewardFormPage> {
   bool _enabled = true;
   bool _saving = false;
   late PointRewardFulfillmentType _fulfillmentType;
+  bool _useCentralInventory = false;
+  String _inventoryItemId = '';
+  String _inventoryItemName = '';
+  String _inventoryUnit = '';
+  late final TextEditingController _inventoryQuantityController;
   XFile? _selectedProductImage;
   bool _removeExistingProductImage = false;
   bool _selectingImage = false;
@@ -96,6 +103,15 @@ class _AdminPointRewardFormPageState extends State<AdminPointRewardFormPage> {
     _enabled = reward?.enabled ?? true;
     _fulfillmentType =
         reward?.fulfillmentType ?? PointRewardFulfillmentType.coupon;
+    _useCentralInventory = reward?.useCentralInventory ?? false;
+    _inventoryItemId = reward?.inventoryItemId ?? '';
+    _inventoryItemName = reward?.inventoryItemName ?? '';
+    _inventoryUnit = reward?.inventoryUnit ?? '';
+    _inventoryQuantityController = TextEditingController(
+      text: reward == null
+          ? '1'
+          : reward.inventoryQuantityPerExchange.toString(),
+    );
     _requiresStaffVerification = reward?.requiresStaffVerification ?? true;
   }
 
@@ -109,6 +125,7 @@ class _AdminPointRewardFormPageState extends State<AdminPointRewardFormPage> {
     _sortOrderController.dispose();
     _stockQuantityController.dispose();
     _fulfillmentNoteController.dispose();
+    _inventoryQuantityController.dispose();
 
     super.dispose();
   }
@@ -225,6 +242,13 @@ class _AdminPointRewardFormPageState extends State<AdminPointRewardFormPage> {
       return;
     }
 
+    if (isPhysicalProduct && _useCentralInventory && _inventoryItemId.trim().isEmpty) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('請選擇中央庫存品項')));
+      return;
+    }
+
     final CouponTemplateModel? template = _selectedTemplate;
     final PointRewardModel? currentReward = widget.reward;
 
@@ -247,6 +271,8 @@ class _AdminPointRewardFormPageState extends State<AdminPointRewardFormPage> {
 
     final int stockQuantity =
         int.tryParse(_stockQuantityController.text.trim()) ?? 0;
+    final num inventoryQuantity =
+        num.tryParse(_inventoryQuantityController.text.trim()) ?? 1;
 
     final MemberCouponType couponType =
         template?.type ??
@@ -319,6 +345,21 @@ class _AdminPointRewardFormPageState extends State<AdminPointRewardFormPage> {
           couponTemplateId: isCouponReward ? _selectedTemplateId : '',
           imageUrl: finalImageUrl,
           stockQuantity: isPhysicalProduct ? stockQuantity : 0,
+          useCentralInventory:
+              isPhysicalProduct && _useCentralInventory,
+          inventoryItemId: isPhysicalProduct && _useCentralInventory
+              ? _inventoryItemId
+              : '',
+          inventoryItemName: isPhysicalProduct && _useCentralInventory
+              ? _inventoryItemName
+              : '',
+          inventoryUnit: isPhysicalProduct && _useCentralInventory
+              ? _inventoryUnit
+              : '',
+          inventoryQuantityPerExchange:
+              isPhysicalProduct && _useCentralInventory
+              ? inventoryQuantity
+              : 1,
           fulfillmentNote: isPhysicalProduct
               ? _fulfillmentNoteController.text.trim()
               : '',
@@ -362,6 +403,21 @@ class _AdminPointRewardFormPageState extends State<AdminPointRewardFormPage> {
           couponTemplateId: isCouponReward ? _selectedTemplateId : '',
           imageUrl: '',
           stockQuantity: isPhysicalProduct ? stockQuantity : 0,
+          useCentralInventory:
+              isPhysicalProduct && _useCentralInventory,
+          inventoryItemId: isPhysicalProduct && _useCentralInventory
+              ? _inventoryItemId
+              : '',
+          inventoryItemName: isPhysicalProduct && _useCentralInventory
+              ? _inventoryItemName
+              : '',
+          inventoryUnit: isPhysicalProduct && _useCentralInventory
+              ? _inventoryUnit
+              : '',
+          inventoryQuantityPerExchange:
+              isPhysicalProduct && _useCentralInventory
+              ? inventoryQuantity
+              : 1,
           fulfillmentNote: isPhysicalProduct
               ? _fulfillmentNoteController.text.trim()
               : '',
@@ -763,14 +819,85 @@ class _AdminPointRewardFormPageState extends State<AdminPointRewardFormPage> {
       children: <Widget>[
         _buildProductImagePicker(),
         const SizedBox(height: 16),
+        RadioListTile<bool>(
+          contentPadding: EdgeInsets.zero,
+          title: const Text('使用原本獨立商品庫存'),
+          subtitle: const Text('沿用 stockQuantity / exchangedCount，不連中央庫存'),
+          value: false,
+          groupValue: _useCentralInventory,
+          onChanged: (bool? value) {
+            setState(() {
+              _useCentralInventory = value ?? false;
+            });
+          },
+        ),
+        RadioListTile<bool>(
+          contentPadding: EdgeInsets.zero,
+          title: const Text('使用中央庫存品項'),
+          subtitle: const Text('兌換成功立即扣除中央庫存，完成交付時不會再扣'),
+          value: true,
+          groupValue: _useCentralInventory,
+          onChanged: (bool? value) {
+            setState(() {
+              _useCentralInventory = value ?? false;
+            });
+          },
+        ),
+        if (_useCentralInventory) ...<Widget>[
+          ListTile(
+            contentPadding: EdgeInsets.zero,
+            title: Text(
+              _inventoryItemName.isEmpty ? '選擇中央庫存品項' : _inventoryItemName,
+            ),
+            subtitle: Text(
+              _inventoryItemId.isEmpty ? '尚未選擇' : '單位：$_inventoryUnit',
+            ),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () async {
+              final InventoryItemModel? selected = await Navigator.of(context)
+                  .push<InventoryItemModel>(
+                MaterialPageRoute<InventoryItemModel>(
+                  builder: (BuildContext context) {
+                    return ShopInventoryItemPickerPage(
+                      shopId: widget.shopId,
+                      selectedItemId: _inventoryItemId,
+                    );
+                  },
+                ),
+              );
+
+              if (selected == null) {
+                return;
+              }
+
+              setState(() {
+                _inventoryItemId = selected.id;
+                _inventoryItemName = selected.name;
+                _inventoryUnit = selected.unit;
+              });
+            },
+          ),
+          TextFormField(
+            controller: _inventoryQuantityController,
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            decoration: InputDecoration(
+              labelText: '每次兌換扣除數量',
+              suffixText: _inventoryUnit,
+              border: const OutlineInputBorder(),
+            ),
+          ),
+          const SizedBox(height: 12),
+        ],
         TextFormField(
           controller: _stockQuantityController,
           keyboardType: TextInputType.number,
-          decoration: const InputDecoration(
+          decoration: InputDecoration(
             labelText: '商品庫存',
-            helperText: '輸入 0 代表不限庫存',
+            helperText: _useCentralInventory
+                ? '選填。0 代表不另外限制兌換份數；實際庫存以中央庫存為準'
+                : '輸入 0 代表不限庫存',
             suffixText: '份',
-            border: OutlineInputBorder(),
+            border: const OutlineInputBorder(),
           ),
           validator: (String? value) {
             if (_fulfillmentType !=

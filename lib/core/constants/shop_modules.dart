@@ -13,6 +13,11 @@ class ShopModules {
 
   static const reports = 'reports';
 
+  /// 📦 中央庫存管理
+  ///
+  /// 不列入方案鎖定模組，只要有庫存權限即可在後台顯示。
+  static const inventory = 'inventory';
+
   /// 全部合法模組
   static const all = [
     basicInfo,

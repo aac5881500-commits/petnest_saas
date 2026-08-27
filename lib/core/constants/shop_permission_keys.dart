@@ -58,6 +58,21 @@ class ShopPermissionKeys {
   /// 📦 管理實體商品領取、核銷、取消與退點
   static const managePointRedemptions = 'manage_point_redemptions';
 
+  /// 📦 查看中央庫存數量與流水
+  static const viewInventory = 'view_inventory';
+
+  /// 📦 管理庫存品項與住宿耗材設定
+  static const manageInventory = 'manage_inventory';
+
+  /// 📦 執行進貨
+  static const receiveInventory = 'receive_inventory';
+
+  /// 📦 執行手動出庫與盤點調整
+  static const adjustInventory = 'adjust_inventory';
+
+  /// 📦 查看進貨成本與估計庫存成本
+  static const viewInventoryCost = 'view_inventory_cost';
+
   static const managePolicy = 'manage_policy';
 
   /// 📊 查看報表統計
@@ -86,6 +101,11 @@ class ShopPermissionKeys {
     managePaymentSettings,
     managePointRedemptions,
     manageAddons,
+    viewInventory,
+    manageInventory,
+    receiveInventory,
+    adjustInventory,
+    viewInventoryCost,
     managePolicy,
   ];
 }

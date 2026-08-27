@@ -6,6 +6,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:petnest_saas/core/services/shop_service.dart';
 import 'package:petnest_saas/core/services/member_coupon_service.dart';
+import 'package:petnest_saas/core/services/inventory_stock_service.dart';
+import 'package:petnest_saas/core/exceptions/inventory_exception.dart';
 import 'package:flutter/foundation.dart';
 
 class BookingService {
@@ -173,7 +175,7 @@ class BookingService {
       };
     }).toList();
 
-    return _firestore.runTransaction<String>((transaction) async {
+    final bookingId = await _firestore.runTransaction<String>((transaction) async {
       /// 🔒 Transaction 內重新讀取，防止兩個請求同時建立
       final existingBooking = await transaction.get(doc);
 
@@ -307,6 +309,9 @@ class BookingService {
       debugPrint('BOOKING_IDEMPOTENCY: 建立成功 ${doc.id}');
       return doc.id;
     });
+
+    await _afterBookingCreated(shopId: shopId, bookingId: bookingId);
+    return bookingId;
   }
 
   Future<String> createAdminBooking({
@@ -516,6 +521,7 @@ class BookingService {
 
     debugPrint('ADMIN_BOOKING_STEP 4: booking 寫入完成');
 
+    await _afterBookingCreated(shopId: shopId, bookingId: doc.id);
     return doc.id;
   }
 
@@ -651,6 +657,11 @@ class BookingService {
       );
     }
 
+    await _returnBookingInventory(
+      shopId: (data['shopId'] ?? '').toString(),
+      bookingId: bookingId,
+    );
+
     await _firestore.collection('action_logs').add({
       'type': 'booking_cancelled',
 
@@ -757,6 +768,104 @@ class BookingService {
       'status': status,
       'updatedAt': FieldValue.serverTimestamp(),
     });
+  }
+
+  /// 確認入住
+  ///
+  /// 住宿耗材在入住當下依最新晚數與寵物數扣除。
+  /// 加購若建立訂單時尚未扣除，這裡會再嘗試一次（幂等）。
+  Future<void> checkInBooking({required String bookingId}) async {
+    final DocumentSnapshot<Map<String, dynamic>> snapshot = await _bookings
+        .doc(bookingId)
+        .get();
+
+    final Map<String, dynamic>? data = snapshot.data();
+
+    if (!snapshot.exists || data == null) {
+      throw Exception('找不到這筆訂單');
+    }
+
+    final String shopId = (data['shopId'] ?? '').toString();
+    final String status = (data['status'] ?? '').toString();
+
+    if (status == 'cancelled') {
+      throw Exception('訂單已取消，無法入住');
+    }
+
+    if (shopId.isEmpty) {
+      await _bookings.doc(bookingId).update({
+        'status': 'checked_in',
+        'checkInAt': FieldValue.serverTimestamp(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+      return;
+    }
+
+    await InventoryStockService.instance.consumeBookingAddons(
+      shopId: shopId,
+      bookingId: bookingId,
+    );
+    await InventoryStockService.instance.consumeBookingSupplies(
+      shopId: shopId,
+      bookingId: bookingId,
+    );
+
+    await _bookings.doc(bookingId).update({
+      'status': 'checked_in',
+      'checkInAt': FieldValue.serverTimestamp(),
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+  }
+
+  Future<void> _afterBookingCreated({
+    required String shopId,
+    required String bookingId,
+  }) async {
+    try {
+      await InventoryStockService.instance.consumeBookingAddons(
+        shopId: shopId,
+        bookingId: bookingId,
+      );
+    } catch (error) {
+      debugPrint('建立訂單扣加購庫存失敗：$error');
+
+      try {
+        await cancelBooking(
+          bookingId: bookingId,
+          cancelReason: InventoryException.userMessage(error),
+          cancelBy: 'system',
+        );
+      } catch (_) {}
+
+      if (error is InventoryException) {
+        rethrow;
+      }
+
+      throw InventoryException(InventoryException.userMessage(error));
+    }
+  }
+
+  Future<void> _returnBookingInventory({
+    required String shopId,
+    required String bookingId,
+  }) async {
+    if (shopId.trim().isEmpty || bookingId.trim().isEmpty) {
+      return;
+    }
+
+    try {
+      await InventoryStockService.instance.returnBookingAddons(
+        shopId: shopId,
+        bookingId: bookingId,
+      );
+      await InventoryStockService.instance.returnBookingSupplies(
+        shopId: shopId,
+        bookingId: bookingId,
+      );
+    } catch (error, stackTrace) {
+      debugPrint('取消訂單返還庫存失敗：$error');
+      debugPrintStack(stackTrace: stackTrace);
+    }
   }
 
   /// ===============================

@@ -35,6 +35,11 @@ class PointRewardModel {
     this.couponTemplateId = '',
     this.imageUrl = '',
     this.stockQuantity = 0,
+    this.useCentralInventory = false,
+    this.inventoryItemId = '',
+    this.inventoryItemName = '',
+    this.inventoryUnit = '',
+    this.inventoryQuantityPerExchange = 1,
     this.fulfillmentNote = '',
     this.requiresStaffVerification = false,
     this.discountValue = 0,
@@ -82,7 +87,23 @@ class PointRewardModel {
   /// 商品庫存或總供應數量
   ///
   /// 0 代表不限制。
+  /// 舊實體商品若未綁中央庫存，繼續使用此欄位搭配 exchangedCount。
   final int stockQuantity;
+
+  /// 是否改為使用店家中央庫存
+  final bool useCentralInventory;
+
+  /// 中央庫存品項 ID
+  final String inventoryItemId;
+
+  /// 中央庫存品項名稱快照
+  final String inventoryItemName;
+
+  /// 中央庫存單位快照
+  final String inventoryUnit;
+
+  /// 每次兌換扣除的中央庫存數量
+  final num inventoryQuantityPerExchange;
 
   /// 領取或使用說明
   ///
@@ -191,7 +212,17 @@ class PointRewardModel {
     return totalExchangeLimit > 0;
   }
 
+  bool get usesCentralInventory {
+    return isPhysicalProduct &&
+        useCentralInventory &&
+        inventoryItemId.trim().isNotEmpty;
+  }
+
   bool get hasStockLimit {
+    if (usesCentralInventory) {
+      return false;
+    }
+
     return stockQuantity > 0;
   }
 
@@ -241,6 +272,11 @@ class PointRewardModel {
       'couponTemplateId': couponTemplateId.trim(),
       'imageUrl': imageUrl.trim(),
       'stockQuantity': stockQuantity,
+      'useCentralInventory': useCentralInventory,
+      'inventoryItemId': inventoryItemId.trim(),
+      'inventoryItemName': inventoryItemName.trim(),
+      'inventoryUnit': inventoryUnit.trim(),
+      'inventoryQuantityPerExchange': inventoryQuantityPerExchange,
       'fulfillmentNote': fulfillmentNote.trim(),
       'requiresStaffVerification': requiresStaffVerification,
       'couponType': couponType.name,
@@ -282,6 +318,16 @@ class PointRewardModel {
       couponTemplateId: (data['couponTemplateId'] ?? '').toString(),
       imageUrl: (data['imageUrl'] ?? '').toString(),
       stockQuantity: _intFromValue(data['stockQuantity']),
+      useCentralInventory: data['useCentralInventory'] == true,
+      inventoryItemId: (data['inventoryItemId'] ?? '').toString(),
+      inventoryItemName: (data['inventoryItemName'] ?? '').toString(),
+      inventoryUnit: (data['inventoryUnit'] ?? '').toString(),
+      inventoryQuantityPerExchange: data['inventoryQuantityPerExchange'] is num
+          ? data['inventoryQuantityPerExchange'] as num
+          : num.tryParse(
+                  data['inventoryQuantityPerExchange']?.toString() ?? '',
+                ) ??
+                1,
       fulfillmentNote: (data['fulfillmentNote'] ?? '').toString(),
       requiresStaffVerification: data['requiresStaffVerification'] is bool
           ? data['requiresStaffVerification'] == true
@@ -322,6 +368,11 @@ class PointRewardModel {
     String? couponTemplateId,
     String? imageUrl,
     int? stockQuantity,
+    bool? useCentralInventory,
+    String? inventoryItemId,
+    String? inventoryItemName,
+    String? inventoryUnit,
+    num? inventoryQuantityPerExchange,
     String? fulfillmentNote,
     bool? requiresStaffVerification,
     MemberCouponType? couponType,
@@ -354,6 +405,12 @@ class PointRewardModel {
       couponTemplateId: couponTemplateId ?? this.couponTemplateId,
       imageUrl: imageUrl ?? this.imageUrl,
       stockQuantity: stockQuantity ?? this.stockQuantity,
+      useCentralInventory: useCentralInventory ?? this.useCentralInventory,
+      inventoryItemId: inventoryItemId ?? this.inventoryItemId,
+      inventoryItemName: inventoryItemName ?? this.inventoryItemName,
+      inventoryUnit: inventoryUnit ?? this.inventoryUnit,
+      inventoryQuantityPerExchange:
+          inventoryQuantityPerExchange ?? this.inventoryQuantityPerExchange,
       fulfillmentNote: fulfillmentNote ?? this.fulfillmentNote,
       requiresStaffVerification:
           requiresStaffVerification ?? this.requiresStaffVerification,

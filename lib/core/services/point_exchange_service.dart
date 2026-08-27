@@ -12,6 +12,7 @@ import '../models/member_point_log_model.dart';
 import '../models/member_point_model.dart';
 import '../models/point_redemption_model.dart';
 import '../models/point_reward_model.dart';
+import 'inventory_stock_service.dart';
 
 class PointExchangeService {
   PointExchangeService._();
@@ -300,6 +301,25 @@ class PointExchangeService {
           now: now,
         );
 
+        PreparedStockConsumption? inventoryPlan;
+
+        if (isPhysicalProduct &&
+            reward.usesCentralInventory &&
+            redemption != null) {
+          inventoryPlan = await InventoryStockService.instance
+              .preparePointRedemptionDeduct(
+                transaction: transaction,
+                shopId: normalizedShopId,
+                redemptionId: redemption.id,
+                inventoryItemId: reward.inventoryItemId,
+                quantity: reward.inventoryQuantityPerExchange <= 0
+                    ? 1
+                    : reward.inventoryQuantityPerExchange,
+                itemName: reward.name,
+                note: '點數兌換立即扣庫存',
+              );
+        }
+
         transaction.set(
           memberPointReference,
           nextPoint.toMap(),
@@ -343,6 +363,13 @@ class PointExchangeService {
           if (!memberExchangeHasCreatedAt)
             'createdAt': FieldValue.serverTimestamp(),
         }, SetOptions(merge: true));
+
+        if (inventoryPlan != null) {
+          InventoryStockService.instance.commitPreparedConsumption(
+            transaction: transaction,
+            prepared: inventoryPlan,
+          );
+        }
 
         return resultId;
       });
@@ -487,6 +514,19 @@ class PointExchangeService {
       expireAt: expireAt,
       memberName: memberContact.name,
       memberPhone: memberContact.phone,
+      useCentralInventory: reward.usesCentralInventory,
+      inventoryItemId: reward.inventoryItemId,
+      inventoryItemName: reward.inventoryItemName.isEmpty
+          ? reward.name
+          : reward.inventoryItemName,
+      inventoryUnit: reward.inventoryUnit,
+      inventoryQuantity: reward.usesCentralInventory
+          ? (reward.inventoryQuantityPerExchange <= 0
+                ? 1
+                : reward.inventoryQuantityPerExchange)
+          : 0,
+      inventoryDeducted: reward.usesCentralInventory,
+      inventoryReturned: false,
       createdAt: now,
       updatedAt: now,
     );

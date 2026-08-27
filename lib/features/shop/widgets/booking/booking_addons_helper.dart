@@ -24,6 +24,7 @@ class BookingAddonsHelper {
 
     for (final item in selectedValueServices) {
       addons.add({
+        'id': item['id'],
         'name': item['name'],
         'price': item['price'],
         'type': 'value',
@@ -36,6 +37,8 @@ class BookingAddonsHelper {
 
           return pet['name'] ?? petId;
         }).toList(),
+        'useInventory': item['useInventory'] == true,
+        'inventoryBindings': item['inventoryBindings'] ?? <dynamic>[],
       });
     }
 
@@ -51,6 +54,7 @@ class BookingAddonsHelper {
       final price = service['price'] ?? 0;
 
       addons.add({
+        'id': service['id'],
         'name': name,
         'price': price,
         'count': petList.length,
@@ -63,6 +67,8 @@ class BookingAddonsHelper {
           return (pet.first['name'] ?? petId).toString();
         }).toList(),
         'type': 'custom',
+        'useInventory': service['useInventory'] == true,
+        'inventoryBindings': service['inventoryBindings'] ?? <dynamic>[],
       });
     }
     final dailyTimedServices = List<Map<String, dynamic>>.from(
@@ -162,6 +168,8 @@ class BookingAddonsHelper {
         'total': price * count,
         'selections': selections,
         'type': 'daily_timed',
+        'useInventory': service['useInventory'] == true,
+        'inventoryBindings': service['inventoryBindings'] ?? <dynamic>[],
       });
     }
 

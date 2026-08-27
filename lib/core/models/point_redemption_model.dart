@@ -47,6 +47,13 @@ class PointRedemptionModel {
     this.pointsRefunded = false,
     this.pointsRefundedAt,
     this.pointsRefundedBy = '',
+    this.useCentralInventory = false,
+    this.inventoryItemId = '',
+    this.inventoryItemName = '',
+    this.inventoryUnit = '',
+    this.inventoryQuantity = 0,
+    this.inventoryDeducted = false,
+    this.inventoryReturned = false,
     this.memberName = '',
     this.memberPhone = '',
     this.note = '',
@@ -125,6 +132,16 @@ class PointRedemptionModel {
   /// 執行退點的人員 UID
   final String pointsRefundedBy;
 
+  /// 此次兌換是否使用中央庫存
+  final bool useCentralInventory;
+
+  final String inventoryItemId;
+  final String inventoryItemName;
+  final String inventoryUnit;
+  final num inventoryQuantity;
+  final bool inventoryDeducted;
+  final bool inventoryReturned;
+
   /// 會員名稱快照
   final String memberName;
 
@@ -202,6 +219,13 @@ class PointRedemptionModel {
           ? null
           : Timestamp.fromDate(pointsRefundedAt!),
       'pointsRefundedBy': pointsRefundedBy.trim(),
+      'useCentralInventory': useCentralInventory,
+      'inventoryItemId': inventoryItemId.trim(),
+      'inventoryItemName': inventoryItemName.trim(),
+      'inventoryUnit': inventoryUnit.trim(),
+      'inventoryQuantity': inventoryQuantity,
+      'inventoryDeducted': inventoryDeducted,
+      'inventoryReturned': inventoryReturned,
       'memberName': memberName.trim(),
       'memberPhone': memberPhone.trim(),
       'note': note.trim(),
@@ -237,6 +261,15 @@ class PointRedemptionModel {
       pointsRefunded: data['pointsRefunded'] == true,
       pointsRefundedAt: _dateTimeFromValue(data['pointsRefundedAt']),
       pointsRefundedBy: (data['pointsRefundedBy'] ?? '').toString(),
+      useCentralInventory: data['useCentralInventory'] == true,
+      inventoryItemId: (data['inventoryItemId'] ?? '').toString(),
+      inventoryItemName: (data['inventoryItemName'] ?? '').toString(),
+      inventoryUnit: (data['inventoryUnit'] ?? '').toString(),
+      inventoryQuantity: data['inventoryQuantity'] is num
+          ? data['inventoryQuantity'] as num
+          : num.tryParse(data['inventoryQuantity']?.toString() ?? '') ?? 0,
+      inventoryDeducted: data['inventoryDeducted'] == true,
+      inventoryReturned: data['inventoryReturned'] == true,
       memberName: (data['memberName'] ?? '').toString(),
       memberPhone: (data['memberPhone'] ?? '').toString(),
       note: (data['note'] ?? '').toString(),
@@ -272,6 +305,13 @@ class PointRedemptionModel {
     DateTime? pointsRefundedAt,
     bool clearPointsRefundedAt = false,
     String? pointsRefundedBy,
+    bool? useCentralInventory,
+    String? inventoryItemId,
+    String? inventoryItemName,
+    String? inventoryUnit,
+    num? inventoryQuantity,
+    bool? inventoryDeducted,
+    bool? inventoryReturned,
     String? memberName,
     String? memberPhone,
     String? note,
@@ -303,6 +343,13 @@ class PointRedemptionModel {
           ? null
           : pointsRefundedAt ?? this.pointsRefundedAt,
       pointsRefundedBy: pointsRefundedBy ?? this.pointsRefundedBy,
+      useCentralInventory: useCentralInventory ?? this.useCentralInventory,
+      inventoryItemId: inventoryItemId ?? this.inventoryItemId,
+      inventoryItemName: inventoryItemName ?? this.inventoryItemName,
+      inventoryUnit: inventoryUnit ?? this.inventoryUnit,
+      inventoryQuantity: inventoryQuantity ?? this.inventoryQuantity,
+      inventoryDeducted: inventoryDeducted ?? this.inventoryDeducted,
+      inventoryReturned: inventoryReturned ?? this.inventoryReturned,
       memberName: memberName ?? this.memberName,
       memberPhone: memberPhone ?? this.memberPhone,
       note: note ?? this.note,

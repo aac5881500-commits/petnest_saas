@@ -607,6 +607,8 @@ class _RewardCard extends StatelessWidget {
                 ? reward.isSoldOut
                       ? '目前無庫存'
                       : '剩餘庫存 ${reward.remainingStock ?? 0} 份'
+                : reward.usesCentralInventory
+                ? '使用店家中央庫存'
                 : '庫存不限',
           ),
         ],

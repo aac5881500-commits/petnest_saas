@@ -39,6 +39,8 @@ class ShopMemberPermissionService {
       ShopPermissionKeys.editMedia: true,
       ShopPermissionKeys.manageBookings: true,
       ShopPermissionKeys.managePointRedemptions: true,
+      ShopPermissionKeys.viewInventory: true,
+      ShopPermissionKeys.receiveInventory: true,
       ShopPermissionKeys.viewReports: true,
       ShopPermissionKeys.viewActionLogs: true,
     };
@@ -54,6 +56,13 @@ class ShopMemberPermissionService {
 
       // 店員預設可以處理會員到店領取實體商品。
       ShopPermissionKeys.managePointRedemptions: true,
+
+      // 店員預設可查看庫存數量，但不能進貨、盤點或看成本。
+      ShopPermissionKeys.viewInventory: true,
+      ShopPermissionKeys.manageInventory: false,
+      ShopPermissionKeys.receiveInventory: false,
+      ShopPermissionKeys.adjustInventory: false,
+      ShopPermissionKeys.viewInventoryCost: false,
 
       ShopPermissionKeys.viewReports: false,
       ShopPermissionKeys.viewActionLogs: false,

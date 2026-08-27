@@ -130,6 +130,11 @@ class PointRewardService {
     String couponTemplateId = '',
     String imageUrl = '',
     int stockQuantity = 0,
+    bool useCentralInventory = false,
+    String inventoryItemId = '',
+    String inventoryItemName = '',
+    String inventoryUnit = '',
+    num inventoryQuantityPerExchange = 1,
     String fulfillmentNote = '',
     bool requiresStaffVerification = false,
     num discountValue = 0,
@@ -187,6 +192,13 @@ class PointRewardService {
       couponTemplateId: couponTemplateId.trim(),
       imageUrl: imageUrl.trim(),
       stockQuantity: stockQuantity,
+      useCentralInventory: useCentralInventory,
+      inventoryItemId: inventoryItemId.trim(),
+      inventoryItemName: inventoryItemName.trim(),
+      inventoryUnit: inventoryUnit.trim(),
+      inventoryQuantityPerExchange: inventoryQuantityPerExchange <= 0
+          ? 1
+          : inventoryQuantityPerExchange,
       fulfillmentNote: fulfillmentNote.trim(),
       requiresStaffVerification:
           fulfillmentType == PointRewardFulfillmentType.physicalProduct
@@ -234,6 +246,11 @@ class PointRewardService {
     String couponTemplateId = '',
     String imageUrl = '',
     int stockQuantity = 0,
+    bool useCentralInventory = false,
+    String inventoryItemId = '',
+    String inventoryItemName = '',
+    String inventoryUnit = '',
+    num inventoryQuantityPerExchange = 1,
     String fulfillmentNote = '',
     bool requiresStaffVerification = false,
     num discountValue = 0,
@@ -317,6 +334,13 @@ class PointRewardService {
         'couponTemplateId': couponTemplateId.trim(),
         'imageUrl': imageUrl.trim(),
         'stockQuantity': stockQuantity,
+        'useCentralInventory': useCentralInventory,
+        'inventoryItemId': inventoryItemId.trim(),
+        'inventoryItemName': inventoryItemName.trim(),
+        'inventoryUnit': inventoryUnit.trim(),
+        'inventoryQuantityPerExchange': inventoryQuantityPerExchange <= 0
+            ? 1
+            : inventoryQuantityPerExchange,
         'fulfillmentNote': fulfillmentNote.trim(),
         'requiresStaffVerification':
             fulfillmentType == PointRewardFulfillmentType.physicalProduct

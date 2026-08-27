@@ -9,6 +9,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import '../models/member_point_log_model.dart';
 import '../models/member_point_model.dart';
 import '../models/point_redemption_model.dart';
+import 'inventory_stock_service.dart';
 
 class PointRedemptionService {
   PointRedemptionService._();
@@ -359,6 +360,19 @@ class PointRedemptionService {
         memberPointSnapshot = await transaction.get(memberPointReference);
       }
 
+      PreparedStockConsumption? inventoryReturnPlan;
+
+      if (redemption.useCentralInventory &&
+          redemption.inventoryItemId.trim().isNotEmpty &&
+          !redemption.inventoryReturned) {
+        inventoryReturnPlan = await InventoryStockService.instance
+            .preparePointRedemptionReturn(
+              transaction: transaction,
+              shopId: normalizedShopId,
+              redemptionId: redemption.id,
+            );
+      }
+
       final Map<String, dynamic>? rewardData = rewardSnapshot.data();
 
       final Map<String, dynamic>? memberExchangeData = memberExchangeSnapshot
@@ -441,6 +455,9 @@ class PointRedemptionService {
         'pointsRefunded': refundPoints,
         'pointsRefundedAt': refundPoints ? FieldValue.serverTimestamp() : null,
         'pointsRefundedBy': refundPoints ? operatorUid : '',
+        'inventoryReturned': inventoryReturnPlan != null && !inventoryReturnPlan.skip
+            ? true
+            : redemption.inventoryReturned,
         'updatedAt': FieldValue.serverTimestamp(),
       });
 
@@ -468,6 +485,13 @@ class PointRedemptionService {
         );
 
         transaction.set(pointLogReference, refundLog.toMap());
+      }
+
+      if (inventoryReturnPlan != null) {
+        InventoryStockService.instance.commitPreparedConsumption(
+          transaction: transaction,
+          prepared: inventoryReturnPlan,
+        );
       }
     });
   }

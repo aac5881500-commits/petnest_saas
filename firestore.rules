@@ -108,6 +108,53 @@ function canManagePointRedemptions(shopId) {
     );
 }
 
+function isShopCustomer(shopId) {
+  return signedIn()
+    && exists(
+      /databases/$(database)/documents/shops/$(shopId)/members/$(request.auth.uid)
+    );
+}
+
+function shopMemberData(shopId) {
+  return get(
+    /databases/$(database)/documents/shop_members/$(shopId + '_' + request.auth.uid)
+  ).data;
+}
+
+function canViewInventory(shopId) {
+  return isRootAdmin()
+    || (
+      isShopMember(shopId)
+      && (
+        shopMemberData(shopId).role == 'owner'
+        || (
+          shopMemberData(shopId).permissions is map
+          && (
+            shopMemberData(shopId).permissions.get('view_inventory', false) == true
+            || shopMemberData(shopId).permissions.get('manage_inventory', false) == true
+          )
+        )
+        || (
+          (
+            !(shopMemberData(shopId).permissions is map)
+            || !shopMemberData(shopId).permissions.keys().hasAny(['view_inventory'])
+          )
+          && shopMemberData(shopId).role in ['manager', 'staff']
+        )
+      )
+    );
+}
+
+function canManageInventory(shopId) {
+  return isRootAdmin()
+    || isShopOwner(shopId)
+    || (
+      isShopMember(shopId)
+      && shopMemberData(shopId).permissions is map
+      && shopMemberData(shopId).permissions.get('manage_inventory', false) == true
+    );
+}
+
     // 👤 會員帳號
     match /users/{uid} {
       allow read: if isSelf(uid) || isRootAdmin() ||
@@ -1826,6 +1873,114 @@ match /faqs/{faqId} {
         allow read: if isShopMember(shopId) || isRootAdmin();
         allow create: if signedIn();
         allow update, delete: if false;
+      }
+
+      // 📦 中央庫存品項
+      // 功能：店家彼此隔離。一般會員不可直接改主檔，僅能在兌換／下單時減少 currentStock。
+      match /inventory_items/{itemId} {
+        allow read: if
+          isRootAdmin()
+          || canViewInventory(shopId)
+          || isShopMember(shopId)
+          || isShopCustomer(shopId);
+
+        allow create: if
+          signedIn()
+          && (
+            isRootAdmin()
+            || isShopOwner(shopId)
+            || canManageInventory(shopId)
+          )
+          && request.resource.data.shopId == shopId
+          && request.resource.data.name is string
+          && request.resource.data.name.size() > 0
+          && request.resource.data.currentStock is number
+          && request.resource.data.currentStock >= 0
+          && request.resource.data.currentStock <= 0
+          && request.resource.data.enabled is bool;
+
+        allow update: if
+          request.resource.data.shopId == shopId
+          && (
+            isRootAdmin()
+            || isShopOwner(shopId)
+            || canManageInventory(shopId)
+            || isShopMember(shopId)
+            || (
+              isShopCustomer(shopId)
+              && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+                'currentStock',
+                'estimatedStockCost',
+                'updatedAt',
+                'updatedBy'
+              ])
+              && request.resource.data.currentStock is number
+              && request.resource.data.currentStock >= 0
+            )
+          );
+
+        allow delete: if false;
+
+        match /batches/{batchId} {
+          allow read: if isRootAdmin() || isShopMember(shopId);
+
+          allow create: if
+            (isRootAdmin() || isShopMember(shopId))
+            && request.resource.data.shopId == shopId
+            && request.resource.data.inventoryItemId == itemId
+            && request.resource.data.quantityReceived is number
+            && request.resource.data.quantityReceived > 0;
+
+          allow update: if isRootAdmin() || isShopMember(shopId);
+          allow delete: if false;
+        }
+
+        match /movements/{movementId} {
+          allow read: if isRootAdmin() || isShopMember(shopId) || canViewInventory(shopId);
+
+          allow create: if
+            signedIn()
+            && (isRootAdmin() || isShopMember(shopId) || isShopCustomer(shopId))
+            && request.resource.data.shopId == shopId
+            && request.resource.data.inventoryItemId == itemId
+            && request.resource.data.type is string
+            && request.resource.data.quantityChange is number
+            && request.resource.data.stockBefore is number
+            && request.resource.data.stockAfter is number;
+
+          allow update, delete: if false;
+        }
+      }
+
+      // 📦 庫存消耗／返還幂等紀錄
+      match /inventory_consumptions/{consumptionId} {
+        allow read: if
+          isRootAdmin()
+          || isShopMember(shopId)
+          || isShopCustomer(shopId);
+
+        allow create: if
+          signedIn()
+          && (isRootAdmin() || isShopMember(shopId) || isShopCustomer(shopId))
+          && request.resource.data.shopId == shopId
+          && request.resource.data.sourceId is string
+          && request.resource.data.operation in ['deduct', 'return']
+          && request.resource.data.status == 'completed';
+
+        allow update, delete: if false;
+      }
+
+      // 🧹 住宿耗材設定
+      match /booking_supply_settings/{settingId} {
+        allow read: if isRootAdmin() || isShopMember(shopId);
+
+        allow create, update: if
+          (isRootAdmin() || canManageInventory(shopId) || isShopOwner(shopId) || isShopMember(shopId))
+          && request.resource.data.shopId == shopId
+          && request.resource.data.name is string
+          && request.resource.data.name.size() > 0;
+
+        allow delete: if false;
       }
     }
 

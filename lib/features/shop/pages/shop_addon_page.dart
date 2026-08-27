@@ -8,6 +8,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:petnest_saas/features/shop/widgets/inventory/addon_inventory_binding_editor.dart';
 
 class ShopAddonPage extends StatefulWidget {
   final String shopId;
@@ -308,6 +309,14 @@ class _ShopAddonPageState extends State<ShopAddonPage> {
                 item['desc'] = val;
               },
             ),
+            if (!item.containsKey('label'))
+              AddonInventoryBindingEditor(
+                shopId: widget.shopId,
+                service: item,
+                onChanged: () {
+                  setState(() {});
+                },
+              ),
           ],
         ),
       ),
@@ -543,6 +552,13 @@ class _ShopAddonPageState extends State<ShopAddonPage> {
             const Text(
               '顧客預約時會先選擇寵物，再依住宿日期選擇每天需要的服務時段。',
               style: TextStyle(fontSize: 13, color: Colors.grey),
+            ),
+            AddonInventoryBindingEditor(
+              shopId: widget.shopId,
+              service: item,
+              onChanged: () {
+                setState(() {});
+              },
             ),
           ],
         ),

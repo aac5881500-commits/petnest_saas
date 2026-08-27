@@ -11,7 +11,7 @@ import 'package:petnest_saas/core/services/shop_service.dart';
 import 'package:petnest_saas/features/shop/widgets/permissions/permission_category_tile.dart';
 import 'package:petnest_saas/features/shop/pages/permissions/basic_info_permission_page.dart';
 import 'package:petnest_saas/features/shop/pages/permissions/cat_hotel_permission_page.dart';
-import 'package:petnest_saas/features/shop/pages/permissions/reports_permission_page.dart';
+import 'package:petnest_saas/features/shop/pages/permissions/inventory_permission_page.dart';
 import 'package:petnest_saas/features/shop/widgets/permissions/permission_member_list_card.dart';
 import 'package:petnest_saas/features/shop/widgets/permissions/permission_invite_list_card.dart';
 import 'package:petnest_saas/features/shop/pages/permissions/member_permission_detail_page.dart';
@@ -159,6 +159,18 @@ class _ShopPermissionSettingsPageState
         return '房間管理';
       case 'manage_payment_settings':
         return '付款 / 訂金設定';
+      case 'manage_point_redemptions':
+        return '實體商品核銷';
+      case 'view_inventory':
+        return '查看庫存';
+      case 'manage_inventory':
+        return '管理庫存品項';
+      case 'receive_inventory':
+        return '進貨';
+      case 'adjust_inventory':
+        return '出庫與盤點';
+      case 'view_inventory_cost':
+        return '查看成本';
       case 'manage_policy':
         return '入住規則';
       case 'view_reports':
@@ -419,6 +431,29 @@ class _ShopPermissionSettingsPageState
             },
           ),
 
+          const SizedBox(height: 12),
+
+          PermissionCategoryTile(
+            title: '庫存管理權限',
+            subtitle: '查看庫存、品項管理、進貨、盤點與成本',
+            icon: Icons.inventory_2_outlined,
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => InventoryPermissionPage(
+                    permissions: _permissions,
+                    isOwner: _isOwner,
+                    onChanged: (key, value) {
+                      setState(() {
+                        _permissions[key] = value;
+                      });
+                    },
+                  ),
+                ),
+              );
+            },
+          ),
           const SizedBox(height: 12),
 
           PermissionCategoryTile(

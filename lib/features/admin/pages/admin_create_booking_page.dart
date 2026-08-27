@@ -1015,11 +1015,14 @@ class _AdminCreateBookingPageState extends State<AdminCreateBookingPage> {
         final price = item['price'] ?? 0;
 
         return {
+          'id': item['id'],
           'name': item['name'],
           'type': 'value',
           'price': price,
           'count': 1,
           'total': item['total'] ?? price,
+          'useInventory': item['useInventory'] == true,
+          'inventoryBindings': item['inventoryBindings'] ?? <dynamic>[],
         };
       }),
     );
@@ -1034,6 +1037,7 @@ class _AdminCreateBookingPageState extends State<AdminCreateBookingPage> {
       final price = service['price'] ?? 0;
 
       addons.add({
+        'id': service['id'],
         'name': serviceName,
         'type': 'custom',
         'price': price,
@@ -1047,6 +1051,8 @@ class _AdminCreateBookingPageState extends State<AdminCreateBookingPage> {
 
           return pet['name'] ?? petId;
         }).toList(),
+        'useInventory': service['useInventory'] == true,
+        'inventoryBindings': service['inventoryBindings'] ?? <dynamic>[],
       });
     });
 
@@ -1147,6 +1153,8 @@ class _AdminCreateBookingPageState extends State<AdminCreateBookingPage> {
         'total': price * count,
         'selections': selections,
         'type': 'daily_timed',
+        'useInventory': service['useInventory'] == true,
+        'inventoryBindings': service['inventoryBindings'] ?? <dynamic>[],
       });
     }
 

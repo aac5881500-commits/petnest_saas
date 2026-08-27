@@ -322,6 +322,49 @@ class _MemberPermissionDetailPageState
                     ),
                   ],
 
+                  const Divider(height: 28),
+
+                  const Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      '庫存管理',
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+
+                  const SizedBox(height: 8),
+
+                  ...[
+                    _buildPermissionSwitch(
+                      ShopPermissionKeys.viewInventory,
+                      title: '查看庫存',
+                      subtitle: '可查看庫存品項、數量與異動流水',
+                    ),
+                    _buildPermissionSwitch(
+                      ShopPermissionKeys.manageInventory,
+                      title: '管理庫存品項',
+                      subtitle: '可新增、編輯庫存品項與住宿耗材設定',
+                    ),
+                    _buildPermissionSwitch(
+                      ShopPermissionKeys.receiveInventory,
+                      title: '進貨',
+                      subtitle: '可執行進貨並建立進貨批次',
+                    ),
+                    _buildPermissionSwitch(
+                      ShopPermissionKeys.adjustInventory,
+                      title: '出庫與盤點',
+                      subtitle: '可執行手動出庫與盤點調整',
+                    ),
+                    _buildPermissionSwitch(
+                      ShopPermissionKeys.viewInventoryCost,
+                      title: '查看成本',
+                      subtitle: '可查看進貨單價與估計庫存成本',
+                    ),
+                  ],
+
                   const SizedBox(height: 8),
 
                   Text(

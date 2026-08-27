@@ -14,6 +14,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:petnest_saas/core/services/booking_service.dart';
+import 'package:petnest_saas/core/exceptions/inventory_exception.dart';
 import 'package:petnest_saas/core/services/member_point_service.dart';
 import 'package:petnest_saas/core/services/member_coupon_service.dart';
 import 'package:petnest_saas/core/services/point_setting_service.dart';
@@ -410,12 +411,43 @@ class AdminBookingDetailPage extends StatelessWidget {
                         return;
                       }
 
-                      await FirebaseFirestore.instance
-                          .collection('bookings')
-                          .doc(bookingId)
-                          .update({'checkInAt': FieldValue.serverTimestamp()});
+                      try {
+                        await BookingService.instance.checkInBooking(
+                          bookingId: bookingId,
+                        );
 
-                      await _updateStatus('checked_in');
+                        await FirebaseFirestore.instance
+                            .collection('action_logs')
+                            .add({
+                              'type': 'booking_status_update',
+                              'bookingId': bookingId,
+                              'bookingShortId': bookingId.substring(0, 8),
+                              'shopId': data['shopId'],
+                              'roomId': data['roomId'],
+                              'roomName': data['roomName'],
+                              'roomTypeName': data['roomTypeName'],
+                              'fromStatus': status,
+                              'toStatus': 'checked_in',
+                              'operatorUid':
+                                  FirebaseAuth.instance.currentUser?.uid,
+                              'operatorRole': 'staff',
+                              'operatorEmail':
+                                  FirebaseAuth.instance.currentUser?.email,
+                              'createdAt': FieldValue.serverTimestamp(),
+                            });
+                      } catch (error) {
+                        if (!context.mounted) {
+                          return;
+                        }
+
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(
+                              InventoryException.userMessage(error),
+                            ),
+                          ),
+                        );
+                      }
                     },
 
                     onCheckOut: () async {
