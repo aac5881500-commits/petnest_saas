@@ -8,6 +8,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:petnest_saas/features/shop/pages/inventory/shop_inventory_list_page.dart';
 import 'package:petnest_saas/features/shop/widgets/inventory/addon_inventory_binding_editor.dart';
 
 class ShopAddonPage extends StatefulWidget {
@@ -19,7 +20,9 @@ class ShopAddonPage extends StatefulWidget {
   State<ShopAddonPage> createState() => _ShopAddonPageState();
 }
 
-class _ShopAddonPageState extends State<ShopAddonPage> {
+class _ShopAddonPageState extends State<ShopAddonPage>
+    with SingleTickerProviderStateMixin {
+  late final TabController _tabController;
   bool enabled = false;
   int _serviceIdCounter = 0;
 
@@ -79,7 +82,14 @@ class _ShopAddonPageState extends State<ShopAddonPage> {
   @override
   void initState() {
     super.initState();
+    _tabController = TabController(length: 4, vsync: this);
     _loadData();
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
   }
 
   /// 🔥 預設時間
@@ -254,11 +264,20 @@ class _ShopAddonPageState extends State<ShopAddonPage> {
   }
 
   /// 🔥 卡片（含介紹）
-  Widget _buildServiceItem(Map<String, dynamic> item, VoidCallback onDelete) {
+  Widget _buildServiceItem(
+    Map<String, dynamic> item,
+    VoidCallback onDelete, {
+    bool showInventoryBinding = false,
+  }) {
     return Card(
-      margin: const EdgeInsets.only(bottom: 10),
+      margin: const EdgeInsets.only(bottom: 12),
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(14),
+        side: BorderSide(color: Colors.grey.shade200),
+      ),
       child: Padding(
-        padding: const EdgeInsets.all(10),
+        padding: const EdgeInsets.fromLTRB(12, 10, 8, 12),
         child: Column(
           children: [
             /// 第一行
@@ -309,13 +328,35 @@ class _ShopAddonPageState extends State<ShopAddonPage> {
                 item['desc'] = val;
               },
             ),
-            if (!item.containsKey('label'))
+            if (showInventoryBinding)
               AddonInventoryBindingEditor(
                 shopId: widget.shopId,
                 service: item,
                 onChanged: () {
                   setState(() {});
                 },
+              )
+            else if (item['useInventory'] == true ||
+                (item['inventoryBindings'] is List &&
+                    (item['inventoryBindings'] as List).isNotEmpty))
+              Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: InkWell(
+                    onTap: () {
+                      showAddonInventoryBindingSheet(
+                        context: context,
+                        shopId: widget.shopId,
+                        service: item,
+                        onChanged: () {
+                          setState(() {});
+                        },
+                      );
+                    },
+                    child: AddonInventoryStatusChip(service: item),
+                  ),
+                ),
               ),
           ],
         ),
@@ -411,6 +452,11 @@ class _ShopAddonPageState extends State<ShopAddonPage> {
 
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(14),
+        side: BorderSide(color: Colors.grey.shade200),
+      ),
       child: Padding(
         padding: const EdgeInsets.all(12),
         child: Column(
@@ -468,13 +514,14 @@ class _ShopAddonPageState extends State<ShopAddonPage> {
             const SizedBox(height: 12),
             SwitchListTile(
               contentPadding: EdgeInsets.zero,
+              visualDensity: VisualDensity.compact,
               title: const Text(
                 '允許同一時段選擇多隻寵物',
-                style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
               ),
-              subtitle: const Text(
+              subtitle: Text(
                 '開啟後，不同寵物可選擇同一個服務時段',
-                style: TextStyle(fontSize: 12),
+                style: TextStyle(fontSize: 12, color: Colors.grey.shade700),
               ),
               value: item['allowMultiplePetsPerSlot'] ?? true,
               onChanged: (value) {
@@ -484,17 +531,19 @@ class _ShopAddonPageState extends State<ShopAddonPage> {
               },
             ),
             const Divider(height: 24),
-            Row(
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              alignment: WrapAlignment.spaceBetween,
               children: [
-                const Expanded(
-                  child: Text(
-                    '每天可選時段',
-                    style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
-                  ),
+                const Text(
+                  '每天可選時段',
+                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
                 ),
                 OutlinedButton.icon(
                   onPressed: addTimeSlot,
-                  icon: const Icon(Icons.access_time),
+                  icon: const Icon(Icons.access_time, size: 18),
                   label: const Text('新增時段'),
                 ),
               ],
@@ -568,7 +617,7 @@ class _ShopAddonPageState extends State<ShopAddonPage> {
 
   Widget _title(String text) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 10),
+      padding: const EdgeInsets.only(bottom: 8),
       child: Align(
         alignment: Alignment.centerLeft,
         child: Text(
@@ -579,215 +628,307 @@ class _ShopAddonPageState extends State<ShopAddonPage> {
     );
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('加購服務設定')),
-      body: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          children: [
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    const Text(
+  Widget _hint(String text) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Text(
+        text,
+        style: TextStyle(fontSize: 13, color: Colors.grey.shade700, height: 1.4),
+      ),
+    );
+  }
+
+  Widget _timeAddonTab() {
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+      children: <Widget>[
+        Container(
+          padding: const EdgeInsets.fromLTRB(14, 8, 8, 8),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: Colors.grey.shade200),
+          ),
+          child: Row(
+            children: <Widget>[
+              const Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Text(
                       '啟用時間加購',
                       style: TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.bold,
                       ),
                     ),
-
-                    Switch(
-                      value: enabled,
-                      onChanged: (v) {
-                        setState(() => enabled = v);
-                      },
+                    SizedBox(height: 2),
+                    Text(
+                      '未啟用時，前台不會顯示時間加購方案',
+                      style: TextStyle(fontSize: 12, color: Colors.black54),
                     ),
                   ],
                 ),
-
-                const SizedBox(height: 6),
-
-                Text(
-                  enabled ? '🟢 已啟用（前台會顯示）' : '🔴 未啟用（前台不顯示）',
-                  style: TextStyle(
-                    color: enabled ? Colors.green : Colors.red,
-                    fontSize: 13,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-
-                const SizedBox(height: 10),
-              ],
-            ),
-            Expanded(
-              child: ListView(
-                children: [
-                  /// ⏰ 時間加購
-                  _title('時間加購'),
-                  const Text(
-                    '⚠️ 此區為「單選」，顧客只能選擇一個時間方案',
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: Colors.red,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-
-                  ...timeOptions.map((item) {
-                    return _buildServiceItem(
-                      item,
-                      () => setState(() => timeOptions.remove(item)),
-                    );
-                  }),
-
-                  ElevatedButton.icon(
-                    onPressed: () {
-                      setState(() {
-                        timeOptions.add({"label": "", "price": 0, "desc": ""});
-                      });
-                    },
-                    icon: const Icon(Icons.add),
-                    label: const Text('新增時間'),
-                  ),
-
-                  const SizedBox(height: 20),
-
-                  /// 💰 加值服務
-                  _title('加值服務'),
-                  const Text(
-                    '⚠️ 此區為「單次計算」，不論幾隻寵物只收一次費用',
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: Colors.red,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-
-                  ...valueServices.map((item) {
-                    return _buildServiceItem(
-                      item,
-                      () => setState(() => valueServices.remove(item)),
-                    );
-                  }),
-
-                  ElevatedButton.icon(
-                    onPressed: () {
-                      setState(() {
-                        valueServices.add(<String, dynamic>{
-                          'id': _createServiceId('value'),
-                          'name': '',
-                          'price': 0,
-                          'desc': '',
-                        });
-                      });
-                    },
-                    icon: const Icon(Icons.add),
-                    label: const Text('新增加值服務'),
-                  ),
-
-                  const SizedBox(height: 20),
-
-                  /// 🛠 客製化服務
-                  _title('客製化服務'),
-                  const Text(
-                    '⚠️ 此區為「每隻寵物計算」，前台可選擇套用單隻或全部寵物',
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: Colors.red,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-
-                  ...customServices.map((item) {
-                    return _buildServiceItem(
-                      item,
-                      () => setState(() => customServices.remove(item)),
-                    );
-                  }),
-
-                  ElevatedButton.icon(
-                    onPressed: () {
-                      setState(() {
-                        customServices.add(<String, dynamic>{
-                          'id': _createServiceId('custom'),
-                          'name': '',
-                          'price': 0,
-                          'desc': '',
-                        });
-                      });
-                    },
-                    icon: const Icon(Icons.add),
-                    label: const Text('新增客製化服務'),
-                  ),
-
-                  const SizedBox(height: 20),
-
-                  /// 🕐 每日分時段服務
-                  _title('每日分時段服務'),
-
-                  const Text(
-                    '⚠️ 此區依「寵物、住宿日期、選擇時段」分別計費',
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: Colors.red,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-
-                  const SizedBox(height: 6),
-
-                  const Text(
-                    '例如：餵食每次 50 元，顧客可替不同寵物選擇每天早、中、晚的服務時段。',
-                    style: TextStyle(fontSize: 13, color: Colors.grey),
-                  ),
-
-                  const SizedBox(height: 10),
-
-                  ...dailyTimedServices.map((item) {
-                    return _buildDailyTimedServiceItem(item, () {
-                      setState(() {
-                        dailyTimedServices.remove(item);
-                      });
-                    });
-                  }),
-
-                  ElevatedButton.icon(
-                    onPressed: () {
-                      setState(() {
-                        dailyTimedServices.add(<String, dynamic>{
-                          'id': _createServiceId('daily_timed'),
-                          'name': '',
-                          'price': 0,
-                          'desc': '',
-                          'allowMultiplePetsPerSlot': true,
-                          'timeSlots': <Map<String, dynamic>>[],
-                        });
-                      });
-                    },
-                    icon: const Icon(Icons.add),
-                    label: const Text('新增每日時段服務'),
-                  ),
-
-                  const SizedBox(height: 30),
-                ],
               ),
-            ),
-
-            /// 儲存
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: _save,
-                child: const Text('儲存設定'),
+              Switch(
+                value: enabled,
+                onChanged: (bool value) {
+                  setState(() => enabled = value);
+                },
               ),
-            ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 10),
+        Text(
+          enabled ? '已啟用，前台會顯示' : '未啟用，前台不顯示',
+          style: TextStyle(
+            color: enabled ? Colors.green.shade700 : Colors.grey.shade600,
+            fontSize: 13,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        const SizedBox(height: 16),
+        _title('時間加購方案'),
+        _hint('此區為單選，顧客只能選擇一個時間方案。'),
+        ...timeOptions.map((Map<String, dynamic> item) {
+          return _buildServiceItem(
+            item,
+            () => setState(() => timeOptions.remove(item)),
+          );
+        }),
+        OutlinedButton.icon(
+          onPressed: () {
+            setState(() {
+              timeOptions.add(<String, dynamic>{
+                'label': '',
+                'price': 0,
+                'desc': '',
+              });
+            });
+          },
+          icon: const Icon(Icons.add),
+          label: const Text('新增時間'),
+        ),
+      ],
+    );
+  }
+
+  Widget _customServiceTab() {
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+      children: <Widget>[
+        _title('加值服務'),
+        _hint('此區為單次計算，不論幾隻寵物只收一次費用。'),
+        ...valueServices.map((Map<String, dynamic> item) {
+          return _buildServiceItem(
+            item,
+            () => setState(() => valueServices.remove(item)),
+            showInventoryBinding: true,
+          );
+        }),
+        OutlinedButton.icon(
+          onPressed: () {
+            setState(() {
+              valueServices.add(<String, dynamic>{
+                'id': _createServiceId('value'),
+                'name': '',
+                'price': 0,
+                'desc': '',
+              });
+            });
+          },
+          icon: const Icon(Icons.add),
+          label: const Text('新增加值服務'),
+        ),
+        const SizedBox(height: 24),
+        _title('客製化服務'),
+        _hint('此區依每隻寵物計算，前台可選擇套用單隻或全部寵物。'),
+        ...customServices.map((Map<String, dynamic> item) {
+          return _buildServiceItem(
+            item,
+            () => setState(() => customServices.remove(item)),
+            showInventoryBinding: true,
+          );
+        }),
+        OutlinedButton.icon(
+          onPressed: () {
+            setState(() {
+              customServices.add(<String, dynamic>{
+                'id': _createServiceId('custom'),
+                'name': '',
+                'price': 0,
+                'desc': '',
+              });
+            });
+          },
+          icon: const Icon(Icons.add),
+          label: const Text('新增客製化服務'),
+        ),
+      ],
+    );
+  }
+
+  Widget _dailyTimedTab() {
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+      children: <Widget>[
+        _title('每日分時段服務'),
+        _hint('此區依寵物、住宿日期、選擇時段分別計費。例如餵食每次 50 元，顧客可替不同寵物選擇每天早、中、晚的服務時段。'),
+        ...dailyTimedServices.map((Map<String, dynamic> item) {
+          return _buildDailyTimedServiceItem(item, () {
+            setState(() {
+              dailyTimedServices.remove(item);
+            });
+          });
+        }),
+        OutlinedButton.icon(
+          onPressed: () {
+            setState(() {
+              dailyTimedServices.add(<String, dynamic>{
+                'id': _createServiceId('daily_timed'),
+                'name': '',
+                'price': 0,
+                'desc': '',
+                'allowMultiplePetsPerSlot': true,
+                'timeSlots': <Map<String, dynamic>>[],
+              });
+            });
+          },
+          icon: const Icon(Icons.add),
+          label: const Text('新增每日分時段服務'),
+        ),
+      ],
+    );
+  }
+
+  Widget _inventoryGuideTab() {
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+      children: <Widget>[
+        _title('加購服務庫存連動'),
+        _hint('加購服務可以選擇是否連動中央庫存。未啟用庫存的服務仍可正常使用。'),
+        _GuideCard(
+          title: '不使用庫存',
+          body: '只計算服務費用，不影響庫存。適合單純計時、計次、不消耗實體物品的服務。',
+        ),
+        _GuideCard(
+          title: '使用中央庫存',
+          body: '客戶購買服務後，會自動扣除已綁定的庫存品項。請先在對應服務開啟「庫存連動」。',
+        ),
+        _GuideCard(
+          title: '多品項綁定',
+          body: '一個服務可以同時使用多種庫存，例如生日套餐：蛋糕 ×1、肉泥 ×2。',
+        ),
+        const SizedBox(height: 8),
+        FilledButton.icon(
+          onPressed: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute<void>(
+                builder: (BuildContext context) {
+                  return ShopInventoryListPage(shopId: widget.shopId);
+                },
+              ),
+            );
+          },
+          icon: const Icon(Icons.inventory_2_outlined),
+          label: const Text('前往庫存管理'),
+        ),
+      ],
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFFF6F8FB),
+      appBar: AppBar(
+        title: const Text('加購服務設定'),
+        bottom: TabBar(
+          controller: _tabController,
+          isScrollable: true,
+          tabAlignment: TabAlignment.start,
+          labelPadding: const EdgeInsets.symmetric(horizontal: 14),
+          labelStyle: const TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.w700,
+          ),
+          unselectedLabelStyle: const TextStyle(fontSize: 13),
+          tabs: const <Widget>[
+            Tab(text: '時間加購'),
+            Tab(text: '客製服務'),
+            Tab(text: '每日分時段'),
+            Tab(text: '庫存設定'),
           ],
         ),
+      ),
+      body: Column(
+        children: <Widget>[
+          Expanded(
+            child: TabBarView(
+              controller: _tabController,
+              children: <Widget>[
+                _timeAddonTab(),
+                _customServiceTab(),
+                _dailyTimedTab(),
+                _inventoryGuideTab(),
+              ],
+            ),
+          ),
+          SafeArea(
+            top: false,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+              child: SizedBox(
+                width: double.infinity,
+                child: FilledButton(
+                  onPressed: _save,
+                  child: const Text('儲存設定'),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _GuideCard extends StatelessWidget {
+  const _GuideCard({required this.title, required this.body});
+
+  final String title;
+  final String body;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: Colors.grey.shade200),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Text(
+            title,
+            style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            body,
+            style: TextStyle(
+              fontSize: 13,
+              color: Colors.grey.shade700,
+              height: 1.4,
+            ),
+          ),
+        ],
       ),
     );
   }

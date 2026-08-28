@@ -31,6 +31,20 @@ class InventoryItemCover extends StatelessWidget {
             ? Image.network(
                 item.imageUrl,
                 fit: BoxFit.cover,
+                width: size,
+                height: size,
+                gaplessPlayback: true,
+                loadingBuilder: (
+                  BuildContext context,
+                  Widget child,
+                  ImageChunkEvent? loadingProgress,
+                ) {
+                  if (loadingProgress == null) {
+                    return child;
+                  }
+
+                  return _Placeholder(color: colors.primary, size: size);
+                },
                 errorBuilder: (
                   BuildContext context,
                   Object error,

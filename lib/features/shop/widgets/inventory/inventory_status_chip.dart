@@ -7,9 +7,14 @@ import 'package:petnest_saas/core/constants/inventory_constants.dart';
 import 'package:petnest_saas/core/models/inventory_item_model.dart';
 
 class InventoryStatusChip extends StatelessWidget {
-  const InventoryStatusChip({super.key, required this.item});
+  const InventoryStatusChip({
+    super.key,
+    required this.item,
+    this.showExpiry = true,
+  });
 
   final InventoryItemModel item;
+  final bool showExpiry;
 
   @override
   Widget build(BuildContext context) {
@@ -19,56 +24,63 @@ class InventoryStatusChip extends StatelessWidget {
 
     switch (status) {
       case InventoryStockStatus.outOfStock:
-        background = Colors.red.shade100;
-        foreground = Colors.red.shade800;
+        background = Colors.red.shade50;
+        foreground = Colors.red.shade700;
         break;
       case InventoryStockStatus.low:
-        background = Colors.orange.shade100;
+        background = Colors.orange.shade50;
         foreground = Colors.orange.shade800;
         break;
       case InventoryStockStatus.disabled:
-        background = Colors.grey.shade300;
-        foreground = Colors.grey.shade800;
+        background = Colors.grey.shade200;
+        foreground = Colors.grey.shade700;
         break;
       case InventoryStockStatus.normal:
-        background = Colors.green.shade100;
+        background = Colors.green.shade50;
         foreground = Colors.green.shade800;
         break;
+    }
+
+    final Widget statusChip = Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: background,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Text(
+        InventoryConstants.stockStatusLabel(status),
+        style: TextStyle(
+          color: foreground,
+          fontSize: 11,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+    );
+
+    if (!showExpiry || !item.isExpiringSoon) {
+      return statusChip;
     }
 
     return Wrap(
       spacing: 6,
       runSpacing: 4,
       children: <Widget>[
-        Chip(
-          visualDensity: VisualDensity.compact,
-          materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-          label: Text(
-            InventoryConstants.stockStatusLabel(status),
+        statusChip,
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          decoration: BoxDecoration(
+            color: Colors.deepOrange.shade50,
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Text(
+            '即將到期',
             style: TextStyle(
-              color: foreground,
-              fontSize: 12,
-              fontWeight: FontWeight.bold,
+              color: Colors.deepOrange.shade800,
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
             ),
           ),
-          backgroundColor: background,
-          padding: EdgeInsets.zero,
         ),
-        if (item.isExpiringSoon)
-          Chip(
-            visualDensity: VisualDensity.compact,
-            materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-            label: Text(
-              '即將到期',
-              style: TextStyle(
-                color: Colors.deepOrange.shade800,
-                fontSize: 12,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            backgroundColor: Colors.deepOrange.shade50,
-            padding: EdgeInsets.zero,
-          ),
       ],
     );
   }
