@@ -293,16 +293,11 @@ class BookingSubmitHelper {
         // 改成將剛建立的訂單標記為取消，
         // 避免訂單繼續占用房間與住宿日期。
         try {
-          await FirebaseFirestore.instance
-              .collection('bookings')
-              .doc(bookingId)
-              .update({
-                'status': 'cancelled',
-                'cancelReason': '優惠券保留失敗，系統自動取消訂單',
-                'cancelBy': 'system',
-                'cancelledAt': FieldValue.serverTimestamp(),
-                'updatedAt': FieldValue.serverTimestamp(),
-              });
+          await BookingService.instance.cancelBooking(
+            bookingId: bookingId,
+            cancelReason: '優惠券保留失敗，系統自動取消訂單',
+            cancelBy: 'system',
+          );
         } catch (_) {
           // 回復訂單失敗時，不覆蓋原本的優惠券錯誤。
         }

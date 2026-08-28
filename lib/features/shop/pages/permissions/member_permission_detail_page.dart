@@ -365,6 +365,44 @@ class _MemberPermissionDetailPageState
                     ),
                   ],
 
+                  const Divider(height: 28),
+
+                  const Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      '賣場',
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+
+                  const SizedBox(height: 8),
+
+                  ...[
+                    _buildPermissionSwitch(
+                      ShopPermissionKeys.viewStoreOrders,
+                      title: '查看商城訂單',
+                      subtitle: '可查看商城訂單列表與詳情',
+                    ),
+                    _buildPermissionSwitch(
+                      ShopPermissionKeys.manageStoreProducts,
+                      title: '管理商品與分類',
+                      subtitle: '可新增、編輯商品與分類',
+                    ),
+                    _buildPermissionSwitch(
+                      ShopPermissionKeys.manageStoreOrders,
+                      title: '管理商城訂單',
+                      subtitle: '可備貨、標記可取貨、完成與取消',
+                    ),
+                    _buildPermissionSwitch(
+                      ShopPermissionKeys.manageStoreSettings,
+                      title: '管理賣場設定',
+                      subtitle: '可修改自取說明與前台開關',
+                    ),
+                  ],
+
                   const SizedBox(height: 8),
 
                   Text(

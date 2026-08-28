@@ -22,6 +22,7 @@ import 'package:petnest_saas/features/shop/pages/shop_about_page.dart';
 import 'package:petnest_saas/features/shop/pages/shop_faq_page.dart';
 import 'package:petnest_saas/features/shop/pages/shop_review_list_page.dart';
 import 'package:petnest_saas/features/shop/widgets/floating_contact_button.dart';
+import 'package:petnest_saas/features/shop/widgets/store/featured_store_products_section.dart';
 
 class ShopPublicModernPage extends StatefulWidget {
   const ShopPublicModernPage({
@@ -390,6 +391,12 @@ class _ShopPublicModernPageState extends State<ShopPublicModernPage> {
                         _buildPopularRoomSection(theme: modernTheme),
 
                         const SizedBox(height: 18),
+
+                        FeaturedStoreProductsSection(
+                          shopId: widget.shopId,
+                          shop: shop,
+                          theme: modernTheme,
+                        ),
 
                         _buildStayServiceSection(shop, theme: modernTheme),
 

@@ -21,6 +21,10 @@ const {
   verifyCheckMacValue,
 } = require("./ecpay_mac");
 
+const {
+  convertReservationToDeduct,
+} = require("../store/store_inventory");
+
 /**
  * 回覆綠界通知結果
  *
@@ -232,11 +236,21 @@ exports.ecpayPaymentCallback = onRequest(
             payment.amount,
         );
 
+        const sourceType = normalizeString(
+            payment.sourceType,
+        ).toLowerCase() === "store_order" ?
+          "store_order" :
+          "booking";
+
         const bookingId = normalizeString(
             payment.bookingId,
         );
 
-        if (!bookingId) {
+        const storeOrderId = normalizeString(
+            payment.storeOrderId || payment.sourceId,
+        );
+
+        if (sourceType === "booking" && !bookingId) {
           console.error(
               "ECPay Callback 付款紀錄缺少 bookingId",
               {
@@ -248,6 +262,22 @@ exports.ecpayPaymentCallback = onRequest(
           sendCallbackResponse(
               res,
               "0|MissingBookingId",
+          );
+          return;
+        }
+
+        if (sourceType === "store_order" && !storeOrderId) {
+          console.error(
+              "ECPay Callback 付款紀錄缺少 storeOrderId",
+              {
+                paymentId,
+                merchantTradeNo,
+              },
+          );
+
+          sendCallbackResponse(
+              res,
+              "0|MissingStoreOrderId",
           );
           return;
         }
@@ -330,6 +360,110 @@ exports.ecpayPaymentCallback = onRequest(
         const bookingRef = firestore
             .collection("bookings")
             .doc(bookingId);
+
+        if (sourceType === "store_order") {
+          const orderRef = firestore
+              .collection("shops")
+              .doc(shopId)
+              .collection("store_orders")
+              .doc(storeOrderId);
+
+          await firestore.runTransaction(async (transaction) => {
+            const latestPaymentSnapshot =
+              await transaction.get(paymentRef);
+            const orderSnapshot = await transaction.get(orderRef);
+
+            if (!latestPaymentSnapshot.exists) {
+              throw new Error("付款紀錄不存在。");
+            }
+
+            if (!orderSnapshot.exists) {
+              throw new Error("商城訂單不存在。");
+            }
+
+            const latestPayment = latestPaymentSnapshot.data() || {};
+            const order = orderSnapshot.data() || {};
+            const orderStatus = normalizeString(order.status);
+
+            if (normalizeString(latestPayment.status) === "paid") {
+              return;
+            }
+
+            if (normalizeInteger(latestPayment.amount) !== callbackAmount) {
+              throw new Error("付款紀錄金額與 Callback 不一致。");
+            }
+
+            if (orderStatus === "cancelled") {
+              transaction.set(paymentRef, {
+                status: "paid",
+                gatewayStatus: "payment_success_order_cancelled",
+                gatewayRtnCode: rtnCode,
+                gatewayRtnMessage: rtnMessage,
+                gatewayTradeNo,
+                storeOrderCode: normalizeString(order.orderCode),
+                callbackAmount,
+                paidAt: admin.firestore.FieldValue.serverTimestamp(),
+                callbackReceivedAt:
+                  admin.firestore.FieldValue.serverTimestamp(),
+                updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+              }, {merge: true});
+              return;
+            }
+
+            if (normalizeString(order.paymentStatus) === "paid") {
+              transaction.set(paymentRef, {
+                status: "paid",
+                gatewayStatus: "payment_success",
+                gatewayRtnCode: rtnCode,
+                gatewayRtnMessage: rtnMessage,
+                gatewayTradeNo,
+                storeOrderCode: normalizeString(order.orderCode),
+                callbackAmount,
+                paidAt: admin.firestore.FieldValue.serverTimestamp(),
+                callbackReceivedAt:
+                  admin.firestore.FieldValue.serverTimestamp(),
+                updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+              }, {merge: true});
+              return;
+            }
+
+            await convertReservationToDeduct({
+              transaction,
+              shopId,
+              orderId: storeOrderId,
+              userId: normalizeString(order.userId),
+            });
+
+            transaction.set(paymentRef, {
+              status: "paid",
+              gatewayStatus: "payment_success",
+              gatewayRtnCode: rtnCode,
+              gatewayRtnMessage: rtnMessage,
+              gatewayTradeNo,
+              storeOrderCode: normalizeString(order.orderCode),
+              callbackAmount,
+              paidAt: admin.firestore.FieldValue.serverTimestamp(),
+              callbackReceivedAt:
+                admin.firestore.FieldValue.serverTimestamp(),
+              updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+            }, {merge: true});
+
+            transaction.set(orderRef, {
+              status: "paid",
+              paymentStatus: "paid",
+              paidAt: admin.firestore.FieldValue.serverTimestamp(),
+              lastPaymentId: paymentId,
+              lastMerchantTradeNo: merchantTradeNo,
+              lastGatewayTradeNo: gatewayTradeNo,
+              lastPaymentAmount: callbackAmount,
+              lastPaymentMethod: normalizeString(latestPayment.paymentMethod),
+              updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+            }, {merge: true});
+          });
+
+          sendCallbackResponse(res, "1|OK");
+          return;
+        }
 
         await firestore.runTransaction(
             async (transaction) => {

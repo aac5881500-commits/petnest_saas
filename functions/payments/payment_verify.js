@@ -374,6 +374,90 @@ async function verifyBookingForPayment({
   };
 }
 
+/**
+ * 驗證商城訂單是否可付款
+ *
+ * @param {Object} params
+ * @param {string} params.shopId
+ * @param {string} params.orderId
+ * @param {string} params.userId
+ * @return {Promise<Object>}
+ */
+async function verifyStoreOrderForPayment({
+  shopId,
+  orderId,
+  userId,
+}) {
+  const normalizedShopId = normalizeString(shopId);
+  const normalizedOrderId = normalizeString(orderId);
+  const normalizedUserId = normalizeString(userId);
+
+  if (!normalizedShopId || !normalizedOrderId) {
+    throw new HttpsError("invalid-argument", "缺少商城訂單資料。");
+  }
+
+  const orderRef = admin.firestore()
+      .collection("shops")
+      .doc(normalizedShopId)
+      .collection("store_orders")
+      .doc(normalizedOrderId);
+  const orderSnapshot = await orderRef.get();
+
+  if (!orderSnapshot.exists) {
+    throw new HttpsError("not-found", "找不到商城訂單。");
+  }
+
+  const order = orderSnapshot.data() || {};
+
+  if (normalizeString(order.userId) !== normalizedUserId) {
+    throw new HttpsError("permission-denied", "這不是你的商城訂單。");
+  }
+
+  if (normalizeString(order.shopId) !== normalizedShopId) {
+    throw new HttpsError("failed-precondition", "商城訂單店家不一致。");
+  }
+
+  const status = normalizeString(order.status);
+  const paymentStatus = normalizeString(order.paymentStatus);
+
+  if (status === "cancelled") {
+    const cancelReason = normalizeString(order.cancelReason);
+    if (cancelReason.indexOf("過期") >= 0 ||
+      cancelReason.indexOf("逾時") >= 0) {
+      throw new HttpsError(
+          "deadline-exceeded",
+          "庫存保留已過期，請重新下單。",
+      );
+    }
+    throw new HttpsError("failed-precondition", "訂單已取消。");
+  }
+
+  if (status === "completed" || paymentStatus === "paid") {
+    throw new HttpsError("failed-precondition", "訂單已付款。");
+  }
+
+  if (status !== "pending_payment") {
+    throw new HttpsError("failed-precondition", "此訂單目前不可付款。");
+  }
+
+  const totalAmount = normalizeInteger(order.totalAmount);
+  if (totalAmount <= 0) {
+    throw new HttpsError("failed-precondition", "訂單金額不正確。");
+  }
+
+  return {
+    orderRef,
+    order,
+    orderId: normalizedOrderId,
+    orderCode: normalizeString(order.orderCode),
+    shopId: normalizedShopId,
+    userId: normalizedUserId,
+    customerName: normalizeString(order.customerName),
+    totalAmount,
+    paidAmount: 0,
+  };
+}
+
 module.exports = {
   normalizeString,
   normalizeInteger,
@@ -383,4 +467,5 @@ module.exports = {
   resolveRequestedPaymentAmount,
   isBookingFullyPaid,
   verifyBookingForPayment,
+  verifyStoreOrderForPayment,
 };

@@ -36,6 +36,7 @@ import 'package:petnest_saas/features/shop/pages/shop_environment_manage_page.da
 import 'package:petnest_saas/features/shop/pages/shop_about_manage_page.dart';
 import 'package:petnest_saas/features/shop/pages/shop_announcement_manage_page.dart';
 import 'package:petnest_saas/core/constants/shop_permission_keys.dart';
+import 'package:petnest_saas/features/shop/pages/store/shop_store_hub_page.dart';
 import 'package:petnest_saas/features/shop/pages/shop_contact_platform_page.dart';
 import 'package:petnest_saas/features/shop/pages/shop_theme_setting_page.dart';
 import 'package:petnest_saas/features/shop/pages/shop_faq_manage_page.dart';
@@ -181,6 +182,12 @@ class _ShopDashboardPageState extends State<ShopDashboardPage> {
         _can(ShopPermissionKeys.manageInventory) ||
         _can(ShopPermissionKeys.receiveInventory) ||
         _can(ShopPermissionKeys.adjustInventory);
+    final canSeeStore =
+        _currentUserRole == ShopRoles.owner ||
+        _can(ShopPermissionKeys.viewStoreOrders) ||
+        _can(ShopPermissionKeys.manageStoreProducts) ||
+        _can(ShopPermissionKeys.manageStoreOrders) ||
+        _can(ShopPermissionKeys.manageStoreSettings);
 
     if (enabledModules.contains(ShopModules.basicInfo) &&
         (canSeeBasicInfo || _currentUserRole == ShopRoles.staff)) {
@@ -198,6 +205,10 @@ class _ShopDashboardPageState extends State<ShopDashboardPage> {
 
     if (canSeeInventory) {
       result.add(ShopModules.inventory);
+    }
+
+    if (enabledModules.contains(ShopModules.store) && canSeeStore) {
+      result.add(ShopModules.store);
     }
     return result;
   }
@@ -430,9 +441,9 @@ class _ShopDashboardPageState extends State<ShopDashboardPage> {
                             description: '這裡先保留給門診預約、看診項目、醫師班表、病歷延伸模板。',
                           );
                         case ShopModules.store:
-                          return const _ModuleTemplateTab(
-                            title: '賣場功能',
-                            description: '這裡先保留給商品管理、訂單、上下架、曝光位模板。',
+                          return ShopStoreHubPage(
+                            shopId: widget.shopId,
+                            memberData: _currentMemberData,
                           );
                         case ShopModules.reports:
                           return _ReportsTab(

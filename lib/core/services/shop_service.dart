@@ -64,6 +64,14 @@ class ShopService {
     return result;
   }
 
+  bool isModuleEnabled(Map<String, dynamic>? shop, String module) {
+    if (shop == null) {
+      return false;
+    }
+
+    return normalizeEnabledModules(shop['enabledModules']).contains(module);
+  }
+
   Future<void> updateEnabledModules({
     required String shopId,
     required List<String> enabledModules,

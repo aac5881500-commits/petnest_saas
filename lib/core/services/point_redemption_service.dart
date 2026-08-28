@@ -4,12 +4,12 @@
 // 領取碼查詢、店員完成商品交付、取消兌換、退回點數與標記過期。
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
 import '../models/member_point_log_model.dart';
 import '../models/member_point_model.dart';
 import '../models/point_redemption_model.dart';
-import 'inventory_stock_service.dart';
 
 class PointRedemptionService {
   PointRedemptionService._();
@@ -270,6 +270,28 @@ class PointRedemptionService {
       throw StateError('請先登入店員帳號');
     }
 
+    final PointRedemptionModel? existing = await getRedemption(
+      shopId: normalizedShopId,
+      redemptionId: normalizedRedemptionId,
+    );
+    if (existing != null &&
+        existing.useCentralInventory &&
+        existing.inventoryItemId.trim().isNotEmpty) {
+      try {
+        await FirebaseFunctions.instanceFor(region: 'asia-east1')
+            .httpsCallable('cancelPointRedemption')
+            .call(<String, dynamic>{
+              'shopId': normalizedShopId,
+              'redemptionId': normalizedRedemptionId,
+              'reason': normalizedReason,
+              'refundPoints': refundPoints,
+            });
+      } on FirebaseFunctionsException catch (error) {
+        throw StateError(error.message ?? '無法取消兌換');
+      }
+      return;
+    }
+
     final DocumentReference<Map<String, dynamic>> redemptionReference =
         _redemptionsReference(normalizedShopId).doc(normalizedRedemptionId);
 
@@ -308,6 +330,11 @@ class PointRedemptionService {
 
       if (redemption.status != PointRedemptionStatus.pendingPickup) {
         throw StateError('只有待領取商品可以取消');
+      }
+
+      if (redemption.useCentralInventory &&
+          redemption.inventoryItemId.trim().isNotEmpty) {
+        throw StateError('此兌換需由後端取消，請再試一次');
       }
 
       if (refundPoints && redemption.pointsRefunded) {
@@ -358,19 +385,6 @@ class PointRedemptionService {
 
       if (refundPoints) {
         memberPointSnapshot = await transaction.get(memberPointReference);
-      }
-
-      PreparedStockConsumption? inventoryReturnPlan;
-
-      if (redemption.useCentralInventory &&
-          redemption.inventoryItemId.trim().isNotEmpty &&
-          !redemption.inventoryReturned) {
-        inventoryReturnPlan = await InventoryStockService.instance
-            .preparePointRedemptionReturn(
-              transaction: transaction,
-              shopId: normalizedShopId,
-              redemptionId: redemption.id,
-            );
       }
 
       final Map<String, dynamic>? rewardData = rewardSnapshot.data();
@@ -455,9 +469,6 @@ class PointRedemptionService {
         'pointsRefunded': refundPoints,
         'pointsRefundedAt': refundPoints ? FieldValue.serverTimestamp() : null,
         'pointsRefundedBy': refundPoints ? operatorUid : '',
-        'inventoryReturned': inventoryReturnPlan != null && !inventoryReturnPlan.skip
-            ? true
-            : redemption.inventoryReturned,
         'updatedAt': FieldValue.serverTimestamp(),
       });
 
@@ -485,13 +496,6 @@ class PointRedemptionService {
         );
 
         transaction.set(pointLogReference, refundLog.toMap());
-      }
-
-      if (inventoryReturnPlan != null) {
-        InventoryStockService.instance.commitPreparedConsumption(
-          transaction: transaction,
-          prepared: inventoryReturnPlan,
-        );
       }
     });
   }

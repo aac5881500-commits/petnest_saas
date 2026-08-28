@@ -627,7 +627,7 @@ exports.rejectEcpayPaymentSetting =
   require("./payments/review_payment_setting")
       .rejectEcpayPaymentSetting;
 
- /**
+/**
  * ⛔ 平台停用 / 重新啟用店家綠界金流
  *
  * 實際邏輯放在：
@@ -635,7 +635,7 @@ exports.rejectEcpayPaymentSetting =
  */
 exports.setEcpayPaymentPlatformSuspended =
   require("./payments/review_payment_setting")
-      .setEcpayPaymentPlatformSuspended;     
+      .setEcpayPaymentPlatformSuspended;
 /**
  * ➕ 使用 Email 新增平台人員
  *
@@ -654,3 +654,47 @@ exports.createPlatformUserByEmail =
 exports.updatePaymentOperationSettings =
   require("./payments/update_operation_settings")
       .updatePaymentOperationSettings;
+
+/**
+ * 🛒 建立商城訂單並保留庫存
+ */
+exports.createStoreOrder =
+  require("./store/create_store_order").createStoreOrder;
+
+/**
+ * 🛒 更新商城訂單狀態
+ */
+exports.updateStoreOrderStatus =
+  require("./store/update_store_order_status").updateStoreOrderStatus;
+
+/**
+ * 🛒 庫存主檔異動後同步商城商品公開庫存
+ */
+exports.syncStoreProductPublicStock =
+  require("./store/sync_store_product_public_stock")
+      .syncStoreProductPublicStock;
+
+/**
+ * 🎁 中央庫存點數商品兌換
+ */
+exports.exchangePointReward =
+  require("./points/exchange_point_reward").exchangePointReward;
+
+/**
+ * 🎁 取消中央庫存點數實體商品兌換
+ */
+exports.cancelPointRedemption =
+  require("./points/cancel_point_redemption").cancelPointRedemption;
+
+/**
+ * 🏨 住宿加購庫存後端扣除
+ */
+exports.finalizeBookingAddonInventory =
+  require("./bookings/finalize_booking_addon_inventory")
+      .finalizeBookingAddonInventory;
+
+/**
+ * 🏨 取消住宿訂單返還庫存
+ */
+exports.returnBookingInventory =
+  require("./bookings/return_booking_inventory").returnBookingInventory;

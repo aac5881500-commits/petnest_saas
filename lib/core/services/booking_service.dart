@@ -7,6 +7,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:petnest_saas/core/services/shop_service.dart';
 import 'package:petnest_saas/core/services/member_coupon_service.dart';
 import 'package:petnest_saas/core/services/inventory_stock_service.dart';
+import 'package:petnest_saas/core/services/booking_inventory_function_service.dart';
 import 'package:petnest_saas/core/exceptions/inventory_exception.dart';
 import 'package:flutter/foundation.dart';
 
@@ -119,11 +120,14 @@ class BookingService {
         ? _bookings.doc(normalizedRequestId)
         : _bookings.doc();
 
-    /// 🔒 相同請求已經建立過，就直接回傳原訂單，不再重建
+    /// 🔒 相同請求已經建立過，就直接回傳原訂單，不再重建。
+    /// 若上次停在「訂單已寫入、加購庫存尚未扣除」，這裡會再走一次
+    /// 幂等 finalize，避免留下沒扣庫存的有效訂單。
     if (normalizedRequestId.isNotEmpty) {
       final existingBooking = await doc.get();
 
       if (existingBooking.exists) {
+        await _afterBookingCreated(shopId: shopId, bookingId: doc.id);
         return doc.id;
       }
     }
@@ -772,8 +776,9 @@ class BookingService {
 
   /// 確認入住
   ///
-  /// 住宿耗材在入住當下依最新晚數與寵物數扣除。
-  /// 加購若建立訂單時尚未扣除，這裡會再嘗試一次（幂等）。
+  /// 住宿耗材在入住當下依最新晚數與寵物數扣除（僅店家成員）。
+  /// 加購庫存已在建立訂單時由 Functions 扣除；
+  /// 這裡再嘗試一次，看到 ba_{bookingId}_deduct 即安全 skip。
   Future<void> checkInBooking({required String bookingId}) async {
     final DocumentSnapshot<Map<String, dynamic>> snapshot = await _bookings
         .doc(bookingId)
@@ -801,10 +806,11 @@ class BookingService {
       return;
     }
 
-    await InventoryStockService.instance.consumeBookingAddons(
-      shopId: shopId,
-      bookingId: bookingId,
-    );
+    await BookingInventoryFunctionService.instance
+        .finalizeBookingAddonInventory(
+          shopId: shopId,
+          bookingId: bookingId,
+        );
     await InventoryStockService.instance.consumeBookingSupplies(
       shopId: shopId,
       bookingId: bookingId,
@@ -822,10 +828,11 @@ class BookingService {
     required String bookingId,
   }) async {
     try {
-      await InventoryStockService.instance.consumeBookingAddons(
-        shopId: shopId,
-        bookingId: bookingId,
-      );
+      await BookingInventoryFunctionService.instance
+          .finalizeBookingAddonInventory(
+            shopId: shopId,
+            bookingId: bookingId,
+          );
     } catch (error) {
       debugPrint('建立訂單扣加購庫存失敗：$error');
 
@@ -843,6 +850,20 @@ class BookingService {
 
       throw InventoryException(InventoryException.userMessage(error));
     }
+
+    final DocumentSnapshot<Map<String, dynamic>> latest = await _bookings
+        .doc(bookingId)
+        .get();
+    final Map<String, dynamic>? latestData = latest.data();
+    if ((latestData?['status'] ?? '').toString() == 'cancelled') {
+      final String reason =
+          (latestData?['cancelReason'] ?? '此預約無法完成，請重新送出')
+              .toString()
+              .trim();
+      throw InventoryException(
+        reason.isEmpty ? '此預約無法完成，請重新送出' : reason,
+      );
+    }
   }
 
   Future<void> _returnBookingInventory({
@@ -854,11 +875,7 @@ class BookingService {
     }
 
     try {
-      await InventoryStockService.instance.returnBookingAddons(
-        shopId: shopId,
-        bookingId: bookingId,
-      );
-      await InventoryStockService.instance.returnBookingSupplies(
+      await BookingInventoryFunctionService.instance.returnBookingInventory(
         shopId: shopId,
         bookingId: bookingId,
       );

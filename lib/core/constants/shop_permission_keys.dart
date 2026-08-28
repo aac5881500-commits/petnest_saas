@@ -75,6 +75,18 @@ class ShopPermissionKeys {
 
   static const managePolicy = 'manage_policy';
 
+  /// 🛒 查看商城訂單
+  static const viewStoreOrders = 'view_store_orders';
+
+  /// 🛒 管理商城商品與分類
+  static const manageStoreProducts = 'manage_store_products';
+
+  /// 🛒 管理商城訂單狀態
+  static const manageStoreOrders = 'manage_store_orders';
+
+  /// 🛒 管理賣場設定
+  static const manageStoreSettings = 'manage_store_settings';
+
   /// 📊 查看報表統計
   static const viewReports = 'view_reports';
 
@@ -106,6 +118,10 @@ class ShopPermissionKeys {
     receiveInventory,
     adjustInventory,
     viewInventoryCost,
+    viewStoreOrders,
+    manageStoreProducts,
+    manageStoreOrders,
+    manageStoreSettings,
     managePolicy,
   ];
 }

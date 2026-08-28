@@ -12,6 +12,7 @@ import 'package:petnest_saas/features/shop/widgets/permissions/permission_catego
 import 'package:petnest_saas/features/shop/pages/permissions/basic_info_permission_page.dart';
 import 'package:petnest_saas/features/shop/pages/permissions/cat_hotel_permission_page.dart';
 import 'package:petnest_saas/features/shop/pages/permissions/inventory_permission_page.dart';
+import 'package:petnest_saas/features/shop/pages/permissions/store_permission_page.dart';
 import 'package:petnest_saas/features/shop/widgets/permissions/permission_member_list_card.dart';
 import 'package:petnest_saas/features/shop/widgets/permissions/permission_invite_list_card.dart';
 import 'package:petnest_saas/features/shop/pages/permissions/member_permission_detail_page.dart';
@@ -171,6 +172,14 @@ class _ShopPermissionSettingsPageState
         return '出庫與盤點';
       case 'view_inventory_cost':
         return '查看成本';
+      case 'view_store_orders':
+        return '查看商城訂單';
+      case 'manage_store_products':
+        return '管理商品與分類';
+      case 'manage_store_orders':
+        return '管理商城訂單';
+      case 'manage_store_settings':
+        return '管理賣場設定';
       case 'manage_policy':
         return '入住規則';
       case 'view_reports':
@@ -457,8 +466,31 @@ class _ShopPermissionSettingsPageState
           const SizedBox(height: 12),
 
           PermissionCategoryTile(
+            title: '賣場權限',
+            subtitle: '商城訂單、商品、分類與賣場設定',
+            icon: Icons.storefront_outlined,
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => StorePermissionPage(
+                    permissions: _permissions,
+                    isOwner: _isOwner,
+                    onChanged: (key, value) {
+                      setState(() {
+                        _permissions[key] = value;
+                      });
+                    },
+                  ),
+                ),
+              );
+            },
+          ),
+          const SizedBox(height: 12),
+
+          PermissionCategoryTile(
             title: '未來模板權限',
-            subtitle: '狗狗旅店、美容、醫院、賣場功能',
+            subtitle: '狗狗旅店、美容、醫院功能',
             icon: Icons.extension,
             onTap: () {},
           ),

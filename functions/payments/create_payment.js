@@ -15,6 +15,7 @@ const {
   resolveDepositAmount,
   resolveRequestedPaymentAmount,
   verifyBookingForPayment,
+  verifyStoreOrderForPayment,
 } = require("./payment_verify");
 
 const {
@@ -32,6 +33,10 @@ const {
 const {
   createEcpayPaymentHtml,
 } = require("./ecpay_client");
+
+const {
+  prepareReservationForPayment,
+} = require("../store/store_inventory");
 
 /**
  * 建立綠界付款
@@ -67,6 +72,18 @@ exports.createEcpayPayment = onCall(
           requestData.bookingId,
       );
 
+      const sourceTypeRaw = normalizeString(
+          requestData.sourceType,
+      ).toLowerCase();
+
+      const sourceType = sourceTypeRaw === "store_order" ?
+        "store_order" :
+        "booking";
+
+      const sourceId = normalizeString(
+          requestData.sourceId,
+      ) || (sourceType === "store_order" ? "" : bookingId);
+
       const shopId = normalizeString(
           requestData.shopId,
       );
@@ -90,7 +107,14 @@ exports.createEcpayPayment = onCall(
           requestData.requestId,
       );
 
-      if (!bookingId) {
+      if (sourceType === "store_order") {
+        if (!sourceId) {
+          throw new HttpsError(
+              "invalid-argument",
+              "缺少商城訂單編號。",
+          );
+        }
+      } else if (!bookingId) {
         throw new HttpsError(
             "invalid-argument",
             "缺少訂單編號。",
@@ -151,43 +175,103 @@ exports.createEcpayPayment = onCall(
         );
       }
 
-      const verifiedBooking = await verifyBookingForPayment({
-        bookingId,
-        userId: request.auth.uid,
-        expectedShopId: shopId,
-      });
+      let verifiedShopId = "";
+      let verifiedUserId = "";
+      let paymentAmount = 0;
+      let totalAmount = 0;
+      let paidAmount = 0;
+      let itemName = "PetNest Booking";
+      let storeOrderId = "";
+      let storeOrderCode = "";
+      let resolvedBookingId = bookingId;
+      let resolvedAmountType = amountType;
+      let resolvedPaymentPurpose = paymentPurpose;
 
-      const paymentAmount = resolveRequestedPaymentAmount({
-        booking: verifiedBooking.booking,
-        amountType,
-      });
+      if (sourceType === "store_order") {
+        const verifiedOrder = await verifyStoreOrderForPayment({
+          shopId,
+          orderId: sourceId,
+          userId: request.auth.uid,
+        });
 
-      const depositAmount = resolveDepositAmount(
-          verifiedBooking.booking,
-      );
+        verifiedShopId = verifiedOrder.shopId;
+        verifiedUserId = verifiedOrder.userId;
+        paymentAmount = verifiedOrder.totalAmount;
+        totalAmount = verifiedOrder.totalAmount;
+        paidAmount = 0;
+        itemName = "PetNest Store";
+        storeOrderId = verifiedOrder.orderId;
+        storeOrderCode = verifiedOrder.orderCode;
+        resolvedBookingId = "";
+        resolvedAmountType = "full";
+        resolvedPaymentPurpose = "full";
+
+        const extraMinutes = paymentMethod === "credit_card" ? 30 : 3 * 24 * 60;
+        const reservationOutcome = await admin.firestore()
+            .runTransaction(async (transaction) => {
+              return prepareReservationForPayment({
+                transaction,
+                shopId: verifiedShopId,
+                orderId: storeOrderId,
+                expireAt: new Date(Date.now() + extraMinutes * 60 * 1000),
+                userId: request.auth.uid,
+              });
+            });
+        if (!reservationOutcome.held) {
+          throw new HttpsError(
+              "deadline-exceeded",
+              "庫存保留已過期，請重新下單。",
+          );
+        }
+      } else {
+        const verifiedBooking = await verifyBookingForPayment({
+          bookingId,
+          userId: request.auth.uid,
+          expectedShopId: shopId,
+        });
+
+        paymentAmount = resolveRequestedPaymentAmount({
+          booking: verifiedBooking.booking,
+          amountType,
+        });
+
+        resolveDepositAmount(verifiedBooking.booking);
+
+        verifiedShopId = verifiedBooking.shopId;
+        verifiedUserId = verifiedBooking.userId;
+        totalAmount = verifiedBooking.totalAmount;
+        paidAmount = verifiedBooking.paidAmount;
+        resolvedBookingId = verifiedBooking.bookingId;
+      }
 
       await verifyPaymentSettings({
-        shopId: verifiedBooking.shopId,
+        shopId: verifiedShopId,
         paymentMethod,
       });
 
       const paymentRecord = await createOrGetPendingPayment({
         requestId,
-        bookingId: verifiedBooking.bookingId,
-        shopId: verifiedBooking.shopId,
-        userId: verifiedBooking.userId,
+        bookingId: resolvedBookingId,
+        shopId: verifiedShopId,
+        userId: verifiedUserId,
         paymentMethod,
-        amountType,
-        paymentPurpose,
+        amountType: resolvedAmountType,
+        paymentPurpose: resolvedPaymentPurpose,
         amount: paymentAmount,
-        totalAmount: verifiedBooking.totalAmount,
-        paidAmount: verifiedBooking.paidAmount,
+        totalAmount,
+        paidAmount,
+        sourceType,
+        sourceId: sourceType === "store_order" ?
+          storeOrderId :
+          resolvedBookingId,
+        storeOrderId,
+        storeOrderCode,
       });
 
       const savedPayment = paymentRecord.payment || {};
 
       const credentials = await getEcpayCredentials(
-          verifiedBooking.shopId,
+          verifiedShopId,
       );
 
       const merchantTradeNo = normalizeString(
@@ -215,7 +299,7 @@ exports.createEcpayPayment = onCall(
         "https://asia-east1-petnest-saas.cloudfunctions.net/" +
         "ecpayPaymentCallback",
         clientBackUrl: "",
-        itemName: "PetNest Booking",
+        itemName,
         tradeDesc: "PetNest Payment",
         customField1: paymentRecord.paymentId,
       });
@@ -255,22 +339,26 @@ exports.createEcpayPayment = onCall(
         environment:
           paymentHtmlResult.environment,
 
-        bookingId: verifiedBooking.bookingId,
-        shopId: verifiedBooking.shopId,
-        userId: verifiedBooking.userId,
+        bookingId: resolvedBookingId,
+        shopId: verifiedShopId,
+        userId: verifiedUserId,
+        sourceType,
+        sourceId: sourceType === "store_order" ?
+          storeOrderId :
+          resolvedBookingId,
+        storeOrderId,
+        storeOrderCode,
 
         paymentMethod,
-        amountType,
-        paymentPurpose,
+        amountType: resolvedAmountType,
+        paymentPurpose: resolvedPaymentPurpose,
         amount: paymentAmount,
         status: "pending",
         requestId,
 
-        totalAmount: verifiedBooking.totalAmount,
-        depositAmount,
-        paidAmount: verifiedBooking.paidAmount,
-        remainingAmount:
-          verifiedBooking.remainingAmount,
+        totalAmount,
+        paidAmount,
+        remainingAmount: Math.max(totalAmount - paidAmount, 0),
 
         isExisting: paymentRecord.isExisting,
       };

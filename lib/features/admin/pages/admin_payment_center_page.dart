@@ -90,7 +90,9 @@ class _AdminPaymentCenterPageState extends State<AdminPaymentCenterPage> {
               ) {
                 final bool matchesKeyword =
                     keyword.isEmpty ||
+                    payment.displayOrderCode.toLowerCase().contains(keyword) ||
                     payment.bookingCode.toLowerCase().contains(keyword) ||
+                    payment.storeOrderCode.toLowerCase().contains(keyword) ||
                     payment.merchantTradeNo.toLowerCase().contains(keyword) ||
                     payment.gatewayTradeNo.toLowerCase().contains(keyword) ||
                     payment.customerName.toLowerCase().contains(keyword);
@@ -274,8 +276,10 @@ class _AdminPaymentCenterPageState extends State<AdminPaymentCenterPage> {
         subtitle: Padding(
           padding: const EdgeInsets.only(top: 6),
           child: Text(
+            '來源：'
+            '${payment.sourceTypeLabel}\n'
             '訂單編號：'
-            '${payment.bookingCode.isEmpty ? '尚未寫入' : payment.bookingCode}\n'
+            '${payment.displayOrderCode.isEmpty ? '尚未寫入' : payment.displayOrderCode}\n'
             '會員：'
             '${payment.customerName.isEmpty ? '未提供' : payment.customerName}\n'
             '用途：'

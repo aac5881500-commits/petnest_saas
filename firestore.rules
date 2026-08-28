@@ -155,6 +155,33 @@ function canManageInventory(shopId) {
     );
 }
 
+function hasShopPermissionKey(shopId, key) {
+  return isRootAdmin()
+    || isShopOwner(shopId)
+    || (
+      isShopMember(shopId)
+      && shopMemberData(shopId).permissions is map
+      && shopMemberData(shopId).permissions.get(key, false) == true
+    );
+}
+
+function canViewStoreOrders(shopId) {
+  return hasShopPermissionKey(shopId, 'view_store_orders')
+    || hasShopPermissionKey(shopId, 'manage_store_orders');
+}
+
+function canManageStoreProducts(shopId) {
+  return hasShopPermissionKey(shopId, 'manage_store_products');
+}
+
+function canManageStoreOrders(shopId) {
+  return hasShopPermissionKey(shopId, 'manage_store_orders');
+}
+
+function canManageStoreSettings(shopId) {
+  return hasShopPermissionKey(shopId, 'manage_store_settings');
+}
+
     // 👤 會員帳號
     match /users/{uid} {
       allow read: if isSelf(uid) || isRootAdmin() ||
@@ -1876,13 +1903,16 @@ match /faqs/{faqId} {
       }
 
       // 📦 中央庫存品項
-      // 功能：店家彼此隔離。一般會員不可直接改主檔，僅能在兌換／下單時減少 currentStock。
+      // 功能：店家彼此隔離。完整 document（含成本、安全庫存、批次等）
+      // 僅 Root Admin、店主、以及有庫存檢視／管理權限的店家成員可讀寫。
+      // 一般店家 Customer 不可 read / create / update / delete。
+      // 點數兌換、住宿加購庫存改由 Functions Admin SDK 處理。
+      // 不要為了前台預約把 isShopCustomer 加回此處。
       match /inventory_items/{itemId} {
         allow read: if
           isRootAdmin()
           || canViewInventory(shopId)
-          || isShopMember(shopId)
-          || isShopCustomer(shopId);
+          || isShopMember(shopId);
 
         allow create: if
           signedIn()
@@ -1906,17 +1936,6 @@ match /faqs/{faqId} {
             || isShopOwner(shopId)
             || canManageInventory(shopId)
             || isShopMember(shopId)
-            || (
-              isShopCustomer(shopId)
-              && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-                'currentStock',
-                'estimatedStockCost',
-                'updatedAt',
-                'updatedBy'
-              ])
-              && request.resource.data.currentStock is number
-              && request.resource.data.currentStock >= 0
-            )
           );
 
         allow delete: if false;
@@ -1940,7 +1959,7 @@ match /faqs/{faqId} {
 
           allow create: if
             signedIn()
-            && (isRootAdmin() || isShopMember(shopId) || isShopCustomer(shopId))
+            && (isRootAdmin() || isShopMember(shopId))
             && request.resource.data.shopId == shopId
             && request.resource.data.inventoryItemId == itemId
             && request.resource.data.type is string
@@ -1956,12 +1975,11 @@ match /faqs/{faqId} {
       match /inventory_consumptions/{consumptionId} {
         allow read: if
           isRootAdmin()
-          || isShopMember(shopId)
-          || isShopCustomer(shopId);
+          || isShopMember(shopId);
 
         allow create: if
           signedIn()
-          && (isRootAdmin() || isShopMember(shopId) || isShopCustomer(shopId))
+          && (isRootAdmin() || isShopMember(shopId))
           && request.resource.data.shopId == shopId
           && request.resource.data.sourceId is string
           && request.resource.data.operation in ['deduct', 'return']
@@ -1981,6 +1999,76 @@ match /faqs/{faqId} {
           && request.resource.data.name.size() > 0;
 
         allow delete: if false;
+      }
+
+      match /store_products/{productId} {
+        allow read: if
+          isRootAdmin()
+          || isShopMember(shopId)
+          || resource.data.enabled == true;
+
+        allow create, update: if
+          canManageStoreProducts(shopId)
+          && request.resource.data.shopId == shopId
+          && request.resource.data.name is string
+          && request.resource.data.name.size() > 0
+          && request.resource.data.price is number
+          && request.resource.data.price >= 0;
+
+        allow delete: if false;
+      }
+
+      match /store_categories/{categoryId} {
+        allow read: if true;
+
+        allow create, update: if
+          canManageStoreProducts(shopId)
+          && request.resource.data.shopId == shopId
+          && request.resource.data.name is string
+          && request.resource.data.name.size() > 0;
+
+        allow delete: if false;
+      }
+
+      match /store_settings/{settingId} {
+        allow read: if true;
+
+        allow create, update: if canManageStoreSettings(shopId);
+        allow delete: if false;
+      }
+
+      match /store_carts/{userId} {
+        allow read, create, update: if
+          isRootAdmin()
+          || isShopMember(shopId)
+          || (signedIn() && request.auth.uid == userId);
+
+        allow delete: if
+          isRootAdmin()
+          || (signedIn() && request.auth.uid == userId);
+      }
+
+      match /store_orders/{orderId} {
+        allow read: if
+          isRootAdmin()
+          || canViewStoreOrders(shopId)
+          || (signedIn() && resource.data.userId == request.auth.uid);
+
+        allow create, update, delete: if false;
+      }
+
+      match /store_reservations/{reservationId} {
+        allow read: if
+          isRootAdmin()
+          || canViewStoreOrders(shopId)
+          || (signedIn() && resource.data.userId == request.auth.uid);
+
+        allow create, update, delete: if false;
+      }
+
+      match /store_counters/{counterId} {
+        allow read: if isRootAdmin() || isShopMember(shopId);
+        allow create, update, delete: if false;
       }
     }
 
@@ -2824,6 +2912,22 @@ match /payments/{paymentId} {
   // Cloud Functions 使用 Admin SDK，不受 Firestore Rules 限制。
   allow create, update, delete: if false;
 }
+
+match /{path=**}/store_orders/{orderId} {
+  allow read: if isRootAdmin()
+    || (
+      signedIn()
+      && resource.data.userId is string
+      && resource.data.userId == request.auth.uid
+    )
+    || (
+      resource.data.shopId is string
+      && canViewStoreOrders(resource.data.shopId)
+    );
+
+  allow create, update, delete: if false;
+}
+
     // 🚫 其他全部拒絕
     match /{document=**} {
       allow read, write: if false;

@@ -73,8 +73,27 @@ class InventoryService {
   }
 
   Stream<List<InventoryItemModel>> streamEnabledItems(String shopId) {
-    return streamItems(shopId).map((List<InventoryItemModel> items) {
-      return items.where((InventoryItemModel item) => item.enabled).toList();
+    final String normalizedShopId = shopId.trim();
+
+    if (normalizedShopId.isEmpty) {
+      return Stream<List<InventoryItemModel>>.value(const <InventoryItemModel>[]);
+    }
+
+    return itemsRef(normalizedShopId)
+        .where('enabled', isEqualTo: true)
+        .snapshots()
+        .map((QuerySnapshot<Map<String, dynamic>> snapshot) {
+      final List<InventoryItemModel> items = snapshot.docs.map((
+        QueryDocumentSnapshot<Map<String, dynamic>> document,
+      ) {
+        return InventoryItemModel.fromMap(id: document.id, data: document.data());
+      }).toList();
+
+      items.sort((InventoryItemModel a, InventoryItemModel b) {
+        return a.name.compareTo(b.name);
+      });
+
+      return items;
     });
   }
 
@@ -229,6 +248,7 @@ class InventoryService {
       'lastPurchaseUnitCost': 0,
       'weightedAverageCost': 0,
       'estimatedStockCost': 0,
+      'reservedQuantity': 0,
       'imageUrl': '',
       'imageStoragePath': '',
       'createdBy': operatorUid,

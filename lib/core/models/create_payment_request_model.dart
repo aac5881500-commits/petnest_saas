@@ -8,19 +8,27 @@ import 'payment_gateway_status.dart';
 class CreatePaymentRequestModel {
   const CreatePaymentRequestModel({
     required this.shopId,
-    required this.bookingId,
     required this.paymentMethod,
     required this.amountType,
     required this.amount,
     required this.requestId,
+    this.bookingId = '',
+    this.sourceType = PaymentSourceType.booking,
+    this.sourceId = '',
     this.paymentPurpose,
   });
 
   /// 店家 ID
   final String shopId;
 
-  /// 預約訂單 ID
+  /// 預約訂單 ID（住宿付款必填）
   final String bookingId;
+
+  /// 付款來源
+  final String sourceType;
+
+  /// 來源 ID。商城付款為 storeOrderId。
+  final String sourceId;
 
   /// 付款方式
   ///
@@ -78,10 +86,25 @@ class CreatePaymentRequestModel {
         amountType == PaymentAmountType.full;
   }
 
+  String get resolvedSourceType {
+    return PaymentSourceType.resolve(sourceType, bookingId: bookingId);
+  }
+
+  String get resolvedSourceId {
+    if (resolvedSourceType == PaymentSourceType.storeOrder) {
+      return sourceId.trim().isNotEmpty ? sourceId.trim() : bookingId.trim();
+    }
+    return bookingId.trim();
+  }
+
   /// 基本資料是否有效
   bool get isValid {
+    final bool hasSource = resolvedSourceType == PaymentSourceType.storeOrder
+        ? resolvedSourceId.isNotEmpty
+        : bookingId.trim().isNotEmpty;
+
     return shopId.trim().isNotEmpty &&
-        bookingId.trim().isNotEmpty &&
+        hasSource &&
         requestId.trim().isNotEmpty &&
         amount > 0 &&
         hasValidPaymentMethod &&
@@ -94,6 +117,8 @@ class CreatePaymentRequestModel {
     return <String, dynamic>{
       'shopId': shopId.trim(),
       'bookingId': bookingId.trim(),
+      'sourceType': resolvedSourceType,
+      'sourceId': resolvedSourceId,
       'paymentMethod': paymentMethod,
       'amountType': amountType,
       'paymentPurpose': resolvedPaymentPurpose,
@@ -105,6 +130,8 @@ class CreatePaymentRequestModel {
   CreatePaymentRequestModel copyWith({
     String? shopId,
     String? bookingId,
+    String? sourceType,
+    String? sourceId,
     String? paymentMethod,
     String? amountType,
     String? paymentPurpose,
@@ -114,6 +141,8 @@ class CreatePaymentRequestModel {
     return CreatePaymentRequestModel(
       shopId: shopId ?? this.shopId,
       bookingId: bookingId ?? this.bookingId,
+      sourceType: sourceType ?? this.sourceType,
+      sourceId: sourceId ?? this.sourceId,
       paymentMethod: paymentMethod ?? this.paymentMethod,
       amountType: amountType ?? this.amountType,
       paymentPurpose: paymentPurpose ?? this.paymentPurpose,

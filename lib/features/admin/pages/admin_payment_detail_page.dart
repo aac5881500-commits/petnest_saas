@@ -40,10 +40,14 @@ class AdminPaymentDetailPage extends StatelessWidget {
             title: '訂單資料',
             children: [
               _DetailRow(
+                label: '付款來源',
+                value: payment.sourceTypeLabel,
+              ),
+              _DetailRow(
                 label: '訂單編號',
-                value: payment.bookingCode.isEmpty
+                value: payment.displayOrderCode.isEmpty
                     ? '尚未寫入'
-                    : payment.bookingCode,
+                    : payment.displayOrderCode,
               ),
               _DetailRow(
                 label: '會員姓名',

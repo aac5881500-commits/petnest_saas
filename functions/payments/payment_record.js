@@ -122,6 +122,10 @@ function verifyExistingPaymentRequest({
       normalizeString(expectedPayment.userId) &&
     normalizeString(existingPayment.bookingId) ===
       normalizeString(expectedPayment.bookingId) &&
+    normalizeString(existingPayment.sourceType || "booking") ===
+      normalizeString(expectedPayment.sourceType || "booking") &&
+    normalizeString(existingPayment.sourceId || existingPayment.bookingId) ===
+      normalizeString(expectedPayment.sourceId || expectedPayment.bookingId) &&
     normalizeString(existingPayment.shopId) ===
       normalizeString(expectedPayment.shopId) &&
     normalizeString(existingPayment.requestId) ===
@@ -168,7 +172,7 @@ function verifyExistingPaymentRequest({
  */
 async function createOrGetPendingPayment({
   requestId,
-  bookingId,
+  bookingId = "",
   shopId,
   userId,
   paymentMethod,
@@ -177,11 +181,24 @@ async function createOrGetPendingPayment({
   amount,
   totalAmount,
   paidAmount,
+  sourceType = "booking",
+  sourceId = "",
+  storeOrderId = "",
+  storeOrderCode = "",
+  bookingCode = "",
+  customerName = "",
 }) {
   const normalizedRequestId = normalizeString(requestId);
   const normalizedBookingId = normalizeString(bookingId);
   const normalizedShopId = normalizeString(shopId);
   const normalizedUserId = normalizeString(userId);
+  const normalizedSourceType = normalizeString(sourceType) || "booking";
+  const normalizedSourceId = normalizeString(sourceId) ||
+    (normalizedSourceType === "store_order" ?
+      normalizeString(storeOrderId) :
+      normalizedBookingId);
+  const normalizedStoreOrderId = normalizeString(storeOrderId);
+  const normalizedStoreOrderCode = normalizeString(storeOrderCode);
 
   const normalizedPaymentMethod = normalizeString(
       paymentMethod,
@@ -201,9 +218,19 @@ async function createOrGetPendingPayment({
 
   if (
     !normalizedRequestId ||
-    !normalizedBookingId ||
     !normalizedShopId ||
-    !normalizedUserId
+    !normalizedUserId ||
+    !normalizedSourceId
+  ) {
+    throw new HttpsError(
+        "invalid-argument",
+        "付款紀錄資料不完整。",
+    );
+  }
+
+  if (
+    normalizedSourceType !== "store_order" &&
+    !normalizedBookingId
   ) {
     throw new HttpsError(
         "invalid-argument",
@@ -267,12 +294,19 @@ async function createOrGetPendingPayment({
 
   const firestore = admin.firestore();
 
+  const activeQueryField = normalizedSourceType === "store_order" ?
+    "storeOrderId" :
+    "bookingId";
+  const activeQueryValue = normalizedSourceType === "store_order" ?
+    normalizedStoreOrderId || normalizedSourceId :
+    normalizedBookingId;
+
   const activePaymentsSnapshot = await firestore
       .collection("payments")
       .where(
-          "bookingId",
+          activeQueryField,
           "==",
-          normalizedBookingId,
+          activeQueryValue,
       )
       .get();
 
@@ -324,32 +358,31 @@ async function createOrGetPendingPayment({
     );
   }
 
-  const bookingRef = firestore
-      .collection("bookings")
-      .doc(normalizedBookingId);
+  let resolvedBookingCode = normalizeString(bookingCode);
+  let resolvedCustomerName = normalizeString(customerName);
 
-  const bookingSnapshot = await bookingRef.get();
+  if (normalizedSourceType !== "store_order") {
+    const bookingRef = firestore
+        .collection("bookings")
+        .doc(normalizedBookingId);
 
-  if (!bookingSnapshot.exists) {
-    throw new HttpsError(
-        "not-found",
-        "找不到付款對應的訂單。",
-    );
+    const bookingSnapshot = await bookingRef.get();
+
+    if (!bookingSnapshot.exists) {
+      throw new HttpsError(
+          "not-found",
+          "找不到付款對應的訂單。",
+      );
+    }
+
+    const booking = bookingSnapshot.data() || {};
+    resolvedBookingCode = normalizeString(booking.bookingCode);
+    resolvedCustomerName = normalizeString(booking.customerName);
   }
 
-  const booking = bookingSnapshot.data() || {};
-
-  const bookingCode = normalizeString(
-      booking.bookingCode,
-  );
-
-const customerName = normalizeString(
-    booking.customerName,
-);
-
-const paymentRef = firestore
-    .collection("payments")
-    .doc(paymentId);
+  const paymentRef = firestore
+      .collection("payments")
+      .doc(paymentId);
 
   const paymentData = {
     paymentId,
@@ -357,8 +390,12 @@ const paymentRef = firestore
     bookingId: normalizedBookingId,
     shopId: normalizedShopId,
     userId: normalizedUserId,
-    bookingCode,
-    customerName,
+    bookingCode: resolvedBookingCode,
+    customerName: resolvedCustomerName,
+    sourceType: normalizedSourceType,
+    sourceId: normalizedSourceId,
+    storeOrderId: normalizedStoreOrderId,
+    storeOrderCode: normalizedStoreOrderCode,
     gateway: "ecpay",
     paymentMethod: normalizedPaymentMethod,
     amountType: normalizedAmountType,

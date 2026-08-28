@@ -29,6 +29,7 @@ class InventoryItemModel {
     this.nearestExpiryDate,
     this.imageUrl = '',
     this.imageStoragePath = '',
+    this.reservedQuantity = 0,
     this.createdBy = '',
     this.updatedBy = '',
   });
@@ -51,6 +52,7 @@ class InventoryItemModel {
   final DateTime? nearestExpiryDate;
   final String imageUrl;
   final String imageStoragePath;
+  final num reservedQuantity;
   final String createdBy;
   final String updatedBy;
   final DateTime createdAt;
@@ -73,6 +75,11 @@ class InventoryItemModel {
   }
 
   bool get hasCoverImage => imageUrl.trim().isNotEmpty;
+
+  num get availableStock {
+    final num available = currentStock - reservedQuantity;
+    return available < 0 ? 0 : available;
+  }
 
   bool get isExpiringSoon {
     final DateTime? expiry = nearestExpiryDate;
@@ -108,6 +115,7 @@ class InventoryItemModel {
           : Timestamp.fromDate(nearestExpiryDate!),
       'imageUrl': imageUrl.trim(),
       'imageStoragePath': imageStoragePath.trim(),
+      'reservedQuantity': reservedQuantity,
       'createdBy': createdBy,
       'updatedBy': updatedBy,
       'createdAt': Timestamp.fromDate(createdAt),
@@ -140,6 +148,7 @@ class InventoryItemModel {
       nearestExpiryDate: _dateTimeFromValue(data['nearestExpiryDate']),
       imageUrl: (data['imageUrl'] ?? '').toString(),
       imageStoragePath: (data['imageStoragePath'] ?? '').toString(),
+      reservedQuantity: _numFromValue(data['reservedQuantity']),
       createdBy: (data['createdBy'] ?? '').toString(),
       updatedBy: (data['updatedBy'] ?? '').toString(),
       createdAt: _dateTimeFromValue(data['createdAt']) ?? DateTime.now(),
@@ -167,6 +176,7 @@ class InventoryItemModel {
     bool clearNearestExpiryDate = false,
     String? imageUrl,
     String? imageStoragePath,
+    num? reservedQuantity,
     String? createdBy,
     String? updatedBy,
     DateTime? createdAt,
@@ -193,6 +203,7 @@ class InventoryItemModel {
           : nearestExpiryDate ?? this.nearestExpiryDate,
       imageUrl: imageUrl ?? this.imageUrl,
       imageStoragePath: imageStoragePath ?? this.imageStoragePath,
+      reservedQuantity: reservedQuantity ?? this.reservedQuantity,
       createdBy: createdBy ?? this.createdBy,
       updatedBy: updatedBy ?? this.updatedBy,
       createdAt: createdAt ?? this.createdAt,

@@ -41,6 +41,8 @@ class ShopMemberPermissionService {
       ShopPermissionKeys.managePointRedemptions: true,
       ShopPermissionKeys.viewInventory: true,
       ShopPermissionKeys.receiveInventory: true,
+      ShopPermissionKeys.viewStoreOrders: true,
+      ShopPermissionKeys.manageStoreOrders: true,
       ShopPermissionKeys.viewReports: true,
       ShopPermissionKeys.viewActionLogs: true,
     };
@@ -63,6 +65,11 @@ class ShopMemberPermissionService {
       ShopPermissionKeys.receiveInventory: false,
       ShopPermissionKeys.adjustInventory: false,
       ShopPermissionKeys.viewInventoryCost: false,
+
+      ShopPermissionKeys.viewStoreOrders: true,
+      ShopPermissionKeys.manageStoreProducts: false,
+      ShopPermissionKeys.manageStoreOrders: false,
+      ShopPermissionKeys.manageStoreSettings: false,
 
       ShopPermissionKeys.viewReports: false,
       ShopPermissionKeys.viewActionLogs: false,

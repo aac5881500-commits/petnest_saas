@@ -53,6 +53,7 @@ service firebase.storage {
     // shops/{shopId}/platform_home_logo/xxx.jpg
     // shops/{shopId}/point_rewards/{rewardId}/product_image.*
     // shops/{shopId}/inventory/{itemId}/cover.jpg
+    // shops/{shopId}/store/{productId}/cover.jpg
     match /shops/{shopId}/{allPaths=**} {
   allow read: if true;
 

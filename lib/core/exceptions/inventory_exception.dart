@@ -4,6 +4,7 @@
 // 避免把 Firebase exception stack 丟給使用者。
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 
 class InventoryException implements Exception {
   const InventoryException(this.message);
@@ -16,6 +17,14 @@ class InventoryException implements Exception {
   static String userMessage(Object error) {
     if (error is InventoryException) {
       return error.message;
+    }
+
+    if (error is FirebaseFunctionsException) {
+      final String message = (error.message ?? '').trim();
+      if (message.isNotEmpty) {
+        return message;
+      }
+      return '庫存操作失敗，請稍後再試';
     }
 
     if (error is StateError) {

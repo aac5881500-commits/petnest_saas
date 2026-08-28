@@ -197,7 +197,7 @@ class InventoryConstants {
       case InventorySourceType.returnStock:
         return '取消返還';
       case InventorySourceType.futureStore:
-        return '未來商城';
+        return '商城訂單';
     }
   }
 
@@ -393,6 +393,22 @@ class InventoryConstants {
     return consumptionId(
       prefix: 'bs',
       sourceId: bookingId,
+      operation: consumptionOperationReturn,
+    );
+  }
+
+  static String storeOrderDeductId(String orderId) {
+    return consumptionId(
+      prefix: 'so',
+      sourceId: orderId,
+      operation: consumptionOperationDeduct,
+    );
+  }
+
+  static String storeOrderReturnId(String orderId) {
+    return consumptionId(
+      prefix: 'so',
+      sourceId: orderId,
       operation: consumptionOperationReturn,
     );
   }

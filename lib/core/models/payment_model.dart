@@ -14,6 +14,10 @@ class PaymentModel {
     required this.bookingId,
     required this.bookingCode,
     required this.userId,
+    this.sourceType = PaymentSourceType.booking,
+    this.sourceId = '',
+    this.storeOrderId = '',
+    this.storeOrderCode = '',
     this.customerName = '',
     required this.gateway,
     required this.paymentMethod,
@@ -57,6 +61,18 @@ class PaymentModel {
   ///
   /// 例如：SHOP0001-B000079
   final String bookingCode;
+
+  /// 付款來源：booking 或 store_order。舊資料沒有此欄位時視為 booking。
+  final String sourceType;
+
+  /// 來源文件 ID。住宿為 bookingId，商城為 storeOrderId。
+  final String sourceId;
+
+  /// 商城訂單 ID
+  final String storeOrderId;
+
+  /// 商城訂單編號
+  final String storeOrderCode;
 
   /// 付款會員 UID
   final String userId;
@@ -169,7 +185,24 @@ class PaymentModel {
   final DateTime createdAt;
   final DateTime updatedAt;
 
-  /// 是否為線上金流付款
+  /// 是否為商城付款
+  bool get isStoreOrderPayment {
+    return PaymentSourceType.isStoreOrder(sourceType);
+  }
+
+  /// 列表顯示用訂單編號
+  String get displayOrderCode {
+    if (isStoreOrderPayment) {
+      return storeOrderCode.isNotEmpty ? storeOrderCode : sourceId;
+    }
+    return bookingCode;
+  }
+
+  /// 來源顯示：住宿付款 / 商城付款
+  String get sourceTypeLabel {
+    return isStoreOrderPayment ? '商城付款' : '住宿付款';
+  }
+
   bool get isOnlinePayment {
     return PaymentMethodType.isOnlinePayment(paymentMethod);
   }
@@ -253,6 +286,14 @@ class PaymentModel {
       shopId: (data['shopId'] ?? '').toString(),
       bookingId: (data['bookingId'] ?? '').toString(),
       bookingCode: (data['bookingCode'] ?? '').toString(),
+      sourceType: PaymentSourceType.resolve(
+        data['sourceType'],
+        bookingId: (data['bookingId'] ?? '').toString(),
+      ),
+      sourceId: (data['sourceId'] ?? data['bookingId'] ?? data['storeOrderId'] ?? '')
+          .toString(),
+      storeOrderId: (data['storeOrderId'] ?? '').toString(),
+      storeOrderCode: (data['storeOrderCode'] ?? '').toString(),
       userId: (data['userId'] ?? '').toString(),
       customerName: (data['customerName'] ?? '').toString(),
       gateway: (data['gateway'] ?? PaymentGateway.ecpay).toString(),
@@ -291,6 +332,10 @@ class PaymentModel {
       'shopId': shopId,
       'bookingId': bookingId,
       'bookingCode': bookingCode,
+      'sourceType': sourceType,
+      'sourceId': sourceId,
+      'storeOrderId': storeOrderId,
+      'storeOrderCode': storeOrderCode,
       'userId': userId,
       'customerName': customerName,
       'gateway': gateway,
@@ -330,6 +375,10 @@ class PaymentModel {
     String? shopId,
     String? bookingId,
     String? bookingCode,
+    String? sourceType,
+    String? sourceId,
+    String? storeOrderId,
+    String? storeOrderCode,
     String? userId,
     String? customerName,
     String? gateway,
@@ -370,6 +419,10 @@ class PaymentModel {
       shopId: shopId ?? this.shopId,
       bookingId: bookingId ?? this.bookingId,
       bookingCode: bookingCode ?? this.bookingCode,
+      sourceType: sourceType ?? this.sourceType,
+      sourceId: sourceId ?? this.sourceId,
+      storeOrderId: storeOrderId ?? this.storeOrderId,
+      storeOrderCode: storeOrderCode ?? this.storeOrderCode,
       userId: userId ?? this.userId,
       customerName: customerName ?? this.customerName,
       gateway: gateway ?? this.gateway,

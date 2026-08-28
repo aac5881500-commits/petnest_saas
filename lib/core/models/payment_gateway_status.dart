@@ -8,6 +8,31 @@ abstract final class PaymentGateway {
   static const String ecpay = 'ecpay';
 }
 
+/// 付款來源類型
+///
+/// 舊住宿付款沒有 sourceType 時，視為 booking。
+abstract final class PaymentSourceType {
+  static const String booking = 'booking';
+  static const String storeOrder = 'store_order';
+
+  static String resolve(dynamic value, {String bookingId = ''}) {
+    final String raw = (value ?? '').toString().trim().toLowerCase();
+    if (raw == storeOrder) {
+      return storeOrder;
+    }
+
+    if (raw == booking || bookingId.trim().isNotEmpty) {
+      return booking;
+    }
+
+    return booking;
+  }
+
+  static bool isStoreOrder(String value) {
+    return value == storeOrder;
+  }
+}
+
 /// 店家金流設定審核狀態
 abstract final class PaymentGatewayReviewStatus {
   /// 尚未設定

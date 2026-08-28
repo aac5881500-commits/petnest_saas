@@ -15,13 +15,16 @@ import 'package:petnest_saas/core/models/payment_model.dart';
 import 'package:petnest_saas/core/services/payment_service.dart';
 import 'package:petnest_saas/features/booking/pages/booking_detail_page.dart';
 import 'package:petnest_saas/features/payment/widgets/ecpay_payment_view.dart';
+import 'package:petnest_saas/features/shop/pages/storefront/my_store_order_detail_page.dart';
 
 class EcpayPaymentPage extends StatefulWidget {
   const EcpayPaymentPage({
     super.key,
     required this.paymentHtml,
     required this.paymentId,
-    required this.bookingId,
+    this.bookingId = '',
+    this.shopId = '',
+    this.storeOrderId = '',
   });
 
   /// Cloud Function 回傳的綠界付款表單 HTML
@@ -34,9 +37,15 @@ class EcpayPaymentPage extends StatefulWidget {
 
   /// 對應 bookings/{bookingId}
   ///
-  /// 付款完成、失敗、取消或逾期後，
+  /// 住宿付款完成、失敗、取消或逾期後，
   /// 用來導回正確的訂單詳情。
   final String bookingId;
+
+  /// 商城付款所屬店家
+  final String shopId;
+
+  /// 商城訂單 ID。有值時付款完成導向商城訂單詳情。
+  final String storeOrderId;
 
   @override
   State<EcpayPaymentPage> createState() => _EcpayPaymentPageState();
@@ -85,7 +94,7 @@ class _EcpayPaymentPageState extends State<EcpayPaymentPage> {
           'bookingId=${widget.bookingId}',
         );
 
-        _openBookingDetail();
+        _leavePaymentPage();
         return;
 
       case PaymentTransactionStatus.failed:
@@ -95,7 +104,7 @@ class _EcpayPaymentPageState extends State<EcpayPaymentPage> {
           'bookingId=${widget.bookingId}',
         );
 
-        _openBookingDetail();
+        _leavePaymentPage();
         return;
 
       case PaymentTransactionStatus.cancelled:
@@ -105,7 +114,7 @@ class _EcpayPaymentPageState extends State<EcpayPaymentPage> {
           'bookingId=${widget.bookingId}',
         );
 
-        _openBookingDetail();
+        _leavePaymentPage();
         return;
 
       case PaymentTransactionStatus.expired:
@@ -115,12 +124,40 @@ class _EcpayPaymentPageState extends State<EcpayPaymentPage> {
           'bookingId=${widget.bookingId}',
         );
 
-        _openBookingDetail();
+        _leavePaymentPage();
         return;
 
       default:
         return;
     }
+  }
+
+  Future<void> _leavePaymentPage() async {
+    if (widget.storeOrderId.trim().isNotEmpty &&
+        widget.shopId.trim().isNotEmpty) {
+      await _openStoreOrderDetail();
+      return;
+    }
+
+    await _openBookingDetail();
+  }
+
+  Future<void> _openStoreOrderDetail() async {
+    if (!mounted || _leavingPaymentPage) {
+      return;
+    }
+
+    _leavingPaymentPage = true;
+
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute<void>(
+        builder: (_) => MyStoreOrderDetailPage(
+          shopId: widget.shopId,
+          orderId: widget.storeOrderId,
+        ),
+      ),
+      (Route<dynamic> route) => route.isFirst,
+    );
   }
 
   /// 讀取最新 Booking 資料並開啟訂單詳情。
@@ -184,7 +221,7 @@ class _EcpayPaymentPageState extends State<EcpayPaymentPage> {
       return;
     }
 
-    await _openBookingDetail();
+    await _leavePaymentPage();
   }
 
   @override

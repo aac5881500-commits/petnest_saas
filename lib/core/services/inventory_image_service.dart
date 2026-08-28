@@ -70,9 +70,11 @@ class InventoryImageService {
   String storagePath({
     required String shopId,
     required String itemId,
+    String folder = InventoryConstants.imageFolder,
+    String imageType = 'inventory_cover',
   }) {
     return 'shops/${shopId.trim()}/'
-        '${InventoryConstants.imageFolder}/'
+        '${folder.trim().isEmpty ? InventoryConstants.imageFolder : folder.trim()}/'
         '${itemId.trim()}/'
         '${InventoryConstants.coverFileName}';
   }
@@ -81,6 +83,9 @@ class InventoryImageService {
     required String shopId,
     required String itemId,
     required XFile image,
+    String folder = InventoryConstants.imageFolder,
+    String imageType = 'inventory_cover',
+    String idMetadataKey = 'inventoryItemId',
   }) async {
     final String normalizedShopId = shopId.trim();
     final String normalizedItemId = itemId.trim();
@@ -114,6 +119,7 @@ class InventoryImageService {
     final String path = storagePath(
       shopId: normalizedShopId,
       itemId: normalizedItemId,
+      folder: folder,
     );
     final Reference imageReference = _storage.ref(path);
 
@@ -123,8 +129,8 @@ class InventoryImageService {
         contentType: 'image/jpeg',
         customMetadata: <String, String>{
           'shopId': normalizedShopId,
-          'inventoryItemId': normalizedItemId,
-          'imageType': 'inventory_cover',
+          idMetadataKey: normalizedItemId,
+          'imageType': imageType,
         },
       ),
     );

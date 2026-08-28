@@ -5,6 +5,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/services/shop_service.dart';
+import 'package:petnest_saas/core/services/storefront_access.dart';
 import 'package:petnest_saas/features/shop/pages/shop_booking_page.dart';
 import 'package:petnest_saas/features/shop/pages/shop_dashboard_page.dart';
 import 'package:petnest_saas/features/shop/pages/shop_policy_view_page.dart';
@@ -20,6 +21,8 @@ import 'package:petnest_saas/features/shop/pages/shop_announcement_page.dart';
 import 'package:petnest_saas/features/shop/pages/shop_environment_page.dart';
 import 'package:petnest_saas/features/shop/pages/shop_about_page.dart';
 import 'package:petnest_saas/features/shop/pages/shop_room_intro_page.dart';
+import 'package:petnest_saas/features/shop/pages/storefront/my_store_orders_page.dart';
+import 'package:petnest_saas/features/shop/pages/storefront/store_home_page.dart';
 import 'package:petnest_saas/core/models/home_theme_model.dart';
 import 'package:petnest_saas/features/member/pages/member_page.dart';
 import 'package:petnest_saas/features/member/pages/member_point_detail_page.dart';
@@ -169,6 +172,35 @@ class AppDrawer extends StatelessWidget {
                       );
                     },
                   ),
+                  StreamBuilder<DocumentSnapshot>(
+                    stream: FirebaseFirestore.instance
+                        .collection('shops')
+                        .doc(shopId)
+                        .snapshots(),
+                    builder: (BuildContext context, AsyncSnapshot<DocumentSnapshot> snapshot) {
+                      final Map<String, dynamic>? liveShop =
+                          snapshot.data?.data() as Map<String, dynamic>?;
+                      if (!StorefrontAccess.isModuleEnabled(liveShop)) {
+                        return const SizedBox.shrink();
+                      }
+                      return _menuItem(
+                        icon: Icons.shopping_bag_outlined,
+                        title: '我的商城訂單',
+                        onTap: () {
+                          Navigator.pop(context);
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute<void>(
+                              builder: (_) => MyStoreOrdersPage(
+                                shopId: shopId,
+                                theme: theme,
+                              ),
+                            ),
+                          );
+                        },
+                      );
+                    },
+                  ),
 
                   if (user != null) _latestBookingCard(context, user.uid),
 
@@ -218,6 +250,24 @@ class AppDrawer extends StatelessWidget {
                             title: '我要預約',
                             onTap: () => _goBooking(context),
                           ),
+                          if (StorefrontAccess.isModuleEnabled(shop))
+                            _menuItem(
+                              icon: Icons.storefront_outlined,
+                              title: '寵物賣場',
+                              onTap: () {
+                                Navigator.pop(context);
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute<void>(
+                                    builder: (_) => StoreHomePage(
+                                      shopId: shopId,
+                                      shop: shop ?? const <String, dynamic>{},
+                                      theme: theme,
+                                    ),
+                                  ),
+                                );
+                              },
+                            ),
                           _menuItem(
                             icon: Icons.home,
                             title: '環境介紹',

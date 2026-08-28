@@ -4,6 +4,7 @@
 // 建立會員優惠券或實體商品兌換紀錄，並同步更新商品與會員兌換次數。
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 
@@ -12,7 +13,6 @@ import '../models/member_point_log_model.dart';
 import '../models/member_point_model.dart';
 import '../models/point_redemption_model.dart';
 import '../models/point_reward_model.dart';
-import 'inventory_stock_service.dart';
 
 class PointExchangeService {
   PointExchangeService._();
@@ -134,6 +134,22 @@ class PointExchangeService {
     final DocumentReference<Map<String, dynamic>> memberExchangeReference =
         rewardReference.collection('member_exchanges').doc(userId);
 
+    final DocumentSnapshot<Map<String, dynamic>> rewardPreview =
+        await rewardReference.get();
+    final Map<String, dynamic>? rewardPreviewData = rewardPreview.data();
+    if (rewardPreview.exists && rewardPreviewData != null) {
+      final PointRewardModel previewReward = PointRewardModel.fromMap(
+        id: rewardPreview.id,
+        data: rewardPreviewData,
+      );
+      if (previewReward.usesCentralInventory) {
+        return _exchangeCentralInventoryReward(
+          shopId: normalizedShopId,
+          rewardId: normalizedRewardId,
+        );
+      }
+    }
+
     try {
       return await _firestore.runTransaction((Transaction transaction) async {
         // Transaction 規定所有讀取必須在寫入之前完成。
@@ -244,6 +260,10 @@ class PointExchangeService {
           throw StateError('此兌換商品類型目前尚未開放');
         }
 
+        if (reward.usesCentralInventory) {
+          throw StateError('此商品需由後端兌換，請再試一次');
+        }
+
         final String resultId = isCouponReward
             ? couponReference.id
             : redemptionReference.id;
@@ -301,25 +321,6 @@ class PointExchangeService {
           now: now,
         );
 
-        PreparedStockConsumption? inventoryPlan;
-
-        if (isPhysicalProduct &&
-            reward.usesCentralInventory &&
-            redemption != null) {
-          inventoryPlan = await InventoryStockService.instance
-              .preparePointRedemptionDeduct(
-                transaction: transaction,
-                shopId: normalizedShopId,
-                redemptionId: redemption.id,
-                inventoryItemId: reward.inventoryItemId,
-                quantity: reward.inventoryQuantityPerExchange <= 0
-                    ? 1
-                    : reward.inventoryQuantityPerExchange,
-                itemName: reward.name,
-                note: '點數兌換立即扣庫存',
-              );
-        }
-
         transaction.set(
           memberPointReference,
           nextPoint.toMap(),
@@ -364,13 +365,6 @@ class PointExchangeService {
             'createdAt': FieldValue.serverTimestamp(),
         }, SetOptions(merge: true));
 
-        if (inventoryPlan != null) {
-          InventoryStockService.instance.commitPreparedConsumption(
-            transaction: transaction,
-            prepared: inventoryPlan,
-          );
-        }
-
         return resultId;
       });
     } catch (error, stackTrace) {
@@ -380,6 +374,30 @@ class PointExchangeService {
       }
 
       rethrow;
+    }
+  }
+
+  Future<String> _exchangeCentralInventoryReward({
+    required String shopId,
+    required String rewardId,
+  }) async {
+    final String requestId = _firestore.collection('_ids').doc().id;
+    try {
+      final HttpsCallableResult<dynamic> result =
+          await FirebaseFunctions.instanceFor(region: 'asia-east1')
+              .httpsCallable('exchangePointReward')
+              .call(<String, dynamic>{
+                'shopId': shopId,
+                'rewardId': rewardId,
+                'requestId': requestId,
+              });
+      final Object? data = result.data;
+      if (data is Map && data['redemptionId'] != null) {
+        return data['redemptionId'].toString();
+      }
+      return requestId;
+    } on FirebaseFunctionsException catch (error) {
+      throw StateError(error.message ?? '無法完成點數兌換');
     }
   }
 

@@ -310,6 +310,8 @@ class InventoryStockService {
     required String bookingId,
     Map<String, dynamic>? bookingData,
   }) async {
+    // 一般會員建立訂單已改走 finalizeBookingAddonInventory。
+    // 此方法僅供店家入住 retry，consumption 已存在時會 skip。
     final Map<String, dynamic> data =
         bookingData ?? await _getBookingData(bookingId);
 
@@ -557,6 +559,12 @@ class InventoryStockService {
       if (stockAfter < 0) {
         throw InventoryException(
           '庫存不足，目前剩餘 ${InventoryConstants.formatQuantity(stockBefore)} ${item.unit}',
+        );
+      }
+
+      if (!isReturn && stockAfter < item.reservedQuantity) {
+        throw InventoryException(
+          '「${item.name}」可售庫存不足，部分數量已保留給商城訂單',
         );
       }
 
