@@ -23,6 +23,7 @@ import 'package:petnest_saas/features/booking/pages/booking_detail_page.dart';
 import 'package:petnest_saas/features/platform/pages/platform_shop_manage_page.dart';
 import 'package:petnest_saas/features/shop/pages/shop_faq_page.dart';
 import 'package:petnest_saas/features/shop/pages/shop_announcement_page.dart';
+import 'package:petnest_saas/features/shop/widgets/modern_home/shop_modern_logo.dart';
 import 'package:petnest_saas/features/shop/pages/shop_environment_page.dart';
 import 'package:petnest_saas/features/shop/pages/shop_about_page.dart';
 import 'package:petnest_saas/features/shop/pages/shop_room_intro_page.dart';
@@ -1241,38 +1242,15 @@ class ModernAppDrawer extends StatelessWidget {
           const SizedBox(height: 12),
 
           Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              Container(
-                width: 62,
-                height: 62,
-                padding: const EdgeInsets.all(4),
-                decoration: BoxDecoration(
-                  color: _primaryColor.withOpacity(0.08),
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(12),
-                  child: logoUrl.isNotEmpty
-                      ? Image.network(
-                          logoUrl,
-                          fit: BoxFit.cover,
-                          errorBuilder: (context, error, stackTrace) {
-                            return Icon(
-                              Icons.pets_rounded,
-                              color: _primaryColor,
-                              size: 34,
-                            );
-                          },
-                        )
-                      : Icon(
-                          Icons.pets_rounded,
-                          color: _primaryColor,
-                          size: 34,
-                        ),
-                ),
+              ShopModernLogo(
+                imageUrl: logoUrl,
+                size: 50,
+                primaryColor: _primaryColor,
               ),
 
-              const SizedBox(width: 16),
+              const SizedBox(width: 12),
 
               Expanded(
                 child: Column(

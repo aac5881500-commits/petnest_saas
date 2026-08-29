@@ -327,9 +327,10 @@ class _ShopPublicPageState extends State<ShopPublicPage> {
                       children: [
                         /// 🔥 Banner（Stack版本，100%正常）
                         if (banners.isNotEmpty)
-                          SizedBox(
-                            height: 160,
+                          AspectRatio(
+                            aspectRatio: 16 / 9,
                             child: Stack(
+                              fit: StackFit.expand,
                               children: [
                                 /// 圖片滑動
                                 GestureDetector(

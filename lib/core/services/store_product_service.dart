@@ -66,7 +66,7 @@ class StoreProductService {
     return streamEnabledProducts(shopId).map((List<StoreProductModel> products) {
       return products
           .where((StoreProductModel item) => item.featured)
-          .take(8)
+          .take(6)
           .toList();
     });
   }

@@ -5,7 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/services/pet_service.dart';
 import 'package:petnest_saas/features/pet/pages/add_pet_page.dart';
 
-class BookingPetSection extends StatelessWidget {
+class BookingPetSection extends StatefulWidget {
   const BookingPetSection({
     super.key,
     required this.selectedPetIds,
@@ -18,29 +18,37 @@ class BookingPetSection extends StatelessWidget {
   final void Function(String petId, bool selected) onTogglePet;
 
   @override
+  State<BookingPetSection> createState() => _BookingPetSectionState();
+}
+
+class _BookingPetSectionState extends State<BookingPetSection> {
+  late final Stream<List<Map<String, dynamic>>> _petsStream;
+
+  @override
+  void initState() {
+    super.initState();
+    _petsStream = PetService.instance.streamMyPets();
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          '選擇入住寵物（已選 ${selectedPetIds.length} 隻）',
+          '選擇入住寵物（已選 ${widget.selectedPetIds.length} 隻）',
           style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
         ),
-
         const SizedBox(height: 8),
-
         StreamBuilder<List<Map<String, dynamic>>>(
-          stream: PetService.instance.streamMyPets(),
-          builder: (context, snapshot) {
-            final allPets = snapshot.data ?? [];
-            final cats = allPets.where((pet) {
-              final type = (pet['type'] ?? '').toString();
-              final species = (pet['species'] ?? '').toString();
-
-              return type == 'cat' || species == 'cat';
-            }).toList();
-
-            final isLimitReached = allPets.length >= 10;
+          stream: _petsStream,
+          builder: (
+            BuildContext context,
+            AsyncSnapshot<List<Map<String, dynamic>>> snapshot,
+          ) {
+            final List<Map<String, dynamic>> allPets =
+                snapshot.data ?? <Map<String, dynamic>>[];
+            final bool isLimitReached = allPets.length >= 10;
 
             return Align(
               alignment: Alignment.centerRight,
@@ -50,7 +58,9 @@ class BookingPetSection extends StatelessWidget {
                     : () async {
                         await Navigator.push(
                           context,
-                          MaterialPageRoute(builder: (_) => const AddPetPage()),
+                          MaterialPageRoute<void>(
+                            builder: (_) => const AddPetPage(),
+                          ),
                         );
                       },
                 child: Text(
@@ -61,34 +71,36 @@ class BookingPetSection extends StatelessWidget {
             );
           },
         ),
-
         const SizedBox(height: 8),
-
         StreamBuilder<List<Map<String, dynamic>>>(
-          stream: PetService.instance.streamMyPets(),
-          builder: (context, snapshot) {
+          stream: _petsStream,
+          builder: (
+            BuildContext context,
+            AsyncSnapshot<List<Map<String, dynamic>>> snapshot,
+          ) {
             if (!snapshot.hasData) {
               return const CircularProgressIndicator();
             }
 
-            final allPets = snapshot.data!;
-            final pets = allPets.where((pet) {
-              final type = (pet['type'] ?? '').toString();
-              final species = (pet['species'] ?? '').toString();
-
+            final List<Map<String, dynamic>> allPets = snapshot.data!;
+            final List<Map<String, dynamic>> pets = allPets.where((
+              Map<String, dynamic> pet,
+            ) {
+              final String type = (pet['type'] ?? '').toString();
+              final String species = (pet['species'] ?? '').toString();
               return type == 'cat' || species == 'cat';
             }).toList();
 
-            onPetsLoaded(pets);
+            widget.onPetsLoaded(pets);
             if (pets.isEmpty) {
               return const Text('尚未新增寵物');
             }
 
             return Wrap(
               spacing: 8,
-              children: pets.map((pet) {
+              children: pets.map((Map<String, dynamic> pet) {
                 final petId = pet['petId'];
-                final selected = selectedPetIds.contains(petId);
+                final bool selected = widget.selectedPetIds.contains(petId);
 
                 return FilterChip(
                   avatar: CircleAvatar(
@@ -121,8 +133,8 @@ class BookingPetSection extends StatelessWidget {
                     ],
                   ),
                   selected: selected,
-                  onSelected: (value) {
-                    onTogglePet(petId, value);
+                  onSelected: (bool value) {
+                    widget.onTogglePet(petId, value);
                   },
                 );
               }).toList(),

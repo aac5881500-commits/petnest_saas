@@ -12,16 +12,18 @@ class EnvironmentFeatureManager extends StatelessWidget {
     required this.onEdit,
     required this.onChangeIcon,
     required this.onChangeLayout,
-    required this.onUploadImage,
+    required this.onManageImage,
+    this.busy = false,
   });
 
   final List<Map<String, dynamic>> features;
   final VoidCallback onAdd;
-  final Function(int index) onDelete;
-  final Function(int index) onEdit;
-  final Function(int index) onChangeIcon;
-  final Function(int index) onChangeLayout;
-  final Function(int index) onUploadImage;
+  final Future<void> Function(int index) onDelete;
+  final Future<void> Function(int index) onEdit;
+  final Future<void> Function(int index) onChangeIcon;
+  final Future<void> Function(int index) onChangeLayout;
+  final Future<void> Function(int index) onManageImage;
+  final bool busy;
 
   IconData _featureIcon(String key) {
     switch (key) {
@@ -55,6 +57,23 @@ class EnvironmentFeatureManager extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        const Text(
+          '特色圖片建議使用 4:3 橫式照片，會顯示在卡片右側或左側。',
+          style: TextStyle(
+            fontSize: 12,
+            height: 1.45,
+            color: Color(0xFF8A6A45),
+          ),
+        ),
+        const Text(
+          '建議尺寸：1200 × 900。最低建議：900 × 675。單張最大 5 MB，支援 JPG、PNG、WEBP。',
+          style: TextStyle(
+            fontSize: 12,
+            height: 1.45,
+            color: Color(0xFF8A6A45),
+          ),
+        ),
+        const SizedBox(height: 12),
         if (features.isEmpty)
           Container(
             width: double.infinity,
@@ -73,72 +92,102 @@ class EnvironmentFeatureManager extends StatelessWidget {
             ),
           )
         else
-          ...features.asMap().entries.map((entry) {
-            final index = entry.key;
-            final item = entry.value;
+          ...features.asMap().entries.map((MapEntry<int, Map<String, dynamic>> entry) {
+            final int index = entry.key;
+            final Map<String, dynamic> item = entry.value;
+            final String imageUrl = (item['imageUrl'] ?? '').toString().trim();
 
             return InkWell(
-  onTap: () => onEdit(index),
-  borderRadius: BorderRadius.circular(14),
-  child: Container(
-              margin: const EdgeInsets.only(bottom: 10),
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: const Color(0xFFFFFCF7),
-                borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: const Color(0xFFF0E0CC)),
-              ),
-              child: Row(
-                children: [
-                  Icon(
-  _featureIcon(item['icon'] ?? ''),
-  color: const Color(0xFFB87535),
-),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Text(
-                      item['title'] ?? '未命名特色',
-                      style: const TextStyle(
-                        fontWeight: FontWeight.w800,
-                        color: Color(0xFF3A2A1A),
+              onTap: busy ? null : () => onEdit(index),
+              borderRadius: BorderRadius.circular(14),
+              child: Container(
+                margin: const EdgeInsets.only(bottom: 10),
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFFFCF7),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: const Color(0xFFF0E0CC)),
+                ),
+                child: Row(
+                  children: [
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(10),
+                      child: SizedBox(
+                        width: 56,
+                        height: 42,
+                        child: imageUrl.isEmpty
+                            ? const ColoredBox(
+                                color: Color(0xFFF0E0CC),
+                                child: Icon(
+                                  Icons.image_outlined,
+                                  size: 20,
+                                  color: Color(0xFFB87535),
+                                ),
+                              )
+                            : Image.network(
+                                imageUrl,
+                                fit: BoxFit.cover,
+                                errorBuilder:
+                                    (BuildContext context, Object error, StackTrace? stackTrace) {
+                                  return const ColoredBox(
+                                    color: Color(0xFFF0E0CC),
+                                    child: Icon(
+                                      Icons.broken_image_outlined,
+                                      size: 20,
+                                      color: Color(0xFFB87535),
+                                    ),
+                                  );
+                                },
+                              ),
                       ),
                     ),
-                  ),
-                  
-
-                  IconButton(
-  onPressed: () => onUploadImage(index),
-  icon: const Icon(Icons.image_rounded),
-),
-                  IconButton(
-  onPressed: () => onChangeIcon(index),
-  icon: const Icon(Icons.apps_rounded),
-),
-IconButton(
-  onPressed: () => onChangeLayout(index),
-  icon: Icon(
-    item['layout'] == 'imageLeft'
-        ? Icons.format_indent_decrease_rounded
-        : Icons.format_indent_increase_rounded,
-  ),
-),
-IconButton(
-  onPressed: () => onDelete(index),
-  icon: const Icon(Icons.delete_outline_rounded),
-),
-                ],
+                    const SizedBox(width: 10),
+                    Icon(
+                      _featureIcon(item['icon'] ?? ''),
+                      color: const Color(0xFFB87535),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        item['title'] ?? '未命名特色',
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w800,
+                          color: Color(0xFF3A2A1A),
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      onPressed: busy ? null : () => onManageImage(index),
+                      tooltip: '特色圖片',
+                      icon: const Icon(Icons.image_rounded),
+                    ),
+                    IconButton(
+                      onPressed: busy ? null : () => onChangeIcon(index),
+                      icon: const Icon(Icons.apps_rounded),
+                    ),
+                    IconButton(
+                      onPressed: busy ? null : () => onChangeLayout(index),
+                      icon: Icon(
+                        item['layout'] == 'imageLeft'
+                            ? Icons.format_indent_decrease_rounded
+                            : Icons.format_indent_increase_rounded,
+                      ),
+                    ),
+                    IconButton(
+                      onPressed: busy ? null : () => onDelete(index),
+                      icon: const Icon(Icons.delete_outline_rounded),
+                    ),
+                  ],
+                ),
               ),
-               ),
-          );
+            );
           }),
-
         const SizedBox(height: 12),
-
         SizedBox(
           width: double.infinity,
           height: 44,
           child: OutlinedButton.icon(
-            onPressed: onAdd,
+            onPressed: busy ? null : onAdd,
             icon: const Icon(Icons.add_rounded),
             label: const Text('新增環境特色'),
           ),

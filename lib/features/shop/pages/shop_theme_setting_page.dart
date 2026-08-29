@@ -9,6 +9,8 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:petnest_saas/core/models/home_text_style_model.dart';
 import 'package:petnest_saas/core/models/home_theme_model.dart';
+import 'package:petnest_saas/core/models/modern_banner_frame_setting.dart';
+import 'package:petnest_saas/core/models/modern_store_home_setting.dart';
 import 'package:petnest_saas/core/services/shop_service.dart';
 
 class ShopThemeSettingPage extends StatefulWidget {
@@ -35,6 +37,18 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage> {
 
   final TextEditingController _modernBannerButtonTextController =
       TextEditingController();
+  final TextEditingController _featuredStoreTitleController =
+      TextEditingController(text: ModernStoreHomeSetting.defaultFeaturedTitle);
+  final TextEditingController _storeBannerTitleController =
+      TextEditingController(text: ModernStoreHomeSetting.defaultBannerTitle);
+  final TextEditingController _storeBannerSubtitleController =
+      TextEditingController(text: ModernStoreHomeSetting.defaultBannerSubtitle);
+  final TextEditingController _storeBannerButtonTextController =
+      TextEditingController(
+        text: ModernStoreHomeSetting.defaultBannerButtonText,
+      );
+  bool _showFeaturedStoreProducts = true;
+  bool _showStoreBanner = true;
   String _selectedLayout = 'classic';
   String _selectedTheme = 'warmOrange';
   String _selectedBackground = 'warmWhite';
@@ -70,6 +84,8 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage> {
 
   int _modernBannerButtonColorValue = 0xFFFF7A1A;
   int _modernBannerButtonTextColorValue = 0xFFFFFFFF;
+  ModernBannerFrameSetting _modernBannerFrame = const ModernBannerFrameSetting();
+  String _modernBannerPreviewImageUrl = '';
 
   HomeTextStyleModel _modernBannerShopNameStyle = const HomeTextStyleModel(
     fontSize: 16,
@@ -125,6 +141,10 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage> {
     _modernBannerTitleController.dispose();
     _modernBannerSubtitleController.dispose();
     _modernBannerButtonTextController.dispose();
+    _featuredStoreTitleController.dispose();
+    _storeBannerTitleController.dispose();
+    _storeBannerSubtitleController.dispose();
+    _storeBannerButtonTextController.dispose();
     _floatingButtonLabelController.dispose();
     super.dispose();
   }
@@ -279,6 +299,8 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage> {
         _modernBannerButtonTextColorValue = rawButtonTextColor is num
             ? rawButtonTextColor.toInt()
             : 0xFFFFFFFF;
+        _modernBannerFrame = ModernBannerFrameSetting.fromMap(modernAppearance);
+        _modernBannerPreviewImageUrl = _firstActiveBannerUrl(shopData);
         _showModernLeftHeaderIcon =
             modernAppearance['showLeftHeaderIcon'] != false;
 
@@ -299,6 +321,18 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage> {
             alignment: 'left',
           ),
         );
+
+        final storeHomeSetting = ModernStoreHomeSetting.fromMap(
+          modernAppearance,
+        );
+        _showFeaturedStoreProducts = storeHomeSetting.showFeaturedProducts;
+        _featuredStoreTitleController.text = storeHomeSetting.featuredTitle;
+        _showStoreBanner = storeHomeSetting.showStoreBanner;
+        _storeBannerTitleController.text = storeHomeSetting.storeBannerTitle;
+        _storeBannerSubtitleController.text =
+            storeHomeSetting.storeBannerSubtitle;
+        _storeBannerButtonTextController.text =
+            storeHomeSetting.storeBannerButtonText;
       }
     } catch (error) {
       if (!mounted) return;
@@ -364,6 +398,27 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage> {
         context,
       ).showSnackBar(SnackBar(content: Text('Logo 上傳失敗：$error')));
     }
+  }
+
+  String _firstActiveBannerUrl(Map<String, dynamic>? shopData) {
+    final Object? rawBanners = shopData?['banners'];
+    if (rawBanners is! List) {
+      return '';
+    }
+
+    for (final Object? item in rawBanners) {
+      if (item is! Map) {
+        continue;
+      }
+      if (item['isActive'] == false) {
+        continue;
+      }
+      final String imageUrl = (item['imageUrl'] ?? '').toString().trim();
+      if (imageUrl.isNotEmpty) {
+        return imageUrl;
+      }
+    }
+    return '';
   }
 
   void _storeSelectedLayoutSettings() {
@@ -438,6 +493,8 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage> {
 
                 'bannerButtonTextColor': _modernBannerButtonTextColorValue,
 
+                ..._modernBannerFrame.toMap(),
+
                 'themeColors': _modernTheme.toMap(),
 
                 'showLeftHeaderIcon': _showModernLeftHeaderIcon,
@@ -446,6 +503,15 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage> {
                 'leftHeaderIcon': _modernLeftHeaderIcon,
 
                 'rightHeaderIcon': _modernRightHeaderIcon,
+
+                'showFeaturedStoreProducts': _showFeaturedStoreProducts,
+                'featuredStoreTitle': _featuredStoreTitleController.text.trim(),
+                'showStoreBanner': _showStoreBanner,
+                'storeBannerTitle': _storeBannerTitleController.text.trim(),
+                'storeBannerSubtitle':
+                    _storeBannerSubtitleController.text.trim(),
+                'storeBannerButtonText':
+                    _storeBannerButtonTextController.text.trim(),
               },
             },
             'floatingContactButton': {
@@ -553,6 +619,18 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage> {
                   const SizedBox(height: 16),
 
                   _buildModernBannerTextSettings(),
+
+                  const SizedBox(height: 24),
+
+                  _buildSectionTitle(
+                    icon: Icons.storefront_outlined,
+                    title: '賣場首頁區塊',
+                    description: '只影響新版首頁，顏色沿用上方主題色，未開啟賣場模組時前台不會顯示',
+                  ),
+
+                  const SizedBox(height: 10),
+
+                  _buildModernStoreHomeSettings(),
 
                   const SizedBox(height: 24),
 
@@ -1237,6 +1315,105 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage> {
     );
   }
 
+  Widget _buildFrameChoiceChip({
+    required String label,
+    required bool selected,
+    required VoidCallback onSelected,
+  }) {
+    return ChoiceChip(
+      label: Text(label),
+      selected: selected,
+      onSelected: (bool value) {
+        if (value) {
+          onSelected();
+        }
+      },
+    );
+  }
+
+  Widget _buildModernBannerFramePreview() {
+    return LayoutBuilder(
+      builder: (BuildContext context, BoxConstraints constraints) {
+        final double height = _modernBannerFrame.heightForWidth(
+          constraints.maxWidth,
+        );
+
+        return ClipRRect(
+          borderRadius: BorderRadius.circular(14),
+          child: SizedBox(
+            width: double.infinity,
+            height: height,
+            child: Stack(
+              fit: StackFit.expand,
+              children: <Widget>[
+                ColoredBox(
+                  color: Colors.black,
+                  child: _modernBannerPreviewImageUrl.isEmpty
+                      ? Center(
+                          child: Text(
+                            '尚未設定活動海報',
+                            style: TextStyle(
+                              color: Colors.white.withValues(alpha: 0.8),
+                              fontSize: 12,
+                            ),
+                          ),
+                        )
+                      : Image.network(
+                          _modernBannerPreviewImageUrl,
+                          fit: _modernBannerFrame.boxFit,
+                          alignment: _modernBannerFrame.alignment,
+                          width: double.infinity,
+                          height: double.infinity,
+                          errorBuilder:
+                              (BuildContext context, Object error, StackTrace? stackTrace) {
+                            return const Center(
+                              child: Icon(
+                                Icons.broken_image_outlined,
+                                color: Colors.white70,
+                              ),
+                            );
+                          },
+                        ),
+                ),
+                const DecoratedBox(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.centerRight,
+                      end: Alignment.centerLeft,
+                      stops: <double>[0.2, 0.65, 1],
+                      colors: <Color>[
+                        Colors.transparent,
+                        Color(0x55000000),
+                        Color(0xD9000000),
+                      ],
+                    ),
+                  ),
+                ),
+                Positioned(
+                  left: 10,
+                  right: 10,
+                  bottom: 10,
+                  child: Text(
+                    _modernBannerTitleController.text.trim().isEmpty
+                        ? '封面預覽'
+                        : _modernBannerTitleController.text.trim(),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   Widget _buildModernBannerTextSettings() {
     const textColors = <int>[
       0xFFFFFFFF,
@@ -1266,6 +1443,199 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          const Text(
+            '封面高度與圖片顯示',
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+          ),
+          const SizedBox(height: 6),
+          const Text(
+            '建議使用橫式圖片，16:9 或接近比例效果最佳。',
+            style: TextStyle(fontSize: 12, color: Colors.black54),
+          ),
+          const Text(
+            '圖片主體若被裁切，可調整圖片位置，或改用「完整顯示」。',
+            style: TextStyle(fontSize: 12, color: Colors.black54),
+          ),
+          const SizedBox(height: 12),
+          _buildModernBannerFramePreview(),
+          const SizedBox(height: 14),
+          const Text(
+            '封面高度',
+            style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+          ),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: <Widget>[
+              _buildFrameChoiceChip(
+                label: '極簡',
+                selected:
+                    _modernBannerFrame.heightPreset ==
+                    ModernBannerFrameSetting.heightUltraCompact,
+                onSelected: () {
+                  setState(() {
+                    _modernBannerFrame = ModernBannerFrameSetting(
+                      heightPreset: ModernBannerFrameSetting.heightUltraCompact,
+                      imageFit: _modernBannerFrame.imageFit,
+                      imageAlignment: _modernBannerFrame.imageAlignment,
+                    );
+                  });
+                },
+              ),
+              _buildFrameChoiceChip(
+                label: '精簡',
+                selected:
+                    _modernBannerFrame.heightPreset ==
+                    ModernBannerFrameSetting.heightCompact,
+                onSelected: () {
+                  setState(() {
+                    _modernBannerFrame = ModernBannerFrameSetting(
+                      heightPreset: ModernBannerFrameSetting.heightCompact,
+                      imageFit: _modernBannerFrame.imageFit,
+                      imageAlignment: _modernBannerFrame.imageAlignment,
+                    );
+                  });
+                },
+              ),
+              _buildFrameChoiceChip(
+                label: '標準',
+                selected:
+                    _modernBannerFrame.heightPreset ==
+                    ModernBannerFrameSetting.heightStandard,
+                onSelected: () {
+                  setState(() {
+                    _modernBannerFrame = ModernBannerFrameSetting(
+                      heightPreset: ModernBannerFrameSetting.heightStandard,
+                      imageFit: _modernBannerFrame.imageFit,
+                      imageAlignment: _modernBannerFrame.imageAlignment,
+                    );
+                  });
+                },
+              ),
+              _buildFrameChoiceChip(
+                label: '大型',
+                selected:
+                    _modernBannerFrame.heightPreset ==
+                    ModernBannerFrameSetting.heightLarge,
+                onSelected: () {
+                  setState(() {
+                    _modernBannerFrame = ModernBannerFrameSetting(
+                      heightPreset: ModernBannerFrameSetting.heightLarge,
+                      imageFit: _modernBannerFrame.imageFit,
+                      imageAlignment: _modernBannerFrame.imageAlignment,
+                    );
+                  });
+                },
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          const Text(
+            '圖片顯示方式',
+            style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+          ),
+          RadioListTile<String>(
+            contentPadding: EdgeInsets.zero,
+            title: const Text('填滿封面'),
+            subtitle: const Text('圖片會填滿整個封面，邊緣可能略微裁切。'),
+            value: ModernBannerFrameSetting.fitFill,
+            groupValue: _modernBannerFrame.imageFit,
+            onChanged: (String? value) {
+              if (value == null) {
+                return;
+              }
+              setState(() {
+                _modernBannerFrame = ModernBannerFrameSetting(
+                  heightPreset: _modernBannerFrame.heightPreset,
+                  imageFit: value,
+                  imageAlignment: _modernBannerFrame.imageAlignment,
+                );
+              });
+            },
+          ),
+          RadioListTile<String>(
+            contentPadding: EdgeInsets.zero,
+            title: const Text('完整顯示'),
+            subtitle: const Text('完整保留圖片內容，不同比例的圖片可能出現留白。'),
+            value: ModernBannerFrameSetting.fitContain,
+            groupValue: _modernBannerFrame.imageFit,
+            onChanged: (String? value) {
+              if (value == null) {
+                return;
+              }
+              setState(() {
+                _modernBannerFrame = ModernBannerFrameSetting(
+                  heightPreset: _modernBannerFrame.heightPreset,
+                  imageFit: value,
+                  imageAlignment: _modernBannerFrame.imageAlignment,
+                );
+              });
+            },
+          ),
+          if (_modernBannerFrame.usesCoverFit) ...<Widget>[
+            const SizedBox(height: 8),
+            const Text(
+              '圖片位置',
+              style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+            ),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: <Widget>[
+                _buildFrameChoiceChip(
+                  label: '上方',
+                  selected:
+                      _modernBannerFrame.imageAlignment ==
+                      ModernBannerFrameSetting.alignTop,
+                  onSelected: () {
+                    setState(() {
+                      _modernBannerFrame = ModernBannerFrameSetting(
+                        heightPreset: _modernBannerFrame.heightPreset,
+                        imageFit: _modernBannerFrame.imageFit,
+                        imageAlignment: ModernBannerFrameSetting.alignTop,
+                      );
+                    });
+                  },
+                ),
+                _buildFrameChoiceChip(
+                  label: '置中',
+                  selected:
+                      _modernBannerFrame.imageAlignment ==
+                      ModernBannerFrameSetting.alignCenter,
+                  onSelected: () {
+                    setState(() {
+                      _modernBannerFrame = ModernBannerFrameSetting(
+                        heightPreset: _modernBannerFrame.heightPreset,
+                        imageFit: _modernBannerFrame.imageFit,
+                        imageAlignment: ModernBannerFrameSetting.alignCenter,
+                      );
+                    });
+                  },
+                ),
+                _buildFrameChoiceChip(
+                  label: '下方',
+                  selected:
+                      _modernBannerFrame.imageAlignment ==
+                      ModernBannerFrameSetting.alignBottom,
+                  onSelected: () {
+                    setState(() {
+                      _modernBannerFrame = ModernBannerFrameSetting(
+                        heightPreset: _modernBannerFrame.heightPreset,
+                        imageFit: _modernBannerFrame.imageFit,
+                        imageAlignment: ModernBannerFrameSetting.alignBottom,
+                      );
+                    });
+                  },
+                ),
+              ],
+            ),
+          ],
+          const SizedBox(height: 18),
+          const Divider(),
+          const SizedBox(height: 8),
+
           const Text(
             'Banner 文字與按鈕',
             style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
@@ -1529,6 +1899,96 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage> {
                 },
               );
             }).toList(),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildModernStoreHomeSettings() {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.grey.shade300),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: <Widget>[
+          SwitchListTile(
+            contentPadding: EdgeInsets.zero,
+            title: const Text('顯示精選商品'),
+            subtitle: const Text('關閉後，新版首頁不顯示精選商品區'),
+            value: _showFeaturedStoreProducts,
+            onChanged: (bool value) {
+              setState(() {
+                _showFeaturedStoreProducts = value;
+              });
+            },
+          ),
+          TextField(
+            controller: _featuredStoreTitleController,
+            maxLength: 12,
+            enabled: _showFeaturedStoreProducts,
+            decoration: const InputDecoration(
+              labelText: '精選商品標題',
+              helperText: '預設：精選商品',
+              border: OutlineInputBorder(),
+            ),
+          ),
+          const Divider(height: 28),
+          SwitchListTile(
+            contentPadding: EdgeInsets.zero,
+            title: const Text('顯示賣場入口 Banner'),
+            subtitle: const Text('關閉後，新版首頁不顯示寵物賣場入口'),
+            value: _showStoreBanner,
+            onChanged: (bool value) {
+              setState(() {
+                _showStoreBanner = value;
+              });
+            },
+          ),
+          TextField(
+            controller: _storeBannerTitleController,
+            maxLength: 12,
+            enabled: _showStoreBanner,
+            decoration: const InputDecoration(
+              labelText: '賣場 Banner 標題',
+              helperText: '預設：寵物賣場',
+              border: OutlineInputBorder(),
+            ),
+          ),
+          const SizedBox(height: 10),
+          TextField(
+            controller: _storeBannerSubtitleController,
+            maxLength: 24,
+            enabled: _showStoreBanner,
+            decoration: const InputDecoration(
+              labelText: '賣場 Banner 副標',
+              helperText: '預設：精選毛孩好物，把喜歡帶回家',
+              border: OutlineInputBorder(),
+            ),
+          ),
+          const SizedBox(height: 10),
+          TextField(
+            controller: _storeBannerButtonTextController,
+            maxLength: 10,
+            enabled: _showStoreBanner,
+            decoration: const InputDecoration(
+              labelText: '賣場 Banner 按鈕文字',
+              helperText: '預設：逛逛賣場',
+              border: OutlineInputBorder(),
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            '目前使用店家封面或首頁 Banner 圖。獨立賣場 Banner 圖稍後可上傳。',
+            style: TextStyle(
+              fontSize: 12,
+              height: 1.4,
+              color: Colors.grey.shade700,
+            ),
           ),
         ],
       ),

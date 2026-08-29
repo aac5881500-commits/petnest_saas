@@ -5,6 +5,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/models/home_theme_model.dart';
+import 'package:petnest_saas/core/models/environment_image_frame_setting.dart';
 import 'package:petnest_saas/features/shop/widgets/environment/environment_hero_section.dart';
 import 'package:petnest_saas/features/shop/widgets/environment/environment_feature_card.dart';
 import 'package:petnest_saas/features/shop/widgets/environment/environment_care_item.dart';
@@ -71,6 +72,10 @@ class ShopEnvironmentPage extends StatelessWidget {
     this.heroSubtitle,
     this.bannerTitle,
     this.bottomNote,
+    this.heroImageUrl,
+    this.bannerImageUrl,
+    this.heroFrame,
+    this.bannerFrame,
   });
 
   final String shopId;
@@ -79,6 +84,10 @@ class ShopEnvironmentPage extends StatelessWidget {
   final String? heroSubtitle;
   final String? bannerTitle;
   final String? bottomNote;
+  final String? heroImageUrl;
+  final String? bannerImageUrl;
+  final EnvironmentImageFrameSetting? heroFrame;
+  final EnvironmentImageFrameSetting? bannerFrame;
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -126,7 +135,7 @@ class ShopEnvironmentPage extends StatelessWidget {
           final displayFeatures = List<Map<String, dynamic>>.from(
             environmentIntro?['features'] ?? _environmentFeatures,
           );
-          final displayGalleryImages = List<String>.from(
+          final displayGalleryImages = _readGalleryImageUrls(
             environmentIntro?['galleryImages'] ?? _environmentGalleryImages,
           );
           final selectedFacilityKeys = List<String>.from(
@@ -146,19 +155,37 @@ class ShopEnvironmentPage extends StatelessWidget {
               .toList();
 
           final displayHeroImageUrl =
-              environmentIntro?['heroImageUrl'] ?? _environmentHeroImageUrl;
+              heroImageUrl ??
+              (environmentIntro?['heroImageUrl'] ?? _environmentHeroImageUrl)
+                  .toString();
 
           final displayBannerImageUrl =
-              environmentIntro?['bannerImageUrl'] ?? _environmentBannerImageUrl;
+              bannerImageUrl ??
+              (environmentIntro?['bannerImageUrl'] ?? _environmentBannerImageUrl)
+                  .toString();
+
+          final EnvironmentImageFrameSetting resolvedHeroFrame =
+              heroFrame ??
+              EnvironmentImageFrameSetting.heroFromMap(environmentIntro);
+          final EnvironmentImageFrameSetting resolvedBannerFrame =
+              bannerFrame ??
+              EnvironmentImageFrameSetting.bannerFromMap(environmentIntro);
 
           return ListView(
             padding: const EdgeInsets.only(bottom: 28),
             children: [
-              EnvironmentHeroSection(
-                imageUrl: displayHeroImageUrl,
-                title: displayHeroTitle,
-                subtitle: displayHeroSubtitle,
-                imageBuilder: _networkImage,
+              LayoutBuilder(
+                builder: (BuildContext context, BoxConstraints constraints) {
+                  return EnvironmentHeroSection(
+                    imageUrl: displayHeroImageUrl,
+                    title: displayHeroTitle,
+                    subtitle: displayHeroSubtitle,
+                    height: resolvedHeroFrame.heightForWidth(constraints.maxWidth),
+                    imageFit: resolvedHeroFrame.boxFit,
+                    imageAlignment: resolvedHeroFrame.alignment,
+                    imageBuilder: _networkImage,
+                  );
+                },
               ),
 
               const SizedBox(height: 22),
@@ -183,10 +210,17 @@ class ShopEnvironmentPage extends StatelessWidget {
 
               const SizedBox(height: 24),
 
-              EnvironmentImageBanner(
-                imageUrl: displayBannerImageUrl,
-                title: displayBannerTitle,
-                imageBuilder: _networkImage,
+              LayoutBuilder(
+                builder: (BuildContext context, BoxConstraints constraints) {
+                  return EnvironmentImageBanner(
+                    imageUrl: displayBannerImageUrl,
+                    title: displayBannerTitle,
+                    height: resolvedBannerFrame.heightForWidth(constraints.maxWidth),
+                    imageFit: resolvedBannerFrame.boxFit,
+                    imageAlignment: resolvedBannerFrame.alignment,
+                    imageBuilder: _networkImage,
+                  );
+                },
               ),
 
               const SizedBox(height: 24),
@@ -270,6 +304,27 @@ class ShopEnvironmentPage extends StatelessWidget {
         return Icons.pets_rounded;
     }
   }
+}
+
+List<String> _readGalleryImageUrls(dynamic raw) {
+  if (raw is! List) {
+    return <String>[];
+  }
+
+  final List<String> urls = <String>[];
+  for (final Object? item in raw) {
+    if (item is String && item.trim().isNotEmpty) {
+      urls.add(item.trim());
+      continue;
+    }
+    if (item is Map) {
+      final String imageUrl = (item['imageUrl'] ?? '').toString().trim();
+      if (imageUrl.isNotEmpty) {
+        urls.add(imageUrl);
+      }
+    }
+  }
+  return urls;
 }
 
 Widget _networkImage({

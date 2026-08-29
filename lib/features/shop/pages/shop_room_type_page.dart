@@ -60,6 +60,7 @@ class _ShopRoomTypePageState extends State<ShopRoomTypePage> {
   final _heightController = TextEditingController(); // 高
 
   bool _loading = false;
+  bool _createFormExpanded = false;
 
   /// 🧩 房型特色小卡
   final List<Map<String, dynamic>> _featureOptions = [
@@ -244,6 +245,7 @@ class _ShopRoomTypePageState extends State<ShopRoomTypePage> {
       _widthController.clear();
       _depthController.clear();
       _heightController.clear();
+      _createFormExpanded = false;
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(const SnackBar(content: Text('新增成功')));
@@ -575,35 +577,548 @@ class _ShopRoomTypePageState extends State<ShopRoomTypePage> {
     );
   }
 
-  /// 🔥 顯示用小卡
-  Widget _buildFeatureTags(List features) {
-    return Wrap(
-      spacing: 6,
-      runSpacing: 6,
-      children: features.map<Widget>((key) {
-        final item = _featureOptions.firstWhere(
-          (e) => e['key'] == key,
-          orElse: () => {},
+  Widget _compactChip(String label, {bool muted = false}) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: muted ? Colors.grey.shade100 : Colors.grey.shade200,
+        borderRadius: BorderRadius.circular(12),
+        border: muted ? Border.all(color: Colors.grey.shade300) : null,
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          fontSize: 12,
+          fontWeight: FontWeight.w600,
+          color: muted ? Colors.grey.shade700 : Colors.grey.shade900,
+        ),
+      ),
+    );
+  }
+
+  String _formatThousands(int value) {
+    final String digits = value.toString();
+    final StringBuffer buffer = StringBuffer();
+    for (int i = 0; i < digits.length; i++) {
+      final int fromEnd = digits.length - i;
+      if (i > 0 && fromEnd % 3 == 0) {
+        buffer.write(',');
+      }
+      buffer.write(digits[i]);
+    }
+    return buffer.toString();
+  }
+
+  String? _roomTypeSizeText(Map<String, dynamic> item) {
+    int? parseDim(Object? raw) {
+      if (raw == null) {
+        return null;
+      }
+      if (raw is num) {
+        return raw.toInt();
+      }
+      return int.tryParse(raw.toString().trim());
+    }
+
+    final List<String> parts = <String>[];
+    final int? width = parseDim(item['width']);
+    final int? depth = parseDim(item['depth']);
+    final int? height = parseDim(item['height']);
+
+    if (width != null && width > 0) {
+      parts.add('$width');
+    }
+    if (depth != null && depth > 0) {
+      parts.add('$depth');
+    }
+    if (height != null && height > 0) {
+      parts.add('$height');
+    }
+
+    if (parts.isEmpty) {
+      return null;
+    }
+    return '${parts.join(' × ')} cm';
+  }
+
+  List<String> _roomTypeFeatureLabels(Map<String, dynamic> item) {
+    final List<String> labels = <String>[];
+    final Object? rawFeatures = item['features'];
+    if (rawFeatures is List) {
+      for (final Object? key in rawFeatures) {
+        final Map<String, dynamic> option = _featureOptions.firstWhere(
+          (Map<String, dynamic> e) => e['key'] == key,
+          orElse: () => <String, dynamic>{},
         );
+        final String name = (option['name'] ?? '').toString().trim();
+        if (name.isNotEmpty) {
+          labels.add(name);
+        }
+      }
+    }
 
-        if (item.isEmpty) return const SizedBox();
+    final Object? rawCustom = item['customFeatures'];
+    if (rawCustom is List) {
+      for (final Object? raw in rawCustom) {
+        if (raw is! Map) {
+          continue;
+        }
+        final String name = (raw['name'] ?? '').toString().trim();
+        final String icon = (raw['icon'] ?? '').toString().trim();
+        if (name.isEmpty) {
+          continue;
+        }
+        labels.add(icon.isEmpty ? name : '$icon $name');
+      }
+    }
 
-        return Container(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-          decoration: BoxDecoration(
-            color: Colors.grey.shade200,
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(item['icon'], size: 14),
-              const SizedBox(width: 4),
-              Text(item['name'], style: const TextStyle(fontSize: 11)),
+    return labels;
+  }
+
+  Widget _buildCreateRoomTypeForm() {
+    return Card(
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(14),
+        side: BorderSide(color: Colors.grey.shade200),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          children: [
+            TextField(
+              controller: _nameController,
+              decoration: const InputDecoration(labelText: '房型名稱'),
+            ),
+
+            TextField(
+              controller: _priceController,
+              keyboardType: TextInputType.number,
+              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+              decoration: const InputDecoration(labelText: '每晚價格'),
+            ),
+
+            TextField(
+              controller: _capacityController,
+              keyboardType: TextInputType.number,
+              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+              decoration: const InputDecoration(labelText: '房間最高可住'),
+            ),
+            const SizedBox(height: 12),
+
+            TextField(
+              controller: _extraPriceController,
+              keyboardType: TextInputType.number,
+              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+              decoration: const InputDecoration(
+                labelText: '每隻加購價格（例：200）',
+              ),
+            ),
+
+            TextField(
+              controller: _totalRoomsController,
+              keyboardType: TextInputType.number,
+              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+              decoration: const InputDecoration(labelText: '房間數量'),
+            ),
+            TextField(
+              controller: _descriptionController,
+              maxLines: 3,
+              decoration: const InputDecoration(labelText: '房型介紹'),
+            ),
+            const SizedBox(height: 12),
+
+            /// 🔥 房間尺寸（寬 深 高）
+            Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _widthController,
+                    keyboardType: TextInputType.number,
+                    inputFormatters: [
+                      FilteringTextInputFormatter.digitsOnly,
+                    ],
+                    decoration: const InputDecoration(
+                      labelText: '寬(cm)',
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: TextField(
+                    controller: _depthController,
+                    keyboardType: TextInputType.number,
+                    inputFormatters: [
+                      FilteringTextInputFormatter.digitsOnly,
+                    ],
+                    decoration: const InputDecoration(
+                      labelText: '深(cm)',
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: TextField(
+                    controller: _heightController,
+                    keyboardType: TextInputType.number,
+                    inputFormatters: [
+                      FilteringTextInputFormatter.digitsOnly,
+                    ],
+                    decoration: const InputDecoration(
+                      labelText: '高(cm)',
+                    ),
+                  ),
+                ),
+              ],
+            ),
+
+            const SizedBox(height: 12),
+
+            /// 🔥 小卡選擇
+            _buildFeatureSelector(),
+
+            _buildCustomFeatureSelector(),
+
+            const SizedBox(height: 12),
+
+            ElevatedButton(
+              onPressed: _loading ? null : _createRoomType,
+              child: const Text('新增房型'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildRoomTypeSummaryCard(Map<String, dynamic> item) {
+    final String name = (item['name'] ?? '').toString().trim();
+    final int price = (item['price'] as num?)?.toInt() ?? 0;
+    final int capacity = (item['capacity'] as num?)?.toInt() ?? 0;
+    final int totalRooms = (item['totalRooms'] as num?)?.toInt() ?? 0;
+    final int extraPrice = (item['extraPrice'] as num?)?.toInt() ?? 0;
+    final String? sizeText = _roomTypeSizeText(item);
+    final List<String> featureLabels = _roomTypeFeatureLabels(item);
+    const int visibleFeatureCount = 5;
+
+    return Card(
+      margin: const EdgeInsets.only(bottom: 10),
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(14),
+        side: BorderSide(color: Colors.grey.shade200),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(14, 10, 4, 12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            Row(
+              children: <Widget>[
+                Expanded(
+                  child: Text(
+                    name.isEmpty ? '未命名房型' : name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+                PopupMenuButton<String>(
+                  tooltip: '更多',
+                  padding: EdgeInsets.zero,
+                  icon: const Icon(Icons.more_vert, size: 20),
+                  onSelected: (String value) {
+                    if (value == 'images') {
+                      _showRoomTypeImageManager(item);
+                    } else if (value == 'edit') {
+                      _showEditDialog(item);
+                    } else if (value == 'delete') {
+                      _deleteRoomTypeWithRooms(item);
+                    }
+                  },
+                  itemBuilder: (BuildContext context) {
+                    return <PopupMenuEntry<String>>[
+                      const PopupMenuItem<String>(
+                        value: 'images',
+                        child: Text('圖片管理'),
+                      ),
+                      const PopupMenuItem<String>(
+                        value: 'edit',
+                        child: Text('編輯房型'),
+                      ),
+                      const PopupMenuItem<String>(
+                        value: 'delete',
+                        child: Text(
+                          '刪除房型',
+                          style: TextStyle(color: Colors.red),
+                        ),
+                      ),
+                    ];
+                  },
+                ),
+              ],
+            ),
+            Text(
+              'NT\$${_formatThousands(price)} / 晚',
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w700,
+                color: Colors.grey.shade800,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 6,
+              runSpacing: 6,
+              children: <Widget>[
+                _compactChip('$capacity 隻入住'),
+                _compactChip('$totalRooms 間房'),
+                _compactChip(
+                  extraPrice > 0 ? '加寵 +\$$extraPrice' : '不加收寵物費',
+                ),
+              ],
+            ),
+            if (sizeText != null) ...<Widget>[
+              const SizedBox(height: 8),
+              Text(
+                '尺寸  $sizeText',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: Colors.grey.shade600,
+                ),
+              ),
             ],
+            if (featureLabels.isNotEmpty) ...<Widget>[
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 6,
+                runSpacing: 6,
+                children: <Widget>[
+                  ...featureLabels
+                      .take(visibleFeatureCount)
+                      .map(_compactChip),
+                  if (featureLabels.length > visibleFeatureCount)
+                    _compactChip(
+                      '+${featureLabels.length - visibleFeatureCount}',
+                      muted: true,
+                    ),
+                ],
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _uploadRoomTypeImage(Map<String, dynamic> item) async {
+    final List<String> images = List<String>.from(item['images'] ?? []);
+
+    /// 🔥 限制最多5張
+    if (images.length >= 5) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('最多只能上傳5張圖片')),
+      );
+      return;
+    }
+
+    final ImagePicker picker = ImagePicker();
+    final XFile? file = await picker.pickImage(
+      source: ImageSource.gallery,
+    );
+    if (file == null) {
+      return;
+    }
+
+    final Uint8List bytes = await file.readAsBytes();
+
+    if (bytes.length > 5 * 1024 * 1024) {
+      if (!mounted) {
+        return;
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('圖片不可超過 5MB')),
+      );
+      return;
+    }
+
+    final String mimeType = file.mimeType ?? '';
+
+    String contentType = mimeType;
+
+    if (contentType.isEmpty) {
+      final String fileName = file.name.toLowerCase();
+
+      if (fileName.endsWith('.png')) {
+        contentType = 'image/png';
+      } else if (fileName.endsWith('.webp')) {
+        contentType = 'image/webp';
+      } else if (fileName.endsWith('.jpg') ||
+          fileName.endsWith('.jpeg')) {
+        contentType = 'image/jpeg';
+      }
+    }
+
+    if (contentType != 'image/jpeg' &&
+        contentType != 'image/png' &&
+        contentType != 'image/webp') {
+      if (!mounted) {
+        return;
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('目前只支援 JPG、PNG、WEBP'),
+        ),
+      );
+      return;
+    }
+
+    await ShopService.instance.uploadRoomTypeImage(
+      shopId: widget.shopId,
+      roomTypeId: item['id'],
+      bytes: bytes,
+      contentType: contentType,
+    );
+
+    if (!mounted) {
+      return;
+    }
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('圖片上傳成功')),
+    );
+  }
+
+  Future<void> _showRoomTypeImageManager(Map<String, dynamic> item) async {
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (BuildContext sheetContext) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+            child: StreamBuilder<List<Map<String, dynamic>>>(
+              stream: ShopService.instance.streamRoomTypes(widget.shopId),
+              builder: (BuildContext context, AsyncSnapshot<List<Map<String, dynamic>>> snapshot) {
+                Map<String, dynamic> current = item;
+                for (final Map<String, dynamic> roomType in snapshot.data ?? <Map<String, dynamic>>[]) {
+                  if (roomType['id'] == item['id']) {
+                    current = roomType;
+                    break;
+                  }
+                }
+
+                final List<dynamic> images = List<dynamic>.from(
+                  current['images'] ?? [],
+                );
+
+                return Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: <Widget>[
+                    Text(
+                      '圖片管理',
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    if (images.isEmpty)
+                      Text(
+                        '尚未上傳圖片',
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: Colors.grey.shade600,
+                        ),
+                      )
+                    else
+                      SizedBox(
+                        height: 72,
+                        child: ListView.builder(
+                          scrollDirection: Axis.horizontal,
+                          itemCount: images.length,
+                          itemBuilder: (BuildContext context, int i) {
+                            final String url = images[i].toString();
+
+                            return Stack(
+                              children: [
+                                Container(
+                                  margin: const EdgeInsets.only(
+                                    right: 8,
+                                  ),
+                                  child: SizedBox(
+                                    width: 60,
+                                    height: 60,
+                                    child: Image.network(
+                                      url,
+                                      width: 60,
+                                      height: 60,
+                                      fit: BoxFit.cover,
+                                      errorBuilder:
+                                          (context, error, stackTrace) {
+                                        return Container(
+                                          width: 60,
+                                          height: 60,
+                                          color:
+                                              Colors.grey.shade300,
+                                          alignment:
+                                              Alignment.center,
+                                          child: const Icon(
+                                            Icons.broken_image,
+                                            size: 22,
+                                          ),
+                                        );
+                                      },
+                                    ),
+                                  ),
+                                ),
+                                Positioned(
+                                  right: 0,
+                                  top: 0,
+                                  child: GestureDetector(
+                                    onTap: () async {
+                                      await ShopService.instance
+                                          .deleteRoomTypeImage(
+                                        shopId: widget.shopId,
+                                        roomTypeId: current['id'],
+                                        imageUrl: url,
+                                      );
+                                    },
+                                    child: Container(
+                                      color: Colors.black54,
+                                      child: const Icon(
+                                        Icons.close,
+                                        color: Colors.white,
+                                        size: 16,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            );
+                          },
+                        ),
+                      ),
+                    const SizedBox(height: 12),
+                    FilledButton.icon(
+                      onPressed: () => _uploadRoomTypeImage(current),
+                      icon: const Icon(Icons.add_photo_alternate),
+                      label: const Text('上傳圖片'),
+                    ),
+                  ],
+                );
+              },
+            ),
           ),
         );
-      }).toList(),
+      },
     );
   }
 
@@ -678,132 +1193,66 @@ class _ShopRoomTypePageState extends State<ShopRoomTypePage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: const Color(0xFFF6F8FB),
       appBar: AppBar(title: const Text('房型管理')),
       body: Padding(
         padding: const EdgeInsets.all(16),
         child: ListView(
           children: [
-            const Text(
-              '提醒：刪除房型時，房間管理內該房型底下的房間也會一併刪除。\n'
-              '若只是暫時不開放某間房，請到房間管理關閉房間，或到房務管理關閉單日。',
-              style: TextStyle(
-                color: Colors.red,
-                fontSize: 14,
-                fontWeight: FontWeight.w700,
-                height: 1.5,
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+              decoration: BoxDecoration(
+                color: Colors.red.shade50,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.red.shade200),
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(
+                    Icons.warning_amber_rounded,
+                    size: 18,
+                    color: Colors.red.shade800,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      '提醒：刪除房型時，房間管理內該房型底下的房間也會一併刪除。\n'
+                      '若只是暫時不開放某間房，請到房間管理關閉房間，或到房務管理關閉單日。',
+                      style: TextStyle(
+                        color: Colors.red.shade800,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                        height: 1.5,
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
 
             const SizedBox(height: 12),
 
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(12),
-                child: Column(
-                  children: [
-                    TextField(
-                      controller: _nameController,
-                      decoration: const InputDecoration(labelText: '房型名稱'),
-                    ),
-
-                    TextField(
-                      controller: _priceController,
-                      keyboardType: TextInputType.number,
-                      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                      decoration: const InputDecoration(labelText: '每晚價格'),
-                    ),
-
-                    TextField(
-                      controller: _capacityController,
-                      keyboardType: TextInputType.number,
-                      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                      decoration: const InputDecoration(labelText: '房間最高可住'),
-                    ),
-                    const SizedBox(height: 12),
-
-                    TextField(
-                      controller: _extraPriceController,
-                      keyboardType: TextInputType.number,
-                      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                      decoration: const InputDecoration(
-                        labelText: '每隻加購價格（例：200）',
-                      ),
-                    ),
-
-                    TextField(
-                      controller: _totalRoomsController,
-                      keyboardType: TextInputType.number,
-                      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                      decoration: const InputDecoration(labelText: '房間數量'),
-                    ),
-                    TextField(
-                      controller: _descriptionController,
-                      maxLines: 3,
-                      decoration: const InputDecoration(labelText: '房型介紹'),
-                    ),
-                    const SizedBox(height: 12),
-
-                    /// 🔥 房間尺寸（寬 深 高）
-                    Row(
-                      children: [
-                        Expanded(
-                          child: TextField(
-                            controller: _widthController,
-                            keyboardType: TextInputType.number,
-                            inputFormatters: [
-                              FilteringTextInputFormatter.digitsOnly,
-                            ],
-                            decoration: const InputDecoration(
-                              labelText: '寬(cm)',
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: TextField(
-                            controller: _depthController,
-                            keyboardType: TextInputType.number,
-                            inputFormatters: [
-                              FilteringTextInputFormatter.digitsOnly,
-                            ],
-                            decoration: const InputDecoration(
-                              labelText: '深(cm)',
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: TextField(
-                            controller: _heightController,
-                            keyboardType: TextInputType.number,
-                            inputFormatters: [
-                              FilteringTextInputFormatter.digitsOnly,
-                            ],
-                            decoration: const InputDecoration(
-                              labelText: '高(cm)',
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-
-                    const SizedBox(height: 12),
-
-                    /// 🔥 小卡選擇
-                    _buildFeatureSelector(),
-
-                    _buildCustomFeatureSelector(),
-
-                    const SizedBox(height: 12),
-
-                    ElevatedButton(
-                      onPressed: _loading ? null : _createRoomType,
-                      child: const Text('新增房型'),
-                    ),
-                  ],
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: () {
+                  setState(() {
+                    _createFormExpanded = !_createFormExpanded;
+                  });
+                },
+                icon: Icon(
+                  _createFormExpanded ? Icons.expand_less : Icons.add,
                 ),
+                label: Text(_createFormExpanded ? '收合新增房型' : '新增房型'),
               ),
             ),
+
+            if (_createFormExpanded) ...[
+              const SizedBox(height: 10),
+              _buildCreateRoomTypeForm(),
+            ],
 
             const SizedBox(height: 16),
 
@@ -813,254 +1262,14 @@ class _ShopRoomTypePageState extends State<ShopRoomTypePage> {
                 final list = snapshot.data ?? [];
 
                 if (list.isEmpty) {
-                  return const Center(child: Text('尚未建立房型'));
+                  return const Padding(
+                    padding: EdgeInsets.only(top: 12),
+                    child: Center(child: Text('尚未建立房型')),
+                  );
                 }
 
-                return ListView.builder(
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  itemCount: list.length,
-                  itemBuilder: (context, index) {
-                    final item = list[index];
-                    final features = item['features'] ?? [];
-
-                    final customFeatures = List<Map<String, dynamic>>.from(
-                      item['customFeatures'] ?? [],
-                    );
-                    return Card(
-                      child: ListTile(
-                        title: Text(item['name'] ?? ''),
-
-                        subtitle: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              '每晚 \$${item['price']}',
-                              style: const TextStyle(
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-
-                            Text(
-                              '可住 ${item['capacity']} 隻｜房間 ${item['totalRooms']} 間',
-                            ),
-
-                            if ((item['extraPrice'] ?? 0) > 0)
-                              Text(
-                                '每隻加購 +${item['extraPrice']}',
-                                style: const TextStyle(color: Colors.red),
-                              ),
-
-                            Text(
-                              '尺寸：${item['width']} x ${item['depth']} x ${item['height']} cm',
-                              style: const TextStyle(color: Colors.grey),
-                            ),
-
-                            const SizedBox(height: 6),
-
-                            /// 🔥 小卡
-                            _buildFeatureTags(features),
-                            if (customFeatures.isNotEmpty) ...[
-                              const SizedBox(height: 6),
-                              Wrap(
-                                spacing: 6,
-                                runSpacing: 6,
-                                children: customFeatures.map((item) {
-                                  return Container(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 8,
-                                      vertical: 4,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color: Colors.grey.shade200,
-                                      borderRadius: BorderRadius.circular(12),
-                                    ),
-                                    child: Text(
-                                      '${item['icon']} ${item['name']}',
-                                      style: const TextStyle(fontSize: 11),
-                                    ),
-                                  );
-                                }).toList(),
-                              ),
-                            ],
-
-                            /// 🔥 圖片
-                            if ((item['images'] ?? []).isNotEmpty)
-                              SizedBox(
-                                height: 60,
-                                child: ListView.builder(
-                                  scrollDirection: Axis.horizontal,
-                                  itemCount: item['images'].length,
-                                  itemBuilder: (context, i) {
-                                    final url = item['images'][i];
-
-                                    return Stack(
-                                      children: [
-                                        Container(
-                                          margin: const EdgeInsets.only(
-                                            right: 8,
-                                          ),
-                                          child: SizedBox(
-                                            width: 60,
-                                            height: 60,
-                                            child: Image.network(
-                                              url,
-                                              width: 60,
-                                              height: 60,
-                                              fit: BoxFit.cover,
-                                              errorBuilder:
-                                                  (context, error, stackTrace) {
-                                                    return Container(
-                                                      width: 60,
-                                                      height: 60,
-                                                      color:
-                                                          Colors.grey.shade300,
-                                                      alignment:
-                                                          Alignment.center,
-                                                      child: const Icon(
-                                                        Icons.broken_image,
-                                                        size: 22,
-                                                      ),
-                                                    );
-                                                  },
-                                            ),
-                                          ),
-                                        ),
-
-                                        Positioned(
-                                          right: 0,
-                                          top: 0,
-                                          child: GestureDetector(
-                                            onTap: () async {
-                                              await ShopService.instance
-                                                  .deleteRoomTypeImage(
-                                                    shopId: widget.shopId,
-                                                    roomTypeId: item['id'],
-                                                    imageUrl: url,
-                                                  );
-                                            },
-                                            child: Container(
-                                              color: Colors.black54,
-                                              child: const Icon(
-                                                Icons.close,
-                                                color: Colors.white,
-                                                size: 16,
-                                              ),
-                                            ),
-                                          ),
-                                        ),
-                                      ],
-                                    );
-                                  },
-                                ),
-                              ),
-                          ],
-                        ),
-
-                        trailing: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            /// 📷 上傳圖片（新）
-                            IconButton(
-                              icon: const Icon(
-                                Icons.add_photo_alternate,
-                                color: Colors.blue,
-                              ),
-                              onPressed: () async {
-                                final images = List<String>.from(
-                                  item['images'] ?? [],
-                                );
-
-                                /// 🔥 限制最多5張
-                                if (images.length >= 5) {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(content: Text('最多只能上傳5張圖片')),
-                                  );
-                                  return;
-                                }
-
-                                final picker = ImagePicker();
-                                final file = await picker.pickImage(
-                                  source: ImageSource.gallery,
-                                );
-                                if (file == null) return;
-
-                                final bytes = await file.readAsBytes();
-
-                                if (bytes.length > 5 * 1024 * 1024) {
-                                  if (!mounted) return;
-
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(content: Text('圖片不可超過 5MB')),
-                                  );
-                                  return;
-                                }
-
-                                final mimeType = file.mimeType ?? '';
-
-                                String contentType = mimeType;
-
-                                if (contentType.isEmpty) {
-                                  final fileName = file.name.toLowerCase();
-
-                                  if (fileName.endsWith('.png')) {
-                                    contentType = 'image/png';
-                                  } else if (fileName.endsWith('.webp')) {
-                                    contentType = 'image/webp';
-                                  } else if (fileName.endsWith('.jpg') ||
-                                      fileName.endsWith('.jpeg')) {
-                                    contentType = 'image/jpeg';
-                                  }
-                                }
-
-                                if (contentType != 'image/jpeg' &&
-                                    contentType != 'image/png' &&
-                                    contentType != 'image/webp') {
-                                  if (!mounted) return;
-
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(
-                                      content: Text('目前只支援 JPG、PNG、WEBP'),
-                                    ),
-                                  );
-                                  return;
-                                }
-
-                                await ShopService.instance.uploadRoomTypeImage(
-                                  shopId: widget.shopId,
-                                  roomTypeId: item['id'],
-                                  bytes: bytes,
-                                  contentType: contentType,
-                                );
-
-                                if (!mounted) return;
-
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(content: Text('圖片上傳成功')),
-                                );
-                              },
-                            ),
-
-                            /// ✏️ 編輯
-                            IconButton(
-                              icon: const Icon(Icons.edit),
-                              onPressed: () {
-                                _showEditDialog(item);
-                              },
-                            ),
-
-                            /// 🗑️ 刪除
-                            IconButton(
-                              icon: const Icon(Icons.delete, color: Colors.red),
-                              onPressed: () async {
-                                await _deleteRoomTypeWithRooms(item);
-                              },
-                            ),
-                          ],
-                        ),
-                      ),
-                    );
-                  },
+                return Column(
+                  children: list.map(_buildRoomTypeSummaryCard).toList(),
                 );
               },
             ),

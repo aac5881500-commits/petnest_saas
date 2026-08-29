@@ -4,6 +4,7 @@
 // 並依照 Classic / Modern 首頁套用共用主題
 
 import 'package:flutter/material.dart';
+import 'package:petnest_saas/core/models/about_cover_frame_setting.dart';
 import 'package:petnest_saas/core/models/home_theme_model.dart';
 import 'package:petnest_saas/features/shop/widgets/about/about_hero_section.dart';
 import 'package:petnest_saas/features/shop/widgets/about/about_message_section.dart';
@@ -11,10 +12,24 @@ import 'package:petnest_saas/features/shop/widgets/about/about_philosophy_sectio
 import 'package:petnest_saas/features/shop/widgets/about/about_shop_info_section.dart';
 
 class ShopAboutPage extends StatelessWidget {
-  const ShopAboutPage({super.key, required this.shopId, required this.theme});
+  const ShopAboutPage({
+    super.key,
+    required this.shopId,
+    required this.theme,
+    this.previewTitle,
+    this.previewDescription,
+    this.previewMessage,
+    this.previewImageUrl,
+    this.previewFrame,
+  });
 
   final String shopId;
   final HomeThemeModel theme;
+  final String? previewTitle;
+  final String? previewDescription;
+  final String? previewMessage;
+  final String? previewImageUrl;
+  final AboutCoverFrameSetting? previewFrame;
 
   @override
   Widget build(BuildContext context) {
@@ -33,20 +48,24 @@ class ShopAboutPage extends StatelessWidget {
       ),
       body: ListView(
         children: [
-          AboutHeroSection(shopId: shopId, theme: theme),
-
+          AboutHeroSection(
+            shopId: shopId,
+            theme: theme,
+            previewTitle: previewTitle,
+            previewDescription: previewDescription,
+            previewImageUrl: previewImageUrl,
+            previewFrame: previewFrame,
+          ),
           const SizedBox(height: 28),
-
           AboutPhilosophySection(theme: theme),
-
           const SizedBox(height: 30),
-
-          AboutMessageSection(shopId: shopId, theme: theme),
-
+          AboutMessageSection(
+            shopId: shopId,
+            theme: theme,
+            previewMessage: previewMessage,
+          ),
           const SizedBox(height: 30),
-
           AboutShopInfoSection(shopId: shopId, theme: theme),
-
           const SizedBox(height: 40),
         ],
       ),

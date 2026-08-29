@@ -5,6 +5,7 @@
 import 'package:flutter/material.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:petnest_saas/features/shop/widgets/modern_home/shop_modern_logo.dart';
 
 class ModernShopFooter extends StatelessWidget {
   const ModernShopFooter({
@@ -258,7 +259,11 @@ class ModernShopFooter extends StatelessWidget {
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    _buildShopLogo(logoUrl),
+                    ShopModernLogo(
+                      imageUrl: logoUrl,
+                      size: 62,
+                      primaryColor: primaryColor,
+                    ),
 
                     const SizedBox(width: 10),
 
@@ -394,34 +399,6 @@ class ModernShopFooter extends StatelessWidget {
           ),
         );
       },
-    );
-  }
-
-  Widget _buildShopLogo(String logoUrl) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(14),
-      child: Container(
-        width: 80,
-        height: 80,
-        color: primaryColor.withOpacity(0.12),
-        child: logoUrl.isEmpty
-            ? Center(
-                child: Icon(Icons.pets_rounded, size: 28, color: primaryColor),
-              )
-            : Image.network(
-                logoUrl,
-                fit: BoxFit.contain,
-                errorBuilder: (_, __, ___) {
-                  return Center(
-                    child: Icon(
-                      Icons.pets_rounded,
-                      size: 28,
-                      color: primaryColor,
-                    ),
-                  );
-                },
-              ),
-      ),
     );
   }
 

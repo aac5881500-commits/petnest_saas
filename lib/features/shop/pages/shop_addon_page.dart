@@ -78,11 +78,12 @@ class _ShopAddonPageState extends State<ShopAddonPage>
   /// 🕐 每日分時段服務
   /// 依「寵物 × 日期 × 時段」計次收費
   List<Map<String, dynamic>> dailyTimedServices = [];
+  String? _editingAddonKey;
 
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 4, vsync: this);
+    _tabController = TabController(length: 5, vsync: this);
     _loadData();
   }
 
@@ -638,6 +639,34 @@ class _ShopAddonPageState extends State<ShopAddonPage>
     );
   }
 
+  Widget _billingHint(String text) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Icon(
+            Icons.warning_amber_rounded,
+            size: 16,
+            color: Colors.red.shade800,
+          ),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Text(
+              text,
+              style: TextStyle(
+                fontSize: 13,
+                height: 1.4,
+                fontWeight: FontWeight.w700,
+                color: Colors.red.shade800,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _timeAddonTab() {
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
@@ -690,21 +719,40 @@ class _ShopAddonPageState extends State<ShopAddonPage>
         ),
         const SizedBox(height: 16),
         _title('時間加購方案'),
-        _hint('此區為單選，顧客只能選擇一個時間方案。'),
+        _billingHint('此區為單選，顧客只能選擇一個時間方案。'),
         ...timeOptions.map((Map<String, dynamic> item) {
-          return _buildServiceItem(
-            item,
-            () => setState(() => timeOptions.remove(item)),
+          final String itemKey = _addonItemKey('time', item);
+          if (_editingAddonKey == itemKey) {
+            return _wrapInlineEditor(
+              _buildServiceItem(item, () => _confirmDeleteAddonItem(
+                title: '刪除時間方案',
+                item: item,
+                list: timeOptions,
+              )),
+            );
+          }
+
+          return _buildAddonSummaryCard(
+            item: item,
+            titleFallback: '未命名時間方案',
+            onEdit: () => _openAddonEditor(itemKey),
+            onDelete: () => _confirmDeleteAddonItem(
+              title: '刪除時間方案',
+              item: item,
+              list: timeOptions,
+            ),
           );
         }),
         OutlinedButton.icon(
           onPressed: () {
+            final Map<String, dynamic> item = <String, dynamic>{
+              'label': '',
+              'price': 0,
+              'desc': '',
+            };
             setState(() {
-              timeOptions.add(<String, dynamic>{
-                'label': '',
-                'price': 0,
-                'desc': '',
-              });
+              timeOptions.add(item);
+              _editingAddonKey = _addonItemKey('time', item);
             });
           },
           icon: const Icon(Icons.add),
@@ -714,52 +762,467 @@ class _ShopAddonPageState extends State<ShopAddonPage>
     );
   }
 
-  Widget _customServiceTab() {
+  Widget _valueServiceTab() {
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
       children: <Widget>[
         _title('加值服務'),
-        _hint('此區為單次計算，不論幾隻寵物只收一次費用。'),
+        _billingHint('此區為單次計算，不論幾隻寵物只收一次費用。'),
         ...valueServices.map((Map<String, dynamic> item) {
-          return _buildServiceItem(
-            item,
-            () => setState(() => valueServices.remove(item)),
-            showInventoryBinding: true,
+          final String itemKey = _addonItemKey('value', item);
+          if (_editingAddonKey == itemKey) {
+            return _wrapInlineEditor(
+              _buildServiceItem(
+                item,
+                () => _confirmDeleteAddonItem(
+                  title: '刪除加值服務',
+                  item: item,
+                  list: valueServices,
+                ),
+                showInventoryBinding: true,
+              ),
+            );
+          }
+
+          return _buildAddonSummaryCard(
+            item: item,
+            showInventory: true,
+            onEdit: () => _openAddonEditor(itemKey),
+            onDelete: () => _confirmDeleteAddonItem(
+              title: '刪除加值服務',
+              item: item,
+              list: valueServices,
+            ),
           );
         }),
         OutlinedButton.icon(
           onPressed: () {
+            final Map<String, dynamic> item = <String, dynamic>{
+              'id': _createServiceId('value'),
+              'name': '',
+              'price': 0,
+              'desc': '',
+            };
             setState(() {
-              valueServices.add(<String, dynamic>{
-                'id': _createServiceId('value'),
-                'name': '',
-                'price': 0,
-                'desc': '',
-              });
+              valueServices.add(item);
+              _editingAddonKey = _addonItemKey('value', item);
             });
           },
           icon: const Icon(Icons.add),
           label: const Text('新增加值服務'),
         ),
-        const SizedBox(height: 24),
+      ],
+    );
+  }
+
+  String _addonItemKey(String prefix, Map<String, dynamic> item) {
+    final String id = (item['id'] ?? '').toString().trim();
+    if (id.isNotEmpty) {
+      return '$prefix:$id';
+    }
+    return '$prefix:${identityHashCode(item)}';
+  }
+
+  String _addonDisplayName(Map<String, dynamic> item) {
+    final String name = (item['name'] ?? '').toString().trim();
+    if (name.isNotEmpty) {
+      return name;
+    }
+    return (item['label'] ?? '').toString().trim();
+  }
+
+  void _openAddonEditor(String itemKey) {
+    setState(() {
+      _editingAddonKey = itemKey;
+    });
+  }
+
+  Widget _wrapInlineEditor(Widget child) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: <Widget>[
+        child,
+        Align(
+          alignment: Alignment.centerRight,
+          child: TextButton(
+            onPressed: () {
+              setState(() {
+                _editingAddonKey = null;
+              });
+            },
+            child: const Text('完成編輯'),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Future<void> _confirmDeleteAddonItem({
+    required String title,
+    required Map<String, dynamic> item,
+    required List<Map<String, dynamic>> list,
+  }) async {
+    final bool? confirmed = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext dialogContext) {
+        return AlertDialog(
+          title: Text(title),
+          content: const Text('確定要刪除嗎？尚未儲存前，仍可離開頁面放棄變更。'),
+          actions: <Widget>[
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: const Text('取消'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, true),
+              style: TextButton.styleFrom(foregroundColor: Colors.red),
+              child: const Text('刪除'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirmed != true) {
+      return;
+    }
+
+    setState(() {
+      _editingAddonKey = null;
+      list.remove(item);
+    });
+  }
+
+  int _addonBindingCount(Map<String, dynamic> item) {
+    final Object? raw = item['inventoryBindings'];
+    if (raw is! List) {
+      return 0;
+    }
+
+    return raw.where((Object? binding) {
+      if (binding is! Map) {
+        return false;
+      }
+      return (binding['inventoryItemId'] ?? '').toString().trim().isNotEmpty;
+    }).length;
+  }
+
+  String _addonInventoryLabel(Map<String, dynamic> item) {
+    if (item['useInventory'] != true) {
+      return '不使用庫存';
+    }
+
+    final int count = _addonBindingCount(item);
+    if (count <= 0) {
+      return '已開啟庫存連動・尚未綁定';
+    }
+    return '已綁定 $count 項庫存';
+  }
+
+  Widget _buildAddonSummaryCard({
+    required Map<String, dynamic> item,
+    required VoidCallback onEdit,
+    required VoidCallback onDelete,
+    String titleFallback = '未命名服務',
+    String priceSuffix = '',
+    bool showInventory = false,
+    Widget? extra,
+  }) {
+    final String name = _addonDisplayName(item);
+    final String desc = (item['desc'] ?? '').toString().trim();
+    final int price = (item['price'] as num?)?.toInt() ?? 0;
+
+    return Card(
+      margin: const EdgeInsets.only(bottom: 10),
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(14),
+        side: BorderSide(color: Colors.grey.shade200),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: <Widget>[
+          InkWell(
+            borderRadius: BorderRadius.vertical(
+              top: const Radius.circular(14),
+              bottom: Radius.circular(showInventory ? 0 : 14),
+            ),
+            onTap: onEdit,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(14, 10, 4, 8),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: <Widget>[
+                        Row(
+                          children: <Widget>[
+                            Expanded(
+                              child: Text(
+                                name.isEmpty ? titleFallback : name,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              '\$$price$priceSuffix',
+                              style: const TextStyle(
+                                fontSize: 15,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                          ],
+                        ),
+                        if (desc.isNotEmpty) ...<Widget>[
+                          const SizedBox(height: 4),
+                          Text(
+                            desc,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 12,
+                              height: 1.35,
+                              color: Colors.grey.shade700,
+                            ),
+                          ),
+                        ],
+                        if (extra != null) ...<Widget>[
+                          const SizedBox(height: 8),
+                          extra,
+                        ],
+                      ],
+                    ),
+                  ),
+                  PopupMenuButton<String>(
+                    tooltip: '更多',
+                    padding: EdgeInsets.zero,
+                    icon: const Icon(Icons.more_vert, size: 20),
+                    onSelected: (String value) {
+                      if (value == 'edit') {
+                        onEdit();
+                      } else if (value == 'delete') {
+                        onDelete();
+                      }
+                    },
+                    itemBuilder: (BuildContext context) {
+                      return const <PopupMenuEntry<String>>[
+                        PopupMenuItem<String>(
+                          value: 'edit',
+                          child: Text('編輯'),
+                        ),
+                        PopupMenuItem<String>(
+                          value: 'delete',
+                          child: Text('刪除'),
+                        ),
+                      ];
+                    },
+                  ),
+                ],
+              ),
+            ),
+          ),
+          if (showInventory)
+            InkWell(
+              onTap: () {
+                showAddonInventoryBindingSheet(
+                  context: context,
+                  shopId: widget.shopId,
+                  service: item,
+                  onChanged: () {
+                    setState(() {});
+                  },
+                );
+              },
+              borderRadius: const BorderRadius.vertical(
+                bottom: Radius.circular(14),
+              ),
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.fromLTRB(12, 8, 10, 10),
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade50,
+                  borderRadius: const BorderRadius.vertical(
+                    bottom: Radius.circular(14),
+                  ),
+                ),
+                child: Row(
+                  children: <Widget>[
+                    Icon(
+                      Icons.inventory_2_outlined,
+                      size: 16,
+                      color: Colors.grey.shade700,
+                    ),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        _addonInventoryLabel(item),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.grey.shade800,
+                        ),
+                      ),
+                    ),
+                    Icon(
+                      Icons.chevron_right_rounded,
+                      size: 18,
+                      color: Colors.grey.shade500,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDailyTimedSummaryCard(
+    Map<String, dynamic> item,
+    String itemKey,
+  ) {
+    final List<String> slotLabels = _dailyTimedSlotLabels(item);
+    const int visibleSlotCount = 4;
+    final bool allowMultiple = item['allowMultiplePetsPerSlot'] ?? true;
+
+    return _buildAddonSummaryCard(
+      item: item,
+      priceSuffix: ' / 次',
+      showInventory: true,
+      onEdit: () => _openAddonEditor(itemKey),
+      onDelete: () => _confirmDeleteAddonItem(
+        title: '刪除每日分時段服務',
+        item: item,
+        list: dailyTimedServices,
+      ),
+      extra: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          if (slotLabels.isEmpty)
+            Text(
+              '尚未設定時段',
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+                color: Colors.orange.shade800,
+              ),
+            )
+          else
+            Wrap(
+              spacing: 6,
+              runSpacing: 6,
+              children: <Widget>[
+                ...slotLabels.take(visibleSlotCount).map(_buildTimeSlotChip),
+                if (slotLabels.length > visibleSlotCount)
+                  _buildTimeSlotChip(
+                    '+${slotLabels.length - visibleSlotCount}',
+                    muted: true,
+                  ),
+              ],
+            ),
+          const SizedBox(height: 6),
+          Text(
+            allowMultiple ? '多寵物：可同時選擇' : '多寵物：不可同時選擇',
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: Colors.grey.shade800,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  List<String> _dailyTimedSlotLabels(Map<String, dynamic> item) {
+    final Object? raw = item['timeSlots'];
+    if (raw is! List) {
+      return const <String>[];
+    }
+
+    return raw
+        .map((Object? slot) {
+          if (slot is Map) {
+            return (slot['label'] ?? '').toString().trim();
+          }
+          return slot.toString().trim();
+        })
+        .where((String label) => label.isNotEmpty)
+        .toList();
+  }
+
+  Widget _buildTimeSlotChip(String label, {bool muted = false}) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: muted ? Colors.grey.shade100 : Colors.white,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.grey.shade300),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          fontSize: 12,
+          fontWeight: FontWeight.w700,
+          color: muted ? Colors.grey.shade700 : Colors.grey.shade900,
+        ),
+      ),
+    );
+  }
+
+  Widget _customServiceTab() {
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+      children: <Widget>[
         _title('客製化服務'),
-        _hint('此區依每隻寵物計算，前台可選擇套用單隻或全部寵物。'),
+        _billingHint('此區依每隻寵物計算，前台可選擇套用單隻或全部寵物。'),
         ...customServices.map((Map<String, dynamic> item) {
-          return _buildServiceItem(
-            item,
-            () => setState(() => customServices.remove(item)),
-            showInventoryBinding: true,
+          final String itemKey = _addonItemKey('custom', item);
+          if (_editingAddonKey == itemKey) {
+            return _wrapInlineEditor(
+              _buildServiceItem(
+                item,
+                () => _confirmDeleteAddonItem(
+                  title: '刪除客製服務',
+                  item: item,
+                  list: customServices,
+                ),
+                showInventoryBinding: true,
+              ),
+            );
+          }
+
+          return _buildAddonSummaryCard(
+            item: item,
+            showInventory: true,
+            onEdit: () => _openAddonEditor(itemKey),
+            onDelete: () => _confirmDeleteAddonItem(
+              title: '刪除客製服務',
+              item: item,
+              list: customServices,
+            ),
           );
         }),
         OutlinedButton.icon(
           onPressed: () {
+            final Map<String, dynamic> item = <String, dynamic>{
+              'id': _createServiceId('custom'),
+              'name': '',
+              'price': 0,
+              'desc': '',
+            };
             setState(() {
-              customServices.add(<String, dynamic>{
-                'id': _createServiceId('custom'),
-                'name': '',
-                'price': 0,
-                'desc': '',
-              });
+              customServices.add(item);
+              _editingAddonKey = _addonItemKey('custom', item);
             });
           },
           icon: const Icon(Icons.add),
@@ -774,25 +1237,38 @@ class _ShopAddonPageState extends State<ShopAddonPage>
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
       children: <Widget>[
         _title('每日分時段服務'),
-        _hint('此區依寵物、住宿日期、選擇時段分別計費。例如餵食每次 50 元，顧客可替不同寵物選擇每天早、中、晚的服務時段。'),
+        _billingHint('此區依寵物、住宿日期、選擇時段分別計費。'),
+        _hint('例如餵食每次 50 元，顧客可替不同寵物選擇每天早、中、晚的服務時段。'),
         ...dailyTimedServices.map((Map<String, dynamic> item) {
-          return _buildDailyTimedServiceItem(item, () {
-            setState(() {
-              dailyTimedServices.remove(item);
-            });
-          });
+          final String itemKey = _addonItemKey('daily', item);
+          if (_editingAddonKey == itemKey) {
+            return _wrapInlineEditor(
+              _buildDailyTimedServiceItem(
+                item,
+                () => _confirmDeleteAddonItem(
+                  title: '刪除每日分時段服務',
+                  item: item,
+                  list: dailyTimedServices,
+                ),
+              ),
+            );
+          }
+
+          return _buildDailyTimedSummaryCard(item, itemKey);
         }),
         OutlinedButton.icon(
           onPressed: () {
+            final Map<String, dynamic> item = <String, dynamic>{
+              'id': _createServiceId('daily_timed'),
+              'name': '',
+              'price': 0,
+              'desc': '',
+              'allowMultiplePetsPerSlot': true,
+              'timeSlots': <Map<String, dynamic>>[],
+            };
             setState(() {
-              dailyTimedServices.add(<String, dynamic>{
-                'id': _createServiceId('daily_timed'),
-                'name': '',
-                'price': 0,
-                'desc': '',
-                'allowMultiplePetsPerSlot': true,
-                'timeSlots': <Map<String, dynamic>>[],
-              });
+              dailyTimedServices.add(item);
+              _editingAddonKey = _addonItemKey('daily', item);
             });
           },
           icon: const Icon(Icons.add),
@@ -857,6 +1333,7 @@ class _ShopAddonPageState extends State<ShopAddonPage>
           unselectedLabelStyle: const TextStyle(fontSize: 13),
           tabs: const <Widget>[
             Tab(text: '時間加購'),
+            Tab(text: '加值服務'),
             Tab(text: '客製服務'),
             Tab(text: '每日分時段'),
             Tab(text: '庫存設定'),
@@ -870,6 +1347,7 @@ class _ShopAddonPageState extends State<ShopAddonPage>
               controller: _tabController,
               children: <Widget>[
                 _timeAddonTab(),
+                _valueServiceTab(),
                 _customServiceTab(),
                 _dailyTimedTab(),
                 _inventoryGuideTab(),

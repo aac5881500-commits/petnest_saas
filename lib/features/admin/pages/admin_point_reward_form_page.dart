@@ -7,13 +7,17 @@ import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:petnest_saas/core/constants/inventory_constants.dart';
 import 'package:petnest_saas/core/models/coupon_template_model.dart';
 import 'package:petnest_saas/core/models/member_coupon_model.dart';
 import 'package:petnest_saas/core/models/point_reward_model.dart';
 import 'package:petnest_saas/core/models/inventory_item_model.dart';
+import 'package:petnest_saas/core/services/inventory_service.dart';
 import 'package:petnest_saas/core/services/point_reward_service.dart';
 import 'package:petnest_saas/core/services/point_reward_image_service.dart';
 import 'package:petnest_saas/features/shop/pages/inventory/shop_inventory_item_picker_page.dart';
+import 'package:petnest_saas/features/shop/widgets/inventory/inventory_item_cover.dart';
+import 'package:petnest_saas/features/shop/widgets/inventory/inventory_status_chip.dart';
 import 'admin_coupon_template_picker_page.dart';
 
 class AdminPointRewardFormPage extends StatefulWidget {
@@ -56,6 +60,9 @@ class _AdminPointRewardFormPageState extends State<AdminPointRewardFormPage> {
   String _inventoryItemId = '';
   String _inventoryItemName = '';
   String _inventoryUnit = '';
+  InventoryItemModel? _selectedInventoryItem;
+  String _importedInventoryImageUrl = '';
+  bool _didPrefillFromInventory = false;
   late final TextEditingController _inventoryQuantityController;
   XFile? _selectedProductImage;
   bool _removeExistingProductImage = false;
@@ -107,6 +114,7 @@ class _AdminPointRewardFormPageState extends State<AdminPointRewardFormPage> {
     _inventoryItemId = reward?.inventoryItemId ?? '';
     _inventoryItemName = reward?.inventoryItemName ?? '';
     _inventoryUnit = reward?.inventoryUnit ?? '';
+    _didPrefillFromInventory = _inventoryItemId.trim().isNotEmpty;
     _inventoryQuantityController = TextEditingController(
       text: reward == null
           ? '1'
@@ -215,6 +223,71 @@ class _AdminPointRewardFormPageState extends State<AdminPointRewardFormPage> {
     setState(() {
       _selectedProductImage = null;
       _removeExistingProductImage = true;
+      _importedInventoryImageUrl = '';
+    });
+  }
+
+  String _networkPreviewImageUrl() {
+    if (_removeExistingProductImage) {
+      return '';
+    }
+
+    final String importedImageUrl = _importedInventoryImageUrl.trim();
+    if (importedImageUrl.isNotEmpty) {
+      return importedImageUrl;
+    }
+
+    return (widget.reward?.imageUrl ?? '').trim();
+  }
+
+  String _inventoryUnitLabel([String? unit]) {
+    final String normalized = (unit ?? _inventoryUnit).trim();
+    return normalized.isEmpty ? '個' : normalized;
+  }
+
+  Future<void> _selectCentralInventoryItem() async {
+    if (_saving) {
+      return;
+    }
+
+    final InventoryItemModel? selected = await Navigator.of(context)
+        .push<InventoryItemModel>(
+          MaterialPageRoute<InventoryItemModel>(
+            builder: (BuildContext context) {
+              return ShopInventoryItemPickerPage(
+                shopId: widget.shopId,
+                selectedItemId: _inventoryItemId,
+              );
+            },
+          ),
+        );
+
+    if (selected == null || !mounted) {
+      return;
+    }
+
+    final bool shouldPrefill = !_didPrefillFromInventory;
+
+    setState(() {
+      _useCentralInventory = true;
+      _inventoryItemId = selected.id;
+      _inventoryItemName = selected.name;
+      _inventoryUnit = selected.unit;
+      _selectedInventoryItem = selected;
+
+      if (!shouldPrefill) {
+        return;
+      }
+
+      _didPrefillFromInventory = true;
+      _nameController.text = selected.name;
+      _descriptionController.text = selected.description;
+
+      final String inventoryImageUrl = selected.imageUrl.trim();
+      if (inventoryImageUrl.isNotEmpty && _selectedProductImage == null) {
+        _importedInventoryImageUrl = inventoryImageUrl;
+        _removeExistingProductImage = false;
+      }
     });
   }
 
@@ -322,9 +395,14 @@ class _AdminPointRewardFormPageState extends State<AdminPointRewardFormPage> {
     try {
       if (_isEditing) {
         final String oldImageUrl = currentReward!.imageUrl.trim();
-        String finalImageUrl = isPhysicalProduct && !_removeExistingProductImage
-            ? oldImageUrl
-            : '';
+        String finalImageUrl = '';
+
+        if (isPhysicalProduct && !_removeExistingProductImage) {
+          final String importedImageUrl = _importedInventoryImageUrl.trim();
+          finalImageUrl = importedImageUrl.isNotEmpty
+              ? importedImageUrl
+              : oldImageUrl;
+        }
 
         if (isPhysicalProduct && _selectedProductImage != null) {
           uploadedImageUrl = await PointRewardImageService.instance.uploadImage(
@@ -394,6 +472,13 @@ class _AdminPointRewardFormPageState extends State<AdminPointRewardFormPage> {
           );
         }
       } else {
+        final String importedImageUrl =
+            isPhysicalProduct &&
+                _selectedProductImage == null &&
+                !_removeExistingProductImage
+            ? _importedInventoryImageUrl.trim()
+            : '';
+
         createdRewardId = await PointRewardService.instance.createReward(
           shopId: widget.shopId,
           name: _nameController.text.trim(),
@@ -401,7 +486,7 @@ class _AdminPointRewardFormPageState extends State<AdminPointRewardFormPage> {
           pointsCost: pointsCost,
           fulfillmentType: _fulfillmentType,
           couponTemplateId: isCouponReward ? _selectedTemplateId : '',
-          imageUrl: '',
+          imageUrl: importedImageUrl,
           stockQuantity: isPhysicalProduct ? stockQuantity : 0,
           useCentralInventory:
               isPhysicalProduct && _useCentralInventory,
@@ -457,6 +542,21 @@ class _AdminPointRewardFormPageState extends State<AdminPointRewardFormPage> {
             couponTemplateId: isCouponReward ? _selectedTemplateId : '',
             imageUrl: uploadedImageUrl,
             stockQuantity: stockQuantity,
+            useCentralInventory:
+                isPhysicalProduct && _useCentralInventory,
+            inventoryItemId: isPhysicalProduct && _useCentralInventory
+                ? _inventoryItemId
+                : '',
+            inventoryItemName: isPhysicalProduct && _useCentralInventory
+                ? _inventoryItemName
+                : '',
+            inventoryUnit: isPhysicalProduct && _useCentralInventory
+                ? _inventoryUnit
+                : '',
+            inventoryQuantityPerExchange:
+                isPhysicalProduct && _useCentralInventory
+                ? inventoryQuantity
+                : 1,
             fulfillmentNote: _fulfillmentNoteController.text.trim(),
             requiresStaffVerification: _requiresStaffVerification,
             couponType: couponType,
@@ -686,9 +786,7 @@ class _AdminPointRewardFormPageState extends State<AdminPointRewardFormPage> {
   Widget _buildProductImagePicker() {
     final XFile? selectedImage = _selectedProductImage;
 
-    final String existingImageUrl = _removeExistingProductImage
-        ? ''
-        : (widget.reward?.imageUrl ?? '').trim();
+    final String existingImageUrl = _networkPreviewImageUrl();
 
     final bool hasSelectedImage = selectedImage != null;
     final bool hasExistingImage = existingImageUrl.isNotEmpty;
@@ -821,8 +919,8 @@ class _AdminPointRewardFormPageState extends State<AdminPointRewardFormPage> {
         const SizedBox(height: 16),
         RadioListTile<bool>(
           contentPadding: EdgeInsets.zero,
-          title: const Text('使用原本獨立商品庫存'),
-          subtitle: const Text('沿用 stockQuantity / exchangedCount，不連中央庫存'),
+          title: const Text('自行管理兌換數量'),
+          subtitle: const Text('由此兌換商品自行設定可兌換數量，不會連動中央庫存。'),
           value: false,
           groupValue: _useCentralInventory,
           onChanged: (bool? value) {
@@ -834,7 +932,7 @@ class _AdminPointRewardFormPageState extends State<AdminPointRewardFormPage> {
         RadioListTile<bool>(
           contentPadding: EdgeInsets.zero,
           title: const Text('使用中央庫存品項'),
-          subtitle: const Text('兌換成功立即扣除中央庫存，完成交付時不會再扣'),
+          subtitle: const Text('連動中央庫存，兌換成功時會自動扣除指定庫存品項。'),
           value: true,
           groupValue: _useCentralInventory,
           onChanged: (bool? value) {
@@ -844,76 +942,34 @@ class _AdminPointRewardFormPageState extends State<AdminPointRewardFormPage> {
           },
         ),
         if (_useCentralInventory) ...<Widget>[
-          ListTile(
-            contentPadding: EdgeInsets.zero,
-            title: Text(
-              _inventoryItemName.isEmpty ? '選擇中央庫存品項' : _inventoryItemName,
+          _buildCentralInventorySelector(),
+        ] else ...<Widget>[
+          TextFormField(
+            controller: _stockQuantityController,
+            keyboardType: TextInputType.number,
+            decoration: const InputDecoration(
+              labelText: '可兌換數量',
+              helperText: '輸入 0 代表不限兌換數量。',
+              suffixText: '份',
+              border: OutlineInputBorder(),
             ),
-            subtitle: Text(
-              _inventoryItemId.isEmpty ? '尚未選擇' : '單位：$_inventoryUnit',
-            ),
-            trailing: const Icon(Icons.chevron_right),
-            onTap: () async {
-              final InventoryItemModel? selected = await Navigator.of(context)
-                  .push<InventoryItemModel>(
-                MaterialPageRoute<InventoryItemModel>(
-                  builder: (BuildContext context) {
-                    return ShopInventoryItemPickerPage(
-                      shopId: widget.shopId,
-                      selectedItemId: _inventoryItemId,
-                    );
-                  },
-                ),
-              );
-
-              if (selected == null) {
-                return;
+            validator: (String? value) {
+              if (_fulfillmentType !=
+                      PointRewardFulfillmentType.physicalProduct ||
+                  _useCentralInventory) {
+                return null;
               }
 
-              setState(() {
-                _inventoryItemId = selected.id;
-                _inventoryItemName = selected.name;
-                _inventoryUnit = selected.unit;
-              });
+              final int? stock = int.tryParse((value ?? '').trim());
+
+              if (stock == null || stock < 0) {
+                return '請輸入 0 或大於 0 的整數';
+              }
+
+              return null;
             },
           ),
-          TextFormField(
-            controller: _inventoryQuantityController,
-            keyboardType: const TextInputType.numberWithOptions(decimal: true),
-            decoration: InputDecoration(
-              labelText: '每次兌換扣除數量',
-              suffixText: _inventoryUnit,
-              border: const OutlineInputBorder(),
-            ),
-          ),
-          const SizedBox(height: 12),
         ],
-        TextFormField(
-          controller: _stockQuantityController,
-          keyboardType: TextInputType.number,
-          decoration: InputDecoration(
-            labelText: '商品庫存',
-            helperText: _useCentralInventory
-                ? '選填。0 代表不另外限制兌換份數；實際庫存以中央庫存為準'
-                : '輸入 0 代表不限庫存',
-            suffixText: '份',
-            border: const OutlineInputBorder(),
-          ),
-          validator: (String? value) {
-            if (_fulfillmentType !=
-                PointRewardFulfillmentType.physicalProduct) {
-              return null;
-            }
-
-            final int? stock = int.tryParse((value ?? '').trim());
-
-            if (stock == null || stock < 0) {
-              return '請輸入 0 或大於 0 的整數';
-            }
-
-            return null;
-          },
-        ),
         const SizedBox(height: 12),
         TextFormField(
           controller: _fulfillmentNoteController,
@@ -939,6 +995,149 @@ class _AdminPointRewardFormPageState extends State<AdminPointRewardFormPage> {
           },
         ),
       ],
+    );
+  }
+
+  Widget _buildCentralInventorySelector() {
+    return StreamBuilder<InventoryItemModel?>(
+      stream: InventoryService.instance.streamItem(
+        shopId: widget.shopId,
+        itemId: _inventoryItemId,
+      ),
+      builder:
+          (
+            BuildContext context,
+            AsyncSnapshot<InventoryItemModel?> snapshot,
+          ) {
+            final InventoryItemModel? item =
+                snapshot.data ?? _selectedInventoryItem;
+            final bool hasSelection = _inventoryItemId.trim().isNotEmpty;
+            final String displayName =
+                (item?.name ?? _inventoryItemName).trim().isEmpty
+                ? '未命名品項'
+                : (item?.name ?? _inventoryItemName).trim();
+            final String unit = _inventoryUnitLabel(item?.unit);
+            final String stockText = item == null
+                ? ''
+                : '目前庫存 ${InventoryConstants.formatQuantity(item.currentStock)} $unit';
+
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: <Widget>[
+                InkWell(
+                  borderRadius: BorderRadius.circular(12),
+                  onTap: _selectCentralInventoryItem,
+                  child: Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade50,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: Colors.grey.shade300),
+                    ),
+                    child: Row(
+                      children: <Widget>[
+                        if (hasSelection && item != null) ...<Widget>[
+                          InventoryItemCover(
+                            item: item,
+                            size: 48,
+                            borderRadius: 10,
+                          ),
+                          const SizedBox(width: 10),
+                        ],
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: <Widget>[
+                              Text(
+                                '中央庫存品項',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w700,
+                                  color: Colors.grey.shade700,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              if (!hasSelection)
+                                Text(
+                                  '尚未選擇',
+                                  style: TextStyle(
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.w600,
+                                    color: Colors.grey.shade800,
+                                  ),
+                                )
+                              else ...<Widget>[
+                                Text(
+                                  displayName,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                                ),
+                                if (stockText.isNotEmpty) ...<Widget>[
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    stockText,
+                                    style: TextStyle(
+                                      fontSize: 13,
+                                      color: Colors.grey.shade800,
+                                    ),
+                                  ),
+                                ],
+                                if (item != null) ...<Widget>[
+                                  const SizedBox(height: 6),
+                                  InventoryStatusChip(item: item),
+                                ],
+                              ],
+                            ],
+                          ),
+                        ),
+                        Icon(
+                          Icons.chevron_right,
+                          color: Colors.grey.shade500,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                if (hasSelection) ...<Widget>[
+                  const SizedBox(height: 12),
+                  InputDecorator(
+                    decoration: const InputDecoration(
+                      labelText: '目前中央庫存',
+                      border: OutlineInputBorder(),
+                      enabled: false,
+                    ),
+                    child: Text(
+                      item == null
+                          ? '載入中…'
+                          : '${InventoryConstants.formatQuantity(item.currentStock)} $unit',
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  TextFormField(
+                    controller: _inventoryQuantityController,
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                    ),
+                    decoration: InputDecoration(
+                      labelText: '每次兌換扣除',
+                      helperText: '實際可兌換數量依中央庫存為準。',
+                      suffixText: unit,
+                      border: const OutlineInputBorder(),
+                    ),
+                  ),
+                ],
+              ],
+            );
+          },
     );
   }
 

@@ -692,6 +692,130 @@ class ShopService {
     );
   }
 
+  Future<ShopAboutCoverImageUpload> uploadAboutCoverImage({
+    required String shopId,
+    required Uint8List bytes,
+  }) {
+    return ShopProfileService.instance.uploadAboutCoverImage(
+      shopId: shopId,
+      bytes: bytes,
+    );
+  }
+
+  Future<bool> tryDeleteAboutCoverImage({
+    required String shopId,
+    String imageStoragePath = '',
+    String imageUrl = '',
+  }) {
+    return ShopProfileService.instance.tryDeleteAboutCoverImage(
+      shopId: shopId,
+      imageStoragePath: imageStoragePath,
+      imageUrl: imageUrl,
+    );
+  }
+
+  Future<ShopBannerImageUpload> uploadShopBannerImage({
+    required String shopId,
+    required Uint8List bytes,
+  }) {
+    return ShopProfileService.instance.uploadShopBannerImage(
+      shopId: shopId,
+      bytes: bytes,
+    );
+  }
+
+  Future<bool> tryDeleteShopBannerImage({
+    required String shopId,
+    String imageStoragePath = '',
+    String imageUrl = '',
+  }) {
+    return ShopProfileService.instance.tryDeleteShopBannerImage(
+      shopId: shopId,
+      imageStoragePath: imageStoragePath,
+      imageUrl: imageUrl,
+    );
+  }
+
+  Future<ShopEnvironmentIntroImageUpload> uploadEnvironmentIntroImage({
+    required String shopId,
+    required String slot,
+    required Uint8List bytes,
+  }) {
+    return ShopProfileService.instance.uploadEnvironmentIntroImage(
+      shopId: shopId,
+      slot: slot,
+      bytes: bytes,
+    );
+  }
+
+  Future<bool> tryDeleteEnvironmentIntroImage({
+    required String shopId,
+    String imageStoragePath = '',
+    String imageUrl = '',
+  }) {
+    return ShopProfileService.instance.tryDeleteEnvironmentIntroImage(
+      shopId: shopId,
+      imageStoragePath: imageStoragePath,
+      imageUrl: imageUrl,
+    );
+  }
+
+  Uint8List? compressEnvironmentImageBytes({
+    required Uint8List bytes,
+    required int maxSide,
+    int quality = 85,
+  }) {
+    return ShopProfileService.instance.compressEnvironmentImageBytes(
+      bytes: bytes,
+      maxSide: maxSide,
+      quality: quality,
+    );
+  }
+
+  Future<ShopEnvironmentIntroImageUpload> uploadEnvironmentGalleryImage({
+    required String shopId,
+    required Uint8List bytes,
+  }) {
+    return ShopProfileService.instance.uploadEnvironmentGalleryImage(
+      shopId: shopId,
+      bytes: bytes,
+    );
+  }
+
+  Future<ShopEnvironmentIntroImageUpload> uploadEnvironmentFeatureImage({
+    required String shopId,
+    required Uint8List bytes,
+  }) {
+    return ShopProfileService.instance.uploadEnvironmentFeatureImage(
+      shopId: shopId,
+      bytes: bytes,
+    );
+  }
+
+  Future<bool> tryDeleteEnvironmentGalleryImage({
+    required String shopId,
+    String imageStoragePath = '',
+    String imageUrl = '',
+  }) {
+    return ShopProfileService.instance.tryDeleteEnvironmentGalleryImage(
+      shopId: shopId,
+      imageStoragePath: imageStoragePath,
+      imageUrl: imageUrl,
+    );
+  }
+
+  Future<bool> tryDeleteEnvironmentFeatureImage({
+    required String shopId,
+    String imageStoragePath = '',
+    String imageUrl = '',
+  }) {
+    return ShopProfileService.instance.tryDeleteEnvironmentFeatureImage(
+      shopId: shopId,
+      imageStoragePath: imageStoragePath,
+      imageUrl: imageUrl,
+    );
+  }
+
   int _toInt(dynamic value, {int fallback = 0}) {
     if (value is int) return value;
     if (value is double) return value.toInt();

@@ -8,6 +8,7 @@ import 'package:petnest_saas/core/models/home_text_style_model.dart';
 import 'package:petnest_saas/core/models/home_theme_model.dart';
 import 'package:petnest_saas/core/services/shop_service.dart';
 import 'package:petnest_saas/features/shop/widgets/modern_home/modern_app_drawer.dart';
+import 'package:petnest_saas/features/shop/widgets/modern_home/modern_home_banner_carousel.dart';
 import 'package:petnest_saas/features/shop/data/environment_facility_options.dart';
 import 'package:petnest_saas/features/shop/pages/room_type_detail_page.dart';
 import 'package:petnest_saas/features/shop/pages/shop_announcement_page.dart';
@@ -22,7 +23,10 @@ import 'package:petnest_saas/features/shop/pages/shop_about_page.dart';
 import 'package:petnest_saas/features/shop/pages/shop_faq_page.dart';
 import 'package:petnest_saas/features/shop/pages/shop_review_list_page.dart';
 import 'package:petnest_saas/features/shop/widgets/floating_contact_button.dart';
+import 'package:petnest_saas/core/models/modern_store_home_setting.dart';
+import 'package:petnest_saas/core/models/modern_banner_frame_setting.dart';
 import 'package:petnest_saas/features/shop/widgets/store/featured_store_products_section.dart';
+import 'package:petnest_saas/features/shop/widgets/store/store_entrance_banner.dart';
 
 class ShopPublicModernPage extends StatefulWidget {
   const ShopPublicModernPage({
@@ -39,9 +43,52 @@ class ShopPublicModernPage extends StatefulWidget {
 }
 
 class _ShopPublicModernPageState extends State<ShopPublicModernPage> {
-  int _currentBannerIndex = 0;
-
   static const Color _backgroundColor = Color(0xFFFFFCF7);
+
+  String _resolveBannerImageUrl(Map<String, dynamic> banner) {
+    final String cropped = (banner['croppedImageUrl'] ?? '').toString().trim();
+    if (cropped.isNotEmpty) {
+      return cropped;
+    }
+    return (banner['imageUrl'] ?? '').toString().trim();
+  }
+
+  List<Map<String, dynamic>> _enabledHomeBanners(Map<String, dynamic> shop) {
+    final List<Map<String, dynamic>> banners = <Map<String, dynamic>>[];
+    final Object? rawBanners = shop['banners'];
+
+    if (rawBanners is List) {
+      for (final Object? item in rawBanners) {
+        if (item is! Map) {
+          continue;
+        }
+
+        final Map<String, dynamic> banner = Map<String, dynamic>.from(item);
+        if (banner['isActive'] == false) {
+          continue;
+        }
+
+        if (_resolveBannerImageUrl(banner).isEmpty) {
+          continue;
+        }
+
+        banners.add(banner);
+      }
+    }
+
+    if (banners.isEmpty) {
+      final String coverUrl = (shop['coverUrl'] ?? '').toString().trim();
+      if (coverUrl.isNotEmpty) {
+        banners.add(<String, dynamic>{
+          'imageUrl': coverUrl,
+          'imageStoragePath': '',
+          'isActive': true,
+        });
+      }
+    }
+
+    return banners;
+  }
 
   Future<void> _openBookingPage(HomeThemeModel theme) async {
     final user = FirebaseAuth.instance.currentUser;
@@ -199,6 +246,12 @@ class _ShopPublicModernPageState extends State<ShopPublicModernPage> {
               ? (modernAppearance['bannerButtonTextColor'] as num).toInt()
               : 0xFFFFFFFF,
         );
+        final storeHomeSetting = ModernStoreHomeSetting.fromMap(
+          modernAppearance,
+        );
+        final bannerFrameSetting = ModernBannerFrameSetting.fromMap(
+          modernAppearance,
+        );
         final showLeftHeaderIcon =
             modernAppearance['showLeftHeaderIcon'] != false;
 
@@ -230,31 +283,7 @@ class _ShopPublicModernPageState extends State<ShopPublicModernPage> {
           }
         }
 
-        final rawBanners = shop['banners'];
-        final banners = <String>[];
-
-        if (rawBanners is List) {
-          for (final item in rawBanners) {
-            if (item is! Map) continue;
-
-            final isActive = item['isActive'] != false;
-            final imageUrl = (item['imageUrl'] ?? '').toString().trim();
-
-            if (isActive && imageUrl.isNotEmpty) {
-              banners.add(imageUrl);
-            }
-          }
-        }
-
-        final coverUrl = (shop['coverUrl'] ?? '').toString().trim();
-
-        if (banners.isEmpty && coverUrl.isNotEmpty) {
-          banners.add(coverUrl);
-        }
-
-        if (_currentBannerIndex >= banners.length && banners.isNotEmpty) {
-          _currentBannerIndex = 0;
-        }
+        final banners = _enabledHomeBanners(shop);
 
         return Scaffold(
           backgroundColor: modernTheme.backgroundColor,
@@ -353,8 +382,8 @@ class _ShopPublicModernPageState extends State<ShopPublicModernPage> {
                   builder: (context, constraints) {
                     final screenHeight = constraints.maxHeight;
 
-                    // 先用目前首頁估算高度
-                    const estimatedContentHeight = 790.0;
+                    // 含精選商品與賣場 Banner 後的首頁估算高度
+                    const estimatedContentHeight = 1120.0;
 
                     final canScroll = estimatedContentHeight > screenHeight;
 
@@ -374,6 +403,7 @@ class _ShopPublicModernPageState extends State<ShopPublicModernPage> {
                           bannerButtonTextColor: bannerButtonTextColor,
                           banners: banners,
                           theme: modernTheme,
+                          frameSetting: bannerFrameSetting,
                         ),
                         const SizedBox(height: 10),
 
@@ -396,6 +426,14 @@ class _ShopPublicModernPageState extends State<ShopPublicModernPage> {
                           shopId: widget.shopId,
                           shop: shop,
                           theme: modernTheme,
+                          setting: storeHomeSetting,
+                        ),
+
+                        StoreEntranceBanner(
+                          shopId: widget.shopId,
+                          shop: shop,
+                          theme: modernTheme,
+                          setting: storeHomeSetting,
                         ),
 
                         _buildStayServiceSection(shop, theme: modernTheme),
@@ -1007,7 +1045,10 @@ class _ShopPublicModernPageState extends State<ShopPublicModernPage> {
     }
   }
 
-  Widget _buildBannerReviewBadge({required HomeThemeModel theme}) {
+  Widget _buildBannerReviewBadge({
+    required HomeThemeModel theme,
+    required bool compact,
+  }) {
     return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
       stream: FirebaseFirestore.instance
           .collection('reviews')
@@ -1034,7 +1075,10 @@ class _ShopPublicModernPageState extends State<ShopPublicModernPage> {
         }
 
         return Container(
-          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+          padding: EdgeInsets.symmetric(
+            horizontal: compact ? 5 : 7,
+            vertical: compact ? 2 : 3,
+          ),
           decoration: BoxDecoration(
             color: theme.cardColor.withOpacity(0.94),
             borderRadius: BorderRadius.circular(999),
@@ -1049,22 +1093,22 @@ class _ShopPublicModernPageState extends State<ShopPublicModernPage> {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(
+              Icon(
                 Icons.star_rounded,
-                size: 12,
-                color: Color(0xFFFFB300),
+                size: compact ? 10 : 12,
+                color: const Color(0xFFFFB300),
               ),
-              const SizedBox(width: 3),
+              SizedBox(width: compact ? 2 : 3),
               Text(
                 docs.isEmpty ? '尚無評價' : averageRating.toStringAsFixed(1),
                 style: TextStyle(
-                  fontSize: 10,
+                  fontSize: compact ? 9 : 10,
                   height: 1,
                   fontWeight: FontWeight.w800,
                   color: theme.textColor,
                 ),
               ),
-              if (docs.isNotEmpty) ...[
+              if (docs.isNotEmpty && !compact) ...[
                 const SizedBox(width: 3),
                 Text(
                   '${docs.length} 則評價',
@@ -1090,223 +1134,27 @@ class _ShopPublicModernPageState extends State<ShopPublicModernPage> {
     required String bannerButtonText,
     required Color bannerButtonColor,
     required Color bannerButtonTextColor,
-    required List<String> banners,
+    required List<Map<String, dynamic>> banners,
     required HomeThemeModel theme,
+    required ModernBannerFrameSetting frameSetting,
   }) {
-    if (banners.isEmpty) {
-      return Container(
-        height: 145,
-        decoration: BoxDecoration(
-          color: theme.cardColor,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: theme.cardBorderColor),
-        ),
-        child: Center(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(Icons.image_outlined, size: 31, color: theme.primaryColor),
-              SizedBox(height: 7),
-              Text(
-                '尚未設定店家封面',
-                style: TextStyle(
-                  fontSize: 12,
-                  color: theme.textColor.withOpacity(0.65),
-                ),
-              ),
-            ],
-          ),
-        ),
-      );
-    }
-
-    return Column(
-      children: [
-        SizedBox(
-          height: 145,
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(16),
-            child: Stack(
-              fit: StackFit.expand,
-              children: [
-                GestureDetector(
-                  behavior: HitTestBehavior.opaque,
-                  onHorizontalDragEnd: (details) {
-                    if (banners.length <= 1) return;
-
-                    final velocity = details.primaryVelocity ?? 0;
-
-                    setState(() {
-                      if (velocity < -120) {
-                        _currentBannerIndex =
-                            (_currentBannerIndex + 1) % banners.length;
-                      } else if (velocity > 120) {
-                        _currentBannerIndex =
-                            (_currentBannerIndex - 1 + banners.length) %
-                            banners.length;
-                      }
-                    });
-                  },
-                  child: Image.network(
-                    banners[_currentBannerIndex],
-                    key: ValueKey(banners[_currentBannerIndex]),
-                    width: double.infinity,
-                    height: double.infinity,
-                    fit: BoxFit.cover,
-                    filterQuality: FilterQuality.medium,
-                    errorBuilder: (context, error, stackTrace) {
-                      return Container(
-                        color: theme.cardColor,
-                        alignment: Alignment.center,
-                        child: Icon(
-                          Icons.broken_image_outlined,
-                          size: 34,
-                          color: theme.primaryColor,
-                        ),
-                      );
-                    },
-                  ),
-                ),
-
-                const DecoratedBox(
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.centerRight,
-                      end: Alignment.centerLeft,
-                      stops: [0.2, 0.65, 1],
-                      colors: [
-                        Colors.transparent,
-                        Color(0x55000000),
-                        Color(0xD9000000),
-                      ],
-                    ),
-                  ),
-                ),
-
-                Positioned(
-                  left: 9,
-                  top: 8,
-                  child: _buildBannerReviewBadge(theme: theme),
-                ),
-
-                Positioned(
-                  left: 13,
-                  right: 85,
-                  top: 38,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      if (bannerTitle.isNotEmpty)
-                        Text(
-                          bannerTitle,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          textAlign: bannerTitleStyle.textAlign,
-                          style: bannerTitleStyle.toTextStyle(
-                            defaultHeight: 1.1,
-                          ),
-                        ),
-                      if (bannerTitle.isNotEmpty && bannerSubtitle.isNotEmpty)
-                        const SizedBox(height: 10),
-                      if (bannerSubtitle.isNotEmpty)
-                        Text(
-                          bannerSubtitle,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          textAlign: bannerSubtitleStyle.textAlign,
-                          style: bannerSubtitleStyle.toTextStyle(
-                            defaultHeight: 1.1,
-                          ),
-                        ),
-                    ],
-                  ),
-                ),
-
-                Positioned(
-                  left: 9,
-                  bottom: 8,
-                  child: SizedBox(
-                    height: 28,
-                    child: FilledButton.icon(
-                      style: FilledButton.styleFrom(
-                        backgroundColor: bannerButtonColor,
-                        foregroundColor: bannerButtonTextColor,
-                        elevation: 0,
-                        padding: const EdgeInsets.symmetric(horizontal: 10),
-                        visualDensity: VisualDensity.compact,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                      ),
-                      onPressed: () => _openBookingPage(theme),
-                      icon: const Icon(Icons.pets_rounded, size: 12),
-                      label: Text(
-                        bannerButtonText.isEmpty ? '立即預約住宿' : bannerButtonText,
-                        style: TextStyle(
-                          color: bannerButtonTextColor,
-                          fontSize: 9.5,
-                          height: 1,
-                          letterSpacing: 0.1,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-
-                if (banners.length > 1)
-                  Positioned(
-                    right: 10,
-                    bottom: 10,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 7,
-                        vertical: 3,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Colors.black.withOpacity(0.48),
-                        borderRadius: BorderRadius.circular(999),
-                      ),
-                      child: Text(
-                        '${_currentBannerIndex + 1}/${banners.length}',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 9,
-                          height: 1,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                  ),
-              ],
-            ),
-          ),
-        ),
-
-        if (banners.length > 1) ...[
-          const SizedBox(height: 6),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: List.generate(banners.length, (index) {
-              final selected = index == _currentBannerIndex;
-
-              return AnimatedContainer(
-                duration: const Duration(milliseconds: 180),
-                curve: Curves.easeOut,
-                width: selected ? 14 : 5,
-                height: 5,
-                margin: const EdgeInsets.symmetric(horizontal: 2.5),
-                decoration: BoxDecoration(
-                  color: selected
-                      ? theme.primaryColor
-                      : theme.cardBorderColor.withOpacity(0.7),
-                  borderRadius: BorderRadius.circular(999),
-                ),
-              );
-            }),
-          ),
-        ],
-      ],
+    return ModernHomeBannerCarousel(
+      key: ValueKey<String>('modern-home-banner-${widget.shopId}'),
+      banners: banners,
+      theme: theme,
+      frameSetting: frameSetting,
+      bannerTitle: bannerTitle,
+      bannerSubtitle: bannerSubtitle,
+      bannerTitleStyle: bannerTitleStyle,
+      bannerSubtitleStyle: bannerSubtitleStyle,
+      bannerButtonText: bannerButtonText,
+      bannerButtonColor: bannerButtonColor,
+      bannerButtonTextColor: bannerButtonTextColor,
+      onBookingPressed: () => _openBookingPage(theme),
+      reviewBadge: _buildBannerReviewBadge(
+        theme: theme,
+        compact: frameSetting.isUltraCompact,
+      ),
     );
   }
 

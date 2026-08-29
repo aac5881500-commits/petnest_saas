@@ -1,5 +1,4 @@
 // lib/features/shop/widgets/booking/booking_room_type_section.dart
-// 🔥 前台預約房型選擇區：顯示可預約房型、剩餘房數、價格與選取狀態// lib/features/shop/widgets/booking/booking_room_type_section.dart
 // 🔥 前台預約房型選擇區：顯示可預約房型、剩餘房數、價格與選取狀態
 
 import 'package:flutter/material.dart';
@@ -7,7 +6,7 @@ import 'package:petnest_saas/core/services/shop_service.dart';
 import 'package:petnest_saas/features/shop/pages/room_type_detail_page.dart';
 import 'package:petnest_saas/core/models/home_theme_model.dart';
 
-class BookingRoomTypeSection extends StatelessWidget {
+class BookingRoomTypeSection extends StatefulWidget {
   const BookingRoomTypeSection({
     super.key,
     required this.shopId,
@@ -28,25 +27,63 @@ class BookingRoomTypeSection extends StatelessWidget {
   final HomeThemeModel theme;
 
   @override
+  State<BookingRoomTypeSection> createState() => _BookingRoomTypeSectionState();
+}
+
+class _BookingRoomTypeSectionState extends State<BookingRoomTypeSection> {
+  Future<List<Map<String, dynamic>>>? _roomsFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _roomsFuture = _createRoomsFuture();
+  }
+
+  @override
+  void didUpdateWidget(BookingRoomTypeSection oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final bool datesChanged =
+        oldWidget.shopId != widget.shopId ||
+        oldWidget.startDate != widget.startDate ||
+        oldWidget.endDate != widget.endDate;
+    if (datesChanged) {
+      _roomsFuture = _createRoomsFuture();
+    }
+  }
+
+  Future<List<Map<String, dynamic>>>? _createRoomsFuture() {
+    if (widget.startDate == null || widget.endDate == null) {
+      return null;
+    }
+
+    return ShopService.instance.getAvailableRoomTypes(
+      shopId: widget.shopId,
+      startDate: widget.startDate!,
+      endDate: widget.endDate!,
+    );
+  }
+
+  @override
   Widget build(BuildContext context) {
-    if (startDate == null || endDate == null) {
+    if (widget.startDate == null || widget.endDate == null) {
       return const SizedBox();
     }
 
-    if (selectedPetIds.isEmpty) {
+    if (widget.selectedPetIds.isEmpty) {
       return const Padding(
         padding: EdgeInsets.symmetric(vertical: 16),
         child: Text('請先選擇入住寵物', style: TextStyle(color: Colors.red)),
       );
     }
 
+    final Future<List<Map<String, dynamic>>>? roomsFuture = _roomsFuture;
+    if (roomsFuture == null) {
+      return const SizedBox();
+    }
+
     return FutureBuilder<List<Map<String, dynamic>>>(
-      future: ShopService.instance.getAvailableRoomTypes(
-        shopId: shopId,
-        startDate: startDate!,
-        endDate: endDate!,
-      ),
-      builder: (context, snapshot) {
+      future: roomsFuture,
+      builder: (BuildContext context, AsyncSnapshot<List<Map<String, dynamic>>> snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Padding(
             padding: EdgeInsets.all(16),
@@ -54,20 +91,22 @@ class BookingRoomTypeSection extends StatelessWidget {
           );
         }
 
-        final roomTypes = (snapshot.data ?? []).where((type) {
-          final capacity = (type['capacity'] ?? 1) as int;
-
-          if (capacity < selectedPetIds.length) return false;
-
-          return true;
+        final List<Map<String, dynamic>> roomTypes =
+            (snapshot.data ?? <Map<String, dynamic>>[]).where((
+              Map<String, dynamic> type,
+            ) {
+          final int capacity = (type['capacity'] ?? 1) as int;
+          return capacity >= widget.selectedPetIds.length;
         }).toList();
 
         if (roomTypes.isEmpty) {
           return const Text('此區間沒有可用房型');
         }
 
-        final hasAvailableRoomType = roomTypes.any((type) {
-          final availableRooms = (type['availableRooms'] ?? 0) as int;
+        final bool hasAvailableRoomType = roomTypes.any((
+          Map<String, dynamic> type,
+        ) {
+          final int availableRooms = (type['availableRooms'] ?? 0) as int;
           return availableRooms > 0;
         });
 
@@ -78,9 +117,7 @@ class BookingRoomTypeSection extends StatelessWidget {
               '第三步：選擇房型',
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
-
             const SizedBox(height: 12),
-
             if (!hasAvailableRoomType) ...[
               Container(
                 width: double.infinity,
@@ -100,30 +137,27 @@ class BookingRoomTypeSection extends StatelessWidget {
                 ),
               ),
             ],
-
-            ...roomTypes.map((type) {
-              final availableRooms = (type['availableRooms'] ?? 0) as int;
-              final isFull = availableRooms <= 0;
-
-              final isSelected =
+            ...roomTypes.map((Map<String, dynamic> type) {
+              final int availableRooms = (type['availableRooms'] ?? 0) as int;
+              final bool isFull = availableRooms <= 0;
+              final bool isSelected =
                   !isFull &&
-                  selectedRoomType?['roomTypeId'] == type['roomTypeId'];
+                  widget.selectedRoomType?['roomTypeId'] == type['roomTypeId'];
 
               return GestureDetector(
                 onTap: isFull
                     ? null
                     : () {
-                        onSelectRoomType(type);
-
+                        widget.onSelectRoomType(type);
                         Navigator.push(
                           context,
-                          MaterialPageRoute(
+                          MaterialPageRoute<void>(
                             builder: (_) => RoomTypeDetailPage(
-                              shopId: shopId,
+                              shopId: widget.shopId,
                               roomType: type,
-                              startDate: startDate!,
-                              endDate: endDate!,
-                              theme: theme,
+                              startDate: widget.startDate!,
+                              endDate: widget.endDate!,
+                              theme: widget.theme,
                             ),
                           ),
                         );
@@ -154,17 +188,12 @@ class BookingRoomTypeSection extends StatelessWidget {
                                   fontWeight: FontWeight.bold,
                                 ),
                               ),
-
                               const SizedBox(height: 4),
-
                               Text('容量：${type['capacity']}'),
-
                               const SizedBox(height: 6),
-
                               Builder(
                                 builder: (_) {
                                   final rooms = type['availableRooms'] ?? 0;
-
                                   if (rooms <= 0) {
                                     return const Text(
                                       '已滿',
@@ -174,7 +203,6 @@ class BookingRoomTypeSection extends StatelessWidget {
                                       ),
                                     );
                                   }
-
                                   if (rooms <= 1) {
                                     return const Text(
                                       '⚠ 即將滿房',
@@ -190,15 +218,12 @@ class BookingRoomTypeSection extends StatelessWidget {
                             ],
                           ),
                         ),
-
                         Builder(
                           builder: (_) {
                             final basePrice = type['price'] ?? 0;
                             final extraPrice = type['extraPrice'] ?? 0;
-
-                            final petCount = selectedPetIds.length;
-                            final extraCount = petCount > 1 ? petCount - 1 : 0;
-
+                            final int petCount = widget.selectedPetIds.length;
+                            final int extraCount = petCount > 1 ? petCount - 1 : 0;
                             final totalPrice =
                                 basePrice + (extraCount * extraPrice);
 
@@ -211,7 +236,6 @@ class BookingRoomTypeSection extends StatelessWidget {
                                     fontWeight: FontWeight.bold,
                                   ),
                                 ),
-
                                 if (extraCount > 0 && extraPrice > 0)
                                   Text(
                                     '+$extraCount隻 +$extraPrice',
@@ -220,7 +244,6 @@ class BookingRoomTypeSection extends StatelessWidget {
                                       color: Colors.red,
                                     ),
                                   ),
-
                                 Text(
                                   '共 NT\$ $totalPrice',
                                   style: const TextStyle(

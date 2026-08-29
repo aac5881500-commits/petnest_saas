@@ -9,50 +9,80 @@ class EnvironmentImageBanner extends StatelessWidget {
     super.key,
     required this.imageUrl,
     required this.title,
-    required this.imageBuilder,
+    this.height = 150,
+    this.imageFit = BoxFit.cover,
+    this.imageAlignment = Alignment.center,
+    this.imageBuilder,
   });
 
   final String imageUrl;
   final String title;
+  final double height;
+  final BoxFit imageFit;
+  final Alignment imageAlignment;
 
+  /// 舊呼叫端仍可傳入；實際顯示以 [imageFit] / [imageAlignment] 為準。
   final Widget Function({
     required String imageUrl,
     double? width,
     double? height,
     BoxFit fit,
-  }) imageBuilder;
+  })? imageBuilder;
 
   @override
   Widget build(BuildContext context) {
+    final bool compact = height <= 130;
+
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16),
-      height: 150,
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(22),
-      ),
+      height: height,
       child: ClipRRect(
         borderRadius: BorderRadius.circular(22),
         child: Stack(
           fit: StackFit.expand,
           children: [
-            imageBuilder(
-              imageUrl: imageUrl,
-            ),
-            Container(
-              color: Colors.black.withOpacity(0.28),
-            ),
+            const ColoredBox(color: Colors.black),
+            imageUrl.trim().isEmpty
+                ? _placeholder()
+                : Image.network(
+                    imageUrl,
+                    fit: imageFit,
+                    alignment: imageAlignment,
+                    width: double.infinity,
+                    height: double.infinity,
+                    loadingBuilder:
+                        (BuildContext context, Widget child, ImageChunkEvent? progress) {
+                      if (progress == null) {
+                        return child;
+                      }
+                      return _placeholder();
+                    },
+                    errorBuilder:
+                        (BuildContext context, Object error, StackTrace? stackTrace) {
+                      if (imageBuilder != null) {
+                        return imageBuilder!(
+                          imageUrl: imageUrl,
+                          fit: imageFit,
+                        );
+                      }
+                      return _placeholder();
+                    },
+                  ),
+            ColoredBox(color: Colors.black.withValues(alpha: 0.28)),
             Positioned(
-              left: 18,
-              right: 18,
+              left: compact ? 14 : 18,
+              right: compact ? 14 : 18,
               top: 0,
               bottom: 0,
               child: Align(
                 alignment: Alignment.centerLeft,
                 child: Text(
                   title,
-                  style: const TextStyle(
-                    fontSize: 20,
-                    height: 1.4,
+                  maxLines: compact ? 2 : 3,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: compact ? 16 : 20,
+                    height: 1.3,
                     fontWeight: FontWeight.w900,
                     color: Colors.white,
                   ),
@@ -60,6 +90,18 @@ class EnvironmentImageBanner extends StatelessWidget {
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+
+  Widget _placeholder() {
+    return const ColoredBox(
+      color: Color(0xFFF5EBDD),
+      child: Center(
+        child: Icon(
+          Icons.image_not_supported_rounded,
+          color: Color(0xFFB87535),
         ),
       ),
     );
