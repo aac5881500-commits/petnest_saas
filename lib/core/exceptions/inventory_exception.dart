@@ -20,23 +20,19 @@ class InventoryException implements Exception {
     }
 
     if (error is FirebaseFunctionsException) {
-      final String message = (error.message ?? '').trim();
-      if (message.isNotEmpty) {
-        return message;
-      }
-      return '庫存操作失敗，請稍後再試';
+      return _functionsUserMessage(error);
     }
 
     if (error is StateError) {
       final String message = error.message.trim();
-      if (message.isNotEmpty) {
+      if (message.isNotEmpty && !_isGenericEngineMessage(message)) {
         return message;
       }
     }
 
     if (error is ArgumentError) {
       final String message = (error.message ?? '').toString().trim();
-      if (message.isNotEmpty) {
+      if (message.isNotEmpty && !_isGenericEngineMessage(message)) {
         return message;
       }
     }
@@ -54,6 +50,59 @@ class InventoryException implements Exception {
       }
     }
 
-    return '庫存操作失敗，請稍後再試';
+    final String raw = error
+        .toString()
+        .replaceFirst('Exception: ', '')
+        .replaceFirst('InventoryException: ', '')
+        .trim();
+    if (raw.isNotEmpty && !_isGenericEngineMessage(raw)) {
+      return raw;
+    }
+
+    return '建立預約失敗，請稍後再試。';
+  }
+
+  static String _functionsUserMessage(FirebaseFunctionsException error) {
+    final String raw = (error.message ?? '').trim();
+    final bool hasUsefulMessage =
+        raw.isNotEmpty && !_isGenericEngineMessage(raw);
+
+    switch (error.code) {
+      case 'failed-precondition':
+        return hasUsefulMessage ? raw : '部分加購服務庫存不足，請重新選擇。';
+      case 'permission-denied':
+        return '無法完成庫存處理，請重新登入後再試。';
+      case 'unauthenticated':
+        return '請重新登入後再試。';
+      case 'not-found':
+        return hasUsefulMessage ? raw : '訂單或加購設定不存在，請稍後再試。';
+      case 'deadline-exceeded':
+        return '處理逾時，請重新嘗試。';
+      case 'unavailable':
+        return '建立預約時連線失敗，請確認網路後再試。';
+      case 'invalid-argument':
+        return hasUsefulMessage ? raw : '預約資料不正確，請重新確認。';
+      case 'internal':
+        return hasUsefulMessage ? raw : '系統暫時無法完成預約，請稍後再試。';
+      default:
+        if (hasUsefulMessage) {
+          return raw;
+        }
+        return '建立預約失敗，請稍後再試。';
+    }
+  }
+
+  static bool _isGenericEngineMessage(String message) {
+    final String lower = message.toLowerCase().trim();
+    return lower.isEmpty ||
+        lower == 'internal' ||
+        lower == 'internal.' ||
+        lower == 'not found' ||
+        lower == 'not-found' ||
+        lower == 'unavailable' ||
+        lower == 'deadline-exceeded' ||
+        lower == 'unknown' ||
+        lower == 'ok' ||
+        lower == 'error';
   }
 }

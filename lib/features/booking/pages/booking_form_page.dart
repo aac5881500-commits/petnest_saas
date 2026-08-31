@@ -1183,14 +1183,18 @@ class _BookingFormPageState extends State<BookingFormPage> {
                               _paymentMethod ?? '',
                               _payAmountType,
                             );
-                          } catch (_) {
+                          } catch (error, stackTrace) {
+                            debugPrint(
+                              '[BookingSubmit] form submit failed: $error',
+                            );
+                            debugPrintStack(stackTrace: stackTrace);
+                            rethrow;
+                          } finally {
                             if (mounted) {
                               setState(() {
                                 _isSubmitting = false;
                               });
                             }
-
-                            rethrow;
                           }
                         },
                   child: _isSubmitting

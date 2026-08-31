@@ -4,7 +4,6 @@
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
-import 'package:petnest_saas/core/models/home_text_style_model.dart';
 import 'package:petnest_saas/core/models/home_theme_model.dart';
 import 'package:petnest_saas/core/services/shop_service.dart';
 import 'package:petnest_saas/features/shop/widgets/modern_home/modern_app_drawer.dart';
@@ -17,14 +16,16 @@ import 'package:petnest_saas/features/shop/pages/shop_room_intro_page.dart';
 import 'package:petnest_saas/features/shop/pages/shop_policy_view_page.dart';
 import 'package:petnest_saas/features/shop/widgets/modern_home/modern_shop_footer.dart';
 import 'package:petnest_saas/features/shop/widgets/modern_home/modern_review_section.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:petnest_saas/features/shop/pages/shop_booking_page.dart';
+import 'package:petnest_saas/features/shop/widgets/modern_home/modern_staying_daily_care_section.dart';
 import 'package:petnest_saas/features/shop/pages/shop_about_page.dart';
 import 'package:petnest_saas/features/shop/pages/shop_faq_page.dart';
 import 'package:petnest_saas/features/shop/pages/shop_review_list_page.dart';
 import 'package:petnest_saas/features/shop/widgets/floating_contact_button.dart';
 import 'package:petnest_saas/core/models/modern_store_home_setting.dart';
 import 'package:petnest_saas/core/models/modern_banner_frame_setting.dart';
+import 'package:petnest_saas/core/models/store_banner_model.dart';
+import 'package:petnest_saas/core/services/home_banner_navigation.dart';
+import 'package:petnest_saas/core/services/home_banner_service.dart';
 import 'package:petnest_saas/features/shop/widgets/store/featured_store_products_section.dart';
 import 'package:petnest_saas/features/shop/widgets/store/store_entrance_banner.dart';
 
@@ -45,93 +46,8 @@ class ShopPublicModernPage extends StatefulWidget {
 class _ShopPublicModernPageState extends State<ShopPublicModernPage> {
   static const Color _backgroundColor = Color(0xFFFFFCF7);
 
-  String _resolveBannerImageUrl(Map<String, dynamic> banner) {
-    final String cropped = (banner['croppedImageUrl'] ?? '').toString().trim();
-    if (cropped.isNotEmpty) {
-      return cropped;
-    }
-    return (banner['imageUrl'] ?? '').toString().trim();
-  }
-
-  List<Map<String, dynamic>> _enabledHomeBanners(Map<String, dynamic> shop) {
-    final List<Map<String, dynamic>> banners = <Map<String, dynamic>>[];
-    final Object? rawBanners = shop['banners'];
-
-    if (rawBanners is List) {
-      for (final Object? item in rawBanners) {
-        if (item is! Map) {
-          continue;
-        }
-
-        final Map<String, dynamic> banner = Map<String, dynamic>.from(item);
-        if (banner['isActive'] == false) {
-          continue;
-        }
-
-        if (_resolveBannerImageUrl(banner).isEmpty) {
-          continue;
-        }
-
-        banners.add(banner);
-      }
-    }
-
-    if (banners.isEmpty) {
-      final String coverUrl = (shop['coverUrl'] ?? '').toString().trim();
-      if (coverUrl.isNotEmpty) {
-        banners.add(<String, dynamic>{
-          'imageUrl': coverUrl,
-          'imageStoragePath': '',
-          'isActive': true,
-        });
-      }
-    }
-
-    return banners;
-  }
-
-  Future<void> _openBookingPage(HomeThemeModel theme) async {
-    final user = FirebaseAuth.instance.currentUser;
-
-    if (user == null) {
-      if (!mounted) return;
-
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('請先登入')));
-      return;
-    }
-
-    final hasAccepted = await ShopService.instance.hasAcceptedPolicy(
-      shopId: widget.shopId,
-      userId: user.uid,
-    );
-
-    if (!mounted) return;
-
-    if (!hasAccepted) {
-      final result = await Navigator.of(context).push<bool>(
-        MaterialPageRoute<bool>(
-          builder: (_) => ShopPolicyViewPage(
-            shopId: widget.shopId,
-            theme: theme,
-            readOnly: false,
-          ),
-        ),
-      );
-
-      if (!mounted || result != true) return;
-    }
-
-    await Navigator.of(context).push(
-      MaterialPageRoute<void>(
-        builder: (_) => ShopBookingPage(
-          shopId: widget.shopId,
-          theme: theme,
-          useModernDrawer: true,
-        ),
-      ),
-    );
+  List<StoreBannerModel> _enabledHomeBanners(Map<String, dynamic> shop) {
+    return HomeBannerService.instance.parseEnabledFrontBanners(shop);
   }
 
   @override
@@ -201,51 +117,6 @@ class _ShopPublicModernPageState extends State<ShopPublicModernPage> {
         final headerSubtitle = hasHeaderSubtitleSetting
             ? (modernAppearance['headerSubtitle'] ?? '').toString().trim()
             : '讓每一隻貓咪都有溫暖的家';
-        final bannerTitle = (modernAppearance['bannerTitle'] ?? '安心住宿')
-            .toString()
-            .trim();
-        final bannerSubtitle = (modernAppearance['bannerSubtitle'] ?? '毛孩的第二個家')
-            .toString()
-            .trim();
-
-        final bannerButtonText =
-            (modernAppearance['bannerButtonText'] ?? '立即預約住宿')
-                .toString()
-                .trim();
-
-        final bannerButtonColor = Color(
-          modernAppearance['bannerButtonColor'] is num
-              ? (modernAppearance['bannerButtonColor'] as num).toInt()
-              : 0xFFFF7A1A,
-        );
-
-        final bannerTitleStyle = HomeTextStyleModel.fromMap(
-          modernAppearance['bannerTitleStyle'],
-          fallback: const HomeTextStyleModel(
-            fontSize: 22,
-            colorValue: 0xFFFFFFFF,
-            isBold: true,
-            hasShadow: true,
-            alignment: 'left',
-          ),
-        );
-
-        final bannerSubtitleStyle = HomeTextStyleModel.fromMap(
-          modernAppearance['bannerSubtitleStyle'],
-          fallback: const HomeTextStyleModel(
-            fontSize: 13,
-            colorValue: 0xFFFFFFFF,
-            isBold: true,
-            hasShadow: true,
-            alignment: 'left',
-          ),
-        );
-
-        final bannerButtonTextColor = Color(
-          modernAppearance['bannerButtonTextColor'] is num
-              ? (modernAppearance['bannerButtonTextColor'] as num).toInt()
-              : 0xFFFFFFFF,
-        );
         final storeHomeSetting = ModernStoreHomeSetting.fromMap(
           modernAppearance,
         );
@@ -394,13 +265,7 @@ class _ShopPublicModernPageState extends State<ShopPublicModernPage> {
                       padding: const EdgeInsets.fromLTRB(12, 5, 12, 12),
                       children: [
                         _buildBannerSection(
-                          bannerTitle: bannerTitle,
-                          bannerSubtitle: bannerSubtitle,
-                          bannerTitleStyle: bannerTitleStyle,
-                          bannerSubtitleStyle: bannerSubtitleStyle,
-                          bannerButtonText: bannerButtonText,
-                          bannerButtonColor: bannerButtonColor,
-                          bannerButtonTextColor: bannerButtonTextColor,
+                          shop: shop,
                           banners: banners,
                           theme: modernTheme,
                           frameSetting: bannerFrameSetting,
@@ -417,6 +282,12 @@ class _ShopPublicModernPageState extends State<ShopPublicModernPage> {
                           _buildLatestAnnouncementSection(theme: modernTheme),
                           const SizedBox(height: 16),
                         ],
+
+                        ModernStayingDailyCareSection(
+                          shopId: widget.shopId,
+                          theme: modernTheme,
+                          platformPreview: widget.platformPreview,
+                        ),
 
                         _buildPopularRoomSection(theme: modernTheme),
 
@@ -457,7 +328,7 @@ class _ShopPublicModernPageState extends State<ShopPublicModernPage> {
                 ),
               ),
 
-              FloatingContactButton(shop: shop),
+              FloatingContactButton(shop: shop, shopId: widget.shopId),
             ],
           ),
         );
@@ -1127,14 +998,8 @@ class _ShopPublicModernPageState extends State<ShopPublicModernPage> {
   }
 
   Widget _buildBannerSection({
-    required String bannerTitle,
-    required String bannerSubtitle,
-    required HomeTextStyleModel bannerTitleStyle,
-    required HomeTextStyleModel bannerSubtitleStyle,
-    required String bannerButtonText,
-    required Color bannerButtonColor,
-    required Color bannerButtonTextColor,
-    required List<Map<String, dynamic>> banners,
+    required Map<String, dynamic> shop,
+    required List<StoreBannerModel> banners,
     required HomeThemeModel theme,
     required ModernBannerFrameSetting frameSetting,
   }) {
@@ -1143,14 +1008,16 @@ class _ShopPublicModernPageState extends State<ShopPublicModernPage> {
       banners: banners,
       theme: theme,
       frameSetting: frameSetting,
-      bannerTitle: bannerTitle,
-      bannerSubtitle: bannerSubtitle,
-      bannerTitleStyle: bannerTitleStyle,
-      bannerSubtitleStyle: bannerSubtitleStyle,
-      bannerButtonText: bannerButtonText,
-      bannerButtonColor: bannerButtonColor,
-      bannerButtonTextColor: bannerButtonTextColor,
-      onBookingPressed: () => _openBookingPage(theme),
+      onBannerTap: (StoreBannerModel banner) {
+        HomeBannerNavigation.open(
+          context: context,
+          shopId: widget.shopId,
+          shop: shop,
+          theme: theme,
+          banner: banner,
+          useModernDrawer: true,
+        );
+      },
       reviewBadge: _buildBannerReviewBadge(
         theme: theme,
         compact: frameSetting.isUltraCompact,

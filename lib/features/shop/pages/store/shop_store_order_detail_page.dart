@@ -8,6 +8,7 @@ import 'package:petnest_saas/core/constants/store_constants.dart';
 import 'package:petnest_saas/core/models/store_order_model.dart';
 import 'package:petnest_saas/core/services/store_function_service.dart';
 import 'package:petnest_saas/core/services/store_order_service.dart';
+import 'package:petnest_saas/features/shop/widgets/store/store_status_chip.dart';
 
 class ShopStoreOrderDetailPage extends StatefulWidget {
   const ShopStoreOrderDetailPage({
@@ -91,40 +92,117 @@ class _ShopStoreOrderDetailPageState extends State<ShopStoreOrderDetailPage> {
           return ListView(
             padding: const EdgeInsets.all(16),
             children: <Widget>[
-              Text(
-                order.orderCode,
-                style: const TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-              Text(
-                '${StoreConstants.statusLabel(order.status)} · '
-                '${StoreConstants.paymentStatusLabel(order.paymentStatus)}',
-              ),
-              const SizedBox(height: 12),
-              Text('會員：${order.customerName}'),
-              Text('電話：${order.customerPhone}'),
-              Text('履約：${StoreConstants.fulfillmentLabel(order.fulfillmentType)}'),
-              if (order.shopAddressSnapshot.isNotEmpty)
-                Text('自取地址：${order.shopAddressSnapshot}'),
-              const Divider(height: 32),
-              const Text('商品明細', style: TextStyle(fontWeight: FontWeight.w700)),
-              ...order.items.map((StoreOrderItemModel item) {
-                return ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  title: Text(item.productName),
-                  subtitle: Text(
-                    'NT\$ ${item.unitPrice} × ${item.quantity}'
-                    '${item.useInventory ? '\n庫存連動 ${item.inventoryItemName} ×${item.inventoryQuantityPerSale}' : ''}',
+              _section('訂單資訊', <Widget>[
+                Text(
+                  order.orderCode,
+                  style: const TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w800,
                   ),
-                  trailing: Text('NT\$ ${item.subtotal}'),
-                );
-              }),
-              const Divider(height: 32),
-              Text('合計 NT\$ ${order.totalAmount}'),
+                ),
+                Wrap(
+                  spacing: 6,
+                  children: <Widget>[
+                    StoreStatusChip(
+                      label: StoreConstants.statusLabel(order.status),
+                      tone: StoreStatusTone.info,
+                    ),
+                    StoreStatusChip(
+                      label: StoreConstants.paymentStatusLabel(
+                        order.paymentStatus,
+                      ),
+                    ),
+                  ],
+                ),
+                Text('會員：${order.customerName}'),
+                Text('電話：${order.customerPhone}'),
+              ]),
+              _section('商品明細', <Widget>[
+                ...order.items.map((StoreOrderItemModel item) {
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 10),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: <Widget>[
+                        Text(
+                          item.productName,
+                          style: const TextStyle(fontWeight: FontWeight.w700),
+                        ),
+                        Text('原價 NT\$ ${item.snapshotOriginalUnitPrice}'),
+                        if (item.itemPromotionName.isNotEmpty)
+                          Text('商品優惠 ${item.itemPromotionName}'),
+                        if (item.hasPromotionSnapshot &&
+                            item.promotionName.isNotEmpty)
+                          Text(
+                            '活動優惠 ${item.promotionName}'
+                            ' -NT\$ ${item.snapshotOriginalUnitPrice - item.snapshotFinalUnitPrice}',
+                          ),
+                        Text('購買：${item.snapshotPurchaseQuantity} 件'),
+                        if (item.snapshotFreeQuantity > 0)
+                          Text('贈送：${item.snapshotFreeQuantity} 件'),
+                        Text('需備貨：${item.snapshotFulfillmentQuantity} 件'),
+                        if (item.useInventory)
+                          Text(
+                            '中央庫存：已扣 ${item.snapshotInventoryDeducted} '
+                            '${item.inventoryUnit.trim().isEmpty ? '件' : item.inventoryUnit}',
+                          ),
+                        Text(
+                          '成交價 NT\$ ${item.snapshotFinalUnitPrice} × ${item.snapshotPurchaseQuantity}',
+                        ),
+                        Text('小計 NT\$ ${item.subtotal}'),
+                      ],
+                    ),
+                  );
+                }),
+              ]),
+              _section('促銷優惠', <Widget>[
+                Text('商品原價 NT\$ ${order.originalSubtotal ?? order.subtotal}'),
+                if (order.itemPromotionDiscount > 0)
+                  Text('商品優惠 -NT\$ ${order.itemPromotionDiscount}'),
+                if (order.campaignDiscount > 0)
+                  Text('活動優惠 -NT\$ ${order.campaignDiscount}'),
+                if (order.quantityDiscount > 0)
+                  Text('滿件優惠 -NT\$ ${order.quantityDiscount}'),
+                if (order.amountDiscount > 0)
+                  Text('滿額優惠 -NT\$ ${order.amountDiscount}'),
+                if (order.itemPromotionDiscount == 0 &&
+                    order.campaignDiscount == 0 &&
+                    order.quantityDiscount == 0 &&
+                    order.amountDiscount == 0 &&
+                    order.promotionDiscount > 0)
+                  Text('活動優惠 -NT\$ ${order.promotionDiscount}'),
+                Text(
+                  '應付 NT\$ ${order.totalAmount}',
+                  style: const TextStyle(fontWeight: FontWeight.w800),
+                ),
+              ]),
+              _section('付款資訊', <Widget>[
+                Text(
+                  StoreConstants.paymentStatusLabel(order.paymentStatus),
+                ),
+                if (order.lastPaymentId.isNotEmpty)
+                  Text('付款單：${order.lastPaymentId}'),
+              ]),
+              _section('取貨資訊', <Widget>[
+                Text(StoreConstants.fulfillmentLabel(order.fulfillmentType)),
+                if (order.shopAddressSnapshot.isNotEmpty)
+                  Text(order.shopAddressSnapshot),
+                if (order.pickupNote.isNotEmpty) Text(order.pickupNote),
+              ]),
+              _section('操作紀錄', <Widget>[
+                Text('建立：${_time(order.createdAt)}'),
+                if (order.paidAt != null) Text('付款：${_time(order.paidAt!)}'),
+                if (order.preparingAt != null)
+                  Text('備貨：${_time(order.preparingAt!)}'),
+                if (order.readyForPickupAt != null)
+                  Text('可取貨：${_time(order.readyForPickupAt!)}'),
+                if (order.completedAt != null)
+                  Text('完成：${_time(order.completedAt!)}'),
+                if (order.cancelledAt != null)
+                  Text('取消：${_time(order.cancelledAt!)}'),
+              ]),
               if (canManage) ...<Widget>[
-                const SizedBox(height: 16),
+                const SizedBox(height: 8),
                 if (order.status == StoreConstants.statusPaid)
                   FilledButton(
                     onPressed: () => _run(context, 'start_preparing'),
@@ -155,5 +233,26 @@ class _ShopStoreOrderDetailPageState extends State<ShopStoreOrderDetailPage> {
         },
       ),
     );
+  }
+
+  Widget _section(String title, List<Widget> children) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Text(title, style: const TextStyle(fontWeight: FontWeight.w800)),
+          const SizedBox(height: 6),
+          ...children,
+        ],
+      ),
+    );
+  }
+
+  String _time(DateTime value) {
+    return '${value.year}/${value.month.toString().padLeft(2, '0')}/'
+        '${value.day.toString().padLeft(2, '0')} '
+        '${value.hour.toString().padLeft(2, '0')}:'
+        '${value.minute.toString().padLeft(2, '0')}';
   }
 }

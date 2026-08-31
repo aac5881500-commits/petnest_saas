@@ -11,6 +11,9 @@ import 'package:petnest_saas/core/constants/shop_permission_keys.dart';
 import 'package:petnest_saas/features/admin/pages/admin_booking_detail_page.dart';
 import 'package:petnest_saas/core/utils/natural_sort.dart';
 import 'package:petnest_saas/features/room/pages/housekeeping_setting_page.dart';
+import 'package:petnest_saas/core/models/shop_task_item.dart';
+import 'package:petnest_saas/core/services/shop_task_center_service.dart';
+import 'package:petnest_saas/core/widgets/shop_task_center_button.dart';
 
 class RoomDashboardPage extends StatefulWidget {
   const RoomDashboardPage({super.key, required this.shopId});
@@ -95,6 +98,7 @@ class _RoomDashboardPageState extends State<RoomDashboardPage> {
       appBar: AppBar(
         title: const Text('房務管理'),
         actions: [
+          ShopTaskCenterButton(shopId: widget.shopId),
           IconButton(
             tooltip: '房務設定',
             icon: const Icon(Icons.settings_outlined),
@@ -262,7 +266,23 @@ class _RoomDashboardPageState extends State<RoomDashboardPage> {
                         return roomTypeName == effectiveRoomTypeFilter;
                       }).toList();
 
-                return StreamBuilder<QuerySnapshot>(
+                return StreamBuilder<ShopTaskCenterSnapshot>(
+                  stream: ShopTaskCenterService.instance.streamSnapshot(
+                    shopId: widget.shopId,
+                    canViewBookings: false,
+                    canFillDailyCare: true,
+                    careDate: DateTime(
+                      selectedDate.year,
+                      selectedDate.month,
+                      selectedDate.day,
+                    ),
+                  ),
+                  builder: (context, careSnap) {
+                    final Map<String, ShopRoomCareProgress> careProgress =
+                        careSnap.data?.roomCareProgress ??
+                        const <String, ShopRoomCareProgress>{};
+
+                    return StreamBuilder<QuerySnapshot>(
                   stream: FirebaseFirestore.instance
                       .collection('bookings')
                       .where('shopId', isEqualTo: widget.shopId)
@@ -1028,6 +1048,20 @@ class _RoomDashboardPageState extends State<RoomDashboardPage> {
 
                                           const SizedBox(width: 8),
 
+                                          if (todayBooking != null &&
+                                              (todayBooking['status'] ?? '')
+                                                      .toString() ==
+                                                  'checked_in' &&
+                                              careProgress[roomId] != null)
+                                            Padding(
+                                              padding: const EdgeInsets.only(
+                                                right: 6,
+                                              ),
+                                              child: _careHint(
+                                                careProgress[roomId]!,
+                                              ),
+                                            ),
+
                                           /// 右邊狀態
                                           _buildStatusChip(
                                             color: manualStatus == 'closed'
@@ -1075,10 +1109,26 @@ class _RoomDashboardPageState extends State<RoomDashboardPage> {
                     );
                   },
                 );
+                  },
+                );
               },
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _careHint(ShopRoomCareProgress progress) {
+    final bool done = progress.isComplete;
+    return Text(
+      done
+          ? '照護 ${progress.filled}/${progress.total} ✓'
+          : '照護待填 ${progress.pending}',
+      style: TextStyle(
+        fontSize: 11,
+        fontWeight: FontWeight.w700,
+        color: done ? const Color(0xFF2E7D32) : const Color(0xFFEF6C00),
       ),
     );
   }

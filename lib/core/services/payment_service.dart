@@ -133,63 +133,60 @@ class PaymentService {
   ///
   /// 店家設定或平台全域設定任一方變更時，
   /// 都會重新計算付款方式。
+  ///
+  /// 使用 [Stream.multi]：每次 listen 各自建立內層訂閱。
+  /// 不要回傳單次訂閱的 [StreamController.stream]，
+  /// 否則設定頁 StreamBuilder 重建時會丟
+  /// `Bad state: Stream has already been listened to`。
   Stream<List<String>> streamAvailableMethods({
     required String shopId,
     required String amountType,
   }) {
     final String normalizedShopId = shopId.trim();
 
-    late final StreamController<List<String>> controller;
+    return Stream<List<String>>.multi((
+      MultiStreamController<List<String>> listener,
+    ) {
+      PaymentSettingModel? currentPaymentSetting;
+      PlatformPaymentSettingModel? currentPlatformSetting;
 
-    StreamSubscription<PaymentSettingModel>? paymentSettingSubscription;
-
-    StreamSubscription<PlatformPaymentSettingModel>?
-    platformSettingSubscription;
-
-    PaymentSettingModel? currentPaymentSetting;
-    PlatformPaymentSettingModel? currentPlatformSetting;
-
-    void emitAvailableMethods() {
-      final PaymentSettingModel? paymentSetting = currentPaymentSetting;
-
-      final PlatformPaymentSettingModel? platformSetting =
-          currentPlatformSetting;
-
-      if (paymentSetting == null || platformSetting == null) {
-        return;
+      void emitAvailableMethods() {
+        final PaymentSettingModel? paymentSetting = currentPaymentSetting;
+        final PlatformPaymentSettingModel? platformSetting =
+            currentPlatformSetting;
+        if (paymentSetting == null || platformSetting == null) {
+          return;
+        }
+        listener.add(
+          PaymentResolver.resolveAvailableMethods(
+            setting: paymentSetting,
+            amountType: amountType,
+            platformSetting: platformSetting,
+          ),
+        );
       }
 
-      controller.add(
-        PaymentResolver.resolveAvailableMethods(
-          setting: paymentSetting,
-          amountType: amountType,
-          platformSetting: platformSetting,
-        ),
-      );
-    }
+      final StreamSubscription<PaymentSettingModel> paymentSettingSubscription =
+          streamPaymentSetting(normalizedShopId).listen((
+            PaymentSettingModel setting,
+          ) {
+            currentPaymentSetting = setting;
+            emitAvailableMethods();
+          }, onError: listener.addError);
 
-    controller = StreamController<List<String>>(
-      onListen: () {
-        paymentSettingSubscription = streamPaymentSetting(normalizedShopId)
-            .listen((PaymentSettingModel setting) {
-              currentPaymentSetting = setting;
-              emitAvailableMethods();
-            }, onError: controller.addError);
+      final StreamSubscription<PlatformPaymentSettingModel>
+      platformSettingSubscription = streamPlatformPaymentSetting().listen((
+        PlatformPaymentSettingModel setting,
+      ) {
+        currentPlatformSetting = setting;
+        emitAvailableMethods();
+      }, onError: listener.addError);
 
-        platformSettingSubscription = streamPlatformPaymentSetting().listen((
-          PlatformPaymentSettingModel setting,
-        ) {
-          currentPlatformSetting = setting;
-          emitAvailableMethods();
-        }, onError: controller.addError);
-      },
-      onCancel: () async {
-        await paymentSettingSubscription?.cancel();
-        await platformSettingSubscription?.cancel();
-      },
-    );
-
-    return controller.stream;
+      listener.onCancel = () async {
+        await paymentSettingSubscription.cancel();
+        await platformSettingSubscription.cancel();
+      };
+    });
   }
 
   /// 一次判斷本次是否可以建立線上付款

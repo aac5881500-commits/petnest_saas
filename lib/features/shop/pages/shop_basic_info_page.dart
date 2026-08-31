@@ -7,6 +7,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/services/shop_service.dart';
+import 'package:petnest_saas/core/widgets/shop_task_center_button.dart';
 import 'package:petnest_saas/features/shop/pages/shop_change_request_page.dart';
 import 'package:petnest_saas/features/shop/pages/shop_request_center_page.dart';
 import 'package:petnest_saas/features/shop/pages/shop_verify_request_page.dart';
@@ -289,7 +290,12 @@ class _ShopBasicInfoPageState extends State<ShopBasicInfoPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('店家基本資料')),
+      appBar: AppBar(
+        title: const Text('店家基本資料'),
+        actions: <Widget>[
+          ShopTaskCenterButton(shopId: widget.shopId),
+        ],
+      ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : Form(

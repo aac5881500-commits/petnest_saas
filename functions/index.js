@@ -477,6 +477,132 @@ exports.sendBookingMessageNotification = onDocumentCreated(
 );
 
 /**
+ * 💬 店家聊天通知
+ *
+ * 監聽：
+ * shops/{shopId}/chat_threads/{threadId}/messages/{messageId}
+ *
+ * 會員傳訊息：
+ * 通知店主，以及未關閉 manage_chat 的店家成員。
+ *
+ * 店家傳訊息：
+ * 通知該聊天室會員。
+ */
+exports.sendShopChatNotification = onDocumentCreated(
+    "shops/{shopId}/chat_threads/{threadId}/messages/{messageId}",
+    async (event) => {
+      if (!event.data) {
+        return;
+      }
+
+      const message = event.data.data();
+      const senderType = (message.senderType || "").toString();
+      const senderUid = (message.senderUid || "").toString();
+      const shopId = event.params.shopId;
+      const threadId = event.params.threadId;
+      const messageId = event.params.messageId;
+      const messageType = (message.type || "text").toString();
+      const rawText = (message.text || "").toString();
+      const body = messageType === "image" ?
+        "傳了一張圖片" :
+        (rawText.length > 80 ? `${rawText.substring(0, 80)}...` : rawText);
+
+      if (senderType !== "shop" && senderType !== "customer") {
+        console.log(`店家聊天訊息 ${messageId} 的 senderType 無法識別`);
+        return;
+      }
+
+      const firestore = admin.firestore();
+      const shopSnapshot = await firestore
+          .collection("shops")
+          .doc(shopId)
+          .get();
+      const shopName = ((shopSnapshot.data() || {}).name || "店家").toString();
+
+      const threadSnapshot = await firestore
+          .collection("shops")
+          .doc(shopId)
+          .collection("chat_threads")
+          .doc(threadId)
+          .get();
+      const thread = threadSnapshot.data() || {};
+      const customerName = (thread.customerName || "會員").toString();
+      const customerUid = (thread.customerUid || threadId).toString();
+
+      const commonData = {
+        type: "shop_chat",
+        shopId,
+        threadId,
+        messageId,
+        senderType,
+      };
+
+      if (senderType === "shop") {
+        if (!customerUid) {
+          console.log(`聊天室 ${threadId} 沒有 customerUid，略過會員推播`);
+          return;
+        }
+
+        await sendNotificationToUser({
+          notificationId: `shop_chat_${messageId}_${customerUid}`,
+          userId: customerUid,
+          title: `${shopName} 回覆了你的訊息`,
+          body: body || "您有一則新訊息",
+          data: commonData,
+        });
+        return;
+      }
+
+      const shopMembersSnapshot = await firestore
+          .collection("shop_members")
+          .where("shopId", "==", shopId)
+          .get();
+
+      if (shopMembersSnapshot.empty) {
+        console.log(`店家 ${shopId} 沒有可接收聊天推播的成員`);
+        return;
+      }
+
+      const receiverIds = shopMembersSnapshot.docs
+          .map((document) => {
+            const member = document.data() || {};
+            const role = (member.role || "").toString();
+            const permissions = member.permissions || {};
+            const canReceive = role === "owner" ||
+              permissions.manage_chat !== false;
+            if (!canReceive) {
+              return "";
+            }
+            return (member.uid || "").toString();
+          })
+          .filter((memberUid) => {
+            return memberUid &&
+              memberUid.length > 0 &&
+              memberUid !== senderUid;
+          });
+
+      const uniqueReceiverIds = [...new Set(receiverIds)];
+
+      if (uniqueReceiverIds.length === 0) {
+        console.log(`店家 ${shopId} 沒有其他可接收聊天推播的成員`);
+        return;
+      }
+
+      const notificationTasks = uniqueReceiverIds.map((receiverId) => {
+        return sendNotificationToUser({
+          notificationId: `shop_chat_${messageId}_${receiverId}`,
+          userId: receiverId,
+          title: `${customerName}傳來新訊息`,
+          body: body || "您有一則新訊息",
+          data: commonData,
+        });
+      });
+
+      await Promise.all(notificationTasks);
+    },
+);
+
+/**
  * 🏨 入住前一天提醒
  *
  * 每天台灣時間上午 10 點執行。

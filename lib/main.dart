@@ -13,12 +13,36 @@ import 'package:petnest_saas/firebase_options.dart';
 import 'package:petnest_saas/features/member/pages/member_page.dart';
 import 'package:petnest_saas/features/shop/pages/shop_code_redirect_page.dart';
 import 'package:flutter/foundation.dart';
+import 'package:petnest_saas/core/debug/chat_error_probe.dart';
 import 'package:petnest_saas/core/services/fcm_token_service.dart';
 import 'package:petnest_saas/core/services/fcm_message_service.dart';
 import 'package:petnest_saas/core/navigation/app_navigator.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  if (kDebugMode) {
+    FlutterError.onError = (FlutterErrorDetails details) {
+      FlutterError.presentError(details);
+      print('[GLOBAL FlutterError]');
+      print(details.exceptionAsString());
+      print(details.stack);
+      ChatErrorProbe.dump(
+        'GLOBAL FlutterError',
+        details.exception,
+        details.stack ?? StackTrace.empty,
+      );
+    };
+    WidgetsBinding.instance.platformDispatcher.onError =
+        (Object error, StackTrace stack) {
+      print('[GLOBAL PlatformError]');
+      print('type=${error.runtimeType}');
+      print(error);
+      print(stack);
+      ChatErrorProbe.dump('GLOBAL PlatformError', error, stack);
+      return false;
+    };
+  }
 
   // 📱 只在手機 App 鎖直向；Web 後台不鎖方向
   if (!kIsWeb) {
@@ -158,9 +182,15 @@ class AppEntryPage extends StatelessWidget {
     // 🔔 手機使用者登入後，自動同步 FCM Token
     // Web 會由 FcmTokenService 自動略過
     Future<void>.microtask(() async {
-      await FcmTokenService.instance.saveCurrentUserToken();
-
-      await FcmMessageService.instance.initialize();
+      try {
+        print('[AppEntry] FCM microtask start');
+        await FcmTokenService.instance.saveCurrentUserToken();
+        await FcmMessageService.instance.initialize();
+        print('[AppEntry] FCM microtask success');
+      } catch (e, st) {
+        print('[AppEntry] FCM microtask failed');
+        ChatErrorProbe.dump('AppEntry FCM', e, st);
+      }
     });
 
     // 有店家身分：店主 / 員工照原本進 HomePage

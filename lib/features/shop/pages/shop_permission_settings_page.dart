@@ -8,6 +8,7 @@ import 'package:intl/intl.dart';
 import 'package:petnest_saas/core/constants/shop_roles.dart';
 import 'package:petnest_saas/core/services/action_log_service.dart';
 import 'package:petnest_saas/core/services/shop_service.dart';
+import 'package:petnest_saas/core/widgets/shop_task_center_button.dart';
 import 'package:petnest_saas/features/shop/widgets/permissions/permission_category_tile.dart';
 import 'package:petnest_saas/features/shop/pages/permissions/basic_info_permission_page.dart';
 import 'package:petnest_saas/features/shop/pages/permissions/cat_hotel_permission_page.dart';
@@ -150,6 +151,8 @@ class _ShopPermissionSettingsPageState
         return '模組設定';
       case 'manage_bookings':
         return '訂單管理';
+      case 'manage_chat':
+        return '店家聊天';
       case 'manage_booking_settings':
         return '預約管理';
       case 'manage_room_dashboard':
@@ -377,7 +380,12 @@ class _ShopPermissionSettingsPageState
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('權限設定')),
+      appBar: AppBar(
+        title: const Text('權限設定'),
+        actions: <Widget>[
+          ShopTaskCenterButton(shopId: widget.shopId),
+        ],
+      ),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
@@ -420,7 +428,7 @@ class _ShopPermissionSettingsPageState
 
           PermissionCategoryTile(
             title: '貓咪旅店權限',
-            subtitle: '訂單、預約、房務、房型、房間、設備、收款優惠、住宿加購、入住規則',
+            subtitle: '訂單、店家聊天、預約、房務、房型、房間、設備、收款優惠、住宿加購、入住規則',
             icon: Icons.pets,
             onTap: () {
               Navigator.push(

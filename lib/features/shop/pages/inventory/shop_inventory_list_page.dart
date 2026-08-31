@@ -13,6 +13,7 @@ import 'package:petnest_saas/features/shop/pages/inventory/shop_inventory_form_p
 import 'package:petnest_saas/features/shop/widgets/inventory/inventory_item_cover.dart';
 import 'package:petnest_saas/features/shop/widgets/inventory/inventory_status_chip.dart';
 import 'package:petnest_saas/features/shop/widgets/inventory/inventory_stock_dialogs.dart';
+import 'package:petnest_saas/core/widgets/shop_task_center_button.dart';
 
 enum _InventoryFilter { all, normal, low, outOfStock, disabled }
 
@@ -48,7 +49,12 @@ class _ShopInventoryListPageState extends State<ShopInventoryListPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('庫存管理')),
+      appBar: AppBar(
+        title: const Text('庫存管理'),
+        actions: <Widget>[
+          ShopTaskCenterButton(shopId: widget.shopId),
+        ],
+      ),
       floatingActionButton: _canManage
           ? FloatingActionButton(
               onPressed: () {

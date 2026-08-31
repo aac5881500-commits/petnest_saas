@@ -23,10 +23,13 @@ import 'package:petnest_saas/features/shop/pages/shop_about_page.dart';
 import 'package:petnest_saas/features/shop/pages/shop_room_intro_page.dart';
 import 'package:petnest_saas/features/shop/pages/storefront/my_store_orders_page.dart';
 import 'package:petnest_saas/features/shop/pages/storefront/store_home_page.dart';
+import 'package:petnest_saas/core/widgets/member_avatar.dart';
 import 'package:petnest_saas/core/models/home_theme_model.dart';
 import 'package:petnest_saas/features/member/pages/member_page.dart';
 import 'package:petnest_saas/features/member/pages/member_point_detail_page.dart';
 import 'package:petnest_saas/core/widgets/drawer_point_balance_card.dart';
+import 'package:petnest_saas/core/services/shop_chat_service.dart';
+import 'package:petnest_saas/features/shop/pages/chat/shop_customer_chat_page.dart';
 
 class AppDrawer extends StatelessWidget {
   const AppDrawer({
@@ -143,6 +146,42 @@ class AppDrawer extends StatelessWidget {
                     },
                   ),
 
+                  if (user != null)
+                    StreamBuilder<DocumentSnapshot>(
+                      stream: FirebaseFirestore.instance
+                          .collection('shops')
+                          .doc(shopId)
+                          .snapshots(),
+                      builder: (
+                        BuildContext context,
+                        AsyncSnapshot<DocumentSnapshot> snapshot,
+                      ) {
+                        final Map<String, dynamic>? shop =
+                            snapshot.data?.data() as Map<String, dynamic>?;
+                        if (!ShopChatService.isEnabled(shop)) {
+                          return const SizedBox.shrink();
+                        }
+                        return _menuItem(
+                          icon: Icons.chat_bubble_outline,
+                          title: '店家訊息',
+                          onTap: () {
+                            Navigator.pop(context);
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute<void>(
+                                builder: (_) => ShopCustomerChatPage(
+                                  shopId: shopId,
+                                  shopName: (shop?['name'] ?? '').toString(),
+                                  shopLogoUrl:
+                                      (shop?['logoUrl'] ?? '').toString(),
+                                ),
+                              ),
+                            );
+                          },
+                        );
+                      },
+                    ),
+
                   _menuItem(
                     icon: Icons.rate_review_outlined,
                     title: '我的評價',
@@ -177,29 +216,33 @@ class AppDrawer extends StatelessWidget {
                         .collection('shops')
                         .doc(shopId)
                         .snapshots(),
-                    builder: (BuildContext context, AsyncSnapshot<DocumentSnapshot> snapshot) {
-                      final Map<String, dynamic>? liveShop =
-                          snapshot.data?.data() as Map<String, dynamic>?;
-                      if (!StorefrontAccess.isModuleEnabled(liveShop)) {
-                        return const SizedBox.shrink();
-                      }
-                      return _menuItem(
-                        icon: Icons.shopping_bag_outlined,
-                        title: '我的商城訂單',
-                        onTap: () {
-                          Navigator.pop(context);
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute<void>(
-                              builder: (_) => MyStoreOrdersPage(
-                                shopId: shopId,
-                                theme: theme,
-                              ),
-                            ),
+                    builder:
+                        (
+                          BuildContext context,
+                          AsyncSnapshot<DocumentSnapshot> snapshot,
+                        ) {
+                          final Map<String, dynamic>? liveShop =
+                              snapshot.data?.data() as Map<String, dynamic>?;
+                          if (!StorefrontAccess.isModuleEnabled(liveShop)) {
+                            return const SizedBox.shrink();
+                          }
+                          return _menuItem(
+                            icon: Icons.shopping_bag_outlined,
+                            title: '我的商城訂單',
+                            onTap: () {
+                              Navigator.pop(context);
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute<void>(
+                                  builder: (_) => MyStoreOrdersPage(
+                                    shopId: shopId,
+                                    theme: theme,
+                                  ),
+                                ),
+                              );
+                            },
                           );
                         },
-                      );
-                    },
                   ),
 
                   if (user != null) _latestBookingCard(context, user.uid),
@@ -536,10 +579,13 @@ class AppDrawer extends StatelessWidget {
                   children: [
                     Row(
                       children: [
-                        CircleAvatar(
-                          radius: 38,
-                          backgroundColor: _orange.withValues(alpha: 0.16),
-                          child: Icon(Icons.pets, color: _orange, size: 34),
+                        MemberAvatar(
+                          imageUrl: resolveMemberAvatarUrl(
+                            customAvatarUrl: (data?['avatarUrl'] ?? '')
+                                .toString(),
+                            authPhotoUrl: user.photoURL,
+                          ),
+                          size: 52,
                         ),
 
                         const SizedBox(width: 16),

@@ -1,124 +1,157 @@
-// lib/core/models/modern_banner_frame_setting.dart
-// 新版 Beta 首頁封面高度、圖片填滿方式與位置。
-// 掛在 homeAppearance.modern，舊資料沒有欄位時使用標準／填滿／置中。
-
 import 'package:flutter/material.dart';
 
+enum HomeBannerDisplaySize { small, standard, large }
+
 class ModernBannerFrameSetting {
-  static const String heightUltraCompact = 'ultraCompact';
-  static const String heightCompact = 'compact';
-  static const String heightStandard = 'standard';
-  static const String heightLarge = 'large';
+  const ModernBannerFrameSetting({
+    this.displaySize = HomeBannerDisplaySize.standard,
+    this.bannerImageFit = fitFill,
+    this.bannerImageAlignment = alignCenter,
+  });
 
   static const String fitFill = 'cover';
   static const String fitContain = 'contain';
-
   static const String alignTop = 'top';
   static const String alignCenter = 'center';
   static const String alignBottom = 'bottom';
 
-  const ModernBannerFrameSetting({
-    this.heightPreset = heightStandard,
-    this.imageFit = fitFill,
-    this.imageAlignment = alignCenter,
-  });
+  final HomeBannerDisplaySize displaySize;
+  final String bannerImageFit;
+  final String bannerImageAlignment;
 
-  final String heightPreset;
-  final String imageFit;
-  final String imageAlignment;
-
-  factory ModernBannerFrameSetting.fromMap(Map<String, dynamic>? map) {
-    if (map == null) {
-      return const ModernBannerFrameSetting();
+  String get displaySizeKey {
+    switch (displaySize) {
+      case HomeBannerDisplaySize.small:
+        return 'small';
+      case HomeBannerDisplaySize.standard:
+        return 'standard';
+      case HomeBannerDisplaySize.large:
+        return 'large';
     }
-
-    return ModernBannerFrameSetting(
-      heightPreset: _readHeightPreset(map['bannerHeightPreset']),
-      imageFit: _readImageFit(map['bannerImageFit']),
-      imageAlignment: _readImageAlignment(map['bannerImageAlignment']),
-    );
   }
 
-  Map<String, dynamic> toMap() {
-    return <String, dynamic>{
-      'bannerHeightPreset': heightPreset,
-      'bannerImageFit': imageFit,
-      'bannerImageAlignment': imageAlignment,
-    };
-  }
-
-  bool get isUltraCompact => heightPreset == heightUltraCompact;
-
-  bool get isCompact => heightPreset == heightCompact;
-
-  bool get usesCoverFit => imageFit != fitContain;
-
-  BoxFit get boxFit {
-    return usesCoverFit ? BoxFit.cover : BoxFit.contain;
-  }
-
-  Alignment get alignment {
-    if (!usesCoverFit) {
-      return Alignment.center;
+  /// 小 2.4:1、標準 16:9、大 3:2。寬度由 container 決定，高度等比縮放。
+  double get aspectRatio {
+    switch (displaySize) {
+      case HomeBannerDisplaySize.small:
+        return 2.4;
+      case HomeBannerDisplaySize.standard:
+        return 16 / 9;
+      case HomeBannerDisplaySize.large:
+        return 3 / 2;
     }
+  }
 
-    switch (imageAlignment) {
+  /// 相容舊 UI／評論徽章：小 = 舊極簡+精簡。
+  bool get isUltraCompact => displaySize == HomeBannerDisplaySize.small;
+  bool get isCompact => displaySize == HomeBannerDisplaySize.small;
+  bool get isStandard => displaySize == HomeBannerDisplaySize.standard;
+  bool get isLarge => displaySize == HomeBannerDisplaySize.large;
+
+  String get heightPreset {
+    switch (displaySize) {
+      case HomeBannerDisplaySize.small:
+        return 'compact';
+      case HomeBannerDisplaySize.standard:
+        return 'standard';
+      case HomeBannerDisplaySize.large:
+        return 'large';
+    }
+  }
+
+  String get imageFit => bannerImageFit;
+  String get imageAlignment => bannerImageAlignment;
+  bool get usesCoverFit => bannerImageFit != fitContain;
+  BoxFit get boxFit => parsedBannerImageFit;
+  Alignment get alignment => parsedBannerImageAlignment;
+
+  Alignment get parsedBannerImageAlignment {
+    switch (bannerImageAlignment) {
       case alignTop:
         return Alignment.topCenter;
       case alignBottom:
         return Alignment.bottomCenter;
+      case 'left':
+        return Alignment.centerLeft;
+      case 'right':
+        return Alignment.centerRight;
       default:
         return Alignment.center;
     }
   }
 
-  /// 以約 390px 手機寬為基準：極簡 140、精簡 180、標準 220、大型 270。
-  /// 較寬版面略為放大，並設上限避免桌面變成整屏大海報。
+  BoxFit get parsedBannerImageFit {
+    return bannerImageFit == fitContain ? BoxFit.contain : BoxFit.cover;
+  }
+
   double heightForWidth(double width) {
-    final double base;
-    switch (heightPreset) {
-      case heightUltraCompact:
-        base = 140;
-      case heightCompact:
-        base = 180;
-      case heightLarge:
-        base = 270;
+    if (width <= 0) {
+      return 0;
+    }
+    return width / aspectRatio;
+  }
+
+  ModernBannerFrameSetting copyWith({
+    HomeBannerDisplaySize? displaySize,
+    String? bannerImageFit,
+    String? bannerImageAlignment,
+  }) {
+    return ModernBannerFrameSetting(
+      displaySize: displaySize ?? this.displaySize,
+      bannerImageFit: bannerImageFit ?? this.bannerImageFit,
+      bannerImageAlignment: bannerImageAlignment ?? this.bannerImageAlignment,
+    );
+  }
+
+  Map<String, dynamic> toMap() {
+    return <String, dynamic>{
+      'homeBannerDisplaySize': displaySizeKey,
+      'bannerHeightPreset': heightPreset,
+      'bannerImageFit': bannerImageFit,
+      'bannerImageAlignment': bannerImageAlignment,
+    };
+  }
+
+  factory ModernBannerFrameSetting.fromMap(Map<String, dynamic> map) {
+    return ModernBannerFrameSetting(
+      displaySize: _parseDisplaySize(map),
+      bannerImageFit: (map['bannerImageFit'] ?? fitFill).toString(),
+      bannerImageAlignment: (map['bannerImageAlignment'] ?? alignCenter)
+          .toString(),
+    );
+  }
+
+  factory ModernBannerFrameSetting.fromShop(Map<String, dynamic>? shop) {
+    final Object? appearance = shop?['homeAppearance'];
+    if (appearance is! Map) {
+      return const ModernBannerFrameSetting();
+    }
+    final Object? modern = appearance['modern'];
+    if (modern is! Map) {
+      return const ModernBannerFrameSetting();
+    }
+    return ModernBannerFrameSetting.fromMap(Map<String, dynamic>.from(modern));
+  }
+
+  static HomeBannerDisplaySize _parseDisplaySize(Map<String, dynamic> map) {
+    final String size = (map['homeBannerDisplaySize'] ?? '').toString().trim();
+    switch (size) {
+      case 'small':
+        return HomeBannerDisplaySize.small;
+      case 'standard':
+        return HomeBannerDisplaySize.standard;
+      case 'large':
+        return HomeBannerDisplaySize.large;
+    }
+
+    switch ((map['bannerHeightPreset'] ?? 'standard').toString()) {
+      case 'ultraCompact':
+      case 'compact':
+        return HomeBannerDisplaySize.small;
+      case 'large':
+        return HomeBannerDisplaySize.large;
       default:
-        base = 220;
+        return HomeBannerDisplaySize.standard;
     }
-
-    if (width <= 430) {
-      return base;
-    }
-
-    final double scale = (width / 390).clamp(1.0, 1.35);
-    return base * scale;
-  }
-
-  static String _readHeightPreset(dynamic value) {
-    final String text = (value ?? '').toString().trim();
-    if (text == heightUltraCompact ||
-        text == heightCompact ||
-        text == heightLarge ||
-        text == heightStandard) {
-      return text;
-    }
-    return heightStandard;
-  }
-
-  static String _readImageFit(dynamic value) {
-    final String text = (value ?? '').toString().trim();
-    if (text == fitContain || text == fitFill) {
-      return text;
-    }
-    return fitFill;
-  }
-
-  static String _readImageAlignment(dynamic value) {
-    final String text = (value ?? '').toString().trim();
-    if (text == alignTop || text == alignBottom || text == alignCenter) {
-      return text;
-    }
-    return alignCenter;
   }
 }

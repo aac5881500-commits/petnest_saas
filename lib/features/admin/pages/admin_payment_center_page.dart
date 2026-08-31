@@ -8,6 +8,7 @@ import 'package:flutter/material.dart';
 import '../../../core/models/payment_model.dart';
 import '../../../core/services/payment_service.dart';
 import 'admin_payment_detail_page.dart';
+import '../../../core/widgets/shop_task_center_button.dart';
 
 class AdminPaymentCenterPage extends StatefulWidget {
   const AdminPaymentCenterPage({
@@ -50,7 +51,12 @@ class _AdminPaymentCenterPageState extends State<AdminPaymentCenterPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text(_isBookingMode ? '訂單交易紀錄' : '金流中心')),
+      appBar: AppBar(
+        title: Text(_isBookingMode ? '訂單交易紀錄' : '金流中心'),
+        actions: <Widget>[
+          ShopTaskCenterButton(shopId: widget.shopId),
+        ],
+      ),
       body: StreamBuilder<List<PaymentModel>>(
         stream: _isBookingMode
             ? PaymentService.instance.streamBookingPayments(

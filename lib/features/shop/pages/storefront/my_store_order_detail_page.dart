@@ -15,6 +15,7 @@ import 'package:petnest_saas/core/services/payment_service.dart';
 import 'package:petnest_saas/core/services/store_function_service.dart';
 import 'package:petnest_saas/core/services/store_order_service.dart';
 import 'package:petnest_saas/features/payment/pages/ecpay_payment_page.dart';
+import 'package:petnest_saas/features/shop/widgets/store/storefront_theme.dart';
 
 class MyStoreOrderDetailPage extends StatefulWidget {
   const MyStoreOrderDetailPage({
@@ -132,6 +133,10 @@ class _MyStoreOrderDetailPageState extends State<MyStoreOrderDetailPage> {
 
   @override
   Widget build(BuildContext context) {
+    return StorefrontTheme(
+      shopId: shopId,
+      shopTheme: widget.theme,
+      builder: (BuildContext context, HomeThemeModel theme, _) {
     return Scaffold(
       backgroundColor: theme.backgroundColor,
       appBar: AppBar(
@@ -200,11 +205,24 @@ class _MyStoreOrderDetailPageState extends State<MyStoreOrderDetailPage> {
                 return ListTile(
                   contentPadding: EdgeInsets.zero,
                   title: Text(item.productName),
-                  subtitle: Text('NT\$ ${item.unitPrice} × ${item.quantity}'),
+                  subtitle: Text(
+                    item.hasPromotionSnapshot
+                        ? '原價 NT\$ ${item.snapshotOriginalUnitPrice} → '
+                            'NT\$ ${item.snapshotFinalUnitPrice} × ${item.snapshotPurchaseQuantity}'
+                            '${item.snapshotFreeQuantity > 0 ? '\n購買 ${item.snapshotPurchaseQuantity} 件　贈送 ${item.snapshotFreeQuantity} 件　共收到 ${item.snapshotFulfillmentQuantity} 件' : ''}'
+                            '${item.itemPromotionName.isEmpty ? '' : '\n${item.itemPromotionName}'}'
+                            '${item.promotionName.isEmpty ? '' : '\n${item.promotionName}'}'
+                        : 'NT\$ ${item.unitPrice} × ${item.quantity}',
+                  ),
                   trailing: Text('NT\$ ${item.subtotal}'),
                 );
               }),
               const SizedBox(height: 8),
+              if ((order.originalSubtotal ?? order.subtotal) >
+                  order.totalAmount) ...<Widget>[
+                Text('商品原價 NT\$ ${order.originalSubtotal ?? order.subtotal}'),
+                Text('活動優惠 -NT\$ ${order.promotionDiscount}'),
+              ],
               Text(
                 '合計 NT\$ ${order.totalAmount}',
                 style: TextStyle(
@@ -228,6 +246,8 @@ class _MyStoreOrderDetailPageState extends State<MyStoreOrderDetailPage> {
           );
         },
       ),
+    );
+      },
     );
   }
 }

@@ -6,6 +6,7 @@ class StoreConstants {
   StoreConstants._();
 
   static const String productsCollection = 'store_products';
+  static const String promotionsCollection = 'store_promotions';
   static const String categoriesCollection = 'store_categories';
   static const String ordersCollection = 'store_orders';
   static const String cartsCollection = 'store_carts';
@@ -15,6 +16,7 @@ class StoreConstants {
   static const String countersCollection = 'store_counters';
 
   static const String imageFolder = 'store';
+  static const String bannerImageFolder = 'store/banners';
   static const int reservationMinutes = 20;
 
   static const String fulfillmentPickup = 'pickup';

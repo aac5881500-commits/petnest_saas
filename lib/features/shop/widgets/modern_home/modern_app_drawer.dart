@@ -18,12 +18,15 @@ import 'package:petnest_saas/features/auth/pages/login_page.dart';
 import 'package:petnest_saas/features/member/pages/member_page.dart';
 import 'package:petnest_saas/features/member/pages/member_point_detail_page.dart';
 import 'package:petnest_saas/core/widgets/drawer_point_balance_card.dart';
+import 'package:petnest_saas/core/services/shop_chat_service.dart';
+import 'package:petnest_saas/features/shop/pages/chat/shop_customer_chat_page.dart';
 import 'package:petnest_saas/core/constants/shop_permission_keys.dart';
 import 'package:petnest_saas/features/booking/pages/booking_detail_page.dart';
 import 'package:petnest_saas/features/platform/pages/platform_shop_manage_page.dart';
 import 'package:petnest_saas/features/shop/pages/shop_faq_page.dart';
 import 'package:petnest_saas/features/shop/pages/shop_announcement_page.dart';
 import 'package:petnest_saas/features/shop/widgets/modern_home/shop_modern_logo.dart';
+import 'package:petnest_saas/core/widgets/member_avatar.dart';
 import 'package:petnest_saas/features/shop/pages/shop_environment_page.dart';
 import 'package:petnest_saas/features/shop/pages/shop_about_page.dart';
 import 'package:petnest_saas/features/shop/pages/shop_room_intro_page.dart';
@@ -158,6 +161,26 @@ class ModernAppDrawer extends StatelessWidget {
                             }
                           },
                         ),
+
+                        if (user != null && ShopChatService.isEnabled(shop))
+                          _menuItem(
+                            icon: Icons.chat_bubble_outline,
+                            title: '店家訊息',
+                            onTap: () {
+                              Navigator.pop(context);
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute<void>(
+                                  builder: (_) => ShopCustomerChatPage(
+                                    shopId: shopId,
+                                    shopName: (shop['name'] ?? '').toString(),
+                                    shopLogoUrl:
+                                        (shop['logoUrl'] ?? '').toString(),
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
 
                         _menuItem(
                           icon: Icons.rate_review_outlined,
@@ -597,18 +620,13 @@ class ModernAppDrawer extends StatelessWidget {
 
                   return Row(
                     children: [
-                      Container(
-                        width: 42,
-                        height: 42,
-                        decoration: BoxDecoration(
-                          color: _primaryColor.withOpacity(0.12),
-                          borderRadius: BorderRadius.circular(14),
+                      MemberAvatar(
+                        imageUrl: resolveMemberAvatarUrl(
+                          customAvatarUrl: (data?['avatarUrl'] ?? '')
+                              .toString(),
+                          authPhotoUrl: user.photoURL,
                         ),
-                        child: Icon(
-                          Icons.pets_rounded,
-                          color: _orange,
-                          size: 21,
-                        ),
+                        size: 50,
                       ),
                       const SizedBox(width: 10),
                       Expanded(

@@ -47,6 +47,9 @@ class ShopPermissionKeys {
   /// 📅 管理預約功能
   static const manageBookings = 'manage_bookings';
 
+  /// 💬 查看與回覆店家聊天
+  static const manageChat = 'manage_chat';
+
   /// 📅 管理預約設定
   static const manageBookingSettings = 'manage_booking_settings';
 
@@ -105,6 +108,7 @@ class ShopPermissionKeys {
     manageReviews,
     manageModules,
     manageBookings,
+    manageChat,
     manageBookingSettings,
     manageRoomDashboard,
     manageRoomTypes,

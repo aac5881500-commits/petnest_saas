@@ -22,6 +22,16 @@ service firebase.storage {
         );
     }
 
+    function isShopOwnerUid(shopId) {
+      return signedIn()
+        && firestore.exists(
+          /databases/(default)/documents/shops/$(shopId)
+        )
+        && firestore.get(
+          /databases/(default)/documents/shops/$(shopId)
+        ).data.ownerUid == request.auth.uid;
+    }
+
     function isImage() {
       return request.resource.contentType.matches('image/.*');
     }
@@ -54,6 +64,7 @@ service firebase.storage {
     // shops/{shopId}/point_rewards/{rewardId}/product_image.*
     // shops/{shopId}/inventory/{itemId}/cover.jpg
     // shops/{shopId}/store/{productId}/cover.jpg
+    // shops/{shopId}/store/banners/{bannerId}/...
     match /shops/{shopId}/{allPaths=**} {
   allow read: if true;
 
@@ -68,6 +79,35 @@ service firebase.storage {
   // 因此不能再檢查 contentType 或 size。
   allow delete: if isShopMember(shopId) || isRootAdmin();
 }
+
+    // 💬 店家聊天圖片：shop_chat/{shopId}/{customerUid}/{messageId}/image.jpg
+    match /shop_chat/{shopId}/{customerUid}/{allPaths=**} {
+      allow read: if signedIn()
+        && (
+          request.auth.uid == customerUid
+          || isShopMember(shopId)
+          || isShopOwnerUid(shopId)
+          || isRootAdmin()
+        );
+
+      allow create, update: if signedIn()
+        && isImage()
+        && isUnder5MB()
+        && (
+          request.auth.uid == customerUid
+          || isShopMember(shopId)
+          || isShopOwnerUid(shopId)
+          || isRootAdmin()
+        );
+
+      allow delete: if signedIn()
+        && (
+          request.auth.uid == customerUid
+          || isShopMember(shopId)
+          || isShopOwnerUid(shopId)
+          || isRootAdmin()
+        );
+    }
 
 // 📸 客戶上傳匯款證明
 match /booking_images/{bookingId}/{fileName} {

@@ -3,7 +3,6 @@
 // 功能：會員完成退房後，在下載期限內下載每日照護紀錄與高清照護照片。
 // 注意：入住期間不可使用此頁取得高清照片。
 
-import 'dart:convert';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -11,11 +10,15 @@ import 'package:share_plus/share_plus.dart';
 import 'package:universal_html/html.dart' as html;
 import 'package:petnest_saas/core/models/daily_care_photo_download_model.dart';
 import 'package:petnest_saas/core/models/daily_care_record_model.dart';
+import 'package:petnest_saas/core/models/daily_care_setting_model.dart';
+import 'package:petnest_saas/core/models/daily_care_stay_info.dart';
 import 'package:petnest_saas/core/services/daily_care_photo_download_service.dart';
 import 'package:petnest_saas/core/services/daily_care_record_service.dart';
+import 'package:petnest_saas/core/models/daily_care_report_data.dart';
+import 'package:petnest_saas/core/services/daily_care_report_export_service.dart';
 import 'package:petnest_saas/core/services/daily_care_setting_service.dart';
 
-class CustomerDailyCareDownloadPage extends StatelessWidget {
+class CustomerDailyCareDownloadPage extends StatefulWidget {
   const CustomerDailyCareDownloadPage({
     super.key,
     required this.shopId,
@@ -32,25 +35,18 @@ class CustomerDailyCareDownloadPage extends StatelessWidget {
   /// 入住房間名稱
   final String roomName;
 
-  static const Map<String, String> _dailyCareFieldLabels = <String, String>{
-    'temperature': '室內溫度',
-    'humidity': '室內濕度',
-    'water': '飲水',
-    'dryFood': '飼料',
-    'wetFood': '罐頭',
-    'snack': '零食',
-    'stool': '大便',
-    'urine': '尿尿',
-    'wandToy': '逗貓棒',
-    'scratchBoard': '貓抓板',
-    'jumpPlatform': '貓跳台',
-    'toyBall': '玩具球',
-    'catHouse': '貓屋',
-    'catnip': '貓薄荷',
-    'silverVine': '木天蓼',
-    'catGrass': '貓草',
-    'generalNote': '整體備註',
-  };
+  @override
+  State<CustomerDailyCareDownloadPage> createState() =>
+      _CustomerDailyCareDownloadPageState();
+}
+
+class _CustomerDailyCareDownloadPageState
+    extends State<CustomerDailyCareDownloadPage> {
+  bool _generating = false;
+
+  String get shopId => widget.shopId;
+  String get bookingId => widget.bookingId;
+  String get roomName => widget.roomName;
 
   @override
   Widget build(BuildContext context) {
@@ -120,8 +116,11 @@ class CustomerDailyCareDownloadPage extends StatelessWidget {
 
         final DateTime confirmedCheckOutAt = checkOutAt;
 
-        return FutureBuilder(
-          future: DailyCareSettingService.instance.getSetting(shopId),
+        return FutureBuilder<List<Object?>>(
+          future: Future.wait<Object?>(<Future<Object?>>[
+            DailyCareSettingService.instance.getSetting(shopId),
+            FirebaseFirestore.instance.collection('shops').doc(shopId).get(),
+          ]),
           builder: (context, settingSnapshot) {
             if (settingSnapshot.connectionState == ConnectionState.waiting) {
               return Scaffold(
@@ -130,7 +129,10 @@ class CustomerDailyCareDownloadPage extends StatelessWidget {
               );
             }
 
-            if (settingSnapshot.hasError || !settingSnapshot.hasData) {
+            if (settingSnapshot.hasError ||
+                !settingSnapshot.hasData ||
+                settingSnapshot.data == null ||
+                settingSnapshot.data!.isEmpty) {
               return Scaffold(
                 appBar: AppBar(title: const Text('退房照護資料')),
                 body: const Center(
@@ -142,7 +144,20 @@ class CustomerDailyCareDownloadPage extends StatelessWidget {
               );
             }
 
-            final setting = settingSnapshot.data!;
+            final setting = settingSnapshot.data![0] as DailyCareSettingModel;
+            final DocumentSnapshot<Map<String, dynamic>> shopSnapshot =
+                settingSnapshot.data![1]
+                    as DocumentSnapshot<Map<String, dynamic>>;
+            final String shopLogoUrl =
+                (shopSnapshot.data()?['logoUrl'] ?? '').toString().trim();
+            final DailyCareStayInfo stayInfo = DailyCareStayInfo.fromBookingMap(
+              data,
+              fallbackRoomName: roomName,
+              shopLogoUrl: shopLogoUrl,
+            );
+            final String resolvedRoomName = stayInfo.roomName.isNotEmpty
+                ? stayInfo.roomName
+                : roomName;
 
             /// 真正下載截止時間：
             ///
@@ -164,11 +179,31 @@ class CustomerDailyCareDownloadPage extends StatelessWidget {
                   padding: const EdgeInsets.all(16),
                   children: [
                     Text(
-                      roomName,
+                      resolvedRoomName,
                       style: Theme.of(context).textTheme.titleLarge?.copyWith(
                         fontWeight: FontWeight.w700,
                       ),
                     ),
+                    if (stayInfo.petNamesText.isNotEmpty) ...<Widget>[
+                      const SizedBox(height: 4),
+                      Text(
+                        stayInfo.petNamesText,
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: Colors.grey.shade700,
+                        ),
+                      ),
+                    ],
+                    if (stayInfo.stayDateText.isNotEmpty) ...<Widget>[
+                      const SizedBox(height: 2),
+                      Text(
+                        stayInfo.stayDateText,
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: Colors.grey.shade700,
+                        ),
+                      ),
+                    ],
                     const SizedBox(height: 8),
 
                     Text(isExpired ? '照護資料下載期限已結束' : '退房後可在期限內下載本次住宿的照護紀錄與照片。'),
@@ -201,7 +236,7 @@ class CustomerDailyCareDownloadPage extends StatelessWidget {
 
                     const SizedBox(height: 24),
 
-                    /// 📋 每日照護紀錄
+                    /// 📋 每日照護報告圖片
                     StreamBuilder(
                       stream: DailyCareRecordService.instance
                           .streamBookingRecords(bookingId: bookingId),
@@ -209,20 +244,22 @@ class CustomerDailyCareDownloadPage extends StatelessWidget {
                         if (snapshot.connectionState ==
                             ConnectionState.waiting) {
                           return const _DownloadItemCard(
-                            icon: Icons.description_outlined,
-                            title: '每日照護紀錄',
+                            icon: Icons.image_outlined,
+                            title: '每日照護報告',
                             description: '正在載入照護紀錄...',
                             enabled: false,
+                            buttonLabel: '產生照護報告',
                             onPressed: null,
                           );
                         }
 
                         if (snapshot.hasError) {
                           return const _DownloadItemCard(
-                            icon: Icons.description_outlined,
-                            title: '每日照護紀錄',
+                            icon: Icons.image_outlined,
+                            title: '每日照護報告',
                             description: '照護紀錄載入失敗。',
                             enabled: false,
+                            buttonLabel: '產生照護報告',
                             onPressed: null,
                           );
                         }
@@ -233,20 +270,23 @@ class CustomerDailyCareDownloadPage extends StatelessWidget {
                         final int recordCount = records.length;
 
                         return _DownloadItemCard(
-                          icon: Icons.description_outlined,
-                          title: '每日照護紀錄',
+                          icon: Icons.image_outlined,
+                          title: '每日照護報告',
                           description: recordCount > 0
-                              ? '共有 $recordCount 筆每日照護紀錄可下載。'
-                              : '目前沒有可下載的每日照護紀錄。',
-                          enabled: !isExpired && recordCount > 0,
-                          onPressed: () async {
-                            await _downloadDailyCareRecords(
-                              context: context,
+                              ? '精簡統計版把整次住宿濃縮成一張圖；完整版保留每天每次紀錄。'
+                              : '目前沒有可產出的照護紀錄。',
+                          enabled:
+                              !isExpired && recordCount > 0 && !_generating,
+                          busy: _generating,
+                          buttonLabel: _generating ? '產生報告中...' : '產生照護報告',
+                          onPressed: () {
+                            _openReportSheet(
                               records: records,
-                              customFieldLabels: <String, String>{
-                                for (final field in setting.customFields)
-                                  field.id: field.label,
-                              },
+                              stayInfo: stayInfo,
+                              setting: setting,
+                              booking: data,
+                              shop:
+                                  shopSnapshot.data() ?? <String, dynamic>{},
                             );
                           },
                         );
@@ -320,117 +360,224 @@ class CustomerDailyCareDownloadPage extends StatelessWidget {
     );
   }
 
-  /// 📋 下載本次住宿全部每日照護紀錄。
-  ///
-  /// Web：
-  /// 直接下載 UTF-8 TXT 檔案。
-  ///
-  /// Android / iOS：
-  /// 透過系統分享 / 儲存介面輸出 TXT。
-  Future<void> _downloadDailyCareRecords({
-    required BuildContext context,
+  Future<void> _openReportSheet({
     required List<DailyCareRecordModel> records,
-    required Map<String, String> customFieldLabels,
+    required DailyCareStayInfo stayInfo,
+    required DailyCareSettingModel setting,
+    required Map<String, dynamic> booking,
+    required Map<String, dynamic> shop,
   }) async {
-    if (records.isEmpty) {
+    final DailyCareReportExportService export =
+        DailyCareReportExportService.instance;
+    final List<DateTime> dates = export.recordCareDates(
+      stay: stayInfo,
+      records: records,
+    );
+    if (dates.isEmpty) {
       return;
     }
 
-    try {
-      final StringBuffer buffer = StringBuffer();
-
-      buffer.writeln('PetNest 每日照護紀錄');
-      buffer.writeln('房間：$roomName');
-      buffer.writeln('訂單編號：$bookingId');
-      buffer.writeln('');
-      buffer.writeln('================================');
-      buffer.writeln('');
-
-      String? lastDate;
-
-      for (final DailyCareRecordModel record in records) {
-        final String currentDate = _formatRecordDate(record.recordDate);
-
-        if (currentDate != lastDate) {
-          if (lastDate != null) {
-            buffer.writeln('');
-          }
-
-          buffer.writeln('📅 $currentDate');
-          buffer.writeln('================================');
-          lastDate = currentDate;
-        }
-
-        buffer.writeln('');
-        buffer.writeln('【${record.sessionName}】');
-
-        if (record.values.isEmpty) {
-          buffer.writeln('無照護內容');
-          continue;
-        }
-
-        record.values.forEach((String key, dynamic value) {
-          final String text = value?.toString().trim() ?? '';
-
-          if (text.isNotEmpty) {
-            final String label =
-                _dailyCareFieldLabels[key] ?? customFieldLabels[key] ?? key;
-
-            buffer.writeln('$label：$text');
-          }
-        });
-      }
-      final Uint8List bytes = Uint8List.fromList(
-        utf8.encode(buffer.toString()),
-      );
-
-      final String fileName = 'PetNest_daily_care_records_$bookingId.txt';
-
-      if (kIsWeb) {
-        final html.Blob blob = html.Blob(<dynamic>[
-          bytes,
-        ], 'text/plain;charset=utf-8');
-
-        final String objectUrl = html.Url.createObjectUrlFromBlob(blob);
-
-        final html.AnchorElement anchor = html.AnchorElement(href: objectUrl);
-
-        anchor.download = fileName;
-        anchor.style.display = 'none';
-
-        html.document.body?.children.add(anchor);
-
-        anchor.click();
-        anchor.remove();
-
-        html.Url.revokeObjectUrl(objectUrl);
-      } else {
-        final XFile file = XFile.fromData(
-          bytes,
-          mimeType: 'text/plain',
-          name: fileName,
+    await showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      isScrollControlled: true,
+      builder: (BuildContext sheetContext) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: <Widget>[
+                  const Text(
+                    '下載照護報告',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
+                  ),
+                  const SizedBox(height: 16),
+                  const Text(
+                    '住宿照護統計',
+                    style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    '將整次住宿照護濃縮成一張簡單統計圖片',
+                    style: TextStyle(fontSize: 13, color: Colors.grey.shade700),
+                  ),
+                  const SizedBox(height: 8),
+                  FilledButton(
+                    onPressed: () {
+                      Navigator.of(sheetContext).pop();
+                      _generateReport(
+                        records: records,
+                        stayInfo: stayInfo,
+                        setting: setting,
+                        booking: booking,
+                        shop: shop,
+                        kind: DailyCareReportExportKind.summary,
+                      );
+                    },
+                    child: const Text('下載精簡版'),
+                  ),
+                  const SizedBox(height: 18),
+                  const Text(
+                    '完整照護紀錄',
+                    style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    '包含每天每次照護與完整概況',
+                    style: TextStyle(fontSize: 13, color: Colors.grey.shade700),
+                  ),
+                  const SizedBox(height: 8),
+                  OutlinedButton(
+                    onPressed: () {
+                      Navigator.of(sheetContext).pop();
+                      _generateReport(
+                        records: records,
+                        stayInfo: stayInfo,
+                        setting: setting,
+                        booking: booking,
+                        shop: shop,
+                        kind: DailyCareReportExportKind.fullStay,
+                      );
+                    },
+                    child: const Text('下載完整版'),
+                  ),
+                  const SizedBox(height: 18),
+                  const Text(
+                    '單日詳細版',
+                    style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    '選擇住宿日期後，產生該日完整照護報告',
+                    style: TextStyle(fontSize: 13, color: Colors.grey.shade700),
+                  ),
+                  const SizedBox(height: 8),
+                  if (dates.length == 1)
+                    OutlinedButton(
+                      onPressed: () {
+                        Navigator.of(sheetContext).pop();
+                        _generateReport(
+                          records: records,
+                          stayInfo: stayInfo,
+                          setting: setting,
+                          booking: booking,
+                          shop: shop,
+                          onlyDate: dates.first,
+                          kind: DailyCareReportExportKind.singleDay,
+                        );
+                      },
+                      child: Text(
+                        '下載 ${dates.first.month}/${dates.first.day} 單日詳細版',
+                      ),
+                    )
+                  else
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: dates.map((DateTime date) {
+                        return OutlinedButton(
+                          onPressed: () {
+                            Navigator.of(sheetContext).pop();
+                            _generateReport(
+                              records: records,
+                              stayInfo: stayInfo,
+                              setting: setting,
+                              booking: booking,
+                              shop: shop,
+                              onlyDate: date,
+                              kind: DailyCareReportExportKind.singleDay,
+                            );
+                          },
+                          child: Text('${date.month}/${date.day}'),
+                        );
+                      }).toList(),
+                    ),
+                ],
+              ),
+            ),
+          ),
         );
+      },
+    );
+  }
 
-        await Share.shareXFiles(<XFile>[file], text: 'PetNest 每日照護紀錄');
+  Future<void> _generateReport({
+    required List<DailyCareRecordModel> records,
+    required DailyCareStayInfo stayInfo,
+    required DailyCareSettingModel setting,
+    required Map<String, dynamic> booking,
+    required Map<String, dynamic> shop,
+    DateTime? onlyDate,
+    DailyCareReportExportKind kind = DailyCareReportExportKind.fullStay,
+  }) async {
+    if (_generating) {
+      return;
+    }
+
+    setState(() {
+      _generating = true;
+    });
+
+    try {
+      final DailyCareReportExportService export =
+          DailyCareReportExportService.instance;
+      final data = export.buildReport(
+        booking: booking,
+        shop: shop,
+        stay: stayInfo,
+        setting: setting,
+        records: records,
+        onlyDate: onlyDate,
+        kind: kind,
+      );
+      if (kind != DailyCareReportExportKind.summary && data.days.isEmpty) {
+        throw StateError('沒有可產出的照護日期');
+      }
+      if (kind == DailyCareReportExportKind.summary && records.isEmpty) {
+        throw StateError('沒有可產出的照護紀錄');
       }
 
-      if (!context.mounted) {
+      final ImageProvider? logo = await export.preloadLogo(
+        context,
+        data.shopLogoUrl,
+      );
+      if (!mounted) {
         return;
       }
 
+      await export.exportPng(
+        context: context,
+        data: data,
+        logoProvider: logo,
+        fileName: export.fileName(data: data),
+      );
+
+      if (!mounted) {
+        return;
+      }
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(kIsWeb ? '每日照護紀錄已開始下載。' : '每日照護紀錄已準備完成，請選擇儲存或分享位置。'),
+          content: Text(
+            kIsWeb ? '照護報告已產生，開始下載。' : '照護報告已產生，請選擇儲存或分享位置。',
+          ),
         ),
       );
     } catch (error) {
-      if (!context.mounted) {
+      if (!mounted) {
         return;
       }
-
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(SnackBar(content: Text('每日照護紀錄下載失敗：$error')));
+      ).showSnackBar(SnackBar(content: Text('照護報告產生失敗：$error')));
+    } finally {
+      if (mounted) {
+        setState(() {
+          _generating = false;
+        });
+      }
     }
   }
 
@@ -551,16 +698,6 @@ class CustomerDailyCareDownloadPage extends StatelessWidget {
         '$safePhotoId.jpg';
   }
 
-  String _formatRecordDate(DateTime value) {
-    String twoDigits(int number) {
-      return number.toString().padLeft(2, '0');
-    }
-
-    return '${value.year}/'
-        '${twoDigits(value.month)}/'
-        '${twoDigits(value.day)}';
-  }
-
   String _formatDateTime(DateTime value) {
     String twoDigits(int number) {
       return number.toString().padLeft(2, '0');
@@ -581,6 +718,8 @@ class _DownloadItemCard extends StatelessWidget {
     required this.description,
     required this.enabled,
     required this.onPressed,
+    this.buttonLabel = '下載',
+    this.busy = false,
   });
 
   final IconData icon;
@@ -588,6 +727,8 @@ class _DownloadItemCard extends StatelessWidget {
   final String description;
   final bool enabled;
   final VoidCallback? onPressed;
+  final String buttonLabel;
+  final bool busy;
 
   @override
   Widget build(BuildContext context) {
@@ -620,7 +761,13 @@ class _DownloadItemCard extends StatelessWidget {
             const SizedBox(width: 12),
             FilledButton(
               onPressed: enabled ? onPressed : null,
-              child: const Text('下載'),
+              child: busy
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : Text(buttonLabel),
             ),
           ],
         ),

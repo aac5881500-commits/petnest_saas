@@ -16,6 +16,7 @@ import 'package:petnest_saas/core/services/shop_service.dart';
 import 'package:petnest_saas/shared/widgets/booking_calendar.dart';
 import 'package:petnest_saas/core/constants/shop_permission_keys.dart';
 import 'package:petnest_saas/core/services/shop_plan_service.dart';
+import 'package:petnest_saas/core/widgets/shop_task_center_button.dart';
 
 class ShopBookingSettingsPage extends StatefulWidget {
   const ShopBookingSettingsPage({super.key, required this.shopId});
@@ -121,7 +122,12 @@ class _ShopBookingSettingsPageState extends State<ShopBookingSettingsPage> {
       );
     }
     return Scaffold(
-      appBar: AppBar(title: const Text('預約管理')),
+      appBar: AppBar(
+        title: const Text('預約管理'),
+        actions: <Widget>[
+          ShopTaskCenterButton(shopId: widget.shopId),
+        ],
+      ),
       body: StreamBuilder<Map<String, dynamic>?>(
         stream: ShopService.instance.streamShop(widget.shopId),
         builder: (context, shopSnapshot) {

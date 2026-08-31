@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/constants/shop_modules.dart';
 import 'package:petnest_saas/core/constants/shop_roles.dart';
 import 'package:petnest_saas/core/services/shop_service.dart';
+import 'package:petnest_saas/core/widgets/shop_task_center_button.dart';
 
 class ShopModuleSettingsPage extends StatefulWidget {
   const ShopModuleSettingsPage({
@@ -238,6 +239,9 @@ if (_plan == 'basic') {
 
     return Scaffold(
       appBar: AppBar(
+        actions: <Widget>[
+          ShopTaskCenterButton(shopId: widget.shopId),
+        ],
         title: const Text('模組設定'),
       ),
       body: ListView(

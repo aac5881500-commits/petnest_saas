@@ -1,10 +1,10 @@
 // lib/features/shop/pages/store/shop_store_settings_page.dart
-// 🛒 賣場設定
+// 🛒 賣場設定首頁：分區進入，不再一頁滑到底。
 
 import 'package:flutter/material.dart';
-import 'package:petnest_saas/core/services/store_settings_service.dart';
+import 'package:petnest_saas/features/shop/pages/store/shop_store_settings_sections.dart';
 
-class ShopStoreSettingsPage extends StatefulWidget {
+class ShopStoreSettingsPage extends StatelessWidget {
   const ShopStoreSettingsPage({
     super.key,
     required this.shopId,
@@ -15,84 +15,121 @@ class ShopStoreSettingsPage extends StatefulWidget {
   final bool canManage;
 
   @override
-  State<ShopStoreSettingsPage> createState() => _ShopStoreSettingsPageState();
-}
-
-class _ShopStoreSettingsPageState extends State<ShopStoreSettingsPage> {
-  final TextEditingController _pickupNote = TextEditingController();
-  bool _storefrontEnabled = true;
-  bool _loaded = false;
-
-  @override
-  void dispose() {
-    _pickupNote.dispose();
-    super.dispose();
-  }
-
-  Future<void> _save() async {
-    await StoreSettingsService.instance.saveSettings(
-      shopId: widget.shopId,
-      pickupNote: _pickupNote.text,
-      storefrontEnabled: _storefrontEnabled,
-    );
-    if (!mounted) {
-      return;
-    }
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('已儲存賣場設定')),
-    );
-  }
-
-  @override
   Widget build(BuildContext context) {
-    return StreamBuilder<Map<String, dynamic>>(
-      stream: StoreSettingsService.instance.streamSettings(widget.shopId),
-      builder: (
-        BuildContext context,
-        AsyncSnapshot<Map<String, dynamic>> snapshot,
-      ) {
-        final Map<String, dynamic> data =
-            snapshot.data ?? const <String, dynamic>{};
-        if (!_loaded && snapshot.hasData) {
-          _pickupNote.text = (data['pickupNote'] ?? '').toString();
-          _storefrontEnabled = data['storefrontEnabled'] != false;
-          _loaded = true;
-        }
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
+      children: <Widget>[
+        const Text(
+          '商城設定',
+          style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          '商城頁面的所有設定都在這裡。旅館首頁的「寵物賣場入口卡片」請到前台外觀設定。',
+          style: TextStyle(fontSize: 13, color: Colors.grey.shade700),
+        ),
+        const SizedBox(height: 12),
+        _tile(
+          context,
+          icon: Icons.storefront_outlined,
+          title: '商城基本設定',
+          subtitle: '啟用、名稱、副標',
+          page: StoreSettingsBasicPage(
+            shopId: shopId,
+            canManage: canManage,
+          ),
+        ),
+        _tile(
+          context,
+          icon: Icons.home_outlined,
+          title: '商城首頁',
+          subtitle: '公告、區塊開關、區塊名稱',
+          page: StoreSettingsHomePage(
+            shopId: shopId,
+            canManage: canManage,
+          ),
+        ),
+        _tile(
+          context,
+          icon: Icons.image_outlined,
+          title: '活動海報',
+          subtitle: '輪播、新增與編輯海報',
+          page: StoreSettingsBannersPage(
+            shopId: shopId,
+            canManage: canManage,
+          ),
+        ),
+        _tile(
+          context,
+          icon: Icons.inventory_2_outlined,
+          title: '商品顯示',
+          subtitle: '缺貨、庫存剩餘、精選數量',
+          page: StoreSettingsProductsPage(
+            shopId: shopId,
+            canManage: canManage,
+          ),
+        ),
+        _tile(
+          context,
+          icon: Icons.palette_outlined,
+          title: '商城外觀',
+          subtitle: '背景、商品卡、強調色、按鈕色',
+          page: StoreSettingsAppearancePage(
+            shopId: shopId,
+            canManage: canManage,
+          ),
+        ),
+        _tile(
+          context,
+          icon: Icons.receipt_long_outlined,
+          title: '訂單設定',
+          subtitle: '接單、備註、取消規則',
+          page: StoreSettingsOrdersPage(
+            shopId: shopId,
+            canManage: canManage,
+          ),
+        ),
+        _tile(
+          context,
+          icon: Icons.payments_outlined,
+          title: '付款',
+          subtitle: '沿用店家金流設定',
+          page: StoreSettingsPaymentPage(shopId: shopId),
+        ),
+        _tile(
+          context,
+          icon: Icons.local_shipping_outlined,
+          title: '取貨 / 配送',
+          subtitle: '店內取貨說明',
+          page: StoreSettingsPickupPage(
+            shopId: shopId,
+            canManage: canManage,
+          ),
+        ),
+      ],
+    );
+  }
 
-        return ListView(
-          padding: const EdgeInsets.all(16),
-          children: <Widget>[
-            const Text(
-              '履約方式',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
-            ),
-            const SizedBox(height: 8),
-            const Text('第一版僅開放店內自取，宅配欄位已預留但前台不可選。'),
-            const SizedBox(height: 12),
-            SwitchListTile(
-              contentPadding: EdgeInsets.zero,
-              title: const Text('開放賣場前台'),
-              subtitle: const Text('關閉後前台不顯示賣場入口與精選商品'),
-              value: _storefrontEnabled,
-              onChanged: widget.canManage
-                  ? (bool value) => setState(() => _storefrontEnabled = value)
-                  : null,
-            ),
-            TextField(
-              controller: _pickupNote,
-              enabled: widget.canManage,
-              maxLines: 3,
-              decoration: const InputDecoration(
-                labelText: '自取說明',
-                hintText: '例如：請於營業時間至櫃台取貨',
-              ),
-            ),
-            const SizedBox(height: 16),
-            if (widget.canManage)
-              FilledButton(onPressed: _save, child: const Text('儲存設定')),
-          ],
-        );
-      },
+  Widget _tile(
+    BuildContext context, {
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required Widget page,
+  }) {
+    return Card(
+      margin: const EdgeInsets.only(bottom: 8),
+      child: ListTile(
+        leading: Icon(icon),
+        title: Text(title, style: const TextStyle(fontWeight: FontWeight.w700)),
+        subtitle: Text(subtitle),
+        trailing: const Icon(Icons.chevron_right),
+        onTap: () {
+          Navigator.of(context).push(
+            MaterialPageRoute<void>(builder: (_) => page),
+          );
+        },
+      ),
     );
   }
 }

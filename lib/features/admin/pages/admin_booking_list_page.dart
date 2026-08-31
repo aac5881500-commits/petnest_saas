@@ -13,6 +13,7 @@ import 'package:petnest_saas/features/admin/pages/admin_booking_history_page.dar
 import 'package:petnest_saas/features/admin/pages/admin_create_booking_page.dart';
 import 'package:petnest_saas/core/services/shop_permission_service.dart';
 import 'package:petnest_saas/core/services/shop_service.dart';
+import 'package:petnest_saas/core/widgets/shop_task_center_button.dart';
 
 class AdminBookingListPage extends StatefulWidget {
   const AdminBookingListPage({
@@ -55,6 +56,7 @@ class _AdminBookingListPageState extends State<AdminBookingListPage> {
       appBar: AppBar(
         title: const Text('訂單管理'),
         actions: [
+          ShopTaskCenterButton(shopId: widget.shopId),
           StreamBuilder<Map<String, dynamic>?>(
             stream: ShopService.instance.streamShop(widget.shopId),
             builder: (context, shopSnapshot) {

@@ -66,6 +66,18 @@ class NotificationCenterPage extends StatelessWidget {
           );
           break;
 
+        case 'shop_chat':
+          final String shopId = notification.shopId;
+          final String threadId =
+              (notification.data['threadId'] ?? '').toString();
+          if (shopId.isNotEmpty && threadId.isNotEmpty) {
+            await FcmMessageService.instance.openShopChat(
+              shopId: shopId,
+              threadId: threadId,
+            );
+          }
+          break;
+
         default:
           break;
       }
@@ -360,6 +372,9 @@ IconData _notificationIcon(String type) {
 
     case 'booking_message':
       return Icons.chat_bubble_outline_rounded;
+
+    case 'shop_chat':
+      return Icons.forum_outlined;
 
     case 'review':
       return Icons.star_outline_rounded;

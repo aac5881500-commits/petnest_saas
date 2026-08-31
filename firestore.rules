@@ -59,6 +59,13 @@ function hasPlatformPermission(permission) {
       return isShopMember(shopId)
         && get(/databases/$(database)/documents/shop_members/$(shopId + '_' + request.auth.uid)).data.role == 'owner';
     }
+
+    // 🏪 shops/{shopId}.ownerUid 後援（成員文件 id 不符時仍視為店主）
+    function isShopOwnerUid(shopId) {
+      return signedIn()
+        && exists(/databases/$(database)/documents/shops/$(shopId))
+        && get(/databases/$(database)/documents/shops/$(shopId)).data.ownerUid == request.auth.uid;
+    }
  // 🎁 是否可以管理實體商品核銷
 function canManagePointRedemptions(shopId) {
   return signedIn()
@@ -414,6 +421,7 @@ allow update: if signedIn() &&
 'externalLinksEnabled',
 'homeAppearance',
 'floatingContactButton',
+'storeChatEnabled',
       'bankName',
       'accountName',
       'accountNumber',
@@ -437,6 +445,78 @@ allow update: if signedIn() &&
       match /shop_members/{uid} {
         allow read: if isShopMember(shopId) || isRootAdmin();
         allow create, update, delete: if isShopOwner(shopId) || isRootAdmin();
+      }
+
+      // 💬 店家聊天室：一個會員 × 一間店家 = 一個 thread
+      match /chat_threads/{threadId} {
+        function isCustomerThreadOwner() {
+          return signedIn()
+            && request.auth.uid == threadId
+            && (
+              resource == null
+              || !('customerUid' in resource.data)
+              || resource.data.customerUid == request.auth.uid
+            );
+        }
+
+        function isCustomerCreatingOwnThread() {
+          return signedIn()
+            && request.auth.uid == threadId
+            && request.resource.data.customerUid == request.auth.uid;
+        }
+
+        // 沿用商城既有 helper：成員文件或 shops.ownerUid，不另寫第三套 Owner 判定。
+        function canAccessShopChat() {
+          return isShopMember(shopId) || isShopOwnerUid(shopId);
+        }
+
+        allow read: if isRootAdmin()
+          || canAccessShopChat()
+          || isCustomerThreadOwner();
+
+        allow create: if signedIn()
+          && request.resource.data.shopId == shopId
+          && request.resource.data.customerUid == threadId
+          && (
+            isCustomerCreatingOwnThread()
+            || canAccessShopChat()
+            || isRootAdmin()
+          );
+
+        allow update: if signedIn()
+          && request.resource.data.shopId == resource.data.shopId
+          && request.resource.data.customerUid == resource.data.customerUid
+          && (
+            isCustomerThreadOwner()
+            || canAccessShopChat()
+            || isRootAdmin()
+          );
+
+        allow delete: if false;
+
+        match /messages/{messageId} {
+          allow read: if isRootAdmin()
+            || canAccessShopChat()
+            || (signedIn() && request.auth.uid == threadId);
+
+          allow create: if signedIn()
+            && request.resource.data.senderUid == request.auth.uid
+            && request.resource.data.shopId == shopId
+            && request.resource.data.threadId == threadId
+            && (
+              (
+                request.resource.data.senderType == 'customer'
+                && request.auth.uid == threadId
+              )
+              || (
+                request.resource.data.senderType == 'shop'
+                && canAccessShopChat()
+              )
+              || isRootAdmin()
+            );
+
+          allow update, delete: if false;
+        }
       }
 
    // 👤 店家會員
@@ -2005,17 +2085,59 @@ match /faqs/{faqId} {
         allow read: if
           isRootAdmin()
           || isShopMember(shopId)
+          || isShopOwnerUid(shopId)
           || resource.data.enabled == true;
 
+        // 商城商品寫入：店主（member role 或 shops.ownerUid）或 manage_store_products。
+        // 沒有 keys().hasOnly，庫存連動 snapshot 欄位可以一併寫入。
+        // 不允許 Customer / public write。
         allow create, update: if
-          canManageStoreProducts(shopId)
+          signedIn()
           && request.resource.data.shopId == shopId
           && request.resource.data.name is string
           && request.resource.data.name.size() > 0
           && request.resource.data.price is number
-          && request.resource.data.price >= 0;
+          && request.resource.data.price >= 0
+          && (
+            isRootAdmin()
+            || isShopOwner(shopId)
+            || isShopOwnerUid(shopId)
+            || canManageStoreProducts(shopId)
+          );
 
-        allow delete: if false;
+        allow delete: if
+          isRootAdmin()
+          || isShopOwner(shopId)
+          || isShopOwnerUid(shopId)
+          || canManageStoreProducts(shopId);
+      }
+
+      match /store_promotions/{promotionId} {
+        allow read: if
+          isRootAdmin()
+          || isShopOwner(shopId)
+          || canManageStoreProducts(shopId)
+          || isShopMember(shopId)
+          || (
+            resource.data.enabled == true
+            && resource.data.archived != true
+          );
+
+        allow create, update: if
+          signedIn()
+          && request.resource.data.shopId == shopId
+          && request.resource.data.name is string
+          && request.resource.data.name.size() > 0
+          && (
+            isRootAdmin()
+            || isShopOwner(shopId)
+            || canManageStoreProducts(shopId)
+          );
+
+        allow delete: if
+          isRootAdmin()
+          || isShopOwner(shopId)
+          || canManageStoreProducts(shopId);
       }
 
       match /store_categories/{categoryId} {
@@ -2030,6 +2152,7 @@ match /faqs/{faqId} {
         allow delete: if false;
       }
 
+      // 商城活動海報 banners[]、bannerAutoPlay 存在此文件，無獨立 collection。
       match /store_settings/{settingId} {
         allow read: if true;
 

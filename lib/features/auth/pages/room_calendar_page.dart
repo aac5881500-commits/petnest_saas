@@ -1,15 +1,20 @@
 // lib/features/auth/pages/room_calendar_page.dart
 // 🗓 房間日曆（最終完整版🔥 訂單自動上色）
 
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/services/shop_service.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:petnest_saas/features/admin/pages/admin_booking_detail_page.dart';
+import 'package:petnest_saas/core/models/daily_care_date_helper.dart';
 import 'package:petnest_saas/core/models/daily_care_setting_model.dart';
+import 'package:petnest_saas/core/models/daily_care_stay_info.dart';
 import 'package:petnest_saas/core/services/daily_care_setting_service.dart';
 import 'package:petnest_saas/core/models/daily_care_record_model.dart';
 import 'package:petnest_saas/core/services/daily_care_record_service.dart';
+import 'package:petnest_saas/features/booking/pages/customer_daily_care_page.dart';
 import 'package:petnest_saas/features/room/pages/daily_care_record_edit_page.dart';
+import 'package:petnest_saas/core/widgets/shop_task_center_button.dart';
 
 class RoomCalendarPage extends StatefulWidget {
   const RoomCalendarPage({
@@ -84,7 +89,12 @@ class _RoomCalendarPageState extends State<RoomCalendarPage> {
     final lastAllowedDate = today.add(Duration(days: bookingRangeDays));
 
     return Scaffold(
-      appBar: AppBar(title: Text('單房紀錄 - ${widget.roomName}')),
+      appBar: AppBar(
+        title: Text('單房紀錄 - ${widget.roomName}'),
+        actions: <Widget>[
+          ShopTaskCenterButton(shopId: widget.shopId),
+        ],
+      ),
 
       body: StreamBuilder(
         stream: ShopService.instance
@@ -516,7 +526,8 @@ class _RoomCalendarPageState extends State<RoomCalendarPage> {
                       _dailyCareSettingLoaded &&
                       _dailyCareSetting.enabled &&
                       _selectedBooking != null &&
-                      _selectedBooking!['status'] == 'checked_in')
+                      _selectedBooking!['status'] == 'checked_in' &&
+                      _isSelectedDateACareDate())
                     _dailyCarePanel(),
 
                   _roomActionLogsPanel(),
@@ -830,8 +841,20 @@ class _RoomCalendarPageState extends State<RoomCalendarPage> {
     );
   }
 
+  bool _isSelectedDateACareDate() {
+    final Map<String, dynamic>? booking = _selectedBooking;
+    final DateTime? date = _selectedDate;
+    if (booking == null || date == null) {
+      return false;
+    }
+
+    final DailyCareStayInfo stay = DailyCareStayInfo.fromBookingMap(booking);
+    return stay.includesCareDate(date);
+  }
+
   /// 🐾 每日照護紀錄
   /// 店家已啟用功能，而且房間目前正在入住時才會顯示。
+  /// 退房日不產生、也不顯示填寫入口。
   Widget _dailyCarePanel() {
     final int sessionCount = _dailyCareSetting.sessionCount;
 
@@ -847,13 +870,29 @@ class _RoomCalendarPageState extends State<RoomCalendarPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Row(
+          Row(
             children: [
-              Icon(Icons.pets_outlined, size: 20, color: Color(0xFF3D6F9F)),
-              SizedBox(width: 8),
-              Text(
-                '每日照護紀錄',
-                style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800),
+              const Icon(
+                Icons.pets_outlined,
+                size: 20,
+                color: Color(0xFF3D6F9F),
+              ),
+              const SizedBox(width: 8),
+              const Expanded(
+                child: Text(
+                  '每日照護紀錄',
+                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800),
+                ),
+              ),
+              TextButton.icon(
+                onPressed: _openCustomerDailyCarePreview,
+                icon: const Icon(Icons.visibility_outlined, size: 16),
+                label: const Text('客戶預覽'),
+                style: TextButton.styleFrom(
+                  foregroundColor: const Color(0xFF3D6F9F),
+                  visualDensity: VisualDensity.compact,
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                ),
               ),
             ],
           ),
@@ -868,10 +907,7 @@ class _RoomCalendarPageState extends State<RoomCalendarPage> {
           const SizedBox(height: 14),
 
           ...List.generate(sessionCount, (index) {
-            final String sessionName = _dailyCareSessionName(
-              index: index,
-              sessionCount: sessionCount,
-            );
+            final String sessionName = _dailyCareSetting.sessionLabel(index);
 
             final String? bookingId = _selectedBookingId;
             final DateTime? selectedDate = _selectedDate;
@@ -973,27 +1009,55 @@ class _RoomCalendarPageState extends State<RoomCalendarPage> {
                         ),
                       ),
 
-                      FilledButton(
-                        onPressed: () async {
-                          await Navigator.push<bool>(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => DailyCareRecordEditPage(
-                                shopId: widget.shopId,
-                                bookingId: bookingId,
-                                roomId: widget.roomId,
-                                roomName: widget.roomName,
-                                recordDate: selectedDate,
-                                sessionIndex: index,
-                                sessionName: sessionName,
-                                enabledFields: _dailyCareSetting.enabledFields,
-                                customFields: _dailyCareSetting.customFields,
-                                photoEnabled: _dailyCareSetting.photoEnabled,
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (completed)
+                            IconButton(
+                              tooltip: '客戶預覽',
+                              visualDensity: VisualDensity.compact,
+                              onPressed: () {
+                                _openCustomerDailyCarePreview(
+                                  sessionIndex: index,
+                                );
+                              },
+                              icon: const Icon(
+                                Icons.visibility_outlined,
+                                size: 20,
                               ),
                             ),
-                          );
-                        },
-                        child: Text(completed ? '查看 / 修改' : '填寫'),
+                          FilledButton(
+                            style: FilledButton.styleFrom(
+                              visualDensity: VisualDensity.compact,
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                              ),
+                            ),
+                            onPressed: () async {
+                              await Navigator.push<bool>(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => DailyCareRecordEditPage(
+                                    shopId: widget.shopId,
+                                    bookingId: bookingId,
+                                    roomId: widget.roomId,
+                                    roomName: widget.roomName,
+                                    recordDate: selectedDate,
+                                    sessionIndex: index,
+                                    sessionName: sessionName,
+                                    enabledFields:
+                                        _dailyCareSetting.enabledFields,
+                                    customFields:
+                                        _dailyCareSetting.customFields,
+                                    photoEnabled:
+                                        _dailyCareSetting.photoEnabled,
+                                  ),
+                                ),
+                              );
+                            },
+                            child: Text(completed ? '修改' : '填寫'),
+                          ),
+                        ],
                       ),
                     ],
                   ),
@@ -1006,31 +1070,78 @@ class _RoomCalendarPageState extends State<RoomCalendarPage> {
     );
   }
 
+  Future<void> _openCustomerDailyCarePreview({int? sessionIndex}) async {
+    final String? bookingId = _selectedBookingId;
+    if (bookingId == null || bookingId.isEmpty) {
+      return;
+    }
+
+    final bool allowed = await CustomerDailyCarePage.canShopPreview(
+      widget.shopId,
+    );
+    if (!mounted) {
+      return;
+    }
+    if (!allowed) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('沒有預覽客戶照護日誌的權限')),
+      );
+      return;
+    }
+
+    final DateTime? initialDate = sessionIndex != null
+        ? _selectedDate
+        : _resolveCustomerPreviewDate();
+
+    debugPrint(
+      '[DailyCarePreview] open\n'
+      'shopId=${widget.shopId}\n'
+      'bookingId=$bookingId\n'
+      'bookingCode=${(_selectedBooking?['bookingCode'] ?? '').toString()}\n'
+      'roomId=${widget.roomId}\n'
+      'previewMode=true\n'
+      'initialDate=$initialDate\n'
+      'sessionIndex=$sessionIndex\n'
+      'currentUser.uid=${FirebaseAuth.instance.currentUser?.uid ?? ''}',
+    );
+
+    await Navigator.push<void>(
+      context,
+      MaterialPageRoute<void>(
+        builder: (_) => CustomerDailyCarePage(
+          shopId: widget.shopId,
+          bookingId: bookingId,
+          roomName: widget.roomName,
+          previewMode: true,
+          initialDate: initialDate,
+          initialSessionIndex: sessionIndex,
+        ),
+      ),
+    );
+  }
+
+  DateTime? _resolveCustomerPreviewDate() {
+    final DailyCareStayInfo stay = DailyCareStayInfo.fromBookingMap(
+      _selectedBooking ?? <String, dynamic>{},
+      fallbackRoomName: widget.roomName,
+    );
+    final DateTime today = DailyCareDateHelper.todayInTaipei();
+    if (stay.includesCareDate(today)) {
+      return today;
+    }
+    if (_selectedDate != null && stay.includesCareDate(_selectedDate!)) {
+      return DailyCareDateHelper.dateOnly(_selectedDate!);
+    }
+    final List<String> careDateKeys = stay.careDateKeys();
+    if (careDateKeys.isNotEmpty) {
+      return DailyCareDateHelper.parseDateKey(careDateKeys.first);
+    }
+    return _selectedDate;
+  }
+
   String _dailyCareTimeText(DateTime dateTime) {
     return '${dateTime.hour.toString().padLeft(2, '0')}:'
         '${dateTime.minute.toString().padLeft(2, '0')}';
-  }
-
-  String _dailyCareSessionName({
-    required int index,
-    required int sessionCount,
-  }) {
-    if (sessionCount == 1) {
-      return '每日紀錄';
-    }
-
-    if (sessionCount == 2) {
-      return index == 0 ? '上午場' : '晚上場';
-    }
-
-    switch (index) {
-      case 0:
-        return '上午場';
-      case 1:
-        return '下午場';
-      default:
-        return '晚上場';
-    }
   }
 
   IconData _dailyCareSessionIcon({

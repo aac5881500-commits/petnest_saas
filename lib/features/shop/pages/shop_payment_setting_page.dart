@@ -3,6 +3,7 @@
 // 功能：使用 Tab 切換訂金設定、優惠設定與點數設定
 
 import 'package:flutter/material.dart';
+import 'package:petnest_saas/core/widgets/shop_task_center_button.dart';
 import 'shop_point_setting_page.dart';
 import 'shop_deposit_setting_page.dart';
 import 'shop_discount_setting_page.dart';
@@ -19,6 +20,9 @@ class ShopPaymentSettingPage extends StatelessWidget {
       child: Scaffold(
         appBar: AppBar(
           title: const Text('營運設定'),
+          actions: <Widget>[
+            ShopTaskCenterButton(shopId: shopId),
+          ],
           bottom: const TabBar(
             tabs: <Widget>[
               Tab(

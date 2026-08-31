@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/services/shop_device_service.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:petnest_saas/core/utils/natural_sort.dart';
+import 'package:petnest_saas/core/widgets/shop_task_center_button.dart';
 
 class ShopDevicePage extends StatelessWidget {
   const ShopDevicePage({super.key, required this.shopId});
@@ -16,7 +17,12 @@ class ShopDevicePage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('攝影機設定')),
+      appBar: AppBar(
+        title: const Text('攝影機設定'),
+        actions: <Widget>[
+          ShopTaskCenterButton(shopId: shopId),
+        ],
+      ),
       body: Column(
         children: [
           // 前台攝影機總開關

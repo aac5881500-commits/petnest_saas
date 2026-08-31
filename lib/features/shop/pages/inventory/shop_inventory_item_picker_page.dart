@@ -181,6 +181,13 @@ class _PickerItemTile extends StatelessWidget {
                           color: Colors.grey.shade600,
                         ),
                       ),
+                      Text(
+                        '單位：${item.unit.trim().isEmpty ? '個' : item.unit.trim()}',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.grey.shade600,
+                        ),
+                      ),
                       const SizedBox(height: 4),
                       Text(
                         '目前庫存：${InventoryConstants.formatQuantity(item.currentStock)} ${item.unit}',

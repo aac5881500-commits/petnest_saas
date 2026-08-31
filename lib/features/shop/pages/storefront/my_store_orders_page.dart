@@ -7,6 +7,7 @@ import 'package:petnest_saas/core/models/home_theme_model.dart';
 import 'package:petnest_saas/core/models/store_order_model.dart';
 import 'package:petnest_saas/core/services/store_order_service.dart';
 import 'package:petnest_saas/features/shop/pages/storefront/my_store_order_detail_page.dart';
+import 'package:petnest_saas/features/shop/widgets/store/storefront_theme.dart';
 
 class MyStoreOrdersPage extends StatefulWidget {
   const MyStoreOrdersPage({
@@ -27,8 +28,10 @@ class _MyStoreOrdersPageState extends State<MyStoreOrdersPage> {
 
   @override
   Widget build(BuildContext context) {
-    final HomeThemeModel theme = widget.theme;
-
+    return StorefrontTheme(
+      shopId: widget.shopId,
+      shopTheme: widget.theme,
+      builder: (BuildContext context, HomeThemeModel theme, _) {
     return Scaffold(
       backgroundColor: theme.backgroundColor,
       appBar: AppBar(
@@ -116,6 +119,8 @@ class _MyStoreOrdersPageState extends State<MyStoreOrdersPage> {
           ),
         ],
       ),
+    );
+      },
     );
   }
 

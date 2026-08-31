@@ -9,6 +9,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:petnest_saas/core/services/action_log_service.dart';
 import 'package:petnest_saas/core/services/shop_plan_service.dart';
+import 'package:petnest_saas/core/widgets/shop_task_center_button.dart';
 
 class ShopRoomTypePage extends StatefulWidget {
   const ShopRoomTypePage({super.key, required this.shopId});
@@ -1194,7 +1195,12 @@ class _ShopRoomTypePageState extends State<ShopRoomTypePage> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF6F8FB),
-      appBar: AppBar(title: const Text('房型管理')),
+      appBar: AppBar(
+        title: const Text('房型管理'),
+        actions: <Widget>[
+          ShopTaskCenterButton(shopId: widget.shopId),
+        ],
+      ),
       body: Padding(
         padding: const EdgeInsets.all(16),
         child: ListView(

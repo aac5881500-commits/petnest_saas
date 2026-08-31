@@ -9,6 +9,7 @@ import 'package:petnest_saas/features/shop/pages/shop_room_type_report_page.dart
 import 'package:petnest_saas/features/shop/pages/shop_addon_report_page.dart';
 import 'package:petnest_saas/features/shop/pages/shop_member_report_page.dart';
 import 'package:petnest_saas/features/shop/pages/shop_export_report_page.dart';
+import 'package:petnest_saas/core/widgets/shop_task_center_button.dart';
 
 class ShopReportPage extends StatelessWidget {
   const ShopReportPage({super.key, required this.shopId});
@@ -18,7 +19,12 @@ class ShopReportPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('營運報表中心')),
+      appBar: AppBar(
+        title: const Text('營運報表中心'),
+        actions: <Widget>[
+          ShopTaskCenterButton(shopId: shopId),
+        ],
+      ),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [

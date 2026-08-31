@@ -54,6 +54,16 @@ class _CatHotelPermissionPageState extends State<CatHotelPermissionPage> {
           ),
 
           PermissionSwitchTile(
+            title: '店家聊天',
+            subtitle: '可查看收件匣並回覆會員訊息',
+            value: widget.permissions[ShopPermissionKeys.manageChat] ?? false,
+            enabled: widget.isOwner,
+            onChanged: (value) {
+              _updatePermission(ShopPermissionKeys.manageChat, value);
+            },
+          ),
+
+          PermissionSwitchTile(
             title: '預約管理',
             subtitle: '可開關前台預約、管理可預約日期',
             value:

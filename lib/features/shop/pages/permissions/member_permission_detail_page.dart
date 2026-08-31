@@ -281,6 +281,11 @@ class _MemberPermissionDetailPageState
                       subtitle: '可查看與管理住宿訂單',
                     ),
                     _buildPermissionSwitch(
+                      ShopPermissionKeys.manageChat,
+                      title: '店家聊天',
+                      subtitle: '可查看收件匣並回覆會員訊息',
+                    ),
+                    _buildPermissionSwitch(
                       ShopPermissionKeys.manageBookingSettings,
                       title: '預約管理',
                       subtitle: '可開關前台預約、管理可預約日期',

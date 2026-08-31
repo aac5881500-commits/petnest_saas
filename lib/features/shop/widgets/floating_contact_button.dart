@@ -5,15 +5,26 @@
 // 並避免拖曳完成後誤觸聯絡方式，供 Classic、Modern
 // 與未來模板共同使用。
 
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
+import 'package:petnest_saas/core/services/shop_chat_service.dart';
+import 'package:petnest_saas/features/auth/pages/login_page.dart';
+import 'package:petnest_saas/features/shop/pages/chat/shop_customer_chat_page.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 class FloatingContactButton extends StatefulWidget {
-  const FloatingContactButton({super.key, required this.shop});
+  const FloatingContactButton({
+    super.key,
+    required this.shop,
+    required this.shopId,
+  });
 
   /// 店家資料
   final Map<String, dynamic> shop;
+
+  /// 目前店家 ID
+  final String shopId;
 
   @override
   State<FloatingContactButton> createState() => _FloatingContactButtonState();
@@ -46,17 +57,22 @@ class _FloatingContactButtonState extends State<FloatingContactButton> {
 
   @override
   Widget build(BuildContext context) {
-    final enabled = _setting['enabled'] == true;
-
+    final enabled = ShopChatService.isFloatingEnabled(widget.shop);
     if (!enabled) {
       return const SizedBox.shrink();
     }
 
-    final contact = _resolveContact(_setting);
+    final String contactType =
+        ShopChatService.resolvedFloatingType(widget.shop);
+    final bool isChat =
+        contactType == ShopChatService.floatingTypePetnestChat;
+    final contact = isChat ? null : _resolveContact(_setting);
 
-    if (contact == null) {
+    if (!isChat && contact == null) {
       return const SizedBox.shrink();
     }
+
+    final String tooltip = _resolveLabel(contactType);
 
     /// 依照後台設定取得按鈕尺寸。
     ///
@@ -160,12 +176,14 @@ class _FloatingContactButtonState extends State<FloatingContactButton> {
         },
 
         child: Tooltip(
-          message: '聯絡店家',
+          message: tooltip,
           child: Semantics(
             button: true,
-            label: '聯絡店家',
+            label: tooltip,
             child: Material(
-              color: contact.backgroundColor,
+              color: isChat
+                  ? const Color(0xFFFF8A00)
+                  : contact!.backgroundColor,
               elevation: 6,
               shape: const CircleBorder(),
               clipBehavior: Clip.antiAlias,
@@ -178,18 +196,28 @@ class _FloatingContactButtonState extends State<FloatingContactButton> {
                     return;
                   }
 
-                  _openContact(context, contact);
+                  if (isChat) {
+                    _openChat(context);
+                    return;
+                  }
+
+                  _openContact(context, contact!);
                 },
                 child: SizedBox(
                   width: buttonSize,
                   height: buttonSize,
-                  child: Center(
-                    child: FaIcon(
-                      contact.icon,
-                      size: iconSize,
-                      color: Colors.white,
-                    ),
-                  ),
+                  child: isChat
+                      ? _ChatButtonFace(
+                          shopId: widget.shopId,
+                          iconSize: iconSize,
+                        )
+                      : Center(
+                          child: FaIcon(
+                            contact!.icon,
+                            size: iconSize,
+                            color: Colors.white,
+                          ),
+                        ),
                 ),
               ),
             ),
@@ -197,6 +225,14 @@ class _FloatingContactButtonState extends State<FloatingContactButton> {
         ),
       ),
     );
+  }
+
+  String _resolveLabel(String contactType) {
+    final String custom = (_setting['label'] ?? '').toString().trim();
+    if (custom.isNotEmpty) {
+      return custom;
+    }
+    return ShopChatService.defaultLabelForType(contactType);
   }
 
   /// 根據後台設定取得按鈕與圖示尺寸。
@@ -275,6 +311,51 @@ class _FloatingContactButtonState extends State<FloatingContactButton> {
     return contacts.first;
   }
 
+  Future<void> _openChat(BuildContext context) async {
+    final User? user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      final bool? goLogin = await showDialog<bool>(
+        context: context,
+        builder: (BuildContext context) {
+          return AlertDialog(
+            title: const Text('登入會員後即可與店家聊天'),
+            actions: <Widget>[
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('取消'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(context, true),
+                child: const Text('登入'),
+              ),
+            ],
+          );
+        },
+      );
+      if (goLogin == true && context.mounted) {
+        await Navigator.of(context).push(
+          MaterialPageRoute<void>(
+            builder: (_) => LoginPage(redirectShopId: widget.shopId),
+          ),
+        );
+      }
+      return;
+    }
+
+    if (!context.mounted) {
+      return;
+    }
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => ShopCustomerChatPage(
+          shopId: widget.shopId,
+          shopName: (widget.shop['name'] ?? '').toString(),
+          shopLogoUrl: (widget.shop['logoUrl'] ?? '').toString(),
+        ),
+      ),
+    );
+  }
+
   /// 開啟店家聯絡方式。
   Future<void> _openContact(
     BuildContext context,
@@ -346,6 +427,82 @@ class _FloatingButtonStyle {
 
   /// 聯絡方式圖示大小
   final double iconSize;
+}
+
+class _ChatButtonFace extends StatefulWidget {
+  const _ChatButtonFace({
+    required this.shopId,
+    required this.iconSize,
+  });
+
+  final String shopId;
+  final double iconSize;
+
+  @override
+  State<_ChatButtonFace> createState() => _ChatButtonFaceState();
+}
+
+class _ChatButtonFaceState extends State<_ChatButtonFace> {
+  late final Stream<int> _unreadStream;
+
+  @override
+  void initState() {
+    super.initState();
+    final User? user = FirebaseAuth.instance.currentUser;
+    _unreadStream = user == null
+        ? Stream<int>.value(0)
+        : ShopChatService.instance.watchCustomerUnread(
+            shopId: widget.shopId,
+            customerUid: user.uid,
+            source: 'FloatingChatButton',
+          );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<int>(
+      stream: _unreadStream,
+      builder: (BuildContext context, AsyncSnapshot<int> snapshot) {
+        final String badge = ShopChatService.badgeLabel(snapshot.data ?? 0);
+        return Stack(
+          alignment: Alignment.center,
+          clipBehavior: Clip.none,
+          children: <Widget>[
+            Icon(
+              Icons.chat_bubble_outline,
+              size: widget.iconSize,
+              color: Colors.white,
+            ),
+            if (badge.isNotEmpty)
+              Positioned(
+                right: 4,
+                top: 4,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 4,
+                    vertical: 1,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.red,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  constraints: const BoxConstraints(minWidth: 18),
+                  child: Text(
+                    badge,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 10,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        );
+      },
+    );
+  }
 }
 
 /// 浮動聯絡方式資料

@@ -7,6 +7,7 @@
 // - Firebase 存取完整
 
 import 'package:flutter/material.dart';
+import 'package:petnest_saas/core/widgets/shop_task_center_button.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:petnest_saas/features/shop/pages/inventory/shop_inventory_list_page.dart';
 import 'package:petnest_saas/features/shop/widgets/inventory/addon_inventory_binding_editor.dart';
@@ -1321,6 +1322,9 @@ class _ShopAddonPageState extends State<ShopAddonPage>
       backgroundColor: const Color(0xFFF6F8FB),
       appBar: AppBar(
         title: const Text('加購服務設定'),
+        actions: <Widget>[
+          ShopTaskCenterButton(shopId: widget.shopId),
+        ],
         bottom: TabBar(
           controller: _tabController,
           isScrollable: true,

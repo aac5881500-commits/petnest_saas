@@ -38,6 +38,7 @@ class ShopMemberPermissionService {
       ShopPermissionKeys.editBusinessInfo: true,
       ShopPermissionKeys.editMedia: true,
       ShopPermissionKeys.manageBookings: true,
+      ShopPermissionKeys.manageChat: true,
       ShopPermissionKeys.managePointRedemptions: true,
       ShopPermissionKeys.viewInventory: true,
       ShopPermissionKeys.receiveInventory: true,
@@ -55,6 +56,7 @@ class ShopMemberPermissionService {
       ShopPermissionKeys.editBusinessInfo: false,
       ShopPermissionKeys.editMedia: false,
       ShopPermissionKeys.manageBookings: true,
+      ShopPermissionKeys.manageChat: true,
 
       // 店員預設可以處理會員到店領取實體商品。
       ShopPermissionKeys.managePointRedemptions: true,

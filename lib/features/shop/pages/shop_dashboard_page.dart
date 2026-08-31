@@ -15,6 +15,12 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:petnest_saas/core/constants/shop_modules.dart';
 import 'package:petnest_saas/core/constants/shop_roles.dart';
 import 'package:petnest_saas/core/services/shop_service.dart';
+import 'package:petnest_saas/core/services/shop_chat_service.dart';
+import 'package:petnest_saas/core/models/shop_task_item.dart';
+import 'package:petnest_saas/core/services/shop_task_center_service.dart';
+import 'package:petnest_saas/core/widgets/shop_task_center_button.dart';
+import 'package:petnest_saas/features/shop/pages/chat/shop_chat_inbox_page.dart';
+import 'package:petnest_saas/features/shop/widgets/chat/shop_chat_app_bar_button.dart';
 import 'package:petnest_saas/features/shop/pages/shop_basic_info_page.dart';
 import 'package:petnest_saas/features/shop/pages/shop_booking_settings_page.dart';
 import 'package:petnest_saas/features/shop/pages/shop_business_info_page.dart';
@@ -171,7 +177,8 @@ class _ShopDashboardPageState extends State<ShopDashboardPage> {
         _can(ShopPermissionKeys.managePaymentSettings) ||
         _can(ShopPermissionKeys.manageAddons) ||
         _can(ShopPermissionKeys.manageDevices) ||
-        _can(ShopPermissionKeys.managePolicy);
+        _can(ShopPermissionKeys.managePolicy) ||
+        _can(ShopPermissionKeys.manageChat);
     final canSeeReports =
         _currentUserRole == ShopRoles.owner ||
         _can(ShopPermissionKeys.viewReports) ||
@@ -378,6 +385,11 @@ class _ShopDashboardPageState extends State<ShopDashboardPage> {
           child: Scaffold(
             appBar: AppBar(
               title: Text(shop['name'] ?? '店家後台'),
+              actions: <Widget>[
+                if (_can(ShopPermissionKeys.manageChat))
+                  ShopChatAppBarButton(shopId: widget.shopId),
+                ShopTaskCenterButton(shopId: widget.shopId),
+              ],
               bottom: TabBar(
                 isScrollable: true,
                 tabs: visibleModules
@@ -844,6 +856,30 @@ class _CatHotelTab extends StatelessWidget {
       padding: const EdgeInsets.all(16),
       children: [
         const _MenuSectionTitle('今日營運'),
+
+        if (_can(ShopPermissionKeys.manageChat))
+          StreamBuilder<int>(
+            stream: ShopChatService.instance.watchShopUnreadTotal(shopId),
+            builder: (BuildContext context, AsyncSnapshot<int> snapshot) {
+              final int unread = snapshot.data ?? 0;
+              return _MenuTile(
+                title: '店家聊天',
+                subtitle: unread > 0
+                    ? '${ShopChatService.badgeLabel(unread)} 則未讀訊息'
+                    : '與會員即時聯絡',
+                icon: Icons.chat_bubble_outline,
+                badgeCount: unread > 99 ? 99 : unread,
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute<void>(
+                      builder: (_) => ShopChatInboxPage(shopId: shopId),
+                    ),
+                  );
+                },
+              );
+            },
+          ),
 
         if (_can(ShopPermissionKeys.manageBookings))
           _BookingManageTile(
@@ -1371,17 +1407,28 @@ class _RoomDashboardTile extends StatelessWidget {
           }
         }
 
-        return _MenuTile(
-          title: '房務管理',
-          subtitle: !enabled
-              ? '請先完成基本資料'
-              : (unassignedCount > 0
-                    ? '待分房 $unassignedCount 間 ・ 查看所有房間狀態'
-                    : '查看房況、待分房與入住狀態'),
-          icon: Icons.grid_view,
-          enabled: enabled,
-          badgeCount: enabled ? unassignedCount : 0,
-          onTap: onTap,
+        return StreamBuilder<ShopTaskCenterSnapshot>(
+          stream: ShopTaskCenterService.instance.streamSnapshot(
+            shopId: shopId,
+            canViewBookings: false,
+            canFillDailyCare: true,
+          ),
+          builder: (context, taskSnapshot) {
+            final int checkedInRooms =
+                taskSnapshot.data?.checkedInRoomCount ?? 0;
+            final int carePending = taskSnapshot.data?.dailyCareCount ?? 0;
+
+            return _MenuTile(
+              title: '房務管理',
+              subtitle: !enabled
+                  ? '請先完成基本資料'
+                  : '入住 $checkedInRooms 房・照護待填 $carePending 筆',
+              icon: Icons.grid_view,
+              enabled: enabled,
+              badgeCount: enabled ? unassignedCount : 0,
+              onTap: onTap,
+            );
+          },
         );
       },
     );

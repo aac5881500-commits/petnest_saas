@@ -14,6 +14,8 @@ import 'package:petnest_saas/core/navigation/app_navigator.dart';
 import 'package:petnest_saas/features/admin/pages/admin_booking_detail_page.dart';
 import 'package:petnest_saas/features/booking/pages/booking_detail_page.dart';
 import 'package:petnest_saas/features/booking/pages/my_reviews_page.dart';
+import 'package:petnest_saas/features/shop/pages/chat/shop_chat_thread_page.dart';
+import 'package:petnest_saas/features/shop/pages/chat/shop_customer_chat_page.dart';
 
 class FcmMessageService {
   FcmMessageService._();
@@ -103,7 +105,11 @@ class FcmMessageService {
             type == 'booking_message' ||
             type == 'check_in');
 
+    final String shopId = (data['shopId'] ?? '').toString();
+    final String threadId = (data['threadId'] ?? '').toString();
     final bool canOpenReview = type == 'review';
+    final bool canOpenChat =
+        type == 'shop_chat' && shopId.isNotEmpty && threadId.isNotEmpty;
 
     final ScaffoldMessengerState messenger = ScaffoldMessenger.of(context);
 
@@ -121,12 +127,20 @@ class FcmMessageService {
             Text(body),
           ],
         ),
-        action: canOpenBooking || canOpenReview
+        action: canOpenBooking || canOpenReview || canOpenChat
             ? SnackBarAction(
                 label: '查看',
                 onPressed: () {
                   if (canOpenReview) {
                     _openMyReviews();
+                    return;
+                  }
+
+                  if (canOpenChat) {
+                    openShopChat(
+                      shopId: shopId,
+                      threadId: threadId,
+                    );
                     return;
                   }
 
@@ -153,6 +167,8 @@ class FcmMessageService {
 
     final String type = (data['type'] ?? '').toString();
     final String bookingId = (data['bookingId'] ?? '').toString();
+    final String shopId = (data['shopId'] ?? '').toString();
+    final String threadId = (data['threadId'] ?? '').toString();
 
     switch (type) {
       case 'booking_status':
@@ -165,8 +181,70 @@ class FcmMessageService {
         await _openMyReviews();
         return;
 
+      case 'shop_chat':
+        await openShopChat(shopId: shopId, threadId: threadId);
+        return;
+
       default:
         debugPrint('➡ 未知通知類型：$type');
+    }
+  }
+
+  /// 開啟店家聊天室
+  Future<void> openShopChat({
+    required String shopId,
+    required String threadId,
+  }) async {
+    if (shopId.trim().isEmpty || threadId.trim().isEmpty) {
+      debugPrint('FCM 導頁失敗：店家聊天通知缺少 shopId 或 threadId');
+      return;
+    }
+
+    final User? user = _auth.currentUser;
+    if (user == null) {
+      debugPrint('FCM 導頁失敗：使用者尚未登入');
+      return;
+    }
+
+    try {
+      final DocumentSnapshot<Map<String, dynamic>> memberSnapshot =
+          await _firestore
+              .collection('shop_members')
+              .doc('${shopId}_${user.uid}')
+              .get();
+      final bool isShopMember = memberSnapshot.exists;
+
+      final NavigatorState? navigator = await _waitForNavigator();
+      if (navigator == null) {
+        debugPrint('FCM 導頁失敗：Navigator 尚未準備完成');
+        return;
+      }
+
+      if (isShopMember) {
+        await navigator.push(
+          MaterialPageRoute<void>(
+            builder: (_) => ShopChatThreadPage(
+              shopId: shopId,
+              threadId: threadId,
+            ),
+          ),
+        );
+        return;
+      }
+
+      if (user.uid == threadId) {
+        await navigator.push(
+          MaterialPageRoute<void>(
+            builder: (_) => ShopCustomerChatPage(shopId: shopId),
+          ),
+        );
+        return;
+      }
+
+      debugPrint('FCM 導頁失敗：目前帳號無權查看此聊天室');
+    } catch (error, stackTrace) {
+      debugPrint('FCM 開啟店家聊天失敗：$error');
+      debugPrintStack(stackTrace: stackTrace);
     }
   }
 

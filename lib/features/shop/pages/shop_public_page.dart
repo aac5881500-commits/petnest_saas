@@ -2,8 +2,13 @@
 // 👤 前台店家家頁（完整版🔥 + Drawer版 + 修正錯誤）
 
 import 'package:flutter/material.dart';
-import 'package:petnest_saas/core/services/shop_service.dart';
+import 'package:petnest_saas/core/debug/chat_error_probe.dart';
 import 'package:petnest_saas/core/models/home_theme_model.dart';
+import 'package:petnest_saas/core/models/modern_banner_frame_setting.dart';
+import 'package:petnest_saas/core/models/store_banner_model.dart';
+import 'package:petnest_saas/core/services/home_banner_navigation.dart';
+import 'package:petnest_saas/core/services/home_banner_service.dart';
+import 'package:petnest_saas/core/services/shop_service.dart';
 import 'package:petnest_saas/features/shop/pages/shop_booking_page.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:petnest_saas/features/shop/pages/shop_policy_view_page.dart';
@@ -21,6 +26,7 @@ import 'package:petnest_saas/features/platform/pages/platform_shop_list_page.dar
 import 'package:petnest_saas/features/shop/pages/shop_review_list_page.dart';
 import 'package:petnest_saas/features/shop/pages/shop_public_modern_page.dart';
 import 'package:petnest_saas/features/shop/widgets/floating_contact_button.dart';
+import 'package:petnest_saas/features/shop/widgets/store/store_banner_view.dart';
 
 class ShopPublicPage extends StatefulWidget {
   const ShopPublicPage({
@@ -36,22 +42,9 @@ class ShopPublicPage extends StatefulWidget {
 }
 
 class _ShopPublicPageState extends State<ShopPublicPage> {
-  late final PageController _pageController;
   int _currentIndex = 0;
 
   bool _showShopInfo = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _pageController = PageController(initialPage: 0);
-  }
-
-  @override
-  void dispose() {
-    _pageController.dispose();
-    super.dispose();
-  }
 
   Future<void> _openUrl(String url) async {
     if (url.isEmpty) return;
@@ -232,32 +225,28 @@ class _ShopPublicPageState extends State<ShopPublicPage> {
         /// 目前先保留，不顯示其他模板
         final bool showServiceEntrance = serviceTypes.length > 1;
 
-        /// 🔥 Banner（支援圖片 + 連結）
-        final List<dynamic> rawBanners = shop['banners'] ?? [];
-
-        final List<Map<String, String>> banners = rawBanners
-            .where((e) {
-              return (e['isActive'] ?? true) == true;
-            })
-            .map<Map<String, String>>((e) {
-              return {'image': (e['imageUrl'] ?? '').toString()};
-            })
-            .where((e) => e['image']!.isNotEmpty)
-            .toList();
-
-        /// 舊資料兼容（如果還沒升級）
-        if (banners.isEmpty && (shop['coverUrl'] ?? '').toString().isNotEmpty) {
-          banners.add({'image': shop['coverUrl']});
-        }
+        /// 🔥 Banner（與商城共用 StoreBannerView）
+        final List<StoreBannerModel> banners = HomeBannerService.instance
+            .parseEnabledFrontBanners(shop);
+        final ModernBannerFrameSetting homeBannerFrame =
+            ModernBannerFrameSetting.fromShop(shop);
+        final int bannerIndex = banners.isEmpty
+            ? 0
+            : _currentIndex.clamp(0, banners.length - 1);
 
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (!mounted) return;
 
-          for (final banner in banners) {
-            final imageUrl = banner['image'];
-            if (imageUrl == null || imageUrl.isEmpty) continue;
-
-            precacheImage(NetworkImage(imageUrl), context);
+          for (final StoreBannerModel banner in banners) {
+            if (!banner.hasImage) continue;
+            final String url = banner.imageUrl;
+            precacheImage(NetworkImage(url), context).catchError((
+              Object e,
+              StackTrace st,
+            ) {
+              print('[ShopPublicPage] precache FAILED url=$url');
+              ChatErrorProbe.dump('ShopPublicPage precache', e, st);
+            });
           }
         });
 
@@ -328,79 +317,88 @@ class _ShopPublicPageState extends State<ShopPublicPage> {
                         /// 🔥 Banner（Stack版本，100%正常）
                         if (banners.isNotEmpty)
                           AspectRatio(
-                            aspectRatio: 16 / 9,
-                            child: Stack(
-                              fit: StackFit.expand,
-                              children: [
-                                /// 圖片滑動
-                                GestureDetector(
-                                  behavior: HitTestBehavior.opaque,
-                                  onHorizontalDragEnd: (details) {
-                                    if (banners.length <= 1) return;
+                            aspectRatio: homeBannerFrame.aspectRatio,
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(16),
+                              child: Stack(
+                                fit: StackFit.expand,
+                                children: [
+                                  GestureDetector(
+                                    behavior: HitTestBehavior.translucent,
+                                    onHorizontalDragEnd: (details) {
+                                      if (banners.length <= 1) return;
 
-                                    final velocity =
-                                        details.primaryVelocity ?? 0;
+                                      final velocity =
+                                          details.primaryVelocity ?? 0;
 
-                                    if (velocity < -120) {
-                                      setState(() {
-                                        _currentIndex =
-                                            _currentIndex == banners.length - 1
-                                            ? 0
-                                            : _currentIndex + 1;
-                                      });
-                                    }
+                                      if (velocity < -120) {
+                                        setState(() {
+                                          _currentIndex =
+                                              bannerIndex == banners.length - 1
+                                              ? 0
+                                              : bannerIndex + 1;
+                                        });
+                                      }
 
-                                    if (velocity > 120) {
-                                      setState(() {
-                                        _currentIndex = _currentIndex == 0
-                                            ? banners.length - 1
-                                            : _currentIndex - 1;
-                                      });
-                                    }
-                                  },
-                                  child: ClipRRect(
-                                    borderRadius: BorderRadius.circular(16),
-                                    child: Container(
-                                      color: Colors.black,
-                                      child: Center(
-                                        child: Image.network(
-                                          banners[_currentIndex]['image']!,
-                                          key: ValueKey(
-                                            banners[_currentIndex]['image'],
+                                      if (velocity > 120) {
+                                        setState(() {
+                                          _currentIndex = bannerIndex == 0
+                                              ? banners.length - 1
+                                              : bannerIndex - 1;
+                                        });
+                                      }
+                                    },
+                                    child: StoreBannerView(
+                                      banner: banners[bannerIndex],
+                                      theme: classicTheme,
+                                      scope: PetNestBannerScope.home,
+                                      borderRadius: 0,
+                                      onTap:
+                                          banners[bannerIndex]
+                                              .hasNavigableAction
+                                          ? () {
+                                              HomeBannerNavigation.open(
+                                                context: context,
+                                                shopId: widget.shopId,
+                                                shop: shop,
+                                                theme: classicTheme,
+                                                banner: banners[bannerIndex],
+                                              );
+                                            }
+                                          : null,
+                                    ),
+                                  ),
+                                  if (banners.length > 1)
+                                    Positioned(
+                                      top: 12,
+                                      right: 12,
+                                      child: IgnorePointer(
+                                        child: Container(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 10,
+                                            vertical: 5,
                                           ),
-                                          fit: BoxFit.cover,
-                                          width: double.infinity,
-                                          height: double.infinity,
+                                          decoration: BoxDecoration(
+                                            color: Colors.black.withValues(
+                                              alpha: 0.45,
+                                            ),
+                                            borderRadius: BorderRadius.circular(
+                                              20,
+                                            ),
+                                          ),
+                                          child: Text(
+                                            '${bannerIndex + 1} / ${banners.length}',
+                                            style: const TextStyle(
+                                              color: Colors.white,
+                                              fontSize: 12,
+                                              fontWeight: FontWeight.w600,
+                                            ),
+                                          ),
                                         ),
                                       ),
                                     ),
-                                  ),
-                                ),
-
-                                if (banners.length > 1)
-                                  Positioned(
-                                    top: 12,
-                                    right: 12,
-                                    child: Container(
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 10,
-                                        vertical: 5,
-                                      ),
-                                      decoration: BoxDecoration(
-                                        color: Colors.black.withOpacity(0.45),
-                                        borderRadius: BorderRadius.circular(20),
-                                      ),
-                                      child: Text(
-                                        '${_currentIndex + 1} / ${banners.length}',
-                                        style: const TextStyle(
-                                          color: Colors.white,
-                                          fontSize: 12,
-                                          fontWeight: FontWeight.w600,
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                              ],
+                                ],
+                              ),
                             ),
                           ),
 
@@ -785,7 +783,7 @@ class _ShopPublicPageState extends State<ShopPublicPage> {
                 ],
               ),
 
-              FloatingContactButton(shop: shop),
+              FloatingContactButton(shop: shop, shopId: widget.shopId),
             ],
           ),
         );

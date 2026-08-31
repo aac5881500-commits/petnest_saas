@@ -42,16 +42,14 @@ class DailyCareRecordModel {
   /// 照護日期，只保存年月日
   final DateTime recordDate;
 
-  /// 場次索引
+  /// 照護紀錄順序（sessionIndex），不用名稱當資料 key
   ///
   /// 0 = 第一場
   /// 1 = 第二場
   /// 2 = 第三場
   final int sessionIndex;
 
-  /// 場次名稱快照
-  ///
-  /// 例如：上午場、下午場、晚上場
+  /// 當時顯示名稱快照（僅顯示用，讀取仍靠 sessionIndex）
   final String sessionName;
 
   /// 整房共同照護資料

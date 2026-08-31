@@ -391,7 +391,10 @@ class ShopProfileService {
     }
 
     final String fileName = path.substring(prefix.length);
-    return fileName.startsWith('banner_') && !fileName.contains('/');
+    if (fileName.startsWith('banner_') && !fileName.contains('/')) {
+      return true;
+    }
+    return fileName.startsWith('home/banners/');
   }
 
   Uint8List? compressEnvironmentImageBytes({

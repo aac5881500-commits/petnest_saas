@@ -7,7 +7,9 @@ import 'package:petnest_saas/core/services/shop_service.dart';
 import 'package:petnest_saas/features/shop/pages/store/shop_store_category_page.dart';
 import 'package:petnest_saas/features/shop/pages/store/shop_store_order_list_page.dart';
 import 'package:petnest_saas/features/shop/pages/store/shop_store_product_list_page.dart';
+import 'package:petnest_saas/features/shop/pages/store/shop_store_promotion_list_page.dart';
 import 'package:petnest_saas/features/shop/pages/store/shop_store_settings_page.dart';
+import 'package:petnest_saas/features/shop/widgets/store/store_admin_summary_bar.dart';
 
 class ShopStoreHubPage extends StatelessWidget {
   const ShopStoreHubPage({
@@ -31,9 +33,10 @@ class ShopStoreHubPage extends StatelessWidget {
     final bool canSettings = _can(ShopPermissionKeys.manageStoreSettings);
 
     return DefaultTabController(
-      length: 4,
+      length: 5,
       child: Column(
         children: <Widget>[
+          StoreAdminSummaryBar(shopId: shopId),
           const TabBar(
             isScrollable: true,
             tabAlignment: TabAlignment.start,
@@ -41,6 +44,7 @@ class ShopStoreHubPage extends StatelessWidget {
               Tab(text: '商品'),
               Tab(text: '訂單'),
               Tab(text: '分類'),
+              Tab(text: '促銷活動'),
               Tab(text: '設定'),
             ],
           ),
@@ -57,6 +61,10 @@ class ShopStoreHubPage extends StatelessWidget {
                   canView: canOrders,
                 ),
                 ShopStoreCategoryPage(
+                  shopId: shopId,
+                  canManage: canProducts,
+                ),
+                ShopStorePromotionListPage(
                   shopId: shopId,
                   canManage: canProducts,
                 ),

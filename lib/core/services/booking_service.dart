@@ -127,6 +127,18 @@ class BookingService {
       final existingBooking = await doc.get();
 
       if (existingBooking.exists) {
+        final String existingStatus = (existingBooking.data()?['status'] ?? '')
+            .toString();
+        if (existingStatus == 'cancelled' ||
+            existingBooking.data()?['cancelledAt'] != null) {
+          debugPrint(
+            '[BookingSubmit] existing requestId booking is cancelled: ${doc.id}',
+          );
+          throw const InventoryException('此預約無法完成，請重新送出');
+        }
+        debugPrint(
+          '[BookingSubmit] existing requestId booking found: ${doc.id}',
+        );
         await _afterBookingCreated(shopId: shopId, bookingId: doc.id);
         return doc.id;
       }
@@ -179,7 +191,9 @@ class BookingService {
       };
     }).toList();
 
-    final bookingId = await _firestore.runTransaction<String>((transaction) async {
+    final bookingId = await _firestore.runTransaction<String>((
+      transaction,
+    ) async {
       /// 🔒 Transaction 內重新讀取，防止兩個請求同時建立
       final existingBooking = await transaction.get(doc);
 
@@ -314,6 +328,9 @@ class BookingService {
       return doc.id;
     });
 
+    debugPrint(
+      '[BookingSubmit] create booking success: $bookingId shopId=$shopId',
+    );
     await _afterBookingCreated(shopId: shopId, bookingId: bookingId);
     return bookingId;
   }
@@ -807,10 +824,7 @@ class BookingService {
     }
 
     await BookingInventoryFunctionService.instance
-        .finalizeBookingAddonInventory(
-          shopId: shopId,
-          bookingId: bookingId,
-        );
+        .finalizeBookingAddonInventory(shopId: shopId, bookingId: bookingId);
     await InventoryStockService.instance.consumeBookingSupplies(
       shopId: shopId,
       bookingId: bookingId,
@@ -828,13 +842,19 @@ class BookingService {
     required String bookingId,
   }) async {
     try {
+      debugPrint(
+        '[BookingSubmit] finalize inventory start bookingId=$bookingId shopId=$shopId',
+      );
       await BookingInventoryFunctionService.instance
-          .finalizeBookingAddonInventory(
-            shopId: shopId,
-            bookingId: bookingId,
-          );
-    } catch (error) {
-      debugPrint('建立訂單扣加購庫存失敗：$error');
+          .finalizeBookingAddonInventory(shopId: shopId, bookingId: bookingId);
+      debugPrint(
+        '[BookingSubmit] finalize inventory done bookingId=$bookingId',
+      );
+    } catch (error, stackTrace) {
+      debugPrint(
+        '[BookingSubmit] finalize failed: $error bookingId=$bookingId',
+      );
+      debugPrintStack(stackTrace: stackTrace);
 
       try {
         await cancelBooking(
@@ -842,7 +862,13 @@ class BookingService {
           cancelReason: InventoryException.userMessage(error),
           cancelBy: 'system',
         );
-      } catch (_) {}
+        debugPrint('[BookingSubmit] rollback cancelled bookingId=$bookingId');
+      } catch (rollbackError, rollbackStack) {
+        debugPrint(
+          '[BookingSubmit] rollback failed: $rollbackError bookingId=$bookingId',
+        );
+        debugPrintStack(stackTrace: rollbackStack);
+      }
 
       if (error is InventoryException) {
         rethrow;
@@ -856,13 +882,10 @@ class BookingService {
         .get();
     final Map<String, dynamic>? latestData = latest.data();
     if ((latestData?['status'] ?? '').toString() == 'cancelled') {
-      final String reason =
-          (latestData?['cancelReason'] ?? '此預約無法完成，請重新送出')
-              .toString()
-              .trim();
-      throw InventoryException(
-        reason.isEmpty ? '此預約無法完成，請重新送出' : reason,
-      );
+      final String reason = (latestData?['cancelReason'] ?? '此預約無法完成，請重新送出')
+          .toString()
+          .trim();
+      throw InventoryException(reason.isEmpty ? '此預約無法完成，請重新送出' : reason);
     }
   }
 

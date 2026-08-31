@@ -16,6 +16,7 @@
 // - 顯示區間晚數 / 總價 / 最少剩餘房數
 
 // 💳 綠界線上付款
+import 'package:petnest_saas/core/exceptions/inventory_exception.dart';
 import 'package:petnest_saas/core/models/create_payment_request_model.dart';
 import 'package:petnest_saas/core/services/payment_function_service.dart';
 import 'package:petnest_saas/features/payment/pages/ecpay_payment_page.dart';
@@ -1853,18 +1854,26 @@ class _ShopBookingPageState extends State<ShopBookingPage> {
           ),
         ),
       );
-    } catch (e) {
+    } catch (e, st) {
       /// 💳 線上付款建立失敗時保留 Booking
       ///
       /// 正式付款架構中，一筆 Booking 可以對應多筆 Payment。
       /// 因此付款建立失敗時不刪除訂單，也不恢復優惠券，
       /// 讓會員之後可以針對同一筆 Booking 重新付款，
       /// 避免產生重複訂單。
+      debugPrint('[BookingSubmit] submit failed: $e');
+      debugPrint('[BookingSubmit] stack:\n$st');
+
+      if (e is! PaymentFunctionException) {
+        _bookingRequestId = null;
+        _bookingRequestSignature = null;
+      }
+
       if (!mounted) return;
 
       final String message = e is PaymentFunctionException
           ? e.message
-          : e.toString().replaceFirst('Exception: ', '');
+          : InventoryException.userMessage(e);
 
       _showSnackBar(message);
     } finally {

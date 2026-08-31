@@ -18,6 +18,29 @@ class StoreOrderItemModel {
     this.inventoryItemName = '',
     this.inventoryUnit = '',
     this.inventoryQuantityPerSale = 1,
+    this.originalUnitPrice,
+    this.discountUnitAmount = 0,
+    this.finalUnitPrice,
+    this.originalSubtotal,
+    this.discountAmount = 0,
+    this.finalSubtotal,
+    this.promotionId = '',
+    this.promotionName = '',
+    this.promotionType = '',
+    this.purchaseQuantity,
+    this.freeQuantity = 0,
+    this.fulfillmentQuantity,
+    this.itemPromotionType = '',
+    this.itemPromotionName = '',
+    this.itemPromotionDiscount = 0,
+    this.buyQuantity,
+    this.freeQuantityPerGroup,
+    this.inventoryDeductedQuantity,
+    this.bundlePromotionId = '',
+    this.bundlePromotionName = '',
+    this.bundleQuantity,
+    this.bundleOriginalPrice,
+    this.bundleFinalPrice,
   });
 
   final String productId;
@@ -26,7 +49,53 @@ class StoreOrderItemModel {
   final int unitPrice;
   final int quantity;
   final int subtotal;
+  final int? originalUnitPrice;
+  final int discountUnitAmount;
+  final int? finalUnitPrice;
+  final int? originalSubtotal;
+  final int discountAmount;
+  final int? finalSubtotal;
+  final String promotionId;
+  final String promotionName;
+  final String promotionType;
+  final int? purchaseQuantity;
+  final int freeQuantity;
+  final int? fulfillmentQuantity;
+  final String itemPromotionType;
+  final String itemPromotionName;
+  final int itemPromotionDiscount;
+  final int? buyQuantity;
+  final int? freeQuantityPerGroup;
+  final num? inventoryDeductedQuantity;
   final bool useInventory;
+  final String bundlePromotionId;
+  final String bundlePromotionName;
+  final int? bundleQuantity;
+  final int? bundleOriginalPrice;
+  final int? bundleFinalPrice;
+
+  int get snapshotPurchaseQuantity => purchaseQuantity ?? quantity;
+  int get snapshotFreeQuantity => freeQuantity < 0 ? 0 : freeQuantity;
+  int get snapshotFulfillmentQuantity =>
+      fulfillmentQuantity ?? (snapshotPurchaseQuantity + snapshotFreeQuantity);
+
+  num get snapshotInventoryDeducted {
+    if (inventoryDeductedQuantity != null) {
+      return inventoryDeductedQuantity!;
+    }
+    if (!useInventory) {
+      return 0;
+    }
+    return snapshotFulfillmentQuantity * inventoryQuantityPerSale;
+  }
+
+  int get snapshotOriginalUnitPrice => originalUnitPrice ?? unitPrice;
+  int get snapshotFinalUnitPrice => finalUnitPrice ?? unitPrice;
+  bool get hasPromotionSnapshot =>
+      promotionName.trim().isNotEmpty ||
+      itemPromotionName.trim().isNotEmpty ||
+      snapshotFreeQuantity > 0 ||
+      snapshotOriginalUnitPrice > snapshotFinalUnitPrice;
   final String inventoryItemId;
   final String inventoryItemName;
   final String inventoryUnit;
@@ -40,6 +109,48 @@ class StoreOrderItemModel {
       unitPrice: _intFromValue(data['unitPrice']),
       quantity: _intFromValue(data['quantity']),
       subtotal: _intFromValue(data['subtotal']),
+      originalUnitPrice: data['originalUnitPrice'] == null
+          ? null
+          : _intFromValue(data['originalUnitPrice']),
+      discountUnitAmount: _intFromValue(data['discountUnitAmount']),
+      finalUnitPrice: data['finalUnitPrice'] == null
+          ? null
+          : _intFromValue(data['finalUnitPrice']),
+      originalSubtotal: data['originalSubtotal'] == null
+          ? null
+          : _intFromValue(data['originalSubtotal']),
+      discountAmount: _intFromValue(data['discountAmount']),
+      finalSubtotal: data['finalSubtotal'] == null
+          ? null
+          : _intFromValue(data['finalSubtotal']),
+      promotionId: (data['promotionId'] ?? '').toString(),
+      promotionName: (data['promotionName'] ?? '').toString(),
+      promotionType: (data['promotionType'] ?? '').toString(),
+      purchaseQuantity: data['purchaseQuantity'] == null
+          ? null
+          : _intFromValue(data['purchaseQuantity']),
+      freeQuantity: _intFromValue(data['freeQuantity']),
+      fulfillmentQuantity: data['fulfillmentQuantity'] == null
+          ? (data['totalFulfillmentQuantity'] == null
+                ? null
+                : _intFromValue(data['totalFulfillmentQuantity']))
+          : _intFromValue(data['fulfillmentQuantity']),
+      itemPromotionType: (data['itemPromotionType'] ?? '').toString(),
+      itemPromotionName: (data['itemPromotionName'] ?? '').toString(),
+      itemPromotionDiscount: _intFromValue(data['itemPromotionDiscount']),
+      buyQuantity: data['buyQuantity'] == null
+          ? null
+          : _intFromValue(data['buyQuantity']),
+      freeQuantityPerGroup: data['freeQuantityPerGroup'] == null
+          ? null
+          : _intFromValue(data['freeQuantityPerGroup']),
+      inventoryDeductedQuantity: data['inventoryDeductedQuantity'] == null
+          ? null
+          : (data['inventoryDeductedQuantity'] is num
+                ? data['inventoryDeductedQuantity'] as num
+                : num.tryParse(
+                    data['inventoryDeductedQuantity']?.toString() ?? '',
+                  )),
       useInventory: data['useInventory'] == true,
       inventoryItemId: (data['inventoryItemId'] ?? '').toString(),
       inventoryItemName: (data['inventoryItemName'] ?? '').toString(),
@@ -48,6 +159,17 @@ class StoreOrderItemModel {
           ? data['inventoryQuantityPerSale'] as num
           : num.tryParse(data['inventoryQuantityPerSale']?.toString() ?? '') ??
                 1,
+      bundlePromotionId: (data['bundlePromotionId'] ?? '').toString(),
+      bundlePromotionName: (data['bundlePromotionName'] ?? '').toString(),
+      bundleQuantity: data['bundleQuantity'] == null
+          ? null
+          : _intFromValue(data['bundleQuantity']),
+      bundleOriginalPrice: data['bundleOriginalPrice'] == null
+          ? null
+          : _intFromValue(data['bundleOriginalPrice']),
+      bundleFinalPrice: data['bundleFinalPrice'] == null
+          ? null
+          : _intFromValue(data['bundleFinalPrice']),
     );
   }
 
@@ -57,13 +179,38 @@ class StoreOrderItemModel {
       'productName': productName,
       'imageUrl': imageUrl,
       'unitPrice': unitPrice,
+      'originalUnitPrice': originalUnitPrice ?? unitPrice,
+      'discountUnitAmount': discountUnitAmount,
+      'finalUnitPrice': finalUnitPrice ?? unitPrice,
       'quantity': quantity,
+      'purchaseQuantity': purchaseQuantity ?? quantity,
+      'freeQuantity': freeQuantity,
+      'fulfillmentQuantity':
+          fulfillmentQuantity ?? ((purchaseQuantity ?? quantity) + freeQuantity),
+      'originalSubtotal': originalSubtotal ?? (unitPrice * quantity),
+      'discountAmount': discountAmount,
+      'finalSubtotal': finalSubtotal ?? subtotal,
       'subtotal': subtotal,
+      'promotionId': promotionId,
+      'promotionName': promotionName,
+      'promotionType': promotionType,
+      'itemPromotionType': itemPromotionType,
+      'itemPromotionName': itemPromotionName,
+      'itemPromotionDiscount': itemPromotionDiscount,
+      'buyQuantity': buyQuantity,
+      'freeQuantityPerGroup': freeQuantityPerGroup,
+      'inventoryDeductedQuantity':
+          inventoryDeductedQuantity ?? snapshotInventoryDeducted,
       'useInventory': useInventory,
       'inventoryItemId': inventoryItemId,
       'inventoryItemName': inventoryItemName,
       'inventoryUnit': inventoryUnit,
       'inventoryQuantityPerSale': inventoryQuantityPerSale,
+      'bundlePromotionId': bundlePromotionId,
+      'bundlePromotionName': bundlePromotionName,
+      'bundleQuantity': bundleQuantity,
+      'bundleOriginalPrice': bundleOriginalPrice,
+      'bundleFinalPrice': bundleFinalPrice,
     };
   }
 
@@ -75,6 +222,34 @@ class StoreOrderItemModel {
       return value.toInt();
     }
     return int.tryParse(value?.toString() ?? '') ?? 0;
+  }
+}
+
+class StoreOrderBundleModel {
+  const StoreOrderBundleModel({
+    required this.bundlePromotionId,
+    required this.bundlePromotionName,
+    required this.bundleQuantity,
+    required this.bundleOriginalPrice,
+    required this.bundleFinalPrice,
+  });
+
+  final String bundlePromotionId;
+  final String bundlePromotionName;
+  final int bundleQuantity;
+  final int bundleOriginalPrice;
+  final int bundleFinalPrice;
+
+  factory StoreOrderBundleModel.fromMap(Map<String, dynamic> data) {
+    return StoreOrderBundleModel(
+      bundlePromotionId: (data['bundlePromotionId'] ?? '').toString(),
+      bundlePromotionName: (data['bundlePromotionName'] ?? '').toString(),
+      bundleQuantity: StoreOrderItemModel._intFromValue(data['bundleQuantity']),
+      bundleOriginalPrice:
+          StoreOrderItemModel._intFromValue(data['bundleOriginalPrice']),
+      bundleFinalPrice:
+          StoreOrderItemModel._intFromValue(data['bundleFinalPrice']),
+    );
   }
 }
 
@@ -106,6 +281,15 @@ class StoreOrderModel {
     this.cancelReason = '',
     this.lastPaymentId = '',
     this.inventoryReturned = false,
+    this.originalSubtotal,
+    this.promotionDiscount = 0,
+    this.finalSubtotal,
+    this.itemPromotionDiscount = 0,
+    this.campaignDiscount = 0,
+    this.quantityDiscount = 0,
+    this.amountDiscount = 0,
+    this.bundleDiscount = 0,
+    this.bundles = const <StoreOrderBundleModel>[],
   });
 
   final String id;
@@ -134,6 +318,15 @@ class StoreOrderModel {
   final String cancelReason;
   final String lastPaymentId;
   final bool inventoryReturned;
+  final int? originalSubtotal;
+  final int promotionDiscount;
+  final int? finalSubtotal;
+  final int itemPromotionDiscount;
+  final int campaignDiscount;
+  final int quantityDiscount;
+  final int amountDiscount;
+  final int bundleDiscount;
+  final List<StoreOrderBundleModel> bundles;
 
   int get itemCount {
     return items.fold<int>(0, (int sum, StoreOrderItemModel item) {
@@ -190,7 +383,40 @@ class StoreOrderModel {
       cancelReason: (data['cancelReason'] ?? '').toString(),
       lastPaymentId: (data['lastPaymentId'] ?? '').toString(),
       inventoryReturned: data['inventoryReturned'] == true,
+      originalSubtotal: data['originalSubtotal'] == null
+          ? null
+          : StoreOrderItemModel._intFromValue(data['originalSubtotal']),
+      promotionDiscount:
+          StoreOrderItemModel._intFromValue(data['promotionDiscount']),
+      finalSubtotal: data['finalSubtotal'] == null
+          ? null
+          : StoreOrderItemModel._intFromValue(data['finalSubtotal']),
+      itemPromotionDiscount:
+          StoreOrderItemModel._intFromValue(data['itemPromotionDiscount']),
+      campaignDiscount:
+          StoreOrderItemModel._intFromValue(data['campaignDiscount']),
+      quantityDiscount:
+          StoreOrderItemModel._intFromValue(data['quantityDiscount']),
+      amountDiscount:
+          StoreOrderItemModel._intFromValue(data['amountDiscount']),
+      bundleDiscount:
+          StoreOrderItemModel._intFromValue(data['bundleDiscount']),
+      bundles: _bundlesFromValue(data['bundles']),
     );
+  }
+
+  static List<StoreOrderBundleModel> _bundlesFromValue(Object? raw) {
+    if (raw is! List) {
+      return const <StoreOrderBundleModel>[];
+    }
+    return raw
+        .whereType<Map>()
+        .map(
+          (Map<dynamic, dynamic> item) => StoreOrderBundleModel.fromMap(
+            Map<String, dynamic>.from(item),
+          ),
+        )
+        .toList();
   }
 
   static DateTime? _dateTimeFromValue(dynamic value) {

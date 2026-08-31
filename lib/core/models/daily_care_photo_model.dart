@@ -50,7 +50,7 @@ class DailyCarePhotoModel {
   /// 2 = 第三場
   final int sessionIndex;
 
-  /// 場次名稱快照，例如上午場、下午場、晚上場
+  /// 當時顯示名稱快照（僅顯示用，讀取仍靠 sessionIndex）
   final String sessionName;
 
   /// 前台平常瀏覽使用的小圖網址

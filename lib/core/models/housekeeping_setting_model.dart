@@ -21,7 +21,7 @@ class HousekeepingSettingModel {
 
   /// 每天需要填寫幾次照護紀錄
   ///
-  /// 預設一天 2 次，例如上午場、晚上場。
+  /// 預設一天 2 次。顯示名稱由 dailyCareSetting.sessionLabels 決定。
   final int dailyCareSessionCount;
 
   /// 是否允許店員上傳照護照片

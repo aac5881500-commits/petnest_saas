@@ -256,143 +256,142 @@ class ModernShopFooter extends StatelessWidget {
 
                 const SizedBox(height: 10),
 
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    ShopModernLogo(
-                      imageUrl: logoUrl,
-                      size: 62,
-                      primaryColor: primaryColor,
-                    ),
+                Builder(
+                  builder: (BuildContext layoutContext) {
+                    final double sheetWidth = MediaQuery.sizeOf(
+                      layoutContext,
+                    ).width;
+                    final double logoSize = sheetWidth < 370
+                        ? 60
+                        : sheetWidth < 420
+                        ? 64
+                        : 66;
+                    final double logoTextGap = sheetWidth < 370 ? 12 : 14;
 
-                    const SizedBox(width: 10),
-
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            shopName,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              fontSize: 13,
-                              height: 1.1,
-                              fontWeight: FontWeight.w800,
-                              color: darkTextColor,
-                            ),
-                          ),
-
-                          const SizedBox(height: 7),
-
-                          if (businessHours.isNotEmpty)
-                            _buildCompactInfoRow(
-                              icon: Icons.schedule_rounded,
-                              text: businessHours,
-                            ),
-
-                          if (phone.isNotEmpty) ...[
-                            const SizedBox(height: 8),
-                            _buildCompactInfoRow(
-                              icon: Icons.phone_outlined,
-                              text: phone,
-                              onTap: () => _callPhone(phone),
-                            ),
-                          ],
-
-                          if (address.isNotEmpty) ...[
-                            const SizedBox(height: 8),
-                            _buildCompactInfoRow(
-                              icon: Icons.location_on_outlined,
-                              text: address,
-                              onTap: () => _openMap(address),
-                            ),
-                          ],
-
-                          if (licenseNumber.isNotEmpty) ...[
-                            const SizedBox(height: 8),
-                            _buildCompactInfoRow(
-                              icon: Icons.verified_outlined,
-                              text: '特寵字號：$licenseNumber',
-                            ),
-                          ],
-
-                          if (showTaxId && taxId.isNotEmpty) ...[
-                            const SizedBox(height: 8),
-                            _buildCompactInfoRow(
-                              icon: Icons.receipt_long_outlined,
-                              text: '統一編號：$taxId',
-                            ),
-                          ],
-                        ],
-                      ),
-                    ),
-
-                    const SizedBox(width: 8),
-
-                    SizedBox(
-                      width: 104,
-                      child: Column(
-                        children: [
-                          Align(
-                            alignment: Alignment.topRight,
-                            child: InkWell(
-                              borderRadius: BorderRadius.circular(20),
-                              onTap: () {
-                                Navigator.pop(sheetContext);
-                              },
-                              child: Padding(
-                                padding: const EdgeInsets.all(4),
-                                child: Icon(
-                                  Icons.close_rounded,
-                                  size: 18,
-                                  color: secondaryTextColor,
+                    return Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        ShopModernLogo(
+                          imageUrl: logoUrl,
+                          size: logoSize,
+                          borderRadius: 11,
+                          primaryColor: primaryColor,
+                        ),
+                        SizedBox(width: logoTextGap),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                shopName,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  fontSize: 14.5,
+                                  height: 1.2,
+                                  fontWeight: FontWeight.w600,
+                                  color: darkTextColor,
                                 ),
                               ),
-                            ),
+                              const SizedBox(height: 6),
+                              if (businessHours.isNotEmpty)
+                                _buildCompactInfoRow(
+                                  icon: Icons.schedule_rounded,
+                                  text: businessHours,
+                                ),
+                              if (phone.isNotEmpty) ...[
+                                const SizedBox(height: 6),
+                                _buildCompactInfoRow(
+                                  icon: Icons.phone_outlined,
+                                  text: phone,
+                                  onTap: () => _callPhone(phone),
+                                ),
+                              ],
+                              if (address.isNotEmpty) ...[
+                                const SizedBox(height: 6),
+                                _buildCompactInfoRow(
+                                  icon: Icons.location_on_outlined,
+                                  text: address,
+                                  onTap: () => _openMap(address),
+                                ),
+                              ],
+                              if (licenseNumber.isNotEmpty) ...[
+                                const SizedBox(height: 6),
+                                _buildCompactInfoRow(
+                                  icon: Icons.verified_outlined,
+                                  text: '特寵字號：$licenseNumber',
+                                ),
+                              ],
+                              if (showTaxId && taxId.isNotEmpty) ...[
+                                const SizedBox(height: 6),
+                                _buildCompactInfoRow(
+                                  icon: Icons.receipt_long_outlined,
+                                  text: '統一編號：$taxId',
+                                ),
+                              ],
+                            ],
                           ),
-
-                          const SizedBox(height: 8),
-
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.end,
+                        ),
+                        const SizedBox(width: 8),
+                        SizedBox(
+                          width: 104,
+                          child: Column(
                             children: [
-                              _buildCompactSocialButton(
-                                icon: FontAwesomeIcons.instagram,
-                                tooltip: 'Instagram',
-                                isEnabled: instagramUrl.isNotEmpty,
-                                onTap: instagramUrl.isNotEmpty
-                                    ? () => _openUrl(instagramUrl)
-                                    : null,
+                              Align(
+                                alignment: Alignment.topRight,
+                                child: InkWell(
+                                  borderRadius: BorderRadius.circular(20),
+                                  onTap: () {
+                                    Navigator.pop(sheetContext);
+                                  },
+                                  child: Padding(
+                                    padding: const EdgeInsets.all(4),
+                                    child: Icon(
+                                      Icons.close_rounded,
+                                      size: 18,
+                                      color: secondaryTextColor,
+                                    ),
+                                  ),
+                                ),
                               ),
-
-                              const SizedBox(width: 6),
-
-                              _buildCompactSocialButton(
-                                icon: FontAwesomeIcons.facebookF,
-                                tooltip: 'Facebook',
-                                isEnabled: facebookUrl.isNotEmpty,
-                                onTap: facebookUrl.isNotEmpty
-                                    ? () => _openUrl(facebookUrl)
-                                    : null,
-                              ),
-
-                              const SizedBox(width: 6),
-
-                              _buildCompactSocialButton(
-                                icon: FontAwesomeIcons.line,
-                                tooltip: 'LINE',
-                                isEnabled: lineUrl.isNotEmpty,
-                                onTap: lineUrl.isNotEmpty
-                                    ? () => _openUrl(lineUrl)
-                                    : null,
+                              const SizedBox(height: 8),
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.end,
+                                children: [
+                                  _buildCompactSocialButton(
+                                    icon: FontAwesomeIcons.instagram,
+                                    tooltip: 'Instagram',
+                                    isEnabled: instagramUrl.isNotEmpty,
+                                    onTap: instagramUrl.isNotEmpty
+                                        ? () => _openUrl(instagramUrl)
+                                        : null,
+                                  ),
+                                  const SizedBox(width: 6),
+                                  _buildCompactSocialButton(
+                                    icon: FontAwesomeIcons.facebookF,
+                                    tooltip: 'Facebook',
+                                    isEnabled: facebookUrl.isNotEmpty,
+                                    onTap: facebookUrl.isNotEmpty
+                                        ? () => _openUrl(facebookUrl)
+                                        : null,
+                                  ),
+                                  const SizedBox(width: 6),
+                                  _buildCompactSocialButton(
+                                    icon: FontAwesomeIcons.line,
+                                    tooltip: 'LINE',
+                                    isEnabled: lineUrl.isNotEmpty,
+                                    onTap: lineUrl.isNotEmpty
+                                        ? () => _openUrl(lineUrl)
+                                        : null,
+                                  ),
+                                ],
                               ),
                             ],
                           ),
-                        ],
-                      ),
-                    ),
-                  ],
+                        ),
+                      ],
+                    );
+                  },
                 ),
               ],
             ),
@@ -411,20 +410,15 @@ class ModernShopFooter extends StatelessWidget {
       borderRadius: BorderRadius.circular(6),
       onTap: onTap,
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Icon(icon, size: 15, color: primaryColor),
           const SizedBox(width: 5),
           Expanded(
             child: Text(
               text,
-              maxLines: 2,
+              maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                fontSize: 10,
-                height: 1.35,
-                color: darkTextColor,
-              ),
+              style: TextStyle(fontSize: 11, height: 1.3, color: darkTextColor),
             ),
           ),
           if (onTap != null)

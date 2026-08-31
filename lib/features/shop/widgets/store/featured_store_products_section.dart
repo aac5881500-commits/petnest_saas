@@ -6,10 +6,14 @@ import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/models/home_theme_model.dart';
 import 'package:petnest_saas/core/models/modern_store_home_setting.dart';
 import 'package:petnest_saas/core/models/store_product_model.dart';
+import 'package:petnest_saas/core/models/store_promotion_model.dart';
+import 'package:petnest_saas/core/services/store_pricing_service.dart';
 import 'package:petnest_saas/core/services/store_product_service.dart';
 import 'package:petnest_saas/core/services/store_settings_service.dart';
 import 'package:petnest_saas/core/services/store_stock_helper.dart';
 import 'package:petnest_saas/core/services/storefront_access.dart';
+import 'package:petnest_saas/features/shop/widgets/store/store_product_price_view.dart';
+import 'package:petnest_saas/features/shop/widgets/store/store_promotion_badge.dart';
 import 'package:petnest_saas/features/shop/pages/storefront/store_home_page.dart';
 import 'package:petnest_saas/features/shop/pages/storefront/store_product_detail_page.dart';
 
@@ -55,10 +59,34 @@ class FeaturedStoreProductsSection extends StatelessWidget {
           ) {
             final List<StoreProductModel> products =
                 snapshot.data ?? const <StoreProductModel>[];
-            if (products.isEmpty) {
+            final Map<String, dynamic> storeSettings =
+                settingsSnapshot.data ?? const <String, dynamic>{};
+            if (storeSettings['showFeaturedProducts'] == false) {
+              return const SizedBox.shrink();
+            }
+            final int featuredCount = _featuredCount(storeSettings);
+            final bool hideOutOfStock =
+                storeSettings['hideOutOfStock'] == true;
+            final List<StoreProductModel> visible = products
+                .where((StoreProductModel item) {
+                  if (!item.hasInventoryLink) {
+                    return false;
+                  }
+                  return !hideOutOfStock ||
+                      !StoreStockHelper.isOutOfStock(item);
+                })
+                .take(featuredCount)
+                .toList();
+            if (visible.isEmpty) {
               return const SizedBox.shrink();
             }
 
+            return StoreEnabledPromotionsBuilder(
+              shopId: shopId,
+              builder: (
+                BuildContext context,
+                List<StorePromotionModel> promotions,
+              ) {
             return Padding(
               padding: const EdgeInsets.only(bottom: 18),
               child: Column(
@@ -110,15 +138,19 @@ class FeaturedStoreProductsSection extends StatelessWidget {
                   ),
                   const SizedBox(height: 9),
                   SizedBox(
-                    height: 176,
+                    height: 198,
                     child: ListView.separated(
                       scrollDirection: Axis.horizontal,
                       physics: const BouncingScrollPhysics(),
-                      itemCount: products.length,
+                      itemCount: visible.length,
                       separatorBuilder: (_, _) => const SizedBox(width: 7),
                       itemBuilder: (BuildContext context, int index) {
                         return _FeaturedProductCard(
-                          product: products[index],
+                          product: visible[index],
+                          priced: StorePricingService.instance.quoteProduct(
+                            product: visible[index],
+                            promotions: promotions,
+                          ),
                           theme: theme,
                           onTap: () {
                             Navigator.of(context).push(
@@ -126,7 +158,7 @@ class FeaturedStoreProductsSection extends StatelessWidget {
                                 builder: (_) => StoreProductDetailPage(
                                   shopId: shopId,
                                   shop: shop,
-                                  productId: products[index].id,
+                                  productId: visible[index].id,
                                   theme: theme,
                                 ),
                               ),
@@ -139,10 +171,22 @@ class FeaturedStoreProductsSection extends StatelessWidget {
                 ],
               ),
             );
+              },
+            );
           },
         );
       },
     );
+  }
+
+  int _featuredCount(Map<String, dynamic> settings) {
+    final int count = settings['featuredCount'] is int
+        ? settings['featuredCount'] as int
+        : int.tryParse(settings['featuredCount']?.toString() ?? '') ?? 6;
+    if (count == 4 || count == 8) {
+      return count;
+    }
+    return 6;
   }
 
   void _openStore(BuildContext context) {
@@ -163,11 +207,13 @@ class _FeaturedProductCard extends StatelessWidget {
     required this.product,
     required this.theme,
     required this.onTap,
+    required this.priced,
   });
 
   final StoreProductModel product;
   final HomeThemeModel theme;
   final VoidCallback onTap;
+  final StorePricedLine priced;
 
   @override
   Widget build(BuildContext context) {
@@ -219,6 +265,15 @@ class _FeaturedProductCard extends StatelessWidget {
                                 ),
                               ),
                       ),
+                      if (priced.showsPromotionOnProductImage)
+                        Positioned(
+                          top: 6,
+                          left: 6,
+                          child: StorePromotionBadge(
+                            line: priced,
+                            color: theme.primaryColor,
+                          ),
+                        ),
                       if (outOfStock)
                         Positioned(
                           top: 6,
@@ -235,7 +290,7 @@ class _FeaturedProductCard extends StatelessWidget {
                                 vertical: 2,
                               ),
                               child: Text(
-                                '缺貨',
+                                '售罄',
                                 style: TextStyle(
                                   fontSize: 9,
                                   fontWeight: FontWeight.w800,
@@ -265,14 +320,11 @@ class _FeaturedProductCard extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(height: 4),
-                      Text(
-                        'NT\$${product.price}',
-                        style: TextStyle(
-                          fontSize: 12,
-                          height: 1.1,
-                          fontWeight: FontWeight.w800,
-                          color: theme.primaryColor,
-                        ),
+                      StoreProductPriceView(
+                        line: priced,
+                        compact: true,
+                        showBadge: priced.isBuyXGetYOffer,
+                        color: theme.primaryColor,
                       ),
                     ],
                   ),

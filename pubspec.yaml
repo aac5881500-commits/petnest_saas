@@ -63,3 +63,4 @@ flutter:
 
   assets:
     - assets/images/
+    - assets/daily_care/card_backgrounds/

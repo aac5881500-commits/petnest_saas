@@ -6,6 +6,8 @@ import 'package:petnest_saas/core/constants/store_constants.dart';
 import 'package:petnest_saas/core/models/store_order_model.dart';
 import 'package:petnest_saas/core/services/store_order_service.dart';
 import 'package:petnest_saas/features/shop/pages/store/shop_store_order_detail_page.dart';
+import 'package:petnest_saas/features/shop/widgets/store/store_empty_state.dart';
+import 'package:petnest_saas/features/shop/widgets/store/store_order_card.dart';
 
 class ShopStoreOrderListPage extends StatefulWidget {
   const ShopStoreOrderListPage({
@@ -29,7 +31,11 @@ class _ShopStoreOrderListPageState extends State<ShopStoreOrderListPage> {
   @override
   Widget build(BuildContext context) {
     if (!widget.canView) {
-      return const Center(child: Text('沒有權限查看商城訂單'));
+      return const StoreEmptyState(
+        title: '沒有權限查看商城訂單',
+        subtitle: '請向店主申請查看或管理商城訂單權限。',
+        icon: Icons.lock_outline,
+      );
     }
 
     return Column(
@@ -41,11 +47,11 @@ class _ShopStoreOrderListPageState extends State<ShopStoreOrderListPage> {
             children: <Widget>[
               _chip('全部', 'all'),
               _chip('待付款', StoreConstants.statusPendingPayment),
-              _chip('已付款', StoreConstants.statusPaid),
-              _chip('備貨中', StoreConstants.statusPreparing),
+              _chip('待處理', StoreConstants.statusPaid),
+              _chip('待備貨', StoreConstants.statusPreparing),
               _chip('可取貨', StoreConstants.statusReadyForPickup),
-              _chip('完成', StoreConstants.statusCompleted),
-              _chip('取消', StoreConstants.statusCancelled),
+              _chip('已完成', StoreConstants.statusCompleted),
+              _chip('已取消', StoreConstants.statusCancelled),
             ],
           ),
         ),
@@ -56,44 +62,51 @@ class _ShopStoreOrderListPageState extends State<ShopStoreOrderListPage> {
               BuildContext context,
               AsyncSnapshot<List<StoreOrderModel>> snapshot,
             ) {
-              final List<StoreOrderModel> orders =
-                  (snapshot.data ?? const <StoreOrderModel>[])
-                      .where((StoreOrderModel order) {
-                        return _filter == 'all' || order.status == _filter;
-                      })
-                      .toList();
+              final List<StoreOrderModel> all =
+                  snapshot.data ?? const <StoreOrderModel>[];
+              if (snapshot.connectionState == ConnectionState.waiting &&
+                  all.isEmpty) {
+                return const Center(child: CircularProgressIndicator());
+              }
+              if (all.isEmpty) {
+                return const StoreEmptyState(
+                  title: '目前沒有商城訂單',
+                  subtitle: '客人下單後，會顯示訂單編號、付款與取貨狀態。',
+                  icon: Icons.receipt_long_outlined,
+                );
+              }
+              final List<StoreOrderModel> orders = all
+                  .where((StoreOrderModel order) {
+                    return _filter == 'all' || order.status == _filter;
+                  })
+                  .toList();
               if (orders.isEmpty) {
-                return const Center(child: Text('目前沒有商城訂單'));
+                return const StoreEmptyState(
+                  title: '這個狀態沒有訂單',
+                  subtitle: '試試其他篩選。',
+                  icon: Icons.filter_alt_outlined,
+                );
               }
               return ListView.separated(
                 padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
                 itemCount: orders.length,
-                separatorBuilder: (_, __) => const SizedBox(height: 8),
+                separatorBuilder: (_, _) => const SizedBox(height: 8),
                 itemBuilder: (BuildContext context, int index) {
                   final StoreOrderModel order = orders[index];
-                  return Card(
-                    child: ListTile(
-                      title: Text(order.orderCode),
-                      subtitle: Text(
-                        '${order.customerName}\n'
-                        'NT\$ ${order.totalAmount} · ${order.itemCount} 件\n'
-                        '${StoreConstants.statusLabel(order.status)} · '
-                        '${StoreConstants.paymentStatusLabel(order.paymentStatus)}',
-                      ),
-                      isThreeLine: true,
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute<void>(
-                            builder: (_) => ShopStoreOrderDetailPage(
-                              shopId: widget.shopId,
-                              orderId: order.id,
-                              canManage: widget.canManage,
-                            ),
+                  return StoreOrderCard(
+                    order: order,
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute<void>(
+                          builder: (_) => ShopStoreOrderDetailPage(
+                            shopId: widget.shopId,
+                            orderId: order.id,
+                            canManage: widget.canManage,
                           ),
-                        );
-                      },
-                    ),
+                        ),
+                      );
+                    },
                   );
                 },
               );

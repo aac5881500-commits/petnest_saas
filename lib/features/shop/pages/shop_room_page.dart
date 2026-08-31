@@ -6,6 +6,7 @@ import 'package:petnest_saas/core/services/shop_service.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:petnest_saas/core/services/shop_plan_service.dart';
 import 'package:petnest_saas/core/utils/natural_sort.dart';
+import 'package:petnest_saas/core/widgets/shop_task_center_button.dart';
 
 class ShopRoomPage extends StatefulWidget {
   const ShopRoomPage({super.key, required this.shopId});
@@ -349,6 +350,7 @@ class _ShopRoomPageState extends State<ShopRoomPage> {
       appBar: AppBar(
         title: const Text('房間管理'),
         actions: [
+          ShopTaskCenterButton(shopId: widget.shopId),
           IconButton(
             icon: const Icon(Icons.help_outline),
             tooltip: '使用說明',

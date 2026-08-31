@@ -5,6 +5,7 @@
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/models/housekeeping_setting_model.dart';
 import 'package:petnest_saas/core/services/housekeeping_setting_service.dart';
+import 'package:petnest_saas/core/widgets/shop_task_center_button.dart';
 
 class HousekeepingSettingPage extends StatefulWidget {
   const HousekeepingSettingPage({super.key, required this.shopId});
@@ -88,7 +89,12 @@ class _HousekeepingSettingPageState extends State<HousekeepingSettingPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('房務設定')),
+      appBar: AppBar(
+        title: const Text('房務設定'),
+        actions: <Widget>[
+          ShopTaskCenterButton(shopId: widget.shopId),
+        ],
+      ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : ListView(

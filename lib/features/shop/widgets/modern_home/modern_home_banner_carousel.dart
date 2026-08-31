@@ -1,13 +1,15 @@
 // lib/features/shop/widgets/modern_home/modern_home_banner_carousel.dart
 // 新版 Beta 首頁活動海報輪播。
-// 自己管理 PageController / 目前頁碼，切換時不重建整頁。
+// 外框尺寸由前台外觀的 homeBannerDisplaySize 統一決定，內容由每張 Banner 自己 render。
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
-import 'package:petnest_saas/core/models/home_text_style_model.dart';
+import 'package:petnest_saas/core/debug/chat_error_probe.dart';
 import 'package:petnest_saas/core/models/home_theme_model.dart';
 import 'package:petnest_saas/core/models/modern_banner_frame_setting.dart';
+import 'package:petnest_saas/core/models/store_banner_model.dart';
+import 'package:petnest_saas/features/shop/widgets/store/store_banner_view.dart';
 
 class ModernHomeBannerCarousel extends StatefulWidget {
   const ModernHomeBannerCarousel({
@@ -15,29 +17,15 @@ class ModernHomeBannerCarousel extends StatefulWidget {
     required this.banners,
     required this.theme,
     required this.frameSetting,
-    required this.bannerTitle,
-    required this.bannerSubtitle,
-    required this.bannerTitleStyle,
-    required this.bannerSubtitleStyle,
-    required this.bannerButtonText,
-    required this.bannerButtonColor,
-    required this.bannerButtonTextColor,
-    required this.onBookingPressed,
     required this.reviewBadge,
+    this.onBannerTap,
   });
 
-  final List<Map<String, dynamic>> banners;
+  final List<StoreBannerModel> banners;
   final HomeThemeModel theme;
   final ModernBannerFrameSetting frameSetting;
-  final String bannerTitle;
-  final String bannerSubtitle;
-  final HomeTextStyleModel bannerTitleStyle;
-  final HomeTextStyleModel bannerSubtitleStyle;
-  final String bannerButtonText;
-  final Color bannerButtonColor;
-  final Color bannerButtonTextColor;
-  final VoidCallback onBookingPressed;
   final Widget reviewBadge;
+  final ValueChanged<StoreBannerModel>? onBannerTap;
 
   @override
   State<ModernHomeBannerCarousel> createState() =>
@@ -48,7 +36,7 @@ class _ModernHomeBannerCarouselState extends State<ModernHomeBannerCarousel> {
   late final PageController _pageController;
   int _currentIndex = 0;
 
-  List<Map<String, dynamic>> get _banners => widget.banners;
+  List<StoreBannerModel> get _banners => widget.banners;
 
   @override
   void initState() {
@@ -85,21 +73,6 @@ class _ModernHomeBannerCarouselState extends State<ModernHomeBannerCarousel> {
     super.dispose();
   }
 
-  String _resolveImageUrl(Map<String, dynamic> banner) {
-    final String cropped = (banner['croppedImageUrl'] ?? '').toString().trim();
-    if (cropped.isNotEmpty) {
-      return cropped;
-    }
-    return (banner['imageUrl'] ?? '').toString().trim();
-  }
-
-  String _slideKey(Map<String, dynamic> banner, int index) {
-    final String path = (banner['imageStoragePath'] ?? '').toString().trim();
-    final String croppedPath =
-        (banner['croppedImageStoragePath'] ?? '').toString().trim();
-    return 'modern-banner-$index-$path-$croppedPath-${_resolveImageUrl(banner)}';
-  }
-
   void _precacheNearbyBanners() {
     if (!mounted || _banners.isEmpty) {
       return;
@@ -113,11 +86,17 @@ class _ModernHomeBannerCarouselState extends State<ModernHomeBannerCarousel> {
     }
 
     for (final int index in indices) {
-      final String url = _resolveImageUrl(_banners[index]);
+      final String url = _banners[index].imageUrl.trim();
       if (url.isEmpty) {
         continue;
       }
-      precacheImage(NetworkImage(url), context);
+      precacheImage(NetworkImage(url), context).catchError((
+        Object e,
+        StackTrace st,
+      ) {
+        print('[ModernHomeBanner] precache FAILED url=$url');
+        ChatErrorProbe.dump('ModernHomeBanner precache', e, st);
+      });
     }
   }
 
@@ -137,81 +116,31 @@ class _ModernHomeBannerCarouselState extends State<ModernHomeBannerCarousel> {
     }
   }
 
-  Widget _bannerShell({required Widget child}) {
-    return LayoutBuilder(
-      builder: (BuildContext context, BoxConstraints constraints) {
-        final double height = widget.frameSetting.heightForWidth(
-          constraints.maxWidth,
-        );
-        return SizedBox(
-          width: double.infinity,
-          height: height,
-          child: child,
-        );
-      },
+  Widget _bannerCanvas({required Widget child}) {
+    return AspectRatio(
+      aspectRatio: widget.frameSetting.aspectRatio,
+      child: child,
     );
   }
 
-  Widget _bannerSlideImage({
-    required Map<String, dynamic> banner,
-    required int index,
-  }) {
-    final String imageUrl = _resolveImageUrl(banner);
+  Widget _bannerSlide({required StoreBannerModel banner, required int index}) {
     return KeyedSubtree(
-      key: ValueKey<String>(_slideKey(banner, index)),
-      child: SizedBox.expand(
-        child: Image.network(
-          imageUrl,
-          width: double.infinity,
-          height: double.infinity,
-          fit: widget.frameSetting.boxFit,
-          alignment: widget.frameSetting.alignment,
-          gaplessPlayback: true,
-          filterQuality: FilterQuality.medium,
-          webHtmlElementStrategy: WebHtmlElementStrategy.never,
-          loadingBuilder:
-              (BuildContext context, Widget child, ImageChunkEvent? progress) {
-            if (progress == null) {
-              return child;
-            }
-            return Stack(
-              fit: StackFit.expand,
-              children: [
-                child,
-                const Center(
-                  child: SizedBox(
-                    width: 22,
-                    height: 22,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      color: Colors.white,
-                    ),
-                  ),
-                ),
-              ],
-            );
-          },
-          errorBuilder:
-              (BuildContext context, Object error, StackTrace? stackTrace) {
-            return Container(
-              color: widget.theme.cardColor,
-              alignment: Alignment.center,
-              child: Icon(
-                Icons.broken_image_outlined,
-                size: 34,
-                color: widget.theme.primaryColor,
-              ),
-            );
-          },
-        ),
+      key: ValueKey<String>(
+        'modern-banner-$index-${banner.id}-${banner.imageStoragePath}-${banner.imageUrl}',
+      ),
+      child: StoreBannerView(
+        banner: banner,
+        theme: widget.theme,
+        scope: PetNestBannerScope.home,
+        borderRadius: 0,
+        onTap: widget.onBannerTap == null || !banner.hasNavigableAction
+            ? null
+            : () => widget.onBannerTap!(banner),
       ),
     );
   }
 
-  Widget _navArrow({
-    required IconData icon,
-    required VoidCallback onPressed,
-  }) {
+  Widget _navArrow({required IconData icon, required VoidCallback onPressed}) {
     return Material(
       color: Colors.black.withValues(alpha: 0.28),
       shape: const CircleBorder(),
@@ -232,12 +161,23 @@ class _ModernHomeBannerCarouselState extends State<ModernHomeBannerCarousel> {
 
   @override
   Widget build(BuildContext context) {
-    final List<Map<String, dynamic>> banners = _banners;
+    final List<StoreBannerModel> banners = _banners;
     final HomeThemeModel theme = widget.theme;
-    final ModernBannerFrameSetting frameSetting = widget.frameSetting;
+    final bool compact =
+        widget.frameSetting.displaySize == HomeBannerDisplaySize.small;
+    final bool showPager = banners.length > 1;
+    final bool showNavArrows =
+        showPager &&
+        (kIsWeb ||
+            defaultTargetPlatform == TargetPlatform.windows ||
+            defaultTargetPlatform == TargetPlatform.macOS ||
+            defaultTargetPlatform == TargetPlatform.linux);
+    final int safeIndex = banners.isEmpty
+        ? 0
+        : _currentIndex.clamp(0, banners.length - 1);
 
     if (banners.isEmpty) {
-      return _bannerShell(
+      return _bannerCanvas(
         child: Container(
           decoration: BoxDecoration(
             color: theme.cardColor,
@@ -264,40 +204,9 @@ class _ModernHomeBannerCarouselState extends State<ModernHomeBannerCarousel> {
       );
     }
 
-    final bool isUltra = frameSetting.isUltraCompact;
-    final bool isCompact = frameSetting.isCompact;
-    final bool tightLayout = isUltra || isCompact;
-    final double titleTop = isUltra ? 22 : (isCompact ? 26 : 38);
-    final double titleGap = isUltra ? 2 : (isCompact ? 4 : 10);
-    final double sidePad = tightLayout ? 8 : 13;
-    final double ctaHeight = isUltra ? 22 : 28;
-    final double ctaBottom = isUltra ? 4 : 8;
-    final double badgeTop = isUltra ? 4 : 8;
-    final double titleMaxSize = isUltra ? 15 : 18;
-    final double subtitleMaxSize = isUltra ? 10 : 12;
-    final HomeTextStyleModel titleStyle = widget.bannerTitleStyle.copyWith(
-      fontSize: tightLayout && widget.bannerTitleStyle.fontSize > titleMaxSize
-          ? titleMaxSize
-          : widget.bannerTitleStyle.fontSize,
-    );
-    final HomeTextStyleModel subtitleStyle = widget.bannerSubtitleStyle.copyWith(
-      fontSize:
-          tightLayout && widget.bannerSubtitleStyle.fontSize > subtitleMaxSize
-          ? subtitleMaxSize
-          : widget.bannerSubtitleStyle.fontSize,
-    );
-    final bool showPager = banners.length > 1;
-    final bool showNavArrows =
-        showPager &&
-        (kIsWeb ||
-            defaultTargetPlatform == TargetPlatform.windows ||
-            defaultTargetPlatform == TargetPlatform.macOS ||
-            defaultTargetPlatform == TargetPlatform.linux);
-    final int safeIndex = _currentIndex.clamp(0, banners.length - 1);
-
     return Column(
       children: [
-        _bannerShell(
+        _bannerCanvas(
           child: ClipRRect(
             borderRadius: BorderRadius.circular(16),
             child: Stack(
@@ -308,11 +217,6 @@ class _ModernHomeBannerCarouselState extends State<ModernHomeBannerCarousel> {
                   child: Stack(
                     fit: StackFit.expand,
                     children: [
-                      if (kIsWeb)
-                        _bannerSlideImage(
-                          banner: banners[safeIndex],
-                          index: safeIndex,
-                        ),
                       ScrollConfiguration(
                         behavior: ScrollConfiguration.of(context).copyWith(
                           dragDevices: const <PointerDeviceKind>{
@@ -338,10 +242,7 @@ class _ModernHomeBannerCarouselState extends State<ModernHomeBannerCarousel> {
                             _precacheNearbyBanners();
                           },
                           itemBuilder: (BuildContext context, int index) {
-                            if (kIsWeb) {
-                              return const SizedBox.expand();
-                            }
-                            return _bannerSlideImage(
+                            return _bannerSlide(
                               banner: banners[index],
                               index: index,
                             );
@@ -351,99 +252,10 @@ class _ModernHomeBannerCarouselState extends State<ModernHomeBannerCarousel> {
                     ],
                   ),
                 ),
-                const DecoratedBox(
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.centerRight,
-                      end: Alignment.centerLeft,
-                      stops: [0.2, 0.65, 1],
-                      colors: [
-                        Colors.transparent,
-                        Color(0x55000000),
-                        Color(0xD9000000),
-                      ],
-                    ),
-                  ),
-                ),
                 Positioned(
-                  left: sidePad,
-                  top: badgeTop,
-                  child: widget.reviewBadge,
-                ),
-                Positioned(
-                  left: sidePad,
-                  right: isUltra ? 40 : 85,
-                  top: titleTop,
-                  bottom: ctaHeight + ctaBottom + 2,
-                  child: Align(
-                    alignment: Alignment.topLeft,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        if (widget.bannerTitle.isNotEmpty)
-                          Text(
-                            widget.bannerTitle,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            textAlign: titleStyle.textAlign,
-                            style: titleStyle.toTextStyle(defaultHeight: 1.1),
-                          ),
-                        if (widget.bannerTitle.isNotEmpty &&
-                            widget.bannerSubtitle.isNotEmpty)
-                          SizedBox(height: titleGap),
-                        if (widget.bannerSubtitle.isNotEmpty)
-                          Text(
-                            widget.bannerSubtitle,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            textAlign: subtitleStyle.textAlign,
-                            style: subtitleStyle.toTextStyle(defaultHeight: 1.1),
-                          ),
-                      ],
-                    ),
-                  ),
-                ),
-                Positioned(
-                  left: sidePad,
-                  bottom: ctaBottom,
-                  child: SizedBox(
-                    height: ctaHeight,
-                    child: FilledButton.icon(
-                      style: FilledButton.styleFrom(
-                        backgroundColor: widget.bannerButtonColor,
-                        foregroundColor: widget.bannerButtonTextColor,
-                        elevation: 0,
-                        padding: EdgeInsets.symmetric(
-                          horizontal: isUltra ? 8 : 10,
-                        ),
-                        visualDensity: VisualDensity.compact,
-                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(
-                            isUltra ? 10 : 12,
-                          ),
-                        ),
-                      ),
-                      onPressed: widget.onBookingPressed,
-                      icon: Icon(
-                        Icons.pets_rounded,
-                        size: isUltra ? 10 : 12,
-                      ),
-                      label: Text(
-                        widget.bannerButtonText.isEmpty
-                            ? '立即預約住宿'
-                            : widget.bannerButtonText,
-                        style: TextStyle(
-                          color: widget.bannerButtonTextColor,
-                          fontSize: isUltra ? 8.5 : 9.5,
-                          height: 1,
-                          letterSpacing: 0.1,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                    ),
-                  ),
+                  left: compact ? 8 : 13,
+                  top: compact ? 4 : 8,
+                  child: IgnorePointer(child: widget.reviewBadge),
                 ),
                 if (showNavArrows) ...[
                   Align(
@@ -469,24 +281,26 @@ class _ModernHomeBannerCarouselState extends State<ModernHomeBannerCarousel> {
                 ],
                 if (showPager)
                   Positioned(
-                    right: isUltra ? 8 : 10,
-                    bottom: isUltra ? 4 : 10,
-                    child: Container(
-                      padding: EdgeInsets.symmetric(
-                        horizontal: isUltra ? 6 : 7,
-                        vertical: isUltra ? 2 : 3,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Colors.black.withValues(alpha: 0.48),
-                        borderRadius: BorderRadius.circular(999),
-                      ),
-                      child: Text(
-                        '${safeIndex + 1}/${banners.length}',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: isUltra ? 8 : 9,
-                          height: 1,
-                          fontWeight: FontWeight.w600,
+                    right: compact ? 8 : 10,
+                    bottom: compact ? 4 : 10,
+                    child: IgnorePointer(
+                      child: Container(
+                        padding: EdgeInsets.symmetric(
+                          horizontal: compact ? 6 : 7,
+                          vertical: compact ? 2 : 3,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.black.withValues(alpha: 0.48),
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                        child: Text(
+                          '${safeIndex + 1}/${banners.length}',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: compact ? 8 : 9,
+                            height: 1,
+                            fontWeight: FontWeight.w600,
+                          ),
                         ),
                       ),
                     ),
