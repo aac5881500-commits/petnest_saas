@@ -58,7 +58,7 @@ class EnvironmentFeatureManager extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const Text(
-          '特色圖片建議使用 4:3 橫式照片，會顯示在卡片右側或左側。',
+          '特色圖片建議使用 4:3 橫式照片。前台版型由上方「環境特色卡片版型」統一控制；沒有圖片時不會留空框。橫向圖卡仍可用右側按鈕切換圖片左右。',
           style: TextStyle(
             fontSize: 12,
             height: 1.45,
@@ -92,7 +92,9 @@ class EnvironmentFeatureManager extends StatelessWidget {
             ),
           )
         else
-          ...features.asMap().entries.map((MapEntry<int, Map<String, dynamic>> entry) {
+          ...features.asMap().entries.map((
+            MapEntry<int, Map<String, dynamic>> entry,
+          ) {
             final int index = entry.key;
             final Map<String, dynamic> item = entry.value;
             final String imageUrl = (item['imageUrl'] ?? '').toString().trim();
@@ -128,16 +130,20 @@ class EnvironmentFeatureManager extends StatelessWidget {
                                 imageUrl,
                                 fit: BoxFit.cover,
                                 errorBuilder:
-                                    (BuildContext context, Object error, StackTrace? stackTrace) {
-                                  return const ColoredBox(
-                                    color: Color(0xFFF0E0CC),
-                                    child: Icon(
-                                      Icons.broken_image_outlined,
-                                      size: 20,
-                                      color: Color(0xFFB87535),
-                                    ),
-                                  );
-                                },
+                                    (
+                                      BuildContext context,
+                                      Object error,
+                                      StackTrace? stackTrace,
+                                    ) {
+                                      return const ColoredBox(
+                                        color: Color(0xFFF0E0CC),
+                                        child: Icon(
+                                          Icons.broken_image_outlined,
+                                          size: 20,
+                                          color: Color(0xFFB87535),
+                                        ),
+                                      );
+                                    },
                               ),
                       ),
                     ),

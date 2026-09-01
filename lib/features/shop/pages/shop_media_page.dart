@@ -5,7 +5,6 @@ import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/models/home_theme_model.dart';
 import 'package:petnest_saas/core/models/modern_banner_frame_setting.dart';
 import 'package:petnest_saas/core/models/store_banner_model.dart';
-import 'package:petnest_saas/core/models/store_banner_templates.dart';
 import 'package:petnest_saas/core/services/home_banner_service.dart';
 import 'package:petnest_saas/core/services/shop_service.dart';
 import 'package:petnest_saas/features/shop/pages/store/shop_store_banner_editor_page.dart';
@@ -90,15 +89,12 @@ class _ShopMediaPageState extends State<ShopMediaPage> {
       ).showSnackBar(const SnackBar(content: Text('最多只能5張海報')));
       return;
     }
-    final StoreBannerModel created = StoreBannerTemplates.apply(
-      StoreBannerModel(
-        id: 'home_${DateTime.now().millisecondsSinceEpoch}',
-        enabled: true,
-        sortOrder: _banners.length,
-        sizePreset: StoreBannerSizePresets.standard,
-        createdAt: DateTime.now(),
-      ),
-      StoreBannerTemplates.leftCopy,
+    final StoreBannerModel created = StoreBannerModel(
+      id: 'home_${DateTime.now().millisecondsSinceEpoch}',
+      enabled: true,
+      sortOrder: _banners.length,
+      sizePreset: StoreBannerSizePresets.standard,
+      createdAt: DateTime.now(),
     );
     await _openEditor(created, isNew: true);
   }

@@ -591,10 +591,12 @@ class _PreviewBlock extends StatelessWidget {
                 ),
               ),
             const SizedBox(height: 8),
-            Text(
-              '直接拖曳海報文字調整位置',
-              style: TextStyle(fontSize: 12, color: Colors.grey.shade700),
-            ),
+            Text(switch (interactMode) {
+              StoreBannerInteractMode.image => '在預覽中拖曳圖片，調整實際顯示範圍',
+              StoreBannerInteractMode.cta => '拖曳按鈕調整位置',
+              StoreBannerInteractMode.text => '直接拖曳海報文字調整位置',
+              StoreBannerInteractMode.none => '切到「圖片」分頁可拖曳調整顯示位置',
+            }, style: TextStyle(fontSize: 12, color: Colors.grey.shade700)),
             const SizedBox(height: 8),
             const Text('快速版型', style: TextStyle(fontWeight: FontWeight.w700)),
             const SizedBox(height: 6),
@@ -743,8 +745,8 @@ class _ImagePanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final String hint = scope == PetNestBannerScope.home
-        ? '建議比例 16:9。建議尺寸 1600 × 900，最低 1280 × 720。單張最大 5 MB，支援 JPG / PNG / WEBP。'
-        : '建議比例 2:1 或 16:8。單張最大 5 MB，支援 JPG / PNG / WEBP。';
+        ? '建議比例 16:9。建議尺寸 1600 × 900，最低 1280 × 720。單張最大 5 MB，支援 JPG / PNG / WEBP。上傳後可調整縮放與顯示位置。'
+        : '建議比例 2:1 或 16:8。單張最大 5 MB，支援 JPG / PNG / WEBP。上傳後可調整縮放與顯示位置。';
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 28),
       children: <Widget>[
@@ -794,16 +796,69 @@ class _ImagePanel extends StatelessWidget {
           const SizedBox(height: 16),
         ],
         const Text('圖片縮放', style: TextStyle(fontWeight: FontWeight.w700)),
-        const Text('在圖片分頁拖曳預覽，可調整焦點。', style: TextStyle(fontSize: 12)),
+        const Text(
+          '1.0x 為原圖裁切。放大後可拖曳或用下方位置滑桿，決定框內露出的範圍。',
+          style: TextStyle(fontSize: 12),
+        ),
         Slider(
           min: 1,
-          max: 2,
-          divisions: 10,
+          max: 2.5,
+          divisions: 15,
           label: '${draft.imageScale.toStringAsFixed(1)}x',
-          value: draft.imageScale.clamp(1.0, 2.0),
+          value: draft.imageScale.clamp(1.0, 2.5),
           onChanged: (double value) {
             onDraft(draft.copyWith(imageScale: value));
           },
+        ),
+        const SizedBox(height: 8),
+        const Text('水平位置', style: TextStyle(fontWeight: FontWeight.w700)),
+        const Text('愈左愈露出圖片左側，愈右愈露出右側。', style: TextStyle(fontSize: 12)),
+        Slider(
+          min: 0,
+          max: 1,
+          divisions: 20,
+          label: draft.imageAlignmentX <= 0.05
+              ? '左'
+              : draft.imageAlignmentX >= 0.95
+              ? '右'
+              : '中',
+          value: draft.imageAlignmentX.clamp(0.0, 1.0),
+          onChanged: (double value) {
+            onDraft(draft.copyWith(imageAlignmentX: value));
+          },
+        ),
+        const SizedBox(height: 8),
+        const Text('垂直位置', style: TextStyle(fontWeight: FontWeight.w700)),
+        const Text('愈上愈露出圖片上方，愈下愈露出下方。', style: TextStyle(fontSize: 12)),
+        Slider(
+          min: 0,
+          max: 1,
+          divisions: 20,
+          label: draft.imageAlignmentY <= 0.05
+              ? '上'
+              : draft.imageAlignmentY >= 0.95
+              ? '下'
+              : '中',
+          value: draft.imageAlignmentY.clamp(0.0, 1.0),
+          onChanged: (double value) {
+            onDraft(draft.copyWith(imageAlignmentY: value));
+          },
+        ),
+        const SizedBox(height: 8),
+        Align(
+          alignment: Alignment.centerLeft,
+          child: OutlinedButton(
+            onPressed: () {
+              onDraft(
+                draft.copyWith(
+                  imageScale: 1,
+                  imageAlignmentX: 0.5,
+                  imageAlignmentY: 0.5,
+                ),
+              );
+            },
+            child: const Text('重設圖片位置'),
+          ),
         ),
       ],
     );

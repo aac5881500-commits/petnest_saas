@@ -12,56 +12,76 @@ class EnvironmentCareItem extends StatelessWidget {
     required this.title,
     required this.subtitle,
     this.theme = HomeThemeModel.classicDefault,
+    this.titleSize = 13,
+    this.subtitleSize = 11,
+    this.iconSize = 23,
+    this.padding = 10,
+    this.avatarRadius = 21,
+    this.radius = 18,
   });
 
   final IconData icon;
   final String title;
   final String subtitle;
   final HomeThemeModel theme;
+  final double titleSize;
+  final double subtitleSize;
+  final double iconSize;
+  final double padding;
+  final double avatarRadius;
+  final double radius;
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(10),
+      padding: EdgeInsets.all(padding),
       decoration: BoxDecoration(
         color: theme.cardColor,
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(radius),
         border: Border.all(color: theme.cardBorderColor),
-        boxShadow: [
+        boxShadow: <BoxShadow>[
           BoxShadow(
-            color: Colors.black.withOpacity(0.035),
+            color: Colors.black.withValues(alpha: 0.035),
             blurRadius: 8,
             offset: const Offset(0, 3),
           ),
         ],
       ),
       child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
           CircleAvatar(
-            radius: 21,
-            backgroundColor: theme.primaryColor.withOpacity(0.12),
-            child: Icon(icon, color: theme.primaryColor, size: 23),
+            radius: avatarRadius,
+            backgroundColor: theme.primaryColor.withValues(alpha: 0.12),
+            child: Icon(icon, color: theme.primaryColor, size: iconSize),
           ),
-          const SizedBox(height: 9),
+          const SizedBox(height: 8),
           Text(
             title,
             textAlign: TextAlign.center,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
             style: TextStyle(
-              fontSize: 13,
+              fontSize: titleSize,
               fontWeight: FontWeight.w900,
+              height: 1.2,
               color: theme.textColor,
             ),
           ),
-          const SizedBox(height: 4),
-          Text(
-            subtitle,
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              fontSize: 11,
-              color: theme.textColor.withOpacity(0.68),
+          if (subtitle.trim().isNotEmpty) ...<Widget>[
+            const SizedBox(height: 4),
+            Text(
+              subtitle,
+              textAlign: TextAlign.center,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: subtitleSize,
+                height: 1.3,
+                color: theme.textColor.withValues(alpha: 0.68),
+              ),
             ),
-          ),
+          ],
         ],
       ),
     );

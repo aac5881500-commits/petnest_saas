@@ -1,20 +1,14 @@
 // lib/features/shop/pages/shop_environment_page.dart
 // 🐾 前台環境介紹頁
 // 顯示店家環境介紹、安心設備、環境照片牆
-// 第一版先用固定模板 + 假資料，之後再接後台設定與 Firestore
 
-import 'package:flutter/material.dart';
-import 'package:petnest_saas/core/models/home_theme_model.dart';
-import 'package:petnest_saas/core/models/environment_image_frame_setting.dart';
-import 'package:petnest_saas/features/shop/widgets/environment/environment_hero_section.dart';
-import 'package:petnest_saas/features/shop/widgets/environment/environment_feature_card.dart';
-import 'package:petnest_saas/features/shop/widgets/environment/environment_care_item.dart';
-import 'package:petnest_saas/features/shop/widgets/environment/environment_gallery_grid.dart';
-import 'package:petnest_saas/features/shop/widgets/environment/environment_image_banner.dart';
-import 'package:petnest_saas/features/shop/widgets/environment/environment_bottom_note.dart';
-import 'package:petnest_saas/features/shop/widgets/environment/environment_section_title.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/material.dart';
+import 'package:petnest_saas/core/models/environment_image_frame_setting.dart';
+import 'package:petnest_saas/core/models/environment_intro_style.dart';
+import 'package:petnest_saas/core/models/home_theme_model.dart';
 import 'package:petnest_saas/features/shop/data/environment_facility_options.dart';
+import 'package:petnest_saas/features/shop/widgets/environment/environment_intro_view.dart';
 
 const String _environmentHeroImageUrl =
     'https://images.unsplash.com/photo-1519052537078-e6302a4968d4?w=1200';
@@ -63,6 +57,15 @@ const List<String> _environmentGalleryImages = [
   'https://images.unsplash.com/photo-1574158622682-e40e69881006?w=600',
 ];
 
+const List<String> _defaultFacilityKeys = <String>[
+  'air_cleaner',
+  'camera_24h',
+  'hospital',
+  'water',
+  'sunlight',
+  'disinfect',
+];
+
 class ShopEnvironmentPage extends StatelessWidget {
   const ShopEnvironmentPage({
     super.key,
@@ -76,6 +79,10 @@ class ShopEnvironmentPage extends StatelessWidget {
     this.bannerImageUrl,
     this.heroFrame,
     this.bannerFrame,
+    this.style,
+    this.features,
+    this.galleryImages,
+    this.facilityKeys,
   });
 
   final String shopId;
@@ -88,221 +95,170 @@ class ShopEnvironmentPage extends StatelessWidget {
   final String? bannerImageUrl;
   final EnvironmentImageFrameSetting? heroFrame;
   final EnvironmentImageFrameSetting? bannerFrame;
+  final EnvironmentIntroStyle? style;
+  final List<Map<String, dynamic>>? features;
+  final List<String>? galleryImages;
+  final List<String>? facilityKeys;
+
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: theme.backgroundColor,
-      appBar: AppBar(
-        backgroundColor: theme.backgroundColor,
-        elevation: 0,
-        surfaceTintColor: Colors.transparent,
-        centerTitle: true,
-        title: Text(
-          '環境介紹',
-          style: TextStyle(fontWeight: FontWeight.w800, color: theme.textColor),
-        ),
-      ),
-      body: StreamBuilder<DocumentSnapshot>(
-        stream: FirebaseFirestore.instance
-            .collection('shops')
-            .doc(shopId)
-            .snapshots(),
-        builder: (context, snapshot) {
-          final shopData = snapshot.data?.data() as Map<String, dynamic>?;
+    return StreamBuilder<DocumentSnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('shops')
+          .doc(shopId)
+          .snapshots(),
+      builder:
+          (BuildContext context, AsyncSnapshot<DocumentSnapshot> snapshot) {
+            final Map<String, dynamic>? shopData =
+                snapshot.data?.data() as Map<String, dynamic>?;
+            final Map<String, dynamic>? environmentIntro =
+                shopData?['environmentIntro'] as Map<String, dynamic>?;
+            final bool hasSavedIntro = environmentIntro != null;
 
-          final environmentIntro =
-              shopData?['environmentIntro'] as Map<String, dynamic>?;
+            final EnvironmentIntroStyle resolvedStyle =
+                style ?? EnvironmentIntroStyle.fromMap(environmentIntro);
 
-          final displayHeroTitle =
-              heroTitle ??
-              environmentIntro?['heroTitle'] ??
-              _environmentHeroTitle;
+            final String displayHeroTitle =
+                heroTitle ??
+                (hasSavedIntro
+                    ? (environmentIntro['heroTitle'] ?? '').toString()
+                    : _environmentHeroTitle);
 
-          final displayHeroSubtitle =
-              heroSubtitle ??
-              environmentIntro?['heroSubtitle'] ??
-              _environmentHeroSubtitle;
+            final String displayHeroSubtitle =
+                heroSubtitle ??
+                (hasSavedIntro
+                    ? (environmentIntro['heroSubtitle'] ?? '').toString()
+                    : _environmentHeroSubtitle);
 
-          final displayBannerTitle =
-              bannerTitle ??
-              environmentIntro?['bannerTitle'] ??
-              _environmentBannerTitle;
+            final String displayBannerTitle =
+                bannerTitle ??
+                (hasSavedIntro
+                    ? (environmentIntro['bannerTitle'] ?? '').toString()
+                    : _environmentBannerTitle);
 
-          final displayBottomNote =
-              bottomNote ??
-              environmentIntro?['bottomNote'] ??
-              _environmentBottomNote;
-          final displayFeatures = List<Map<String, dynamic>>.from(
-            environmentIntro?['features'] ?? _environmentFeatures,
-          );
-          final displayGalleryImages = _readGalleryImageUrls(
-            environmentIntro?['galleryImages'] ?? _environmentGalleryImages,
-          );
-          final selectedFacilityKeys = List<String>.from(
-            environmentIntro?['facilityKeys'] ??
-                [
-                  'air_cleaner',
-                  'camera_24h',
-                  'hospital',
-                  'water',
-                  'sunlight',
-                  'disinfect',
-                ],
-          );
+            final String displayBottomNote =
+                bottomNote ??
+                (hasSavedIntro
+                    ? (environmentIntro['bottomNote'] ?? '').toString()
+                    : _environmentBottomNote);
 
-          final displayCareItems = environmentFacilityOptions
-              .where((item) => selectedFacilityKeys.contains(item['key']))
-              .toList();
-
-          final displayHeroImageUrl =
-              heroImageUrl ??
-              (environmentIntro?['heroImageUrl'] ?? _environmentHeroImageUrl)
-                  .toString();
-
-          final displayBannerImageUrl =
-              bannerImageUrl ??
-              (environmentIntro?['bannerImageUrl'] ?? _environmentBannerImageUrl)
-                  .toString();
-
-          final EnvironmentImageFrameSetting resolvedHeroFrame =
-              heroFrame ??
-              EnvironmentImageFrameSetting.heroFromMap(environmentIntro);
-          final EnvironmentImageFrameSetting resolvedBannerFrame =
-              bannerFrame ??
-              EnvironmentImageFrameSetting.bannerFromMap(environmentIntro);
-
-          return ListView(
-            padding: const EdgeInsets.only(bottom: 28),
-            children: [
-              LayoutBuilder(
-                builder: (BuildContext context, BoxConstraints constraints) {
-                  return EnvironmentHeroSection(
-                    imageUrl: displayHeroImageUrl,
-                    title: displayHeroTitle,
-                    subtitle: displayHeroSubtitle,
-                    height: resolvedHeroFrame.heightForWidth(constraints.maxWidth),
-                    imageFit: resolvedHeroFrame.boxFit,
-                    imageAlignment: resolvedHeroFrame.alignment,
-                    imageBuilder: _networkImage,
-                  );
-                },
-              ),
-
-              const SizedBox(height: 22),
-              EnvironmentSectionTitle(
-                icon: Icons.pets,
-                title: '我們的環境特色',
-                theme: theme,
-              ),
-              const SizedBox(height: 12),
-
-              ...displayFeatures.map((item) {
-                return EnvironmentFeatureCard(
-                  icon: _environmentIcon(item['icon'] ?? ''),
-                  title: item['title'] ?? '',
-                  description: item['description'] ?? '',
-                  imageUrl: item['imageUrl'] ?? '',
-                  imageBuilder: _networkImage,
-                  theme: theme,
-                  reverse: item['layout'] == 'imageLeft',
+            final List<Map<String, dynamic>> displayFeatures =
+                features ??
+                List<Map<String, dynamic>>.from(
+                  environmentIntro?['features'] ??
+                      (hasSavedIntro
+                          ? const <Map<String, dynamic>>[]
+                          : _environmentFeatures),
                 );
-              }),
 
-              const SizedBox(height: 24),
+            final List<String> displayGalleryImages =
+                galleryImages ??
+                _readGalleryImageUrls(
+                  environmentIntro?['galleryImages'] ??
+                      (hasSavedIntro
+                          ? const <String>[]
+                          : _environmentGalleryImages),
+                );
 
-              LayoutBuilder(
-                builder: (BuildContext context, BoxConstraints constraints) {
-                  return EnvironmentImageBanner(
-                    imageUrl: displayBannerImageUrl,
-                    title: displayBannerTitle,
-                    height: resolvedBannerFrame.heightForWidth(constraints.maxWidth),
-                    imageFit: resolvedBannerFrame.boxFit,
-                    imageAlignment: resolvedBannerFrame.alignment,
-                    imageBuilder: _networkImage,
-                  );
-                },
-              ),
+            final List<String> selectedFacilityKeys =
+                facilityKeys ??
+                List<String>.from(
+                  environmentIntro?['facilityKeys'] ??
+                      (hasSavedIntro ? const <String>[] : _defaultFacilityKeys),
+                );
 
-              const SizedBox(height: 24),
+            final List<Map<String, dynamic>> displayCareItems =
+                environmentFacilityOptions
+                    .where(
+                      (Map<String, dynamic> item) =>
+                          selectedFacilityKeys.contains(item['key']),
+                    )
+                    .toList();
 
-              const SizedBox(height: 18),
+            final String displayHeroImageUrl =
+                heroImageUrl ??
+                (hasSavedIntro
+                        ? (environmentIntro['heroImageUrl'] ?? '')
+                        : _environmentHeroImageUrl)
+                    .toString();
 
-              EnvironmentSectionTitle(
-                icon: Icons.verified_user_rounded,
-                title: '安心照護設備',
-                theme: theme,
-              ),
+            final String displayBannerImageUrl =
+                bannerImageUrl ??
+                (hasSavedIntro
+                        ? (environmentIntro['bannerImageUrl'] ?? '')
+                        : _environmentBannerImageUrl)
+                    .toString();
 
-              const SizedBox(height: 12),
+            final EnvironmentImageFrameSetting resolvedHeroFrame =
+                heroFrame ??
+                EnvironmentImageFrameSetting.heroFromMap(environmentIntro);
+            final EnvironmentImageFrameSetting resolvedBannerFrame =
+                bannerFrame ??
+                EnvironmentImageFrameSetting.bannerFromMap(environmentIntro);
 
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: GridView.count(
-                  crossAxisCount: 3,
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  mainAxisSpacing: 10,
-                  crossAxisSpacing: 10,
-                  childAspectRatio: 0.88,
-                  children: displayCareItems.map((item) {
-                    return EnvironmentCareItem(
-                      icon: item['icon'] as IconData,
-                      title: item['title'] ?? '',
-                      subtitle: item['description'] ?? '',
-                      theme: theme,
-                    );
-                  }).toList(),
+            return Scaffold(
+              backgroundColor: theme.backgroundColor,
+              appBar: AppBar(
+                backgroundColor: theme.backgroundColor,
+                elevation: 0,
+                surfaceTintColor: Colors.transparent,
+                centerTitle: true,
+                title: Text(
+                  '環境介紹',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w800,
+                    fontSize: resolvedStyle.pageTitleSize,
+                    color: theme.textColor,
+                  ),
                 ),
               ),
-
-              EnvironmentSectionTitle(
-                icon: Icons.photo_library_rounded,
-                title: '環境照片',
+              body: EnvironmentIntroView(
+                style: resolvedStyle,
                 theme: theme,
-              ),
-
-              const SizedBox(height: 12),
-
-              EnvironmentGalleryGrid(
-                images: displayGalleryImages,
+                heroTitle: displayHeroTitle,
+                heroSubtitle: displayHeroSubtitle,
+                heroImageUrl: displayHeroImageUrl,
+                heroFrame: resolvedHeroFrame,
+                bannerTitle: displayBannerTitle,
+                bannerImageUrl: displayBannerImageUrl,
+                bannerFrame: resolvedBannerFrame,
+                features: displayFeatures,
+                galleryImages: displayGalleryImages,
+                careItems: displayCareItems,
+                bottomNote: displayBottomNote,
                 imageBuilder: _networkImage,
+                featureIconOf: _environmentIcon,
               ),
-
-              const SizedBox(height: 24),
-
-              EnvironmentBottomNote(text: displayBottomNote, theme: theme),
-            ],
-          );
-        },
-      ),
+            );
+          },
     );
   }
+}
 
-  IconData _environmentIcon(String key) {
-    switch (key) {
-      case 'home':
-        return Icons.home_rounded;
-      case 'clean':
-        return Icons.cleaning_services_rounded;
-      case 'air':
-        return Icons.ac_unit_rounded;
-      case 'camera':
-        return Icons.videocam_rounded;
-      case 'hospital':
-        return Icons.local_hospital_rounded;
-      case 'water':
-        return Icons.water_drop_rounded;
-      case 'sun':
-        return Icons.wb_sunny_rounded;
-      case 'clean_hand':
-        return Icons.clean_hands_rounded;
-      case 'pets':
-        return Icons.pets_rounded;
-      case 'toys':
-        return Icons.toys_rounded;
-      default:
-        return Icons.pets_rounded;
-    }
+IconData _environmentIcon(String key) {
+  switch (key) {
+    case 'home':
+      return Icons.home_rounded;
+    case 'clean':
+      return Icons.cleaning_services_rounded;
+    case 'air':
+      return Icons.ac_unit_rounded;
+    case 'camera':
+      return Icons.videocam_rounded;
+    case 'hospital':
+      return Icons.local_hospital_rounded;
+    case 'water':
+      return Icons.water_drop_rounded;
+    case 'sun':
+      return Icons.wb_sunny_rounded;
+    case 'clean_hand':
+      return Icons.clean_hands_rounded;
+    case 'pets':
+      return Icons.pets_rounded;
+    case 'toys':
+      return Icons.toys_rounded;
+    default:
+      return Icons.pets_rounded;
   }
 }
 
@@ -338,17 +294,22 @@ Widget _networkImage({
     width: width,
     height: height,
     fit: fit,
-    loadingBuilder: (context, child, loadingProgress) {
-      if (loadingProgress == null) return child;
+    loadingBuilder:
+        (BuildContext context, Widget child, ImageChunkEvent? loadingProgress) {
+          if (loadingProgress == null) {
+            return child;
+          }
 
-      return Container(
-        width: width,
-        height: height,
-        color: const Color(0xFFF5EBDD),
-        child: const Center(child: CircularProgressIndicator(strokeWidth: 2)),
-      );
-    },
-    errorBuilder: (context, error, stackTrace) {
+          return Container(
+            width: width,
+            height: height,
+            color: const Color(0xFFF5EBDD),
+            child: const Center(
+              child: CircularProgressIndicator(strokeWidth: 2),
+            ),
+          );
+        },
+    errorBuilder: (BuildContext context, Object error, StackTrace? stackTrace) {
       return Container(
         width: width,
         height: height,

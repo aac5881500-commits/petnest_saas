@@ -13,6 +13,10 @@ class EnvironmentHeroSection extends StatelessWidget {
     this.height = 260,
     this.imageFit = BoxFit.cover,
     this.imageAlignment = Alignment.center,
+    this.titleSize,
+    this.subtitleSize,
+    this.radius = 24,
+    this.horizontalMargin = 16,
     this.imageBuilder,
   });
 
@@ -22,6 +26,10 @@ class EnvironmentHeroSection extends StatelessWidget {
   final double height;
   final BoxFit imageFit;
   final Alignment imageAlignment;
+  final double? titleSize;
+  final double? subtitleSize;
+  final double radius;
+  final double horizontalMargin;
 
   /// 舊呼叫端仍可傳入；實際顯示以 [imageFit] / [imageAlignment] 為準。
   final Widget Function({
@@ -29,22 +37,23 @@ class EnvironmentHeroSection extends StatelessWidget {
     double? width,
     double? height,
     BoxFit fit,
-  })? imageBuilder;
+  })?
+  imageBuilder;
 
   @override
   Widget build(BuildContext context) {
     final bool compact = height <= 220;
-    final double titleSize = compact ? 20 : 25;
-    final double subtitleSize = compact ? 12 : 14;
+    final double resolvedTitleSize = titleSize ?? (compact ? 20 : 25);
+    final double resolvedSubtitleSize = subtitleSize ?? (compact ? 12 : 14);
     final double bottomPad = compact ? 14 : 22;
     final double sidePad = compact ? 16 : 22;
     final double titleGap = compact ? 6 : 10;
 
     return Container(
-      margin: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+      margin: EdgeInsets.fromLTRB(horizontalMargin, 12, horizontalMargin, 0),
       height: height,
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(24),
+        borderRadius: BorderRadius.circular(radius),
         child: Stack(
           fit: StackFit.expand,
           children: [
@@ -58,32 +67,37 @@ class EnvironmentHeroSection extends StatelessWidget {
                     width: double.infinity,
                     height: double.infinity,
                     loadingBuilder:
-                        (BuildContext context, Widget child, ImageChunkEvent? progress) {
-                      if (progress == null) {
-                        return child;
-                      }
-                      return _placeholder();
-                    },
+                        (
+                          BuildContext context,
+                          Widget child,
+                          ImageChunkEvent? progress,
+                        ) {
+                          if (progress == null) {
+                            return child;
+                          }
+                          return _placeholder();
+                        },
                     errorBuilder:
-                        (BuildContext context, Object error, StackTrace? stackTrace) {
-                      if (imageBuilder != null) {
-                        return imageBuilder!(
-                          imageUrl: imageUrl,
-                          fit: imageFit,
-                        );
-                      }
-                      return _placeholder();
-                    },
+                        (
+                          BuildContext context,
+                          Object error,
+                          StackTrace? stackTrace,
+                        ) {
+                          if (imageBuilder != null) {
+                            return imageBuilder!(
+                              imageUrl: imageUrl,
+                              fit: imageFit,
+                            );
+                          }
+                          return _placeholder();
+                        },
                   ),
             const DecoratedBox(
               decoration: BoxDecoration(
                 gradient: LinearGradient(
                   begin: Alignment.topCenter,
                   end: Alignment.bottomCenter,
-                  colors: [
-                    Color(0x0D000000),
-                    Color(0x8C000000),
-                  ],
+                  colors: [Color(0x0D000000), Color(0x8C000000)],
                 ),
               ),
             ),
@@ -100,7 +114,7 @@ class EnvironmentHeroSection extends StatelessWidget {
                     maxLines: compact ? 2 : 3,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
-                      fontSize: titleSize,
+                      fontSize: resolvedTitleSize,
                       height: 1.25,
                       fontWeight: FontWeight.w900,
                       color: Colors.white,
@@ -112,7 +126,7 @@ class EnvironmentHeroSection extends StatelessWidget {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
-                      fontSize: subtitleSize,
+                      fontSize: resolvedSubtitleSize,
                       color: Colors.white,
                     ),
                   ),

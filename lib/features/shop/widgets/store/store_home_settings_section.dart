@@ -4,7 +4,6 @@
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/constants/store_constants.dart';
 import 'package:petnest_saas/core/models/store_appearance_model.dart';
-import 'package:petnest_saas/core/models/store_banner_templates.dart';
 import 'package:petnest_saas/core/services/inventory_image_service.dart';
 import 'package:petnest_saas/core/services/store_settings_service.dart';
 import 'package:petnest_saas/features/shop/pages/store/shop_store_banner_editor_page.dart';
@@ -60,9 +59,9 @@ class _StoreHomeSettingsSectionState extends State<StoreHomeSettingsSection> {
 
   Future<void> _addBanner() async {
     if (widget.draft.banners.length >= 5) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('最多 5 張活動海報')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('最多 5 張活動海報')));
       return;
     }
     try {
@@ -79,15 +78,12 @@ class _StoreHomeSettingsSectionState extends State<StoreHomeSettingsSection> {
         imageType: 'store_banner',
         idMetadataKey: 'bannerId',
       );
-      final StoreBannerModel created = StoreBannerTemplates.apply(
-        StoreBannerModel(
-          id: id,
-          imageUrl: result.imageUrl,
-          imageStoragePath: result.imageStoragePath,
-          sortOrder: widget.draft.banners.length,
-          createdAt: DateTime.now(),
-        ),
-        StoreBannerTemplates.leftCopy,
+      final StoreBannerModel created = StoreBannerModel(
+        id: id,
+        imageUrl: result.imageUrl,
+        imageStoragePath: result.imageStoragePath,
+        sortOrder: widget.draft.banners.length,
+        createdAt: DateTime.now(),
       );
       if (!mounted) {
         return;
@@ -109,17 +105,19 @@ class _StoreHomeSettingsSectionState extends State<StoreHomeSettingsSection> {
   }) async {
     final List<StoreBannerModel>? saved =
         await Navigator.push<List<StoreBannerModel>>(
-      context,
-      MaterialPageRoute<List<StoreBannerModel>>(
-        builder: (_) => PetNestBannerEditorPage(
-          shopId: widget.shopId,
-          banner: banner,
-          existingBanners: List<StoreBannerModel>.from(widget.draft.banners),
-          isNew: isNew,
-          scope: PetNestBannerScope.store,
-        ),
-      ),
-    );
+          context,
+          MaterialPageRoute<List<StoreBannerModel>>(
+            builder: (_) => PetNestBannerEditorPage(
+              shopId: widget.shopId,
+              banner: banner,
+              existingBanners: List<StoreBannerModel>.from(
+                widget.draft.banners,
+              ),
+              isNew: isNew,
+              scope: PetNestBannerScope.store,
+            ),
+          ),
+        );
     if (saved == null) {
       return;
     }
@@ -179,9 +177,9 @@ class _StoreHomeSettingsSectionState extends State<StoreHomeSettingsSection> {
       if (!mounted) {
         return;
       }
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('刪除失敗，海報與圖片都未更動：$error')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('刪除失敗，海報與圖片都未更動：$error')));
     }
   }
 
@@ -197,9 +195,9 @@ class _StoreHomeSettingsSectionState extends State<StoreHomeSettingsSection> {
       if (!mounted) {
         return;
       }
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('更新失敗：$error')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('更新失敗：$error')));
     }
   }
 
@@ -209,7 +207,9 @@ class _StoreHomeSettingsSectionState extends State<StoreHomeSettingsSection> {
     }
     final StoreBannerModel current = widget.draft.banners[index];
     final StoreBannerModel prev = widget.draft.banners[index - 1];
-    widget.draft.banners[index - 1] = current.copyWith(sortOrder: prev.sortOrder);
+    widget.draft.banners[index - 1] = current.copyWith(
+      sortOrder: prev.sortOrder,
+    );
     widget.draft.banners[index] = prev.copyWith(sortOrder: current.sortOrder);
     _notify();
     try {
@@ -281,8 +281,9 @@ class _StoreHomeSettingsSectionState extends State<StoreHomeSettingsSection> {
         ) {
           final StoreBannerModel banner = entry.value;
           final String resolved = banner.listTitle;
-          final String title =
-              resolved.isNotEmpty ? resolved : '海報 ${entry.key + 1}';
+          final String title = resolved.isNotEmpty
+              ? resolved
+              : '海報 ${entry.key + 1}';
           return Card(
             child: Padding(
               padding: const EdgeInsets.fromLTRB(12, 10, 8, 10),

@@ -1124,9 +1124,7 @@ class _InventoryTab extends StatelessWidget {
             _can(ShopPermissionKeys.adjustInventory))
           _MenuTile(
             title: '庫存管理',
-            subtitle: isProfileComplete
-                ? '管理庫存品項、進貨、出庫、盤點與異動流水'
-                : '請先完成基本資料',
+            subtitle: isProfileComplete ? '管理庫存品項、進貨、出庫、盤點與異動流水' : '請先完成基本資料',
             icon: Icons.inventory_2_outlined,
             enabled: isProfileComplete,
             onTap: () {
@@ -1147,9 +1145,7 @@ class _InventoryTab extends StatelessWidget {
             _can(ShopPermissionKeys.viewInventory))
           _MenuTile(
             title: '住宿耗材設定',
-            subtitle: isProfileComplete
-                ? '設定入住必要用品，可選擇綁定中央庫存'
-                : '請先完成基本資料',
+            subtitle: isProfileComplete ? '設定入住必要用品，可選擇綁定中央庫存' : '請先完成基本資料',
             icon: Icons.cleaning_services_outlined,
             enabled: isProfileComplete,
             onTap: () {
@@ -1186,7 +1182,7 @@ class _ReportsTab extends StatelessWidget {
           child: ListTile(
             leading: const Icon(Icons.analytics),
             title: const Text('營運報表中心'),
-            subtitle: const Text('查看日期統計、營收分析、房型分析、會員統計與 Excel 匯出'),
+            subtitle: const Text('營運總覽、日期、營收、房型、加購、會員與 Excel 匯出'),
             trailing: const Icon(Icons.chevron_right),
             onTap: () {
               Navigator.push(

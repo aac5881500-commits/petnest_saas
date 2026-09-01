@@ -11,26 +11,34 @@ class EnvironmentSectionTitle extends StatelessWidget {
     required this.icon,
     required this.title,
     this.theme = HomeThemeModel.classicDefault,
+    this.fontSize = 18,
+    this.iconSize = 21,
+    this.horizontalPadding = 18,
   });
 
   final IconData icon;
   final String title;
   final HomeThemeModel theme;
+  final double fontSize;
+  final double iconSize;
+  final double horizontalPadding;
 
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 18),
+      padding: EdgeInsets.symmetric(horizontal: horizontalPadding),
       child: Row(
-        children: [
-          Icon(icon, size: 21, color: theme.primaryColor),
+        children: <Widget>[
+          Icon(icon, size: iconSize, color: theme.primaryColor),
           const SizedBox(width: 8),
-          Text(
-            title,
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.w900,
-              color: theme.textColor,
+          Expanded(
+            child: Text(
+              title,
+              style: TextStyle(
+                fontSize: fontSize,
+                fontWeight: FontWeight.w900,
+                color: theme.textColor,
+              ),
             ),
           ),
         ],

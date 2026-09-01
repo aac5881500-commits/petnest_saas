@@ -1,12 +1,15 @@
 // lib/features/shop/pages/shop_export_report_page.dart
-// 📥 匯出營運報表
-// 功能：電腦 Web 下載 Excel 營運報表，手機端只提示使用電腦下載
+// 📥 依日期範圍匯出選定報表或全部營運資料。
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/services/report_downloader_stub.dart'
     if (dart.library.html) 'package:petnest_saas/core/services/report_downloader_web.dart';
+import 'package:petnest_saas/core/services/report_range.dart';
 import 'package:petnest_saas/core/services/shop_report_export_service.dart';
+import 'package:petnest_saas/core/services/shop_report_format.dart';
+import 'package:petnest_saas/features/shop/widgets/report_range_selector.dart';
+import 'package:petnest_saas/features/shop/widgets/shop_report_widgets.dart';
 
 class ShopExportReportPage extends StatefulWidget {
   const ShopExportReportPage({super.key, required this.shopId});
@@ -18,20 +21,15 @@ class ShopExportReportPage extends StatefulWidget {
 }
 
 class _ShopExportReportPageState extends State<ShopExportReportPage> {
+  ReportRange _range = ReportRange.thisMonth();
+  ShopReportExportKind _kind = ShopReportExportKind.all;
   bool _exporting = false;
 
-  bool get _isDesktopWeb {
-    if (!kIsWeb) return false;
-
-    final width = MediaQuery.of(context).size.width;
-    return width >= 900;
-  }
-
   Future<void> _exportExcel() async {
-    if (!_isDesktopWeb) {
+    if (!kIsWeb) {
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(const SnackBar(content: Text('請使用電腦版後台下載 Excel 報表')));
+      ).showSnackBar(const SnackBar(content: Text('Excel 下載目前只支援 Web 後台')));
       return;
     }
 
@@ -40,83 +38,95 @@ class _ShopExportReportPageState extends State<ShopExportReportPage> {
     });
 
     try {
-      final bytes = await ShopReportExportService.instance.buildExcel(
+      final Uint8List bytes = await ShopReportExportService.instance.buildExcel(
         shopId: widget.shopId,
+        range: _range,
+        kind: _kind,
       );
-
-      final fileName =
-          'PetNest_營運報表_${DateTime.now().year}_${DateTime.now().month.toString().padLeft(2, '0')}.xlsx';
+      final String start = ShopReportFormat.date.format(_range.startDate);
+      final String end = ShopReportFormat.date.format(_range.endDate);
+      final String fileName = 'PetNest_${_kind.fileLabel}_$start-$end.xlsx'
+          .replaceAll('/', '');
 
       await downloadExcelFile(bytes: bytes, fileName: fileName);
 
-      if (!mounted) return;
-
+      if (!mounted) {
+        return;
+      }
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(const SnackBar(content: Text('Excel 報表已開始下載')));
     } catch (e) {
-      if (!mounted) return;
-
+      if (!mounted) {
+        return;
+      }
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text('匯出失敗：$e')));
     } finally {
-      if (!mounted) return;
-
-      setState(() {
-        _exporting = false;
-      });
+      if (mounted) {
+        setState(() {
+          _exporting = false;
+        });
+      }
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final isDesktopWeb = _isDesktopWeb;
-
     return Scaffold(
-      appBar: AppBar(title: const Text('匯出營運報表')),
+      appBar: AppBar(title: const Text('Excel 匯出')),
       body: ListView(
         padding: const EdgeInsets.all(16),
-        children: [
+        children: <Widget>[
           const Text(
             'Excel 營運報表',
             style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
           ),
-
           const SizedBox(height: 8),
-
           Text(
-            '將匯出日期統計、營收統計、房型統計與加購統計。',
+            '匯出會套用上方選擇的日期範圍。金額為數字、日期為 yyyy/MM/dd。',
             style: TextStyle(color: Colors.grey.shade600),
           ),
-
-          const SizedBox(height: 16),
-
-          if (!isDesktopWeb)
-            Card(
-              color: Colors.orange.shade50,
-              child: const ListTile(
-                leading: Icon(Icons.desktop_windows),
-                title: Text('請使用電腦版下載'),
-                subtitle: Text('Excel 報表下載功能目前只提供電腦版後台使用。'),
+          const SizedBox(height: 12),
+          ReportRangeSelector(
+            range: _range,
+            onChanged: (ReportRange value) {
+              setState(() {
+                _range = value;
+              });
+            },
+          ),
+          const SizedBox(height: 8),
+          const ReportNote(
+            '全部營運資料會分成多個工作表：營運總覽、日期統計、營收、房型、加購、會員。Web 後台可下載；App 版暫不提供檔案下載。',
+          ),
+          ...ShopReportExportKind.values.map((ShopReportExportKind kind) {
+            final bool selected = _kind == kind;
+            return ListTile(
+              leading: Icon(
+                selected ? Icons.radio_button_checked : Icons.radio_button_off,
               ),
-            ),
-
-          Card(
-            child: ListTile(
-              leading: const Icon(Icons.table_chart),
-              title: const Text('PetNest 營運報表.xlsx'),
-              subtitle: const Text('包含日期、營收、房型與加購統計'),
-              trailing: _exporting
-                  ? const SizedBox(
-                      width: 22,
-                      height: 22,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Icon(Icons.download),
-              enabled: isDesktopWeb && !_exporting,
-              onTap: isDesktopWeb && !_exporting ? _exportExcel : null,
-            ),
+              title: Text(kind.label),
+              subtitle: Text(kind.subtitle),
+              onTap: () {
+                setState(() {
+                  _kind = kind;
+                });
+              },
+            );
+          }),
+          const SizedBox(height: 8),
+          FilledButton.icon(
+            onPressed: _exporting ? null : _exportExcel,
+            icon: _exporting
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.download),
+            label: Text(_exporting ? '匯出中…' : '下載 Excel'),
           ),
         ],
       ),

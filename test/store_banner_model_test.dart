@@ -149,6 +149,54 @@ void main() {
     );
   });
 
+  test('ctaEnabled false 重進編輯不會因殘留文案被打開', () {
+    final StoreBannerModel banner = StoreBannerModel.fromMap(<String, dynamic>{
+      'id': 'cta_off',
+      'ctaEnabled': false,
+      'ctaText': '開始選購',
+      'textElements': <Map<String, dynamic>>[
+        <String, dynamic>{
+          'id': 'te_1',
+          'text': '主標題',
+          'positionX': 0.1,
+          'positionY': 0.2,
+        },
+      ],
+    });
+    expect(banner.ctaEnabled, isFalse);
+    expect(banner.showsCta, isFalse);
+    expect(banner.hydrateLegacyForEditor().ctaEnabled, isFalse);
+  });
+
+  test('舊資料沒有 ctaEnabled 時只在有按鈕文案才開啟', () {
+    expect(
+      StoreBannerModel.fromMap(const <String, dynamic>{
+        'id': 'legacy_cta',
+        'ctaText': '開始選購',
+      }).ctaEnabled,
+      isTrue,
+    );
+    expect(
+      StoreBannerModel.fromMap(const <String, dynamic>{
+        'id': 'blank',
+      }).ctaEnabled,
+      isFalse,
+    );
+  });
+
+  test('新建海報預設純圖片空白', () {
+    const StoreBannerModel banner = StoreBannerModel(id: 'blank_new');
+    expect(banner.textElements, isEmpty);
+    expect(banner.hasCopy, isFalse);
+    expect(banner.ctaEnabled, isFalse);
+    expect(banner.ctaText, isEmpty);
+    expect(banner.actionType, StoreBannerActionTypes.none);
+    expect(banner.overlayMode, StoreBannerOverlayModes.none);
+    expect(banner.imageScale, 1);
+    expect(banner.imageAlignmentX, 0.5);
+    expect(banner.imageAlignmentY, 0.5);
+  });
+
   test('新 textElements 優先於舊欄位', () {
     final StoreBannerModel banner = StoreBannerModel.fromMap(<String, dynamic>{
       'id': 'new',

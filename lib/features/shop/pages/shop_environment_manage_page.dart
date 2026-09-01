@@ -7,6 +7,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:petnest_saas/core/models/environment_image_frame_setting.dart';
+import 'package:petnest_saas/core/models/environment_intro_style.dart';
 import 'package:petnest_saas/core/services/shop_profile_service.dart';
 import 'package:petnest_saas/core/services/shop_service.dart';
 import 'package:petnest_saas/features/shop/data/environment_facility_options.dart';
@@ -18,10 +19,7 @@ import 'package:petnest_saas/features/shop/widgets/environment/environment_image
 import 'package:petnest_saas/features/shop/widgets/media/banner_image_crop_page.dart';
 
 class ShopEnvironmentManagePage extends StatefulWidget {
-  const ShopEnvironmentManagePage({
-    super.key,
-    required this.shopId,
-  });
+  const ShopEnvironmentManagePage({super.key, required this.shopId});
 
   final String shopId;
 
@@ -69,12 +67,13 @@ class _ShopEnvironmentManagePageState extends State<ShopEnvironmentManagePage> {
   String _heroImagePath = '';
   String _bannerImagePath = '';
 
-  EnvironmentImageFrameSetting _heroFrame =
-      const EnvironmentImageFrameSetting(slot: EnvironmentImageSlot.hero);
+  EnvironmentImageFrameSetting _heroFrame = const EnvironmentImageFrameSetting(
+    slot: EnvironmentImageSlot.hero,
+  );
   EnvironmentImageFrameSetting _bannerFrame =
       const EnvironmentImageFrameSetting(
-    slot: EnvironmentImageSlot.middleBanner,
-  );
+        slot: EnvironmentImageSlot.middleBanner,
+      );
 
   String _savedHeroImageUrl = '';
   String _savedBannerImageUrl = '';
@@ -84,8 +83,11 @@ class _ShopEnvironmentManagePageState extends State<ShopEnvironmentManagePage> {
       const EnvironmentImageFrameSetting(slot: EnvironmentImageSlot.hero);
   EnvironmentImageFrameSetting _savedBannerFrame =
       const EnvironmentImageFrameSetting(
-    slot: EnvironmentImageSlot.middleBanner,
-  );
+        slot: EnvironmentImageSlot.middleBanner,
+      );
+
+  EnvironmentIntroStyle _style = const EnvironmentIntroStyle();
+  EnvironmentIntroStyle _savedStyle = const EnvironmentIntroStyle();
 
   final List<_TrackedEnvImage> _pendingUploads = <_TrackedEnvImage>[];
   final List<_TrackedEnvImage> _retiredOfficialImages = <_TrackedEnvImage>[];
@@ -108,7 +110,11 @@ class _ShopEnvironmentManagePageState extends State<ShopEnvironmentManagePage> {
         _heroFrame.imageAlignment != _savedHeroFrame.imageAlignment ||
         _bannerFrame.heightPreset != _savedBannerFrame.heightPreset ||
         _bannerFrame.imageFit != _savedBannerFrame.imageFit ||
-        _bannerFrame.imageAlignment != _savedBannerFrame.imageAlignment;
+        _bannerFrame.imageAlignment != _savedBannerFrame.imageAlignment ||
+        _style.displaySize != _savedStyle.displaySize ||
+        _style.fontSize != _savedStyle.fontSize ||
+        _style.cardLayout != _savedStyle.cardLayout ||
+        _style.cardDensity != _savedStyle.cardDensity;
   }
 
   @override
@@ -127,11 +133,11 @@ class _ShopEnvironmentManagePageState extends State<ShopEnvironmentManagePage> {
   }
 
   Future<void> _loadEnvironmentIntro() async {
-    final DocumentSnapshot<Map<String, dynamic>> doc =
-        await FirebaseFirestore.instance
-            .collection('shops')
-            .doc(widget.shopId)
-            .get();
+    final DocumentSnapshot<Map<String, dynamic>> doc = await FirebaseFirestore
+        .instance
+        .collection('shops')
+        .doc(widget.shopId)
+        .get();
 
     final Map<String, dynamic>? data = doc.data();
     final Map<String, dynamic>? environmentIntro =
@@ -146,14 +152,14 @@ class _ShopEnvironmentManagePageState extends State<ShopEnvironmentManagePage> {
           environmentIntro['bannerTitle'] ?? bannerTitleController.text;
       bottomNoteController.text =
           environmentIntro['bottomNote'] ?? bottomNoteController.text;
-      _heroImageUrl =
-          (environmentIntro['heroImageUrl'] ?? _heroImageUrl).toString();
-      _bannerImageUrl =
-          (environmentIntro['bannerImageUrl'] ?? _bannerImageUrl).toString();
-      _heroImagePath =
-          (environmentIntro['heroImageStoragePath'] ?? '').toString();
-      _bannerImagePath =
-          (environmentIntro['bannerImageStoragePath'] ?? '').toString();
+      _heroImageUrl = (environmentIntro['heroImageUrl'] ?? _heroImageUrl)
+          .toString();
+      _bannerImageUrl = (environmentIntro['bannerImageUrl'] ?? _bannerImageUrl)
+          .toString();
+      _heroImagePath = (environmentIntro['heroImageStoragePath'] ?? '')
+          .toString();
+      _bannerImagePath = (environmentIntro['bannerImageStoragePath'] ?? '')
+          .toString();
       environmentGalleryImages = _parseGalleryItems(
         environmentIntro['galleryImages'],
       );
@@ -167,6 +173,7 @@ class _ShopEnvironmentManagePageState extends State<ShopEnvironmentManagePage> {
       _bannerFrame = EnvironmentImageFrameSetting.bannerFromMap(
         environmentIntro,
       );
+      _style = EnvironmentIntroStyle.fromMap(environmentIntro);
     }
 
     _savedHeroImageUrl = _heroImageUrl;
@@ -175,6 +182,7 @@ class _ShopEnvironmentManagePageState extends State<ShopEnvironmentManagePage> {
     _savedBannerImagePath = _bannerImagePath;
     _savedHeroFrame = _heroFrame;
     _savedBannerFrame = _bannerFrame;
+    _savedStyle = _style;
     _pendingUploads.clear();
     _retiredOfficialImages.clear();
 
@@ -220,7 +228,9 @@ class _ShopEnvironmentManagePageState extends State<ShopEnvironmentManagePage> {
         }
         items.add(<String, dynamic>{
           'imageUrl': imageUrl,
-          'imageStoragePath': (item['imageStoragePath'] ?? '').toString().trim(),
+          'imageStoragePath': (item['imageStoragePath'] ?? '')
+              .toString()
+              .trim(),
         });
       }
     }
@@ -292,10 +302,10 @@ class _ShopEnvironmentManagePageState extends State<ShopEnvironmentManagePage> {
   }) async {
     final bool cleaned = await ShopService.instance
         .tryDeleteEnvironmentIntroImage(
-      shopId: widget.shopId,
-      imageStoragePath: image.path,
-      imageUrl: image.url,
-    );
+          shopId: widget.shopId,
+          imageStoragePath: image.path,
+          imageUrl: image.url,
+        );
     if (!cleaned) {
       debugPrint(
         'Environment intro image leftover after $reason: '
@@ -318,7 +328,9 @@ class _ShopEnvironmentManagePageState extends State<ShopEnvironmentManagePage> {
     if (!mounted) {
       return;
     }
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 
   Future<void> _pickAndUploadImage({required String type}) async {
@@ -384,8 +396,9 @@ class _ShopEnvironmentManagePageState extends State<ShopEnvironmentManagePage> {
         return;
       }
 
-      final EnvironmentImageFrameSetting frame =
-          type == 'hero' ? _heroFrame : _bannerFrame;
+      final EnvironmentImageFrameSetting frame = type == 'hero'
+          ? _heroFrame
+          : _bannerFrame;
 
       final Uint8List? croppedBytes = await BannerImageCropPage.open(
         context: context,
@@ -409,12 +422,13 @@ class _ShopEnvironmentManagePageState extends State<ShopEnvironmentManagePage> {
         _busyMessage = '正在上傳圖片…';
       });
 
-      final ShopEnvironmentIntroImageUpload uploaded =
-          await ShopService.instance.uploadEnvironmentIntroImage(
-        shopId: widget.shopId,
-        slot: type,
-        bytes: croppedBytes,
-      );
+      final ShopEnvironmentIntroImageUpload uploaded = await ShopService
+          .instance
+          .uploadEnvironmentIntroImage(
+            shopId: widget.shopId,
+            slot: type,
+            bytes: croppedBytes,
+          );
 
       if (!mounted) {
         await ShopService.instance.tryDeleteEnvironmentIntroImage(
@@ -425,10 +439,12 @@ class _ShopEnvironmentManagePageState extends State<ShopEnvironmentManagePage> {
         return;
       }
 
-      final String previousUrl =
-          type == 'hero' ? _heroImageUrl : _bannerImageUrl;
-      final String previousPath =
-          type == 'hero' ? _heroImagePath : _bannerImagePath;
+      final String previousUrl = type == 'hero'
+          ? _heroImageUrl
+          : _bannerImageUrl;
+      final String previousPath = type == 'hero'
+          ? _heroImagePath
+          : _bannerImagePath;
 
       if (_isPendingPath(previousPath)) {
         final int pendingIndex = _pendingUploads.indexWhere(
@@ -441,11 +457,7 @@ class _ShopEnvironmentManagePageState extends State<ShopEnvironmentManagePage> {
           await _cleanupTracked(replaced, reason: 'replaced-pending');
         }
       } else if (_isOfficialImage(previousPath, previousUrl)) {
-        _trackRetiredOfficial(
-          slot: type,
-          path: previousPath,
-          url: previousUrl,
-        );
+        _trackRetiredOfficial(slot: type, path: previousPath, url: previousUrl);
       }
 
       _pendingUploads.add(
@@ -484,10 +496,10 @@ class _ShopEnvironmentManagePageState extends State<ShopEnvironmentManagePage> {
       return;
     }
 
-    final String previousUrl =
-        type == 'hero' ? _heroImageUrl : _bannerImageUrl;
-    final String previousPath =
-        type == 'hero' ? _heroImagePath : _bannerImagePath;
+    final String previousUrl = type == 'hero' ? _heroImageUrl : _bannerImageUrl;
+    final String previousPath = type == 'hero'
+        ? _heroImagePath
+        : _bannerImagePath;
 
     if (_isPendingPath(previousPath)) {
       final int pendingIndex = _pendingUploads.indexWhere(
@@ -498,11 +510,7 @@ class _ShopEnvironmentManagePageState extends State<ShopEnvironmentManagePage> {
         await _cleanupTracked(pending, reason: 'removed-unsaved');
       }
     } else if (_isOfficialImage(previousPath, previousUrl)) {
-      _trackRetiredOfficial(
-        slot: type,
-        path: previousPath,
-        url: previousUrl,
-      );
+      _trackRetiredOfficial(slot: type, path: previousPath, url: previousUrl);
     }
 
     if (!mounted) {
@@ -525,9 +533,9 @@ class _ShopEnvironmentManagePageState extends State<ShopEnvironmentManagePage> {
       return;
     }
     if (environmentGalleryImages.length >= 12) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('環境照片最多上傳 12 張')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('環境照片最多上傳 12 張')));
       return;
     }
 
@@ -572,11 +580,12 @@ class _ShopEnvironmentManagePageState extends State<ShopEnvironmentManagePage> {
         _busyMessage = '正在上傳圖片…';
       });
 
-      final ShopEnvironmentIntroImageUpload uploaded =
-          await ShopService.instance.uploadEnvironmentGalleryImage(
-        shopId: widget.shopId,
-        bytes: compressed,
-      );
+      final ShopEnvironmentIntroImageUpload uploaded = await ShopService
+          .instance
+          .uploadEnvironmentGalleryImage(
+            shopId: widget.shopId,
+            bytes: compressed,
+          );
 
       environmentGalleryImages.add(<String, dynamic>{
         'imageUrl': uploaded.imageUrl,
@@ -599,9 +608,9 @@ class _ShopEnvironmentManagePageState extends State<ShopEnvironmentManagePage> {
       if (!mounted) {
         return;
       }
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('環境照片已上傳')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('環境照片已上傳')));
     } catch (_) {
       _showImageError('圖片處理失敗，請重新選擇圖片。');
     } finally {
@@ -615,9 +624,7 @@ class _ShopEnvironmentManagePageState extends State<ShopEnvironmentManagePage> {
   }
 
   Future<void> _deleteGalleryImage(int index) async {
-    if (_imageBusy ||
-        index < 0 ||
-        index >= environmentGalleryImages.length) {
+    if (_imageBusy || index < 0 || index >= environmentGalleryImages.length) {
       return;
     }
 
@@ -647,8 +654,9 @@ class _ShopEnvironmentManagePageState extends State<ShopEnvironmentManagePage> {
     }
 
     final Map<String, dynamic> removed = environmentGalleryImages[index];
-    final List<Map<String, dynamic>> previous =
-        List<Map<String, dynamic>>.from(environmentGalleryImages);
+    final List<Map<String, dynamic>> previous = List<Map<String, dynamic>>.from(
+      environmentGalleryImages,
+    );
 
     setState(() {
       _pickingImage = true;
@@ -677,10 +685,10 @@ class _ShopEnvironmentManagePageState extends State<ShopEnvironmentManagePage> {
 
     final bool cleaned = await ShopService.instance
         .tryDeleteEnvironmentGalleryImage(
-      shopId: widget.shopId,
-      imageStoragePath: _mapImagePath(removed),
-      imageUrl: _mapImageUrl(removed),
-    );
+          shopId: widget.shopId,
+          imageStoragePath: _mapImagePath(removed),
+          imageUrl: _mapImageUrl(removed),
+        );
 
     if (!mounted) {
       return;
@@ -692,11 +700,7 @@ class _ShopEnvironmentManagePageState extends State<ShopEnvironmentManagePage> {
       );
     }
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          cleaned ? '環境照片已刪除' : '照片已移除，但舊圖片清理失敗，請稍後再試。',
-        ),
-      ),
+      SnackBar(content: Text(cleaned ? '環境照片已刪除' : '照片已移除，但舊圖片清理失敗，請稍後再試。')),
     );
   }
 
@@ -830,11 +834,12 @@ class _ShopEnvironmentManagePageState extends State<ShopEnvironmentManagePage> {
         _busyMessage = '正在上傳圖片…';
       });
 
-      final ShopEnvironmentIntroImageUpload uploaded =
-          await ShopService.instance.uploadEnvironmentFeatureImage(
-        shopId: widget.shopId,
-        bytes: compressed,
-      );
+      final ShopEnvironmentIntroImageUpload uploaded = await ShopService
+          .instance
+          .uploadEnvironmentFeatureImage(
+            shopId: widget.shopId,
+            bytes: compressed,
+          );
 
       final Map<String, dynamic> previous = Map<String, dynamic>.from(
         environmentFeatures[index],
@@ -870,10 +875,10 @@ class _ShopEnvironmentManagePageState extends State<ShopEnvironmentManagePage> {
       if (oldUrl.isNotEmpty || oldPath.isNotEmpty) {
         final bool cleaned = await ShopService.instance
             .tryDeleteEnvironmentFeatureImage(
-          shopId: widget.shopId,
-          imageStoragePath: oldPath,
-          imageUrl: oldUrl,
-        );
+              shopId: widget.shopId,
+              imageStoragePath: oldPath,
+              imageUrl: oldUrl,
+            );
         if (!cleaned) {
           debugPrint(
             'Environment feature image leftover after replace: path=$oldPath url=$oldUrl',
@@ -884,9 +889,9 @@ class _ShopEnvironmentManagePageState extends State<ShopEnvironmentManagePage> {
       if (!mounted) {
         return;
       }
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('特色圖片已上傳')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('特色圖片已上傳')));
     } catch (_) {
       _showImageError('圖片處理失敗，請重新選擇圖片。');
     } finally {
@@ -970,20 +975,16 @@ class _ShopEnvironmentManagePageState extends State<ShopEnvironmentManagePage> {
 
     final bool cleaned = await ShopService.instance
         .tryDeleteEnvironmentFeatureImage(
-      shopId: widget.shopId,
-      imageStoragePath: oldPath,
-      imageUrl: oldUrl,
-    );
+          shopId: widget.shopId,
+          imageStoragePath: oldPath,
+          imageUrl: oldUrl,
+        );
 
     if (!mounted) {
       return;
     }
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          cleaned ? '特色圖片已移除' : '設定已儲存，但舊圖片清理失敗，請稍後再試。',
-        ),
-      ),
+      SnackBar(content: Text(cleaned ? '特色圖片已移除' : '設定已儲存，但舊圖片清理失敗，請稍後再試。')),
     );
   }
 
@@ -1035,10 +1036,7 @@ class _ShopEnvironmentManagePageState extends State<ShopEnvironmentManagePage> {
                               ),
                             ),
                           )
-                        : Image.network(
-                            imageUrl,
-                            fit: BoxFit.cover,
-                          ),
+                        : Image.network(imageUrl, fit: BoxFit.cover),
                   ),
                 ),
                 const SizedBox(height: 14),
@@ -1081,9 +1079,7 @@ class _ShopEnvironmentManagePageState extends State<ShopEnvironmentManagePage> {
         return AlertDialog(
           title: const Text('刪除環境特色'),
           content: Text(
-            hasImage
-                ? '刪除後此特色與相關圖片都會移除，且無法復原。'
-                : '確定要刪除這張環境特色嗎？刪除後無法復原。',
+            hasImage ? '刪除後此特色與相關圖片都會移除，且無法復原。' : '確定要刪除這張環境特色嗎？刪除後無法復原。',
           ),
           actions: [
             TextButton(
@@ -1104,10 +1100,9 @@ class _ShopEnvironmentManagePageState extends State<ShopEnvironmentManagePage> {
       return;
     }
 
-    final List<Map<String, dynamic>> previous =
-        environmentFeatures
-            .map((Map<String, dynamic> item) => Map<String, dynamic>.from(item))
-            .toList();
+    final List<Map<String, dynamic>> previous = environmentFeatures
+        .map((Map<String, dynamic> item) => Map<String, dynamic>.from(item))
+        .toList();
     final String oldUrl = _mapImageUrl(feature);
     final String oldPath = _mapImagePath(feature);
 
@@ -1139,19 +1134,17 @@ class _ShopEnvironmentManagePageState extends State<ShopEnvironmentManagePage> {
     if (oldUrl.isNotEmpty || oldPath.isNotEmpty) {
       final bool cleaned = await ShopService.instance
           .tryDeleteEnvironmentFeatureImage(
-        shopId: widget.shopId,
-        imageStoragePath: oldPath,
-        imageUrl: oldUrl,
-      );
+            shopId: widget.shopId,
+            imageStoragePath: oldPath,
+            imageUrl: oldUrl,
+          );
       if (!cleaned) {
         debugPrint(
           'Environment feature image leftover after delete card: path=$oldPath url=$oldUrl',
         );
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('設定已儲存，但舊圖片清理失敗，請稍後再試。'),
-            ),
+            const SnackBar(content: Text('設定已儲存，但舊圖片清理失敗，請稍後再試。')),
           );
           return;
         }
@@ -1161,9 +1154,9 @@ class _ShopEnvironmentManagePageState extends State<ShopEnvironmentManagePage> {
     if (!mounted) {
       return;
     }
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('環境特色已刪除')),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('環境特色已刪除')));
   }
 
   Future<void> _changeFeatureLayout(int index) async {
@@ -1173,8 +1166,9 @@ class _ShopEnvironmentManagePageState extends State<ShopEnvironmentManagePage> {
 
     final String currentLayout =
         environmentFeatures[index]['layout'] ?? 'imageRight';
-    final String nextLayout =
-        currentLayout == 'imageLeft' ? 'imageRight' : 'imageLeft';
+    final String nextLayout = currentLayout == 'imageLeft'
+        ? 'imageRight'
+        : 'imageLeft';
 
     setState(() {
       environmentFeatures[index] = {
@@ -1212,6 +1206,7 @@ class _ShopEnvironmentManagePageState extends State<ShopEnvironmentManagePage> {
       'bannerImageStoragePath': _bannerImagePath.trim(),
       ..._heroFrame.toMap(),
       ..._bannerFrame.toMap(),
+      ..._style.toMap(),
       'galleryImages': _galleryPayload(),
       'features': environmentFeatures,
       'facilityKeys': selectedFacilityKeys,
@@ -1232,12 +1227,9 @@ class _ShopEnvironmentManagePageState extends State<ShopEnvironmentManagePage> {
       await FirebaseFirestore.instance
           .collection('shops')
           .doc(widget.shopId)
-          .set(
-        {
-          'environmentIntro': _environmentIntroPayload(),
-        },
-        SetOptions(merge: true),
-      );
+          .set({
+            'environmentIntro': _environmentIntroPayload(),
+          }, SetOptions(merge: true));
 
       final Set<String> usedPaths = <String>{
         if (_heroImagePath.isNotEmpty) _heroImagePath,
@@ -1257,10 +1249,10 @@ class _ShopEnvironmentManagePageState extends State<ShopEnvironmentManagePage> {
 
         final bool cleaned = await ShopService.instance
             .tryDeleteEnvironmentIntroImage(
-          shopId: widget.shopId,
-          imageStoragePath: retired.path,
-          imageUrl: retired.url,
-        );
+              shopId: widget.shopId,
+              imageStoragePath: retired.path,
+              imageUrl: retired.url,
+            );
         if (!cleaned) {
           cleanupFailed = true;
         }
@@ -1277,26 +1269,23 @@ class _ShopEnvironmentManagePageState extends State<ShopEnvironmentManagePage> {
         _savedBannerImagePath = _bannerImagePath;
         _savedHeroFrame = _heroFrame;
         _savedBannerFrame = _bannerFrame;
+        _savedStyle = _style;
         _pendingUploads.clear();
         _retiredOfficialImages.clear();
       });
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(
-            cleanupFailed
-                ? '設定已儲存，但舊圖片清理失敗，請稍後再試。'
-                : '環境介紹已儲存',
-          ),
+          content: Text(cleanupFailed ? '設定已儲存，但舊圖片清理失敗，請稍後再試。' : '環境介紹已儲存'),
         ),
       );
     } catch (_) {
       if (!mounted) {
         return;
       }
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('儲存失敗，請稍後再試')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('儲存失敗，請稍後再試')));
     } finally {
       if (mounted) {
         setState(() {
@@ -1313,11 +1302,7 @@ class _ShopEnvironmentManagePageState extends State<ShopEnvironmentManagePage> {
 
     if (_imageBusy) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            _saving ? '儲存中，請稍候再離開' : '圖片處理中，請稍候再離開',
-          ),
-        ),
+        SnackBar(content: Text(_saving ? '儲存中，請稍候再離開' : '圖片處理中，請稍候再離開')),
       );
       return;
     }
@@ -1367,6 +1352,13 @@ class _ShopEnvironmentManagePageState extends State<ShopEnvironmentManagePage> {
           bannerImageUrl: _bannerImageUrl,
           heroFrame: _heroFrame,
           bannerFrame: _bannerFrame,
+          style: _style,
+          features: environmentFeatures,
+          galleryImages: environmentGalleryImages
+              .map(_mapImageUrl)
+              .where((String url) => url.isNotEmpty)
+              .toList(),
+          facilityKeys: selectedFacilityKeys,
         ),
       ),
     );
@@ -1439,7 +1431,123 @@ class _ShopEnvironmentManagePageState extends State<ShopEnvironmentManagePage> {
                       padding: const EdgeInsets.all(16),
                       children: [
                         _buildTipCard(),
-                        const SizedBox(height: 16),
+                        _groupLabel('整體顯示設定'),
+                        _buildSectionCard(
+                          title: '整體顯示尺寸',
+                          subtitle: '調整卡片間距、圖片區塊與設備卡大小',
+                          children: [
+                            _buildChoiceChips(
+                              value: _style.displaySize,
+                              options: const <Map<String, String>>[
+                                {
+                                  'value': EnvironmentIntroStyle.sizeCompact,
+                                  'label': '小',
+                                },
+                                {
+                                  'value': EnvironmentIntroStyle.sizeStandard,
+                                  'label': '標準',
+                                },
+                                {
+                                  'value': EnvironmentIntroStyle.sizeLarge,
+                                  'label': '大',
+                                },
+                              ],
+                              onSelected: (String value) {
+                                setState(() {
+                                  _style = _style.copyWith(displaySize: value);
+                                });
+                              },
+                            ),
+                          ],
+                        ),
+                        _buildSectionCard(
+                          title: '整體字體大小',
+                          subtitle: '一次調整標題、卡片與提醒文字',
+                          children: [
+                            _buildChoiceChips(
+                              value: _style.fontSize,
+                              options: const <Map<String, String>>[
+                                {
+                                  'value': EnvironmentIntroStyle.fontSmall,
+                                  'label': '小',
+                                },
+                                {
+                                  'value': EnvironmentIntroStyle.fontStandard,
+                                  'label': '標準',
+                                },
+                                {
+                                  'value': EnvironmentIntroStyle.fontLarge,
+                                  'label': '大',
+                                },
+                              ],
+                              onSelected: (String value) {
+                                setState(() {
+                                  _style = _style.copyWith(fontSize: value);
+                                });
+                              },
+                            ),
+                          ],
+                        ),
+                        _buildSectionCard(
+                          title: '環境特色卡片版型',
+                          subtitle: '所有特色卡使用同一種版型',
+                          children: [
+                            _buildChoiceChips(
+                              value: _style.cardLayout,
+                              options: const <Map<String, String>>[
+                                {
+                                  'value':
+                                      EnvironmentIntroStyle.layoutHorizontal,
+                                  'label': '橫向圖卡',
+                                },
+                                {
+                                  'value': EnvironmentIntroStyle.layoutVertical,
+                                  'label': '上圖下文',
+                                },
+                                {
+                                  'value': EnvironmentIntroStyle.layoutText,
+                                  'label': '重點文字卡',
+                                },
+                              ],
+                              onSelected: (String value) {
+                                setState(() {
+                                  _style = _style.copyWith(cardLayout: value);
+                                });
+                              },
+                            ),
+                          ],
+                        ),
+                        _buildSectionCard(
+                          title: '環境特色卡片高度',
+                          subtitle: '調整內距與圖片大小，文字多時卡片仍會長高',
+                          children: [
+                            _buildChoiceChips(
+                              value: _style.cardDensity,
+                              options: const <Map<String, String>>[
+                                {
+                                  'value': EnvironmentIntroStyle.densityCompact,
+                                  'label': '精簡',
+                                },
+                                {
+                                  'value':
+                                      EnvironmentIntroStyle.densityStandard,
+                                  'label': '標準',
+                                },
+                                {
+                                  'value':
+                                      EnvironmentIntroStyle.densityComfortable,
+                                  'label': '寬鬆',
+                                },
+                              ],
+                              onSelected: (String value) {
+                                setState(() {
+                                  _style = _style.copyWith(cardDensity: value);
+                                });
+                              },
+                            ),
+                          ],
+                        ),
+                        _groupLabel('首頁主視覺'),
                         _buildSectionCard(
                           title: '首頁大圖文案',
                           subtitle: '顯示在環境介紹頁最上方',
@@ -1457,7 +1565,7 @@ class _ShopEnvironmentManagePageState extends State<ShopEnvironmentManagePage> {
                           ],
                         ),
                         _buildSectionCard(
-                          title: '圖片設定',
+                          title: '首頁大圖',
                           subtitle: '可選擇顯示範圍、高度與填滿方式，儲存後才會更新前台正式圖片',
                           children: [
                             EnvironmentImageUploadBox(
@@ -1470,56 +1578,18 @@ class _ShopEnvironmentManagePageState extends State<ShopEnvironmentManagePage> {
                               overlaySubtitle: heroSubtitleController.text,
                               hint:
                                   '建議比例：11:8\n建議尺寸：1760 × 1280 px\n最低建議：1100 × 800 px\n其他尺寸也可以上傳，下一步可拖曳、縮放並選擇顯示範圍。\n單張圖片最大 5 MB。',
-                              onUpload: () =>
-                                  _pickAndUploadImage(type: 'hero'),
-                              onDelete: () =>
-                                  _removeSlotImage(type: 'hero'),
+                              onUpload: () => _pickAndUploadImage(type: 'hero'),
+                              onDelete: () => _removeSlotImage(type: 'hero'),
                               onFrameChanged:
                                   (EnvironmentImageFrameSetting value) {
-                                setState(() {
-                                  _heroFrame = value;
-                                });
-                              },
-                            ),
-                            const SizedBox(height: 24),
-                            EnvironmentImageUploadBox(
-                              title: '中間橫幅圖',
-                              imageUrl: _bannerImageUrl,
-                              frame: _bannerFrame,
-                              uploading: _uploadingBannerImage,
-                              busy: _imageBusy,
-                              overlayTitle: bannerTitleController.text,
-                              hint:
-                                  '建議比例：12:5\n建議尺寸：1680 × 700 px\n最低建議：1200 × 500 px\n其他尺寸也可以上傳，下一步可拖曳、縮放並選擇顯示範圍。\n單張圖片最大 5 MB。',
-                              onUpload: () =>
-                                  _pickAndUploadImage(type: 'banner'),
-                              onDelete: () =>
-                                  _removeSlotImage(type: 'banner'),
-                              onFrameChanged:
-                                  (EnvironmentImageFrameSetting value) {
-                                setState(() {
-                                  _bannerFrame = value;
-                                });
-                              },
+                                    setState(() {
+                                      _heroFrame = value;
+                                    });
+                                  },
                             ),
                           ],
                         ),
-                        const SizedBox(height: 16),
-                        _buildSectionCard(
-                          title: '環境照片牆',
-                          subtitle: '最多可上傳 12 張，會顯示在前台環境照片區',
-                          children: [
-                            EnvironmentGalleryManager(
-                              images: environmentGalleryImages
-                                  .map(_mapImageUrl)
-                                  .toList(),
-                              busy: _imageBusy,
-                              onDelete: _deleteGalleryImage,
-                              onUpload: _pickAndUploadGalleryImage,
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 16),
+                        _groupLabel('環境內容'),
                         _buildSectionCard(
                           title: '環境特色卡片',
                           subtitle: '顯示在前台「我們的環境特色」區塊',
@@ -1548,13 +1618,12 @@ class _ShopEnvironmentManagePageState extends State<ShopEnvironmentManagePage> {
                             ),
                           ],
                         ),
-                        const SizedBox(height: 16),
                         _buildSectionCard(
                           title: '安心照護設備',
                           subtitle: '勾選後會顯示在前台設備區塊',
                           children: [_buildFacilitySelector()],
                         ),
-                        const SizedBox(height: 16),
+                        _groupLabel('其他內容'),
                         _buildSectionCard(
                           title: '中間橫幅文案',
                           subtitle: '顯示在環境介紹中段的大圖上',
@@ -1566,10 +1635,34 @@ class _ShopEnvironmentManagePageState extends State<ShopEnvironmentManagePage> {
                             ),
                           ],
                         ),
-                        const SizedBox(height: 16),
+                        _buildSectionCard(
+                          title: '中間橫幅圖片',
+                          subtitle: '可選擇顯示範圍、高度與填滿方式，儲存後才會更新前台正式圖片',
+                          children: [
+                            EnvironmentImageUploadBox(
+                              title: '中間橫幅圖',
+                              imageUrl: _bannerImageUrl,
+                              frame: _bannerFrame,
+                              uploading: _uploadingBannerImage,
+                              busy: _imageBusy,
+                              overlayTitle: bannerTitleController.text,
+                              hint:
+                                  '建議比例：12:5\n建議尺寸：1680 × 700 px\n最低建議：1200 × 500 px\n其他尺寸也可以上傳，下一步可拖曳、縮放並選擇顯示範圍。\n單張圖片最大 5 MB。',
+                              onUpload: () =>
+                                  _pickAndUploadImage(type: 'banner'),
+                              onDelete: () => _removeSlotImage(type: 'banner'),
+                              onFrameChanged:
+                                  (EnvironmentImageFrameSetting value) {
+                                    setState(() {
+                                      _bannerFrame = value;
+                                    });
+                                  },
+                            ),
+                          ],
+                        ),
                         _buildSectionCard(
                           title: '底部提醒文字',
-                          subtitle: '顯示在環境介紹頁最下方',
+                          subtitle: '顯示在環境照片牆上方',
                           children: [
                             _buildTextField(
                               controller: bottomNoteController,
@@ -1578,7 +1671,21 @@ class _ShopEnvironmentManagePageState extends State<ShopEnvironmentManagePage> {
                             ),
                           ],
                         ),
-                        const SizedBox(height: 28),
+                        _buildSectionCard(
+                          title: '環境照片牆',
+                          subtitle: '顯示在環境介紹主要內容最下方，最多 12 張',
+                          children: [
+                            EnvironmentGalleryManager(
+                              images: environmentGalleryImages
+                                  .map(_mapImageUrl)
+                                  .toList(),
+                              busy: _imageBusy,
+                              onDelete: _deleteGalleryImage,
+                              onUpload: _pickAndUploadGalleryImage,
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
                         SizedBox(
                           height: 52,
                           child: ElevatedButton.icon(
@@ -1597,8 +1704,43 @@ class _ShopEnvironmentManagePageState extends State<ShopEnvironmentManagePage> {
     );
   }
 
+  Widget _groupLabel(String text) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 8, bottom: 10),
+      child: Text(
+        text,
+        style: const TextStyle(
+          fontSize: 13,
+          fontWeight: FontWeight.w800,
+          color: Color(0xFF8A6A45),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildChoiceChips({
+    required String value,
+    required List<Map<String, String>> options,
+    required ValueChanged<String> onSelected,
+  }) {
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: options.map((Map<String, String> option) {
+        final String optionValue = option['value']!;
+        final bool selected = optionValue == value;
+        return ChoiceChip(
+          label: Text(option['label']!),
+          selected: selected,
+          onSelected: (_) => onSelected(optionValue),
+        );
+      }).toList(),
+    );
+  }
+
   Widget _buildTipCard() {
     return Container(
+      margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: const Color(0xFFFFF1DD),
@@ -1606,7 +1748,7 @@ class _ShopEnvironmentManagePageState extends State<ShopEnvironmentManagePage> {
         border: Border.all(color: const Color(0xFFFFD7A8)),
       ),
       child: const Text(
-        '首頁大圖與中間橫幅圖會先上傳暫存，按「儲存環境介紹」後才會成為正式圖片。更換後，舊圖會在儲存成功後才清除。',
+        '首頁大圖與中間橫幅圖會先上傳暫存，按「儲存環境介紹」後才會成為正式圖片。整體顯示尺寸、字體與特色卡版型也需按儲存後才會更新前台。更換後，舊圖會在儲存成功後才清除。',
         style: TextStyle(
           height: 1.5,
           color: Color(0xFF6F5A43),
@@ -1622,6 +1764,7 @@ class _ShopEnvironmentManagePageState extends State<ShopEnvironmentManagePage> {
     required List<Widget> children,
   }) {
     return Container(
+      margin: const EdgeInsets.only(bottom: 16),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.white,
@@ -1642,10 +1785,7 @@ class _ShopEnvironmentManagePageState extends State<ShopEnvironmentManagePage> {
           const SizedBox(height: 4),
           Text(
             subtitle,
-            style: const TextStyle(
-              fontSize: 13,
-              color: Color(0xFF8A6A45),
-            ),
+            style: const TextStyle(fontSize: 13, color: Color(0xFF8A6A45)),
           ),
           const SizedBox(height: 14),
           ...children,
@@ -1702,9 +1842,7 @@ class _ShopEnvironmentManagePageState extends State<ShopEnvironmentManagePage> {
         labelText: label,
         filled: true,
         fillColor: const Color(0xFFFFFCF7),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
-        ),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
       ),
     );
   }

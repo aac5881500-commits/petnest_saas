@@ -12,6 +12,9 @@ class EnvironmentImageBanner extends StatelessWidget {
     this.height = 150,
     this.imageFit = BoxFit.cover,
     this.imageAlignment = Alignment.center,
+    this.titleSize,
+    this.radius = 22,
+    this.horizontalMargin = 16,
     this.imageBuilder,
   });
 
@@ -20,6 +23,9 @@ class EnvironmentImageBanner extends StatelessWidget {
   final double height;
   final BoxFit imageFit;
   final Alignment imageAlignment;
+  final double? titleSize;
+  final double radius;
+  final double horizontalMargin;
 
   /// 舊呼叫端仍可傳入；實際顯示以 [imageFit] / [imageAlignment] 為準。
   final Widget Function({
@@ -27,17 +33,19 @@ class EnvironmentImageBanner extends StatelessWidget {
     double? width,
     double? height,
     BoxFit fit,
-  })? imageBuilder;
+  })?
+  imageBuilder;
 
   @override
   Widget build(BuildContext context) {
     final bool compact = height <= 130;
+    final double resolvedTitleSize = titleSize ?? (compact ? 16 : 20);
 
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16),
+      margin: EdgeInsets.symmetric(horizontal: horizontalMargin),
       height: height,
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(22),
+        borderRadius: BorderRadius.circular(radius),
         child: Stack(
           fit: StackFit.expand,
           children: [
@@ -51,22 +59,30 @@ class EnvironmentImageBanner extends StatelessWidget {
                     width: double.infinity,
                     height: double.infinity,
                     loadingBuilder:
-                        (BuildContext context, Widget child, ImageChunkEvent? progress) {
-                      if (progress == null) {
-                        return child;
-                      }
-                      return _placeholder();
-                    },
+                        (
+                          BuildContext context,
+                          Widget child,
+                          ImageChunkEvent? progress,
+                        ) {
+                          if (progress == null) {
+                            return child;
+                          }
+                          return _placeholder();
+                        },
                     errorBuilder:
-                        (BuildContext context, Object error, StackTrace? stackTrace) {
-                      if (imageBuilder != null) {
-                        return imageBuilder!(
-                          imageUrl: imageUrl,
-                          fit: imageFit,
-                        );
-                      }
-                      return _placeholder();
-                    },
+                        (
+                          BuildContext context,
+                          Object error,
+                          StackTrace? stackTrace,
+                        ) {
+                          if (imageBuilder != null) {
+                            return imageBuilder!(
+                              imageUrl: imageUrl,
+                              fit: imageFit,
+                            );
+                          }
+                          return _placeholder();
+                        },
                   ),
             ColoredBox(color: Colors.black.withValues(alpha: 0.28)),
             Positioned(
@@ -81,7 +97,7 @@ class EnvironmentImageBanner extends StatelessWidget {
                   maxLines: compact ? 2 : 3,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
-                    fontSize: compact ? 16 : 20,
+                    fontSize: resolvedTitleSize,
                     height: 1.3,
                     fontWeight: FontWeight.w900,
                     color: Colors.white,

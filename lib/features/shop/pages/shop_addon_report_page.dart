@@ -1,210 +1,188 @@
 // lib/features/shop/pages/shop_addon_report_page.dart
-// 🛒 加購服務統計報表
-// 功能：統計各加購服務銷售次數與營收
+// 🛒 加購服務統計：依訂單 snapshot 統計，封存後舊單仍可看。
 
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
+import 'package:petnest_saas/core/models/shop_report_models.dart';
+import 'package:petnest_saas/core/services/report_range.dart';
+import 'package:petnest_saas/core/services/shop_report_format.dart';
 import 'package:petnest_saas/core/services/shop_report_service.dart';
+import 'package:petnest_saas/features/shop/widgets/report_range_selector.dart';
+import 'package:petnest_saas/features/shop/widgets/shop_report_widgets.dart';
 
-class ShopAddonReportPage extends StatelessWidget {
+class ShopAddonReportPage extends StatefulWidget {
   const ShopAddonReportPage({super.key, required this.shopId});
 
   final String shopId;
 
   @override
-  Widget build(BuildContext context) {
-    final moneyFormat = NumberFormat('#,###');
+  State<ShopAddonReportPage> createState() => _ShopAddonReportPageState();
+}
 
+class _ShopAddonReportPageState extends State<ShopAddonReportPage> {
+  ReportRange _range = ReportRange.thisMonth();
+  late Future<ShopReportBundle> _future;
+  String _sortId = 'revenue';
+  bool _sortAsc = false;
+
+  static const List<ReportColumn> _columns = <ReportColumn>[
+    ReportColumn(id: 'name', label: '服務名稱'),
+    ReportColumn(id: 'type', label: '類型'),
+    ReportColumn(id: 'purchases', label: '被購買次數', numeric: true),
+    ReportColumn(id: 'qty', label: '總數量', numeric: true),
+    ReportColumn(id: 'revenue', label: '總收入', money: true),
+    ReportColumn(id: 'avg', label: '平均單價', money: true),
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+    _future = _load();
+  }
+
+  Future<ShopReportBundle> _load() {
+    return ShopReportService.instance.load(
+      shopId: widget.shopId,
+      range: _range,
+    );
+  }
+
+  void _setRange(ReportRange range) {
+    setState(() {
+      _range = range;
+      _future = _load();
+    });
+  }
+
+  void _toggleSort(String id) {
+    setState(() {
+      if (_sortId == id) {
+        _sortAsc = !_sortAsc;
+      } else {
+        _sortId = id;
+        _sortAsc = false;
+      }
+    });
+  }
+
+  List<AddonRow> _sorted(List<AddonRow> rows) {
+    final List<AddonRow> copy = List<AddonRow>.from(rows);
+    copy.sort((AddonRow a, AddonRow b) {
+      final int c = ShopReportFormat.compare(_key(a), _key(b));
+      return _sortAsc ? c : -c;
+    });
+    return copy;
+  }
+
+  dynamic _key(AddonRow row) {
+    switch (_sortId) {
+      case 'name':
+        return row.name;
+      case 'type':
+        return row.typeLabel;
+      case 'purchases':
+        return row.purchaseCount;
+      case 'qty':
+        return row.quantity;
+      case 'avg':
+        return row.averagePrice;
+      case 'revenue':
+      default:
+        return row.revenue;
+    }
+  }
+
+  String _value(AddonRow row, String id) {
+    switch (id) {
+      case 'name':
+        return row.name;
+      case 'type':
+        return row.typeLabel;
+      case 'purchases':
+        return ShopReportFormat.number(row.purchaseCount);
+      case 'qty':
+        return ShopReportFormat.number(row.quantity);
+      case 'revenue':
+        return ShopReportFormat.money(row.revenue);
+      case 'avg':
+        return ShopReportFormat.money(row.averagePrice);
+      default:
+        return '';
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('加購服務統計')),
-      body: FutureBuilder<List<AddonReport>>(
-        future: ShopReportService.instance.getAddonReports(shopId: shopId),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
-
-          if (snapshot.hasError) {
-            return Center(child: Text('讀取失敗：${snapshot.error}'));
-          }
-
-          final reports = snapshot.data ?? [];
-
-          final totalSaleCount = reports.fold<int>(
-            0,
-            (sum, item) => sum + item.saleCount,
-          );
-
-          final totalRevenue = reports.fold<int>(
-            0,
-            (sum, item) => sum + item.revenue,
-          );
-
+      body: FutureBuilder<ShopReportBundle>(
+        future: _future,
+        builder: (BuildContext context, AsyncSnapshot<ShopReportBundle> snap) {
           return ListView(
             padding: const EdgeInsets.all(16),
-            children: [
+            children: <Widget>[
               const Text(
                 '加購服務統計',
                 style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
               ),
-
               const SizedBox(height: 4),
-
               Text(
-                '依加購服務統計銷售次數與營收',
+                '時間加購、加值、客製、每日分時段服務',
                 style: TextStyle(color: Colors.grey.shade600),
               ),
-
-              const SizedBox(height: 16),
-
-              Row(
-                children: [
-                  Expanded(
-                    child: _SummaryCard(
-                      title: '銷售總次數',
-                      value: '$totalSaleCount',
-                      unit: '次',
-                      icon: Icons.add_shopping_cart,
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: _SummaryCard(
-                      title: '加購營收',
-                      value: '\$${moneyFormat.format(totalRevenue)}',
-                      unit: '',
-                      icon: Icons.attach_money,
-                    ),
-                  ),
-                ],
+              const SizedBox(height: 12),
+              ReportRangeSelector(range: _range, onChanged: _setRange),
+              const SizedBox(height: 8),
+              const ReportNote(
+                '只統計期間內建立的有效住宿訂單上的 addons 快照。名稱與類型來自訂單當時資料，服務之後刪除或封存仍會列入。類型：時間加購、加值服務、客製服務、每日分時段服務。',
               ),
-
-              const SizedBox(height: 16),
-
-              Card(
-                clipBehavior: Clip.antiAlias,
-                child: SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: DataTable(
-                    headingRowColor: WidgetStatePropertyAll(
-                      Colors.grey.shade100,
-                    ),
-                    columns: const [
-                      DataColumn(label: Text('服務名稱')),
-                      DataColumn(label: Text('類型')),
-                      DataColumn(label: Text('銷售次數'), numeric: true),
-                      DataColumn(label: Text('營收'), numeric: true),
-                    ],
-                    rows: [
-                      ...reports.map((report) {
-                        return DataRow(
-                          cells: [
-                            DataCell(Text(report.name)),
-                            DataCell(Text(_typeLabel(report.type))),
-                            DataCell(Text('${report.saleCount}')),
-                            DataCell(
-                              Text('\$${moneyFormat.format(report.revenue)}'),
-                            ),
-                          ],
-                        );
-                      }),
-
-                      DataRow(
-                        color: WidgetStatePropertyAll(Colors.grey.shade100),
-                        cells: [
-                          const DataCell(
-                            Text(
-                              '總計',
-                              style: TextStyle(fontWeight: FontWeight.bold),
-                            ),
+              ReportStatusBody(
+                snapshot: snap,
+                builder: () {
+                  final List<AddonRow> rows = _sorted(snap.data!.addons);
+                  final int purchases = rows.fold<int>(
+                    0,
+                    (int s, AddonRow e) => s + e.purchaseCount,
+                  );
+                  final int revenue = rows.fold<int>(
+                    0,
+                    (int s, AddonRow e) => s + e.revenue,
+                  );
+                  return Column(
+                    children: <Widget>[
+                      ReportKpiGrid(
+                        items: <ReportKpiItem>[
+                          ReportKpiItem(
+                            label: '被購買次數',
+                            value: ShopReportFormat.number(purchases),
                           ),
-                          const DataCell(Text('-')),
-                          DataCell(
-                            Text(
-                              '$totalSaleCount',
-                              style: const TextStyle(
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
+                          ReportKpiItem(
+                            label: '加購收入',
+                            value: ShopReportFormat.money(revenue),
                           ),
-                          DataCell(
-                            Text(
-                              '\$${moneyFormat.format(totalRevenue)}',
-                              style: const TextStyle(
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
+                          ReportKpiItem(
+                            label: '服務項目',
+                            value: ShopReportFormat.number(rows.length),
                           ),
                         ],
                       ),
+                      const SizedBox(height: 16),
+                      ReportResponsiveTable(
+                        columns: _columns,
+                        rowCount: rows.length,
+                        sortId: _sortId,
+                        sortAsc: _sortAsc,
+                        onSort: _toggleSort,
+                        titleOf: (int i) => rows[i].name,
+                        subtitleOf: (int i) => rows[i].typeLabel,
+                        valueOf: (int i, String id) => _value(rows[i], id),
+                      ),
                     ],
-                  ),
-                ),
+                  );
+                },
               ),
             ],
           );
         },
-      ),
-    );
-  }
-
-  String _typeLabel(String type) {
-    switch (type) {
-      case 'time':
-        return '時間加購';
-      case 'value':
-        return '加值服務';
-      case 'custom':
-        return '自訂服務';
-      default:
-        return '其他';
-    }
-  }
-}
-
-class _SummaryCard extends StatelessWidget {
-  const _SummaryCard({
-    required this.title,
-    required this.value,
-    required this.unit,
-    required this.icon,
-  });
-
-  final String title;
-  final String value;
-  final String unit;
-  final IconData icon;
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Row(
-          children: [
-            CircleAvatar(
-              backgroundColor: Colors.purple.withOpacity(0.08),
-              child: Icon(icon, color: Colors.purple),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(title, style: TextStyle(color: Colors.grey.shade600)),
-                  const SizedBox(height: 4),
-                  Text(
-                    '$value$unit',
-                    style: const TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
       ),
     );
   }

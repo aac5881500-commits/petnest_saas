@@ -10,34 +10,40 @@ class EnvironmentBottomNote extends StatelessWidget {
     super.key,
     required this.text,
     this.theme = HomeThemeModel.classicDefault,
+    this.fontSize = 14,
+    this.padding = 18,
+    this.horizontalMargin = 16,
   });
 
   final String text;
   final HomeThemeModel theme;
+  final double fontSize;
+  final double padding;
+  final double horizontalMargin;
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16),
-      padding: const EdgeInsets.all(18),
+      margin: EdgeInsets.symmetric(horizontal: horizontalMargin),
+      padding: EdgeInsets.all(padding),
       decoration: BoxDecoration(
-        color: theme.primaryColor.withOpacity(0.10),
+        color: theme.primaryColor.withValues(alpha: 0.10),
         borderRadius: BorderRadius.circular(22),
         border: Border.all(color: theme.cardBorderColor),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
+        children: <Widget>[
           Icon(Icons.favorite_rounded, color: theme.primaryColor, size: 26),
           const SizedBox(width: 12),
           Expanded(
             child: Text(
               text,
               style: TextStyle(
-                fontSize: 14,
+                fontSize: fontSize,
                 height: 1.6,
                 fontWeight: FontWeight.w600,
-                color: theme.textColor.withOpacity(0.72),
+                color: theme.textColor.withValues(alpha: 0.72),
               ),
             ),
           ),

@@ -1,245 +1,193 @@
 // lib/features/shop/pages/shop_room_type_report_page.dart
-// 🏠 房型統計報表
-// 功能：統計各房型訂單數、有效訂單數、取消數與營收
+// 🏠 房型統計：以訂單 snapshot 的房型名稱統計，避免改名失真。
 
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
+import 'package:petnest_saas/core/models/shop_report_models.dart';
+import 'package:petnest_saas/core/services/report_range.dart';
+import 'package:petnest_saas/core/services/shop_report_format.dart';
 import 'package:petnest_saas/core/services/shop_report_service.dart';
+import 'package:petnest_saas/features/shop/widgets/report_range_selector.dart';
+import 'package:petnest_saas/features/shop/widgets/shop_report_widgets.dart';
 
-class ShopRoomTypeReportPage extends StatelessWidget {
+class ShopRoomTypeReportPage extends StatefulWidget {
   const ShopRoomTypeReportPage({super.key, required this.shopId});
 
   final String shopId;
 
   @override
-  Widget build(BuildContext context) {
-    final moneyFormat = NumberFormat('#,###');
+  State<ShopRoomTypeReportPage> createState() => _ShopRoomTypeReportPageState();
+}
 
+class _ShopRoomTypeReportPageState extends State<ShopRoomTypeReportPage> {
+  ReportRange _range = ReportRange.thisMonth();
+  late Future<ShopReportBundle> _future;
+  String _sortId = 'revenue';
+  bool _sortAsc = false;
+
+  static const List<ReportColumn> _columns = <ReportColumn>[
+    ReportColumn(id: 'name', label: '房型名稱'),
+    ReportColumn(id: 'orders', label: '訂單數', numeric: true),
+    ReportColumn(id: 'nights', label: '住宿晚數', numeric: true),
+    ReportColumn(id: 'pets', label: '入住寵物數', numeric: true),
+    ReportColumn(id: 'revenue', label: '房型收入', money: true),
+    ReportColumn(id: 'avg', label: '平均每筆訂單收入', money: true),
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+    _future = _load();
+  }
+
+  Future<ShopReportBundle> _load() {
+    return ShopReportService.instance.load(
+      shopId: widget.shopId,
+      range: _range,
+    );
+  }
+
+  void _setRange(ReportRange range) {
+    setState(() {
+      _range = range;
+      _future = _load();
+    });
+  }
+
+  void _toggleSort(String id) {
+    setState(() {
+      if (_sortId == id) {
+        _sortAsc = !_sortAsc;
+      } else {
+        _sortId = id;
+        _sortAsc = false;
+      }
+    });
+  }
+
+  List<RoomTypeRow> _sorted(List<RoomTypeRow> rows) {
+    final List<RoomTypeRow> copy = List<RoomTypeRow>.from(rows);
+    copy.sort((RoomTypeRow a, RoomTypeRow b) {
+      final int c = ShopReportFormat.compare(_key(a), _key(b));
+      return _sortAsc ? c : -c;
+    });
+    return copy;
+  }
+
+  dynamic _key(RoomTypeRow row) {
+    switch (_sortId) {
+      case 'name':
+        return row.roomTypeName;
+      case 'orders':
+        return row.orderCount;
+      case 'nights':
+        return row.nights;
+      case 'pets':
+        return row.pets;
+      case 'avg':
+        return row.averageOrderRevenue;
+      case 'revenue':
+      default:
+        return row.revenue;
+    }
+  }
+
+  String _value(RoomTypeRow row, String id) {
+    switch (id) {
+      case 'name':
+        return row.roomTypeName;
+      case 'orders':
+        return ShopReportFormat.number(row.orderCount);
+      case 'nights':
+        return ShopReportFormat.number(row.nights);
+      case 'pets':
+        return ShopReportFormat.number(row.pets);
+      case 'revenue':
+        return ShopReportFormat.money(row.revenue);
+      case 'avg':
+        return ShopReportFormat.money(row.averageOrderRevenue);
+      default:
+        return '';
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('房型統計報表')),
-      body: FutureBuilder<List<RoomTypeReport>>(
-        future: ShopReportService.instance.getRoomTypeReports(shopId: shopId),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
-
-          if (snapshot.hasError) {
-            return Center(child: Text('讀取失敗：${snapshot.error}'));
-          }
-
-          final reports = snapshot.data ?? [];
-
-          final totalOrder = reports.fold<int>(
-            0,
-            (sum, item) => sum + item.orderCount,
-          );
-          final totalValid = reports.fold<int>(
-            0,
-            (sum, item) => sum + item.validOrderCount,
-          );
-          final totalCancel = reports.fold<int>(
-            0,
-            (sum, item) => sum + item.cancelCount,
-          );
-          final totalRevenue = reports.fold<int>(
-            0,
-            (sum, item) => sum + item.revenue,
-          );
-
+      body: FutureBuilder<ShopReportBundle>(
+        future: _future,
+        builder: (BuildContext context, AsyncSnapshot<ShopReportBundle> snap) {
           return ListView(
             padding: const EdgeInsets.all(16),
-            children: [
+            children: <Widget>[
               const Text(
-                '房型銷售統計',
+                '房型統計',
                 style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
               ),
-
               const SizedBox(height: 4),
-
               Text(
-                '依房型統計訂單、有效訂單、取消與營收',
+                '依訂單當時保存的房型名稱統計',
                 style: TextStyle(color: Colors.grey.shade600),
               ),
-
-              const SizedBox(height: 16),
-
-              Row(
-                children: [
-                  Expanded(
-                    child: _SummaryCard(
-                      title: '總訂單',
-                      value: '$totalOrder',
-                      unit: '筆',
-                      icon: Icons.receipt_long,
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: _SummaryCard(
-                      title: '有效訂單',
-                      value: '$totalValid',
-                      unit: '筆',
-                      icon: Icons.check_circle_outline,
-                    ),
-                  ),
-                ],
+              const SizedBox(height: 12),
+              ReportRangeSelector(range: _range, onChanged: _setRange),
+              const SizedBox(height: 8),
+              const ReportNote(
+                '只統計期間內建立、且狀態為確認 / 入住 / 完成的住宿訂單。房型名稱優先用訂單 snapshot（roomTypeName），避免後台改名後舊單失真。房型收入 = 房費小計 + 特殊日期加價，不含加購。目前無法可靠取得「房間數 × 可售晚數」（含維修 / 停用），因此不顯示入住率。',
               ),
-
-              const SizedBox(height: 10),
-
-              Row(
-                children: [
-                  Expanded(
-                    child: _SummaryCard(
-                      title: '取消訂單',
-                      value: '$totalCancel',
-                      unit: '筆',
-                      icon: Icons.cancel_outlined,
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: _SummaryCard(
-                      title: '房型營收',
-                      value: '\$${moneyFormat.format(totalRevenue)}',
-                      unit: '',
-                      icon: Icons.attach_money,
-                    ),
-                  ),
-                ],
-              ),
-
-              const SizedBox(height: 16),
-
-              Card(
-                clipBehavior: Clip.antiAlias,
-                child: SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: DataTable(
-                    headingRowColor: WidgetStatePropertyAll(
-                      Colors.grey.shade100,
-                    ),
-                    columns: const [
-                      DataColumn(label: Text('房型')),
-                      DataColumn(label: Text('訂單數'), numeric: true),
-                      DataColumn(label: Text('有效訂單'), numeric: true),
-                      DataColumn(label: Text('取消數'), numeric: true),
-                      DataColumn(label: Text('營收'), numeric: true),
-                    ],
-                    rows: [
-                      ...reports.map((report) {
-                        return DataRow(
-                          cells: [
-                            DataCell(Text(report.roomTypeName)),
-                            DataCell(Text('${report.orderCount}')),
-                            DataCell(Text('${report.validOrderCount}')),
-                            DataCell(Text('${report.cancelCount}')),
-                            DataCell(
-                              Text('\$${moneyFormat.format(report.revenue)}'),
-                            ),
-                          ],
-                        );
-                      }),
-
-                      DataRow(
-                        color: WidgetStatePropertyAll(Colors.grey.shade100),
-                        cells: [
-                          const DataCell(
-                            Text(
-                              '總計',
-                              style: TextStyle(fontWeight: FontWeight.bold),
-                            ),
+              ReportStatusBody(
+                snapshot: snap,
+                builder: () {
+                  final List<RoomTypeRow> rows = _sorted(snap.data!.roomTypes);
+                  final int orders = rows.fold<int>(
+                    0,
+                    (int s, RoomTypeRow e) => s + e.orderCount,
+                  );
+                  final int nights = rows.fold<int>(
+                    0,
+                    (int s, RoomTypeRow e) => s + e.nights,
+                  );
+                  final int revenue = rows.fold<int>(
+                    0,
+                    (int s, RoomTypeRow e) => s + e.revenue,
+                  );
+                  return Column(
+                    children: <Widget>[
+                      ReportKpiGrid(
+                        items: <ReportKpiItem>[
+                          ReportKpiItem(
+                            label: '有效訂單',
+                            value: ShopReportFormat.number(orders),
                           ),
-                          DataCell(
-                            Text(
-                              '$totalOrder',
-                              style: const TextStyle(
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
+                          ReportKpiItem(
+                            label: '住宿晚數',
+                            value: ShopReportFormat.number(nights),
                           ),
-                          DataCell(
-                            Text(
-                              '$totalValid',
-                              style: const TextStyle(
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ),
-                          DataCell(
-                            Text(
-                              '$totalCancel',
-                              style: const TextStyle(
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ),
-                          DataCell(
-                            Text(
-                              '\$${moneyFormat.format(totalRevenue)}',
-                              style: const TextStyle(
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
+                          ReportKpiItem(
+                            label: '房型收入',
+                            value: ShopReportFormat.money(revenue),
                           ),
                         ],
                       ),
+                      const SizedBox(height: 16),
+                      ReportResponsiveTable(
+                        columns: _columns,
+                        rowCount: rows.length,
+                        sortId: _sortId,
+                        sortAsc: _sortAsc,
+                        onSort: _toggleSort,
+                        titleOf: (int i) => rows[i].roomTypeName,
+                        subtitleOf: (int i) =>
+                            '${rows[i].orderCount} 筆　${ShopReportFormat.money(rows[i].revenue)}',
+                        valueOf: (int i, String id) => _value(rows[i], id),
+                      ),
                     ],
-                  ),
-                ),
+                  );
+                },
               ),
             ],
           );
         },
-      ),
-    );
-  }
-}
-
-class _SummaryCard extends StatelessWidget {
-  const _SummaryCard({
-    required this.title,
-    required this.value,
-    required this.unit,
-    required this.icon,
-  });
-
-  final String title;
-  final String value;
-  final String unit;
-  final IconData icon;
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Row(
-          children: [
-            CircleAvatar(
-              backgroundColor: Colors.orange.withOpacity(0.08),
-              child: Icon(icon, color: Colors.orange),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(title, style: TextStyle(color: Colors.grey.shade600)),
-                  const SizedBox(height: 4),
-                  Text(
-                    '$value$unit',
-                    style: const TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
       ),
     );
   }

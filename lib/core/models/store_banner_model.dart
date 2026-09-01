@@ -802,6 +802,7 @@ class StoreBannerModel {
     }
 
     final String ctaText = (data['ctaText'] ?? '').toString();
+    // 有 ctaEnabled 就照存檔；舊資料沒有此欄才用「有按鈕文案」推斷，不要預設 true。
     final bool ctaEnabled = data['ctaEnabled'] is bool
         ? data['ctaEnabled'] as bool
         : ctaText.trim().isNotEmpty;
@@ -1118,13 +1119,10 @@ class StoreBannerModel {
     if (textElements.isNotEmpty) {
       return this;
     }
-    if (!hasLegacyCopy && !showsCta && ctaText.trim().isEmpty) {
+    if (!hasLegacyCopy) {
       return this;
     }
-    return copyWith(
-      textElements: legacyTextElements,
-      ctaEnabled: ctaEnabled || ctaText.trim().isNotEmpty,
-    );
+    return copyWith(textElements: legacyTextElements);
   }
 
   static String _actionTypeOf(Map<String, dynamic> data) {
