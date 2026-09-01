@@ -320,8 +320,6 @@ class _ShopAddonPageState extends State<ShopAddonPage>
               ],
             ),
 
-            const SizedBox(height: 8),
-
             /// 🔥 第二行：介紹
             TextFormField(
               initialValue: item['desc'] ?? '',
@@ -635,7 +633,11 @@ class _ShopAddonPageState extends State<ShopAddonPage>
       padding: const EdgeInsets.only(bottom: 12),
       child: Text(
         text,
-        style: TextStyle(fontSize: 13, color: Colors.grey.shade700, height: 1.4),
+        style: TextStyle(
+          fontSize: 13,
+          color: Colors.grey.shade700,
+          height: 1.4,
+        ),
       ),
     );
   }
@@ -725,11 +727,14 @@ class _ShopAddonPageState extends State<ShopAddonPage>
           final String itemKey = _addonItemKey('time', item);
           if (_editingAddonKey == itemKey) {
             return _wrapInlineEditor(
-              _buildServiceItem(item, () => _confirmDeleteAddonItem(
-                title: '刪除時間方案',
-                item: item,
-                list: timeOptions,
-              )),
+              _buildServiceItem(
+                item,
+                () => _confirmDeleteAddonItem(
+                  title: '刪除時間方案',
+                  item: item,
+                  list: timeOptions,
+                ),
+              ),
             );
           }
 
@@ -1014,10 +1019,7 @@ class _ShopAddonPageState extends State<ShopAddonPage>
                     },
                     itemBuilder: (BuildContext context) {
                       return const <PopupMenuEntry<String>>[
-                        PopupMenuItem<String>(
-                          value: 'edit',
-                          child: Text('編輯'),
-                        ),
+                        PopupMenuItem<String>(value: 'edit', child: Text('編輯')),
                         PopupMenuItem<String>(
                           value: 'delete',
                           child: Text('刪除'),
@@ -1285,18 +1287,12 @@ class _ShopAddonPageState extends State<ShopAddonPage>
       children: <Widget>[
         _title('加購服務庫存連動'),
         _hint('加購服務可以選擇是否連動中央庫存。未啟用庫存的服務仍可正常使用。'),
-        _GuideCard(
-          title: '不使用庫存',
-          body: '只計算服務費用，不影響庫存。適合單純計時、計次、不消耗實體物品的服務。',
-        ),
+        _GuideCard(title: '不使用庫存', body: '只計算服務費用，不影響庫存。適合單純計時、計次、不消耗實體物品的服務。'),
         _GuideCard(
           title: '使用中央庫存',
           body: '客戶購買服務後，會自動扣除已綁定的庫存品項。請先在對應服務開啟「庫存連動」。',
         ),
-        _GuideCard(
-          title: '多品項綁定',
-          body: '一個服務可以同時使用多種庫存，例如生日套餐：蛋糕 ×1、肉泥 ×2。',
-        ),
+        _GuideCard(title: '多品項綁定', body: '一個服務可以同時使用多種庫存，例如生日套餐：蛋糕 ×1、肉泥 ×2。'),
         const SizedBox(height: 8),
         FilledButton.icon(
           onPressed: () {
@@ -1322,9 +1318,7 @@ class _ShopAddonPageState extends State<ShopAddonPage>
       backgroundColor: const Color(0xFFF6F8FB),
       appBar: AppBar(
         title: const Text('加購服務設定'),
-        actions: <Widget>[
-          ShopTaskCenterButton(shopId: widget.shopId),
-        ],
+        actions: <Widget>[ShopTaskCenterButton(shopId: widget.shopId)],
         bottom: TabBar(
           controller: _tabController,
           isScrollable: true,

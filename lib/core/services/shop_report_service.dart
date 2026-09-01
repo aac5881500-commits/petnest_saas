@@ -3,6 +3,7 @@
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:petnest_saas/core/constants/store_constants.dart';
+import 'package:petnest_saas/core/models/booking_kind.dart';
 import 'package:petnest_saas/core/models/payment_gateway_status.dart';
 import 'package:petnest_saas/core/models/shop_report_models.dart';
 import 'package:petnest_saas/core/services/report_range.dart';
@@ -268,21 +269,23 @@ class ShopReportService {
         } else if (revenue) {
           confirmedOrders++;
           day?.confirmedOrders++;
-          day?.nights += nights;
           day?.pets += pets;
           day?.stayOrderAmount += money.orderAmount;
-          day?.stayRevenue += money.room;
+          if (!BookingKind.isDaycare(booking)) {
+            day?.stayRevenue += money.room;
+            stayRoom += money.room;
+            stayNights += nights;
+            day?.nights += nights;
+          }
           day?.addonRevenue += money.addon;
           day?.discountAmount += money.discount;
           day?.couponAmount += money.coupon;
           day?.surchargeAmount += money.surcharge;
           stayOrderAmount += money.orderAmount;
-          stayRoom += money.room;
           stayAddon += money.addon;
           stayDiscount += money.discount;
           stayCoupon += money.coupon;
           staySurcharge += money.surcharge;
-          stayNights += nights;
           stayPets += pets;
           final String bid = _str(booking['id']);
           final int paid = paidByBooking[bid] ?? _int(booking['paidAmount']);

@@ -275,6 +275,10 @@ exports.sendBookingStatusNotification = onDocumentUpdated(
       }
 
       const userId = (after.userId || "").toString();
+      const afterKind = (after.bookingKind || "").toString();
+      const resolveKind = afterKind === "daycare" ||
+        (after.serviceType || "").toString() === "daycare" ?
+        "daycare" : "accommodation";
 
       if (!userId) {
         console.log(
@@ -286,8 +290,8 @@ exports.sendBookingStatusNotification = onDocumentUpdated(
       const statusTextMap = {
         pending: "預約已送出",
         confirmed: "預約已確認",
-        checked_in: "已辦理入住",
-        completed: "已完成退房",
+        checked_in: resolveKind === "daycare" ? "臨托已開始" : "已辦理入住",
+        completed: resolveKind === "daycare" ? "臨托已完成" : "已完成退房",
         cancelled: "預約已取消",
       };
 
@@ -824,3 +828,28 @@ exports.finalizeBookingAddonInventory =
  */
 exports.returnBookingInventory =
   require("./bookings/return_booking_inventory").returnBookingInventory;
+
+/**
+ * 🐾 建立臨托訂單
+ */
+exports.createDaycareBooking =
+  require("./daycare/create_daycare_booking").createDaycareBooking;
+
+/**
+ * 🐾 臨托訂單狀態與價格操作
+ */
+exports.manageDaycareBooking =
+  require("./daycare/manage_daycare_booking").manageDaycareBooking;
+
+/**
+ * 🐾 臨托分房／換房
+ */
+exports.assignDaycareRoom =
+  require("./daycare/assign_daycare_room").assignDaycareRoom;
+
+/**
+ * 🐾 臨托轉住宿
+ */
+exports.convertDaycareToAccommodation =
+  require("./daycare/convert_daycare_to_accommodation")
+      .convertDaycareToAccommodation;

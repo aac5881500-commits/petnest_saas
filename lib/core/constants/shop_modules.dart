@@ -13,6 +13,9 @@ class ShopModules {
 
   static const reports = 'reports';
 
+  /// 舊資料相容：臨托已改為貓咪旅店附屬功能，不再作為獨立模組開關。
+  static const daycare = 'daycare';
+
   /// 📦 中央庫存管理
   ///
   /// 不列入方案鎖定模組，只要有庫存權限即可在後台顯示。
@@ -27,6 +30,7 @@ class ShopModules {
     hospital,
     store,
     reports,
+    daycare,
   ];
 
   /// 可被激活碼鎖定的模板
@@ -39,7 +43,13 @@ class ShopModules {
   ];
 
   /// pro 可自由開啟的模板
-  static const proModules = [catHotel, dogHotel, grooming, hospital, store];
+  static const proModules = [
+    catHotel,
+    dogHotel,
+    grooming,
+    hospital,
+    store,
+  ];
 
   /// 舊資料 fallback
   static const defaultEnabled = [basicInfo, catHotel, reports];

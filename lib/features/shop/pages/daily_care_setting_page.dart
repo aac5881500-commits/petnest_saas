@@ -30,6 +30,7 @@ class _DailyCareSettingPageState extends State<DailyCareSettingPage> {
   bool _enabled = false;
   int _sessionCount = 2;
   bool _photoEnabled = true;
+  bool _daycareEnabled = false;
   int _downloadHours = 24;
 
   String _backgroundType = DailyCareJournalTheme.typeSystem;
@@ -143,6 +144,7 @@ class _DailyCareSettingPageState extends State<DailyCareSettingPage> {
         _enabled = setting.enabled;
         _sessionCount = setting.sessionCount;
         _photoEnabled = setting.photoEnabled;
+        _daycareEnabled = setting.daycareEnabled;
         _downloadHours = setting.downloadHoursAfterCheckout;
         _enabledFields = setting.enabledFields.toSet();
         _customFields = List<DailyCareCustomField>.from(setting.customFields);
@@ -190,7 +192,9 @@ class _DailyCareSettingPageState extends State<DailyCareSettingPage> {
             : defaults[index];
         _sessionLabelControllers[index].text = next;
       } else if (_sessionLabelControllers[index].text.trim().isEmpty) {
-        final List<String> three = DailyCareSettingModel.defaultSessionLabels(3);
+        final List<String> three = DailyCareSettingModel.defaultSessionLabels(
+          3,
+        );
         _sessionLabelControllers[index].text = three[index];
       }
     }
@@ -240,6 +244,7 @@ class _DailyCareSettingPageState extends State<DailyCareSettingPage> {
       enabledFields: _enabledFields.toList(),
       customFields: _customFields,
       photoEnabled: _photoEnabled,
+      daycareEnabled: _daycareEnabled,
       downloadHoursAfterCheckout: _downloadHours,
       backgroundType: backgroundType,
       backgroundColorKey: _backgroundColorKey,
@@ -648,9 +653,7 @@ class _DailyCareSettingPageState extends State<DailyCareSettingPage> {
       builder: (dialogContext) {
         return AlertDialog(
           title: const Text('移除自訂卡片背景'),
-          content: const Text(
-            '移除後將恢復使用系統預設卡片樣式，伺服器上的圖片也會一併刪除。',
-          ),
+          content: const Text('移除後將恢復使用系統預設卡片樣式，伺服器上的圖片也會一併刪除。'),
           actions: <Widget>[
             TextButton(
               onPressed: () => Navigator.pop(dialogContext, false),
@@ -845,9 +848,7 @@ class _DailyCareSettingPageState extends State<DailyCareSettingPage> {
       backgroundColor: const Color(0xFFF7F7F7),
       appBar: AppBar(
         title: const Text('每日照護紀錄設定'),
-        actions: <Widget>[
-          ShopTaskCenterButton(shopId: widget.shopId),
-        ],
+        actions: <Widget>[ShopTaskCenterButton(shopId: widget.shopId)],
       ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
@@ -1073,7 +1074,11 @@ class _DailyCareSettingPageState extends State<DailyCareSettingPage> {
             const SizedBox(height: 14),
             const Text(
               '建議直式 9:16，1080 × 1920。最低 720 × 1280，最大 5 MB，支援 JPG／PNG／WEBP。',
-              style: TextStyle(fontSize: 12, color: Colors.black54, height: 1.4),
+              style: TextStyle(
+                fontSize: 12,
+                color: Colors.black54,
+                height: 1.4,
+              ),
             ),
             const SizedBox(height: 10),
             Row(
@@ -1220,10 +1225,7 @@ class _DailyCareSettingPageState extends State<DailyCareSettingPage> {
           ),
           if (useCardImageMode) ...<Widget>[
             const SizedBox(height: 8),
-            const Text(
-              '選擇卡片背景',
-              style: TextStyle(fontWeight: FontWeight.w700),
-            ),
+            const Text('選擇卡片背景', style: TextStyle(fontWeight: FontWeight.w700)),
             const SizedBox(height: 8),
             Wrap(
               spacing: 8,
@@ -1251,7 +1253,11 @@ class _DailyCareSettingPageState extends State<DailyCareSettingPage> {
             const SizedBox(height: 12),
             const Text(
               '建議比例 4:3 或 3:2，1200 × 800。最低 900 × 600，最大 5 MB，支援 JPG／PNG／WEBP。',
-              style: TextStyle(fontSize: 12, color: Colors.black54, height: 1.4),
+              style: TextStyle(
+                fontSize: 12,
+                color: Colors.black54,
+                height: 1.4,
+              ),
             ),
             const SizedBox(height: 10),
             Row(
@@ -1710,6 +1716,17 @@ class _DailyCareSettingPageState extends State<DailyCareSettingPage> {
         children: <Widget>[
           SwitchListTile(
             contentPadding: EdgeInsets.zero,
+            title: const Text('臨托訂單也可填寫照護紀錄'),
+            subtitle: const Text('僅在臨托實際開始後允許填寫'),
+            value: _daycareEnabled,
+            onChanged: (bool value) {
+              setState(() {
+                _daycareEnabled = value;
+              });
+            },
+          ),
+          SwitchListTile(
+            contentPadding: EdgeInsets.zero,
             title: const Text('啟用照護照片'),
             value: _photoEnabled,
             onChanged: (bool value) {
@@ -1820,10 +1837,7 @@ class _JournalPreviewCard extends StatelessWidget {
                             ),
                           ),
                           SizedBox(height: 4),
-                          Text(
-                            '生活狀況　飲水 一般',
-                            style: TextStyle(fontSize: 11),
-                          ),
+                          Text('生活狀況　飲水 一般', style: TextStyle(fontSize: 11)),
                           SizedBox(height: 6),
                           Text(
                             '今日概況',

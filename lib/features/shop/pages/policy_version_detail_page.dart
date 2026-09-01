@@ -10,10 +10,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
 class PolicyVersionDetailPage extends StatelessWidget {
-  const PolicyVersionDetailPage({
-    super.key,
-    required this.data,
-  });
+  const PolicyVersionDetailPage({super.key, required this.data});
 
   final Map<String, dynamic> data;
 
@@ -22,10 +19,7 @@ class PolicyVersionDetailPage extends StatelessWidget {
     return DateFormat('yyyy-MM-dd HH:mm').format(value.toDate());
   }
 
-  Widget _section({
-    required String title,
-    required String content,
-  }) {
+  Widget _section({required String title, required String content}) {
     if (content.trim().isEmpty) {
       return const SizedBox.shrink();
     }
@@ -39,19 +33,10 @@ class PolicyVersionDetailPage extends StatelessWidget {
           children: [
             Text(
               title,
-              style: const TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-              ),
+              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 8),
-            Text(
-              content,
-              style: const TextStyle(
-                fontSize: 14,
-                height: 1.5,
-              ),
-            ),
+            Text(content, style: const TextStyle(fontSize: 14, height: 1.5)),
           ],
         ),
       ),
@@ -60,11 +45,28 @@ class PolicyVersionDetailPage extends StatelessWidget {
 
   List<Widget> _customSections(List items) {
     return List.generate(items.length, (index) {
-      final text = items[index]?.toString() ?? '';
-      return _section(
-        title: '額外條款 ${index + 1}',
-        content: text,
-      );
+      final dynamic raw = items[index];
+      String text = '';
+      String scope = '';
+      if (raw is Map) {
+        text = (raw['text'] ?? raw['content'] ?? '').toString();
+        final List<dynamic> services = raw['applicableServices'] is List
+            ? raw['applicableServices'] as List<dynamic>
+            : const <dynamic>[];
+        final bool stay = services.contains('accommodation');
+        final bool daycare = services.contains('daycare');
+        if (stay && daycare) {
+          scope = '（住宿與臨托共用）';
+        } else if (daycare) {
+          scope = '（僅臨托）';
+        } else {
+          scope = '（僅住宿）';
+        }
+      } else {
+        text = raw?.toString() ?? '';
+        scope = '（僅住宿）';
+      }
+      return _section(title: '額外條款 ${index + 1}$scope', content: text);
     });
   }
 
@@ -77,10 +79,8 @@ class PolicyVersionDetailPage extends StatelessWidget {
     final sections = Map<String, dynamic>.from(data['sections'] ?? {});
     final enabled = Map<String, dynamic>.from(data['enabled'] ?? {});
 
-    final customPoliciesPage1 =
-        (data['customPoliciesPage1'] ?? []) as List;
-    final customPoliciesPage2 =
-        (data['customPoliciesPage2'] ?? []) as List;
+    final customPoliciesPage1 = (data['customPoliciesPage1'] ?? []) as List;
+    final customPoliciesPage2 = (data['customPoliciesPage2'] ?? []) as List;
 
     String getText(String key) {
       if (enabled[key] == false) return '';
@@ -88,9 +88,7 @@ class PolicyVersionDetailPage extends StatelessWidget {
     }
 
     return Scaffold(
-      appBar: AppBar(
-        title: Text('條款版本 v$version'),
-      ),
+      appBar: AppBar(title: Text('條款版本 v$version')),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
@@ -102,57 +100,25 @@ class PolicyVersionDetailPage extends StatelessWidget {
                 'v$version',
                 style: const TextStyle(fontWeight: FontWeight.bold),
               ),
-              subtitle: Text(
-                '更新時間：$updatedAt\n更新者：$updatedByEmail',
-              ),
+              subtitle: Text('更新時間：$updatedAt\n更新者：$updatedByEmail'),
             ),
           ),
 
           const Text(
             '📄 入住須知（前台第 1 頁）',
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-            ),
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 12),
 
-          _section(
-            title: '營業時間與環境參觀時間',
-            content: getText('checkinTime'),
-          ),
-          _section(
-            title: '入住與退房安排',
-            content: getText('checkOutFlow'),
-          ),
-          _section(
-            title: '貓咪入住基本條件',
-            content: getText('basicCondition'),
-          ),
-          _section(
-            title: '貓咪入住前飼主應告知資訊',
-            content: getText('ownerNotice'),
-          ),
-          _section(
-            title: '貓咪入住須知',
-            content: getText('checkinNotice'),
-          ),
-          _section(
-            title: '本店提供的基本設施',
-            content: getText('facility'),
-          ),
-          _section(
-            title: '特殊情況處理',
-            content: getText('specialCase'),
-          ),
-          _section(
-            title: '探索活動安排',
-            content: getText('activity'),
-          ),
-          _section(
-            title: '額外注意事項',
-            content: getText('extraNotice'),
-          ),
+          _section(title: '營業時間與環境參觀時間', content: getText('checkinTime')),
+          _section(title: '入住與退房安排', content: getText('checkOutFlow')),
+          _section(title: '貓咪入住基本條件', content: getText('basicCondition')),
+          _section(title: '貓咪入住前飼主應告知資訊', content: getText('ownerNotice')),
+          _section(title: '貓咪入住須知', content: getText('checkinNotice')),
+          _section(title: '本店提供的基本設施', content: getText('facility')),
+          _section(title: '特殊情況處理', content: getText('specialCase')),
+          _section(title: '探索活動安排', content: getText('activity')),
+          _section(title: '額外注意事項', content: getText('extraNotice')),
 
           ..._customSections(customPoliciesPage1),
 
@@ -160,17 +126,11 @@ class PolicyVersionDetailPage extends StatelessWidget {
 
           const Text(
             '📄 訂房與退款（前台第 2 頁）',
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-            ),
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 12),
 
-          _section(
-            title: '訂房取消政策',
-            content: getText('cancelPolicy'),
-          ),
+          _section(title: '訂房取消政策', content: getText('cancelPolicy')),
 
           ..._customSections(customPoliciesPage2),
         ],

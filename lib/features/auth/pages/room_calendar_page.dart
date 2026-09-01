@@ -91,9 +91,7 @@ class _RoomCalendarPageState extends State<RoomCalendarPage> {
     return Scaffold(
       appBar: AppBar(
         title: Text('單房紀錄 - ${widget.roomName}'),
-        actions: <Widget>[
-          ShopTaskCenterButton(shopId: widget.shopId),
-        ],
+        actions: <Widget>[ShopTaskCenterButton(shopId: widget.shopId)],
       ),
 
       body: StreamBuilder(
@@ -404,10 +402,18 @@ class _RoomCalendarPageState extends State<RoomCalendarPage> {
 
                           switch (status) {
                             case 'booked':
-                              color = Colors.deepOrange;
+                              color =
+                                  (dayBooking?['bookingKind'] ?? '') ==
+                                      'daycare'
+                                  ? Colors.teal
+                                  : Colors.deepOrange;
                               break;
                             case 'occupied':
-                              color = Colors.blue;
+                              color =
+                                  (dayBooking?['bookingKind'] ?? '') ==
+                                      'daycare'
+                                  ? Colors.teal.shade700
+                                  : Colors.blue;
                               break;
 
                             case 'completed':
@@ -550,7 +556,8 @@ class _RoomCalendarPageState extends State<RoomCalendarPage> {
                       runSpacing: 8,
                       children: [
                         _legend(Colors.green, '空房'),
-                        _legend(Colors.deepOrange, '已訂'),
+                        _legend(Colors.deepOrange, '住宿'),
+                        _legend(Colors.teal, '臨托'),
                         _legend(Colors.blue, '入住'),
                         _legend(Colors.purple, '退房/完成'),
                         _legend(Colors.orange, '清潔中'),
@@ -1083,9 +1090,9 @@ class _RoomCalendarPageState extends State<RoomCalendarPage> {
       return;
     }
     if (!allowed) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('沒有預覽客戶照護日誌的權限')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('沒有預覽客戶照護日誌的權限')));
       return;
     }
 

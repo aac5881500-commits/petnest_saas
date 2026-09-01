@@ -8,7 +8,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/services/shop_service.dart';
 import 'package:petnest_saas/core/services/storefront_access.dart';
-import 'package:petnest_saas/features/shop/pages/shop_booking_page.dart';
+import 'package:petnest_saas/features/shop/pages/shop_booking_entry_page.dart';
 import 'package:petnest_saas/features/shop/pages/shop_dashboard_page.dart';
 import 'package:petnest_saas/features/shop/pages/shop_policy_view_page.dart';
 import 'package:petnest_saas/features/shop/pages/shop_public_page.dart';
@@ -174,8 +174,8 @@ class ModernAppDrawer extends StatelessWidget {
                                   builder: (_) => ShopCustomerChatPage(
                                     shopId: shopId,
                                     shopName: (shop['name'] ?? '').toString(),
-                                    shopLogoUrl:
-                                        (shop['logoUrl'] ?? '').toString(),
+                                    shopLogoUrl: (shop['logoUrl'] ?? '')
+                                        .toString(),
                                   ),
                                 ),
                               );
@@ -1321,28 +1321,10 @@ class ModernAppDrawer extends StatelessWidget {
       return;
     }
 
-    final hasAccepted = await ShopService.instance.hasAcceptedPolicy(
-      shopId: shopId,
-      userId: user.uid,
-    );
-
-    if (!hasAccepted) {
-      final result = await Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (_) => ShopPolicyViewPage(shopId: shopId, theme: theme),
-        ),
-      );
-
-      if (result != true) return;
-    }
-
-    if (!context.mounted) return;
-
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => ShopBookingPage(
+        builder: (_) => ShopBookingEntryPage(
           shopId: shopId,
           theme: theme,
           useModernDrawer: true,

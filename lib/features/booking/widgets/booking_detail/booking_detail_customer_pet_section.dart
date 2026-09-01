@@ -95,6 +95,21 @@ class BookingDetailCustomerPetSection extends StatelessWidget {
               ),
             ],
           ),
+          if (data['emergencyContact'] is Map) ...<Widget>[
+            const SizedBox(height: 12),
+            Text(
+              '緊急聯絡人：${(data['emergencyContact']['name'] ?? '-')}　${data['emergencyContact']['phone'] ?? ''}',
+              style: const TextStyle(fontSize: 14, color: Colors.black87),
+            ),
+            if ((data['emergencyContact']['relation'] ?? '')
+                .toString()
+                .trim()
+                .isNotEmpty)
+              Text(
+                '關係：${data['emergencyContact']['relation']}',
+                style: const TextStyle(fontSize: 13, color: Colors.black54),
+              ),
+          ],
         ],
       ),
     );

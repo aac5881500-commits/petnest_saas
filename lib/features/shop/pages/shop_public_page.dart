@@ -9,7 +9,7 @@ import 'package:petnest_saas/core/models/store_banner_model.dart';
 import 'package:petnest_saas/core/services/home_banner_navigation.dart';
 import 'package:petnest_saas/core/services/home_banner_service.dart';
 import 'package:petnest_saas/core/services/shop_service.dart';
-import 'package:petnest_saas/features/shop/pages/shop_booking_page.dart';
+import 'package:petnest_saas/features/shop/pages/shop_booking_entry_page.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:petnest_saas/features/shop/pages/shop_policy_view_page.dart';
 import 'package:petnest_saas/core/widgets/app_drawer.dart';
@@ -413,7 +413,7 @@ class _ShopPublicPageState extends State<ShopPublicPage> {
                             icon: Icons.pets,
                             title: '貓咪旅館',
                             subtitle: '安心住宿・房型介紹・入住須知',
-                            actionText: '我要預約住宿',
+                            actionText: '我要預約',
                             onTap: () async {
                               final user = FirebaseAuth.instance.currentUser;
 
@@ -424,33 +424,12 @@ class _ShopPublicPageState extends State<ShopPublicPage> {
                                 return;
                               }
 
-                              final hasAccepted = await ShopService.instance
-                                  .hasAcceptedPolicy(
-                                    shopId: widget.shopId,
-                                    userId: user.uid,
-                                  );
-
-                              if (!hasAccepted) {
-                                final result = await Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (_) => ShopPolicyViewPage(
-                                      shopId: widget.shopId,
-                                      theme: classicTheme,
-                                      readOnly: true,
-                                    ),
-                                  ),
-                                );
-
-                                if (result != true) return;
-                              }
-
                               if (!mounted) return;
 
                               Navigator.push(
                                 context,
                                 MaterialPageRoute(
-                                  builder: (_) => ShopBookingPage(
+                                  builder: (_) => ShopBookingEntryPage(
                                     shopId: widget.shopId,
                                     theme: classicTheme,
                                   ),

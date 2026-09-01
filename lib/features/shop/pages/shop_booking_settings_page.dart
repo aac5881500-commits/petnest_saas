@@ -12,6 +12,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:petnest_saas/core/services/action_log_service.dart';
+import 'package:petnest_saas/core/services/daycare_settings_service.dart';
 import 'package:petnest_saas/core/services/shop_service.dart';
 import 'package:petnest_saas/shared/widgets/booking_calendar.dart';
 import 'package:petnest_saas/core/constants/shop_permission_keys.dart';
@@ -32,6 +33,7 @@ class _ShopBookingSettingsPageState extends State<ShopBookingSettingsPage> {
   final _maxAdvanceBookingDaysController = TextEditingController();
 
   bool _bookingEnabled = true;
+  bool _daycareEnabled = false;
   bool _settingsInitialized = false;
   bool _savingSettings = false;
 
@@ -216,6 +218,19 @@ class _ShopBookingSettingsPageState extends State<ShopBookingSettingsPage> {
               onChanged: (value) {
                 setState(() {
                   _bookingEnabled = value;
+                });
+              },
+            ),
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('開放臨托服務'),
+              subtitle: const Text(
+                '關閉後，客戶端與店家後台的臨托入口、設定與新增功能將暫時隱藏；既有臨托訂單仍可查看及完成處理。',
+              ),
+              value: _daycareEnabled,
+              onChanged: (bool value) {
+                setState(() {
+                  _daycareEnabled = value;
                 });
               },
             ),
@@ -442,6 +457,9 @@ class _ShopBookingSettingsPageState extends State<ShopBookingSettingsPage> {
     if (_settingsInitialized) return;
 
     _bookingEnabled = shop['bookingEnabled'] ?? true;
+    _daycareEnabled = shop.containsKey('daycareEnabled')
+        ? shop['daycareEnabled'] == true
+        : false;
 
     _maxAdvanceBookingDaysController.text = _toInt(
       shop['maxAdvanceBookingDays'],
@@ -455,6 +473,21 @@ class _ShopBookingSettingsPageState extends State<ShopBookingSettingsPage> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) setState(() {});
     });
+    if (!shop.containsKey('daycareEnabled')) {
+      _loadLegacyDaycareEnabled();
+    }
+  }
+
+  Future<void> _loadLegacyDaycareEnabled() async {
+    try {
+      final settings = await DaycareSettingsService.instance.get(widget.shopId);
+      if (!mounted || _daycareEnabled) {
+        return;
+      }
+      if (settings.enabled) {
+        setState(() => _daycareEnabled = true);
+      }
+    } catch (_) {}
   }
 
   Future<void> _saveSettings() async {
@@ -488,6 +521,7 @@ class _ShopBookingSettingsPageState extends State<ShopBookingSettingsPage> {
       await ShopService.instance.updateBookingSettings(
         shopId: widget.shopId,
         bookingEnabled: _bookingEnabled,
+        daycareEnabled: _daycareEnabled,
         maxAdvanceBookingDays: maxAdvanceBookingDays,
       );
 
@@ -502,6 +536,7 @@ class _ShopBookingSettingsPageState extends State<ShopBookingSettingsPage> {
           operatorRole: _currentUserRole!,
           payload: {
             'bookingEnabled': _bookingEnabled,
+            'daycareEnabled': _daycareEnabled,
             'maxAdvanceBookingDays': maxAdvanceBookingDays,
           },
         );

@@ -12,6 +12,7 @@ import 'package:petnest_saas/core/widgets/shop_task_center_button.dart';
 import 'package:petnest_saas/features/shop/widgets/permissions/permission_category_tile.dart';
 import 'package:petnest_saas/features/shop/pages/permissions/basic_info_permission_page.dart';
 import 'package:petnest_saas/features/shop/pages/permissions/cat_hotel_permission_page.dart';
+import 'package:petnest_saas/features/shop/pages/permissions/daycare_permission_page.dart';
 import 'package:petnest_saas/features/shop/pages/permissions/inventory_permission_page.dart';
 import 'package:petnest_saas/features/shop/pages/permissions/store_permission_page.dart';
 import 'package:petnest_saas/features/shop/widgets/permissions/permission_member_list_card.dart';
@@ -382,9 +383,7 @@ class _ShopPermissionSettingsPageState
     return Scaffold(
       appBar: AppBar(
         title: const Text('權限設定'),
-        actions: <Widget>[
-          ShopTaskCenterButton(shopId: widget.shopId),
-        ],
+        actions: <Widget>[ShopTaskCenterButton(shopId: widget.shopId)],
       ),
       body: ListView(
         padding: const EdgeInsets.all(16),
@@ -415,6 +414,28 @@ class _ShopPermissionSettingsPageState
                     permissions: _permissions,
                     isOwner: _isOwner,
                     onChanged: (key, value) {
+                      setState(() {
+                        _permissions[key] = value;
+                      });
+                    },
+                  ),
+                ),
+              );
+            },
+          ),
+          const SizedBox(height: 12),
+          PermissionCategoryTile(
+            title: '臨托權限',
+            subtitle: '臨托訂單、設定、方案、轉住宿與改價',
+            icon: Icons.wb_sunny_outlined,
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute<void>(
+                  builder: (_) => DaycarePermissionPage(
+                    permissions: _permissions,
+                    isOwner: _isOwner,
+                    onChanged: (String key, bool value) {
                       setState(() {
                         _permissions[key] = value;
                       });

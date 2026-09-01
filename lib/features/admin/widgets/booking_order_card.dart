@@ -9,6 +9,8 @@
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:petnest_saas/core/models/booking_kind.dart';
+import 'package:petnest_saas/core/services/daycare_time_helper.dart';
 
 class BookingOrderCard extends StatefulWidget {
   const BookingOrderCard({
@@ -51,6 +53,7 @@ class _BookingOrderCardState extends State<BookingOrderCard> {
     final customerPhone = (data['customerPhone'] ?? '-').toString();
 
     final nights = data['nights'] ?? _calcNights(start, end);
+    final bool daycare = BookingKind.isDaycare(data);
 
     final pets = (data['pets'] as List?) ?? [];
     final petNames = pets
@@ -141,6 +144,26 @@ class _BookingOrderCardState extends State<BookingOrderCard> {
                                   ),
                                 ),
                                 const SizedBox(width: 6),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 6,
+                                    vertical: 2,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color:
+                                        (data['bookingKind'] ?? '') == 'daycare'
+                                        ? Colors.orange.shade50
+                                        : Colors.blue.shade50,
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: Text(
+                                    (data['bookingKind'] ?? '') == 'daycare'
+                                        ? '臨托'
+                                        : '住宿',
+                                    style: const TextStyle(fontSize: 11),
+                                  ),
+                                ),
+                                const SizedBox(width: 6),
                                 _statusChip(statusInfo),
                               ],
                             ),
@@ -151,7 +174,9 @@ class _BookingOrderCardState extends State<BookingOrderCard> {
                               children: [
                                 Expanded(
                                   child: Text(
-                                    '${_formatDate(start)} → ${_formatDate(end)}',
+                                    daycare
+                                        ? '${_formatDate(start)}  ${DaycareTimeHelper.formatHm(start)} → ${DaycareTimeHelper.formatHm(end)}'
+                                        : '${_formatDate(start)} → ${_formatDate(end)}',
                                     style: TextStyle(
                                       color: Colors.grey.shade700,
                                       fontSize: 13,
@@ -169,7 +194,7 @@ class _BookingOrderCardState extends State<BookingOrderCard> {
                                     borderRadius: BorderRadius.circular(12),
                                   ),
                                   child: Text(
-                                    '$nights 晚',
+                                    daycare ? '臨托' : '$nights 晚',
                                     style: const TextStyle(
                                       fontSize: 12,
                                       fontWeight: FontWeight.bold,
@@ -766,13 +791,14 @@ class _BookingOrderCardState extends State<BookingOrderCard> {
   }
 
   _StatusInfo _statusInfo(String status) {
+    final bool daycare = BookingKind.isDaycare(widget.data);
     switch (status) {
       case 'confirmed':
         return _StatusInfo('已確認', Colors.blue);
       case 'checked_in':
         return _StatusInfo('入住中', Colors.green);
       case 'completed':
-        return _StatusInfo('已完成', Colors.grey);
+        return _StatusInfo(daycare ? '已完成臨托' : '已完成', Colors.grey);
       case 'cancelled':
         return _StatusInfo('已取消', Colors.red);
       case 'unpaid':

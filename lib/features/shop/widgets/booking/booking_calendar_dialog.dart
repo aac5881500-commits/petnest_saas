@@ -19,6 +19,7 @@ class BookingCalendarDialog extends StatelessWidget {
     required this.onDayTap,
     required this.onCancel,
     required this.onConfirm,
+    this.singleDay = false,
   });
 
   final FrontCalendarPayload payload;
@@ -37,6 +38,9 @@ class BookingCalendarDialog extends StatelessWidget {
 
   final VoidCallback onCancel;
   final VoidCallback onConfirm;
+
+  /// 臨托只選單日，仍共用同一個月曆視覺。
+  final bool singleDay;
 
   @override
   Widget build(BuildContext context) {
@@ -65,6 +69,7 @@ class BookingCalendarDialog extends StatelessWidget {
                   blockedDateReasons: payload.blockedDateReasons,
 
                   unbookableDateKeys: payload.unbookableDateKeys,
+                  specialOpenDateKeys: payload.specialOpenDateKeys,
 
                   remainingRoomsMap: payload.remainingRoomsMap,
 

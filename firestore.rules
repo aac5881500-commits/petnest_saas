@@ -1955,7 +1955,35 @@ allow update: if
       // 📜 店家條款
       match /policies/{policyId} {
         allow read: if true;
+        allow create, update: if isShopMember(shopId) || isRootAdmin();
+        allow delete: if false;
+      }
+
+      match /daycare_settings/{docId} {
+        allow read: if true;
+        allow create, update: if isShopMember(shopId) || isRootAdmin();
+        allow delete: if false;
+      }
+
+      match /daycare_date_overrides/{dateId} {
+        allow read: if true;
         allow create, update, delete: if isShopMember(shopId) || isRootAdmin();
+      }
+
+      match /daycare_policy_versions/{versionId} {
+        allow read: if isShopMember(shopId) || isRootAdmin();
+        allow create, update: if isShopMember(shopId) || isRootAdmin();
+        allow delete: if false;
+      }
+
+      match /daycare_ops/{opId} {
+        allow read: if isShopMember(shopId) || isRootAdmin();
+        allow create, update, delete: if false;
+      }
+
+      match /room_occupancies/{occId} {
+        allow read: if isShopMember(shopId) || isRootAdmin() || signedIn();
+        allow create, update, delete: if false;
       }
       // 📢 店家公告
 match /announcements/{announcementId} {

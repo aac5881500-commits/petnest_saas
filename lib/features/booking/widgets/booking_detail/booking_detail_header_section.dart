@@ -4,6 +4,7 @@
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:petnest_saas/core/models/booking_kind.dart';
 
 class BookingDetailHeaderSection extends StatelessWidget {
   const BookingDetailHeaderSection({
@@ -57,7 +58,19 @@ class BookingDetailHeaderSection extends StatelessWidget {
             ),
             const SizedBox(height: 10),
           ],
-          // 第一排：房號 + 房型 + 晚數
+          // 第一排：房號 + 房型 + 晚數／臨托
+          if ((data['bookingKind'] ?? '').toString() == 'daycare' ||
+              (data['serviceType'] ?? '').toString() == 'daycare')
+            const Padding(
+              padding: EdgeInsets.only(bottom: 8),
+              child: Text(
+                '臨托',
+                style: TextStyle(
+                  color: Colors.orangeAccent,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -67,7 +80,11 @@ class BookingDetailHeaderSection extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    data['assignStatus'] == 'unassigned'
+                    BookingKind.isDaycare(data) &&
+                            (data['assignStatus'] ?? '') != 'assigned' &&
+                            (data['roomId'] ?? '').toString().isEmpty
+                        ? '房間將由店家安排'
+                        : data['assignStatus'] == 'unassigned'
                         ? '待分房'
                         : (data['roomName'] ?? '---'),
                     style: const TextStyle(
@@ -81,7 +98,15 @@ class BookingDetailHeaderSection extends StatelessWidget {
                   const SizedBox(height: 4),
 
                   Text(
-                    data['roomTypeName'] ?? data['roomType'] ?? '未設定房型',
+                    BookingKind.isDaycare(data) &&
+                            (data['assignStatus'] ?? '') != 'assigned' &&
+                            (data['roomId'] ?? '').toString().isEmpty
+                        ? '確認後由店家安排'
+                        : (data['roomTypeNameSnapshot'] ??
+                                  data['roomTypeName'] ??
+                                  data['roomType'] ??
+                                  '未設定房型')
+                              .toString(),
                     style: const TextStyle(color: Colors.white70, fontSize: 16),
                   ),
 
@@ -121,7 +146,9 @@ class BookingDetailHeaderSection extends StatelessWidget {
                   borderRadius: BorderRadius.circular(20),
                 ),
                 child: Text(
-                  '${data['nights'] ?? 0} 晚',
+                  BookingKind.isDaycare(data)
+                      ? '臨托'
+                      : '${data['nights'] ?? 0} 晚',
                   style: const TextStyle(fontWeight: FontWeight.bold),
                 ),
               ),
@@ -134,13 +161,17 @@ class BookingDetailHeaderSection extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              // 左：入住
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text('入住', style: TextStyle(color: Colors.white70)),
                   Text(
-                    start.toString().substring(0, 10),
+                    BookingKind.isDaycare(data) ? '臨托日期' : '入住',
+                    style: const TextStyle(color: Colors.white70),
+                  ),
+                  Text(
+                    BookingKind.isDaycare(data)
+                        ? '${start.toString().substring(0, 10)}  ${start.hour.toString().padLeft(2, '0')}:${start.minute.toString().padLeft(2, '0')}'
+                        : start.toString().substring(0, 10),
                     style: const TextStyle(
                       color: Colors.white,
                       fontSize: 16,
@@ -152,13 +183,17 @@ class BookingDetailHeaderSection extends StatelessWidget {
 
               const Icon(Icons.arrow_forward, color: Colors.white),
 
-              // 右：退房 + 下訂
               Column(
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
-                  const Text('退房', style: TextStyle(color: Colors.white70)),
                   Text(
-                    end.toString().substring(0, 10),
+                    BookingKind.isDaycare(data) ? '接回' : '退房',
+                    style: const TextStyle(color: Colors.white70),
+                  ),
+                  Text(
+                    BookingKind.isDaycare(data)
+                        ? '${end.hour.toString().padLeft(2, '0')}:${end.minute.toString().padLeft(2, '0')}'
+                        : end.toString().substring(0, 10),
                     style: const TextStyle(
                       color: Colors.white,
                       fontSize: 16,
@@ -211,6 +246,23 @@ class BookingDetailHeaderSection extends StatelessWidget {
               ),
             ],
           ),
+          if (BookingKind.isDaycare(data)) ...<Widget>[
+            const SizedBox(height: 12),
+            Text(
+              '方案：${data['daycarePlanSnapshot'] is Map ? (data['daycarePlanSnapshot']['name'] ?? '臨托') : '臨托'}',
+              style: const TextStyle(color: Colors.white70, fontSize: 13),
+            ),
+            if (data['actualStartAt'] != null)
+              Text(
+                '實際開始：${formatDateTime(data['actualStartAt']) ?? '-'}',
+                style: const TextStyle(color: Colors.white70, fontSize: 13),
+              ),
+            if (data['actualEndAt'] != null)
+              Text(
+                '實際完成／接回：${formatDateTime(data['actualEndAt']) ?? '-'}',
+                style: const TextStyle(color: Colors.white70, fontSize: 13),
+              ),
+          ],
         ],
       ),
     );

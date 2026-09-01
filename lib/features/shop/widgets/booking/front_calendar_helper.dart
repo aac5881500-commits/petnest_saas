@@ -12,6 +12,14 @@ class FrontCalendarHelper {
     required Map<String, dynamic> shop,
     required DateTime firstDate,
     required DateTime lastDate,
+    Set<int> extraClosedWeekdays = const <int>{},
+    String extraClosedReason = '未開放',
+    bool markFullRoomsUnbookable = true,
+    Set<String> extraClosedDateKeys = const <String>{},
+    Set<String> extraOpenDateKeys = const <String>{},
+    Set<String> extraFullDateKeys = const <String>{},
+    Set<String> specialOpenDateKeys = const <String>{},
+    Map<String, int> remainingPetsMap = const <String, int>{},
   }) async {
     if (kDebugMode) {
       print('🔥 抓資料了：$firstDate ~ $lastDate');
@@ -152,12 +160,49 @@ class FrontCalendarHelper {
       cursor = cursor.add(const Duration(days: 1));
     }
 
+    if (extraClosedWeekdays.isNotEmpty) {
+      DateTime extraCursor = DateTime(
+        firstDate.year,
+        firstDate.month,
+        firstDate.day,
+      );
+      while (!extraCursor.isAfter(last)) {
+        if (extraClosedWeekdays.contains(extraCursor.weekday)) {
+          final String key = ShopService.instance.formatDateKey(extraCursor);
+          blockedDateKeys.add(key);
+          blockedDateReasons.putIfAbsent(key, () => extraClosedReason);
+        }
+        extraCursor = extraCursor.add(const Duration(days: 1));
+      }
+    }
+
+    for (final String key in extraClosedDateKeys) {
+      blockedDateKeys.add(key);
+      blockedDateReasons.putIfAbsent(key, () => extraClosedReason);
+    }
+
+    for (final String key in extraOpenDateKeys) {
+      blockedDateKeys.remove(key);
+      blockedDateReasons.remove(key);
+    }
+
+    if (!markFullRoomsUnbookable) {
+      unbookableDateKeys.clear();
+    }
+
+    unbookableDateKeys.addAll(extraFullDateKeys);
+
+    if (remainingPetsMap.isNotEmpty) {
+      remainingRoomsMap.addAll(remainingPetsMap);
+    }
+
     return FrontCalendarPayload(
       blockedDateKeys: blockedDateKeys,
       blockedDateReasons: blockedDateReasons,
       unbookableDateKeys: unbookableDateKeys,
       priceMap: priceMap,
       remainingRoomsMap: remainingRoomsMap,
+      specialOpenDateKeys: specialOpenDateKeys,
     );
   }
 }

@@ -10,6 +10,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:petnest_saas/core/models/booking_kind.dart';
 import 'package:petnest_saas/features/shop/pages/shop_public_page.dart';
 import 'booking_detail_page.dart';
 
@@ -46,6 +47,21 @@ class _MyBookingsPageState extends State<MyBookingsPage> {
         paymentMethod == 'bankTransfer' ||
         paymentMethod == '銀行轉帳';
 
+    if (BookingKind.isDaycare(data)) {
+      switch (status) {
+        case 'completed':
+          return '臨托已完成';
+        case 'cancelled':
+          return '訂單已取消';
+        case 'checked_in':
+          return '臨托中';
+        case 'confirmed':
+          return '店家已確認';
+        default:
+          return '等待店家確認';
+      }
+    }
+
     if (status == 'completed') {
       return '已完成';
     }
@@ -74,7 +90,7 @@ class _MyBookingsPageState extends State<MyBookingsPage> {
       return '尚未轉帳';
     }
 
-    return '待店家確認';
+    return BookingKind.isDaycare(data) ? '等待店家確認' : '待店家確認';
   }
 
   String _formatDate(DateTime date) {
@@ -82,6 +98,12 @@ class _MyBookingsPageState extends State<MyBookingsPage> {
     final m = date.month.toString().padLeft(2, '0');
     final d = date.day.toString().padLeft(2, '0');
     return '$y-$m-$d';
+  }
+
+  String _formatTime(DateTime date) {
+    final h = date.hour.toString().padLeft(2, '0');
+    final m = date.minute.toString().padLeft(2, '0');
+    return '$h:$m';
   }
 
   String _formatDateTime(dynamic value) {
@@ -309,6 +331,7 @@ class _MyBookingsPageState extends State<MyBookingsPage> {
               final depositExpireText = _formatDateTime(depositExpireAt);
 
               final bool hasDeposit = depositAmount > 0;
+              final bool isDaycare = BookingKind.isDaycare(data);
               final bookingCode = (data['bookingCode'] ?? '').toString();
               final shopName = (data['shopName'] ?? '').toString();
               final createdAtText = _formatDateTime(data['createdAt']);
@@ -420,7 +443,9 @@ class _MyBookingsPageState extends State<MyBookingsPage> {
                                       ),
                                     ),
                                   Text(
-                                    roomTypeName,
+                                    isDaycare
+                                        ? '臨托　$roomTypeName'
+                                        : roomTypeName,
                                     style: const TextStyle(
                                       fontWeight: FontWeight.bold,
                                       fontSize: 15,
@@ -435,7 +460,9 @@ class _MyBookingsPageState extends State<MyBookingsPage> {
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Text(
-                                    '${_formatDate(start)} → ${_formatDate(end)}',
+                                    isDaycare
+                                        ? '${_formatDate(start)}  ${_formatTime(start)} → ${_formatTime(end)}'
+                                        : '${_formatDate(start)} → ${_formatDate(end)}',
                                     style: TextStyle(
                                       color: Colors.grey.shade700,
                                       fontSize: 13,
@@ -536,18 +563,24 @@ class _StatusChip extends StatelessWidget {
         return Colors.orange.shade100;
 
       case '待店家確認':
+      case '等待店家確認':
         return Colors.blueGrey.shade100;
 
       case '已確認':
+      case '已確認，等待入住／分房':
+      case '店家已確認':
         return Colors.blue.shade100;
 
       case '入住中':
+      case '臨托中':
         return Colors.green.shade100;
 
       case '已完成':
+      case '臨托已完成':
         return Colors.grey.shade300;
 
       case '已取消':
+      case '訂單已取消':
         return Colors.red.shade100;
 
       default:
@@ -570,18 +603,24 @@ class _StatusChip extends StatelessWidget {
         return Colors.orange.shade800;
 
       case '待店家確認':
+      case '等待店家確認':
         return Colors.blueGrey.shade800;
 
       case '已確認':
+      case '已確認，等待入住／分房':
+      case '店家已確認':
         return Colors.blue.shade800;
 
       case '入住中':
+      case '臨托中':
         return Colors.green.shade800;
 
       case '已完成':
+      case '臨托已完成':
         return Colors.grey.shade800;
 
       case '已取消':
+      case '訂單已取消':
         return Colors.red.shade800;
 
       default:

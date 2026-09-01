@@ -3,12 +3,10 @@
 // 功能：依照訂單狀態、訂金狀態、付款方式顯示目前訂單狀態
 
 import 'package:flutter/material.dart';
+import 'package:petnest_saas/core/models/booking_kind.dart';
 
 class BookingDetailStatusCard extends StatelessWidget {
-  const BookingDetailStatusCard({
-    super.key,
-    required this.data,
-  });
+  const BookingDetailStatusCard({super.key, required this.data});
 
   final Map<String, dynamic> data;
 
@@ -22,8 +20,8 @@ class BookingDetailStatusCard extends StatelessWidget {
     final int depositAmount = depositAmountRaw is int
         ? depositAmountRaw
         : depositAmountRaw is double
-            ? depositAmountRaw.round()
-            : 0;
+        ? depositAmountRaw.round()
+        : 0;
 
     final bool hasDeposit = depositAmount > 0;
     final bool isBankTransfer =
@@ -37,7 +35,34 @@ class BookingDetailStatusCard extends StatelessWidget {
     String text;
     IconData icon;
 
-    if (status == 'completed') {
+    if (BookingKind.isDaycare(data)) {
+      if (status == 'completed') {
+        bgColor = Colors.grey.shade300;
+        textColor = Colors.black87;
+        text = '臨托已完成';
+        icon = Icons.flag;
+      } else if (status == 'cancelled') {
+        bgColor = Colors.red.shade50;
+        textColor = Colors.red;
+        text = '訂單已取消';
+        icon = Icons.cancel;
+      } else if (status == 'checked_in') {
+        bgColor = Colors.blue.shade50;
+        textColor = Colors.blue;
+        text = '臨托中';
+        icon = Icons.home;
+      } else if (status == 'confirmed') {
+        bgColor = Colors.green.shade50;
+        textColor = Colors.green;
+        text = '店家已確認';
+        icon = Icons.check_circle;
+      } else {
+        bgColor = Colors.orange.shade50;
+        textColor = Colors.orange;
+        text = '等待店家確認';
+        icon = Icons.access_time;
+      }
+    } else if (status == 'completed') {
       bgColor = Colors.grey.shade300;
       textColor = Colors.black87;
       text = '已完成';
@@ -75,7 +100,7 @@ class BookingDetailStatusCard extends StatelessWidget {
     } else {
       bgColor = Colors.orange.shade50;
       textColor = Colors.orange;
-      text = '待店家確認';
+      text = BookingKind.isDaycare(data) ? '等待店家確認' : '待店家確認';
       icon = Icons.access_time;
     }
 

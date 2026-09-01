@@ -36,6 +36,12 @@ String adminBookingPaymentMethodText(dynamic value) {
       return '到店付款';
     case 'transfer':
       return '銀行轉帳';
+    case 'credit_card':
+      return '綠界信用卡';
+    case 'atm':
+      return '綠界 ATM';
+    case 'cvs_code':
+      return '綠界超商代碼';
     default:
       return '-';
   }

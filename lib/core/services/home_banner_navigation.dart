@@ -11,7 +11,7 @@ import 'package:petnest_saas/core/services/shop_service.dart';
 import 'package:petnest_saas/core/services/store_product_service.dart';
 import 'package:petnest_saas/core/services/storefront_access.dart';
 import 'package:petnest_saas/features/shop/pages/shop_about_page.dart';
-import 'package:petnest_saas/features/shop/pages/shop_booking_page.dart';
+import 'package:petnest_saas/features/shop/pages/shop_booking_entry_page.dart';
 import 'package:petnest_saas/features/shop/pages/shop_faq_page.dart';
 import 'package:petnest_saas/features/shop/pages/shop_policy_view_page.dart';
 import 'package:petnest_saas/features/shop/pages/shop_review_list_page.dart';
@@ -128,28 +128,9 @@ class HomeBannerNavigation {
       return;
     }
 
-    final bool hasAccepted = await ShopService.instance.hasAcceptedPolicy(
-      shopId: shopId,
-      userId: user.uid,
-    );
-    if (!context.mounted) {
-      return;
-    }
-    if (!hasAccepted) {
-      final bool? result = await Navigator.of(context).push<bool>(
-        MaterialPageRoute<bool>(
-          builder: (_) =>
-              ShopPolicyViewPage(shopId: shopId, theme: theme, readOnly: false),
-        ),
-      );
-      if (!context.mounted || result != true) {
-        return;
-      }
-    }
-
     await Navigator.of(context).push(
       MaterialPageRoute<void>(
-        builder: (_) => ShopBookingPage(
+        builder: (_) => ShopBookingEntryPage(
           shopId: shopId,
           theme: theme,
           useModernDrawer: useModernDrawer,

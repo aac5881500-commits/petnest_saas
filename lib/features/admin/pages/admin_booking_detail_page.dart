@@ -220,7 +220,10 @@ class AdminBookingDetailPage extends StatelessWidget {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
-                                  data['policyTitle'] ?? '入住須知',
+                                  (data['policyVersion'] == null ||
+                                          data['policyVersion'] == 0)
+                                      ? '舊訂單／尚無條款簽署紀錄'
+                                      : (data['policyTitle'] ?? '入住須知'),
                                   style: const TextStyle(
                                     fontSize: 16,
                                     fontWeight: FontWeight.w900,
@@ -257,9 +260,11 @@ class AdminBookingDetailPage extends StatelessWidget {
                             final shopId = (data['shopId'] ?? '').toString();
                             final version = data['policyVersion'];
 
-                            if (shopId.isEmpty || version == null) {
+                            if (shopId.isEmpty ||
+                                version == null ||
+                                version == 0) {
                               ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(content: Text('找不到條款版本資料')),
+                                const SnackBar(content: Text('舊訂單／尚無條款簽署紀錄')),
                               );
                               return;
                             }

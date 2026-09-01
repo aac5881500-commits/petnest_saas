@@ -17,7 +17,9 @@ import 'package:petnest_saas/core/constants/shop_roles.dart';
 import 'package:petnest_saas/core/services/shop_service.dart';
 import 'package:petnest_saas/core/services/shop_chat_service.dart';
 import 'package:petnest_saas/core/models/shop_task_item.dart';
+import 'package:petnest_saas/core/models/daycare_settings_model.dart';
 import 'package:petnest_saas/core/services/shop_task_center_service.dart';
+import 'package:petnest_saas/core/services/daycare_settings_service.dart';
 import 'package:petnest_saas/core/widgets/shop_task_center_button.dart';
 import 'package:petnest_saas/features/shop/pages/chat/shop_chat_inbox_page.dart';
 import 'package:petnest_saas/features/shop/widgets/chat/shop_chat_app_bar_button.dart';
@@ -31,6 +33,9 @@ import 'package:petnest_saas/features/shop/pages/shop_permission_settings_page.d
 import 'package:petnest_saas/features/shop/pages/shop_room_type_page.dart';
 import 'package:petnest_saas/features/shop/pages/shop_room_page.dart';
 import 'package:petnest_saas/features/admin/pages/admin_booking_list_page.dart';
+import 'package:petnest_saas/features/admin/pages/admin_daycare_board_page.dart';
+import 'package:petnest_saas/features/admin/pages/admin_daycare_list_page.dart';
+import 'package:petnest_saas/features/shop/pages/shop_daycare_settings_page.dart';
 import 'package:petnest_saas/features/admin/pages/admin_member_list_page.dart';
 import 'package:petnest_saas/features/admin/pages/admin_payment_center_page.dart';
 import 'package:petnest_saas/features/shop/pages/shop_policy_page.dart';
@@ -894,6 +899,86 @@ class _CatHotelTab extends StatelessWidget {
               );
             },
           ),
+
+        StreamBuilder<DaycareSettingsModel>(
+          stream: DaycareSettingsService.instance.stream(shopId),
+          builder:
+              (
+                BuildContext context,
+                AsyncSnapshot<DaycareSettingsModel> daycareSnap,
+              ) {
+                final bool daycareOn = DaycareSettingsService.instance
+                    .isEnabledForShop(
+                      shop: shop,
+                      settings: daycareSnap.data,
+                    );
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    if (daycareOn &&
+                        (_can(ShopPermissionKeys.viewDaycareBookings) ||
+                            _can(
+                              ShopPermissionKeys.manageDaycareBookings,
+                            ))) ...<Widget>[
+                      const _MenuSectionTitle('臨托'),
+                      _MenuTile(
+                        title: '今日臨托',
+                        subtitle: isProfileComplete
+                            ? '當天待確認、送達、臨托中與接回'
+                            : '請先完成基本資料',
+                        icon: Icons.today,
+                        enabled: isProfileComplete,
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute<void>(
+                              builder: (_) =>
+                                  AdminDaycareBoardPage(shopId: shopId),
+                            ),
+                          );
+                        },
+                      ),
+                      _MenuTile(
+                        title: '臨托訂單',
+                        subtitle: isProfileComplete
+                            ? '查詢與管理臨托預約'
+                            : '請先完成基本資料',
+                        icon: Icons.wb_sunny_outlined,
+                        enabled: isProfileComplete,
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute<void>(
+                              builder: (_) =>
+                                  AdminDaycareListPage(shopId: shopId),
+                            ),
+                          );
+                        },
+                      ),
+                    ],
+                    if (daycareOn &&
+                        _can(ShopPermissionKeys.manageDaycareSettings))
+                      _MenuTile(
+                        title: '臨托設定',
+                        subtitle: isProfileComplete
+                            ? '時間、方案、加購、付款與入口卡片'
+                            : '請先完成基本資料',
+                        icon: Icons.settings_suggest_outlined,
+                        enabled: isProfileComplete,
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute<void>(
+                              builder: (_) =>
+                                  ShopDaycareSettingsPage(shopId: shopId),
+                            ),
+                          );
+                        },
+                      ),
+                  ],
+                );
+              },
+        ),
 
         if (_can(ShopPermissionKeys.manageRoomDashboard))
           _RoomDashboardTile(

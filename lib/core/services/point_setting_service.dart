@@ -140,6 +140,17 @@ class PointSettingService {
     required bool allowPointsExchange,
     required String pointName,
     required String description,
+    bool daycareEarnEnabled = false,
+    bool daycareSpendEnabled = false,
+    String daycareCalculationType =
+        PointSettingModel.daycareCalculationTypeAmount,
+    int daycareAmountPerPoint = 100,
+    int daycarePointsPerOrder = 0,
+    int daycareMinimumOrderAmount = 0,
+    int daycareMaximumPointsPerBooking = 0,
+    bool daycareIncludeAddons = true,
+    bool daycareIncludeSurcharge = true,
+    bool daycareIncludeOvertime = true,
   }) async {
     final String normalizedShopId = shopId.trim();
     final String normalizedPointName = pointName.trim();
@@ -193,6 +204,16 @@ class PointSettingService {
           updatedBy: currentUid,
           createdAt: now,
           updatedAt: now,
+          daycareEarnEnabled: daycareEarnEnabled,
+          daycareSpendEnabled: daycareSpendEnabled,
+          daycareCalculationType: daycareCalculationType,
+          daycareAmountPerPoint: daycareAmountPerPoint,
+          daycarePointsPerOrder: daycarePointsPerOrder,
+          daycareMinimumOrderAmount: daycareMinimumOrderAmount,
+          daycareMaximumPointsPerBooking: daycareMaximumPointsPerBooking,
+          daycareIncludeAddons: daycareIncludeAddons,
+          daycareIncludeSurcharge: daycareIncludeSurcharge,
+          daycareIncludeOvertime: daycareIncludeOvertime,
         );
 
         transaction.set(reference, newSetting.toMap());
@@ -216,6 +237,16 @@ class PointSettingService {
         'allowPointsExchange': allowPointsExchange,
         'pointName': normalizedPointName,
         'description': normalizedDescription,
+        'daycareEarnEnabled': daycareEarnEnabled,
+        'daycareSpendEnabled': daycareSpendEnabled,
+        'daycareCalculationType': daycareCalculationType,
+        'daycareAmountPerPoint': daycareAmountPerPoint,
+        'daycarePointsPerOrder': daycarePointsPerOrder,
+        'daycareMinimumOrderAmount': daycareMinimumOrderAmount,
+        'daycareMaximumPointsPerBooking': daycareMaximumPointsPerBooking,
+        'daycareIncludeAddons': daycareIncludeAddons,
+        'daycareIncludeSurcharge': daycareIncludeSurcharge,
+        'daycareIncludeOvertime': daycareIncludeOvertime,
         'updatedBy': currentUid,
         'updatedAt': FieldValue.serverTimestamp(),
       });

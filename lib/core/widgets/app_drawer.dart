@@ -6,7 +6,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/services/shop_service.dart';
 import 'package:petnest_saas/core/services/storefront_access.dart';
-import 'package:petnest_saas/features/shop/pages/shop_booking_page.dart';
+import 'package:petnest_saas/features/shop/pages/shop_booking_entry_page.dart';
 import 'package:petnest_saas/features/shop/pages/shop_dashboard_page.dart';
 import 'package:petnest_saas/features/shop/pages/shop_policy_view_page.dart';
 import 'package:petnest_saas/features/shop/pages/shop_public_page.dart';
@@ -152,34 +152,36 @@ class AppDrawer extends StatelessWidget {
                           .collection('shops')
                           .doc(shopId)
                           .snapshots(),
-                      builder: (
-                        BuildContext context,
-                        AsyncSnapshot<DocumentSnapshot> snapshot,
-                      ) {
-                        final Map<String, dynamic>? shop =
-                            snapshot.data?.data() as Map<String, dynamic>?;
-                        if (!ShopChatService.isEnabled(shop)) {
-                          return const SizedBox.shrink();
-                        }
-                        return _menuItem(
-                          icon: Icons.chat_bubble_outline,
-                          title: '店家訊息',
-                          onTap: () {
-                            Navigator.pop(context);
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute<void>(
-                                builder: (_) => ShopCustomerChatPage(
-                                  shopId: shopId,
-                                  shopName: (shop?['name'] ?? '').toString(),
-                                  shopLogoUrl:
-                                      (shop?['logoUrl'] ?? '').toString(),
-                                ),
-                              ),
+                      builder:
+                          (
+                            BuildContext context,
+                            AsyncSnapshot<DocumentSnapshot> snapshot,
+                          ) {
+                            final Map<String, dynamic>? shop =
+                                snapshot.data?.data() as Map<String, dynamic>?;
+                            if (!ShopChatService.isEnabled(shop)) {
+                              return const SizedBox.shrink();
+                            }
+                            return _menuItem(
+                              icon: Icons.chat_bubble_outline,
+                              title: '店家訊息',
+                              onTap: () {
+                                Navigator.pop(context);
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute<void>(
+                                    builder: (_) => ShopCustomerChatPage(
+                                      shopId: shopId,
+                                      shopName: (shop?['name'] ?? '')
+                                          .toString(),
+                                      shopLogoUrl: (shop?['logoUrl'] ?? '')
+                                          .toString(),
+                                    ),
+                                  ),
+                                );
+                              },
                             );
                           },
-                        );
-                      },
                     ),
 
                   _menuItem(
@@ -1217,28 +1219,10 @@ class AppDrawer extends StatelessWidget {
       return;
     }
 
-    final hasAccepted = await ShopService.instance.hasAcceptedPolicy(
-      shopId: shopId,
-      userId: user.uid,
-    );
-
-    if (!hasAccepted) {
-      final result = await Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (_) => ShopPolicyViewPage(shopId: shopId, theme: theme),
-        ),
-      );
-
-      if (result != true) return;
-    }
-
-    if (!context.mounted) return;
-
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => ShopBookingPage(shopId: shopId, theme: theme),
+        builder: (_) => ShopBookingEntryPage(shopId: shopId, theme: theme),
       ),
     );
   }

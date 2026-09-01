@@ -5,6 +5,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:petnest_saas/core/models/booking_kind.dart';
 import 'package:petnest_saas/features/admin/widgets/admin_booking_date_helpers.dart';
 
 class AdminBookingHeaderCard extends StatelessWidget {
@@ -19,10 +20,9 @@ class AdminBookingHeaderCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final displayBookingCode =
-        (data['bookingCode'] ?? '').toString().isNotEmpty
-            ? data['bookingCode'].toString()
-            : bookingId.substring(0, 8);
+    final displayBookingCode = (data['bookingCode'] ?? '').toString().isNotEmpty
+        ? data['bookingCode'].toString()
+        : bookingId.substring(0, 8);
 
     final start = (data['startDate'] as Timestamp).toDate();
     final end = (data['endDate'] as Timestamp).toDate();
@@ -42,10 +42,7 @@ class AdminBookingHeaderCard extends StatelessWidget {
             children: [
               const Text(
                 '訂單編號：',
-                style: TextStyle(
-                  color: Colors.white70,
-                  fontSize: 12,
-                ),
+                style: TextStyle(color: Colors.white70, fontSize: 12),
               ),
               Expanded(
                 child: Text(
@@ -66,11 +63,9 @@ class AdminBookingHeaderCard extends StatelessWidget {
                   );
 
                   if (context.mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('已複製訂單編號'),
-                      ),
-                    );
+                    ScaffoldMessenger.of(
+                      context,
+                    ).showSnackBar(const SnackBar(content: Text('已複製訂單編號')));
                   }
                 },
                 child: const Padding(
@@ -94,9 +89,13 @@ class AdminBookingHeaderCard extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    data['assignStatus'] == 'unassigned'
+                    BookingKind.isDaycare(data) &&
+                            (data['assignStatus'] ?? '') != 'assigned' &&
+                            (data['roomId'] ?? '').toString().isEmpty
                         ? '待分房'
-                        : (data['roomName'] ?? '-'),
+                        : data['assignStatus'] == 'unassigned'
+                        ? '待分房'
+                        : (data['roomName'] ?? data['roomNumberSnapshot'] ?? '-'),
                     style: const TextStyle(
                       color: Colors.white,
                       fontSize: 28,
@@ -104,12 +103,17 @@ class AdminBookingHeaderCard extends StatelessWidget {
                     ),
                   ),
                   Text(
-                    data['assignStatus'] == 'unassigned'
+                    BookingKind.isDaycare(data) &&
+                            (data['assignStatus'] ?? '') != 'assigned' &&
+                            (data['roomId'] ?? '').toString().isEmpty
+                        ? '確認後再選房型與房間'
+                        : data['assignStatus'] == 'unassigned'
                         ? '${data['roomTypeName'] ?? ''}｜尚未選房間'
-                        : (data['roomTypeName'] ?? ''),
-                    style: const TextStyle(
-                      color: Colors.white70,
-                    ),
+                        : (data['roomTypeNameSnapshot'] ??
+                                  data['roomTypeName'] ??
+                                  '')
+                              .toString(),
+                    style: const TextStyle(color: Colors.white70),
                   ),
                 ],
               ),
@@ -124,10 +128,8 @@ class AdminBookingHeaderCard extends StatelessWidget {
                   borderRadius: BorderRadius.circular(20),
                 ),
                 child: Text(
-                  '${data['nights'] ?? 0} 晚',
-                  style: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                  ),
+                  '${BookingKind.isDaycare(data) ? '臨托' : '${data['nights'] ?? 0} 晚'}',
+                  style: const TextStyle(fontWeight: FontWeight.bold),
                 ),
               ),
             ],
@@ -141,12 +143,16 @@ class AdminBookingHeaderCard extends StatelessWidget {
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
-                    '入住',
-                    style: TextStyle(color: Colors.white70),
+                  Text(
+                    BookingKind.isDaycare(data) ? '送達' : '入住',
+                    style: const TextStyle(color: Colors.white70),
                   ),
                   Text(
-                    adminBookingFormatDate(start),
+                    BookingKind.isDaycare(data)
+                        ? adminBookingFormatDateTime(
+                            data['scheduledStartAt'] ?? data['startDate'],
+                          )
+                        : adminBookingFormatDate(start),
                     style: const TextStyle(
                       color: Colors.white,
                       fontWeight: FontWeight.bold,
@@ -160,12 +166,16 @@ class AdminBookingHeaderCard extends StatelessWidget {
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
-                    '退房',
-                    style: TextStyle(color: Colors.white70),
+                  Text(
+                    BookingKind.isDaycare(data) ? '接回' : '退房',
+                    style: const TextStyle(color: Colors.white70),
                   ),
                   Text(
-                    adminBookingFormatDate(end),
+                    BookingKind.isDaycare(data)
+                        ? adminBookingFormatDateTime(
+                            data['scheduledEndAt'] ?? data['endDate'],
+                          )
+                        : adminBookingFormatDate(end),
                     style: const TextStyle(
                       color: Colors.white,
                       fontWeight: FontWeight.bold,
@@ -177,16 +187,10 @@ class AdminBookingHeaderCard extends StatelessWidget {
               Column(
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
-                  const Text(
-                    '下訂',
-                    style: TextStyle(color: Colors.white70),
-                  ),
+                  const Text('下訂', style: TextStyle(color: Colors.white70)),
                   Text(
                     adminBookingFormatDateTime(data['createdAt']),
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 12,
-                    ),
+                    style: const TextStyle(color: Colors.white, fontSize: 12),
                   ),
                 ],
               ),

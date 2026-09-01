@@ -121,15 +121,11 @@ class DailyCareJournalTheme {
   static const String cardPresetHome = 'home_soft';
   static const String cardPresetGeo = 'geo_soft';
 
-  static const String cardAssetFolder =
-      'assets/daily_care/card_backgrounds';
+  static const String cardAssetFolder = 'assets/daily_care/card_backgrounds';
 
   static const List<DailyCareCardBackgroundPreset> cardPresets =
       <DailyCareCardBackgroundPreset>[
-        DailyCareCardBackgroundPreset(
-          key: cardPresetNone,
-          label: '無圖 / 純白',
-        ),
+        DailyCareCardBackgroundPreset(key: cardPresetNone, label: '無圖 / 純白'),
         DailyCareCardBackgroundPreset(
           key: cardPresetPaw,
           label: '淡腳印',
@@ -210,6 +206,7 @@ class DailyCareSettingModel {
     ],
     this.customFields = const <DailyCareCustomField>[],
     this.photoEnabled = true,
+    this.daycareEnabled = false,
     this.downloadHoursAfterCheckout = 24,
     this.backgroundType = DailyCareJournalTheme.typeSystem,
     this.backgroundColorKey = DailyCareJournalTheme.colorDefault,
@@ -290,6 +287,9 @@ class DailyCareSettingModel {
   /// 是否啟用照護照片
   final bool photoEnabled;
 
+  /// 是否對臨托訂單啟用照護紀錄
+  final bool daycareEnabled;
+
   /// 退房後可下載紀錄與照片的時間
   final int downloadHoursAfterCheckout;
 
@@ -320,9 +320,7 @@ class DailyCareSettingModel {
       ),
       cardBackgroundImageUrl: _readString(map['cardBackgroundImageUrl']),
       cardBackgroundImagePath: _readString(map['cardBackgroundImagePath']),
-      cardBackgroundImageFit: _readBackgroundFit(
-        map['cardBackgroundImageFit'],
-      ),
+      cardBackgroundImageFit: _readBackgroundFit(map['cardBackgroundImageFit']),
       cardBackgroundImageFade: _readBackgroundFade(
         map['cardBackgroundImageFade'],
       ),
@@ -353,6 +351,7 @@ class DailyCareSettingModel {
       photoEnabled: map['photoEnabled'] is bool
           ? map['photoEnabled'] as bool
           : true,
+      daycareEnabled: map['daycareEnabled'] == true,
 
       downloadHoursAfterCheckout: _readDownloadHours(
         map['downloadHoursAfterCheckout'],
@@ -383,6 +382,7 @@ class DailyCareSettingModel {
           .map((DailyCareCustomField field) => field.toMap())
           .toList(),
       'photoEnabled': photoEnabled,
+      'daycareEnabled': daycareEnabled,
       'downloadHoursAfterCheckout': downloadHoursAfterCheckout,
     };
   }
@@ -395,6 +395,7 @@ class DailyCareSettingModel {
     List<String>? enabledFields,
     List<DailyCareCustomField>? customFields,
     bool? photoEnabled,
+    bool? daycareEnabled,
     int? downloadHoursAfterCheckout,
     String? backgroundType,
     String? backgroundColorKey,
@@ -416,6 +417,7 @@ class DailyCareSettingModel {
       enabledFields: enabledFields ?? this.enabledFields,
       customFields: customFields ?? this.customFields,
       photoEnabled: photoEnabled ?? this.photoEnabled,
+      daycareEnabled: daycareEnabled ?? this.daycareEnabled,
       downloadHoursAfterCheckout:
           downloadHoursAfterCheckout ?? this.downloadHoursAfterCheckout,
       backgroundType: backgroundType ?? this.backgroundType,
@@ -553,9 +555,9 @@ class DailyCareSettingModel {
 
   /// 頁面圖淡化用暖米色，避免洗成冷灰。
   Color resolvedPageOverlayColor() {
-    return const Color(0xFFFFF9F1).withValues(
-      alpha: resolvedImageOverlayOpacity(),
-    );
+    return const Color(
+      0xFFFFF9F1,
+    ).withValues(alpha: resolvedImageOverlayOpacity());
   }
 
   /// 缺少自訂名稱時的中性 fallback，不綁早中晚。
@@ -601,9 +603,7 @@ class DailyCareSettingModel {
   static List<String> _readSessionLabels(Object? value, int sessionCount) {
     final List<String> defaults = defaultSessionLabels(sessionCount);
     final List<String> raw = value is List
-        ? value
-              .map((dynamic item) => item?.toString().trim() ?? '')
-              .toList()
+        ? value.map((dynamic item) => item?.toString().trim() ?? '').toList()
         : const <String>[];
 
     return List<String>.generate(sessionCount, (int index) {

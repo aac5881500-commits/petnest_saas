@@ -18,8 +18,7 @@ class ShopModuleSettingsPage extends StatefulWidget {
   final String? currentUserRole;
 
   @override
-  State<ShopModuleSettingsPage> createState() =>
-      _ShopModuleSettingsPageState();
+  State<ShopModuleSettingsPage> createState() => _ShopModuleSettingsPageState();
 }
 
 class _ShopModuleSettingsPageState extends State<ShopModuleSettingsPage> {
@@ -27,8 +26,7 @@ class _ShopModuleSettingsPageState extends State<ShopModuleSettingsPage> {
   List<String> _selectedModules = [];
   String _plan = 'free';
 
-bool get _canEdit =>
-    widget.currentUserRole == ShopRoles.owner;
+  bool get _canEdit => widget.currentUserRole == ShopRoles.owner;
   @override
   void initState() {
     super.initState();
@@ -40,14 +38,15 @@ bool get _canEdit =>
 
     if (shop == null) return;
 
-    final modules =
-        ShopService.instance.normalizeEnabledModules(shop['enabledModules']);
+    final modules = ShopService.instance.normalizeEnabledModules(
+      shop['enabledModules'],
+    );
 
     if (!mounted) return;
     setState(() {
-  _selectedModules = modules;
-  _plan = shop['plan']?.toString() ?? 'free';
-});
+      _selectedModules = modules;
+      _plan = shop['plan']?.toString() ?? 'free';
+    });
   }
 
   String _label(String module) {
@@ -64,6 +63,8 @@ bool get _canEdit =>
         return '動物醫院';
       case ShopModules.store:
         return '賣場功能';
+      case ShopModules.daycare:
+        return '寵物臨托';
       case ShopModules.reports:
         return '表格統計';
       default:
@@ -85,6 +86,8 @@ bool get _canEdit =>
         return '先保留模板，未來可接門診與醫師排班';
       case ShopModules.store:
         return '先保留模板，未來可接商品與訂單';
+      case ShopModules.daycare:
+        return '日間臨托預約、方案、房型占用與轉住宿';
       case ShopModules.reports:
         return '統計與報表入口，部分內容可再鎖 owner';
       default:
@@ -95,86 +98,82 @@ bool get _canEdit =>
   bool _isLockedAlwaysOn(String module) {
     return module == ShopModules.basicInfo || module == ShopModules.reports;
   }
+
   bool _isMainModule(String module) {
-  return module != ShopModules.basicInfo &&
-      module != ShopModules.reports;
-}
-bool get _basicPlanTemplateLocked {
-  if (_plan != 'basic') return false;
-
-  final mainModules = _selectedModules.where(_isMainModule).toList();
-
-  return mainModules.isNotEmpty;
-}
-
-String get _basicLockedModule {
-  final mainModules = _selectedModules.where(_isMainModule).toList();
-
-  if (mainModules.isEmpty) return '';
-
-  return mainModules.first;
-}
-
-bool _isModuleBlockedByPlan(String module) {
-  if (_plan == 'basic' && module == ShopModules.store) {
-    return true;
+    return module != ShopModules.basicInfo &&
+        module != ShopModules.reports &&
+        module != ShopModules.daycare &&
+        module != ShopModules.inventory;
   }
 
-  return false;
-}
+  bool get _basicPlanTemplateLocked {
+    if (_plan != 'basic') return false;
 
-void _toggleModule(String module, bool value) {
-  if (_isLockedAlwaysOn(module)) return;
+    final mainModules = _selectedModules.where(_isMainModule).toList();
 
-  final isMainModule = _isMainModule(module);
-
-  if (value && _isModuleBlockedByPlan(module)) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          _plan == 'basic'
-              ? '999 方案目前不開放賣場功能'
-              : '免費版無法開啟主要模板',
-        ),
-      ),
-    );
-    return;
+    return mainModules.isNotEmpty;
   }
 
-  if (_plan == 'basic' && isMainModule) {
-    if (_basicPlanTemplateLocked && module != _basicLockedModule) {
+  String get _basicLockedModule {
+    final mainModules = _selectedModules.where(_isMainModule).toList();
+
+    if (mainModules.isEmpty) return '';
+
+    return mainModules.first;
+  }
+
+  bool _isModuleBlockedByPlan(String module) {
+    if (_plan == 'basic' && module == ShopModules.store) {
+      return true;
+    }
+
+    return false;
+  }
+
+  void _toggleModule(String module, bool value) {
+    if (_isLockedAlwaysOn(module)) return;
+
+    final isMainModule = _isMainModule(module);
+
+    if (value && _isModuleBlockedByPlan(module)) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(
-            '999 方案已選定「${_label(_basicLockedModule)}」，如需更換請聯絡平台',
-          ),
+          content: Text(_plan == 'basic' ? '999 方案目前不開放賣場功能' : '免費版無法開啟主要模板'),
         ),
       );
       return;
     }
 
-    if (!value && _basicPlanTemplateLocked && module == _basicLockedModule) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            '999 方案已選定「${_label(_basicLockedModule)}」，不能自行關閉',
+    if (_plan == 'basic' && isMainModule) {
+      if (_basicPlanTemplateLocked && module != _basicLockedModule) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('999 方案已選定「${_label(_basicLockedModule)}」，如需更換請聯絡平台'),
           ),
-        ),
-      );
-      return;
-    }
-  }
-
-  setState(() {
-    if (value) {
-      if (!_selectedModules.contains(module)) {
-        _selectedModules.add(module);
+        );
+        return;
       }
-    } else {
-      _selectedModules.remove(module);
+
+      if (!value && _basicPlanTemplateLocked && module == _basicLockedModule) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('999 方案已選定「${_label(_basicLockedModule)}」，不能自行關閉'),
+          ),
+        );
+        return;
+      }
     }
-  });
-}
+
+    setState(() {
+      if (value) {
+        if (!_selectedModules.contains(module)) {
+          _selectedModules.add(module);
+        }
+      } else {
+        _selectedModules.remove(module);
+      }
+    });
+  }
 
   Future<void> _save() async {
     if (!_canEdit) return;
@@ -184,25 +183,23 @@ void _toggleModule(String module, bool value) {
     });
 
     try {
- final finalModules = <String>[
-  ..._selectedModules,
-];
+      final finalModules = <String>[..._selectedModules];
 
-if (_plan == 'free') {
-  finalModules.removeWhere(_isMainModule);
-}
+      if (_plan == 'free') {
+        finalModules.removeWhere(_isMainModule);
+      }
 
-if (_plan == 'basic') {
-  final mainModules = finalModules.where(_isMainModule).toList();
+      if (_plan == 'basic') {
+        final mainModules = finalModules.where(_isMainModule).toList();
 
-  finalModules.removeWhere(_isMainModule);
+        finalModules.removeWhere(_isMainModule);
 
-  if (mainModules.isNotEmpty) {
-    finalModules.add(mainModules.first);
-  }
+        if (mainModules.isNotEmpty) {
+          finalModules.add(mainModules.first);
+        }
 
-  finalModules.removeWhere((module) => module == ShopModules.store);
-}
+        finalModules.removeWhere((module) => module == ShopModules.store);
+      }
       if (!finalModules.contains(ShopModules.basicInfo)) {
         finalModules.add(ShopModules.basicInfo);
       }
@@ -216,15 +213,15 @@ if (_plan == 'basic') {
       );
 
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('模組設定已儲存')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('模組設定已儲存')));
       Navigator.pop(context);
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('儲存失敗：$e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('儲存失敗：$e')));
     } finally {
       if (!mounted) return;
       setState(() {
@@ -235,13 +232,13 @@ if (_plan == 'basic') {
 
   @override
   Widget build(BuildContext context) {
-    final visibleModules = ShopModules.all;
+    final visibleModules = ShopModules.all
+        .where((String module) => module != ShopModules.daycare)
+        .toList();
 
     return Scaffold(
       appBar: AppBar(
-        actions: <Widget>[
-          ShopTaskCenterButton(shopId: widget.shopId),
-        ],
+        actions: <Widget>[ShopTaskCenterButton(shopId: widget.shopId)],
         title: const Text('模組設定'),
       ),
       body: ListView(

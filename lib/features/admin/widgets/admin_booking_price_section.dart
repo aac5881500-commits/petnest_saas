@@ -3,6 +3,7 @@
 // 功能：顯示房費、寵物加價、加值服務、總價、訂金、付款方式、轉帳後五碼與轉帳截圖
 
 import 'package:flutter/material.dart';
+import 'package:petnest_saas/core/models/booking_kind.dart';
 import 'package:petnest_saas/features/admin/widgets/admin_booking_date_helpers.dart';
 import 'package:petnest_saas/features/admin/widgets/admin_booking_text_helpers.dart';
 
@@ -90,39 +91,77 @@ class AdminBookingPriceSection extends StatelessWidget {
           ),
           child: Column(
             children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text('房費'),
-                  Text(
-                    'NT\$ $basePrice × $nights 晚',
-                    style: const TextStyle(color: Colors.grey),
+              if (BookingKind.isDaycare(data)) ...<Widget>[
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: <Widget>[
+                    const Text('臨托方案'),
+                    Text(
+                      (data['daycarePlanSnapshot'] is Map
+                              ? (data['daycarePlanSnapshot']['name'] ?? '臨托')
+                              : '臨托')
+                          .toString(),
+                      style: const TextStyle(color: Colors.grey),
+                    ),
+                    Text(
+                      'NT\$ ${(data['daycarePricingSnapshot'] is Map ? (data['daycarePricingSnapshot']['baseAmount'] ?? data['totalPrice'] ?? 0) : (data['totalPrice'] ?? 0))}',
+                      style: const TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                if (data['daycarePricingSnapshot'] is Map &&
+                    ((data['daycarePricingSnapshot']['extraPetAmount'] ?? 0)
+                            as num) >
+                        0) ...<Widget>[
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: <Widget>[
+                      const Text('多寵物加價'),
+                      const Text(''),
+                      Text(
+                        'NT\$ ${data['daycarePricingSnapshot']['extraPetAmount']}',
+                        style: const TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                    ],
                   ),
-                  Text(
-                    'NT\$ $roomPriceTotal',
-                    style: const TextStyle(fontWeight: FontWeight.bold),
-                  ),
+                  const SizedBox(height: 8),
                 ],
-              ),
+              ] else ...<Widget>[
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text('房費'),
+                    Text(
+                      'NT\$ $basePrice × $nights 晚',
+                      style: const TextStyle(color: Colors.grey),
+                    ),
+                    Text(
+                      'NT\$ $roomPriceTotal',
+                      style: const TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                  ],
+                ),
 
-              const SizedBox(height: 8),
+                const SizedBox(height: 8),
 
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text('寵物加價'),
-                  Text(
-                    extraPetCount > 0
-                        ? 'NT\$ $extraPetPrice × $extraPetCount 隻 × $nights 晚'
-                        : '-',
-                    style: const TextStyle(color: Colors.grey),
-                  ),
-                  Text(
-                    'NT\$ $petPriceTotal',
-                    style: const TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                ],
-              ),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text('寵物加價'),
+                    Text(
+                      extraPetCount > 0
+                          ? 'NT\$ $extraPetPrice × $extraPetCount 隻 × $nights 晚'
+                          : '-',
+                      style: const TextStyle(color: Colors.grey),
+                    ),
+                    Text(
+                      'NT\$ $petPriceTotal',
+                      style: const TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                  ],
+                ),
+              ],
 
               const Divider(height: 24),
 

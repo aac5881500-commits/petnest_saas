@@ -32,6 +32,7 @@ class BookingCalendar extends StatefulWidget {
     this.unbookableDateKeys = const {},
     this.blockedDateReasons = const {},
     this.remainingRoomsMap = const {},
+    this.specialOpenDateKeys = const {},
     this.onMonthChanged,
   });
 
@@ -47,6 +48,7 @@ class BookingCalendar extends StatefulWidget {
 
   final Map<String, String> blockedDateReasons;
   final Map<String, int> remainingRoomsMap;
+  final Set<String> specialOpenDateKeys;
   final ValueChanged<DateTime> onDayTap;
   final ValueChanged<DateTime>? onMonthChanged;
 
@@ -181,7 +183,6 @@ class _BookingCalendarState extends State<BookingCalendar> {
         date.isAfter(_dateOnly(widget.lastDate));
 
     final dateKey = _formatDateKey(date);
-    final remaining = widget.remainingRoomsMap[dateKey];
 
     final bool isBlocked = widget.blockedDateKeys.contains(dateKey);
     final bool isUnbookable = widget.unbookableDateKeys.contains(dateKey);
@@ -206,10 +207,18 @@ class _BookingCalendarState extends State<BookingCalendar> {
     if (isOutOfRange) {
       backgroundColor = Colors.grey.shade100;
       dayTextColor = Colors.grey.shade400;
-    } else if (isBlocked || isUnbookable) {
-      backgroundColor = Colors.red.shade50;
+    } else if (isBlocked) {
+      backgroundColor = Colors.grey.shade200;
       borderColor = Colors.red.shade200;
       dayTextColor = Colors.red.shade700;
+    } else if (isUnbookable) {
+      backgroundColor = Colors.orange.shade50;
+      borderColor = Colors.orange.shade300;
+      dayTextColor = Colors.orange.shade800;
+    } else if (widget.specialOpenDateKeys.contains(dateKey)) {
+      backgroundColor = Colors.green.shade50;
+      borderColor = Colors.green.shade300;
+      dayTextColor = Colors.green.shade800;
     }
     if (isRangeStart || isRangeEnd) {
       backgroundColor = Colors.blue;
@@ -220,8 +229,6 @@ class _BookingCalendarState extends State<BookingCalendar> {
       borderColor = Colors.blue.shade300;
       dayTextColor = Colors.black;
     }
-
-    final bool canTap = !isOutOfRange;
 
     return InkWell(
       onTap: () {
@@ -278,7 +285,7 @@ class _BookingCalendarState extends State<BookingCalendar> {
                 style: TextStyle(
                   fontSize: 11,
                   fontWeight: FontWeight.bold,
-                  color: Colors.red.shade700,
+                  color: Colors.orange.shade800,
                 ),
               ),
 

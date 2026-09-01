@@ -237,6 +237,7 @@ class BookingService {
         'roomName': null,
         'assignStatus': 'unassigned',
         'serviceType': serviceType,
+        'bookingKind': 'accommodation',
 
         /// 區間日期
         'startDate': Timestamp.fromDate(normalizedStart),
@@ -466,6 +467,7 @@ class BookingService {
       'roomName': null,
       'assignStatus': 'unassigned',
       'serviceType': serviceType,
+      'bookingKind': 'accommodation',
 
       /// 區間日期
       'startDate': Timestamp.fromDate(normalizedStart),

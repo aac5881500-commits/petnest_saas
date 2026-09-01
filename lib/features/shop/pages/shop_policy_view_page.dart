@@ -4,6 +4,8 @@
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/models/home_theme_model.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:petnest_saas/core/models/policy_applicable_service.dart';
+import 'package:petnest_saas/core/services/shop_policy_service.dart';
 import 'package:petnest_saas/core/services/shop_service.dart';
 
 class ShopPolicyViewPage extends StatefulWidget {
@@ -12,11 +14,13 @@ class ShopPolicyViewPage extends StatefulWidget {
     required this.shopId,
     required this.theme,
     this.readOnly = false,
+    this.serviceType = PolicyApplicableService.accommodation,
   });
 
   final String shopId;
   final HomeThemeModel theme;
   final bool readOnly;
+  final String serviceType;
 
   @override
   State<ShopPolicyViewPage> createState() => _ShopPolicyViewPageState();
@@ -80,17 +84,19 @@ class _ShopPolicyViewPageState extends State<ShopPolicyViewPage> {
     final data = await ShopService.instance.getCheckinPolicy(widget.shopId);
 
     if (data != null) {
-      _sections = Map<String, dynamic>.from(data['sections'] ?? {});
-      _enabled = Map<String, bool>.from(data['enabled'] ?? {});
-
+      final filtered = ShopPolicyService.instance.filterPolicyForService(
+        policy: data,
+        serviceType: widget.serviceType,
+      );
+      _sections = Map<String, dynamic>.from(filtered['sections'] ?? {});
+      _enabled = Map<String, bool>.from(filtered['enabled'] ?? {});
       _customPoliciesPage1 = List<String>.from(
-        data['customPoliciesPage1'] ?? [],
+        filtered['customPoliciesPage1'] ?? [],
       );
-
       _customPoliciesPage2 = List<String>.from(
-        data['customPoliciesPage2'] ?? [],
+        filtered['customPoliciesPage2'] ?? [],
       );
-      _version = data['version'] ?? 1;
+      _version = filtered['version'] ?? 1;
     }
 
     setState(() {
@@ -118,6 +124,7 @@ class _ShopPolicyViewPageState extends State<ShopPolicyViewPage> {
     await ShopService.instance.acceptPolicy(
       shopId: widget.shopId,
       userId: user.uid,
+      serviceType: widget.serviceType,
     );
 
     if (!mounted) return;
@@ -176,7 +183,9 @@ class _ShopPolicyViewPageState extends State<ShopPolicyViewPage> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                _step == 0 ? '入住須知' : '退款與注意事項',
+                widget.serviceType == PolicyApplicableService.daycare
+                    ? (_step == 0 ? '臨托須知' : '退款與注意事項')
+                    : (_step == 0 ? '入住須知' : '退款與注意事項'),
                 style: TextStyle(
                   fontWeight: FontWeight.w800,
                   color: widget.theme.textColor,
@@ -476,7 +485,10 @@ class _ShopPolicyViewPageState extends State<ShopPolicyViewPage> {
                                   ),
                                   Expanded(
                                     child: Text(
-                                      '我已閱讀並同意以上條款',
+                                      widget.serviceType ==
+                                              PolicyApplicableService.daycare
+                                          ? '我已閱讀並同意臨托條款'
+                                          : '我已閱讀並同意以上條款',
                                       style: TextStyle(
                                         color: widget.theme.textColor,
                                       ),

@@ -46,6 +46,12 @@ class ShopMemberPermissionService {
       ShopPermissionKeys.manageStoreOrders: true,
       ShopPermissionKeys.viewReports: true,
       ShopPermissionKeys.viewActionLogs: true,
+      ShopPermissionKeys.viewDaycareBookings: true,
+      ShopPermissionKeys.manageDaycareBookings: true,
+      ShopPermissionKeys.manageDaycareSettings: true,
+      ShopPermissionKeys.manageDaycarePricing: true,
+      ShopPermissionKeys.convertDaycareToAccommodation: true,
+      ShopPermissionKeys.adjustDaycarePrice: false,
     };
   }
 
@@ -75,6 +81,12 @@ class ShopMemberPermissionService {
 
       ShopPermissionKeys.viewReports: false,
       ShopPermissionKeys.viewActionLogs: false,
+      ShopPermissionKeys.viewDaycareBookings: true,
+      ShopPermissionKeys.manageDaycareBookings: true,
+      ShopPermissionKeys.manageDaycareSettings: false,
+      ShopPermissionKeys.manageDaycarePricing: false,
+      ShopPermissionKeys.convertDaycareToAccommodation: false,
+      ShopPermissionKeys.adjustDaycarePrice: false,
     };
   }
 

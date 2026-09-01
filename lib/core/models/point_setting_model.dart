@@ -24,6 +24,16 @@ class PointSettingModel {
     this.description = '',
     this.createdBy = '',
     this.updatedBy = '',
+    this.daycareEarnEnabled = false,
+    this.daycareSpendEnabled = false,
+    this.daycareCalculationType = daycareCalculationTypeAmount,
+    this.daycareAmountPerPoint = 100,
+    this.daycarePointsPerOrder = 0,
+    this.daycareMinimumOrderAmount = 0,
+    this.daycareMaximumPointsPerBooking = 0,
+    this.daycareIncludeAddons = true,
+    this.daycareIncludeSurcharge = true,
+    this.daycareIncludeOvertime = true,
   });
 
   /// 依消費金額計算點數
@@ -31,6 +41,12 @@ class PointSettingModel {
 
   /// 依住宿晚數計算點數
   static const String calculationTypeNight = 'night';
+
+  /// 臨托：依消費金額
+  static const String daycareCalculationTypeAmount = 'amount';
+
+  /// 臨托：每張完成訂單固定點數
+  static const String daycareCalculationTypeFixed = 'fixed';
 
   /// 所屬店家 ID
   final String shopId;
@@ -91,6 +107,27 @@ class PointSettingModel {
   /// 點數制度說明
   final String description;
 
+  /// 臨托完成後是否發放點數
+  final bool daycareEarnEnabled;
+
+  /// 臨托是否允許點數折抵
+  final bool daycareSpendEnabled;
+
+  /// 臨托點數計算方式：amount / fixed
+  final String daycareCalculationType;
+
+  /// 臨托依消費金額：每消費多少元獲得多少點（與 stay amountPerPoint 相同語意為「每 N 元 1 點」）
+  final int daycareAmountPerPoint;
+
+  /// 臨托固定點數：每張完成訂單獲得多少點
+  final int daycarePointsPerOrder;
+
+  final int daycareMinimumOrderAmount;
+  final int daycareMaximumPointsPerBooking;
+  final bool daycareIncludeAddons;
+  final bool daycareIncludeSurcharge;
+  final bool daycareIncludeOvertime;
+
   /// 建立人 UID
   final String createdBy;
 
@@ -148,6 +185,34 @@ class PointSettingModel {
     return points;
   }
 
+  /// 臨托完成訂單應發點數
+  int calculateDaycarePoints({
+    required int orderAmount,
+    required bool isAppMember,
+  }) {
+    if (!enabled || !daycareEarnEnabled || !isAppMember) {
+      return 0;
+    }
+    if (daycareMinimumOrderAmount > 0 &&
+        orderAmount < daycareMinimumOrderAmount) {
+      return 0;
+    }
+    int points = 0;
+    if (daycareCalculationType == daycareCalculationTypeFixed) {
+      points = daycarePointsPerOrder > 0 ? daycarePointsPerOrder : 0;
+    } else {
+      if (orderAmount <= 0 || daycareAmountPerPoint <= 0) {
+        return 0;
+      }
+      points = orderAmount ~/ daycareAmountPerPoint;
+    }
+    if (daycareMaximumPointsPerBooking > 0 &&
+        points > daycareMaximumPointsPerBooking) {
+      points = daycareMaximumPointsPerBooking;
+    }
+    return points;
+  }
+
   Map<String, dynamic> toMap() {
     return <String, dynamic>{
       'shopId': shopId,
@@ -164,6 +229,19 @@ class PointSettingModel {
       'allowPointsExchange': allowPointsExchange,
       'pointName': pointName.trim().isEmpty ? '點' : pointName.trim(),
       'description': description.trim(),
+      'daycareEarnEnabled': daycareEarnEnabled,
+      'daycareSpendEnabled': daycareSpendEnabled,
+      'daycareCalculationType':
+          daycareCalculationType == daycareCalculationTypeFixed
+          ? daycareCalculationTypeFixed
+          : daycareCalculationTypeAmount,
+      'daycareAmountPerPoint': daycareAmountPerPoint,
+      'daycarePointsPerOrder': daycarePointsPerOrder,
+      'daycareMinimumOrderAmount': daycareMinimumOrderAmount,
+      'daycareMaximumPointsPerBooking': daycareMaximumPointsPerBooking,
+      'daycareIncludeAddons': daycareIncludeAddons,
+      'daycareIncludeSurcharge': daycareIncludeSurcharge,
+      'daycareIncludeOvertime': daycareIncludeOvertime,
       'createdBy': createdBy,
       'updatedBy': updatedBy,
       'createdAt': Timestamp.fromDate(createdAt),
@@ -200,6 +278,28 @@ class PointSettingModel {
       allowPointsExchange: data['allowPointsExchange'] != false,
       pointName: (data['pointName'] ?? '點').toString(),
       description: (data['description'] ?? '').toString(),
+      daycareEarnEnabled: data['daycareEarnEnabled'] == true,
+      daycareSpendEnabled: data['daycareSpendEnabled'] == true,
+      daycareCalculationType:
+          (data['daycareCalculationType'] ?? daycareCalculationTypeAmount)
+                  .toString() ==
+              daycareCalculationTypeFixed
+          ? daycareCalculationTypeFixed
+          : daycareCalculationTypeAmount,
+      daycareAmountPerPoint: _intFromValue(
+        data['daycareAmountPerPoint'],
+        defaultValue: _intFromValue(data['amountPerPoint'], defaultValue: 100),
+      ),
+      daycarePointsPerOrder: _intFromValue(data['daycarePointsPerOrder']),
+      daycareMinimumOrderAmount: _intFromValue(
+        data['daycareMinimumOrderAmount'],
+      ),
+      daycareMaximumPointsPerBooking: _intFromValue(
+        data['daycareMaximumPointsPerBooking'],
+      ),
+      daycareIncludeAddons: data['daycareIncludeAddons'] != false,
+      daycareIncludeSurcharge: data['daycareIncludeSurcharge'] != false,
+      daycareIncludeOvertime: data['daycareIncludeOvertime'] != false,
       createdBy: (data['createdBy'] ?? '').toString(),
       updatedBy: (data['updatedBy'] ?? '').toString(),
       createdAt: _dateTimeFromValue(data['createdAt']) ?? DateTime.now(),
@@ -226,6 +326,16 @@ class PointSettingModel {
     String? updatedBy,
     DateTime? createdAt,
     DateTime? updatedAt,
+    bool? daycareEarnEnabled,
+    bool? daycareSpendEnabled,
+    String? daycareCalculationType,
+    int? daycareAmountPerPoint,
+    int? daycarePointsPerOrder,
+    int? daycareMinimumOrderAmount,
+    int? daycareMaximumPointsPerBooking,
+    bool? daycareIncludeAddons,
+    bool? daycareIncludeSurcharge,
+    bool? daycareIncludeOvertime,
   }) {
     return PointSettingModel(
       shopId: shopId ?? this.shopId,
@@ -248,6 +358,23 @@ class PointSettingModel {
       updatedBy: updatedBy ?? this.updatedBy,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
+      daycareEarnEnabled: daycareEarnEnabled ?? this.daycareEarnEnabled,
+      daycareSpendEnabled: daycareSpendEnabled ?? this.daycareSpendEnabled,
+      daycareCalculationType:
+          daycareCalculationType ?? this.daycareCalculationType,
+      daycareAmountPerPoint:
+          daycareAmountPerPoint ?? this.daycareAmountPerPoint,
+      daycarePointsPerOrder:
+          daycarePointsPerOrder ?? this.daycarePointsPerOrder,
+      daycareMinimumOrderAmount:
+          daycareMinimumOrderAmount ?? this.daycareMinimumOrderAmount,
+      daycareMaximumPointsPerBooking:
+          daycareMaximumPointsPerBooking ?? this.daycareMaximumPointsPerBooking,
+      daycareIncludeAddons: daycareIncludeAddons ?? this.daycareIncludeAddons,
+      daycareIncludeSurcharge:
+          daycareIncludeSurcharge ?? this.daycareIncludeSurcharge,
+      daycareIncludeOvertime:
+          daycareIncludeOvertime ?? this.daycareIncludeOvertime,
     );
   }
 }

@@ -99,7 +99,17 @@ class ShopService {
           ? ShopModules.proEnabledModules()
           : {ShopModules.basicInfo, ...normalized}.toList();
     } else {
-      finalModules = ShopModules.lockedPlanModules(lockedModule);
+      finalModules = [...ShopModules.lockedPlanModules(lockedModule)];
+    }
+
+    final List<dynamic> existingModules = shop['enabledModules'] is List
+        ? shop['enabledModules'] as List<dynamic>
+        : const <dynamic>[];
+    if (existingModules
+            .map((dynamic e) => e.toString())
+            .contains(ShopModules.daycare) &&
+        !finalModules.contains(ShopModules.daycare)) {
+      finalModules.add(ShopModules.daycare);
     }
 
     await _shops.doc(shopId).update({
@@ -266,6 +276,7 @@ class ShopService {
 
       // ========= 預約設定 =========
       'bookingEnabled': true,
+      'daycareEnabled': false,
       'totalRooms': 1,
 
       // ========= 💰 訂金 / 付款設定 =========
@@ -534,6 +545,7 @@ class ShopService {
   Future<void> updateBookingSettings({
     required String shopId,
     bool? bookingEnabled,
+    bool? daycareEnabled,
     int? totalRooms,
     int? cleaningRooms,
     int? maintenanceRooms,
@@ -545,6 +557,7 @@ class ShopService {
     };
 
     if (bookingEnabled != null) data['bookingEnabled'] = bookingEnabled;
+    if (daycareEnabled != null) data['daycareEnabled'] = daycareEnabled;
     if (totalRooms != null) data['totalRooms'] = totalRooms;
     if (cleaningRooms != null) data['cleaningRooms'] = cleaningRooms;
     if (maintenanceRooms != null) {
@@ -1191,6 +1204,10 @@ class ShopService {
     required Map<String, bool> enabled,
     required List<String> customPoliciesPage1,
     required List<String> customPoliciesPage2,
+    Map<String, List<String>> sectionApplicableServices =
+        const <String, List<String>>{},
+    List<List<String>> customPolicyServicesPage1 = const <List<String>>[],
+    List<List<String>> customPolicyServicesPage2 = const <List<String>>[],
   }) async {
     return ShopPolicyService.instance.updateCheckinPolicy(
       shopId: shopId,
@@ -1198,26 +1215,33 @@ class ShopService {
       enabled: enabled,
       customPoliciesPage1: customPoliciesPage1,
       customPoliciesPage2: customPoliciesPage2,
+      sectionApplicableServices: sectionApplicableServices,
+      customPolicyServicesPage1: customPolicyServicesPage1,
+      customPolicyServicesPage2: customPolicyServicesPage2,
     );
   }
 
   Future<bool> hasAcceptedPolicy({
     required String shopId,
     required String userId,
+    String serviceType = 'accommodation',
   }) async {
     return ShopPolicyService.instance.hasAcceptedPolicy(
       shopId: shopId,
       userId: userId,
+      serviceType: serviceType,
     );
   }
 
   Future<void> acceptPolicy({
     required String shopId,
     required String userId,
+    String serviceType = 'accommodation',
   }) async {
     return ShopPolicyService.instance.acceptPolicy(
       shopId: shopId,
       userId: userId,
+      serviceType: serviceType,
     );
   }
 

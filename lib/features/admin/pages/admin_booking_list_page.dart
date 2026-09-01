@@ -3,7 +3,9 @@
 
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:petnest_saas/core/models/booking_kind.dart';
 import 'package:petnest_saas/features/admin/pages/admin_booking_detail_page.dart';
+import 'package:petnest_saas/features/admin/pages/admin_daycare_detail_page.dart';
 import 'package:petnest_saas/features/admin/widgets/booking_search_bar.dart';
 import 'package:petnest_saas/features/admin/widgets/booking_status_filter.dart';
 import 'package:petnest_saas/features/admin/widgets/booking_sort_bar.dart';
@@ -11,9 +13,12 @@ import 'package:petnest_saas/features/admin/widgets/booking_order_card.dart';
 import 'package:petnest_saas/features/admin/widgets/booking_advanced_filter_button.dart';
 import 'package:petnest_saas/features/admin/pages/admin_booking_history_page.dart';
 import 'package:petnest_saas/features/admin/pages/admin_create_booking_page.dart';
+import 'package:petnest_saas/features/admin/pages/admin_create_daycare_booking_page.dart';
+import 'package:petnest_saas/core/services/daycare_settings_service.dart';
 import 'package:petnest_saas/core/services/shop_permission_service.dart';
 import 'package:petnest_saas/core/services/shop_service.dart';
 import 'package:petnest_saas/core/widgets/shop_task_center_button.dart';
+import 'package:petnest_saas/features/shop/widgets/booking/booking_entry_service_card.dart';
 
 class AdminBookingListPage extends StatefulWidget {
   const AdminBookingListPage({
@@ -67,12 +72,74 @@ class _AdminBookingListPageState extends State<AdminBookingListPage> {
                 padding: const EdgeInsets.only(right: 8),
                 child: TextButton.icon(
                   onPressed: canCreateOrder
-                      ? () {
+                      ? () async {
+                          final bool daycareOn = DaycareSettingsService.instance
+                              .isEnabledForShop(shop: shop);
+                          if (!context.mounted) {
+                            return;
+                          }
+                          if (!daycareOn) {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute<void>(
+                                builder: (_) => AdminCreateBookingPage(
+                                  shopId: widget.shopId,
+                                ),
+                              ),
+                            );
+                            return;
+                          }
+                          final String? choice = await showDialog<String>(
+                            context: context,
+                            builder: (BuildContext context) => Dialog(
+                              child: Padding(
+                                padding: const EdgeInsets.all(16),
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: <Widget>[
+                                    const Text(
+                                      '新增訂單',
+                                      style: TextStyle(
+                                        fontSize: 18,
+                                        fontWeight: FontWeight.w800,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 12),
+                                    BookingEntryServiceCard(
+                                      title: '新增住宿訂單',
+                                      subtitle: '代客建立入住與退房訂單',
+                                      imageUrl: '',
+                                      fallbackIcon: Icons.nights_stay,
+                                      onTap: () =>
+                                          Navigator.pop(context, 'stay'),
+                                    ),
+                                    const SizedBox(height: 12),
+                                    BookingEntryServiceCard(
+                                      title: '新增臨托訂單',
+                                      subtitle: '代客建立單日送達與接回訂單',
+                                      imageUrl: '',
+                                      fallbackIcon: Icons.wb_sunny_outlined,
+                                      onTap: () =>
+                                          Navigator.pop(context, 'daycare'),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          );
+                          if (!context.mounted || choice == null) {
+                            return;
+                          }
                           Navigator.push(
                             context,
-                            MaterialPageRoute(
-                              builder: (_) =>
-                                  AdminCreateBookingPage(shopId: widget.shopId),
+                            MaterialPageRoute<void>(
+                              builder: (_) => choice == 'daycare'
+                                  ? AdminCreateDaycareBookingPage(
+                                      shopId: widget.shopId,
+                                    )
+                                  : AdminCreateBookingPage(
+                                      shopId: widget.shopId,
+                                    ),
                             ),
                           );
                         }
@@ -387,10 +454,16 @@ class _AdminBookingListPageState extends State<AdminBookingListPage> {
                           Navigator.push(
                             context,
                             MaterialPageRoute(
-                              builder: (_) => AdminBookingDetailPage(
-                                bookingId: doc.id,
-                                canEdit: true,
-                              ),
+                              builder: (_) => BookingKind.isDaycare(data)
+                                  ? AdminDaycareDetailPage(
+                                      shopId: (data['shopId'] ?? widget.shopId)
+                                          .toString(),
+                                      bookingId: doc.id,
+                                    )
+                                  : AdminBookingDetailPage(
+                                      bookingId: doc.id,
+                                      canEdit: true,
+                                    ),
                             ),
                           );
                         },

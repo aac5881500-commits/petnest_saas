@@ -27,6 +27,11 @@ class BookingFormPage extends StatefulWidget {
     this.discountAmount = 0,
     this.discountCampaignName = '',
     required this.roomPrice,
+    this.submitLabel = '送出預約',
+    this.feeSummaryTitle = '',
+    this.allowCashOverride,
+    this.daycareDepositType,
+    this.daycareDepositValue = 0,
   });
 
   final GlobalKey<FormState> formKey;
@@ -49,6 +54,19 @@ class BookingFormPage extends StatefulWidget {
   final int discountAmount;
   final String discountCampaignName;
   final int roomPrice;
+
+  /// 送出按鈕文字。臨托使用「確認訂單」，住宿維持「送出預約」。
+  final String submitLabel;
+
+  /// 費用摘要標題。空白時不顯示額外標題。
+  final String feeSummaryTitle;
+
+  /// 若為 false，即使店家有開到店付款也不顯示。
+  final bool? allowCashOverride;
+
+  /// 臨托專用訂金方式。null 時沿用店家住宿訂金設定。
+  final String? daycareDepositType;
+  final int daycareDepositValue;
 
   final String shopId;
 
@@ -515,17 +533,26 @@ class _BookingFormPageState extends State<BookingFormPage> {
     }
 
     // 💰 訂金設定
-    final bool depositEnabled = data['depositEnabled'] == true;
-    final String depositType = (data['depositType'] ?? 'fixed').toString();
-    final String depositBase = (data['depositBase'] ?? 'room').toString();
+    bool depositEnabled = data['depositEnabled'] == true;
+    String depositType = (data['depositType'] ?? 'fixed').toString();
+    String depositBase = (data['depositBase'] ?? 'room').toString();
 
     final dynamic rawDepositValue = data['depositValue'];
 
-    final int depositValue = rawDepositValue is int
+    int depositValue = rawDepositValue is int
         ? rawDepositValue
         : rawDepositValue is double
         ? rawDepositValue.toInt()
         : int.tryParse(rawDepositValue?.toString() ?? '') ?? 0;
+
+    final String? daycareDepositType = widget.daycareDepositType;
+    if (daycareDepositType != null) {
+      depositType = daycareDepositType;
+      depositBase = 'total';
+      depositValue = widget.daycareDepositValue;
+      depositEnabled =
+          daycareDepositType == 'fixed' || daycareDepositType == 'percent';
+    }
 
     // 💳 綠界公開設定
     final dynamic rawPaymentSetting = data['paymentSetting'];
@@ -609,12 +636,18 @@ class _BookingFormPageState extends State<BookingFormPage> {
         _depositRate = 0;
       }
 
-      _cashEnabled = cashEnabled;
+      _cashEnabled = cashEnabled && (widget.allowCashOverride ?? true);
       _transferEnabled = transferEnabled;
 
       _creditCardEnabled = creditCardEnabled;
       _atmEnabled = atmEnabled;
       _cvsCodeEnabled = cvsCodeEnabled;
+
+      if (widget.daycareDepositType == 'full' ||
+          widget.daycareDepositType == 'none' ||
+          widget.daycareDepositType == 'staff_decide') {
+        _payAmountType = 'full';
+      }
 
       // 目前選擇的方式若已被店家關閉，就清除選擇
       final bool selectedMethodStillAvailable =
@@ -721,10 +754,6 @@ class _BookingFormPageState extends State<BookingFormPage> {
         : rawCalculatedDeposit;
 
     final remainingAmount = widget.totalPrice - calculatedDeposit;
-
-    final currentPayAmount = _payAmountType == 'full'
-        ? widget.totalPrice
-        : calculatedDeposit;
 
     final depositBaseText = _depositBase == 'room' ? '只算房價' : '算總金額';
 
@@ -935,6 +964,13 @@ class _BookingFormPageState extends State<BookingFormPage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    if (widget.feeSummaryTitle.trim().isNotEmpty) ...[
+                      Text(
+                        widget.feeSummaryTitle,
+                        style: const TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                      const SizedBox(height: 8),
+                    ],
                     if (widget.discountAmount > 0) ...[
                       Text(
                         '原價：NT\$ ${widget.originalTotal}',
@@ -1203,7 +1239,7 @@ class _BookingFormPageState extends State<BookingFormPage> {
                           height: 22,
                           child: CircularProgressIndicator(strokeWidth: 2),
                         )
-                      : const Text('送出預約'),
+                      : Text(widget.submitLabel),
                 ),
               ),
             ],

@@ -8,6 +8,7 @@ class FrontCalendarPayload {
     required this.unbookableDateKeys,
     required this.priceMap,
     required this.remainingRoomsMap,
+    this.specialOpenDateKeys = const <String>{},
   });
 
   final Set<String> blockedDateKeys;
@@ -15,4 +16,5 @@ class FrontCalendarPayload {
   final Set<String> unbookableDateKeys;
   final Map<String, int> priceMap;
   final Map<String, int> remainingRoomsMap;
+  final Set<String> specialOpenDateKeys;
 }

@@ -93,8 +93,27 @@ class ShopPermissionKeys {
   /// 📊 查看報表統計
   static const viewReports = 'view_reports';
 
-  /// 📝 查看操作紀錄
+  /// 查看操作紀錄
   static const viewActionLogs = 'view_action_logs';
+
+  /// 🐾 查看臨托訂單
+  static const viewDaycareBookings = 'view_daycare_bookings';
+
+  /// 🐾 管理臨托訂單
+  static const manageDaycareBookings = 'manage_daycare_bookings';
+
+  /// 🐾 管理臨托設定
+  static const manageDaycareSettings = 'manage_daycare_settings';
+
+  /// 🐾 管理臨托方案價格
+  static const manageDaycarePricing = 'manage_daycare_pricing';
+
+  /// 🐾 臨托轉住宿
+  static const convertDaycareToAccommodation =
+      'convert_daycare_to_accommodation';
+
+  /// 🐾 調整臨托價格
+  static const adjustDaycarePrice = 'adjust_daycare_price';
 
   /// 🔥 全部權限列表
   static const all = [
@@ -127,5 +146,11 @@ class ShopPermissionKeys {
     manageStoreOrders,
     manageStoreSettings,
     managePolicy,
+    viewDaycareBookings,
+    manageDaycareBookings,
+    manageDaycareSettings,
+    manageDaycarePricing,
+    convertDaycareToAccommodation,
+    adjustDaycarePrice,
   ];
 }
