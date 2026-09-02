@@ -1,5 +1,4 @@
 // lib/features/shop/widgets/booking/addon_item_card.dart
-// 🔥 前台預約加值服務小卡：顯示加值服務名稱、說明、價格與選取狀態// lib/features/shop/widgets/booking/addon_item_card.dart
 // 🔥 前台預約加值服務小卡：顯示加值服務名稱、說明、價格與選取狀態
 
 import 'package:flutter/material.dart';
@@ -26,13 +25,11 @@ class AddonItemCard extends StatelessWidget {
           color: isSelected ? Colors.green : Colors.grey.shade300,
           width: isSelected ? 2 : 1,
         ),
-      ), 
+      ),
       child: Row(
         children: [
           Icon(
-            isSelected
-                ? Icons.check_circle
-                : Icons.radio_button_unchecked,
+            isSelected ? Icons.check_circle : Icons.radio_button_unchecked,
             color: isSelected ? Colors.green : Colors.grey,
           ),
           const SizedBox(width: 10),
@@ -41,15 +38,12 @@ class AddonItemCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  item['name'] ?? '',
+                  item['name']?.toString() ?? '',
                   style: const TextStyle(fontWeight: FontWeight.bold),
                 ),
                 Text(
-                  item['desc'] ?? '',
-                  style: const TextStyle(
-                    fontSize: 12,
-                    color: Colors.grey,
-                  ),
+                  item['desc']?.toString() ?? '',
+                  style: const TextStyle(fontSize: 12, color: Colors.grey),
                 ),
               ],
             ),

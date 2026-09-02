@@ -2,6 +2,26 @@
 // 🔥 前台預約加值服務 helper：整理送出訂單用的 addons 資料
 
 class BookingAddonsHelper {
+  /// 相容 Firestore 把開關存成 bool / 0 / 1 / 字串的讀法。
+  static bool parseBool(dynamic value, {bool fallback = false}) {
+    if (value is bool) {
+      return value;
+    }
+    if (value is num) {
+      return value != 0;
+    }
+    if (value is String) {
+      final String normalized = value.trim().toLowerCase();
+      if (normalized == 'true' || normalized == '1') {
+        return true;
+      }
+      if (normalized == 'false' || normalized == '0' || normalized.isEmpty) {
+        return false;
+      }
+    }
+    return fallback;
+  }
+
   static List<Map<String, dynamic>> buildAddonsData({
     required Map<String, dynamic>? selectedTimeAddon,
     required List<Map<String, dynamic>> selectedValueServices,
@@ -37,7 +57,7 @@ class BookingAddonsHelper {
 
           return pet['name'] ?? petId;
         }).toList(),
-        'useInventory': item['useInventory'] == true,
+        'useInventory': parseBool(item['useInventory']),
         'inventoryBindings': item['inventoryBindings'] ?? <dynamic>[],
       });
     }
@@ -67,7 +87,7 @@ class BookingAddonsHelper {
           return (pet.first['name'] ?? petId).toString();
         }).toList(),
         'type': 'custom',
-        'useInventory': service['useInventory'] == true,
+        'useInventory': parseBool(service['useInventory']),
         'inventoryBindings': service['inventoryBindings'] ?? <dynamic>[],
       });
     }
@@ -168,11 +188,38 @@ class BookingAddonsHelper {
         'total': price * count,
         'selections': selections,
         'type': 'daily_timed',
-        'useInventory': service['useInventory'] == true,
+        'useInventory': parseBool(service['useInventory']),
         'inventoryBindings': service['inventoryBindings'] ?? <dynamic>[],
       });
     }
 
     return addons;
+  }
+
+  /// 已選加值服務項數：入退房時間、一般加值、客製、每日分時段各算一項。
+  static int selectedItemCount({
+    required Map<String, dynamic>? selectedTimeAddon,
+    required List<Map<String, dynamic>> selectedValueServices,
+    required Map<String, List<String>> selectedCustomServices,
+    required Map<String, Map<String, Map<String, List<String>>>>
+    selectedDailyTimedServices,
+  }) {
+    int count = selectedTimeAddon == null ? 0 : 1;
+    count += selectedValueServices.length;
+    count += selectedCustomServices.length;
+
+    for (final Map<String, Map<String, List<String>>> pets
+        in selectedDailyTimedServices.values) {
+      final bool hasSelection = pets.values.any((
+        Map<String, List<String>> dates,
+      ) {
+        return dates.values.any((List<String> slots) => slots.isNotEmpty);
+      });
+      if (hasSelection) {
+        count += 1;
+      }
+    }
+
+    return count;
   }
 }

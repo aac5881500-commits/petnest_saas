@@ -124,7 +124,13 @@ class BookingCalendarDialog extends StatelessWidget {
                       Expanded(
                         child: ElevatedButton(
                           onPressed: onConfirm,
-                          child: const Text('確認'),
+                          child: const Text(
+                            '確認',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
                         ),
                       ),
                     ],

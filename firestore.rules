@@ -380,6 +380,7 @@ allow update: if signedIn() &&
 'closedDays',
 'isOpen',
 'bookingEnabled',
+'daycareEnabled',
 'description',
 'serviceTypes',
 'isPublic',

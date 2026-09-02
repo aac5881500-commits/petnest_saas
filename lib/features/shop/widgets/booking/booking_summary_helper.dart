@@ -4,6 +4,7 @@
 // 並建立預約金額 Summary Card。
 
 import 'package:flutter/material.dart';
+import 'package:petnest_saas/core/models/home_theme_model.dart';
 import 'package:petnest_saas/features/shop/widgets/booking/booking_summary_card.dart';
 
 class BookingSummaryHelper {
@@ -188,6 +189,7 @@ class BookingSummaryHelper {
     selectedDailyTimedServices,
 
     required Map<String, dynamic>? addonData,
+    HomeThemeModel theme = HomeThemeModel.classicDefault,
   }) {
     final petNamesById = <String, String>{};
 
@@ -218,11 +220,18 @@ class BookingSummaryHelper {
       customServicePrices[name] = ((service['price'] ?? 0) as num).toInt();
     }
 
+    final List<String> petNames = selectedPetIds
+        .map((String id) => petNamesById[id] ?? id)
+        .where((String name) => name.isNotEmpty)
+        .toList();
+
     return BookingSummaryCard(
+      theme: theme,
       startDateText: startDateText,
       endDateText: endDateText,
       nights: nights,
       petCount: selectedPetIds.length,
+      petNames: petNames,
       roomTypeName: selectedRoomType['name'] ?? '',
       totalPrice: totalPrice,
       depositAmount: depositAmount,

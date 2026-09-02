@@ -22,6 +22,7 @@ import 'package:petnest_saas/core/services/payment_function_service.dart';
 import 'package:petnest_saas/features/payment/pages/ecpay_payment_page.dart';
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/services/booking_service.dart';
+import 'package:petnest_saas/core/services/shop_report_format.dart';
 import 'package:petnest_saas/core/services/shop_service.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -34,6 +35,7 @@ import 'package:petnest_saas/features/shop/widgets/booking/booking_pet_section.d
 import 'package:petnest_saas/features/shop/widgets/booking/booking_summary_helper.dart';
 import 'package:petnest_saas/features/shop/widgets/booking/booking_date_section.dart';
 import 'package:petnest_saas/features/shop/widgets/booking/booking_next_step_section.dart';
+import 'package:petnest_saas/features/shop/widgets/booking/booking_step_widgets.dart';
 import 'package:petnest_saas/features/shop/widgets/booking/front_calendar_payload.dart';
 import 'package:petnest_saas/features/shop/widgets/booking/booking_addons_helper.dart';
 import 'package:petnest_saas/features/shop/widgets/booking/booking_calendar_dialog.dart';
@@ -149,6 +151,9 @@ class _ShopBookingPageState extends State<ShopBookingPage> {
   bool _rangeChecked = false;
   bool _rangeBookable = false;
   String _rangeMessage = '';
+
+  /// 1 日期與貓咪、2 房型與服務、3 費用與確認
+  int _currentStep = 1;
 
   List<String> _selectedPetIds = [];
   List<Map<String, dynamic>> _pets = [];
@@ -442,445 +447,605 @@ class _ShopBookingPageState extends State<ShopBookingPage> {
     return _startDate != null && _endDate != null;
   }
 
+  void _goToStep(int step) {
+    setState(() {
+      _currentStep = step.clamp(1, 3);
+    });
+    if (_scrollController.hasClients) {
+      _scrollController.jumpTo(0);
+    }
+  }
+
+  int get _selectedAddonCount {
+    return BookingAddonsHelper.selectedItemCount(
+      selectedTimeAddon: _selectedTimeAddon,
+      selectedValueServices: _selectedValueServices,
+      selectedCustomServices: _selectedCustomServices,
+      selectedDailyTimedServices: _selectedDailyTimedServices,
+    );
+  }
+
+  int _addonTotalAmount() {
+    final Map<String, int> parts = BookingSummaryHelper.calculatePriceParts(
+      selectedRoomType:
+          _selectedRoomType ??
+          const <String, dynamic>{'price': 0, 'extraPrice': 0},
+      nights: _nights,
+      selectedPetIds: _selectedPetIds,
+      selectedTimeAddon: _selectedTimeAddon,
+      selectedValueServices: _selectedValueServices,
+      selectedCustomServices: _selectedCustomServices,
+      selectedDailyTimedServices: _selectedDailyTimedServices,
+      addonData: _addonData,
+    );
+    return parts['addonTotal'] ?? 0;
+  }
+
+  int _estimatedTotal(Map<String, dynamic> shop) {
+    if (_selectedRoomType == null) {
+      return _addonTotalAmount();
+    }
+    return (_calculateMemberCouponInfo(shop)['finalTotalAfterCoupon'] ?? 0)
+        .toInt();
+  }
+
+  String? get _step1Hint {
+    if (_startDate == null || _endDate == null) {
+      return '請選擇入住與退房日期';
+    }
+    if (_selectedPetIds.isEmpty) {
+      return '請選擇入住寵物';
+    }
+    return null;
+  }
+
+  String? get _step2Hint {
+    if (_selectedRoomType == null) {
+      return '請選擇房型';
+    }
+    return null;
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: widget.theme.backgroundColor,
-      appBar: AppBar(
-        backgroundColor: widget.theme.cardColor,
-        foregroundColor: widget.theme.textColor,
-        surfaceTintColor: Colors.transparent,
-        elevation: 0,
-        title: Text(
-          '我要預約',
-          style: TextStyle(
-            color: widget.theme.textColor,
-            fontWeight: FontWeight.w700,
+    return PopScope(
+      canPop: _currentStep <= 1,
+      onPopInvokedWithResult: (bool didPop, Object? result) {
+        if (didPop || _currentStep <= 1) {
+          return;
+        }
+        _goToStep(_currentStep - 1);
+      },
+      child: Scaffold(
+        backgroundColor: widget.theme.backgroundColor,
+        appBar: AppBar(
+          backgroundColor: widget.theme.cardColor,
+          foregroundColor: widget.theme.textColor,
+          surfaceTintColor: Colors.transparent,
+          elevation: 0,
+          automaticallyImplyLeading: _currentStep <= 1,
+          leading: _currentStep > 1
+              ? IconButton(
+                  icon: const Icon(Icons.arrow_back),
+                  onPressed: () => _goToStep(_currentStep - 1),
+                )
+              : null,
+          title: Text(
+            '我要預約',
+            style: TextStyle(
+              color: widget.theme.textColor,
+              fontSize: 18,
+              fontWeight: FontWeight.w700,
+            ),
           ),
         ),
-      ),
-      drawer: widget.useModernDrawer
-          ? StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-              stream: FirebaseFirestore.instance
-                  .collection('shops')
-                  .doc(widget.shopId)
-                  .snapshots(),
-              builder: (context, snapshot) {
-                if (snapshot.hasError) {
-                  return Drawer(
-                    child: Center(
-                      child: Text(
-                        '選單載入失敗',
-                        style: TextStyle(color: widget.theme.textColor),
-                      ),
-                    ),
-                  );
-                }
-
-                final shop = snapshot.data?.data();
-
-                if (shop == null) {
-                  return Drawer(
-                    child: Center(
-                      child: CircularProgressIndicator(
-                        color: widget.theme.primaryColor,
-                      ),
-                    ),
-                  );
-                }
-
-                return ModernAppDrawer(
-                  shopId: widget.shopId,
-                  shop: shop,
-                  theme: widget.theme,
-                );
-              },
-            )
-          : AppDrawer(shopId: widget.shopId, theme: widget.theme),
-
-      body: StreamBuilder<Map<String, dynamic>?>(
-        stream: _shopStream,
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
-
-          if (snapshot.hasError) {
-            return Center(child: Text('讀取店家資料失敗：${snapshot.error}'));
-          }
-
-          final shop = snapshot.data;
-          if (shop == null) {
-            return const Center(child: Text('找不到店家資料'));
-          }
-
-          _currentShopData = shop;
-
-          final List<dynamic> rawServiceTypes = shop['serviceTypes'] ?? [];
-          final List<String> serviceTypes = rawServiceTypes
-              .map((e) => e.toString())
-              .toList();
-
-          if (_selectedServiceType == null && serviceTypes.isNotEmpty) {
-            _selectedServiceType = serviceTypes.first;
-          }
-
-          final bookingEnabled = shop['bookingEnabled'] ?? true;
-
-          if (_isBlacklisted) {
-            return Padding(
-              padding: const EdgeInsets.all(16),
-              child: Center(
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 520),
-                  child: Card(
-                    color: Colors.red.shade50,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(18),
-                    ),
-                    child: Padding(
-                      padding: const EdgeInsets.all(20),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            Icons.block,
-                            size: 48,
-                            color: Colors.red.shade700,
-                          ),
-                          const SizedBox(height: 12),
-                          Text(
-                            '目前無法使用預約功能',
-                            style: TextStyle(
-                              fontSize: 22,
-                              fontWeight: FontWeight.w900,
-                              color: Colors.red.shade800,
-                            ),
-                          ),
-                          const SizedBox(height: 10),
-                          Text(
-                            '目前無法使用線上預約服務。\n如需協助，請聯繫店家確認。',
-                            textAlign: TextAlign.center,
-                            style: TextStyle(
-                              fontSize: 15,
-                              height: 1.5,
-                              color: Colors.red.shade700,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            );
-          }
-
-          return SingleChildScrollView(
-            key: const PageStorageKey<String>('shop_booking_scroll'),
-            controller: _scrollController,
-            padding: const EdgeInsets.all(16),
-            child: Center(
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 760),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    BookingDateSection(
-                      shopName: shop['name'] ?? '未命名店家',
-                      bookingEnabled: bookingEnabled,
-                      startDate: _startDate,
-                      endDate: _endDate,
-                      nights: _nights,
-                      onOpenCalendar: () async {
-                        await _openCalendarDialog(shop);
-                      },
-                    ),
-
-                    const SizedBox(height: 16),
-
-                    const SizedBox(height: 16),
-
-                    if (_startDate == null || _endDate == null)
-                      Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.all(14),
-                        decoration: BoxDecoration(
-                          color: widget.theme.cardColor,
-                          borderRadius: BorderRadius.circular(16),
-                          border: Border.all(
-                            color: widget.theme.primaryColor.withValues(
-                              alpha: 0.35,
-                            ),
-                          ),
+        drawer: widget.useModernDrawer
+            ? StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+                stream: FirebaseFirestore.instance
+                    .collection('shops')
+                    .doc(widget.shopId)
+                    .snapshots(),
+                builder: (context, snapshot) {
+                  if (snapshot.hasError) {
+                    return Drawer(
+                      child: Center(
+                        child: Text(
+                          '選單載入失敗',
+                          style: TextStyle(color: widget.theme.textColor),
                         ),
+                      ),
+                    );
+                  }
+
+                  final shop = snapshot.data?.data();
+
+                  if (shop == null) {
+                    return Drawer(
+                      child: Center(
+                        child: CircularProgressIndicator(
+                          color: widget.theme.primaryColor,
+                        ),
+                      ),
+                    );
+                  }
+
+                  return ModernAppDrawer(
+                    shopId: widget.shopId,
+                    shop: shop,
+                    theme: widget.theme,
+                  );
+                },
+              )
+            : AppDrawer(shopId: widget.shopId, theme: widget.theme),
+
+        body: StreamBuilder<Map<String, dynamic>?>(
+          stream: _shopStream,
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return const Center(child: CircularProgressIndicator());
+            }
+
+            if (snapshot.hasError) {
+              return Center(child: Text('讀取店家資料失敗：${snapshot.error}'));
+            }
+
+            final shop = snapshot.data;
+            if (shop == null) {
+              return const Center(child: Text('找不到店家資料'));
+            }
+
+            _currentShopData = shop;
+
+            final List<dynamic> rawServiceTypes = shop['serviceTypes'] ?? [];
+            final List<String> serviceTypes = rawServiceTypes
+                .map((e) => e.toString())
+                .toList();
+
+            if (_selectedServiceType == null && serviceTypes.isNotEmpty) {
+              _selectedServiceType = serviceTypes.first;
+            }
+
+            final bool bookingEnabled = BookingAddonsHelper.parseBool(
+              shop['bookingEnabled'],
+              fallback: true,
+            );
+
+            if (_isBlacklisted) {
+              return Padding(
+                padding: const EdgeInsets.all(16),
+                child: Center(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 520),
+                    child: Card(
+                      color: Colors.red.shade50,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(18),
+                      ),
+                      child: Padding(
+                        padding: const EdgeInsets.all(20),
                         child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
                           children: [
+                            Icon(
+                              Icons.block,
+                              size: 48,
+                              color: Colors.red.shade700,
+                            ),
+                            const SizedBox(height: 12),
                             Text(
-                              '預約前提醒',
+                              '目前無法使用預約功能',
                               style: TextStyle(
-                                fontSize: 15,
-                                fontWeight: FontWeight.w800,
-                                color: widget.theme.textColor,
+                                fontSize: 22,
+                                fontWeight: FontWeight.w900,
+                                color: Colors.red.shade800,
                               ),
                             ),
                             const SizedBox(height: 10),
                             Text(
-                              '訂房安全提醒',
+                              '目前無法使用線上預約服務。\n如需協助，請聯繫店家確認。',
+                              textAlign: TextAlign.center,
                               style: TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w700,
-                                color: widget.theme.primaryColor,
-                              ),
-                            ),
-                            const SizedBox(height: 6),
-                            const Text(
-                              '• 本平台僅提供預約系統服務，實際住宿與照護內容由店家負責。',
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: Color.fromRGBO(214, 12, 22, 0.952),
+                                fontSize: 15,
+                                height: 1.5,
+                                color: Colors.red.shade700,
+                                fontWeight: FontWeight.w600,
                               ),
                             ),
                           ],
                         ),
                       ),
+                    ),
+                  ),
+                ),
+              );
+            }
 
-                    if (_startDate != null && _endDate != null) ...[
-                      const SizedBox(height: 16),
-
-                      BookingPetSection(
-                        selectedPetIds: _selectedPetIds,
-                        onPetsLoaded: (pets) {
-                          _pets = pets;
-                        },
-                        onTogglePet: (petId, value) {
-                          setState(() {
-                            if (value) {
-                              _selectedPetIds.add(petId);
-                            } else {
-                              _selectedPetIds.remove(petId);
-                            }
-
-                            _selectedRoomType = null;
-                          });
-                        },
-                      ),
-                      BookingRoomTypeSection(
-                        shopId: widget.shopId,
-                        startDate: _startDate,
-                        endDate: _endDate,
-                        selectedPetIds: _selectedPetIds,
-                        selectedRoomType: _selectedRoomType,
-                        theme: widget.theme,
-                        onSelectRoomType: (roomType) {
-                          setState(() {
-                            _selectedRoomType = roomType;
-                          });
-                        },
-                      ),
-
-                      if (_selectedRoomType != null)
-                        _buildCurrentCampaignCard(shop),
-
-                      BookingAddonSection(
-                        showAddons: _showAddons,
-                        addonLoading: _addonLoading,
-                        addonData: _addonData,
-                        selectedPetIds: _selectedPetIds,
-                        pets: _pets,
-                        selectedTimeAddon: _selectedTimeAddon,
-                        selectedValueServices: _selectedValueServices,
-                        selectedCustomServices: _selectedCustomServices,
-
-                        startDate: _startDate,
-                        endDate: _endDate,
-                        selectedDailyTimedServices: _selectedDailyTimedServices,
-
-                        onDailyTimedServicesChanged: () {
-                          setState(() {});
-                        },
-                        onToggleShowAddons: () {
-                          setState(() {
-                            _showAddons = !_showAddons;
-                          });
-                        },
-
-                        onSelectTimeAddon: (item) {
-                          setState(() {
-                            _selectedTimeAddon = item;
-                          });
-                        },
-
-                        onToggleValueService: (item) {
-                          setState(() {
-                            final isSelected = _selectedValueServices.any(
-                              (e) => e['name'] == item['name'],
-                            );
-
-                            if (isSelected) {
-                              _selectedValueServices.removeWhere(
-                                (e) => e['name'] == item['name'],
-                              );
-                            } else {
-                              _selectedValueServices.add({
-                                ...item,
-                                'petIds': List<String>.from(_selectedPetIds),
-                              });
-                            }
-                          });
-                        },
-
-                        onToggleCustomService: (item) {
-                          setState(() {
-                            final name = item['name'];
-
-                            if (_selectedCustomServices.containsKey(name)) {
-                              _selectedCustomServices.remove(name);
-                            } else {
-                              _selectedCustomServices[name] = List.from(
-                                _selectedPetIds,
-                              );
-                            }
-                          });
-                        },
-
-                        onToggleCustomPet: (serviceName, petId, selected) {
-                          setState(() {
-                            final selectedList =
-                                _selectedCustomServices[serviceName] ?? [];
-
-                            final newList = List<String>.from(selectedList);
-
-                            if (selected) {
-                              newList.add(petId);
-                            } else {
-                              newList.remove(petId);
-                            }
-
-                            _selectedCustomServices[serviceName] = newList;
-                          });
-                        },
-                      ),
-
-                      if (_selectedRoomType != null) ...[
-                        const SizedBox(height: 12),
-                        Text(
-                          '✅ 已選房型：${_selectedRoomType!['name']}',
-
-                          style: const TextStyle(
-                            color: Colors.green,
-                            fontWeight: FontWeight.bold,
-                          ),
+            return Column(
+              children: <Widget>[
+                BookingStepIndicator(
+                  currentStep: _currentStep,
+                  theme: widget.theme,
+                ),
+                Expanded(
+                  child: SingleChildScrollView(
+                    key: PageStorageKey<String>(
+                      'shop_booking_scroll_$_currentStep',
+                    ),
+                    controller: _scrollController,
+                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                    child: Center(
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 760),
+                        child: _buildStepContent(
+                          shop: shop,
+                          bookingEnabled: bookingEnabled,
                         ),
-                      ],
-
-                      if (_selectedRoomType != null &&
-                          _startDate != null &&
-                          _endDate != null) ...[
-                        const SizedBox(height: 16),
-
-                        _buildMemberCouponSection(),
-
-                        const SizedBox(height: 16),
-
-                        _buildBookingSummary(shop),
-                      ],
-
-                      BookingNextStepSection(
-                        selectedPetIds: _selectedPetIds,
-                        startDate: _startDate,
-                        endDate: _endDate,
-                        canShow: _canShowFormFields,
-                        canSubmit: _canSubmit(serviceTypes),
-                        isBlacklisted: _isBlacklisted,
-                        selectedRoomType: _selectedRoomType == null
-                            ? null
-                            : {
-                                ..._selectedRoomType!,
-                                'selectedPetCount': _selectedPetIds.length,
-                              },
-                        nights: _nights,
-                        totalPrice: _selectedRoomType == null
-                            ? 0
-                            : (_calculateMemberCouponInfo(
-                                        shop,
-                                      )['finalTotalAfterCoupon'] ??
-                                      0)
-                                  .toInt(),
-                        originalTotal: _selectedRoomType == null
-                            ? 0
-                            : (_calculateDiscountInfo(shop)['originalTotal'] ??
-                                      0)
-                                  .toInt(),
-                        discountAmount: _selectedRoomType == null
-                            ? 0
-                            : (_calculateDiscountInfo(shop)['discountAmount'] ??
-                                      0)
-                                  .toInt(),
-                        discountCampaignName: _selectedRoomType == null
-                            ? ''
-                            : (_calculateDiscountInfo(
-                                        shop,
-                                      )['discountCampaignName'] ??
-                                      '')
-                                  .toString(),
-                        specialDateSurchargeAmount: _selectedRoomType == null
-                            ? 0
-                            : (_calculateDiscountInfo(
-                                        shop,
-                                      )['specialDateSurchargeAmount'] ??
-                                      0)
-                                  .toInt(),
-                        valueServices: _selectedValueServices,
-                        formKey: _formKey,
-                        shopId: widget.shopId,
-                        serviceTypes: serviceTypes,
-                        selectedServiceType: _selectedServiceType,
-                        customerNameController: _customerNameController,
-                        customerPhoneController: _customerPhoneController,
-                        noteController: _noteController,
-                        isSubmitting: _submitting,
-                        onServiceChanged: (value) {
-                          setState(() {
-                            _selectedServiceType = value;
-                          });
-                        },
-                        onSubmitWithData:
-                            (
-                              address,
-                              emergencyName,
-                              emergencyPhone,
-                              relation,
-                              emergencyAddress,
-                              phone2,
-                              depositAmount,
-                              paymentMethod,
-                              payAmountType,
-                            ) async {
-                              await _submitBooking(
-                                shop,
-                                address: address,
-                                emergencyName: emergencyName,
-                                emergencyPhone: emergencyPhone,
-                                relation: relation,
-                                emergencyAddress: emergencyAddress,
-                                phone2: phone2,
-                                depositAmount: depositAmount,
-                                paymentMethod: paymentMethod,
-                                payAmountType: payAmountType,
-                              );
-                            },
                       ),
-                    ],
-                  ],
+                    ),
+                  ),
+                ),
+                BookingStickyBar(
+                  theme: widget.theme,
+                  child: _buildStepBottomBar(
+                    shop: shop,
+                    serviceTypes: serviceTypes,
+                  ),
+                ),
+              ],
+            );
+          },
+        ),
+      ),
+    );
+  }
+
+  Widget _buildStepContent({
+    required Map<String, dynamic> shop,
+    required bool bookingEnabled,
+  }) {
+    if (_currentStep == 1) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          BookingDateSection(
+            shopName: shop['name'] ?? '未命名店家',
+            bookingEnabled: bookingEnabled,
+            theme: widget.theme,
+            startDate: _startDate,
+            endDate: _endDate,
+            nights: _nights,
+            onOpenCalendar: () async {
+              await _openCalendarDialog(shop);
+            },
+          ),
+          if (_startDate == null || _endDate == null)
+            BookingThemedCard(
+              theme: widget.theme,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  Text(
+                    '預約前提醒',
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w700,
+                      color: widget.theme.textColor,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    '訂房安全提醒',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                      color: widget.theme.primaryColor,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    '本平台僅提供預約系統服務，實際住宿與照護內容由店家負責。',
+                    style: TextStyle(
+                      fontSize: 12,
+                      height: 1.45,
+                      color: widget.theme.textColor.withValues(alpha: 0.75),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          BookingPetSection(
+            selectedPetIds: _selectedPetIds,
+            theme: widget.theme,
+            onPetsLoaded: (pets) {
+              _pets = pets;
+            },
+            onTogglePet: (petId, value) {
+              setState(() {
+                if (value) {
+                  _selectedPetIds.add(petId);
+                } else {
+                  _selectedPetIds.remove(petId);
+                }
+                _selectedRoomType = null;
+              });
+            },
+          ),
+        ],
+      );
+    }
+
+    if (_currentStep == 2) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          BookingRoomTypeSection(
+            shopId: widget.shopId,
+            startDate: _startDate,
+            endDate: _endDate,
+            selectedPetIds: _selectedPetIds,
+            selectedRoomType: _selectedRoomType,
+            theme: widget.theme,
+            onSelectRoomType: (roomType) {
+              setState(() {
+                _selectedRoomType = roomType;
+              });
+            },
+          ),
+          if (_selectedRoomType != null) ...<Widget>[
+            _buildCurrentCampaignCard(shop),
+            Padding(
+              padding: const EdgeInsets.only(bottom: 10),
+              child: Text(
+                '已選房型：${_selectedRoomType!['name']}',
+                style: const TextStyle(
+                  color: Color(0xFF2E8B47),
+                  fontSize: 14,
+                  fontWeight: FontWeight.w700,
                 ),
               ),
             ),
-          );
-        },
-      ),
+          ],
+          BookingAddonSection(
+            showAddons: _showAddons,
+            addonLoading: _addonLoading,
+            addonData: _addonData,
+            selectedPetIds: _selectedPetIds,
+            pets: _pets,
+            selectedTimeAddon: _selectedTimeAddon,
+            selectedValueServices: _selectedValueServices,
+            selectedCustomServices: _selectedCustomServices,
+            startDate: _startDate,
+            endDate: _endDate,
+            selectedDailyTimedServices: _selectedDailyTimedServices,
+            theme: widget.theme,
+            addonTotal: _addonTotalAmount(),
+            onDailyTimedServicesChanged: () {
+              setState(() {});
+            },
+            onToggleShowAddons: () {
+              setState(() {
+                _showAddons = !_showAddons;
+              });
+            },
+            onSelectTimeAddon: (item) {
+              setState(() {
+                _selectedTimeAddon = item;
+              });
+            },
+            onToggleValueService: (item) {
+              setState(() {
+                final isSelected = _selectedValueServices.any(
+                  (e) => e['name'] == item['name'],
+                );
+                if (isSelected) {
+                  _selectedValueServices.removeWhere(
+                    (e) => e['name'] == item['name'],
+                  );
+                } else {
+                  _selectedValueServices.add({
+                    ...item,
+                    'petIds': List<String>.from(_selectedPetIds),
+                  });
+                }
+              });
+            },
+            onToggleCustomService: (item) {
+              setState(() {
+                final name = item['name'];
+                if (_selectedCustomServices.containsKey(name)) {
+                  _selectedCustomServices.remove(name);
+                } else {
+                  _selectedCustomServices[name] = List.from(_selectedPetIds);
+                }
+              });
+            },
+            onToggleCustomPet: (serviceName, petId, selected) {
+              setState(() {
+                final selectedList = _selectedCustomServices[serviceName] ?? [];
+                final newList = List<String>.from(selectedList);
+                if (selected) {
+                  newList.add(petId);
+                } else {
+                  newList.remove(petId);
+                }
+                _selectedCustomServices[serviceName] = newList;
+              });
+            },
+          ),
+        ],
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        if (_selectedRoomType != null &&
+            _startDate != null &&
+            _endDate != null) ...<Widget>[
+          _buildMemberCouponSection(),
+          const SizedBox(height: 4),
+          _buildBookingSummary(shop),
+        ] else
+          BookingThemedCard(
+            theme: widget.theme,
+            child: Text(
+              '請先完成日期、寵物與房型選擇。',
+              style: TextStyle(fontSize: 14, color: widget.theme.textColor),
+            ),
+          ),
+      ],
+    );
+  }
+
+  Widget _buildStepBottomBar({
+    required Map<String, dynamic> shop,
+    required List<String> serviceTypes,
+  }) {
+    if (_currentStep == 1) {
+      final String? hint = _step1Hint;
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          if (hint != null)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Text(
+                hint,
+                style: TextStyle(
+                  fontSize: 12,
+                  color: widget.theme.textColor.withValues(alpha: 0.7),
+                ),
+              ),
+            ),
+          BookingPrimaryButton(
+            theme: widget.theme,
+            label: '下一步',
+            onPressed: hint == null ? () => _goToStep(2) : null,
+          ),
+        ],
+      );
+    }
+
+    if (_currentStep == 2) {
+      final String? hint = _step2Hint;
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Row(
+            children: <Widget>[
+              Expanded(
+                child: Text(
+                  '已選 $_selectedAddonCount 項加值服務',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: widget.theme.textColor.withValues(alpha: 0.7),
+                  ),
+                ),
+              ),
+              Text(
+                '預估總額 ${ShopReportFormat.money(_estimatedTotal(shop))}',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w700,
+                  color: widget.theme.textColor,
+                ),
+              ),
+            ],
+          ),
+          if (hint != null)
+            Padding(
+              padding: const EdgeInsets.only(top: 6),
+              child: Text(
+                hint,
+                style: TextStyle(
+                  fontSize: 12,
+                  color: widget.theme.textColor.withValues(alpha: 0.7),
+                ),
+              ),
+            ),
+          const SizedBox(height: 8),
+          BookingPrimaryButton(
+            theme: widget.theme,
+            label: '下一步',
+            onPressed: hint == null ? () => _goToStep(3) : null,
+          ),
+        ],
+      );
+    }
+
+    return BookingNextStepSection(
+      selectedPetIds: _selectedPetIds,
+      startDate: _startDate,
+      endDate: _endDate,
+      canShow: _canShowFormFields,
+      canSubmit: _canSubmit(serviceTypes),
+      isBlacklisted: _isBlacklisted,
+      selectedRoomType: _selectedRoomType == null
+          ? null
+          : <String, dynamic>{
+              ..._selectedRoomType!,
+              'selectedPetCount': _selectedPetIds.length,
+            },
+      nights: _nights,
+      totalPrice: _selectedRoomType == null
+          ? 0
+          : (_calculateMemberCouponInfo(shop)['finalTotalAfterCoupon'] ?? 0)
+                .toInt(),
+      originalTotal: _selectedRoomType == null
+          ? 0
+          : (_calculateDiscountInfo(shop)['originalTotal'] ?? 0).toInt(),
+      discountAmount: _selectedRoomType == null
+          ? 0
+          : (_calculateDiscountInfo(shop)['discountAmount'] ?? 0).toInt(),
+      discountCampaignName: _selectedRoomType == null
+          ? ''
+          : (_calculateDiscountInfo(shop)['discountCampaignName'] ?? '')
+                .toString(),
+      specialDateSurchargeAmount: _selectedRoomType == null
+          ? 0
+          : (_calculateDiscountInfo(shop)['specialDateSurchargeAmount'] ?? 0)
+                .toInt(),
+      valueServices: _selectedValueServices,
+      formKey: _formKey,
+      shopId: widget.shopId,
+      serviceTypes: serviceTypes,
+      selectedServiceType: _selectedServiceType,
+      customerNameController: _customerNameController,
+      customerPhoneController: _customerPhoneController,
+      noteController: _noteController,
+      isSubmitting: _submitting,
+      theme: widget.theme,
+      compact: true,
+      onServiceChanged: (value) {
+        setState(() {
+          _selectedServiceType = value;
+        });
+      },
+      onSubmitWithData:
+          (
+            address,
+            emergencyName,
+            emergencyPhone,
+            relation,
+            emergencyAddress,
+            phone2,
+            depositAmount,
+            paymentMethod,
+            payAmountType,
+          ) async {
+            await _submitBooking(
+              shop,
+              address: address,
+              emergencyName: emergencyName,
+              emergencyPhone: emergencyPhone,
+              relation: relation,
+              emergencyAddress: emergencyAddress,
+              phone2: phone2,
+              depositAmount: depositAmount,
+              paymentMethod: paymentMethod,
+              payAmountType: payAmountType,
+            );
+          },
     );
   }
 
@@ -1753,8 +1918,9 @@ class _ShopBookingPageState extends State<ShopBookingPage> {
 
         discountValue: (discountInfo['discountValue'] ?? 0) as num,
 
-        allowCouponTogether:
-            (discountInfo['allowCouponTogether'] ?? false) as bool,
+        allowCouponTogether: BookingAddonsHelper.parseBool(
+          discountInfo['allowCouponTogether'],
+        ),
 
         couponId: (discountInfo['couponId'] ?? '').toString(),
         couponName: (discountInfo['couponName'] ?? '').toString(),
@@ -2884,6 +3050,7 @@ class _ShopBookingPageState extends State<ShopBookingPage> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         BookingSummaryHelper.buildSummary(
+          theme: widget.theme,
           startDateText: _formatDate(_startDate!),
           endDateText: _formatDate(_endDate!),
           nights: _nights,

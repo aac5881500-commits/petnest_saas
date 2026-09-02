@@ -65,14 +65,23 @@ class _BookingRoomTypeSectionState extends State<BookingRoomTypeSection> {
 
   @override
   Widget build(BuildContext context) {
+    final HomeThemeModel theme = widget.theme;
+
     if (widget.startDate == null || widget.endDate == null) {
       return const SizedBox();
     }
 
     if (widget.selectedPetIds.isEmpty) {
-      return const Padding(
-        padding: EdgeInsets.symmetric(vertical: 16),
-        child: Text('請先選擇入住寵物', style: TextStyle(color: Colors.red)),
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        child: Text(
+          '請先選擇入住寵物',
+          style: TextStyle(
+            color: Colors.red,
+            fontSize: 12,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
       );
     }
 
@@ -83,187 +92,237 @@ class _BookingRoomTypeSectionState extends State<BookingRoomTypeSection> {
 
     return FutureBuilder<List<Map<String, dynamic>>>(
       future: roomsFuture,
-      builder: (BuildContext context, AsyncSnapshot<List<Map<String, dynamic>>> snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Padding(
-            padding: EdgeInsets.all(16),
-            child: Center(child: CircularProgressIndicator()),
-          );
-        }
+      builder:
+          (
+            BuildContext context,
+            AsyncSnapshot<List<Map<String, dynamic>>> snapshot,
+          ) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return const Padding(
+                padding: EdgeInsets.all(16),
+                child: Center(child: CircularProgressIndicator()),
+              );
+            }
 
-        final List<Map<String, dynamic>> roomTypes =
-            (snapshot.data ?? <Map<String, dynamic>>[]).where((
+            final List<Map<String, dynamic>> roomTypes =
+                (snapshot.data ?? <Map<String, dynamic>>[]).where((
+                  Map<String, dynamic> type,
+                ) {
+                  final int capacity = (type['capacity'] ?? 1) as int;
+                  return capacity >= widget.selectedPetIds.length;
+                }).toList();
+
+            if (roomTypes.isEmpty) {
+              return Text(
+                '此區間沒有可用房型',
+                style: TextStyle(fontSize: 14, color: theme.textColor),
+              );
+            }
+
+            final bool hasAvailableRoomType = roomTypes.any((
               Map<String, dynamic> type,
             ) {
-          final int capacity = (type['capacity'] ?? 1) as int;
-          return capacity >= widget.selectedPetIds.length;
-        }).toList();
+              final int availableRooms = (type['availableRooms'] ?? 0) as int;
+              return availableRooms > 0;
+            });
 
-        if (roomTypes.isEmpty) {
-          return const Text('此區間沒有可用房型');
-        }
-
-        final bool hasAvailableRoomType = roomTypes.any((
-          Map<String, dynamic> type,
-        ) {
-          final int availableRooms = (type['availableRooms'] ?? 0) as int;
-          return availableRooms > 0;
-        });
-
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              '第三步：選擇房型',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 12),
-            if (!hasAvailableRoomType) ...[
-              Container(
-                width: double.infinity,
-                margin: const EdgeInsets.only(bottom: 12),
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Colors.red.shade50,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Colors.red.shade100),
-                ),
-                child: const Text(
-                  '此日期區間所有可入住的房型都已滿，請重新選擇日期。',
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Text(
+                  '選擇房型',
                   style: TextStyle(
-                    color: Colors.red,
-                    fontWeight: FontWeight.bold,
+                    fontSize: 17,
+                    fontWeight: FontWeight.w700,
+                    color: theme.textColor,
                   ),
                 ),
-              ),
-            ],
-            ...roomTypes.map((Map<String, dynamic> type) {
-              final int availableRooms = (type['availableRooms'] ?? 0) as int;
-              final bool isFull = availableRooms <= 0;
-              final bool isSelected =
-                  !isFull &&
-                  widget.selectedRoomType?['roomTypeId'] == type['roomTypeId'];
-
-              return GestureDetector(
-                onTap: isFull
-                    ? null
-                    : () {
-                        widget.onSelectRoomType(type);
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute<void>(
-                            builder: (_) => RoomTypeDetailPage(
-                              shopId: widget.shopId,
-                              roomType: type,
-                              startDate: widget.startDate!,
-                              endDate: widget.endDate!,
-                              theme: widget.theme,
-                            ),
-                          ),
-                        );
-                      },
-                child: Card(
-                  child: Container(
+                const SizedBox(height: 6),
+                Text(
+                  '僅顯示符合寵物數量與所選日期的可用房型。',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: theme.textColor.withValues(alpha: 0.7),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                if (!hasAvailableRoomType) ...<Widget>[
+                  Container(
+                    width: double.infinity,
                     margin: const EdgeInsets.only(bottom: 12),
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      color: isFull ? Colors.grey.shade100 : Colors.white,
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(
-                        color: isSelected ? Colors.green : Colors.grey.shade300,
-                        width: isSelected ? 2 : 1,
+                      color: Colors.red.shade50,
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: Colors.red.shade100),
+                    ),
+                    child: const Text(
+                      '此日期區間所有可入住的房型都已滿，請重新選擇日期。',
+                      style: TextStyle(
+                        color: Colors.red,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
                       ),
                     ),
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                type['name'] ?? '',
-                                style: const TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                              const SizedBox(height: 4),
-                              Text('容量：${type['capacity']}'),
-                              const SizedBox(height: 6),
-                              Builder(
-                                builder: (_) {
-                                  final rooms = type['availableRooms'] ?? 0;
-                                  if (rooms <= 0) {
-                                    return const Text(
-                                      '已滿',
-                                      style: TextStyle(
-                                        color: Colors.red,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    );
-                                  }
-                                  if (rooms <= 1) {
-                                    return const Text(
-                                      '⚠ 即將滿房',
-                                      style: TextStyle(
-                                        color: Colors.orange,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    );
-                                  }
-                                  return Text('剩 $rooms 間');
-                                },
-                              ),
-                            ],
-                          ),
-                        ),
-                        Builder(
-                          builder: (_) {
-                            final basePrice = type['price'] ?? 0;
-                            final extraPrice = type['extraPrice'] ?? 0;
-                            final int petCount = widget.selectedPetIds.length;
-                            final int extraCount = petCount > 1 ? petCount - 1 : 0;
-                            final totalPrice =
-                                basePrice + (extraCount * extraPrice);
+                  ),
+                ],
+                ...roomTypes.map((Map<String, dynamic> type) {
+                  final int availableRooms =
+                      (type['availableRooms'] ?? 0) as int;
+                  final bool isFull = availableRooms <= 0;
+                  final bool isSelected =
+                      !isFull &&
+                      widget.selectedRoomType?['roomTypeId'] ==
+                          type['roomTypeId'];
 
-                            return Column(
-                              crossAxisAlignment: CrossAxisAlignment.end,
-                              children: [
-                                Text(
-                                  'NT\$ $basePrice',
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                  ),
+                  return GestureDetector(
+                    onTap: isFull
+                        ? null
+                        : () {
+                            widget.onSelectRoomType(type);
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute<void>(
+                                builder: (_) => RoomTypeDetailPage(
+                                  shopId: widget.shopId,
+                                  roomType: type,
+                                  startDate: widget.startDate!,
+                                  endDate: widget.endDate!,
+                                  theme: widget.theme,
                                 ),
-                                if (extraCount > 0 && extraPrice > 0)
-                                  Text(
-                                    '+$extraCount隻 +$extraPrice',
-                                    style: const TextStyle(
-                                      fontSize: 12,
-                                      color: Colors.red,
-                                    ),
-                                  ),
-                                Text(
-                                  '共 NT\$ $totalPrice',
-                                  style: const TextStyle(
-                                    fontSize: 12,
-                                    color: Colors.grey,
-                                  ),
-                                ),
-                              ],
+                              ),
                             );
                           },
+                    child: Container(
+                      width: double.infinity,
+                      margin: const EdgeInsets.only(bottom: 10),
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: isFull ? theme.backgroundColor : theme.cardColor,
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
+                          color: isSelected
+                              ? const Color(0xFF2E8B47)
+                              : theme.cardBorderColor,
+                          width: isSelected ? 1.5 : 1,
                         ),
-                      ],
+                      ),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: <Widget>[
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: <Widget>[
+                                Text(
+                                  type['name'] ?? '',
+                                  style: TextStyle(
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.w700,
+                                    color: theme.textColor,
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  '容量：${type['capacity']}',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: theme.textColor.withValues(
+                                      alpha: 0.7,
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(height: 6),
+                                Builder(
+                                  builder: (_) {
+                                    final rooms = type['availableRooms'] ?? 0;
+                                    if (rooms <= 0) {
+                                      return const Text(
+                                        '已滿',
+                                        style: TextStyle(
+                                          color: Colors.red,
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                      );
+                                    }
+                                    if (rooms <= 1) {
+                                      return Text(
+                                        '即將滿房',
+                                        style: TextStyle(
+                                          color: theme.primaryColor,
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                      );
+                                    }
+                                    return Text(
+                                      '剩 $rooms 間',
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        color: theme.textColor.withValues(
+                                          alpha: 0.7,
+                                        ),
+                                      ),
+                                    );
+                                  },
+                                ),
+                              ],
+                            ),
+                          ),
+                          Builder(
+                            builder: (_) {
+                              final basePrice = type['price'] ?? 0;
+                              final extraPrice = type['extraPrice'] ?? 0;
+                              final int petCount = widget.selectedPetIds.length;
+                              final int extraCount = petCount > 1
+                                  ? petCount - 1
+                                  : 0;
+                              final totalPrice =
+                                  basePrice + (extraCount * extraPrice);
+
+                              return Column(
+                                crossAxisAlignment: CrossAxisAlignment.end,
+                                children: <Widget>[
+                                  Text(
+                                    'NT\$ $basePrice',
+                                    style: TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w700,
+                                      color: theme.textColor,
+                                    ),
+                                  ),
+                                  if (extraCount > 0 && extraPrice > 0)
+                                    Text(
+                                      '+$extraCount隻 +$extraPrice',
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        color: theme.textColor.withValues(
+                                          alpha: 0.7,
+                                        ),
+                                      ),
+                                    ),
+                                  Text(
+                                    '每晚 NT\$ $totalPrice',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: theme.textColor.withValues(
+                                        alpha: 0.7,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              );
+                            },
+                          ),
+                        ],
+                      ),
                     ),
-                  ),
-                ),
-              );
-            }),
-          ],
-        );
-      },
+                  );
+                }),
+              ],
+            );
+          },
     );
   }
 }
