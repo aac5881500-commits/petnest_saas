@@ -39,6 +39,7 @@ import 'package:petnest_saas/features/shop/pages/shop_daycare_settings_page.dart
 import 'package:petnest_saas/features/admin/pages/admin_member_list_page.dart';
 import 'package:petnest_saas/features/admin/pages/admin_payment_center_page.dart';
 import 'package:petnest_saas/features/shop/pages/shop_policy_page.dart';
+import 'package:petnest_saas/features/shop/pages/shop_custom_form_settings_page.dart';
 import 'package:petnest_saas/features/shop/pages/shop_policy_logs_page.dart';
 import 'package:petnest_saas/features/room/pages/room_dashboard_page.dart';
 import 'package:petnest_saas/features/shop/pages/shop_addon_page.dart';
@@ -908,10 +909,7 @@ class _CatHotelTab extends StatelessWidget {
                 AsyncSnapshot<DaycareSettingsModel> daycareSnap,
               ) {
                 final bool daycareOn = DaycareSettingsService.instance
-                    .isEnabledForShop(
-                      shop: shop,
-                      settings: daycareSnap.data,
-                    );
+                    .isEnabledForShop(shop: shop, settings: daycareSnap.data);
                 return Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: <Widget>[
@@ -920,11 +918,11 @@ class _CatHotelTab extends StatelessWidget {
                             _can(
                               ShopPermissionKeys.manageDaycareBookings,
                             ))) ...<Widget>[
-                      const _MenuSectionTitle('臨托'),
+                      const _MenuSectionTitle('安親'),
                       _MenuTile(
-                        title: '今日臨托',
+                        title: '今日安親',
                         subtitle: isProfileComplete
-                            ? '當天待確認、送達、臨托中與接回'
+                            ? '當天待確認、送達、安親中與接回'
                             : '請先完成基本資料',
                         icon: Icons.today,
                         enabled: isProfileComplete,
@@ -939,10 +937,8 @@ class _CatHotelTab extends StatelessWidget {
                         },
                       ),
                       _MenuTile(
-                        title: '臨托訂單',
-                        subtitle: isProfileComplete
-                            ? '查詢與管理臨托預約'
-                            : '請先完成基本資料',
+                        title: '安親訂單',
+                        subtitle: isProfileComplete ? '查詢與管理安親預約' : '請先完成基本資料',
                         icon: Icons.wb_sunny_outlined,
                         enabled: isProfileComplete,
                         onTap: () {
@@ -959,7 +955,7 @@ class _CatHotelTab extends StatelessWidget {
                     if (daycareOn &&
                         _can(ShopPermissionKeys.manageDaycareSettings))
                       _MenuTile(
-                        title: '臨托設定',
+                        title: '安親設定',
                         subtitle: isProfileComplete
                             ? '時間、方案、加購、付款與入口卡片'
                             : '請先完成基本資料',
@@ -1143,6 +1139,22 @@ class _CatHotelTab extends StatelessWidget {
                 context,
                 MaterialPageRoute(
                   builder: (_) => ShopPolicyPage(shopId: shopId),
+                ),
+              );
+            },
+          ),
+
+        if (_can(ShopPermissionKeys.manageBookingSettings))
+          _MenuTile(
+            title: '自訂表單設定',
+            subtitle: isProfileComplete ? '設定新增寵物與送出訂單時要填寫的自訂問題' : '請先完成基本資料',
+            icon: Icons.edit_note_outlined,
+            enabled: isProfileComplete,
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute<void>(
+                  builder: (_) => ShopCustomFormSettingsPage(shopId: shopId),
                 ),
               );
             },

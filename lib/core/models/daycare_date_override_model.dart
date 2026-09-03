@@ -1,6 +1,8 @@
 // lib/core/models/daycare_date_override_model.dart
 // 🐾 臨托單日例外：shops/{shopId}/daycare_date_overrides/{yyyyMMdd}
 
+import 'package:petnest_saas/core/models/daycare_settings_model.dart';
+
 class DaycareDateOverrideModel {
   const DaycareDateOverrideModel({
     required this.id,
@@ -44,7 +46,7 @@ class DaycareDateOverrideModel {
     return DaycareDateOverrideModel(
       id: compactId,
       date: _date(data['date'], compactId),
-      isOpen: data['isOpen'] == true,
+      isOpen: _parseIsOpen(data),
       maxPets: _int(data['maxPets'], 0).clamp(0, 200),
       openTime: _optionalTime(data['openTime']),
       closeTime: _optionalTime(data['closeTime']),
@@ -87,6 +89,18 @@ class DaycareDateOverrideModel {
       latestPickupTime: latestPickupTime ?? this.latestPickupTime,
       note: note ?? this.note,
     );
+  }
+
+  /// 沒有 isOpen 時預設可預約；舊 closed／isClosed 仍視為關閉。
+  static bool _parseIsOpen(Map<String, dynamic> data) {
+    if (data.containsKey('isOpen')) {
+      return DaycareBool.parse(data['isOpen'], fallback: true);
+    }
+    if (DaycareBool.parse(data['closed']) ||
+        DaycareBool.parse(data['isClosed'])) {
+      return false;
+    }
+    return true;
   }
 
   static String _date(dynamic raw, String compactId) {

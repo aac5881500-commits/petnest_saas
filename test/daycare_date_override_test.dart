@@ -17,7 +17,7 @@ void main() {
     minAdvanceHours: 0,
   );
 
-  test('沒有例外設定時依可預約星期', () {
+  test('沒有例外設定時所有日期預設可預約，不再依星期關閉', () {
     final DateTime monday = DateTime(2026, 9, 7, 10);
     final DateTime sunday = DateTime(2026, 9, 6, 10);
     expect(
@@ -26,11 +26,11 @@ void main() {
     );
     expect(
       DaycareDateAvailability.isDateOpen(settings: weekdayOnly, date: sunday),
-      isFalse,
+      isTrue,
     );
   });
 
-  test('特別關閉覆寫原本開放的星期', () {
+  test('明確關閉覆寫預設開放', () {
     final DateTime monday = DateTime(2026, 9, 7, 10);
     const DaycareDateOverrideModel closed = DaycareDateOverrideModel(
       id: '20260907',
@@ -57,14 +57,12 @@ void main() {
     );
   });
 
-  test('特別開放覆寫原本不開放的星期', () {
+  test('舊的特別開放文件視為可預約', () {
     final DateTime sunday = DateTime(2026, 9, 6, 10);
     const DaycareDateOverrideModel opened = DaycareDateOverrideModel(
       id: '20260906',
       date: '2026-09-06',
       isOpen: true,
-      openTime: '10:00',
-      closeTime: '16:00',
     );
     expect(
       DaycareDateAvailability.isDateOpen(
@@ -74,19 +72,9 @@ void main() {
       ),
       isTrue,
     );
-    expect(
-      DaycareBookingValidator.validateSchedule(
-        settings: weekdayOnly,
-        startAt: sunday,
-        endAt: DateTime(2026, 9, 6, 12),
-        isAdmin: true,
-        dateOverride: opened,
-      ).isOk,
-      isTrue,
-    );
   });
 
-  test('當日 maxPets 留空沿用平日設定', () {
+  test('每日接待量不再被單日 maxPets 覆寫', () {
     expect(
       DaycareDateAvailability.dailyMaxPets(settings: weekdayOnly),
       weekdayOnly.dailyMaxPets,
@@ -101,8 +89,26 @@ void main() {
           maxPets: 3,
         ),
       ),
-      3,
+      weekdayOnly.dailyMaxPets,
     );
+  });
+
+  test('沒有 isOpen 欄位的舊例外視為可預約，closed 仍關閉', () {
+    final DaycareDateOverrideModel missing = DaycareDateOverrideModel.fromMap(
+      const <String, dynamic>{'date': '2026-09-07'},
+      id: '20260907',
+    );
+    expect(missing.isOpen, isTrue);
+    final DaycareDateOverrideModel closed = DaycareDateOverrideModel.fromMap(
+      const <String, dynamic>{'date': '2026-09-07', 'closed': true},
+      id: '20260907',
+    );
+    expect(closed.isOpen, isFalse);
+    final DaycareDateOverrideModel flag = DaycareDateOverrideModel.fromMap(
+      const <String, dynamic>{'date': '2026-09-07', 'isOpen': '0'},
+      id: '20260907',
+    );
+    expect(flag.isOpen, isFalse);
   });
 
   test('override 文件 ID 為 yyyyMMdd', () {

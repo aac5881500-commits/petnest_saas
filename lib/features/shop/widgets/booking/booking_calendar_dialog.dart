@@ -20,6 +20,7 @@ class BookingCalendarDialog extends StatelessWidget {
     required this.onCancel,
     required this.onConfirm,
     this.singleDay = false,
+    this.compactCells = false,
   });
 
   final FrontCalendarPayload payload;
@@ -39,8 +40,9 @@ class BookingCalendarDialog extends StatelessWidget {
   final VoidCallback onCancel;
   final VoidCallback onConfirm;
 
-  /// 臨托只選單日，仍共用同一個月曆視覺。
+  /// 安親只選單日，仍共用同一個月曆視覺。
   final bool singleDay;
+  final bool compactCells;
 
   @override
   Widget build(BuildContext context) {
@@ -54,7 +56,7 @@ class BookingCalendarDialog extends StatelessWidget {
             child: Column(
               children: [
                 BookingCalendar(
-                  key: ValueKey('${tempStartDate}_${tempEndDate}'),
+                  key: ValueKey('${tempStartDate}_$tempEndDate'),
 
                   initialMonth: calendarMonth,
 
@@ -72,6 +74,7 @@ class BookingCalendarDialog extends StatelessWidget {
                   specialOpenDateKeys: payload.specialOpenDateKeys,
 
                   remainingRoomsMap: payload.remainingRoomsMap,
+                  compactCells: compactCells || singleDay,
 
                   onMonthChanged: onMonthChanged,
 

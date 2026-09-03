@@ -11,11 +11,17 @@ const {
   toDate,
   toInt,
   writeActionLog,
+  overnightCapForRoom,
 } = require("./daycare_utils");
 const {
   assertAvailable,
   releaseOccupancies,
 } = require("./daycare_occupancy");
+const {
+  isRoomBased,
+  quoteRoom,
+  paymentStatusOf,
+} = require("./daycare_pricing");
 
 exports.assignDaycareRoom = onCall(
     {region: "asia-east1"},
@@ -99,6 +105,71 @@ exports.assignDaycareRoom = onCall(
       }
 
       const now = admin.firestore.FieldValue.serverTimestamp();
+      const settingsSnap = await firestore.collection("shops").doc(shopId)
+          .collection("daycare_settings").doc("main").get();
+      const settings = settingsSnap.data() || {};
+      let quoteFields = {};
+      if (isRoomBased({
+        pricingMode: booking.pricingMode || settings.pricingMode,
+      })) {
+        const roomSetting = (Array.isArray(settings.roomTypes) ?
+          settings.roomTypes : []).find((item) =>
+          normalizeString(item && item.roomTypeId) === roomTypeId);
+        if (!roomSetting || roomSetting.enabled !== true) {
+          throw new HttpsError("failed-precondition", "此房型未開放安親");
+        }
+        const overnightCap = await overnightCapForRoom(
+            firestore, shopId, roomTypeId, petCount, startAt,
+        );
+        const roomQuote = quoteRoom({
+          roomSetting,
+          startAt,
+          endAt,
+          petCount,
+          overnightCapAmount: overnightCap,
+        });
+        const addonAmount = toInt(
+            booking.daycarePricingSnapshot &&
+            booking.daycarePricingSnapshot.addonAmount, 0,
+        );
+        const couponAmount = toInt(booking.couponDiscountAmount, 0);
+        const pointAmount = toInt(booking.pointAmount, 0);
+        const manualAdjust = toInt(booking.manualAdjust, 0);
+        const quotedTotal = Math.max(0,
+            roomQuote.cappedRoomAmount + addonAmount + manualAdjust -
+            couponAmount - pointAmount);
+        quoteFields = {
+          quotedTotalPrice: quotedTotal,
+          totalPrice: quotedTotal,
+          remainingAmount: Math.max(
+              0, quotedTotal - toInt(booking.paidAmount, 0),
+          ),
+          paymentStatus: paymentStatusOf(
+              booking.paidAmount, quotedTotal,
+          ),
+          priceQuoteLocked: true,
+          priceConfirmedAt: now,
+          priceQuoteSnapshot: {
+            ...roomQuote,
+            overnightCapAmount: overnightCap,
+            addonAmount,
+            couponAmount,
+            pointAmount,
+            manualAdjust,
+            totalAmount: quotedTotal,
+          },
+          daycarePricingSnapshot: {
+            ...(booking.daycarePricingSnapshot || {}),
+            ...roomQuote,
+            addonAmount,
+            totalAmount: quotedTotal,
+            depositAmount: toInt(
+                booking.daycarePricingSnapshot &&
+                booking.daycarePricingSnapshot.depositAmount, 0,
+            ),
+          },
+        };
+      }
       await firestore.runTransaction(async (transaction) => {
         await releaseOccupancies(firestore, transaction, shopId, bookingId);
         const occRef = firestore.collection("shops").doc(shopId)
@@ -128,6 +199,7 @@ exports.assignDaycareRoom = onCall(
           assignedAt: now,
           assignedBy: uid,
           updatedAt: now,
+          ...quoteFields,
         });
       });
 
@@ -146,6 +218,13 @@ exports.assignDaycareRoom = onCall(
         },
       });
 
-      return {ok: true, roomId, roomName, roomTypeId, roomTypeName};
+      return {
+        ok: true,
+        roomId,
+        roomName,
+        roomTypeId,
+        roomTypeName,
+        quotedTotalPrice: quoteFields.quotedTotalPrice || null,
+      };
     },
 );

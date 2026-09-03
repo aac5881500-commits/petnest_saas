@@ -184,7 +184,7 @@ class _ShopPolicyViewPageState extends State<ShopPolicyViewPage> {
             children: [
               Text(
                 widget.serviceType == PolicyApplicableService.daycare
-                    ? (_step == 0 ? '臨托須知' : '退款與注意事項')
+                    ? (_step == 0 ? '安親須知' : '退款與注意事項')
                     : (_step == 0 ? '入住須知' : '退款與注意事項'),
                 style: TextStyle(
                   fontWeight: FontWeight.w800,
@@ -487,7 +487,7 @@ class _ShopPolicyViewPageState extends State<ShopPolicyViewPage> {
                                     child: Text(
                                       widget.serviceType ==
                                               PolicyApplicableService.daycare
-                                          ? '我已閱讀並同意臨托條款'
+                                          ? '我已閱讀並同意安親條款'
                                           : '我已閱讀並同意以上條款',
                                       style: TextStyle(
                                         color: widget.theme.textColor,

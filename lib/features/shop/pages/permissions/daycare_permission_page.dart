@@ -30,13 +30,13 @@ class _DaycarePermissionPageState extends State<DaycarePermissionPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('臨托權限')),
+      appBar: AppBar(title: const Text('安親權限')),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: <Widget>[
           PermissionSwitchTile(
-            title: '查看臨托訂單',
-            subtitle: '可查看臨托列表與今日看板',
+            title: '查看安親訂單',
+            subtitle: '可查看安親列表與今日看板',
             value:
                 widget.permissions[ShopPermissionKeys.viewDaycareBookings] ??
                 false,
@@ -45,7 +45,7 @@ class _DaycarePermissionPageState extends State<DaycarePermissionPage> {
                 _update(ShopPermissionKeys.viewDaycareBookings, value),
           ),
           PermissionSwitchTile(
-            title: '管理臨托訂單',
+            title: '管理安親訂單',
             subtitle: '確認、開始、完成、取消、分房',
             value:
                 widget.permissions[ShopPermissionKeys.manageDaycareBookings] ??
@@ -55,8 +55,8 @@ class _DaycarePermissionPageState extends State<DaycarePermissionPage> {
                 _update(ShopPermissionKeys.manageDaycareBookings, value),
           ),
           PermissionSwitchTile(
-            title: '臨托設定',
-            subtitle: '可修改臨托基本設定、時間與條款',
+            title: '安親設定',
+            subtitle: '可修改安親基本設定、時間與條款',
             value:
                 widget.permissions[ShopPermissionKeys.manageDaycareSettings] ??
                 false,
@@ -65,8 +65,8 @@ class _DaycarePermissionPageState extends State<DaycarePermissionPage> {
                 _update(ShopPermissionKeys.manageDaycareSettings, value),
           ),
           PermissionSwitchTile(
-            title: '臨托方案與價格',
-            subtitle: '可新增與修改臨托方案',
+            title: '安親方案與價格',
+            subtitle: '可新增與修改安親方案',
             value:
                 widget.permissions[ShopPermissionKeys.manageDaycarePricing] ??
                 false,
@@ -75,8 +75,8 @@ class _DaycarePermissionPageState extends State<DaycarePermissionPage> {
                 _update(ShopPermissionKeys.manageDaycarePricing, value),
           ),
           PermissionSwitchTile(
-            title: '臨托轉住宿',
-            subtitle: '可將臨托訂單轉為住宿',
+            title: '安親轉住宿',
+            subtitle: '可將安親訂單轉為住宿',
             value:
                 widget.permissions[ShopPermissionKeys
                     .convertDaycareToAccommodation] ??
@@ -88,7 +88,7 @@ class _DaycarePermissionPageState extends State<DaycarePermissionPage> {
             ),
           ),
           PermissionSwitchTile(
-            title: '調整臨托價格',
+            title: '調整安親價格',
             subtitle: '可改價與新增超時費',
             value:
                 widget.permissions[ShopPermissionKeys.adjustDaycarePrice] ??

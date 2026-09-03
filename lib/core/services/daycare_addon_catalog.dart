@@ -1,5 +1,7 @@
 // lib/core/services/daycare_addon_catalog.dart
-// 🐾 臨托可用加購：只讀既有加購服務，允許清單以臨托設定 allowedAddonIds 為準。
+// 🐾 安親可用加購：只讀既有 shops/{shopId}/addons/main，允許清單為 allowedAddonIds。
+
+import 'package:petnest_saas/core/models/daycare_settings_model.dart';
 
 class DaycareAddonCatalog {
   DaycareAddonCatalog._();
@@ -8,7 +10,7 @@ class DaycareAddonCatalog {
     <String, String>{'key': 'timeOptions', 'label': '時間加購'},
     <String, String>{'key': 'valueServices', 'label': '加值服務'},
     <String, String>{'key': 'customServices', 'label': '客製服務'},
-    <String, String>{'key': 'dailyTimedServices', 'label': '每日分時段'},
+    <String, String>{'key': 'dailyTimedServices', 'label': '每日分時段服務'},
   ];
 
   static String displayName(Map<String, dynamic> item) {
@@ -32,7 +34,7 @@ class DaycareAddonCatalog {
   }
 
   static String inventorySummary(Map<String, dynamic> item) {
-    if (item['useInventory'] != true) {
+    if (!DaycareBool.parse(item['useInventory'])) {
       return '不使用庫存';
     }
     final Object? raw = item['inventoryBindings'];
@@ -40,8 +42,26 @@ class DaycareAddonCatalog {
     return count > 0 ? '庫存連動 · 已綁定 $count 項' : '庫存連動 · 尚未綁定';
   }
 
+  static bool isModuleEnabled(Map<String, dynamic>? doc) {
+    if (doc == null) {
+      return false;
+    }
+    if (!doc.containsKey('enabled')) {
+      return true;
+    }
+    return DaycareBool.parse(doc['enabled']);
+  }
+
+  static bool isItemEnabled(Map<String, dynamic> item) {
+    if (!item.containsKey('enabled')) {
+      return true;
+    }
+    return DaycareBool.parse(item['enabled']);
+  }
+
+  /// 後台清單：即使加購總開關關閉仍列出項目，方便勾選。
   static List<Map<String, dynamic>> flatten(Map<String, dynamic>? doc) {
-    if (doc == null || doc['enabled'] == false) {
+    if (doc == null) {
       return const <Map<String, dynamic>>[];
     }
     final List<Map<String, dynamic>> out = <Map<String, dynamic>>[];
@@ -68,14 +88,53 @@ class DaycareAddonCatalog {
   static List<Map<String, dynamic>> allowedForDaycare({
     required Map<String, dynamic>? doc,
     required List<String> allowedAddonIds,
+    DateTime? serviceDate,
+    int petCount = 1,
   }) {
+    if (!isModuleEnabled(doc)) {
+      return const <Map<String, dynamic>>[];
+    }
     final Set<String> allowed = allowedAddonIds.toSet();
-    return flatten(doc)
-        .where(
-          (Map<String, dynamic> item) =>
-              allowed.contains((item['id'] ?? '').toString()),
-        )
-        .toList();
+    return flatten(doc).where((Map<String, dynamic> item) {
+      final String id = (item['id'] ?? '').toString();
+      if (!allowed.contains(id) || !isItemEnabled(item)) {
+        return false;
+      }
+      return _matchesDateAndPets(
+        item: item,
+        serviceDate: serviceDate,
+        petCount: petCount,
+      );
+    }).toList();
+  }
+
+  static bool _matchesDateAndPets({
+    required Map<String, dynamic> item,
+    DateTime? serviceDate,
+    required int petCount,
+  }) {
+    final int minPets = _toInt(item['minPets'], 0);
+    final int maxPets = _toInt(item['maxPets'], 0);
+    if (minPets > 0 && petCount < minPets) {
+      return false;
+    }
+    if (maxPets > 0 && petCount > maxPets) {
+      return false;
+    }
+    if (serviceDate == null) {
+      return true;
+    }
+    final Object? weekdaysRaw = item['weekdays'] ?? item['allowedWeekdays'];
+    if (weekdaysRaw is List && weekdaysRaw.isNotEmpty) {
+      final Set<int> days = weekdaysRaw
+          .map((dynamic e) => int.tryParse(e.toString()) ?? 0)
+          .where((int e) => e >= 1 && e <= 7)
+          .toSet();
+      if (days.isNotEmpty && !days.contains(serviceDate.weekday)) {
+        return false;
+      }
+    }
+    return true;
   }
 
   static bool isAllowed({
@@ -84,5 +143,15 @@ class DaycareAddonCatalog {
   }) {
     final String id = addonId.trim();
     return id.isNotEmpty && allowedAddonIds.contains(id);
+  }
+
+  static int _toInt(dynamic raw, int fallback) {
+    if (raw is int) {
+      return raw;
+    }
+    if (raw is num) {
+      return raw.round();
+    }
+    return int.tryParse(raw?.toString() ?? '') ?? fallback;
   }
 }

@@ -20,9 +20,29 @@ function normalizeString(value) {
 
 /**
  * @param {*} value
- * @param {number} fallback
- * @return {number}
+ * @param {boolean=} fallback
+ * @return {boolean}
  */
+function parseBool(value, fallback = false) {
+  if (value === true || value === 1 || value === "1" || value === "true") {
+    return true;
+  }
+  if (value === false || value === 0 || value === "0" || value === "false" ||
+      value == null || value === "") {
+    return false;
+  }
+  if (typeof value === "string") {
+    const normalized = value.trim().toLowerCase();
+    if (normalized === "true" || normalized === "1") {
+      return true;
+    }
+    if (normalized === "false" || normalized === "0") {
+      return false;
+    }
+  }
+  return fallback;
+}
+
 function toInt(value, fallback = 0) {
   if (typeof value === "number" && Number.isFinite(value)) {
     return Math.round(value);
@@ -328,10 +348,7 @@ function shopHasCatHotel(shopData) {
  */
 function isDaycareEnabled(shopData, settings) {
   const shop = shopData || {};
-  if (Object.prototype.hasOwnProperty.call(shop, "daycareEnabled")) {
-    return shop.daycareEnabled === true;
-  }
-  return !!(settings && settings.enabled === true);
+  return parseBool(shop.daycareEnabled) || parseBool(settings && settings.enabled);
 }
 
 /** @deprecated 請改用 isDaycareEnabled
@@ -405,7 +422,11 @@ const ADDON_GROUP_KEYS = [
  * @return {Array<Object>}
  */
 function flattenAddonCatalog(data) {
-  if (!data || data.enabled === false) {
+  if (!data) {
+    return [];
+  }
+  if (Object.prototype.hasOwnProperty.call(data, "enabled") &&
+      !parseBool(data.enabled)) {
     return [];
   }
   const out = [];
@@ -414,6 +435,11 @@ function flattenAddonCatalog(data) {
     for (const item of list) {
       const id = normalizeString(item && item.id);
       if (!id) {
+        continue;
+      }
+      if (item && typeof item === "object" &&
+          Object.prototype.hasOwnProperty.call(item, "enabled") &&
+          !parseBool(item.enabled)) {
         continue;
       }
       out.push({
@@ -431,6 +457,53 @@ function flattenAddonCatalog(data) {
   return out;
 }
 
+/**
+ * 一晚住宿原價上限：房型價＋多寵物加價＋特殊日期加價，不含優惠券／活動／點數。
+ * @param {FirebaseFirestore.Firestore} firestore
+ * @param {string} shopId
+ * @param {string} roomTypeId
+ * @param {number} petCount
+ * @param {Date} stayDate
+ * @return {Promise<number>}
+ */
+async function overnightCapForRoom(
+    firestore, shopId, roomTypeId, petCount, stayDate,
+) {
+  const id = normalizeString(roomTypeId);
+  if (!id) {
+    return 0;
+  }
+  const roomTypeSnap = await firestore.collection("shops").doc(shopId)
+      .collection("room_types").doc(id).get();
+  const roomType = roomTypeSnap.data() || {};
+  const extraPets = Math.max(0, toInt(petCount, 1) - 1);
+  let amount = toInt(roomType.price, 0) +
+    extraPets * toInt(roomType.extraPrice, 0);
+  const surSnap = await firestore.collection("shops").doc(shopId)
+      .collection("special_date_surcharges")
+      .where("enabled", "==", true).get();
+  const key = serviceDateKey(stayDate);
+  surSnap.docs.forEach((doc) => {
+    const data = doc.data() || {};
+    const start = toDate(data.startDate);
+    const end = toDate(data.endDate);
+    if (!start || !end) {
+      return;
+    }
+    const ids = Array.isArray(data.roomTypeIds) ?
+      data.roomTypeIds.map((item) => normalizeString(item)) : [];
+    if (ids.length > 0 && !ids.includes(id)) {
+      return;
+    }
+    const startKey = serviceDateKey(start);
+    const endKey = serviceDateKey(end);
+    if (key >= startKey && key <= endKey) {
+      amount += toInt(data.amountPerNight, 0);
+    }
+  });
+  return amount;
+}
+
 module.exports = {
   ROOT_ADMIN_UID,
   BOOKING_KIND_ACCOMMODATION,
@@ -438,6 +511,7 @@ module.exports = {
   ACTIVE_STATUSES,
   normalizeString,
   toInt,
+  parseBool,
   roundMoney,
   toDate,
   taiwanDate,
@@ -462,4 +536,5 @@ module.exports = {
   writeActionLog,
   overlaps,
   flattenAddonCatalog,
+  overnightCapForRoom,
 };

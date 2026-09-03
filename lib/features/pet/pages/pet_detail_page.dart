@@ -1,216 +1,414 @@
 // lib/features/pet/pages/pet_detail_page.dart
-// 🐱 寵物資料詳細編輯卡（完整版🔥修好所有問題）
+// 🐱 前台寵物詳細頁
 
-import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:image_picker/image_picker.dart';
-import 'dart:typed_data';
 import 'package:firebase_storage/firebase_storage.dart';
+import 'package:flutter/material.dart';
+import 'package:petnest_saas/core/models/home_theme_model.dart';
+import 'package:petnest_saas/features/pet/widgets/edit_pet_sheet.dart';
 
 class PetDetailPage extends StatelessWidget {
-  const PetDetailPage({super.key, required this.pet, this.isAdminView = false});
+  const PetDetailPage({
+    super.key,
+    required this.pet,
+    this.isAdminView = false,
+    this.theme = HomeThemeModel.modernDefault,
+  });
 
   final Map<String, dynamic> pet;
   final bool isAdminView;
+  final HomeThemeModel theme;
 
   @override
   Widget build(BuildContext context) {
-    final photoUrl = pet['photoUrl']?.toString() ?? '';
+    final String uid =
+        (pet['userId'] ?? FirebaseAuth.instance.currentUser?.uid ?? '')
+            .toString();
+    final String petId = (pet['petId'] ?? '').toString();
 
     return Scaffold(
+      backgroundColor: theme.backgroundColor,
       appBar: AppBar(
+        backgroundColor: theme.cardColor,
+        foregroundColor: theme.textColor,
+        surfaceTintColor: Colors.transparent,
         title: Text(
-          pet['name'] ?? '寵物資料',
-          style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+          (pet['name'] ?? '寵物資料').toString(),
+          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
         ),
-        actions: [
-          if (isAdminView)
-            IconButton(
-              icon: const Icon(Icons.edit),
-              onPressed: () => _showEditDialog(context),
-            )
-          else ...[
-            IconButton(
-              icon: const Icon(Icons.edit),
-              onPressed: () => _showEditDialog(context),
+      ),
+      body: uid.isEmpty || petId.isEmpty
+          ? _PetDetailBody(pet: pet, theme: theme, isAdminView: isAdminView)
+          : StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+              stream: FirebaseFirestore.instance
+                  .collection('user_profiles')
+                  .doc(uid)
+                  .collection('pets')
+                  .doc(petId)
+                  .snapshots(),
+              builder:
+                  (
+                    BuildContext context,
+                    AsyncSnapshot<DocumentSnapshot<Map<String, dynamic>>>
+                    snapshot,
+                  ) {
+                    final Map<String, dynamic> data =
+                        snapshot.data?.data() ?? pet;
+                    return _PetDetailBody(
+                      pet: data,
+                      theme: theme,
+                      isAdminView: isAdminView,
+                    );
+                  },
             ),
-            IconButton(
-              icon: const Icon(Icons.delete, color: Colors.red),
-              onPressed: () => _deletePet(context),
+    );
+  }
+}
+
+class _PetDetailBody extends StatelessWidget {
+  const _PetDetailBody({
+    required this.pet,
+    required this.theme,
+    required this.isAdminView,
+  });
+
+  final Map<String, dynamic> pet;
+  final HomeThemeModel theme;
+  final bool isAdminView;
+
+  String _text(dynamic value) {
+    final String text = (value ?? '').toString().trim();
+    return text;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final String photoUrl = _text(pet['photoUrl']);
+    final String name = _text(pet['name']).isEmpty ? '未命名' : _text(pet['name']);
+    final String gender = _text(pet['gender']);
+    final String age = _text(pet['age']);
+    final String breed = _text(pet['breed']);
+    final String note = _text(pet['note']);
+    final bool neutered = pet['isNeutered'] == true;
+
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+      children: <Widget>[
+        _heroCard(
+          context,
+          photoUrl: photoUrl,
+          name: name,
+          gender: gender,
+          age: age,
+          breed: breed,
+        ),
+        const SizedBox(height: 12),
+        _sectionCard(
+          icon: Icons.info_outline,
+          title: '基本資料',
+          children: <Widget>[
+            _infoRow(Icons.badge_outlined, '名稱', name),
+            _infoRow(Icons.category_outlined, '品種', breed),
+            _infoRow(Icons.wc_outlined, '性別', gender),
+            _infoRow(Icons.cake_outlined, '年齡', age),
+          ],
+        ),
+        const SizedBox(height: 12),
+        _sectionCard(
+          icon: Icons.health_and_safety_outlined,
+          title: '健康資訊',
+          children: <Widget>[
+            _infoRow(
+              Icons.content_cut_outlined,
+              '結紮狀況',
+              neutered ? '已結紮' : '未結紮',
+            ),
+            if (!neutered) ...<Widget>[
+              const SizedBox(height: 8),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFFF1F0),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: const Color(0xFFF5C6C2)),
+                ),
+                child: Text(
+                  '未結紮公貓可能會有噴尿情況，將會額外收費（詳見入住須知）。',
+                  style: TextStyle(
+                    fontSize: 12,
+                    height: 1.4,
+                    color: Colors.red.shade800,
+                  ),
+                ),
+              ),
+            ],
+            _infoRow(
+              Icons.medical_services_outlined,
+              '醫療狀況',
+              _text(pet['vaccine']),
             ),
           ],
-        ],
-      ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          children: [
-            /// 🖼️ 圖片
-            GestureDetector(
-              onTap: photoUrl.isNotEmpty
-                  ? () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => _FullImagePage(imageUrl: photoUrl),
-                        ),
-                      );
-                    }
-                  : null,
-              child: Container(
-                width: 180,
-                height: 180,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: Colors.grey[200],
-                  border: Border.all(color: Colors.grey.shade300, width: 2),
-                  boxShadow: [
-                    BoxShadow(
-                      blurRadius: 10,
-                      color: Colors.black.withOpacity(0.1),
-                    ),
-                  ],
-                ),
-                child: ClipOval(
-                  child: photoUrl.isNotEmpty
-                      ? Image.network(
-                          photoUrl,
-                          fit: BoxFit.cover,
-                          loadingBuilder: (context, child, progress) {
-                            if (progress == null) return child;
-                            return const Center(
-                              child: CircularProgressIndicator(),
-                            );
-                          },
-                          errorBuilder: (_, __, ___) {
-                            return const Icon(Icons.pets, size: 60);
-                          },
-                        )
-                      : const Icon(Icons.pets, size: 60),
-                ),
+        ),
+        const SizedBox(height: 12),
+        _sectionCard(
+          icon: Icons.home_outlined,
+          title: '住宿習慣',
+          children: <Widget>[
+            _infoRow(
+              Icons.inventory_2_outlined,
+              '貓砂種類',
+              _text(pet['litterType']),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        _notesCard(note),
+        const SizedBox(height: 12),
+        _sectionCard(
+          icon: Icons.assignment_outlined,
+          title: '店家自訂資料',
+          children: <Widget>[
+            Text(
+              '尚無自訂資料',
+              style: TextStyle(
+                fontSize: 12,
+                color: theme.textColor.withValues(alpha: 0.45),
               ),
             ),
+          ],
+        ),
+        if (isAdminView) ...<Widget>[
+          const SizedBox(height: 12),
+          _sectionCard(
+            icon: Icons.lock_outline,
+            title: '員工備註（內部）',
+            children: <Widget>[
+              _infoRow(Icons.notes_outlined, '備註', _text(pet['adminNote'])),
+            ],
+          ),
+        ],
+      ],
+    );
+  }
 
-            const SizedBox(height: 24),
-
-            _buildCard([
-              const Text(
-                '基本資料',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 10),
-              _item('名稱', pet['name']),
-              _item('品種', pet['breed']),
-              _item('性別', pet['gender']),
-              _item('年齡', pet['age']),
-            ]),
-
-            const SizedBox(height: 16),
-
-            _buildCard([
-              const Text('健康資訊', style: TextStyle(fontWeight: FontWeight.bold)),
-              const SizedBox(height: 8),
-              _item('結紮狀況', pet['isNeutered'] == true ? '已結紮' : '未結紮'),
-              const SizedBox(height: 6),
-              const Text(
-                '※ 未結紮公貓可能會有噴尿情況，將會額外收費（詳見入住須知）',
-                style: TextStyle(color: Colors.red, fontSize: 16),
-              ),
-              _item('醫療狀況', pet['vaccine']),
-              _item('貓砂種類', pet['litterType']),
-            ]),
-
-            const SizedBox(height: 16),
-
-            _buildCard([
-              const Text('其他備註', style: TextStyle(fontWeight: FontWeight.bold)),
-              const SizedBox(height: 8),
-              Text(pet['note'] ?? '無'),
-            ]),
-            if (isAdminView) ...[
-              const SizedBox(height: 16),
-
-              _buildCard([
-                const Text(
-                  '🔒 員工備註（內部）',
+  Widget _heroCard(
+    BuildContext context, {
+    required String photoUrl,
+    required String name,
+    required String gender,
+    required String age,
+    required String breed,
+  }) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(14, 12, 8, 14),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: theme.cardBorderColor),
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: <Color>[
+            Color.alphaBlend(
+              theme.primaryColor.withValues(alpha: 0.12),
+              theme.cardColor,
+            ),
+            theme.cardColor,
+          ],
+        ),
+      ),
+      child: Stack(
+        children: <Widget>[
+          Padding(
+            padding: const EdgeInsets.fromLTRB(6, 10, 6, 4),
+            child: Column(
+              children: <Widget>[
+                GestureDetector(
+                  onTap: photoUrl.isEmpty
+                      ? null
+                      : () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute<void>(
+                              builder: (_) =>
+                                  _FullImagePage(imageUrl: photoUrl),
+                            ),
+                          );
+                        },
+                  child: Container(
+                    width: 110,
+                    height: 110,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: theme.primaryColor.withValues(alpha: 0.12),
+                      border: Border.all(
+                        color: theme.cardBorderColor,
+                        width: 1.5,
+                      ),
+                    ),
+                    clipBehavior: Clip.antiAlias,
+                    child: photoUrl.isEmpty
+                        ? Icon(Icons.pets, size: 42, color: theme.primaryColor)
+                        : Image.network(
+                            photoUrl,
+                            fit: BoxFit.cover,
+                            errorBuilder: (context, error, stackTrace) => Icon(
+                              Icons.pets,
+                              size: 42,
+                              color: theme.primaryColor,
+                            ),
+                          ),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  name,
+                  textAlign: TextAlign.center,
                   style: TextStyle(
-                    fontWeight: FontWeight.bold,
                     fontSize: 16,
-                    color: Colors.red,
+                    fontWeight: FontWeight.w700,
+                    color: theme.textColor,
                   ),
                 ),
                 const SizedBox(height: 8),
-                Text(pet['adminNote'] ?? '無'),
-              ]),
-            ],
-          ],
+                Wrap(
+                  alignment: WrapAlignment.center,
+                  spacing: 6,
+                  runSpacing: 6,
+                  children: <Widget>[
+                    if (gender.isNotEmpty) _chip(gender),
+                    if (age.isNotEmpty) _chip(age),
+                    if (breed.isNotEmpty) _chip(breed),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          Positioned(
+            top: 0,
+            right: 0,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: <Widget>[
+                IconButton(
+                  tooltip: '編輯',
+                  visualDensity: VisualDensity.compact,
+                  onPressed: () => showEditPetSheet(
+                    context: context,
+                    pet: pet,
+                    theme: theme,
+                    isAdminView: isAdminView,
+                  ),
+                  icon: Icon(Icons.edit_outlined, color: theme.textColor),
+                ),
+                if (!isAdminView)
+                  IconButton(
+                    tooltip: '刪除',
+                    visualDensity: VisualDensity.compact,
+                    onPressed: () => _confirmDelete(context),
+                    icon: Icon(
+                      Icons.delete_outline,
+                      color: Colors.red.shade600,
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _chip(String label) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: theme.primaryColor.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          fontSize: 12,
+          fontWeight: FontWeight.w600,
+          color: theme.primaryColor,
         ),
       ),
     );
   }
 
-  Widget _buildCard(List<Widget> children) {
+  Widget _sectionCard({
+    required IconData icon,
+    required String title,
+    required List<Widget> children,
+  }) {
     return Container(
       width: double.infinity,
-      margin: const EdgeInsets.only(bottom: 16),
-      padding: const EdgeInsets.all(18),
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: theme.cardColor,
         borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            blurRadius: 12,
-            color: Colors.black.withOpacity(0.08),
-            offset: const Offset(0, 4),
-          ),
-        ],
+        border: Border.all(color: theme.cardBorderColor),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
-        children: children,
+        children: <Widget>[
+          Row(
+            children: <Widget>[
+              Icon(icon, size: 18, color: theme.primaryColor),
+              const SizedBox(width: 8),
+              Text(
+                title,
+                style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
+                  color: theme.textColor,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          ...children,
+        ],
       ),
     );
   }
 
-  /// ✨ 統一輸入框樣式
-  InputDecoration _inputStyle(String label) {
-    return InputDecoration(
-      labelText: label,
-      filled: true,
-      fillColor: Colors.grey.shade50,
-      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 20),
-      border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(14),
-        borderSide: BorderSide.none,
-      ),
-      enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(14),
-        borderSide: BorderSide(color: Colors.grey.shade300),
-      ),
-      focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(14),
-        borderSide: const BorderSide(color: Colors.blue, width: 1.5),
-      ),
-    );
-  }
-
-  Widget _item(String label, dynamic value) {
+  Widget _infoRow(IconData icon, String label, String value) {
+    final bool empty = value.trim().isEmpty;
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 10),
+      padding: const EdgeInsets.only(bottom: 8),
       child: Row(
-        children: [
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Icon(
+            icon,
+            size: 18,
+            color: theme.primaryColor.withValues(alpha: 0.8),
+          ),
+          const SizedBox(width: 8),
           SizedBox(
-            width: 100,
+            width: 72,
             child: Text(
-              '$label：',
-              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+              label,
+              style: TextStyle(
+                fontSize: 13,
+                color: theme.textColor.withValues(alpha: 0.55),
+              ),
             ),
           ),
           Expanded(
             child: Text(
-              value?.toString().isNotEmpty == true ? value.toString() : '未填寫',
-              style: const TextStyle(fontSize: 16),
+              empty ? '尚未填寫' : value,
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: empty
+                    ? theme.textColor.withValues(alpha: 0.35)
+                    : theme.textColor,
+              ),
             ),
           ),
         ],
@@ -218,341 +416,101 @@ class PetDetailPage extends StatelessWidget {
     );
   }
 
-  /// ✏️ 編輯（完整版🔥含換照片）
-  Future<void> _showEditDialog(BuildContext context) async {
-    final uid = FirebaseAuth.instance.currentUser!.uid;
+  Widget _notesCard(String note) {
+    final bool empty = note.isEmpty;
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+      decoration: BoxDecoration(
+        color: theme.cardColor,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: theme.cardBorderColor),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Row(
+            children: <Widget>[
+              Icon(Icons.notes_outlined, size: 18, color: theme.primaryColor),
+              const SizedBox(width: 8),
+              Text(
+                '其他備註',
+                style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
+                  color: theme.textColor,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            empty ? '尚無其他備註' : note,
+            style: TextStyle(
+              fontSize: empty ? 12 : 14,
+              height: 1.4,
+              color: empty
+                  ? theme.textColor.withValues(alpha: 0.45)
+                  : theme.textColor,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 
-    final name = TextEditingController(text: pet['name'] ?? '');
-    final breed = TextEditingController(text: pet['breed'] ?? '');
-    final note = TextEditingController(text: pet['note'] ?? '');
-    final adminNote = TextEditingController(text: pet['adminNote'] ?? '');
-
-    String? gender = pet['gender'];
-    String? age = pet['age'];
-    String? medical = pet['vaccine'];
-    String? litterType = pet['litterType'];
-    String? neuterStatus = pet['isNeutered'] == true ? '有結紮' : '未結紮';
-
-    Uint8List? newImage;
-
-    await showDialog(
+  Future<void> _confirmDelete(BuildContext context) async {
+    final bool? confirmed = await showDialog<bool>(
       context: context,
-      builder: (_) {
-        return StatefulBuilder(
-          builder: (context, setState) {
-            return AlertDialog(
-              backgroundColor: Colors.white,
-              elevation: 0,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(28),
-              ),
-              insetPadding: const EdgeInsets.symmetric(
-                horizontal: 24,
-                vertical: 24,
-              ),
-              title: const Text(
-                '編輯寵物',
-                style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-              ),
-              content: SingleChildScrollView(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    /// 🔥 圖片選擇
-                    GestureDetector(
-                      onTap: () async {
-                        final picker = ImagePicker();
-                        final picked = await picker.pickImage(
-                          source: ImageSource.gallery,
-                        );
-                        if (picked != null) {
-                          final bytes = await picked.readAsBytes();
-                          setState(() => newImage = bytes);
-                        }
-                      },
-                      child: Container(
-                        width: 100,
-                        height: 100,
-                        margin: const EdgeInsets.only(bottom: 12),
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: Colors.grey[200],
-                        ),
-                        child: ClipOval(
-                          child: newImage != null
-                              ? Image.memory(newImage!, fit: BoxFit.cover)
-                              : (pet['photoUrl'] != null &&
-                                    pet['photoUrl'] != '')
-                              ? Image.network(
-                                  pet['photoUrl'],
-                                  fit: BoxFit.cover,
-                                )
-                              : const Icon(Icons.camera_alt),
-                        ),
-                      ),
-                    ),
-
-                    TextField(
-                      controller: name,
-                      enabled: !isAdminView,
-                      decoration: _inputStyle('名稱'),
-                    ),
-
-                    const SizedBox(height: 12),
-
-                    TextField(controller: breed, decoration: _inputStyle('品種')),
-
-                    if (isAdminView) ...[
-                      const SizedBox(height: 12),
-                      TextField(
-                        controller: adminNote,
-                        maxLines: 3,
-                        decoration: _inputStyle('員工備註（只有後台看得到）'),
-                      ),
-                    ],
-
-                    DropdownButtonFormField<String>(
-                      value: ['公貓', '母貓'].contains(gender) ? gender : null,
-
-                      decoration: _inputStyle('性別'),
-
-                      items: ['公貓', '母貓']
-                          .map(
-                            (e) => DropdownMenuItem(value: e, child: Text(e)),
-                          )
-                          .toList(),
-
-                      onChanged: isAdminView
-                          ? null
-                          : (v) => setState(() => gender = v),
-                    ),
-
-                    const SizedBox(height: 12),
-
-                    DropdownButtonFormField<String>(
-                      value: ['有結紮', '未結紮'].contains(neuterStatus)
-                          ? neuterStatus
-                          : null,
-                      decoration: _inputStyle('結紮狀況'),
-                      items: const [
-                        DropdownMenuItem(value: '有結紮', child: Text('有結紮')),
-                        DropdownMenuItem(value: '未結紮', child: Text('未結紮')),
-                      ],
-                      onChanged: isAdminView
-                          ? null
-                          : (v) => setState(() => neuterStatus = v),
-                    ),
-
-                    DropdownButtonFormField<String>(
-                      value:
-                          ['6~12個月', '1~10歲', '10~12歲', '12歲以上'].contains(age)
-                          ? age
-                          : null,
-                      decoration: _inputStyle('年齡'),
-                      items: const [
-                        DropdownMenuItem(
-                          value: '6~12個月',
-                          child: Text('含6~12個月'),
-                        ),
-                        DropdownMenuItem(value: '1~10歲', child: Text('1~10歲')),
-                        DropdownMenuItem(
-                          value: '10~12歲',
-                          child: Text('10~12歲'),
-                        ),
-                        DropdownMenuItem(value: '12歲以上', child: Text('12歲以上')),
-                      ],
-                      onChanged: isAdminView
-                          ? null
-                          : (v) => setState(() => age = v),
-                    ),
-
-                    DropdownButtonFormField<String>(
-                      value:
-                          [
-                            '無',
-                            '慢性腎臟病',
-                            '心臟病',
-                            '糖尿病',
-                            '術後照護',
-                            '皮膚疾病',
-                            '其他',
-                          ].contains(medical)
-                          ? medical
-                          : null,
-                      decoration: _inputStyle('醫療狀況'),
-                      items: const [
-                        DropdownMenuItem(value: '無', child: Text('無')),
-                        DropdownMenuItem(value: '慢性腎臟病', child: Text('慢性腎臟病')),
-                        DropdownMenuItem(value: '心臟病', child: Text('心臟病')),
-                        DropdownMenuItem(value: '糖尿病', child: Text('糖尿病')),
-                        DropdownMenuItem(value: '術後照護', child: Text('術後照護')),
-                        DropdownMenuItem(value: '皮膚疾病', child: Text('皮膚治療')),
-                        DropdownMenuItem(value: '其他', child: Text('其他')),
-                      ],
-                      onChanged: isAdminView
-                          ? null
-                          : (v) => setState(() => medical = v),
-                    ),
-
-                    DropdownButtonFormField<String>(
-                      value: ['豆腐砂', '礦砂', '其他'].contains(litterType)
-                          ? litterType
-                          : null,
-                      decoration: _inputStyle('貓砂種類'),
-                      items: const [
-                        DropdownMenuItem(value: '豆腐砂', child: Text('豆腐砂')),
-                        DropdownMenuItem(value: '礦砂', child: Text('礦砂')),
-                        DropdownMenuItem(value: '其他', child: Text('其他')),
-                      ],
-                      onChanged: isAdminView
-                          ? null
-                          : (v) => setState(() => litterType = v),
-                    ),
-
-                    const SizedBox(height: 12),
-
-                    TextField(
-                      controller: note,
-                      maxLines: 4,
-                      decoration: _inputStyle('其他備註'),
-                    ),
-                  ],
-                ),
-              ),
-              actionsPadding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
-
-              actions: [
-                Row(
-                  children: [
-                    /// 取消
-                    Expanded(
-                      child: OutlinedButton(
-                        onPressed: () => Navigator.pop(context),
-                        style: OutlinedButton.styleFrom(
-                          minimumSize: const Size.fromHeight(52),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(16),
-                          ),
-                        ),
-                        child: const Text('取消', style: TextStyle(fontSize: 16)),
-                      ),
-                    ),
-
-                    const SizedBox(width: 12),
-
-                    /// 儲存
-                    Expanded(
-                      child: FilledButton(
-                        onPressed: () async {
-                          /// 🔥 刪舊圖
-                          if (newImage != null &&
-                              pet['photoUrl'] != null &&
-                              pet['photoUrl'] != '') {
-                            try {
-                              await FirebaseStorage.instance
-                                  .refFromURL(pet['photoUrl'])
-                                  .delete();
-                            } catch (e) {}
-                          }
-
-                          /// 🔥 更新資料
-                          await FirebaseFirestore.instance
-                              .collection('user_profiles')
-                              .doc(uid)
-                              .collection('pets')
-                              .doc(pet['petId'])
-                              .update({
-                                'name': name.text,
-                                'age': age,
-                                'gender': gender,
-                                'breed': breed.text,
-                                'isNeutered': neuterStatus == '有結紮',
-                                'vaccine': medical,
-                                'litterType': litterType,
-                                'note': note.text,
-                                'adminNote': adminNote.text,
-                              });
-
-                          /// 🔥 上傳新圖
-                          if (newImage != null) {
-                            final ref = FirebaseStorage.instance
-                                .ref()
-                                .child('pets')
-                                .child(uid)
-                                .child('${pet['petId']}.jpg');
-
-                            await ref.putData(
-                              newImage!,
-                              SettableMetadata(contentType: 'image/jpeg'),
-                            );
-
-                            final url = await ref.getDownloadURL();
-
-                            await FirebaseFirestore.instance
-                                .collection('user_profiles')
-                                .doc(uid)
-                                .collection('pets')
-                                .doc(pet['petId'])
-                                .update({'photoUrl': url});
-                          }
-
-                          Navigator.pop(context);
-                          Navigator.pop(context);
-                        },
-                        style: FilledButton.styleFrom(
-                          minimumSize: const Size.fromHeight(52),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(16),
-                          ),
-                        ),
-                        child: const Text(
-                          '儲存',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            );
-          },
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('刪除寵物'),
+          content: const Text('確定刪除此寵物資料？刪除後無法復原。'),
+          actions: <Widget>[
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('取消'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('刪除'),
+            ),
+          ],
         );
       },
     );
-    name.dispose();
-    breed.dispose();
-    note.dispose();
-    adminNote.dispose();
+    if (confirmed == true && context.mounted) {
+      await _deletePet(context);
+    }
   }
 
   Future<void> _deletePet(BuildContext context) async {
-    final uid = FirebaseAuth.instance.currentUser!.uid;
-
-    /// 🔥 刪圖片
-    if (pet['photoUrl'] != null && pet['photoUrl'] != '') {
+    final String uid =
+        (pet['userId'] ?? FirebaseAuth.instance.currentUser?.uid ?? '')
+            .toString();
+    final String petId = (pet['petId'] ?? '').toString();
+    final String photoUrl = (pet['photoUrl'] ?? '').toString();
+    if (photoUrl.isNotEmpty) {
       try {
-        await FirebaseStorage.instance.refFromURL(pet['photoUrl']).delete();
-      } catch (e) {}
+        await FirebaseStorage.instance.refFromURL(photoUrl).delete();
+      } catch (_) {}
     }
-
     await FirebaseFirestore.instance
         .collection('user_profiles')
         .doc(uid)
         .collection('pets')
-        .doc(pet['petId'])
+        .doc(petId)
         .delete();
-
-    if (context.mounted) Navigator.pop(context);
+    if (context.mounted) {
+      Navigator.pop(context);
+    }
   }
 }
 
 class _FullImagePage extends StatelessWidget {
-  final String imageUrl;
-
   const _FullImagePage({required this.imageUrl});
+
+  final String imageUrl;
 
   @override
   Widget build(BuildContext context) {

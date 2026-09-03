@@ -6,7 +6,7 @@ import 'package:petnest_saas/core/services/daycare_booking_validator.dart';
 import 'package:petnest_saas/core/services/daycare_settings_service.dart';
 
 void main() {
-  test('臨托唯一開關以 shop.daycareEnabled 為準', () {
+  test('安親開關相容 bool／0／1，且任一來源為開即開放', () {
     expect(
       DaycareSettingsService.instance.isEnabledForShop(
         shop: <String, dynamic>{'daycareEnabled': true},
@@ -16,10 +16,24 @@ void main() {
     );
     expect(
       DaycareSettingsService.instance.isEnabledForShop(
+        shop: <String, dynamic>{'daycareEnabled': 1},
+        settings: const DaycareSettingsModel(),
+      ),
+      isTrue,
+    );
+    expect(
+      DaycareSettingsService.instance.isEnabledForShop(
+        shop: <String, dynamic>{'daycareEnabled': 'true'},
+        settings: const DaycareSettingsModel(),
+      ),
+      isTrue,
+    );
+    expect(
+      DaycareSettingsService.instance.isEnabledForShop(
         shop: <String, dynamic>{'daycareEnabled': false},
         settings: const DaycareSettingsModel(enabled: true),
       ),
-      isFalse,
+      isTrue,
     );
     expect(
       DaycareSettingsService.instance.isEnabledForShop(
@@ -27,6 +41,13 @@ void main() {
         settings: const DaycareSettingsModel(enabled: true),
       ),
       isTrue,
+    );
+    expect(
+      DaycareSettingsService.instance.isEnabledForShop(
+        shop: <String, dynamic>{'daycareEnabled': 0},
+        settings: const DaycareSettingsModel(),
+      ),
+      isFalse,
     );
     expect(
       DaycareSettingsService.instance.isEnabledForShop(
@@ -40,11 +61,7 @@ void main() {
   test('客戶建立臨托訂單不需先選房型', () {
     expect(
       DaycareBookingValidator.validatePlan(
-        plan: const DaycarePlanModel(
-          id: 'p1',
-          name: '臨托',
-          enabled: true,
-        ),
+        plan: const DaycarePlanModel(id: 'p1', name: '臨托', enabled: true),
         startAt: DateTime(2026, 9, 2, 10),
       ).isOk,
       isTrue,

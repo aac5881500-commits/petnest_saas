@@ -1,5 +1,5 @@
 // lib/features/shop/pages/shop_daycare_booking_confirm_page.dart
-// 🐾 臨托預約確認 → 填寫資料／付款 → 確認訂單
+// 🐾 安親預約確認 → 填寫資料／付款 → 確認訂單
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -10,15 +10,18 @@ import 'package:petnest_saas/core/models/daycare_settings_model.dart';
 import 'package:petnest_saas/core/models/member_coupon_model.dart';
 import 'package:petnest_saas/core/models/payment_gateway_status.dart';
 import 'package:petnest_saas/core/models/point_setting_model.dart';
+import 'package:petnest_saas/core/services/daycare_addon_catalog.dart';
 import 'package:petnest_saas/core/services/daycare_booking_validator.dart';
 import 'package:petnest_saas/core/services/daycare_coupon_helper.dart';
 import 'package:petnest_saas/core/services/daycare_date_override_service.dart';
 import 'package:petnest_saas/core/services/daycare_function_service.dart';
 import 'package:petnest_saas/core/services/daycare_pricing_service.dart';
+import 'package:petnest_saas/core/services/daycare_settings_service.dart';
 import 'package:petnest_saas/core/services/daycare_time_helper.dart';
 import 'package:petnest_saas/core/services/member_coupon_service.dart';
 import 'package:petnest_saas/core/services/payment_function_service.dart';
 import 'package:petnest_saas/core/services/point_setting_service.dart';
+import 'package:petnest_saas/core/services/shop_service.dart';
 import 'package:petnest_saas/features/booking/pages/booking_form_page.dart';
 import 'package:petnest_saas/features/booking/pages/booking_success_page.dart';
 import 'package:petnest_saas/features/payment/pages/ecpay_payment_page.dart';
@@ -33,6 +36,8 @@ class ShopDaycareBookingConfirmPage extends StatefulWidget {
     required this.startAt,
     required this.endAt,
     required this.plan,
+    this.requestedRoomTypeId = '',
+    this.requestedRoomTypeName = '',
     required this.selectedPetIds,
     required this.pets,
     required this.addons,
@@ -46,6 +51,8 @@ class ShopDaycareBookingConfirmPage extends StatefulWidget {
   final DateTime startAt;
   final DateTime endAt;
   final DaycarePlanModel plan;
+  final String requestedRoomTypeId;
+  final String requestedRoomTypeName;
   final List<String> selectedPetIds;
   final List<Map<String, dynamic>> pets;
   final List<Map<String, dynamic>> addons;
@@ -127,10 +134,7 @@ class _ShopDaycareBookingConfirmPageState
           .getMemberCoupons(shopId: widget.shopId, userId: user.uid);
       final List<MemberCouponModel> usable = all
           .where(DaycareCouponHelper.appliesToDaycare)
-          .where(
-            (MemberCouponModel coupon) =>
-                coupon.roomTypeIds.isEmpty,
-          )
+          .where((MemberCouponModel coupon) => coupon.roomTypeIds.isEmpty)
           .toList();
       if (!mounted) {
         return;
@@ -164,14 +168,31 @@ class _ShopDaycareBookingConfirmPageState
     for (final Map<String, dynamic> addon in _addonLines) {
       addonAmount += (addon['amount'] as num).toInt();
     }
-    final DaycareQuote draft = DaycarePricingService.instance.quote(
-      settings: widget.settings,
-      plan: widget.plan,
-      startAt: widget.startAt,
-      endAt: widget.endAt,
-      petCount: widget.selectedPetIds.length,
-      addonAmount: addonAmount,
-    );
+    DaycareQuote draft;
+    if (widget.settings.isRoomBased) {
+      final DaycareRoomTypeSetting roomSetting =
+          widget.settings.roomTypeSetting(widget.requestedRoomTypeId) ??
+          const DaycareRoomTypeSetting(roomTypeId: '');
+      draft = DaycarePricingService.instance.quoteFromRoom(
+        settings: widget.settings,
+        room: DaycarePricingService.instance.quoteRoom(
+          roomSetting: roomSetting,
+          startAt: widget.startAt,
+          endAt: widget.endAt,
+          petCount: widget.selectedPetIds.length,
+        ),
+        addonAmount: addonAmount,
+      );
+    } else {
+      draft = DaycarePricingService.instance.quote(
+        settings: widget.settings,
+        plan: widget.plan,
+        startAt: widget.startAt,
+        endAt: widget.endAt,
+        petCount: widget.selectedPetIds.length,
+        addonAmount: addonAmount,
+      );
+    }
     final int resolvedCoupon = _selectedCoupon == null
         ? 0
         : DaycareCouponHelper.discountAmount(
@@ -184,6 +205,22 @@ class _ShopDaycareBookingConfirmPageState
             selectedAddons: _addonLines,
             specialDateAllowsCoupon: true,
           );
+    if (widget.settings.isRoomBased) {
+      final DaycareRoomTypeSetting roomSetting =
+          widget.settings.roomTypeSetting(widget.requestedRoomTypeId) ??
+          const DaycareRoomTypeSetting(roomTypeId: '');
+      return DaycarePricingService.instance.quoteFromRoom(
+        settings: widget.settings,
+        room: DaycarePricingService.instance.quoteRoom(
+          roomSetting: roomSetting,
+          startAt: widget.startAt,
+          endAt: widget.endAt,
+          petCount: widget.selectedPetIds.length,
+        ),
+        addonAmount: addonAmount,
+        couponAmount: resolvedCoupon,
+      );
+    }
     return DaycarePricingService.instance.quote(
       settings: widget.settings,
       plan: widget.plan,
@@ -239,7 +276,7 @@ class _ShopDaycareBookingConfirmPageState
           canSubmit: true,
           isBlacklisted: false,
           submitLabel: '確認訂單',
-          feeSummaryTitle: '臨托費用摘要',
+          feeSummaryTitle: '安親費用摘要',
           allowCashOverride: widget.settings.allowCash,
           daycareDepositType: widget.settings.depositType,
           daycareDepositValue: widget.settings.depositValue,
@@ -283,6 +320,48 @@ class _ShopDaycareBookingConfirmPageState
       }
       return;
     }
+    final Map<String, dynamic>? liveShop = await ShopService.instance.getShop(
+      widget.shopId,
+    );
+    final DaycareSettingsModel liveSettings = await DaycareSettingsService
+        .instance
+        .get(widget.shopId);
+    if (!DaycareSettingsService.instance.isEnabledForShop(
+      shop: liveShop,
+      settings: liveSettings,
+    )) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('此店家尚未開放安親')));
+      }
+      return;
+    }
+    final DocumentSnapshot<Map<String, dynamic>> addonSnap =
+        await FirebaseFirestore.instance
+            .collection('shops')
+            .doc(widget.shopId)
+            .collection('addons')
+            .doc('main')
+            .get();
+    final List<Map<String, dynamic>> liveAddons =
+        DaycareAddonCatalog.allowedForDaycare(
+          doc: addonSnap.data(),
+          allowedAddonIds: liveSettings.allowedAddonIds,
+          serviceDate: widget.startAt,
+          petCount: widget.selectedPetIds.length,
+        );
+    for (final Map<String, dynamic> addon in widget.addons) {
+      final String id = (addon['id'] ?? '').toString();
+      if (!liveAddons.any((Map<String, dynamic> e) => e['id'] == id)) {
+        if (mounted) {
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(const SnackBar(content: Text('所選加值服務已停用，請返回重新選擇')));
+        }
+        return;
+      }
+    }
     setState(() => _submitting = true);
     final DaycareQuote quote = _quote;
     try {
@@ -316,6 +395,8 @@ class _ShopDaycareBookingConfirmPageState
             'petIds': widget.selectedPetIds,
             'pets': petSnaps,
             'daycarePlanId': widget.plan.id,
+            'requestedRoomTypeId': widget.requestedRoomTypeId,
+            'requestedRoomTypeName': widget.requestedRoomTypeName,
             'addons': _addonLines,
             'customerName': _name.text.trim(),
             'customerPhone': _phone.text.trim(),
@@ -344,7 +425,7 @@ class _ShopDaycareBookingConfirmPageState
           paymentMethod == 'credit_card' ||
           paymentMethod == 'atm' ||
           paymentMethod == 'cvs_code';
-      if (isEcpay) {
+      if (isEcpay && !widget.settings.isRoomBased) {
         final int amount = payAmountType == 'deposit'
             ? depositAmount
             : quote.totalAmount;
@@ -426,8 +507,14 @@ class _ShopDaycareBookingConfirmPageState
             durationMinutes: quote.durationMinutes,
             petCount: widget.selectedPetIds.length,
             petNames: _petNames,
-            planName: widget.plan.name,
-            roomTypeName: '房間將由店家安排',
+            planName: widget.settings.isRoomBased
+                ? (widget.requestedRoomTypeName.isEmpty
+                      ? '安親房型'
+                      : widget.requestedRoomTypeName)
+                : widget.plan.name,
+            roomTypeName: widget.settings.isRoomBased
+                ? '實際房間將由店家安排'
+                : '房間將由店家安排',
             addons: _addonLines,
             quote: quote,
             couponName: _selectedCoupon?.name ?? '',
@@ -435,7 +522,7 @@ class _ShopDaycareBookingConfirmPageState
           if (_pointsSpendEnabled && quote.pointAmount == 0) ...<Widget>[
             const SizedBox(height: 12),
             const Text(
-              '此店臨托可折抵點數，實際折抵金額會在店家確認後依點數設定計算。',
+              '此店安親可折抵點數，實際折抵金額會在店家確認後依點數設定計算。',
               style: TextStyle(color: Colors.grey, fontSize: 13),
             ),
           ],
@@ -452,7 +539,7 @@ class _ShopDaycareBookingConfirmPageState
                 child: Center(child: CircularProgressIndicator()),
               )
             else if (_coupons.isEmpty)
-              const Text('目前沒有可使用的臨托優惠券', style: TextStyle(color: Colors.grey))
+              const Text('目前沒有可使用的安親優惠券', style: TextStyle(color: Colors.grey))
             else
               Column(
                 children: _coupons.map((MemberCouponModel coupon) {
@@ -463,7 +550,7 @@ class _ShopDaycareBookingConfirmPageState
                     title: Text(coupon.name),
                     subtitle: Text(
                       coupon.description.trim().isEmpty
-                          ? '可用於臨托'
+                          ? '可用於安親'
                           : coupon.description,
                     ),
                     onChanged: (_) {

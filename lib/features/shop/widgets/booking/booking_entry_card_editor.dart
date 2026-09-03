@@ -34,7 +34,7 @@ class BookingEntryCardEditor extends StatelessWidget {
                 ),
                 const SizedBox(height: 4),
                 const Text(
-                  '貓咪旅店與臨托都開啟時，客戶點「我要預約」會先看到這兩張卡片。未設定時住宿卡片會使用店家封面。',
+                  '貓咪旅店與安親都開啟時，客戶點「我要預約」會先看到這兩張卡片。未設定時住宿卡片會使用店家封面。',
                   style: TextStyle(fontSize: 13, color: Colors.black54),
                 ),
                 const SizedBox(height: 12),
@@ -53,7 +53,7 @@ class BookingEntryCardEditor extends StatelessWidget {
                 _EntryImageTile(
                   shopId: shopId,
                   kind: BookingEntryCardKind.daycare,
-                  title: '臨托預約卡片照片',
+                  title: '安親預約卡片照片',
                   imageUrl:
                       (shop[BookingEntryCardService.instance.urlField(
                                 BookingEntryCardKind.daycare,

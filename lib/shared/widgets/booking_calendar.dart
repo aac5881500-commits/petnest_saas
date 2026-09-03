@@ -34,6 +34,7 @@ class BookingCalendar extends StatefulWidget {
     this.remainingRoomsMap = const {},
     this.specialOpenDateKeys = const {},
     this.onMonthChanged,
+    this.compactCells = false,
   });
 
   final DateTime initialMonth;
@@ -51,6 +52,7 @@ class BookingCalendar extends StatefulWidget {
   final Set<String> specialOpenDateKeys;
   final ValueChanged<DateTime> onDayTap;
   final ValueChanged<DateTime>? onMonthChanged;
+  final bool compactCells;
 
   @override
   State<BookingCalendar> createState() => _BookingCalendarState();
@@ -122,7 +124,7 @@ class _BookingCalendarState extends State<BookingCalendar> {
               physics: const NeverScrollableScrollPhysics(),
               crossAxisSpacing: 4,
               mainAxisSpacing: 8,
-              childAspectRatio: 0.62,
+              childAspectRatio: widget.compactCells ? 0.86 : 0.62,
               children: dayCells,
             ),
           ],
@@ -254,16 +256,19 @@ class _BookingCalendarState extends State<BookingCalendar> {
       borderRadius: BorderRadius.circular(12),
       child: Container(
         height: double.infinity,
-        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+        padding: EdgeInsets.symmetric(
+          horizontal: 2,
+          vertical: widget.compactCells ? 2 : 8,
+        ),
         decoration: BoxDecoration(
           color: backgroundColor,
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(widget.compactCells ? 8 : 12),
           border: Border.all(color: borderColor),
         ),
+        clipBehavior: Clip.hardEdge,
         child: Column(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            /// 日期
             FittedBox(
               fit: BoxFit.scaleDown,
               child: Text(
@@ -271,48 +276,78 @@ class _BookingCalendarState extends State<BookingCalendar> {
                 maxLines: 1,
                 softWrap: false,
                 style: TextStyle(
-                  fontSize: 16,
+                  fontSize: widget.compactCells ? 12 : 16,
                   fontWeight: FontWeight.bold,
                   color: dayTextColor,
+                  height: 1.0,
                 ),
               ),
             ),
-
-            /// 🔥 滿房提示
-            if (isUnbookable)
-              Text(
-                '滿',
-                style: TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.orange.shade800,
-                ),
-              ),
-
-            /// 🔥 關閉原因
-            if (isBlocked && reason != null && reason.isNotEmpty)
-              Container(
-                margin: const EdgeInsets.only(top: 2),
-                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
-                decoration: BoxDecoration(
-                  color: Colors.red.shade100,
-                  borderRadius: BorderRadius.circular(6),
-                ),
-                child: Text(
-                  reason,
-                  style: const TextStyle(
-                    fontSize: 9,
-                    color: Colors.red,
+            if (widget.compactCells)
+              _compactMarker(isUnbookable: isUnbookable, isBlocked: isBlocked)
+            else ...<Widget>[
+              if (isUnbookable)
+                Text(
+                  '滿',
+                  style: TextStyle(
+                    fontSize: 11,
                     fontWeight: FontWeight.bold,
+                    color: Colors.orange.shade800,
                   ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
                 ),
-              ),
+              if (isBlocked && reason != null && reason.isNotEmpty)
+                Container(
+                  margin: const EdgeInsets.only(top: 2),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 4,
+                    vertical: 1,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.red.shade100,
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Text(
+                    reason,
+                    style: const TextStyle(
+                      fontSize: 9,
+                      color: Colors.red,
+                      fontWeight: FontWeight.bold,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+            ],
           ],
         ),
       ),
     );
+  }
+
+  Widget _compactMarker({required bool isUnbookable, required bool isBlocked}) {
+    if (isUnbookable) {
+      return Container(
+        margin: const EdgeInsets.only(top: 2),
+        width: 5,
+        height: 5,
+        decoration: const BoxDecoration(
+          color: Color(0xFFE67A35),
+          shape: BoxShape.circle,
+        ),
+      );
+    }
+    if (isBlocked) {
+      return Container(
+        margin: const EdgeInsets.only(top: 2),
+        width: 5,
+        height: 5,
+        decoration: const BoxDecoration(
+          color: Color(0xFFE53935),
+          shape: BoxShape.circle,
+        ),
+      );
+    }
+    return const SizedBox.shrink();
   }
 
   void _goPrevMonth() {

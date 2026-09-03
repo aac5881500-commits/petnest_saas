@@ -135,6 +135,21 @@ class ShopBookingEntryPage extends StatelessWidget {
                     final bool daycareOn = DaycareSettingsService.instance
                         .isEnabledForShop(shop: shop, settings: settings);
                     if (!daycareOn) {
+                      if (initialDaycare) {
+                        return Scaffold(
+                          appBar: AppBar(title: const Text('安親預約')),
+                          body: const Center(
+                            child: Padding(
+                              padding: EdgeInsets.all(24),
+                              child: Text(
+                                '此店家尚未開放安親',
+                                textAlign: TextAlign.center,
+                                style: TextStyle(fontSize: 18),
+                              ),
+                            ),
+                          ),
+                        );
+                      }
                       return _GatedStayBooking(
                         shopId: shopId,
                         preSelectedRoomType: preSelectedRoomType,
@@ -183,7 +198,7 @@ class ShopBookingEntryPage extends StatelessWidget {
                               final Widget
                               daycareCard = BookingEntryServiceCard(
                                 title: settings.serviceName.isEmpty
-                                    ? '寵物臨托'
+                                    ? '貓咪安親'
                                     : settings.serviceName,
                                 subtitle: '選擇單日送達與接回時間',
                                 imageUrl:

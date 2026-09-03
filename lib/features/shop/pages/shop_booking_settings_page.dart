@@ -11,6 +11,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:petnest_saas/core/models/daycare_settings_model.dart';
 import 'package:petnest_saas/core/services/action_log_service.dart';
 import 'package:petnest_saas/core/services/daycare_settings_service.dart';
 import 'package:petnest_saas/core/services/shop_service.dart';
@@ -126,9 +127,7 @@ class _ShopBookingSettingsPageState extends State<ShopBookingSettingsPage> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('預約管理'),
-        actions: <Widget>[
-          ShopTaskCenterButton(shopId: widget.shopId),
-        ],
+        actions: <Widget>[ShopTaskCenterButton(shopId: widget.shopId)],
       ),
       body: StreamBuilder<Map<String, dynamic>?>(
         stream: ShopService.instance.streamShop(widget.shopId),
@@ -223,9 +222,9 @@ class _ShopBookingSettingsPageState extends State<ShopBookingSettingsPage> {
             ),
             SwitchListTile(
               contentPadding: EdgeInsets.zero,
-              title: const Text('開放臨托服務'),
+              title: const Text('開放安親服務'),
               subtitle: const Text(
-                '關閉後，客戶端與店家後台的臨托入口、設定與新增功能將暫時隱藏；既有臨托訂單仍可查看及完成處理。',
+                '關閉後，客戶端與店家後台的安親入口、設定與新增功能將暫時隱藏；既有安親訂單仍可查看及完成處理。',
               ),
               value: _daycareEnabled,
               onChanged: (bool value) {
@@ -456,10 +455,8 @@ class _ShopBookingSettingsPageState extends State<ShopBookingSettingsPage> {
   void _initSettingsIfNeeded(Map<String, dynamic> shop) {
     if (_settingsInitialized) return;
 
-    _bookingEnabled = shop['bookingEnabled'] ?? true;
-    _daycareEnabled = shop.containsKey('daycareEnabled')
-        ? shop['daycareEnabled'] == true
-        : false;
+    _bookingEnabled = DaycareBool.parse(shop['bookingEnabled'], fallback: true);
+    _daycareEnabled = DaycareBool.parse(shop['daycareEnabled']);
 
     _maxAdvanceBookingDaysController.text = _toInt(
       shop['maxAdvanceBookingDays'],
@@ -499,7 +496,7 @@ class _ShopBookingSettingsPageState extends State<ShopBookingSettingsPage> {
         .doc(widget.shopId)
         .get();
 
-    final shop = shopDoc.data() as Map<String, dynamic>? ?? {};
+    final shop = shopDoc.data() ?? {};
 
     final maxLimit = ShopPlanService.bookingOpenDaysLimit(shop);
 
@@ -523,6 +520,10 @@ class _ShopBookingSettingsPageState extends State<ShopBookingSettingsPage> {
         bookingEnabled: _bookingEnabled,
         daycareEnabled: _daycareEnabled,
         maxAdvanceBookingDays: maxAdvanceBookingDays,
+      );
+      await DaycareSettingsService.instance.syncEnabledFlag(
+        shopId: widget.shopId,
+        enabled: _daycareEnabled,
       );
 
       final user = FirebaseAuth.instance.currentUser;

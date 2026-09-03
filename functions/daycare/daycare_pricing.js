@@ -1,7 +1,7 @@
 // functions/daycare/daycare_pricing.js
 // 🐾 臨托計價：與 Flutter DaycarePricingService 同一公式
 
-const {roundMoney, toInt, normalizeString} = require("./daycare_utils");
+const {roundMoney, toInt, normalizeString, parseBool} = require("./daycare_utils");
 
 const PLAN_TYPES = {
   hourly: "hourly",
@@ -28,6 +28,152 @@ const DEPOSIT_TYPES = {
   full: "full",
   staffDecide: "staff_decide",
 };
+
+const PRICING_MODES = {
+  roomBased: "room_based",
+  timeBased: "time_based",
+};
+
+const ROUNDING_MODES = {
+  ceilHour: "ceil_hour",
+  ceilHalfHour: "ceil_half_hour",
+  prorated: "prorated",
+};
+
+const CAP_MODES = {
+  overnightRate: "overnight_rate",
+  fixedAmount: "fixed_amount",
+  none: "none",
+};
+
+function isRoomBased(settingsOrBooking) {
+  const mode = normalizeString(
+      (settingsOrBooking && settingsOrBooking.pricingMode) || "",
+  );
+  return mode === PRICING_MODES.roomBased;
+}
+
+function extraTimeAmount(extraMinutes, unitMinutes, unitPrice, roundingMode) {
+  if (extraMinutes <= 0 || unitPrice <= 0) {
+    return 0;
+  }
+  const unit = (unitMinutes === 15 || unitMinutes === 30 ||
+    unitMinutes === 60) ? unitMinutes : 60;
+  const mode = normalizeString(roundingMode) || ROUNDING_MODES.ceilHour;
+  if (mode === ROUNDING_MODES.prorated) {
+    return roundMoney(extraMinutes / unit * unitPrice);
+  }
+  if (mode === ROUNDING_MODES.ceilHalfHour) {
+    const pricePerHalf = unit === 30 ? unitPrice :
+      roundMoney(unitPrice * 30 / unit);
+    return Math.ceil(extraMinutes / 30) * pricePerHalf;
+  }
+  const pricePerHour = unit === 60 ? unitPrice :
+    roundMoney(unitPrice * 60 / unit);
+  return Math.ceil(extraMinutes / 60) * pricePerHour;
+}
+
+function overnightStayOriginal(roomNightPrice, extraPetNightPrice, petCount,
+    surcharge) {
+  const extraPets = Math.max(0, toInt(petCount, 1) - 1);
+  return toInt(roomNightPrice, 0) + extraPets * toInt(extraPetNightPrice, 0) +
+    toInt(surcharge, 0);
+}
+
+function applyCap(amount, capMode, capAmount) {
+  const mode = normalizeString(capMode) || CAP_MODES.overnightRate;
+  if (mode === CAP_MODES.none || toInt(capAmount, 0) <= 0) {
+    return Math.max(0, amount);
+  }
+  return Math.max(0, Math.min(amount, toInt(capAmount, 0)));
+}
+
+function findRoomTypeSetting(settings, roomTypeId) {
+  const list = Array.isArray(settings && settings.roomTypes) ?
+    settings.roomTypes : [];
+  const id = normalizeString(roomTypeId);
+  return list.find((item) => normalizeString(item && item.roomTypeId) === id) ||
+    null;
+}
+
+function quoteRoom(params) {
+  const startAt = params.startAt;
+  const endAt = params.endAt;
+  const minutes = Math.max(0, Math.round((endAt - startAt) / 60000));
+  const setting = params.roomSetting || {};
+  const petCount = Math.max(1, toInt(params.petCount, 1));
+  const extraPets = Math.max(0, petCount - 1);
+  const extraTime = extraTimeAmount(
+      Math.max(0, minutes - toInt(setting.baseMinutes, 240)),
+      toInt(setting.extraTimeUnitMinutes, 60),
+      toInt(setting.extraTimePrice, 0),
+      setting.roundingMode,
+  );
+  const extraPetAmount = extraPets * toInt(setting.extraPetPrice, 0);
+  const baseAmount = toInt(setting.basePrice, 0);
+  const uncapped = baseAmount + extraPetAmount + extraTime;
+  const capMode = normalizeString(setting.capMode) || CAP_MODES.overnightRate;
+  const cap = capMode === CAP_MODES.fixedAmount ?
+    toInt(setting.fixedCapAmount, 0) : toInt(params.overnightCapAmount, 0);
+  const capped = applyCap(uncapped, capMode, cap);
+  return {
+    durationMinutes: minutes,
+    baseAmount,
+    extraPetAmount,
+    extraTimeAmount: extraTime,
+    uncappedRoomAmount: uncapped,
+    capAmount: capMode === CAP_MODES.none ? 0 : cap,
+    cappedRoomAmount: capped,
+    roundingMode: normalizeString(setting.roundingMode) ||
+      ROUNDING_MODES.ceilHour,
+    capMode,
+  };
+}
+
+function estimateFromPrice(settings, startAt, endAt, petCount) {
+  const list = Array.isArray(settings && settings.roomTypes) ?
+    settings.roomTypes.filter((item) => item && parseBool(item.enabled)) : [];
+  if (!list.length) {
+    return 0;
+  }
+  let min = null;
+  list.forEach((item) => {
+    const q = quoteRoom({
+      roomSetting: item,
+      startAt,
+      endAt,
+      petCount,
+    });
+    min = min == null ? q.cappedRoomAmount :
+      Math.min(min, q.cappedRoomAmount);
+  });
+  return min || 0;
+}
+
+function roundingLabel(mode) {
+  if (mode === ROUNDING_MODES.ceilHalfHour) {
+    return "不足半小時，以半小時計";
+  }
+  if (mode === ROUNDING_MODES.prorated) {
+    return "依實際分鐘比例計價，四捨五入為整數元";
+  }
+  return "不足一小時，以整小時計";
+}
+
+function paymentStatusOf(paid, total) {
+  const p = toInt(paid, 0);
+  const t = toInt(total, 0);
+  if (t <= 0 && p <= 0) {
+    return "unpaid";
+  }
+  if (p <= 0) {
+    return "unpaid";
+  }
+  if (p >= t) {
+    return "paid";
+  }
+  return "partial";
+}
 
 /**
  * @param {Object} plan
@@ -184,9 +330,21 @@ module.exports = {
   SELECTABLE_PLAN_TYPES,
   OVERTIME_MODES,
   DEPOSIT_TYPES,
+  PRICING_MODES,
+  ROUNDING_MODES,
+  CAP_MODES,
   baseAmount,
   depositAmount,
   quote,
   overtimeFee,
   addonLineAmount,
+  isRoomBased,
+  extraTimeAmount,
+  overnightStayOriginal,
+  applyCap,
+  findRoomTypeSetting,
+  quoteRoom,
+  estimateFromPrice,
+  roundingLabel,
+  paymentStatusOf,
 };

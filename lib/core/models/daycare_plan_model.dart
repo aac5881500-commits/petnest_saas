@@ -67,10 +67,15 @@ class DaycarePlanModel {
     this.weekdays = const <int>[1, 2, 3, 4, 5, 6, 7],
     this.startTime = '09:00',
     this.endTime = '18:00',
-    this.includedMinutes = 60,
+    this.includedMinutes = 240,
     this.basePrice = 0,
     this.overtimeMode = DaycareOvertimeModes.hourly,
     this.overtimeUnitPrice = 0,
+    this.extraBillingMinutes = 60,
+    this.extraBillingPrice = 0,
+    this.extraPetPrice = 0,
+    this.maxBaseCharge = 0,
+    this.maxPets = 20,
     this.minChargeUnits = 1,
     this.extraPetSurcharge = 0,
     this.requiresRoomType = false,
@@ -92,6 +97,11 @@ class DaycarePlanModel {
   final int basePrice;
   final String overtimeMode;
   final int overtimeUnitPrice;
+  final int extraBillingMinutes;
+  final int extraBillingPrice;
+  final int extraPetPrice;
+  final int maxBaseCharge;
+  final int maxPets;
   final int minChargeUnits;
   final int extraPetSurcharge;
   final bool requiresRoomType;
@@ -110,16 +120,39 @@ class DaycarePlanModel {
       weekdays: _intList(map['weekdays'], const <int>[1, 2, 3, 4, 5, 6, 7]),
       startTime: _time(map['startTime'], '09:00'),
       endTime: _time(map['endTime'], '18:00'),
-      includedMinutes: _int(map['includedMinutes'], 60),
+      includedMinutes: _int(
+        map['includedMinutes'] ?? map['baseMinutes'],
+        240,
+      ).clamp(15, 1440),
       basePrice: _int(map['basePrice'], 0),
       overtimeMode: _oneOf(map['overtimeMode'], const <String>[
         DaycareOvertimeModes.hourly,
         DaycareOvertimeModes.halfHourly,
         DaycareOvertimeModes.none,
       ], DaycareOvertimeModes.hourly),
-      overtimeUnitPrice: _int(map['overtimeUnitPrice'], 0),
+      overtimeUnitPrice: _int(
+        map['extraBillingPrice'] ?? map['overtimeUnitPrice'],
+        0,
+      ),
+      extraBillingMinutes: _billingUnit(
+        map['extraBillingMinutes'] ??
+            (map['overtimeMode'] == DaycareOvertimeModes.halfHourly ? 30 : 60),
+      ),
+      extraBillingPrice: _int(
+        map['extraBillingPrice'] ?? map['overtimeUnitPrice'],
+        0,
+      ),
+      extraPetPrice: _int(
+        map['extraPetPrice'] ?? map['extraPetSurcharge'],
+        0,
+      ),
+      maxBaseCharge: _int(map['maxBaseCharge'], 0),
+      maxPets: _int(map['maxPets'], 20).clamp(1, 20),
       minChargeUnits: _int(map['minChargeUnits'], 1).clamp(1, 99),
-      extraPetSurcharge: _int(map['extraPetSurcharge'], 0),
+      extraPetSurcharge: _int(
+        map['extraPetPrice'] ?? map['extraPetSurcharge'],
+        0,
+      ),
       requiresRoomType: map['requiresRoomType'] == true,
       roomTypeIds: _stringList(map['roomTypeIds']),
       sortOrder: _int(map['sortOrder'], 0),
@@ -141,9 +174,14 @@ class DaycarePlanModel {
       'includedMinutes': includedMinutes,
       'basePrice': basePrice,
       'overtimeMode': overtimeMode,
-      'overtimeUnitPrice': overtimeUnitPrice,
+      'overtimeUnitPrice': extraBillingPrice,
+      'extraBillingMinutes': extraBillingMinutes,
+      'extraBillingPrice': extraBillingPrice,
+      'extraPetPrice': extraPetPrice,
+      'maxBaseCharge': maxBaseCharge,
+      'maxPets': maxPets,
       'minChargeUnits': minChargeUnits,
-      'extraPetSurcharge': extraPetSurcharge,
+      'extraPetSurcharge': extraPetPrice,
       'roomTypeIds': roomTypeIds,
       'sortOrder': sortOrder,
       'createdAt': createdAt,
@@ -163,6 +201,11 @@ class DaycarePlanModel {
     int? basePrice,
     String? overtimeMode,
     int? overtimeUnitPrice,
+    int? extraBillingMinutes,
+    int? extraBillingPrice,
+    int? extraPetPrice,
+    int? maxBaseCharge,
+    int? maxPets,
     int? minChargeUnits,
     int? extraPetSurcharge,
     bool? requiresRoomType,
@@ -181,9 +224,17 @@ class DaycarePlanModel {
       includedMinutes: includedMinutes ?? this.includedMinutes,
       basePrice: basePrice ?? this.basePrice,
       overtimeMode: overtimeMode ?? this.overtimeMode,
-      overtimeUnitPrice: overtimeUnitPrice ?? this.overtimeUnitPrice,
+      overtimeUnitPrice:
+          extraBillingPrice ?? overtimeUnitPrice ?? this.extraBillingPrice,
+      extraBillingMinutes: extraBillingMinutes ?? this.extraBillingMinutes,
+      extraBillingPrice:
+          extraBillingPrice ?? overtimeUnitPrice ?? this.extraBillingPrice,
+      extraPetPrice: extraPetPrice ?? extraPetSurcharge ?? this.extraPetPrice,
+      maxBaseCharge: maxBaseCharge ?? this.maxBaseCharge,
+      maxPets: maxPets ?? this.maxPets,
       minChargeUnits: minChargeUnits ?? this.minChargeUnits,
-      extraPetSurcharge: extraPetSurcharge ?? this.extraPetSurcharge,
+      extraPetSurcharge:
+          extraPetPrice ?? extraPetSurcharge ?? this.extraPetPrice,
       requiresRoomType: requiresRoomType ?? this.requiresRoomType,
       roomTypeIds: roomTypeIds ?? this.roomTypeIds,
       sortOrder: sortOrder ?? this.sortOrder,
@@ -199,7 +250,17 @@ class DaycarePlanModel {
     if (raw is num) {
       return raw.round();
     }
-    return int.tryParse(raw?.toString() ?? '') ?? fallback;
+    return int.tryParse(raw?.toString() ?? '') ??
+        double.tryParse(raw?.toString() ?? '')?.round() ??
+        fallback;
+  }
+
+  static int _billingUnit(dynamic raw) {
+    final int value = _int(raw, 60);
+    if (value == 30 || value == 60) {
+      return value;
+    }
+    return 60;
   }
 
   static List<int> _intList(dynamic raw, List<int> fallback) {

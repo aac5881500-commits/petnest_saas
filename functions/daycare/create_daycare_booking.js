@@ -22,11 +22,15 @@ const {
   weekdayTaiwan,
   writeActionLog,
   flattenAddonCatalog,
+  parseBool,
 } = require("./daycare_utils");
 const {
   addonLineAmount,
   quote,
+  quoteRoom,
+  findRoomTypeSetting,
   SELECTABLE_PLAN_TYPES,
+  isRoomBased,
 } = require("./daycare_pricing");
 const {
   assertAvailable,
@@ -49,17 +53,17 @@ function assertSchedule(settings, startAt, endAt, isAdmin, override) {
   }
   const minutes = Math.round((endAt - startAt) / 60000);
   if (minutes < toInt(settings.minDurationMinutes, 60)) {
-    throw new HttpsError("failed-precondition", "未達最短臨托時間");
+    throw new HttpsError("failed-precondition", "未達最短安親時間");
   }
   if (minutes > toInt(settings.maxDurationMinutes, 480)) {
-    throw new HttpsError("failed-precondition", "已超過最長臨托時間");
+    throw new HttpsError("failed-precondition", "已超過最長安親時間");
   }
   if (settings.forbidOvernight !== false &&
       serviceDateKey(startAt) !== serviceDateKey(endAt)) {
-    throw new HttpsError("failed-precondition", "此店家不接受跨日臨托");
+    throw new HttpsError("failed-precondition", "此店家不接受跨日安親");
   }
   if (!isDateOpen(settings, override, startAt)) {
-    throw new HttpsError("failed-precondition", "該日期不開放臨托");
+    throw new HttpsError("failed-precondition", "該日期不開放安親");
   }
   const hours = resolveDayHours(settings, override);
   if (settings.blockOutsideHours !== false) {
@@ -67,7 +71,7 @@ function assertSchedule(settings, startAt, endAt, isAdmin, override) {
     const endMin = endAt.getHours() * 60 + endAt.getMinutes();
     if (startMin < minutesOf(hours.earliestDropOff) ||
         endMin > minutesOf(hours.latestPickUp)) {
-      throw new HttpsError("failed-precondition", "已超出臨托營業時間");
+      throw new HttpsError("failed-precondition", "已超出安親營業時間");
     }
     if (hours.latestDropoffTime &&
         startMin > minutesOf(hours.latestDropoffTime)) {
@@ -79,7 +83,7 @@ function assertSchedule(settings, startAt, endAt, isAdmin, override) {
     const sameDay = serviceDateKey(startAt) ===
       serviceDateKey(new Date());
     if (sameDay && settings.allowSameDay === false) {
-      throw new HttpsError("failed-precondition", "不可預約當日臨托");
+      throw new HttpsError("failed-precondition", "不可預約當日安親");
     }
     const advanceHours = toInt(settings.minAdvanceHours, 0);
     if (advanceHours > 0 &&
@@ -142,7 +146,7 @@ function daycareCouponAmount(coupon, parts) {
  */
 function assertPlanWindow(plan, startAt) {
   if (!plan || plan.enabled === false) {
-    throw new HttpsError("failed-precondition", "臨托方案未啟用");
+    throw new HttpsError("failed-precondition", "安親方案未啟用");
   }
   const type = normalizeString(plan.type) || "hourly";
   if (!SELECTABLE_PLAN_TYPES.includes(type)) {
@@ -186,7 +190,7 @@ exports.createDaycareBooking = onCall(
         "admin" : "customer";
 
       if (!isDaycareEnabled(shopData, settings)) {
-        throw new HttpsError("failed-precondition", "本店目前未開放臨托服務");
+        throw new HttpsError("failed-precondition", "本店目前未開放安親服務");
       }
 
       const userId = source === "admin" ?
@@ -196,14 +200,14 @@ exports.createDaycareBooking = onCall(
           .collection("members").doc(userId).get();
       if (source !== "admin" && memberSnap.exists &&
           memberSnap.data().blacklisted === true) {
-        throw new HttpsError("failed-precondition", "此會員目前無法預約臨托");
+        throw new HttpsError("failed-precondition", "此會員目前無法預約安親");
       }
 
       const startAt = toDate(data.scheduledStartAt) ||
         toDate(data.startAt);
       const endAt = toDate(data.scheduledEndAt) || toDate(data.endAt);
       if (!startAt || !endAt) {
-        throw new HttpsError("invalid-argument", "請選擇正確的臨托時間");
+        throw new HttpsError("invalid-argument", "請選擇正確的安親時間");
       }
       const dateOverride = await loadDateOverride(firestore, shopId, startAt);
       assertSchedule(
@@ -214,15 +218,30 @@ exports.createDaycareBooking = onCall(
         data.petIds.map((id) => normalizeString(id)).filter(Boolean) : [];
       if (petIds.length < toInt(settings.minPets, 1) ||
           petIds.length > toInt(settings.maxPets, 3)) {
-        throw new HttpsError("failed-precondition", "寵物數量不符合臨托限制");
+        throw new HttpsError("failed-precondition", "寵物數量不符合安親限制");
       }
 
+      const roomBased = isRoomBased(settings);
       const plans = Array.isArray(settings.plans) ? settings.plans : [];
       const planId = normalizeString(data.daycarePlanId || data.planId);
-      const plan = plans.find((item) =>
-        normalizeString(item && item.id) === planId);
-      assertPlanWindow(plan, startAt);
+      let plan = plans.find((item) =>
+        normalizeString(item && item.id) === planId) || {};
+      if (!roomBased) {
+        assertPlanWindow(plan, startAt);
+      }
 
+      const requestedRoomTypeId = normalizeString(
+          data.requestedRoomTypeId || data.roomTypeId,
+      );
+      let requestedRoomSetting = null;
+      if (roomBased) {
+        requestedRoomSetting = findRoomTypeSetting(
+            settings, requestedRoomTypeId,
+        );
+        if (!requestedRoomSetting || !parseBool(requestedRoomSetting.enabled)) {
+          throw new HttpsError("failed-precondition", "請選擇可用的安親房型");
+        }
+      }
       const roomTypeId = "";
       const occupancyMode = "slot";
       const requiresRoom = true;
@@ -243,7 +262,7 @@ exports.createDaycareBooking = onCall(
       const addonSnapshot = addons.map((addon) => {
         const id = normalizeString(addon.id);
         if (!id || !allowedAddonIds.includes(id) || !catalogById[id]) {
-          throw new HttpsError("failed-precondition", "所選加購服務未開放臨托");
+          throw new HttpsError("failed-precondition", "所選加購服務未開放安親");
         }
         const live = catalogById[id];
         const line = {
@@ -260,7 +279,12 @@ exports.createDaycareBooking = onCall(
         return {...line, amount};
       });
 
-      const draftQuote = quote({
+      const draftQuote = roomBased ? quoteRoom({
+        roomSetting: requestedRoomSetting,
+        startAt,
+        endAt,
+        petCount: petIds.length,
+      }) : quote({
         settings,
         plan,
         startAt,
@@ -281,7 +305,7 @@ exports.createDaycareBooking = onCall(
       let couponAmount = 0;
       let couponRef = null;
       const requestedCouponId = normalizeString(data.couponId);
-      if (settings.allowCoupon === true && requestedCouponId) {
+      if (!roomBased && settings.allowCoupon === true && requestedCouponId) {
         couponRef = firestore.collection("shops").doc(shopId)
             .collection("member_coupons").doc(requestedCouponId);
         const couponSnap = await couponRef.get();
@@ -309,12 +333,12 @@ exports.createDaycareBooking = onCall(
           throw new HttpsError("failed-precondition", "優惠券尚未生效");
         }
         if (normalizeString(coupon.type) === "freeStay") {
-          throw new HttpsError("failed-precondition", "住宿券不可用於臨托");
+          throw new HttpsError("failed-precondition", "住宿券不可用於安親");
         }
         const roomTypeIds = Array.isArray(coupon.roomTypeIds) ?
           coupon.roomTypeIds.map((id) => normalizeString(id)) : [];
         if (roomTypeIds.length > 0) {
-          throw new HttpsError("failed-precondition", "此優惠券限定房型，臨托建立時尚未分房");
+          throw new HttpsError("failed-precondition", "此優惠券限定房型，安親建立時尚未分房");
         }
         const surchargeDetails =
           Array.isArray(data.specialDateSurchargeDetails) ?
@@ -342,7 +366,22 @@ exports.createDaycareBooking = onCall(
           normalizeString(data.couponName);
       }
 
-      const computed = quote({
+      const computed = roomBased ? {
+        durationMinutes: minutes,
+        baseAmount: draftQuote.baseAmount,
+        extraPetAmount: draftQuote.extraPetAmount,
+        roomTypeExtra: draftQuote.extraTimeAmount || 0,
+        addonAmount,
+        surchargeAmount: 0,
+        discountAmount: 0,
+        couponAmount: 0,
+        pointAmount: 0,
+        overtimeAmount: 0,
+        manualAdjust: source === "admin" ? toInt(data.manualAdjust, 0) : 0,
+        totalAmount: (draftQuote.cappedRoomAmount || 0) + addonAmount,
+        depositAmount: 0,
+        remainingAmount: (draftQuote.cappedRoomAmount || 0) + addonAmount,
+      } : quote({
         settings,
         plan,
         startAt,
@@ -357,6 +396,7 @@ exports.createDaycareBooking = onCall(
         overtimeAmount: 0,
         manualAdjust: source === "admin" ? toInt(data.manualAdjust, 0) : 0,
       });
+      const estimateTotalPrice = computed.totalAmount;
 
       const availability = await assertAvailable(firestore, {
         shopId,
@@ -399,7 +439,7 @@ exports.createDaycareBooking = onCall(
           )) {
             throw new HttpsError(
                 "failed-precondition",
-                "請記錄臨托條款簽署方式",
+                "請記錄安親條款簽署方式",
             );
           }
           if (policySignMethod === "member_online") {
@@ -409,7 +449,7 @@ exports.createDaycareBooking = onCall(
             if (toInt(byService.daycare, 0) !== policySummary.version) {
               throw new HttpsError(
                   "failed-precondition",
-                  "會員尚未同意目前臨托條款",
+                  "會員尚未同意目前安親條款",
               );
             }
           }
@@ -428,14 +468,22 @@ exports.createDaycareBooking = onCall(
           if (toInt(byService.daycare, 0) !== policySummary.version) {
             throw new HttpsError(
                 "failed-precondition",
-                "請先閱讀並同意臨托條款",
+                "請先閱讀並同意安親條款",
             );
           }
         }
       }
       const policyVersion = policySummary.required ?
         policySummary.version : 0;
-      const policyTitle = policySummary.title || "臨托須知";
+      const policyTitle = policySummary.title || "安親須知";
+
+      let requestedRoomTypeName = normalizeString(data.requestedRoomTypeName);
+      if (roomBased && requestedRoomTypeId && !requestedRoomTypeName) {
+        const typeSnap = await firestore.collection("shops").doc(shopId)
+            .collection("room_types").doc(requestedRoomTypeId).get();
+        requestedRoomTypeName =
+          normalizeString((typeSnap.data() || {}).name) || requestedRoomTypeId;
+      }
 
       await firestore.runTransaction(async (transaction) => {
         const again = await transaction.get(bookingRef);
@@ -479,12 +527,20 @@ exports.createDaycareBooking = onCall(
           nights: 0,
           actualStartAt: null,
           actualEndAt: null,
-          daycarePlanId: plan.id,
+          daycarePlanId: plan.id || "",
           daycarePlanSnapshot: plan,
           daycarePricingSnapshot: computed,
+          pricingMode: roomBased ? "room_based" : "time_based",
+          estimateTotalPrice,
+          quotedTotalPrice: roomBased ? null : computed.totalAmount,
+          priceQuoteLocked: !roomBased,
+          priceConfirmedAt: roomBased ? null :
+            admin.firestore.FieldValue.serverTimestamp(),
           roomTypeId: "",
           roomTypeName: "",
           roomTypeNameSnapshot: "",
+          requestedRoomTypeId,
+          requestedRoomTypeName,
           roomId: null,
           roomName: null,
           roomNumberSnapshot: "",
@@ -494,7 +550,7 @@ exports.createDaycareBooking = onCall(
           cleaningRequired: true,
           addons: addonSnapshot,
           note: normalizeString(data.note),
-          totalPrice: computed.totalAmount,
+          totalPrice: roomBased ? 0 : computed.totalAmount,
           originalTotal: computed.baseAmount + computed.extraPetAmount +
             computed.roomTypeExtra + computed.addonAmount +
             computed.surchargeAmount,
@@ -514,10 +570,11 @@ exports.createDaycareBooking = onCall(
           manualAdjust: computed.manualAdjust,
           depositAmount: computed.depositAmount,
           paymentMethod: normalizeString(data.paymentMethod),
-          payAmountType: normalizeString(data.payAmountType) ||
-            (computed.depositAmount > 0 ? "deposit" : "full"),
+          payAmountType: roomBased ? "none" :
+            (normalizeString(data.payAmountType) ||
+            (computed.depositAmount > 0 ? "deposit" : "full")),
           paidAmount: 0,
-          remainingAmount: computed.totalAmount,
+          remainingAmount: roomBased ? 0 : computed.totalAmount,
           paymentStatus: "unpaid",
           refundAmount: 0,
           refundStatus: "",
@@ -572,9 +629,11 @@ exports.createDaycareBooking = onCall(
 
       return {
         bookingId: bookingRef.id,
-        totalPrice: computed.totalAmount,
-        depositAmount: computed.depositAmount,
+        totalPrice: roomBased ? 0 : computed.totalAmount,
+        estimateTotalPrice,
+        depositAmount: roomBased ? 0 : computed.depositAmount,
         status,
+        pricingMode: roomBased ? "room_based" : "time_based",
       };
     },
 );

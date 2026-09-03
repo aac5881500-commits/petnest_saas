@@ -64,7 +64,7 @@ class _ShopModuleSettingsPageState extends State<ShopModuleSettingsPage> {
       case ShopModules.store:
         return '賣場功能';
       case ShopModules.daycare:
-        return '寵物臨托';
+        return '寵物安親';
       case ShopModules.reports:
         return '表格統計';
       default:
@@ -87,7 +87,7 @@ class _ShopModuleSettingsPageState extends State<ShopModuleSettingsPage> {
       case ShopModules.store:
         return '先保留模板，未來可接商品與訂單';
       case ShopModules.daycare:
-        return '日間臨托預約、方案、房型占用與轉住宿';
+        return '日間安親預約、方案、房型占用與轉住宿';
       case ShopModules.reports:
         return '統計與報表入口，部分內容可再鎖 owner';
       default:

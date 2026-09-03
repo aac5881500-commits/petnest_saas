@@ -12,8 +12,18 @@ const {
   toDate,
   toInt,
   writeActionLog,
+  overnightCapForRoom,
 } = require("./daycare_utils");
-const {overtimeFee, quote} = require("./daycare_pricing");
+const {
+  overtimeFee,
+  quote,
+  isRoomBased,
+  extraTimeAmount,
+  applyCap,
+  findRoomTypeSetting,
+  roundingLabel,
+  paymentStatusOf,
+} = require("./daycare_pricing");
 const {
   assertAvailable,
   loadActiveOccupancies,
@@ -102,59 +112,158 @@ exports.manageDaycareBooking = onCall(
           checkedInAt: now,
           updatedAt: now,
         });
-      } else if (action === "complete") {
+      } else if (action === "previewSettle" || action === "complete" ||
+          action === "settle") {
         await requirePerm(uid, shopId, "manage_daycare_bookings");
-        if (booking.status !== "checked_in") {
-          throw new HttpsError("failed-precondition", "僅臨托中訂單可完成");
+        if (booking.status !== "checked_in" && action !== "previewSettle") {
+          throw new HttpsError("failed-precondition", "僅安親中訂單可結算");
+        }
+        if (action === "previewSettle" &&
+            booking.status !== "checked_in") {
+          throw new HttpsError("failed-precondition", "僅安親中訂單可結算");
         }
         const actualEnd = toDate(payload.actualEndAt) || new Date();
         const scheduledEnd = toDate(booking.scheduledEndAt);
-        const extra = payload.waiveOvertime === true ? 0 :
-          overtimeFee(plan, settings, scheduledEnd, actualEnd);
+        const quoted = toInt(
+            booking.quotedTotalPrice != null ?
+              booking.quotedTotalPrice : booking.totalPrice, 0,
+        );
+        const paid = toInt(booking.paidAmount, 0);
         const overtimeMinutes = Math.max(0, Math.round(
             (actualEnd - scheduledEnd) / 60000,
         ));
-        const total = toInt(booking.totalPrice, 0) + extra;
-        const occSnap = await loadActiveOccupancies(
-            firestore, shopId, bookingId,
-        );
-        await firestore.runTransaction(async (transaction) => {
-          for (const doc of occSnap.docs) {
-            await transaction.get(doc.ref);
+        const roomBased = isRoomBased({
+          pricingMode: booking.pricingMode || settings.pricingMode,
+        });
+        const waive = payload.waiveOvertime === true ||
+          payload.completeMode === "waive";
+        const grace = toInt(settings.overtimeGraceMinutes, 15);
+        let overtimeAmt = 0;
+        let capAmount = 0;
+        let rule = "未超時";
+        if (!waive && overtimeMinutes > grace) {
+          if (roomBased) {
+            const roomSetting = findRoomTypeSetting(
+                settings, booking.roomTypeId,
+            ) || {};
+            overtimeAmt = extraTimeAmount(
+                overtimeMinutes - grace,
+                toInt(roomSetting.extraTimeUnitMinutes, 60),
+                toInt(roomSetting.extraTimePrice, 0),
+                roomSetting.roundingMode,
+            );
+            rule = roundingLabel(roomSetting.roundingMode);
+            const snap = booking.priceQuoteSnapshot || {};
+            capAmount = normalizeString(roomSetting.capMode) ===
+              "fixed_amount" ?
+              toInt(roomSetting.fixedCapAmount, 0) :
+              toInt(snap.overnightCapAmount, 0);
+            if (normalizeString(roomSetting.capMode) === "overnight_rate" &&
+                capAmount <= 0 && booking.roomTypeId) {
+              capAmount = await overnightCapForRoom(
+                  firestore, shopId, booking.roomTypeId,
+                  Array.isArray(booking.petIds) ? booking.petIds.length : 1,
+                  scheduledEnd || actualEnd,
+              );
+            }
+            const quotedRoom = toInt(
+                snap.cappedRoomAmount != null ? snap.cappedRoomAmount : quoted,
+                quoted,
+            );
+            const newRoom = applyCap(
+                quotedRoom + overtimeAmt,
+                roomSetting.capMode,
+                capAmount,
+            );
+            overtimeAmt = Math.max(0, newRoom - quotedRoom);
+          } else {
+            overtimeAmt = overtimeFee(
+                plan, settings, scheduledEnd, actualEnd,
+            );
+            rule = "不足一小時，以整小時計";
           }
-          releaseOccupancyDocs(transaction, occSnap.docs);
-          transaction.update(bookingRef, {
-            status: "completed",
-            actualEndAt: admin.firestore.Timestamp.fromDate(actualEnd),
-            checkedOutAt: admin.firestore.Timestamp.fromDate(actualEnd),
-            completedAt: now,
-            overtimeMinutes,
-            overtimeAmount: extra,
-            totalPrice: total,
-            remainingAmount: Math.max(0, total - toInt(booking.paidAmount, 0)),
-            updatedAt: now,
-          });
-        });
-        await issueOrRevokeDaycarePoints(firestore, {
-          shopId,
-          bookingId,
-          booking: {...booking, totalPrice: total, source: booking.source,
-            userId: booking.userId, addons: booking.addons,
-            overtimeAmount: extra,
-            specialDateSurchargeAmount: booking.specialDateSurchargeAmount,
-            status: "completed"},
-          mode: "issue",
-        });
-        if (normalizeString(booking.roomId)) {
-          await firestore.collection("shops").doc(shopId)
-              .collection("rooms").doc(booking.roomId)
-              .set({
-                status: "cleaning",
-                cleaningStartedAt: now,
-                updatedAt: now,
-              }, {merge: true});
         }
-        result = {ok: true, action, totalPrice: total, overtimeAmount: extra};
+        if (waive) {
+          overtimeAmt = 0;
+          rule = "店家免收本次超時費";
+        }
+        const finalTotal = quoted + overtimeAmt;
+        const remaining = Math.max(0, finalTotal - paid);
+        const settlement = {
+          scheduledStartAt: booking.scheduledStartAt || null,
+          scheduledEndAt: booking.scheduledEndAt || null,
+          actualEndAt: actualEnd.toISOString(),
+          quotedTotal: quoted,
+          overtimeMinutes,
+          overtimeAmount: overtimeAmt,
+          roundingLabel: rule,
+          capAmount,
+          finalTotal,
+          paidAmount: paid,
+          remainingAmount: remaining,
+          waivedOvertime: waive,
+        };
+        if (action === "previewSettle") {
+          result = {ok: true, action, ...settlement};
+        } else {
+          const completeMode = normalizeString(payload.completeMode) ||
+            (waive ? "waive" : "cash");
+          let nextPaymentStatus = paymentStatusOf(paid, finalTotal);
+          if (remaining > 0) {
+            nextPaymentStatus = "awaiting_supplement";
+          }
+          const occSnap = await loadActiveOccupancies(
+              firestore, shopId, bookingId,
+          );
+          await firestore.runTransaction(async (transaction) => {
+            for (const doc of occSnap.docs) {
+              await transaction.get(doc.ref);
+            }
+            releaseOccupancyDocs(transaction, occSnap.docs);
+            transaction.update(bookingRef, {
+              status: "completed",
+              actualEndAt: admin.firestore.Timestamp.fromDate(actualEnd),
+              checkedOutAt: admin.firestore.Timestamp.fromDate(actualEnd),
+              completedAt: now,
+              overtimeMinutes,
+              overtimeAmount: overtimeAmt,
+              totalPrice: finalTotal,
+              remainingAmount: remaining,
+              paymentStatus: nextPaymentStatus,
+              waivedOvertime: waive,
+              waiveOvertimeReason: waive ?
+                normalizeString(payload.waiveReason) : "",
+              settleMode: completeMode,
+              updatedAt: now,
+            });
+          });
+          await issueOrRevokeDaycarePoints(firestore, {
+            shopId,
+            bookingId,
+            booking: {...booking, totalPrice: finalTotal, source: booking.source,
+              userId: booking.userId, addons: booking.addons,
+              overtimeAmount: overtimeAmt,
+              specialDateSurchargeAmount: booking.specialDateSurchargeAmount,
+              status: "completed"},
+            mode: "issue",
+          });
+          if (normalizeString(booking.roomId)) {
+            await firestore.collection("shops").doc(shopId)
+                .collection("rooms").doc(booking.roomId)
+                .set({
+                  status: "cleaning",
+                  cleaningStartedAt: now,
+                  updatedAt: now,
+                }, {merge: true});
+          }
+          result = {
+            ok: true,
+            action,
+            ...settlement,
+            paymentStatus: nextPaymentStatus,
+            completeMode,
+          };
+        }
       } else if (action === "cancel") {
         const isOwner = normalizeString(booking.userId) === uid;
         if (!isOwner) {
@@ -349,14 +458,25 @@ exports.manageDaycareBooking = onCall(
         }
       }
 
-      await writeActionLog({
-        shopId,
-        targetId: bookingId,
-        action: `daycare_${action}`,
-        operatorUid: uid,
-        operatorRole: isRootAdmin(uid) ? "root" : "staff",
-        payload: {action, requestId},
-      });
+      if (action !== "previewSettle") {
+        await writeActionLog({
+          shopId,
+          targetId: bookingId,
+          action: `daycare_${action}`,
+          operatorUid: uid,
+          operatorRole: isRootAdmin(uid) ? "root" : "staff",
+          payload: {
+            action,
+            requestId,
+            waiveOvertime: payload.waiveOvertime === true,
+            waiveReason: normalizeString(payload.waiveReason),
+            completeMode: normalizeString(payload.completeMode),
+            remainingAmount: result.remainingAmount || 0,
+            overtimeAmount: result.overtimeAmount || 0,
+            finalTotal: result.finalTotal || result.totalPrice || 0,
+          },
+        });
+      }
       if (requestId) {
         await firestore.collection("shops").doc(shopId)
             .collection("daycare_ops").doc(requestId).set({

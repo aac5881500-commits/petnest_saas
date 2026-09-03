@@ -316,16 +316,116 @@ void main() {
       expect(allowed.first['id'], 'a1');
     });
 
-    test('停用的加購模組不會出現', () {
+    test('停用的加購模組前台不顯示，後台 flatten 仍可列出', () {
+      final Map<String, dynamic> doc = <String, dynamic>{
+        'enabled': false,
+        'valueServices': <Map<String, dynamic>>[
+          <String, dynamic>{'id': 'a1', 'name': '梳毛'},
+        ],
+      };
+      expect(DaycareAddonCatalog.flatten(doc), isNotEmpty);
       expect(
-        DaycareAddonCatalog.flatten(<String, dynamic>{
-          'enabled': false,
-          'valueServices': <Map<String, dynamic>>[
-            <String, dynamic>{'id': 'a1', 'name': '梳毛'},
-          ],
-        }),
+        DaycareAddonCatalog.allowedForDaycare(
+          doc: doc,
+          allowedAddonIds: <String>['a1'],
+        ),
         isEmpty,
       );
+    });
+  });
+
+  group('Daycare room-based pricing', () {
+    test('舊資料沒有 pricingMode 視為 time_based', () {
+      final DaycareSettingsModel settings = DaycareSettingsModel.fromMap(
+        const <String, dynamic>{},
+      );
+      expect(settings.pricingMode, DaycarePricingModes.timeBased);
+      expect(settings.isRoomBased, isFalse);
+    });
+
+    test('固定日價不因停留時長改變，多寵加價正確', () {
+      const DaycareRoomTypeSetting room = DaycareRoomTypeSetting(
+        roomTypeId: 'std',
+        enabled: true,
+        maxPets: 5,
+        basePrice: 500,
+        extraPetPrice: 100,
+        extraTimePrice: 150,
+        overtimeEnabled: true,
+        overtimeGraceMinutes: 15,
+        extraTimeUnitMinutes: 30,
+      );
+      final DaycarePricingService pricing = DaycarePricingService.instance;
+      final DaycareRoomQuote fourHours = pricing.quoteRoom(
+        roomSetting: room,
+        startAt: DateTime(2026, 9, 1, 9),
+        endAt: DateTime(2026, 9, 1, 13),
+        petCount: 1,
+      );
+      final DaycareRoomQuote fiveHours = pricing.quoteRoom(
+        roomSetting: room,
+        startAt: DateTime(2026, 9, 1, 9),
+        endAt: DateTime(2026, 9, 1, 14),
+        petCount: 1,
+      );
+      expect(fourHours.cappedRoomAmount, 500);
+      expect(fiveHours.cappedRoomAmount, 500);
+      expect(fiveHours.extraTimeAmount, 0);
+      final DaycareRoomQuote twoPets = pricing.quoteRoom(
+        roomSetting: room,
+        startAt: DateTime(2026, 9, 1, 9),
+        endAt: DateTime(2026, 9, 1, 13),
+        petCount: 2,
+      );
+      expect(twoPets.extraPetAmount, 100);
+      expect(twoPets.cappedRoomAmount, 600);
+      final DaycareRoomQuote threePets = pricing.quoteRoom(
+        roomSetting: room,
+        startAt: DateTime(2026, 9, 1, 9),
+        endAt: DateTime(2026, 9, 1, 13),
+        petCount: 3,
+      );
+      expect(threePets.extraPetAmount, 200);
+      expect(threePets.cappedRoomAmount, 700);
+      const settings = DaycareSettingsModel(latestPickUp: '18:00');
+      expect(
+        pricing.estimatedLatePickupFee(
+          settings: settings,
+          roomSetting: room,
+          endAt: DateTime(2026, 9, 1, 18, 45),
+        ),
+        150,
+      );
+    });
+
+    test('多貓加價與國定假日 overnight 原價較高', () {
+      const DaycareRoomTypeSetting room = DaycareRoomTypeSetting(
+        roomTypeId: 'sun',
+        enabled: true,
+        baseMinutes: 240,
+        basePrice: 1000,
+        extraPetPrice: 100,
+        extraTimePrice: 200,
+      );
+      final DaycarePricingService pricing = DaycarePricingService.instance;
+      expect(
+        pricing.overnightStayOriginal(
+          roomNightPrice: 1800,
+          extraPetNightPrice: 300,
+          petCount: 2,
+          specialDateSurcharge: 500,
+        ),
+        2600,
+      );
+      final DaycareRoomQuote quote = pricing.quoteRoom(
+        roomSetting: room,
+        startAt: DateTime(2026, 9, 1, 9),
+        endAt: DateTime(2026, 9, 1, 18),
+        petCount: 2,
+        overnightCapAmount: 2600,
+      );
+      expect(quote.extraPetAmount, 100);
+      expect(quote.cappedRoomAmount <= 2600, isTrue);
     });
   });
 }

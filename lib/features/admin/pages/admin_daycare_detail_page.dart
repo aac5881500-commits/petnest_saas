@@ -1,5 +1,5 @@
 ﻿// lib/features/admin/pages/admin_daycare_detail_page.dart
-// 🐾 臨托訂單詳情與操作
+// 🐾 安親訂單詳情與操作
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
@@ -147,6 +147,142 @@ class _DaycareDetailBodyState extends State<_DaycareDetailBody> {
     );
   }
 
+  Future<void> _openSettlement() async {
+    final DateTime scheduledStart =
+        _ts(widget.data['scheduledStartAt']) ?? DateTime.now();
+    final DateTime scheduledEnd =
+        _ts(widget.data['scheduledEndAt']) ?? DateTime.now();
+    DateTime actualEnd = DateTime.now();
+    final Map<String, dynamic> preview =
+        await DaycareFunctionService.instance.manage(
+          shopId: widget.shopId,
+          bookingId: widget.bookingId,
+          action: 'previewSettle',
+          extra: <String, dynamic>{'actualEndAt': actualEnd.toIso8601String()},
+        );
+    if (!mounted) {
+      return;
+    }
+    String mode = 'cash';
+    final TextEditingController waiveReason = TextEditingController();
+    final String? choice = await showModalBottomSheet<String>(
+      context: context,
+      isScrollControlled: true,
+      builder: (BuildContext context) {
+        return StatefulBuilder(
+          builder: (BuildContext context, StateSetter setModal) {
+            return Padding(
+              padding: EdgeInsets.fromLTRB(
+                16,
+                16,
+                16,
+                16 + MediaQuery.of(context).viewInsets.bottom,
+              ),
+              child: SingleChildScrollView(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    const Text(
+                      '結算安親',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text('預約送達：${DaycareTimeHelper.formatHm(scheduledStart)}'),
+                    Text('預約接回：${DaycareTimeHelper.formatHm(scheduledEnd)}'),
+                    ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      title: const Text('實際接回時間'),
+                      subtitle: Text(DaycareTimeHelper.formatHm(actualEnd)),
+                      onTap: () async {
+                        final TimeOfDay? picked = await showTimePicker(
+                          context: context,
+                          initialTime: TimeOfDay.fromDateTime(actualEnd),
+                        );
+                        if (picked == null) {
+                          return;
+                        }
+                        actualEnd = DateTime(
+                          actualEnd.year,
+                          actualEnd.month,
+                          actualEnd.day,
+                          picked.hour,
+                          picked.minute,
+                        );
+                        setModal(() {});
+                      },
+                    ),
+                    Text(
+                      '已確認預約時段費用：\$${preview['quotedTotal'] ?? widget.data['quotedTotalPrice'] ?? widget.data['totalPrice'] ?? 0}',
+                    ),
+                    Text('超時分鐘：${preview['overtimeMinutes'] ?? 0}'),
+                    Text('超時規則：${preview['roundingLabel'] ?? '-'}'),
+                    Text('超時費：\$${preview['overtimeAmount'] ?? 0}'),
+                    Text('當日住宿費上限：\$${preview['capAmount'] ?? 0}'),
+                    Text('最終費用：\$${preview['finalTotal'] ?? 0}'),
+                    Text('已付款：\$${preview['paidAmount'] ?? 0}'),
+                    Text('尚待收款：\$${preview['remainingAmount'] ?? 0}'),
+                    const SizedBox(height: 8),
+                    RadioListTile<String>(
+                      title: const Text('已到店收款並完成安親'),
+                      value: 'cash',
+                      groupValue: mode,
+                      onChanged: (String? value) {
+                        setModal(() => mode = value ?? 'cash');
+                      },
+                    ),
+                    RadioListTile<String>(
+                      title: const Text('發送線上補款通知'),
+                      value: 'request_online',
+                      groupValue: mode,
+                      onChanged: (String? value) {
+                        setModal(() => mode = value ?? 'request_online');
+                      },
+                    ),
+                    RadioListTile<String>(
+                      title: const Text('免收本次超時費並完成安親'),
+                      value: 'waive',
+                      groupValue: mode,
+                      onChanged: (String? value) {
+                        setModal(() => mode = value ?? 'waive');
+                      },
+                    ),
+                    if (mode == 'waive')
+                      TextField(
+                        controller: waiveReason,
+                        decoration: const InputDecoration(
+                          labelText: '免收原因（將寫入操作紀錄）',
+                        ),
+                      ),
+                    const SizedBox(height: 12),
+                    FilledButton(
+                      onPressed: () => Navigator.pop(context, mode),
+                      child: const Text('確認結算'),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+    if (choice == null) {
+      return;
+    }
+    await _run(
+      'settle',
+      extra: <String, dynamic>{
+        'actualEndAt': actualEnd.toIso8601String(),
+        'completeMode': choice,
+        'waiveOvertime': choice == 'waive',
+        'waiveReason': waiveReason.text.trim(),
+      },
+    );
+  }
+
   Future<void> _convert() async {
     final DateTime now = DateTime.now();
     final DateTime start = DateTime(now.year, now.month, now.day);
@@ -185,7 +321,7 @@ class _DaycareDetailBodyState extends State<_DaycareDetailBody> {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: <Widget>[
-                    const Text('會新增一張住宿訂單，原臨托簽署紀錄仍保留，不可把臨托條款當成住宿條款。'),
+                    const Text('會新增一張住宿訂單，原安親簽署紀錄仍保留，不可把安親條款當成住宿條款。'),
                     TextField(
                       controller: roomTypeId,
                       decoration: const InputDecoration(labelText: '住宿房型 ID'),
@@ -200,11 +336,11 @@ class _DaycareDetailBodyState extends State<_DaycareDetailBody> {
                       items: const <DropdownMenuItem<String>>[
                         DropdownMenuItem<String>(
                           value: DaycareConversionHelper.keepDaycare,
-                          child: Text('臨托費照收，住宿另外計算'),
+                          child: Text('安親費照收，住宿另外計算'),
                         ),
                         DropdownMenuItem<String>(
                           value: DaycareConversionHelper.creditAll,
-                          child: Text('臨托費全部折抵住宿'),
+                          child: Text('安親費全部折抵住宿'),
                         ),
                         DropdownMenuItem<String>(
                           value: DaycareConversionHelper.custom,
@@ -212,7 +348,7 @@ class _DaycareDetailBodyState extends State<_DaycareDetailBody> {
                         ),
                         DropdownMenuItem<String>(
                           value: DaycareConversionHelper.cancelFee,
-                          child: Text('取消臨托費，只收住宿'),
+                          child: Text('取消安親費，只收住宿'),
                         ),
                       ],
                       onChanged: (String? value) {
@@ -325,7 +461,7 @@ class _DaycareDetailBodyState extends State<_DaycareDetailBody> {
     final bool locked = status == 'cancelled' || status == 'completed';
     return Scaffold(
       appBar: AppBar(
-        title: const Text('臨托訂單詳細'),
+        title: const Text('安親訂單詳細'),
         actions: <Widget>[
           TextButton(
             onPressed: () {
@@ -390,9 +526,9 @@ class _DaycareDetailBodyState extends State<_DaycareDetailBody> {
               },
             ),
           const SizedBox(height: 16),
-          const Text('臨托時間', style: TextStyle(fontWeight: FontWeight.bold)),
+          const Text('安親時間', style: TextStyle(fontWeight: FontWeight.bold)),
           const SizedBox(height: 8),
-          Text('臨托日期：${data['serviceDate'] ?? '-'}'),
+          Text('安親日期：${data['serviceDate'] ?? '-'}'),
           Text(
             '送達／接回：${start == null ? '-' : DaycareTimeHelper.formatHm(start)}'
             ' - ${end == null ? '-' : DaycareTimeHelper.formatHm(end)}',
@@ -447,11 +583,11 @@ class _DaycareDetailBodyState extends State<_DaycareDetailBody> {
               title: Text(
                 (data['policyVersion'] == null || data['policyVersion'] == 0)
                     ? '舊訂單／尚無條款簽署紀錄'
-                    : (data['policyTitle'] ?? '臨托須知').toString(),
+                    : (data['policyTitle'] ?? '安親須知').toString(),
               ),
               subtitle: Text(
                 (data['policyVersion'] == null || data['policyVersion'] == 0)
-                    ? '舊臨托訂單沒有條款簽署資料'
+                    ? '舊安親訂單沒有條款簽署資料'
                     : '版本 v${data['policyVersion']}　'
                           '${PolicySignMethods.label((data['policySignMethod'] ?? '').toString())}',
               ),
@@ -506,10 +642,8 @@ class _DaycareDetailBodyState extends State<_DaycareDetailBody> {
                 ),
               if (!locked && status == 'checked_in')
                 FilledButton(
-                  onPressed: _busy
-                      ? null
-                      : () => _run('complete', confirm: '確定完成臨托？'),
-                  child: const Text('完成臨托'),
+                  onPressed: _busy ? null : _openSettlement,
+                  child: const Text('結算安親／退房'),
                 ),
               if (!locked && (status == 'confirmed' || status == 'pending'))
                 OutlinedButton(
@@ -522,7 +656,7 @@ class _DaycareDetailBodyState extends State<_DaycareDetailBody> {
                 OutlinedButton(
                   onPressed: _busy
                       ? null
-                      : () => _run('cancel', confirm: '確定取消此臨托訂單？'),
+                      : () => _run('cancel', confirm: '確定取消此安親訂單？'),
                   child: const Text('取消訂單'),
                 ),
               if (status != 'cancelled')

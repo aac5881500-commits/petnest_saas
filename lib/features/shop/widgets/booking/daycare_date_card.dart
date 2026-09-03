@@ -66,7 +66,7 @@ class DaycareDateCard extends StatelessWidget {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: <Widget>[
                           const Text(
-                            '臨托日期',
+                            '安親日期',
                             style: TextStyle(
                               fontSize: 13,
                               fontWeight: FontWeight.w700,
@@ -97,7 +97,7 @@ class DaycareDateCard extends StatelessWidget {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: <Widget>[
                           Text(
-                            '臨托日期',
+                            '安親日期',
                             style: TextStyle(
                               fontSize: 13,
                               fontWeight: FontWeight.w700,
@@ -106,7 +106,7 @@ class DaycareDateCard extends StatelessWidget {
                           ),
                           SizedBox(height: 6),
                           Text(
-                            '選擇臨托日期',
+                            '選擇安親日期',
                             style: TextStyle(
                               fontSize: 20,
                               fontWeight: FontWeight.w900,

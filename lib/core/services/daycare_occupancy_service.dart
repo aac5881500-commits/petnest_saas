@@ -3,6 +3,7 @@
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:petnest_saas/core/models/booking_kind.dart';
+import 'package:petnest_saas/core/models/daycare_settings_model.dart';
 import 'package:petnest_saas/core/services/daycare_time_helper.dart';
 
 class DaycareAssignableRoom {
@@ -47,7 +48,7 @@ class DaycareOccupancyService {
     String excludeBookingId = '',
   }) async {
     if (dailyMaxPets <= 0) {
-      return 0;
+      return 999999;
     }
     final DateTime day = DateTime(
       serviceDate.year,
@@ -199,7 +200,7 @@ class DaycareOccupancyService {
   }
 
   static bool _roomUnavailable(Map<String, dynamic> room) {
-    if (room['enabled'] == false) {
+    if (room.containsKey('enabled') && !DaycareBool.parse(room['enabled'])) {
       return true;
     }
     final String status = (room['status'] ?? '').toString();
@@ -232,20 +233,23 @@ class DaycareOccupancyService {
         .where('shopId', isEqualTo: shopId)
         .where('status', whereIn: activeStatuses)
         .get();
-    final Map<String, Map<String, dynamic>> types = <String, Map<String, dynamic>>{
-      for (final QueryDocumentSnapshot<Map<String, dynamic>> doc in typeSnap.docs)
-        doc.id: doc.data(),
-    };
+    final Map<String, Map<String, dynamic>> types =
+        <String, Map<String, dynamic>>{
+          for (final QueryDocumentSnapshot<Map<String, dynamic>> doc
+              in typeSnap.docs)
+            doc.id: doc.data(),
+        };
     final List<DaycareAssignableRoom> result = <DaycareAssignableRoom>[];
-    for (final QueryDocumentSnapshot<Map<String, dynamic>> doc in roomSnap.docs) {
+    for (final QueryDocumentSnapshot<Map<String, dynamic>> doc
+        in roomSnap.docs) {
       final Map<String, dynamic> room = doc.data();
       if (_roomUnavailable(room)) {
         continue;
       }
       final String roomTypeId = (room['roomTypeId'] ?? '').toString();
-      final Map<String, dynamic> type = types[roomTypeId] ?? const <String, dynamic>{};
-      final int capacity =
-          ((room['capacity'] as num?)?.toInt() ?? 0) > 0
+      final Map<String, dynamic> type =
+          types[roomTypeId] ?? const <String, dynamic>{};
+      final int capacity = ((room['capacity'] as num?)?.toInt() ?? 0) > 0
           ? (room['capacity'] as num).toInt()
           : ((type['capacity'] as num?)?.toInt() ?? 0);
       if (capacity > 0 && petCount > capacity) {
@@ -276,7 +280,7 @@ class DaycareOccupancyService {
               )) {
             busy = true;
             summaries.add(
-              '臨托 $customer ${DaycareTimeHelper.formatHm(otherStart)}-'
+              '安親 $customer ${DaycareTimeHelper.formatHm(otherStart)}-'
               '${DaycareTimeHelper.formatHm(otherEnd)}',
             );
           }

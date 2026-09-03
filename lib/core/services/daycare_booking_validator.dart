@@ -31,21 +31,25 @@ class DaycareBookingValidator {
     }
     final int minutes = endAt.difference(startAt).inMinutes;
     if (minutes < settings.minDurationMinutes) {
-      return const DaycareValidationResult.error('未達最短臨托時間');
+      if (!settings.isRoomBased) {
+        return const DaycareValidationResult.error('未達最短安親時間');
+      }
     }
     if (minutes > settings.maxDurationMinutes) {
-      return const DaycareValidationResult.error('已超過最長臨托時間');
+      if (!settings.isRoomBased) {
+        return const DaycareValidationResult.error('已超過最長安親時間');
+      }
     }
     if (settings.forbidOvernight &&
         !DaycareTimeHelper.sameCalendarDay(startAt, endAt)) {
-      return const DaycareValidationResult.error('此店家不接受跨日臨托');
+      return const DaycareValidationResult.error('此店家不接受跨日安親');
     }
     if (!DaycareDateAvailability.isDateOpen(
       settings: settings,
       date: startAt,
       override: dateOverride,
     )) {
-      return const DaycareValidationResult.error('該日期不開放臨托');
+      return const DaycareValidationResult.error('該日期不開放安親');
     }
     final DaycareDayHours hours = DaycareDateAvailability.hours(
       settings: settings,
@@ -56,7 +60,7 @@ class DaycareBookingValidator {
       final int endMin = endAt.hour * 60 + endAt.minute;
       if (startMin < DaycareTimeHelper.minutesOf(hours.earliestDropOff) ||
           endMin > DaycareTimeHelper.minutesOf(hours.latestPickUp)) {
-        return const DaycareValidationResult.error('已超出臨托營業時間');
+        return const DaycareValidationResult.error('已超出安親營業時間');
       }
       if (hours.latestDropoffTime.isNotEmpty &&
           startMin > DaycareTimeHelper.minutesOf(hours.latestDropoffTime)) {
@@ -67,7 +71,7 @@ class DaycareBookingValidator {
       final DateTime clock = now ?? DateTime.now();
       if (!settings.allowSameDay &&
           DaycareTimeHelper.sameCalendarDay(startAt, clock)) {
-        return const DaycareValidationResult.error('不可預約當日臨托');
+        return const DaycareValidationResult.error('不可預約當日安親');
       }
       if (settings.minAdvanceHours > 0 &&
           startAt.difference(clock).inHours < settings.minAdvanceHours) {
@@ -86,17 +90,17 @@ class DaycareBookingValidator {
     required bool blacklisted,
   }) {
     if (petCount < settings.minPets || petCount > settings.maxPets) {
-      return const DaycareValidationResult.error('寵物數量不符合臨托限制');
+      return const DaycareValidationResult.error('寵物數量不符合安親限制');
     }
     if (settings.allowedPetTypes.isNotEmpty) {
       for (final String type in petTypes) {
         if (!settings.allowedPetTypes.contains(type)) {
-          return const DaycareValidationResult.error('有寵物類型不在臨托允許範圍');
+          return const DaycareValidationResult.error('有寵物類型不在安親允許範圍');
         }
       }
     }
     if (blacklisted) {
-      return const DaycareValidationResult.error('此會員目前無法預約臨托');
+      return const DaycareValidationResult.error('此會員目前無法預約安親');
     }
     return const DaycareValidationResult.ok();
   }
@@ -106,7 +110,7 @@ class DaycareBookingValidator {
     required DateTime startAt,
   }) {
     if (!plan.enabled) {
-      return const DaycareValidationResult.error('臨托方案未啟用');
+      return const DaycareValidationResult.error('安親方案未啟用');
     }
     if (!plan.weekdays.contains(DaycareTimeHelper.weekdayTaiwan(startAt))) {
       return const DaycareValidationResult.error('此方案不適用該星期');
@@ -120,7 +124,7 @@ class DaycareBookingValidator {
   }) {
     for (final String id in addonIds) {
       if (!settings.allowsAddon(id)) {
-        return const DaycareValidationResult.error('所選加購服務未開放臨托');
+        return const DaycareValidationResult.error('所選加購服務未開放安親');
       }
     }
     return const DaycareValidationResult.ok();

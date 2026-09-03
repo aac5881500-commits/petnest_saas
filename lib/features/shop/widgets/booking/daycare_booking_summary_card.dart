@@ -50,14 +50,14 @@ class DaycareBookingSummaryCard extends StatelessWidget {
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 12),
-            _infoRow('臨托日期', dateText),
+            _infoRow('安親日期', dateText),
             const SizedBox(height: 6),
-            _infoRow('送達時間', dropOffText),
+            _infoRow('預計送達時間', dropOffText),
             const SizedBox(height: 6),
             _infoRow('預計接回時間', pickUpText),
             const SizedBox(height: 6),
             _infoRow(
-              '預計臨托時數',
+              '預計安親時數',
               DaycareTimeHelper.durationLabel(durationMinutes),
             ),
             const SizedBox(height: 6),
@@ -68,12 +68,9 @@ class DaycareBookingSummaryCard extends StatelessWidget {
                   : '${petNames.join('、')}（$petCount 隻）',
             ),
             const SizedBox(height: 6),
-            _infoRow('臨托方案', planName),
+            _infoRow('安親房型／方案', planName),
             const SizedBox(height: 6),
-            _infoRow(
-              '房間',
-              roomTypeName.isEmpty ? '房間將由店家安排' : roomTypeName,
-            ),
+            _infoRow('房間', roomTypeName.isEmpty ? '房間將由店家安排' : roomTypeName),
             if (addons.isNotEmpty) ...<Widget>[
               const SizedBox(height: 10),
               const Text(

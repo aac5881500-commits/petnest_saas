@@ -1,6 +1,8 @@
 // lib/features/member/pages/member_page.dart
 // 👤 會員中心頁（完整版：含電話輸入）
 
+import 'dart:ui';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -9,6 +11,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:petnest_saas/core/services/member_avatar_service.dart';
 import 'package:petnest_saas/core/services/pet_service.dart';
+import 'package:petnest_saas/core/models/home_theme_model.dart';
 import 'package:petnest_saas/core/widgets/member_avatar.dart';
 import 'package:petnest_saas/features/pet/pages/pet_detail_page.dart';
 import 'package:petnest_saas/features/pet/pages/add_pet_page.dart';
@@ -29,10 +32,16 @@ import 'package:petnest_saas/core/services/shop_service.dart';
 import 'package:petnest_saas/features/shop/pages/chat/shop_customer_chat_page.dart';
 
 class MemberPage extends StatefulWidget {
-  const MemberPage({super.key, required this.shopId, this.shopName = ''});
+  const MemberPage({
+    super.key,
+    required this.shopId,
+    this.shopName = '',
+    this.theme = HomeThemeModel.modernDefault,
+  });
 
   final String shopId;
   final String shopName;
+  final HomeThemeModel theme;
 
   @override
   State<MemberPage> createState() => _MemberPageState();
@@ -976,7 +985,7 @@ class _MemberPageState extends State<MemberPage> {
   void _openAddPetPage() {
     Navigator.push(
       context,
-      MaterialPageRoute<void>(builder: (_) => const AddPetPage()),
+      MaterialPageRoute<void>(builder: (_) => AddPetPage(theme: widget.theme)),
     );
   }
 
@@ -1078,9 +1087,15 @@ class _MemberPageState extends State<MemberPage> {
     }
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF3F6FA),
+      backgroundColor: widget.theme.backgroundColor,
       appBar: AppBar(
-        title: const Text('會員中心'),
+        backgroundColor: widget.theme.cardColor,
+        foregroundColor: widget.theme.textColor,
+        surfaceTintColor: Colors.transparent,
+        title: const Text(
+          '會員中心',
+          style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+        ),
         actions: [
           StreamBuilder<int>(
             stream: NotificationService.instance.unreadCountStream(),
@@ -1126,7 +1141,7 @@ class _MemberPageState extends State<MemberPage> {
                             textAlign: TextAlign.center,
                             style: const TextStyle(
                               color: Colors.white,
-                              fontSize: 10,
+                              fontSize: 11,
                               fontWeight: FontWeight.bold,
                               height: 1,
                             ),
@@ -1295,53 +1310,46 @@ class _MemberPageState extends State<MemberPage> {
                               _buildSummaryCard(user, data),
                               const SizedBox(height: 18),
                               _buildBlockTitle('我的資料'),
-                              _buildSectionCard(
-                                children: [
-                                  _memberNavTile(
-                                    icon: Icons.person_outline_rounded,
-                                    iconColor: const Color(0xFF6B8FBF),
-                                    title: '個人資料',
-                                    subtitle: '姓名、電話與 Email',
-                                    onTap: () => _openProfileEditor(user),
+                              Row(
+                                children: <Widget>[
+                                  Expanded(
+                                    child: _miniFeatureCard(
+                                      icon: Icons.person_outline_rounded,
+                                      iconColor: const Color(0xFF6B8FBF),
+                                      title: '個人資料',
+                                      subtitle: '姓名與電話',
+                                      onTap: () => _openProfileEditor(user),
+                                    ),
                                   ),
-                                  const Divider(height: 1, indent: 56),
-                                  _memberNavTile(
-                                    icon: Icons.location_on_outlined,
-                                    iconColor: const Color(0xFF5AA37A),
-                                    title: '常用地址',
-                                    subtitle: _fullAddressText().isEmpty
-                                        ? '尚未填寫常用地址'
-                                        : _fullAddressText(),
-                                    onTap: () => _openAddressEditor(user),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: _miniFeatureCard(
+                                      icon: Icons.location_on_outlined,
+                                      iconColor: const Color(0xFF5AA37A),
+                                      title: '常用地址',
+                                      subtitle: _fullAddressText().isEmpty
+                                          ? '尚未填寫'
+                                          : '已設定',
+                                      onTap: () => _openAddressEditor(user),
+                                    ),
                                   ),
-                                  const Divider(height: 1, indent: 56),
-                                  _memberNavTile(
-                                    icon: Icons.emergency_outlined,
-                                    iconColor: const Color(0xFFC45C4A),
-                                    title: '緊急聯絡人',
-                                    subtitle: _emergencySummary(),
-                                    onTap: () => _openEmergencyEditor(user),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: _miniFeatureCard(
+                                      icon: Icons.emergency_outlined,
+                                      iconColor: const Color(0xFFC45C4A),
+                                      title: '緊急聯絡人',
+                                      subtitle:
+                                          _emergencySummary() == '尚未填寫緊急聯絡人'
+                                          ? '尚未填寫'
+                                          : '已設定',
+                                      onTap: () => _openEmergencyEditor(user),
+                                    ),
                                   ),
                                 ],
                               ),
                               const SizedBox(height: 18),
-                              _buildBlockTitle(
-                                '我的寵物',
-                                subtitle: '管理你的毛孩資料',
-                                trailing: TextButton.icon(
-                                  onPressed: _avatarBusy
-                                      ? null
-                                      : _openAddPetPage,
-                                  icon: const Icon(Icons.add, size: 18),
-                                  label: const Text('新增'),
-                                  style: TextButton.styleFrom(
-                                    visualDensity: VisualDensity.compact,
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 8,
-                                    ),
-                                  ),
-                                ),
-                              ),
+                              _buildBlockTitle('我的寵物', subtitle: '管理你的毛孩資料'),
                               StreamBuilder<List<Map<String, dynamic>>>(
                                 stream: PetService.instance.streamMyPets(),
                                 builder: (context, snapshot) {
@@ -1362,116 +1370,110 @@ class _MemberPageState extends State<MemberPage> {
                                     );
                                   }
 
-                                  final pets = snapshot.data!;
-                                  if (pets.isEmpty) {
-                                    return _buildPetsEmptyState();
-                                  }
-
-                                  return SizedBox(
-                                    height: 158,
-                                    child: ListView.separated(
-                                      scrollDirection: Axis.horizontal,
-                                      physics: const BouncingScrollPhysics(),
-                                      itemCount: pets.length,
-                                      separatorBuilder:
-                                          (BuildContext context, int index) =>
-                                              const SizedBox(width: 10),
-                                      itemBuilder:
-                                          (BuildContext context, int index) {
-                                            return _petCard(pets[index]);
-                                          },
-                                    ),
+                                  final List<Map<String, dynamic>> pets =
+                                      snapshot.data!;
+                                  final List<Widget> cards = <Widget>[
+                                    ...pets.map(_petCard),
+                                    _addPetDashedCard(),
+                                  ];
+                                  return GridView.count(
+                                    shrinkWrap: true,
+                                    physics:
+                                        const NeverScrollableScrollPhysics(),
+                                    crossAxisCount: 2,
+                                    mainAxisSpacing: 8,
+                                    crossAxisSpacing: 8,
+                                    childAspectRatio: 0.88,
+                                    children: cards,
                                   );
                                 },
                               ),
 
                               const SizedBox(height: 18),
                               _buildBlockTitle('訂單中心'),
-                              _buildSectionCard(
+                              Column(
                                 children: [
                                   StreamBuilder<Map<String, dynamic>?>(
-                                    stream: ShopService.instance
-                                        .streamShop(widget.shopId),
-                                    builder: (
-                                      BuildContext context,
-                                      AsyncSnapshot<Map<String, dynamic>?>
+                                    stream: ShopService.instance.streamShop(
+                                      widget.shopId,
+                                    ),
+                                    builder:
+                                        (
+                                          BuildContext context,
+                                          AsyncSnapshot<Map<String, dynamic>?>
                                           shopSnap,
-                                    ) {
-                                      if (!ShopChatService.isEnabled(
-                                        shopSnap.data,
-                                      )) {
-                                        return const SizedBox.shrink();
-                                      }
-                                      return Column(
-                                        children: <Widget>[
-                                          StreamBuilder<int>(
-                                            stream: ChatErrorProbe
-                                                    .bindMemberUnread
-                                                ? ShopChatService.instance
-                                                    .watchCustomerUnread(
-                                                    shopId: widget.shopId,
-                                                    customerUid: user.uid,
-                                                    source: 'MemberChatBadge',
-                                                  )
-                                                : Stream<int>.value(0),
-                                            builder: (
-                                              BuildContext context,
-                                              AsyncSnapshot<int> unreadSnap,
-                                            ) {
-                                              final int unread =
-                                                  unreadSnap.data ?? 0;
-                                              final String badge =
-                                                  ShopChatService.badgeLabel(
-                                                unread,
-                                              );
-                                              return _memberNavTile(
-                                                icon: Icons
-                                                    .chat_bubble_outline,
-                                                iconColor:
-                                                    const Color(0xFFFF8A00),
-                                                title: '店家訊息',
-                                                subtitle: badge.isEmpty
-                                                    ? '直接與目前店家聊天'
-                                                    : '$badge 則未讀訊息',
-                                                onTap: () {
-                                                  Navigator.push(
-                                                    context,
-                                                    MaterialPageRoute<void>(
-                                                      builder: (_) =>
-                                                          ShopCustomerChatPage(
-                                                        shopId: widget.shopId,
-                                                        shopName:
-                                                            widget.shopName,
-                                                      ),
-                                                    ),
-                                                  );
-                                                },
-                                              );
-                                            },
-                                          ),
-                                          const Divider(
-                                            height: 1,
-                                            indent: 56,
-                                          ),
-                                        ],
-                                      );
-                                    },
+                                        ) {
+                                          if (!ShopChatService.isEnabled(
+                                            shopSnap.data,
+                                          )) {
+                                            return const SizedBox.shrink();
+                                          }
+                                          return Column(
+                                            children: <Widget>[
+                                              StreamBuilder<int>(
+                                                stream:
+                                                    ChatErrorProbe
+                                                        .bindMemberUnread
+                                                    ? ShopChatService.instance
+                                                          .watchCustomerUnread(
+                                                            shopId:
+                                                                widget.shopId,
+                                                            customerUid:
+                                                                user.uid,
+                                                            source:
+                                                                'MemberChatBadge',
+                                                          )
+                                                    : Stream<int>.value(0),
+                                                builder:
+                                                    (
+                                                      BuildContext context,
+                                                      AsyncSnapshot<int>
+                                                      unreadSnap,
+                                                    ) {
+                                                      final int unread =
+                                                          unreadSnap.data ?? 0;
+                                                      final String badge =
+                                                          ShopChatService.badgeLabel(
+                                                            unread,
+                                                          );
+                                                      return _memberNavTile(
+                                                        icon: Icons
+                                                            .chat_bubble_outline,
+                                                        iconColor: const Color(
+                                                          0xFFFF8A00,
+                                                        ),
+                                                        title: '店家訊息',
+                                                        subtitle: badge.isEmpty
+                                                            ? '直接與目前店家聊天'
+                                                            : '$badge 則未讀訊息',
+                                                        onTap: () {
+                                                          Navigator.push(
+                                                            context,
+                                                            MaterialPageRoute<
+                                                              void
+                                                            >(
+                                                              builder: (_) =>
+                                                                  ShopCustomerChatPage(
+                                                                    shopId: widget
+                                                                        .shopId,
+                                                                    shopName: widget
+                                                                        .shopName,
+                                                                  ),
+                                                            ),
+                                                          );
+                                                        },
+                                                      );
+                                                    },
+                                              ),
+                                            ],
+                                          );
+                                        },
                                   ),
                                   MemberPointHistoryVisibility(
                                     shopId: widget.shopId,
                                     userId: user.uid,
-                                    enabledChild: Column(
-                                      children: [
-                                        _buildMyPointsTile(user),
-                                        const Divider(height: 1, indent: 56),
-                                      ],
-                                    ),
-                                    historyChild: Column(
-                                      children: [
-                                        _buildMyPointsTile(user),
-                                        const Divider(height: 1, indent: 56),
-                                      ],
-                                    ),
+                                    enabledChild: _buildMyPointsTile(user),
+                                    historyChild: _buildMyPointsTile(user),
                                     emptyChild: const SizedBox.shrink(),
                                   ),
                                   _memberNavTile(
@@ -1505,7 +1507,6 @@ class _MemberPageState extends State<MemberPage> {
                                       );
                                     },
                                   ),
-                                  const Divider(height: 1, indent: 56),
                                   _memberNavTile(
                                     icon: Icons.rate_review_outlined,
                                     iconColor: const Color(0xFFC49A3A),
@@ -1520,7 +1521,6 @@ class _MemberPageState extends State<MemberPage> {
                                       );
                                     },
                                   ),
-                                  const Divider(height: 1, indent: 56),
                                   StreamBuilder<
                                     QuerySnapshot<Map<String, dynamic>>
                                   >(
@@ -1546,25 +1546,10 @@ class _MemberPageState extends State<MemberPage> {
                                           return MemberPointHistoryVisibility(
                                             shopId: widget.shopId,
                                             userId: user.uid,
-                                            enabledChild: Column(
-                                              children: [
+                                            enabledChild:
                                                 _buildMyPointRedemptionTile(),
-                                                const Divider(
-                                                  height: 1,
-                                                  indent: 56,
-                                                ),
-                                              ],
-                                            ),
                                             historyChild: hasRedemptionHistory
-                                                ? Column(
-                                                    children: [
-                                                      _buildMyPointRedemptionTile(),
-                                                      const Divider(
-                                                        height: 1,
-                                                        indent: 56,
-                                                      ),
-                                                    ],
-                                                  )
+                                                ? _buildMyPointRedemptionTile()
                                                 : const SizedBox.shrink(),
                                             emptyChild: const SizedBox.shrink(),
                                           );
@@ -1627,25 +1612,21 @@ class _MemberPageState extends State<MemberPage> {
                                         CrossAxisAlignment.start,
                                     children: [
                                       _buildBlockTitle('帳號管理'),
-                                      _buildSectionCard(
-                                        children: [
-                                          _memberNavTile(
-                                            icon: Icons.delete_outline,
-                                            iconColor: const Color(0xFFC45C4A),
-                                            title: '申請刪除帳號',
-                                            subtitle: statusText.isEmpty
-                                                ? '送出後由平台協助處理會員資料與相關紀錄'
-                                                : statusText,
-                                            enabled: canSubmit,
-                                            onTap: canSubmit
-                                                ? () {
-                                                    _showDeleteAccountDialog(
-                                                      user,
-                                                    );
-                                                  }
-                                                : null,
-                                          ),
-                                        ],
+                                      _memberNavTile(
+                                        icon: Icons.delete_outline,
+                                        iconColor: const Color(0xFFC45C4A),
+                                        title: '申請刪除帳號',
+                                        subtitle: statusText.isEmpty
+                                            ? '送出後由平台協助處理會員資料與相關紀錄'
+                                            : statusText,
+                                        enabled: canSubmit,
+                                        muted: true,
+                                        warning: true,
+                                        onTap: canSubmit
+                                            ? () {
+                                                _showDeleteAccountDialog(user);
+                                              }
+                                            : null,
                                       ),
                                     ],
                                   );
@@ -1715,9 +1696,10 @@ class _MemberPageState extends State<MemberPage> {
                   title,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 16,
-                    fontWeight: FontWeight.w800,
+                    fontWeight: FontWeight.w700,
+                    color: widget.theme.textColor,
                   ),
                 ),
                 if (subtitle != null) ...[
@@ -1726,7 +1708,10 @@ class _MemberPageState extends State<MemberPage> {
                     subtitle,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: TextStyle(color: Colors.grey.shade600, fontSize: 13),
+                    style: TextStyle(
+                      color: widget.theme.textColor.withValues(alpha: 0.55),
+                      fontSize: 12,
+                    ),
                   ),
                 ],
               ],
@@ -1752,15 +1737,19 @@ class _MemberPageState extends State<MemberPage> {
 
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.03),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: widget.theme.cardBorderColor),
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: <Color>[
+            Color.alphaBlend(
+              widget.theme.primaryColor.withValues(alpha: 0.14),
+              widget.theme.cardColor,
+            ),
+            widget.theme.cardColor,
+          ],
+        ),
       ),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
@@ -1780,78 +1769,50 @@ class _MemberPageState extends State<MemberPage> {
             ),
             const SizedBox(width: 12),
             Expanded(
-              child: Material(
-                color: Colors.transparent,
-                child: InkWell(
-                  onTap: _avatarBusy ? null : () => _openProfileEditor(user),
-                  borderRadius: BorderRadius.circular(12),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 2),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                name.isEmpty ? '尚未填寫姓名' : name,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w800,
-                                ),
-                              ),
-                              if (phone.isNotEmpty) ...[
-                                const SizedBox(height: 2),
-                                Text(
-                                  phone,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: TextStyle(
-                                    color: Colors.grey.shade600,
-                                    fontSize: 13,
-                                  ),
-                                ),
-                              ],
-                              if (email.isNotEmpty) ...[
-                                const SizedBox(height: 2),
-                                Text(
-                                  email,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: TextStyle(
-                                    color: Colors.grey.shade600,
-                                    fontSize: 13,
-                                  ),
-                                ),
-                              ],
-                            ],
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text(
-                              '編輯',
-                              style: TextStyle(
-                                color: Colors.grey.shade600,
-                                fontSize: 13,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                            Icon(
-                              Icons.chevron_right,
-                              color: Colors.grey.shade400,
-                            ),
-                          ],
-                        ),
-                      ],
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    name.isEmpty ? '尚未填寫姓名' : name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: widget.theme.textColor,
                     ),
                   ),
-                ),
+                  if (phone.isNotEmpty) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      phone,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: widget.theme.textColor.withValues(alpha: 0.65),
+                        fontSize: 13,
+                      ),
+                    ),
+                  ],
+                  if (email.isNotEmpty) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      email,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: widget.theme.textColor.withValues(alpha: 0.55),
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
+                ],
               ),
+            ),
+            IconButton(
+              tooltip: '編輯',
+              onPressed: _avatarBusy ? null : () => _openProfileEditor(user),
+              icon: Icon(Icons.edit_outlined, color: widget.theme.primaryColor),
             ),
           ],
         ),
@@ -1866,58 +1827,148 @@ class _MemberPageState extends State<MemberPage> {
     required String subtitle,
     VoidCallback? onTap,
     bool enabled = true,
+    bool warning = false,
+    bool muted = false,
   }) {
-    return InkWell(
-      onTap: enabled ? onTap : null,
-      child: Opacity(
-        opacity: enabled ? 1 : 0.45,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-          child: Row(
-            children: [
-              SizedBox(
-                width: 40,
-                height: 40,
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: iconColor.withValues(alpha: 0.12),
-                    shape: BoxShape.circle,
+    final HomeThemeModel theme = widget.theme;
+    final Color border = warning ? Colors.red.shade200 : theme.cardBorderColor;
+    final Color fill = warning
+        ? const Color(0xFFFFF7F6)
+        : muted
+        ? Color.alphaBlend(
+            theme.primaryColor.withValues(alpha: 0.04),
+            theme.backgroundColor,
+          )
+        : theme.cardColor;
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Material(
+        color: fill,
+        borderRadius: BorderRadius.circular(16),
+        child: InkWell(
+          onTap: enabled ? onTap : null,
+          borderRadius: BorderRadius.circular(16),
+          child: Opacity(
+            opacity: enabled ? 1 : 0.45,
+            child: Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: border),
+              ),
+              child: Row(
+                children: [
+                  SizedBox(
+                    width: 36,
+                    height: 36,
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: iconColor.withValues(
+                          alpha: warning ? 0.16 : 0.12,
+                        ),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Icon(icon, color: iconColor, size: 20),
+                    ),
                   ),
-                  child: Icon(icon, color: iconColor, size: 20),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          title,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            color: theme.textColor,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          subtitle,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: theme.textColor.withValues(alpha: 0.55),
+                            fontSize: 12,
+                            height: 1.3,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Icon(
+                    Icons.chevron_right,
+                    color: theme.textColor.withValues(alpha: 0.3),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _miniFeatureCard({
+    required IconData icon,
+    required Color iconColor,
+    required String title,
+    required String subtitle,
+    required VoidCallback onTap,
+  }) {
+    final HomeThemeModel theme = widget.theme;
+    return Material(
+      color: theme.cardColor,
+      borderRadius: BorderRadius.circular(16),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(16),
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.fromLTRB(8, 12, 8, 12),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: theme.cardBorderColor),
+          ),
+          child: Column(
+            children: <Widget>[
+              Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: iconColor.withValues(alpha: 0.14),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(icon, color: iconColor, size: 20),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                title,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  color: theme.textColor,
                 ),
               ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      subtitle,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        color: Colors.grey.shade600,
-                        fontSize: 13,
-                        height: 1.3,
-                      ),
-                    ),
-                  ],
+              const SizedBox(height: 2),
+              Text(
+                subtitle,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 11,
+                  color: theme.textColor.withValues(alpha: 0.5),
                 ),
-              ),
-              const SizedBox(width: 4),
-              SizedBox(
-                width: 22,
-                child: Icon(Icons.chevron_right, color: Colors.grey.shade400),
               ),
             ],
           ),
@@ -1926,138 +1977,119 @@ class _MemberPageState extends State<MemberPage> {
     );
   }
 
-  Widget _buildPetsEmptyState() {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(16, 18, 16, 16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.03),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
+  Widget _addPetDashedCard() {
+    final HomeThemeModel theme = widget.theme;
+    return CustomPaint(
+      painter: _DashedRRectPainter(color: theme.cardBorderColor),
+      child: Material(
+        color: theme.primaryColor.withValues(alpha: 0.04),
+        borderRadius: BorderRadius.circular(16),
+        child: InkWell(
+          onTap: _avatarBusy ? null : _openAddPetPage,
+          borderRadius: BorderRadius.circular(16),
+          child: Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: <Widget>[
+                Icon(Icons.add, color: theme.primaryColor, size: 28),
+                const SizedBox(height: 6),
+                Text(
+                  '新增寵物',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                    color: theme.primaryColor,
+                  ),
+                ),
+              ],
+            ),
           ),
-        ],
-      ),
-      child: Column(
-        children: [
-          const Text('🐾', style: TextStyle(fontSize: 28)),
-          const SizedBox(height: 8),
-          const Text(
-            '尚未建立寵物資料',
-            style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            '新增寵物後，預約時就可以快速選擇毛孩。',
-            textAlign: TextAlign.center,
-            style: TextStyle(color: Colors.grey.shade600, fontSize: 13),
-          ),
-          const SizedBox(height: 12),
-          FilledButton.tonalIcon(
-            onPressed: _avatarBusy ? null : _openAddPetPage,
-            icon: const Icon(Icons.add, size: 18),
-            label: const Text('新增寵物'),
-          ),
-        ],
+        ),
       ),
     );
   }
 
   Widget _petCard(Map<String, dynamic> pet) {
+    final HomeThemeModel theme = widget.theme;
     final String photoUrl = (pet['photoUrl'] ?? pet['imageUrl'] ?? '')
         .toString()
         .trim();
     final String name = (pet['name'] ?? '未命名').toString();
+    final String gender = (pet['gender'] ?? '').toString();
+    final String age = (pet['age'] ?? '').toString();
+    final String meta = <String>[
+      if (gender.isNotEmpty) gender,
+      if (age.isNotEmpty) age,
+    ].join('・');
 
-    return Container(
-      width: 140,
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(18),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.03),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
+    return Material(
+      color: theme.cardColor,
+      borderRadius: BorderRadius.circular(16),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute<void>(
+              builder: (_) => PetDetailPage(pet: pet, theme: theme),
+            ),
+          );
+        },
+        child: Container(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: theme.cardBorderColor),
           ),
-        ],
-      ),
-      child: Material(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(18),
-        clipBehavior: Clip.antiAlias,
-        child: InkWell(
-          onTap: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute<void>(builder: (_) => PetDetailPage(pet: pet)),
-            );
-          },
           child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              SizedBox(
-                height: 100,
-                width: 140,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: <Widget>[
+              Expanded(
                 child: photoUrl.isEmpty
-                    ? const ColoredBox(
-                        color: Color(0xFFE8EEF6),
-                        child: Center(
-                          child: Icon(
-                            Icons.pets,
-                            size: 32,
-                            color: Color(0xFF6B8FBF),
-                          ),
+                    ? ColoredBox(
+                        color: theme.primaryColor.withValues(alpha: 0.1),
+                        child: Icon(
+                          Icons.pets,
+                          size: 32,
+                          color: theme.primaryColor,
                         ),
                       )
                     : Image.network(
                         photoUrl,
                         fit: BoxFit.cover,
-                        width: 140,
-                        height: 100,
-                        errorBuilder:
-                            (
-                              BuildContext context,
-                              Object error,
-                              StackTrace? stackTrace,
-                            ) {
-                              return const ColoredBox(
-                                color: Color(0xFFE8EEF6),
-                                child: Center(
-                                  child: Icon(
-                                    Icons.pets,
-                                    size: 32,
-                                    color: Color(0xFF6B8FBF),
-                                  ),
-                                ),
-                              );
-                            },
+                        errorBuilder: (context, error, stackTrace) {
+                          return ColoredBox(
+                            color: theme.primaryColor.withValues(alpha: 0.1),
+                            child: Icon(
+                              Icons.pets,
+                              size: 32,
+                              color: theme.primaryColor,
+                            ),
+                          );
+                        },
                       ),
               ),
               Padding(
                 padding: const EdgeInsets.fromLTRB(10, 8, 10, 10),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
+                  children: <Widget>[
                     Text(
                       name,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 14,
-                        fontWeight: FontWeight.w800,
+                        fontWeight: FontWeight.w600,
+                        color: theme.textColor,
                       ),
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      _petTypeLabel(pet),
+                      meta.isEmpty ? _petTypeLabel(pet) : meta,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
-                        color: Colors.grey.shade600,
+                        color: theme.textColor.withValues(alpha: 0.55),
                         fontSize: 12,
                       ),
                     ),
@@ -2070,29 +2102,38 @@ class _MemberPageState extends State<MemberPage> {
       ),
     );
   }
+}
 
-  Widget _buildSectionCard({required List<Widget> children}) {
-    return Container(
-      width: double.infinity,
-      margin: const EdgeInsets.only(bottom: 4),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.03),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: children,
-        ),
-      ),
+class _DashedRRectPainter extends CustomPainter {
+  const _DashedRRectPainter({required this.color});
+
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final Paint paint = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.4;
+    final RRect rrect = RRect.fromRectAndRadius(
+      Offset.zero & size,
+      const Radius.circular(16),
     );
+    const double dash = 5;
+    const double gap = 4;
+    final Path path = Path()..addRRect(rrect);
+    for (final PathMetric metric in path.computeMetrics()) {
+      double distance = 0;
+      while (distance < metric.length) {
+        final double next = distance + dash;
+        canvas.drawPath(metric.extractPath(distance, next), paint);
+        distance = next + gap;
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _DashedRRectPainter oldDelegate) {
+    return oldDelegate.color != color;
   }
 }

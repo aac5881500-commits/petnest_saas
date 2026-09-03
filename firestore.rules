@@ -641,6 +641,71 @@ match /room_calendar/{calendarId} {
         allow create, update, delete: if isShopMember(shopId) || isRootAdmin();
       }
 
+// 📝 店家自訂表單
+// pet_profile：新增寵物表單
+// booking_submit：送出預約表單
+match /custom_forms/{formId} {
+
+  // 店家成員可以查看全部設定。
+  // 一般登入會員只能讀取已啟用的表單。
+  allow read: if
+    formId in ['pet_profile', 'booking_submit']
+    && (
+      isRootAdmin()
+      || isShopMember(shopId)
+      || isShopOwnerUid(shopId)
+      || (
+        signedIn()
+        && resource.data.enabled == true
+      )
+    );
+
+  // 只有店主或具有預約設定權限的人可以建立
+  allow create: if
+    formId in ['pet_profile', 'booking_submit']
+    && (
+      isRootAdmin()
+      || isShopOwner(shopId)
+      || isShopOwnerUid(shopId)
+      || hasShopPermissionKey(shopId, 'manage_booking_settings')
+    )
+    && request.resource.data.id == formId
+    && request.resource.data.shopId == shopId
+    && request.resource.data.formType == formId
+    && request.resource.data.title is string
+    && request.resource.data.description is string
+    && request.resource.data.enabled is bool
+    && request.resource.data.version is int
+    && request.resource.data.sections is list
+    && request.resource.data.createdAt is timestamp
+    && request.resource.data.updatedAt is timestamp;
+
+  // 不允許改變文件身分、店家及建立時間
+  allow update: if
+    formId in ['pet_profile', 'booking_submit']
+    && (
+      isRootAdmin()
+      || isShopOwner(shopId)
+      || isShopOwnerUid(shopId)
+      || hasShopPermissionKey(shopId, 'manage_booking_settings')
+    )
+    && resource.data.id == formId
+    && resource.data.shopId == shopId
+    && resource.data.formType == formId
+    && request.resource.data.id == resource.data.id
+    && request.resource.data.shopId == resource.data.shopId
+    && request.resource.data.formType == resource.data.formType
+    && request.resource.data.createdAt == resource.data.createdAt
+    && request.resource.data.title is string
+    && request.resource.data.description is string
+    && request.resource.data.enabled is bool
+    && request.resource.data.version is int
+    && request.resource.data.sections is list
+    && request.resource.data.updatedAt is timestamp;
+
+  allow delete: if false;
+}
+
       // 🔺 特殊日期加價
 // 功能：
 // 1. 店家成員與平台管理員可以查看、建立、修改、刪除全部設定

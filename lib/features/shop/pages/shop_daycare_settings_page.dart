@@ -1,5 +1,5 @@
 // lib/features/shop/pages/shop_daycare_settings_page.dart
-// 🐾 臨托後台設定（分頁：基本／時間名額／方案／加購／付款／條款）
+// 🐾 安親後台設定（分頁：基本／時間名額／方案／加購／付款／條款）
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
@@ -8,6 +8,7 @@ import 'package:petnest_saas/core/models/daycare_settings_model.dart';
 import 'package:petnest_saas/core/services/daycare_addon_catalog.dart';
 import 'package:petnest_saas/core/services/daycare_settings_service.dart';
 import 'package:petnest_saas/core/widgets/shop_task_center_button.dart';
+import 'package:petnest_saas/features/shop/pages/shop_addon_page.dart';
 import 'package:petnest_saas/features/shop/pages/shop_daycare_date_override_page.dart';
 import 'package:petnest_saas/features/shop/pages/shop_policy_page.dart';
 import 'package:petnest_saas/features/shop/widgets/booking/booking_entry_card_editor.dart';
@@ -90,7 +91,7 @@ class _ShopDaycareSettingsPageState extends State<ShopDaycareSettingsPage> {
       });
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(const SnackBar(content: Text('臨托設定已儲存')));
+      ).showSnackBar(const SnackBar(content: Text('安親設定已儲存')));
     } catch (error) {
       if (!mounted) {
         return;
@@ -109,15 +110,15 @@ class _ShopDaycareSettingsPageState extends State<ShopDaycareSettingsPage> {
     }
     if (_error != null) {
       return Scaffold(
-        appBar: AppBar(title: const Text('臨托設定')),
+        appBar: AppBar(title: const Text('安親設定')),
         body: Center(child: Text(_error!)),
       );
     }
     return DefaultTabController(
-          length: 6,
+      length: 4,
       child: Scaffold(
         appBar: AppBar(
-          title: const Text('臨托設定'),
+          title: const Text('安親設定'),
           actions: <Widget>[
             ShopTaskCenterButton(shopId: widget.shopId),
             TextButton(
@@ -127,52 +128,64 @@ class _ShopDaycareSettingsPageState extends State<ShopDaycareSettingsPage> {
           ],
           bottom: const TabBar(
             isScrollable: true,
+            tabAlignment: TabAlignment.start,
             tabs: <Widget>[
               Tab(text: '基本設定'),
-              Tab(text: '時間與名額'),
-              Tab(text: '方案與價格'),
-              Tab(text: '加購服務'),
-              Tab(text: '付款'),
+              Tab(text: '收費方式'),
+              Tab(text: '加購與付款'),
               Tab(text: '條款'),
             ],
           ),
         ),
         body: TabBarView(
           children: <Widget>[
-            _BasicTab(
+            ListView(
+              padding: const EdgeInsets.all(16),
+              children: <Widget>[
+                _BasicTab(
+                  shopId: widget.shopId,
+                  settings: _settings,
+                  name: _name,
+                  intro: _intro,
+                  onChanged: (DaycareSettingsModel value) {
+                    setState(() => _settings = value);
+                  },
+                ),
+                const Divider(height: 32),
+                _TimeTab(
+                  shopId: widget.shopId,
+                  settings: _settings,
+                  onChanged: (DaycareSettingsModel value) {
+                    setState(() => _settings = value);
+                  },
+                ),
+              ],
+            ),
+            _PricingTab(
               shopId: widget.shopId,
               settings: _settings,
-              name: _name,
-              intro: _intro,
               onChanged: (DaycareSettingsModel value) {
                 setState(() => _settings = value);
               },
             ),
-            _TimeTab(
-              shopId: widget.shopId,
-              settings: _settings,
-              onChanged: (DaycareSettingsModel value) {
-                setState(() => _settings = value);
-              },
-            ),
-            _PlanTab(
-              settings: _settings,
-              onChanged: (DaycareSettingsModel value) {
-                setState(() => _settings = value);
-              },
-            ),
-            _AddonTab(
-              shopId: widget.shopId,
-              settings: _settings,
-              onChanged: (DaycareSettingsModel value) {
-                setState(() => _settings = value);
-              },
-            ),
-            _PayTab(
-              settings: _settings,
-              onChanged: (DaycareSettingsModel value) {
-                setState(() => _settings = value);
-              },
+            ListView(
+              padding: const EdgeInsets.all(16),
+              children: <Widget>[
+                _AddonTab(
+                  shopId: widget.shopId,
+                  settings: _settings,
+                  onChanged: (DaycareSettingsModel value) {
+                    setState(() => _settings = value);
+                  },
+                ),
+                const Divider(height: 32),
+                _PayTab(
+                  settings: _settings,
+                  onChanged: (DaycareSettingsModel value) {
+                    setState(() => _settings = value);
+                  },
+                ),
+              ],
             ),
             _PolicyTab(shopId: widget.shopId),
           ],
@@ -199,21 +212,35 @@ class _BasicTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ListView(
-      padding: const EdgeInsets.all(16),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
         const SizedBox(height: 8),
         BookingEntryCardEditor(shopId: shopId),
         const SizedBox(height: 16),
+        SwitchListTile(
+          title: const Text('開放安親服務'),
+          subtitle: const Text('開啟後客戶端即可預約安親，無需重新登入。'),
+          value: settings.enabled,
+          onChanged: (bool value) {
+            onChanged(
+              DaycareSettingsModel.fromMap({
+                ...settings.toMap(),
+                'enabled': value,
+                'updatedAt': null,
+              }),
+            );
+          },
+        ),
         TextField(
           controller: name,
-          decoration: const InputDecoration(labelText: '臨托服務名稱'),
+          decoration: const InputDecoration(labelText: '安親服務名稱'),
         ),
         const SizedBox(height: 12),
         TextField(
           controller: intro,
           maxLines: 4,
-          decoration: const InputDecoration(labelText: '臨托介紹'),
+          decoration: const InputDecoration(labelText: '安親介紹'),
         ),
         SwitchListTile(
           title: const Text('允許當日預約'),
@@ -273,48 +300,14 @@ class _TimeTab extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ListView(
-      padding: const EdgeInsets.all(16),
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      padding: EdgeInsets.zero,
       children: <Widget>[
-        const Text('可預約星期'),
-        Wrap(
-          children: List<Widget>.generate(7, (int index) {
-            final int day = index + 1;
-            const List<String> labels = <String>[
-              '一',
-              '二',
-              '三',
-              '四',
-              '五',
-              '六',
-              '日',
-            ];
-            final bool selected = settings.weekdays.contains(day);
-            return FilterChip(
-              label: Text(labels[index]),
-              selected: selected,
-              onSelected: (bool value) {
-                final List<int> next = List<int>.from(settings.weekdays);
-                if (value) {
-                  next.add(day);
-                } else {
-                  next.remove(day);
-                }
-                onChanged(
-                  DaycareSettingsModel.fromMap({
-                    ...settings.toMap(),
-                    'weekdays': next,
-                    'updatedAt': null,
-                  }),
-                );
-              },
-            );
-          }),
-        ),
-        const SizedBox(height: 12),
         const Text('日期開放管理', style: TextStyle(fontWeight: FontWeight.w700)),
         const SizedBox(height: 4),
         const Text(
-          '可單日或批次開放／關閉特定日期，並覆寫平日的星期規則。',
+          '所有日期預設可預約，只有你關閉的日期才不可預約。',
           style: TextStyle(color: Colors.grey),
         ),
         const SizedBox(height: 8),
@@ -333,8 +326,8 @@ class _TimeTab extends StatelessWidget {
           icon: const Icon(Icons.calendar_month_outlined),
           label: const Text('管理可預約日期'),
         ),
-        _timeField(context, '每日開放', settings.openTime, 'openTime'),
-        _timeField(context, '結束時間', settings.closeTime, 'closeTime'),
+        _timeField(context, '每日營業開始時間', settings.openTime, 'openTime'),
+        _timeField(context, '每日營業結束時間', settings.closeTime, 'closeTime'),
         _timeField(
           context,
           '最早送達',
@@ -342,39 +335,6 @@ class _TimeTab extends StatelessWidget {
           'earliestDropOff',
         ),
         _timeField(context, '最晚接回', settings.latestPickUp, 'latestPickUp'),
-        ListTile(
-          title: const Text('時間間隔'),
-          trailing: DropdownButton<int>(
-            value: settings.slotMinutes,
-            items: const <DropdownMenuItem<int>>[
-              DropdownMenuItem<int>(value: 15, child: Text('15 分')),
-              DropdownMenuItem<int>(value: 30, child: Text('30 分')),
-              DropdownMenuItem<int>(value: 60, child: Text('60 分')),
-            ],
-            onChanged: (int? value) {
-              if (value == null) {
-                return;
-              }
-              onChanged(
-                DaycareSettingsModel.fromMap({
-                  ...settings.toMap(),
-                  'slotMinutes': value,
-                  'updatedAt': null,
-                }),
-              );
-            },
-          ),
-        ),
-        _intField(
-          '最短臨托（分鐘）',
-          settings.minDurationMinutes,
-          'minDurationMinutes',
-        ),
-        _intField(
-          '最長臨托（分鐘）',
-          settings.maxDurationMinutes,
-          'maxDurationMinutes',
-        ),
         _intField('每日最大接待寵物數', settings.dailyMaxPets, 'dailyMaxPets'),
         SwitchListTile(
           title: const Text('禁止跨日'),
@@ -416,7 +376,7 @@ class _TimeTab extends StatelessWidget {
           },
         ),
         SwitchListTile(
-          title: const Text('允許店家拒絕特殊情況寵物'),
+          title: const Text('允許店家拒絕特殊狀況寵物'),
           value: settings.allowStaffRejectSpecial,
           onChanged: (bool value) {
             onChanged(
@@ -496,8 +456,8 @@ class _PlanTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ListView(
-      padding: const EdgeInsets.all(16),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: <Widget>[
         FilledButton.icon(
           onPressed: () {
@@ -595,6 +555,7 @@ class _PlanEditorState extends State<_PlanEditor> {
   late final TextEditingController _price;
   late final TextEditingController _extra;
   late final TextEditingController _sort;
+  late final TextEditingController _overtimePrice;
 
   @override
   void initState() {
@@ -608,6 +569,7 @@ class _PlanEditorState extends State<_PlanEditor> {
     _price = TextEditingController(text: '${_plan.basePrice}');
     _extra = TextEditingController(text: '${_plan.extraPetSurcharge}');
     _sort = TextEditingController(text: '${_plan.sortOrder}');
+    _overtimePrice = TextEditingController(text: '${_plan.overtimeUnitPrice}');
   }
 
   @override
@@ -617,13 +579,14 @@ class _PlanEditorState extends State<_PlanEditor> {
     _price.dispose();
     _extra.dispose();
     _sort.dispose();
+    _overtimePrice.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: const Text('編輯臨托方案'),
+      title: const Text('編輯安親方案'),
       content: SizedBox(
         width: 420,
         child: SingleChildScrollView(
@@ -677,8 +640,37 @@ class _PlanEditorState extends State<_PlanEditor> {
               TextField(
                 controller: _extra,
                 keyboardType: TextInputType.number,
-                decoration: const InputDecoration(labelText: '第二隻以上每隻加價'),
+                decoration: const InputDecoration(labelText: '多寵加價'),
               ),
+              DropdownButtonFormField<String>(
+                initialValue: _plan.overtimeMode,
+                decoration: const InputDecoration(labelText: '超時收費規則'),
+                items: const <DropdownMenuItem<String>>[
+                  DropdownMenuItem<String>(
+                    value: DaycareOvertimeModes.none,
+                    child: Text('不收超時費'),
+                  ),
+                  DropdownMenuItem<String>(
+                    value: DaycareOvertimeModes.hourly,
+                    child: Text('每小時'),
+                  ),
+                  DropdownMenuItem<String>(
+                    value: DaycareOvertimeModes.halfHourly,
+                    child: Text('每 30 分鐘'),
+                  ),
+                ],
+                onChanged: (String? value) {
+                  if (value != null) {
+                    setState(() => _plan = _plan.copyWith(overtimeMode: value));
+                  }
+                },
+              ),
+              if (_plan.overtimeMode != DaycareOvertimeModes.none)
+                TextField(
+                  controller: _overtimePrice,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(labelText: '每個區間金額'),
+                ),
               TextField(
                 controller: _sort,
                 keyboardType: TextInputType.number,
@@ -711,6 +703,9 @@ class _PlanEditorState extends State<_PlanEditor> {
                 basePrice: int.tryParse(_price.text) ?? _plan.basePrice,
                 extraPetSurcharge:
                     int.tryParse(_extra.text) ?? _plan.extraPetSurcharge,
+                overtimeUnitPrice:
+                    int.tryParse(_overtimePrice.text) ??
+                    _plan.overtimeUnitPrice,
                 sortOrder: int.tryParse(_sort.text) ?? _plan.sortOrder,
               ),
             );
@@ -718,6 +713,370 @@ class _PlanEditorState extends State<_PlanEditor> {
           child: const Text('確定'),
         ),
       ],
+    );
+  }
+}
+
+class _PricingTab extends StatelessWidget {
+  const _PricingTab({
+    required this.shopId,
+    required this.settings,
+    required this.onChanged,
+  });
+
+  final String shopId;
+  final DaycareSettingsModel settings;
+  final ValueChanged<DaycareSettingsModel> onChanged;
+
+  void _patch(Map<String, dynamic> extra) {
+    onChanged(
+      DaycareSettingsModel.fromMap(<String, dynamic>{
+        ...settings.toMap(),
+        ...extra,
+        'updatedAt': null,
+      }),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: <Widget>[
+        const Text(
+          '收費方式',
+          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+        ),
+        const SizedBox(height: 8),
+        _ModeCard(
+          selected: settings.isRoomBased,
+          title: '依房型安親計費',
+          subtitle: '店家確認並安排房型後，依房型與當日住宿價格結算。',
+          onTap: () => _patch(<String, dynamic>{
+            'pricingMode': DaycarePricingModes.roomBased,
+          }),
+        ),
+        const SizedBox(height: 8),
+        _ModeCard(
+          selected: !settings.isRoomBased,
+          title: '獨立時數／方案計費',
+          subtitle: '適用一般安親店，可在客戶送單時直接依時數或方案計價。',
+          onTap: () => _patch(<String, dynamic>{
+            'pricingMode': DaycarePricingModes.timeBased,
+          }),
+        ),
+        const SizedBox(height: 16),
+        if (settings.isRoomBased)
+          _RoomPricingEditor(
+            shopId: shopId,
+            settings: settings,
+            onChanged: onChanged,
+          )
+        else ...<Widget>[
+          const Text(
+            '時數單位（同一時間只啟用一種）',
+            style: TextStyle(fontWeight: FontWeight.w700),
+          ),
+          RadioListTile<String>(
+            title: const Text('每小時計費'),
+            value: DaycarePlanTypes.hourly,
+            groupValue: settings.resolvedTimeBillingUnit,
+            onChanged: (String? value) {
+              if (value != null) {
+                _patch(<String, dynamic>{'timeBillingUnit': value});
+              }
+            },
+          ),
+          RadioListTile<String>(
+            title: const Text('每 30 分鐘計費'),
+            value: DaycarePlanTypes.halfHourly,
+            groupValue: settings.resolvedTimeBillingUnit,
+            onChanged: (String? value) {
+              if (value != null) {
+                _patch(<String, dynamic>{'timeBillingUnit': value});
+              }
+            },
+          ),
+          ListTile(
+            title: const Text('計價間隔'),
+            trailing: DropdownButton<int>(
+              value: settings.slotMinutes,
+              items: const <DropdownMenuItem<int>>[
+                DropdownMenuItem<int>(value: 15, child: Text('15 分')),
+                DropdownMenuItem<int>(value: 30, child: Text('30 分')),
+                DropdownMenuItem<int>(value: 60, child: Text('60 分')),
+              ],
+              onChanged: (int? value) {
+                if (value != null) {
+                  _patch(<String, dynamic>{'slotMinutes': value});
+                }
+              },
+            ),
+          ),
+          ListTile(
+            title: const Text('最短安親分鐘'),
+            trailing: SizedBox(
+              width: 80,
+              child: TextFormField(
+                initialValue: '${settings.minDurationMinutes}',
+                keyboardType: TextInputType.number,
+                onChanged: (String raw) {
+                  _patch(<String, dynamic>{
+                    'minDurationMinutes':
+                        int.tryParse(raw) ?? settings.minDurationMinutes,
+                  });
+                },
+              ),
+            ),
+          ),
+          ListTile(
+            title: const Text('最長安親分鐘'),
+            trailing: SizedBox(
+              width: 80,
+              child: TextFormField(
+                initialValue: '${settings.maxDurationMinutes}',
+                keyboardType: TextInputType.number,
+                onChanged: (String raw) {
+                  _patch(<String, dynamic>{
+                    'maxDurationMinutes':
+                        int.tryParse(raw) ?? settings.maxDurationMinutes,
+                  });
+                },
+              ),
+            ),
+          ),
+          _PlanTab(settings: settings, onChanged: onChanged),
+        ],
+      ],
+    );
+  }
+}
+
+class _ModeCard extends StatelessWidget {
+  const _ModeCard({
+    required this.selected,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+  });
+
+  final bool selected;
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: selected ? const Color(0xFFFFF4EA) : Colors.white,
+      borderRadius: BorderRadius.circular(16),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(16),
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: selected ? const Color(0xFFE8A87C) : Colors.grey.shade300,
+              width: selected ? 2 : 1,
+            ),
+          ),
+          child: Row(
+            children: <Widget>[
+              Icon(
+                selected ? Icons.radio_button_checked : Icons.radio_button_off,
+                color: selected ? const Color(0xFFC45C26) : Colors.grey,
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Text(
+                      title,
+                      style: const TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      subtitle,
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.grey.shade700,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _RoomPricingEditor extends StatelessWidget {
+  const _RoomPricingEditor({
+    required this.shopId,
+    required this.settings,
+    required this.onChanged,
+  });
+
+  final String shopId;
+  final DaycareSettingsModel settings;
+  final ValueChanged<DaycareSettingsModel> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+      stream: FirebaseFirestore.instance
+          .collection('shops')
+          .doc(shopId)
+          .collection('room_types')
+          .snapshots(),
+      builder:
+          (
+            BuildContext context,
+            AsyncSnapshot<QuerySnapshot<Map<String, dynamic>>> snapshot,
+          ) {
+            final List<QueryDocumentSnapshot<Map<String, dynamic>>> docs =
+                snapshot.data?.docs ??
+                const <QueryDocumentSnapshot<Map<String, dynamic>>>[];
+            if (docs.isEmpty) {
+              return const Text('尚未建立住宿房型，無法設定依房型安親價格。');
+            }
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: docs.map((
+                QueryDocumentSnapshot<Map<String, dynamic>> doc,
+              ) {
+                final String name = (doc.data()['name'] ?? doc.id).toString();
+                final int stayCapacity =
+                    ((doc.data()['capacity'] as num?)?.toInt() ?? 0);
+                final DaycareRoomTypeSetting current =
+                    settings.roomTypeSetting(doc.id) ??
+                    DaycareRoomTypeSetting(
+                      roomTypeId: doc.id,
+                      maxPets: stayCapacity > 0 ? stayCapacity.clamp(1, 20) : 1,
+                    );
+                return Card(
+                  margin: const EdgeInsets.only(bottom: 10),
+                  child: ExpansionTile(
+                    title: Text(name),
+                    subtitle: Text(
+                      current.enabled
+                          ? 'NT\$${current.basePrice}　最多 ${current.maxPets} 隻'
+                          : '未開放安親',
+                    ),
+                    children: <Widget>[
+                      SwitchListTile(
+                        title: const Text('開放此房型安親'),
+                        value: current.enabled,
+                        onChanged: (bool value) {
+                          _upsert(current.copyWith(enabled: value));
+                        },
+                      ),
+                      _numTile('固定價格／每單位價格', current.basePrice, (int v) {
+                        _upsert(current.copyWith(basePrice: v));
+                      }),
+                      _numTile('多寵加價', current.extraPetPrice, (int v) {
+                        _upsert(current.copyWith(extraPetPrice: v));
+                      }),
+                      _numTile('最多可容納寵物數', current.maxPets, (int v) {
+                        _upsert(current.copyWith(maxPets: v.clamp(1, 20)));
+                      }),
+                      SwitchListTile(
+                        title: const Text('收取超時費'),
+                        value: current.overtimeEnabled,
+                        onChanged: (bool value) {
+                          _upsert(current.copyWith(overtimeEnabled: value));
+                        },
+                      ),
+                      if (current.overtimeEnabled) ...<Widget>[
+                        _numTile('超時寬限分鐘', current.overtimeGraceMinutes, (
+                          int v,
+                        ) {
+                          _upsert(current.copyWith(overtimeGraceMinutes: v));
+                        }),
+                        DropdownButtonFormField<int>(
+                          initialValue: current.extraTimeUnitMinutes,
+                          decoration: const InputDecoration(
+                            labelText: '每幾分鐘計費',
+                          ),
+                          items: const <DropdownMenuItem<int>>[
+                            DropdownMenuItem<int>(
+                              value: 15,
+                              child: Text('15 分'),
+                            ),
+                            DropdownMenuItem<int>(
+                              value: 30,
+                              child: Text('30 分'),
+                            ),
+                            DropdownMenuItem<int>(
+                              value: 60,
+                              child: Text('60 分'),
+                            ),
+                          ],
+                          onChanged: (int? value) {
+                            if (value != null) {
+                              _upsert(
+                                current.copyWith(extraTimeUnitMinutes: value),
+                              );
+                            }
+                          },
+                        ),
+                        _numTile('每個區間金額', current.extraTimePrice, (int v) {
+                          _upsert(current.copyWith(extraTimePrice: v));
+                        }),
+                      ],
+                    ],
+                  ),
+                );
+              }).toList(),
+            );
+          },
+    );
+  }
+
+  Widget _numTile(String label, int value, ValueChanged<int> onChanged) {
+    return ListTile(
+      title: Text(label),
+      trailing: SizedBox(
+        width: 90,
+        child: TextFormField(
+          initialValue: '$value',
+          keyboardType: TextInputType.number,
+          onChanged: (String raw) {
+            onChanged(int.tryParse(raw) ?? value);
+          },
+        ),
+      ),
+    );
+  }
+
+  void _upsert(DaycareRoomTypeSetting next) {
+    final List<Map<String, dynamic>> list = settings.roomTypes
+        .map((DaycareRoomTypeSetting e) => e.toMap())
+        .toList();
+    final int index = list.indexWhere(
+      (Map<String, dynamic> e) => e['roomTypeId'] == next.roomTypeId,
+    );
+    if (index >= 0) {
+      list[index] = next.toMap();
+    } else {
+      list.add(next.toMap());
+    }
+    onChanged(
+      DaycareSettingsModel.fromMap(<String, dynamic>{
+        ...settings.toMap(),
+        'roomTypes': list,
+        'updatedAt': null,
+      }),
     );
   }
 }
@@ -761,19 +1120,36 @@ class _AddonTab extends StatelessWidget {
             final List<Map<String, dynamic>> catalog =
                 DaycareAddonCatalog.flatten(data);
             if (catalog.isEmpty) {
-              return const Center(
-                child: Padding(
-                  padding: EdgeInsets.all(24),
-                  child: Text('尚未建立或未啟用加購服務。請先到加購服務設定新增，價格仍在該頁修改。'),
-                ),
+              return Column(
+                children: <Widget>[
+                  const Text('尚未建立加值服務。請先到加購服務設定新增，價格仍在該頁修改。'),
+                  const SizedBox(height: 12),
+                  FilledButton(
+                    onPressed: () {
+                      Navigator.push<void>(
+                        context,
+                        MaterialPageRoute<void>(
+                          builder: (_) => ShopAddonPage(shopId: shopId),
+                        ),
+                      );
+                    },
+                    child: const Text('前往建立加值服務'),
+                  ),
+                ],
               );
             }
             final Set<String> allowed = settings.allowedAddonIds.toSet();
-            return ListView(
-              padding: const EdgeInsets.all(16),
+            final Set<String> catalogIds = catalog
+                .map((Map<String, dynamic> e) => (e['id'] ?? '').toString())
+                .toSet();
+            final List<String> missingIds = settings.allowedAddonIds
+                .where((String id) => !catalogIds.contains(id))
+                .toList();
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
                 const Text(
-                  '勾選後，前台臨托預約才會顯示這些既有加購服務。名稱與價格請回加購服務設定修改。',
+                  '勾選後，前台安親預約才會顯示這些既有加購服務。名稱與價格請回加購服務設定修改。',
                   style: TextStyle(color: Colors.black54),
                 ),
                 const SizedBox(height: 8),
@@ -783,6 +1159,7 @@ class _AddonTab extends StatelessWidget {
                     OutlinedButton(
                       onPressed: () => _setAllowed(
                         catalog
+                            .where(DaycareAddonCatalog.isItemEnabled)
                             .map((Map<String, dynamic> e) => e['id'].toString())
                             .toList(),
                       ),
@@ -791,6 +1168,17 @@ class _AddonTab extends StatelessWidget {
                     OutlinedButton(
                       onPressed: () => _setAllowed(const <String>[]),
                       child: const Text('全部取消'),
+                    ),
+                    OutlinedButton(
+                      onPressed: () {
+                        Navigator.push<void>(
+                          context,
+                          MaterialPageRoute<void>(
+                            builder: (_) => ShopAddonPage(shopId: shopId),
+                          ),
+                        );
+                      },
+                      child: const Text('加購服務設定'),
                     ),
                   ],
                 ),
@@ -817,35 +1205,74 @@ class _AddonTab extends StatelessWidget {
                       ),
                       ...items.map((Map<String, dynamic> item) {
                         final String id = (item['id'] ?? '').toString();
+                        final bool live = DaycareAddonCatalog.isItemEnabled(
+                          item,
+                        );
                         final bool on = allowed.contains(id);
                         return Card(
                           child: SwitchListTile(
                             title: Text(DaycareAddonCatalog.displayName(item)),
                             subtitle: Text(
-                              '\$${item['price'] ?? 0}　'
-                              '${DaycareAddonCatalog.chargeLabel(item)}　'
-                              '${DaycareAddonCatalog.inventorySummary(item)}',
+                              live
+                                  ? '\$${item['price'] ?? 0}　'
+                                        '${DaycareAddonCatalog.chargeLabel(item)}　'
+                                        '${DaycareAddonCatalog.inventorySummary(item)}'
+                                  : '服務已停用',
                             ),
                             value: on,
-                            onChanged: (bool value) {
-                              final List<String> next = List<String>.from(
-                                settings.allowedAddonIds,
-                              );
-                              if (value) {
-                                if (!next.contains(id)) {
-                                  next.add(id);
-                                }
-                              } else {
-                                next.remove(id);
-                              }
-                              _setAllowed(next);
-                            },
+                            onChanged: live
+                                ? (bool value) {
+                                    final List<String> next = List<String>.from(
+                                      settings.allowedAddonIds,
+                                    );
+                                    if (value) {
+                                      if (!next.contains(id)) {
+                                        next.add(id);
+                                      }
+                                    } else {
+                                      next.remove(id);
+                                    }
+                                    _setAllowed(next);
+                                  }
+                                : (on
+                                      ? (bool value) {
+                                          final List<String> next =
+                                              List<String>.from(
+                                                settings.allowedAddonIds,
+                                              )..remove(id);
+                                          _setAllowed(next);
+                                        }
+                                      : null),
                           ),
                         );
                       }),
                     ],
                   );
                 }),
+                if (missingIds.isNotEmpty) ...<Widget>[
+                  const Padding(
+                    padding: EdgeInsets.only(top: 16, bottom: 4),
+                    child: Text(
+                      '已選但找不到的服務',
+                      style: TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                  ...missingIds.map(
+                    (String id) => Card(
+                      child: SwitchListTile(
+                        title: Text(id),
+                        subtitle: const Text('服務已停用'),
+                        value: true,
+                        onChanged: (_) {
+                          _setAllowed(
+                            List<String>.from(settings.allowedAddonIds)
+                              ..remove(id),
+                          );
+                        },
+                      ),
+                    ),
+                  ),
+                ],
               ],
             );
           },
@@ -861,8 +1288,8 @@ class _PayTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ListView(
-      padding: const EdgeInsets.all(16),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
         DropdownButtonFormField<String>(
           initialValue: settings.depositType,
@@ -999,7 +1426,7 @@ class _PolicyTab extends StatelessWidget {
           child: ListTile(
             leading: const Icon(Icons.policy_outlined),
             title: const Text('條款與住宿共用'),
-            subtitle: const Text('臨托不再獨立管理條款。請到「入住規則設定」指定各條款適用住宿、臨托或兩者。'),
+            subtitle: const Text('安親不再獨立管理條款。請到「入住規則設定」指定各條款適用住宿、安親或兩者。'),
             trailing: const Icon(Icons.chevron_right),
             onTap: () {
               Navigator.push(
@@ -1013,7 +1440,7 @@ class _PolicyTab extends StatelessWidget {
         ),
         const SizedBox(height: 12),
         Text(
-          '黑名單沿用會員管理設定，前台住宿與臨托一律不可預約。疫苗與結紮不另設臨托專用限制。',
+          '黑名單沿用會員管理設定，前台住宿與安親一律不可預約。疫苗與結紮不另設安親專用限制。',
           style: TextStyle(color: Colors.grey.shade700, fontSize: 13),
         ),
       ],

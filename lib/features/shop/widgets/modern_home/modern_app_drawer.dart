@@ -155,6 +155,7 @@ class ModernAppDrawer extends StatelessWidget {
                                   builder: (_) => MemberPage(
                                     shopId: shopId,
                                     shopName: (shop['name'] ?? '').toString(),
+                                    theme: theme,
                                   ),
                                 ),
                               );

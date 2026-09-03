@@ -1,11 +1,12 @@
 // lib/core/services/daycare_calendar_helper.dart
-// 🐾 前台／後台臨托月曆：套用星期規則、單日例外與當日名額
+// 🐾 前台／後台安親月曆：預設開放、關閉例外與當日名額
 
 import 'package:petnest_saas/core/models/daycare_date_override_model.dart';
 import 'package:petnest_saas/core/models/daycare_settings_model.dart';
 import 'package:petnest_saas/core/services/daycare_date_availability.dart';
 import 'package:petnest_saas/core/services/daycare_date_override_service.dart';
 import 'package:petnest_saas/core/services/daycare_occupancy_service.dart';
+import 'package:petnest_saas/core/services/daycare_settings_service.dart';
 import 'package:petnest_saas/core/services/daycare_time_helper.dart';
 import 'package:petnest_saas/core/services/shop_service.dart';
 import 'package:petnest_saas/features/shop/widgets/booking/front_calendar_helper.dart';
@@ -36,20 +37,13 @@ class DaycareCalendarHelper {
     final Map<String, int> usedPets = await DaycareOccupancyService.instance
         .usedPetsByDate(shopId: shopId, start: start, end: end);
 
-    final Set<int> closedWeekdays = <int>{
-      1,
-      2,
-      3,
-      4,
-      5,
-      6,
-      7,
-    }.difference(settings.weekdays.toSet());
     final Set<String> extraClosed = <String>{};
     final Set<String> extraOpen = <String>{};
-    final Set<String> specialOpen = <String>{};
     final Set<String> extraFull = <String>{};
     final Map<String, int> remainingPetsMap = <String, int>{};
+    final int dailyMax = DaycareDateAvailability.dailyMaxPets(
+      settings: settings,
+    );
 
     DateTime cursor = start;
     while (!cursor.isAfter(end)) {
@@ -61,23 +55,31 @@ class DaycareCalendarHelper {
         date: cursor,
         override: override,
       );
-      if (override != null && override.isOpen) {
-        extraOpen.add(key);
-        specialOpen.add(key);
-      } else if (override != null && !override.isOpen) {
+      final int used = usedPets[key] ?? 0;
+      final int left = dailyMax <= 0
+          ? 999999
+          : (dailyMax - used).clamp(0, dailyMax);
+      remainingPetsMap[key] = dailyMax <= 0 ? -1 : left;
+      final bool available =
+          await DaycareDateAvailability.isDaycareDateAvailable(
+            shopId: shopId,
+            date: cursor,
+            shop: shop,
+            settings: settings,
+            override: override,
+            remainingPets: left,
+          );
+      // 覆寫店家住宿 blockedDates，安親只認自己的關閉例外。
+      extraOpen.add(key);
+      final bool enabled = DaycareSettingsService.instance.isEnabledForShop(
+        shop: shop,
+        settings: settings,
+      );
+      if (!enabled || !open) {
         extraClosed.add(key);
-      }
-      if (open) {
-        final int maxPets = DaycareDateAvailability.dailyMaxPets(
-          settings: settings,
-          override: override,
-        );
-        final int used = usedPets[key] ?? 0;
-        final int left = (maxPets - used).clamp(0, maxPets);
-        remainingPetsMap[key] = left;
-        if (left <= 0) {
-          extraFull.add(key);
-        }
+        extraOpen.remove(key);
+      } else if (!available) {
+        extraFull.add(key);
       }
       cursor = cursor.add(const Duration(days: 1));
     }
@@ -87,12 +89,12 @@ class DaycareCalendarHelper {
       shop: shop,
       firstDate: start,
       lastDate: end,
-      extraClosedWeekdays: closedWeekdays,
-      extraClosedReason: '未開放臨托',
+      extraClosedWeekdays: const <int>{},
+      extraClosedReason: '店休',
       extraClosedDateKeys: extraClosed,
       extraOpenDateKeys: extraOpen,
       extraFullDateKeys: extraFull,
-      specialOpenDateKeys: specialOpen,
+      specialOpenDateKeys: const <String>{},
       remainingPetsMap: remainingPetsMap,
       markFullRoomsUnbookable: false,
     );

@@ -35,6 +35,6 @@ class BookingKind {
   }
 
   static String label(String kind) {
-    return kind == daycare ? '臨托' : '住宿';
+    return kind == daycare ? '安親' : '住宿';
   }
 }
