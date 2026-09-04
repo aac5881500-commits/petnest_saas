@@ -1,4 +1,4 @@
-﻿// lib/features/admin/pages/admin_daycare_detail_page.dart
+// lib/features/admin/pages/admin_daycare_detail_page.dart
 // 🐾 安親訂單詳情與操作
 
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -153,8 +153,8 @@ class _DaycareDetailBodyState extends State<_DaycareDetailBody> {
     final DateTime scheduledEnd =
         _ts(widget.data['scheduledEndAt']) ?? DateTime.now();
     DateTime actualEnd = DateTime.now();
-    final Map<String, dynamic> preview =
-        await DaycareFunctionService.instance.manage(
+    final Map<String, dynamic> preview = await DaycareFunctionService.instance
+        .manage(
           shopId: widget.shopId,
           bookingId: widget.bookingId,
           action: 'previewSettle',
@@ -582,14 +582,17 @@ class _DaycareDetailBodyState extends State<_DaycareDetailBody> {
               leading: const Icon(Icons.gavel_rounded),
               title: Text(
                 (data['policyVersion'] == null || data['policyVersion'] == 0)
-                    ? '舊訂單／尚無條款簽署紀錄'
-                    : (data['policyTitle'] ?? '安親須知').toString(),
+                    ? '舊訂單／尚無條款確認紀錄'
+                    : ((data['signatureUrl'] ?? data['signatureImageUrl'] ?? '')
+                              .toString()
+                              .isNotEmpty
+                          ? (data['policyTitle'] ?? '安親須知').toString()
+                          : '已確認條款'),
               ),
               subtitle: Text(
                 (data['policyVersion'] == null || data['policyVersion'] == 0)
-                    ? '舊安親訂單沒有條款簽署資料'
-                    : '版本 v${data['policyVersion']}　'
-                          '${PolicySignMethods.label((data['policySignMethod'] ?? '').toString())}',
+                    ? '舊安親訂單沒有條款確認資料'
+                    : '條款版本 v${data['termsVersion'] ?? data['policyVersion']}',
               ),
             ),
           ),

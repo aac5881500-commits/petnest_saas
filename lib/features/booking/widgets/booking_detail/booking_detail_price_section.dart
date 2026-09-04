@@ -41,8 +41,6 @@ class BookingDetailPriceSection extends StatelessWidget {
 
     final originalTotal = (data['originalTotal'] ?? 0) as num;
     final discountAmount = (data['discountAmount'] ?? 0) as num;
-    final discountPercent = (data['discountPercent'] ?? 0) as num;
-    final discountMinNights = (data['discountMinNights'] ?? 0) as num;
     final discountBase = (data['discountBase'] ?? '').toString();
     final discountCampaignName = (data['discountCampaignName'] ?? '')
         .toString()

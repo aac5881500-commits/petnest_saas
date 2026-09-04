@@ -2,11 +2,21 @@
 // 🎟️ 會員中心：我的優惠券
 // 功能：顯示會員在目前店家持有的優惠券與使用狀態
 
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/models/member_coupon_model.dart';
 import 'package:petnest_saas/core/services/member_coupon_service.dart';
 import 'package:petnest_saas/core/services/shop_room_service.dart';
+import 'package:petnest_saas/core/widgets/shop_frontend_theme_scope.dart';
+import 'package:petnest_saas/features/booking/pages/booking_detail_page.dart';
+import 'package:petnest_saas/features/member/widgets/member_empty_state.dart';
+import 'package:petnest_saas/features/member/widgets/member_filter_chips.dart';
+import 'package:petnest_saas/features/member/widgets/member_list_helpers.dart';
+import 'package:petnest_saas/features/member/widgets/member_page_scaffold.dart';
+import 'package:petnest_saas/features/member/widgets/member_section_card.dart';
+import 'package:petnest_saas/features/member/widgets/member_status_chip.dart';
+import 'package:petnest_saas/features/member/widgets/member_ui_tokens.dart';
 
 class MemberCouponPage extends StatelessWidget {
   const MemberCouponPage({super.key, required this.shopId, this.shopName = ''});
@@ -18,141 +28,167 @@ class MemberCouponPage extends StatelessWidget {
   Widget build(BuildContext context) {
     final user = FirebaseAuth.instance.currentUser;
     final normalizedShopId = shopId.trim();
+    final String title = shopName.trim().isEmpty
+        ? '我的優惠券'
+        : '${shopName.trim()}・我的優惠券';
 
-    if (user == null) {
-      return const Scaffold(body: Center(child: Text('請先登入')));
-    }
-
-    if (normalizedShopId.isEmpty) {
-      return const Scaffold(body: Center(child: Text('找不到目前店家資料')));
-    }
-
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(shopName.trim().isEmpty ? '我的優惠券' : '$shopName・我的優惠券'),
-      ),
-      body: StreamBuilder<List<MemberCouponModel>>(
-        stream: MemberCouponService.instance.streamMemberCoupons(
-          shopId: normalizedShopId,
-          userId: user.uid,
-        ),
-        builder: (context, snapshot) {
-          if (snapshot.hasError) {
-            return Center(
-              child: Padding(
-                padding: const EdgeInsets.all(24),
-                child: Text('讀取優惠券失敗：${snapshot.error}'),
+    return ShopFrontendThemeScope(
+      shopId: normalizedShopId,
+      builder: (BuildContext context) => user == null
+          ? MemberPageScaffold(
+              title: title,
+              body: const MemberEmptyState(
+                icon: Icons.lock_outline,
+                title: '請先登入',
+                message: '登入後即可查看優惠券。',
               ),
-            );
-          }
-
-          if (!snapshot.hasData) {
-            return const Center(child: CircularProgressIndicator());
-          }
-
-          final coupons = snapshot.data!;
-
-          if (coupons.isEmpty) {
-            return const _EmptyCouponView();
-          }
-          final availableCoupons = coupons
-              .where((coupon) => coupon.canUseNow)
-              .toList();
-
-          final reservedCoupons = coupons
-              .where((coupon) => coupon.status == MemberCouponStatus.reserved)
-              .toList();
-
-          final unavailableCoupons = coupons
-              .where(
-                (coupon) =>
-                    !coupon.canUseNow &&
-                    coupon.status != MemberCouponStatus.reserved,
-              )
-              .toList();
-          return ListView(
-            padding: const EdgeInsets.all(16),
-            children: [
-              _SectionHeader(title: '可使用', count: availableCoupons.length),
-              const SizedBox(height: 10),
-
-              if (availableCoupons.isEmpty)
-                const _EmptySectionCard(text: '目前沒有可使用的優惠券')
-              else
-                ...availableCoupons.map(
-                  (coupon) => Padding(
-                    padding: const EdgeInsets.only(bottom: 12),
-                    child: _CouponCard(coupon: coupon),
-                  ),
+            )
+          : normalizedShopId.isEmpty
+          ? MemberPageScaffold(
+              title: title,
+              body: const MemberEmptyState(
+                icon: Icons.storefront_outlined,
+                title: '找不到店家',
+                message: '目前沒有可查看的店家資料。',
+              ),
+            )
+          : DefaultTabController(
+              length: 4,
+              child: StreamBuilder<List<MemberCouponModel>>(
+                stream: MemberCouponService.instance.streamMemberCoupons(
+                  shopId: normalizedShopId,
+                  userId: user.uid,
                 ),
+                builder: (context, snapshot) {
+                  final MemberCouponGroups groups = snapshot.hasData
+                      ? MemberCouponGroups.fromList(snapshot.data!)
+                      : const MemberCouponGroups(
+                          available: <MemberCouponModel>[],
+                          reserved: <MemberCouponModel>[],
+                          used: <MemberCouponModel>[],
+                          other: <MemberCouponModel>[],
+                        );
 
-              const SizedBox(height: 16),
+                  Widget body;
+                  if (snapshot.hasError) {
+                    MemberUi.logError(snapshot.error!);
+                    body = MemberErrorState(
+                      message: MemberUi.friendlyError(snapshot.error!),
+                    );
+                  } else if (!snapshot.hasData) {
+                    body = const Padding(
+                      padding: EdgeInsets.all(24),
+                      child: Center(child: CircularProgressIndicator()),
+                    );
+                  } else {
+                    body = TabBarView(
+                      children: <Widget>[
+                        _CouponTabList(
+                          coupons: groups.available,
+                          emptyTitle: '目前沒有可使用的優惠券',
+                          emptyMessage: '店家發放或點數兌換後，可用優惠券會顯示在這裡。',
+                        ),
+                        _CouponTabList(
+                          coupons: groups.reserved,
+                          emptyTitle: '目前沒有使用中的優惠券',
+                          emptyMessage: '套用到進行中訂單的優惠券會顯示在這裡。',
+                        ),
+                        _CouponTabList(
+                          coupons: groups.used,
+                          emptyTitle: '目前沒有已使用的優惠券',
+                          emptyMessage: '使用完成的優惠券會顯示在這裡。',
+                        ),
+                        _CouponTabList(
+                          coupons: groups.other,
+                          emptyTitle: '目前沒有其他優惠券',
+                          emptyMessage: '已過期、已撤銷或尚未開始的優惠券會顯示在這裡。',
+                        ),
+                      ],
+                    );
+                  }
 
-              _SectionHeader(title: '使用中', count: reservedCoupons.length),
-              const SizedBox(height: 10),
-
-              if (reservedCoupons.isEmpty)
-                const _EmptySectionCard(text: '目前沒有使用中的優惠券')
-              else
-                ...reservedCoupons.map(
-                  (coupon) => Padding(
-                    padding: const EdgeInsets.only(bottom: 12),
-                    child: _CouponCard(coupon: coupon),
-                  ),
-                ),
-
-              const SizedBox(height: 16),
-
-              _SectionHeader(title: '其他優惠券', count: unavailableCoupons.length),
-              const SizedBox(height: 10),
-
-              if (unavailableCoupons.isEmpty)
-                const _EmptySectionCard(text: '目前沒有其他優惠券')
-              else
-                ...unavailableCoupons.map(
-                  (coupon) => Padding(
-                    padding: const EdgeInsets.only(bottom: 12),
-                    child: _CouponCard(coupon: coupon),
-                  ),
-                ),
-            ],
-          );
-        },
-      ),
+                  return MemberPageScaffold(
+                    title: title,
+                    bottom: TabBar(
+                      isScrollable: true,
+                      tabAlignment: TabAlignment.start,
+                      labelColor: MemberUi.of(context).primary,
+                      unselectedLabelColor: MemberUi.of(context).muted,
+                      indicatorColor: MemberUi.of(context).primary,
+                      tabs: <Widget>[
+                        Tab(
+                          child: MemberCountTab(
+                            label: '可使用',
+                            count: groups.available.length,
+                          ),
+                        ),
+                        Tab(
+                          child: MemberCountTab(
+                            label: '使用中',
+                            count: groups.reserved.length,
+                          ),
+                        ),
+                        Tab(
+                          child: MemberCountTab(
+                            label: '已使用',
+                            count: groups.used.length,
+                          ),
+                        ),
+                        Tab(
+                          child: MemberCountTab(
+                            label: '其他',
+                            count: groups.other.length,
+                          ),
+                        ),
+                      ],
+                    ),
+                    body: body,
+                  );
+                },
+              ),
+            ),
     );
   }
 }
 
-class _SectionHeader extends StatelessWidget {
-  const _SectionHeader({required this.title, required this.count});
+class _CouponTabList extends StatefulWidget {
+  const _CouponTabList({
+    required this.coupons,
+    required this.emptyTitle,
+    required this.emptyMessage,
+  });
 
-  final String title;
-  final int count;
+  final List<MemberCouponModel> coupons;
+  final String emptyTitle;
+  final String emptyMessage;
+
+  @override
+  State<_CouponTabList> createState() => _CouponTabListState();
+}
+
+class _CouponTabListState extends State<_CouponTabList>
+    with AutomaticKeepAliveClientMixin {
+  @override
+  bool get wantKeepAlive => true;
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Text(
-          title,
-          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-        ),
-        const SizedBox(width: 8),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-          decoration: BoxDecoration(
-            color: Theme.of(context).colorScheme.primaryContainer,
-            borderRadius: BorderRadius.circular(20),
-          ),
-          child: Text(
-            '$count',
-            style: TextStyle(
-              color: Theme.of(context).colorScheme.onPrimaryContainer,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-        ),
-      ],
+    super.build(context);
+    if (widget.coupons.isEmpty) {
+      return MemberEmptyState(
+        icon: Icons.confirmation_number_outlined,
+        title: widget.emptyTitle,
+        message: widget.emptyMessage,
+      );
+    }
+    return MemberUi.constrain(
+      ListView.builder(
+        padding: const EdgeInsets.all(MemberUi.pagePadding),
+        itemCount: widget.coupons.length,
+        itemBuilder: (BuildContext context, int index) {
+          return _CouponCard(coupon: widget.coupons[index]);
+        },
+      ),
     );
   }
 }
@@ -164,151 +200,136 @@ class _CouponCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final status = _statusData(coupon);
+    final _CouponStatusData status = _statusData(context, coupon);
+    final bool muted = !coupon.canUseNow;
 
-    return Container(
-      decoration: BoxDecoration(
-        color: coupon.canUseNow ? Colors.white : Colors.grey.shade100,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(
-          color: coupon.canUseNow
-              ? Theme.of(context).colorScheme.primary.withOpacity(0.25)
-              : Colors.grey.shade300,
-        ),
-        boxShadow: coupon.canUseNow
-            ? [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.05),
-                  blurRadius: 12,
-                  offset: const Offset(0, 4),
-                ),
-              ]
-            : null,
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(18),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Container(width: 8, color: status.color),
-            Expanded(
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Expanded(
-                          child: Text(
-                            coupon.name,
-                            style: const TextStyle(
-                              fontSize: 17,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        _StatusChip(text: status.text, color: status.color),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      _benefitText(coupon),
-                      style: TextStyle(
-                        color: Theme.of(context).colorScheme.primary,
-                        fontSize: 16,
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                    if (coupon.description.trim().isNotEmpty) ...[
-                      const SizedBox(height: 8),
-                      Text(
-                        coupon.description.trim(),
-                        style: TextStyle(color: Colors.grey.shade700),
-                      ),
-                    ],
-                    if (coupon.status == MemberCouponStatus.reserved) ...[
-                      const SizedBox(height: 10),
-                      Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 10,
-                        ),
-                        decoration: BoxDecoration(
-                          color: Colors.blue.shade50,
-                          borderRadius: BorderRadius.circular(10),
-                          border: Border.all(color: Colors.blue.shade200),
-                        ),
-                        child: Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Icon(
-                              Icons.info_outline,
-                              size: 18,
-                              color: Colors.blue,
-                            ),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: Text(
-                                '此優惠券已保留於目前預約\n取消訂單後會自動退回',
-                                style: TextStyle(
-                                  color: Colors.blue.shade800,
-                                  fontSize: 13,
-                                  height: 1.45,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                            ),
-                          ],
+    return MemberSectionCard(
+      muted: muted,
+      onTap: () => _showCouponDetail(context, coupon),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Container(
+            width: 4,
+            height: 88,
+            decoration: BoxDecoration(
+              color: status.color,
+              borderRadius: BorderRadius.circular(8),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Row(
+                  children: <Widget>[
+                    Expanded(
+                      child: Text(
+                        coupon.name,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: MemberUi.cardTitleSize,
+                          fontWeight: FontWeight.w700,
+                          color: MemberUi.of(context).text,
                         ),
                       ),
-                    ],
-                    const SizedBox(height: 12),
-                    _InfoRow(
-                      icon: Icons.calendar_month_outlined,
-                      text: _dateRangeText(coupon),
                     ),
-                    const SizedBox(height: 6),
-                    _InfoRow(
-                      icon: Icons.storefront_outlined,
-                      text: _applyTargetText(coupon),
-                    ),
-                    const SizedBox(height: 6),
-                    _InfoRow(
-                      icon: Icons.card_giftcard_outlined,
-                      text: coupon.isPointsExchange
-                          ? '點數兌換${coupon.pointsCost > 0 ? '・${coupon.pointsCost} 點' : ''}'
-                          : '店家贈送',
-                    ),
-                    if (coupon.minimumAmount > 0) ...[
-                      const SizedBox(height: 6),
-                      _InfoRow(
-                        icon: Icons.payments_outlined,
-                        text: '最低消費 NT\$ ${coupon.minimumAmount}',
-                      ),
-                    ],
-                    const SizedBox(height: 14),
-                    Align(
-                      alignment: Alignment.centerRight,
-                      child: TextButton.icon(
-                        onPressed: () {
-                          _showCouponDetail(context, coupon);
-                        },
-                        icon: const Icon(Icons.info_outline, size: 18),
-                        label: const Text('查看詳情'),
-                      ),
-                    ),
+                    MemberStatusChip(label: status.text, tone: status.tone),
                   ],
                 ),
-              ),
+                const SizedBox(height: 6),
+                Text(
+                  _benefitText(coupon),
+                  style: TextStyle(
+                    color: muted
+                        ? MemberUi.of(context).muted
+                        : MemberUi.of(context).primary,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  _dateRangeText(coupon),
+                  style: TextStyle(
+                    fontSize: MemberUi.captionSize,
+                    color: MemberUi.of(context).muted,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  _applyTargetText(coupon),
+                  style: TextStyle(
+                    fontSize: MemberUi.captionSize,
+                    color: MemberUi.of(context).muted,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  coupon.isPointsExchange
+                      ? '點數兌換${coupon.pointsCost > 0 ? '・${coupon.pointsCost} 點' : ''}'
+                      : '店家贈送',
+                  style: TextStyle(
+                    fontSize: MemberUi.captionSize,
+                    color: MemberUi.of(context).muted,
+                  ),
+                ),
+                if (coupon.status == MemberCouponStatus.reserved &&
+                    coupon.usedBookingId.trim().isNotEmpty) ...<Widget>[
+                  const SizedBox(height: 8),
+                  Text(
+                    '已綁定訂單 #${coupon.usedBookingId.length > 8 ? coupon.usedBookingId.substring(0, 8) : coupon.usedBookingId}',
+                    style: TextStyle(
+                      fontSize: MemberUi.captionSize,
+                      fontWeight: FontWeight.w600,
+                      color: MemberUi.of(context).primary,
+                    ),
+                  ),
+                ],
+              ],
             ),
-          ],
-        ),
+          ),
+          Icon(Icons.chevron_right, color: MemberUi.of(context).muted),
+        ],
       ),
     );
+  }
+
+  Future<void> _openBoundBooking(BuildContext context, String bookingId) async {
+    final String id = bookingId.trim();
+    if (id.isEmpty) {
+      return;
+    }
+    try {
+      final DocumentSnapshot<Map<String, dynamic>> snapshot =
+          await FirebaseFirestore.instance.collection('bookings').doc(id).get();
+      if (!context.mounted) {
+        return;
+      }
+      final Map<String, dynamic>? data = snapshot.data();
+      if (!snapshot.exists || data == null) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('目前找不到這筆訂單。')));
+        return;
+      }
+      await Navigator.push<void>(
+        context,
+        MaterialPageRoute<void>(
+          builder: (_) => BookingDetailPage(data: data, docId: snapshot.id),
+        ),
+      );
+    } catch (error) {
+      MemberUi.logError(error);
+      if (!context.mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(MemberUi.friendlyError(error))));
+    }
   }
 
   Future<void> _showCouponDetail(
@@ -349,40 +370,25 @@ class _CouponCard extends StatelessWidget {
                         children: [
                           _CouponDetailRow(
                             title: '目前狀態',
-                            value: _statusData(coupon).text,
+                            value: _statusData(context, coupon).text,
                           ),
                           if (coupon.status == MemberCouponStatus.reserved)
-                            Container(
-                              width: double.infinity,
-                              margin: const EdgeInsets.only(bottom: 14),
-                              padding: const EdgeInsets.all(12),
-                              decoration: BoxDecoration(
-                                color: Colors.blue.shade50,
-                                borderRadius: BorderRadius.circular(12),
-                                border: Border.all(color: Colors.blue.shade200),
-                              ),
-                              child: Row(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  const Icon(
-                                    Icons.info_outline,
-                                    size: 18,
-                                    color: Colors.blue,
-                                  ),
-                                  const SizedBox(width: 8),
-                                  Expanded(
-                                    child: Text(
-                                      '此優惠券目前已保留給預約使用。\n'
-                                      '若該筆訂單取消，優惠券會依系統流程退回。',
-                                      style: TextStyle(
-                                        color: Colors.blue.shade800,
-                                        fontSize: 13,
-                                        height: 1.5,
-                                        fontWeight: FontWeight.w600,
-                                      ),
-                                    ),
-                                  ),
-                                ],
+                            Padding(
+                              padding: const EdgeInsets.only(bottom: 14),
+                              child: Align(
+                                alignment: Alignment.centerLeft,
+                                child: TextButton(
+                                  onPressed: coupon.usedBookingId.trim().isEmpty
+                                      ? null
+                                      : () {
+                                          Navigator.pop(bottomSheetContext);
+                                          _openBoundBooking(
+                                            context,
+                                            coupon.usedBookingId,
+                                          );
+                                        },
+                                  child: const Text('查看綁定訂單'),
+                                ),
                               ),
                             ),
                           _CouponDetailRow(
@@ -421,10 +427,20 @@ class _CouponCard extends StatelessWidget {
                                 ? '使用 ${coupon.pointsCost} 點兌換'
                                 : '店家贈送',
                           ),
-                          if (coupon.issuedReason.trim().isNotEmpty)
+                          if (coupon.usedBookingId.trim().isNotEmpty)
                             _CouponDetailRow(
-                              title: '發放原因',
-                              value: coupon.issuedReason.trim(),
+                              title: '綁定訂單',
+                              value: coupon.usedBookingId.trim(),
+                            ),
+                          if (coupon.usedAt != null)
+                            _CouponDetailRow(
+                              title: '使用時間',
+                              value: _formatDate(coupon.usedAt!),
+                            ),
+                          if (coupon.revokedReason.trim().isNotEmpty)
+                            _CouponDetailRow(
+                              title: '撤銷原因',
+                              value: coupon.revokedReason.trim(),
                             ),
                           const SizedBox(height: 8),
                           Container(
@@ -554,29 +570,56 @@ class _CouponCard extends StatelessWidget {
     return '$year/$month/$day';
   }
 
-  _CouponStatusData _statusData(MemberCouponModel coupon) {
+  _CouponStatusData _statusData(
+    BuildContext context,
+    MemberCouponModel coupon,
+  ) {
     if (coupon.status == MemberCouponStatus.reserved) {
-      return const _CouponStatusData(text: '使用中', color: Colors.blue);
+      return const _CouponStatusData(
+        text: '使用中',
+        color: Color(0xFF6B8FAF),
+        tone: MemberChipTone.neutral,
+      );
     }
 
     if (coupon.status == MemberCouponStatus.revoked) {
-      return const _CouponStatusData(text: '已撤銷', color: Colors.grey);
+      return _CouponStatusData(
+        text: '已撤銷',
+        color: MemberUi.of(context).muted,
+        tone: MemberChipTone.neutral,
+      );
     }
 
     if (coupon.status == MemberCouponStatus.used ||
         coupon.isUsageLimitReached) {
-      return const _CouponStatusData(text: '已使用', color: Colors.blueGrey);
+      return _CouponStatusData(
+        text: '已使用',
+        color: MemberUi.of(context).muted,
+        tone: MemberChipTone.neutral,
+      );
     }
 
     if (coupon.isExpired) {
-      return const _CouponStatusData(text: '已過期', color: Colors.red);
+      return _CouponStatusData(
+        text: '已過期',
+        color: MemberUi.of(context).danger,
+        tone: MemberChipTone.danger,
+      );
     }
 
     if (coupon.isNotStarted) {
-      return const _CouponStatusData(text: '尚未開始', color: Colors.orange);
+      return _CouponStatusData(
+        text: '尚未開始',
+        color: MemberUi.of(context).warning,
+        tone: MemberChipTone.warning,
+      );
     }
 
-    return const _CouponStatusData(text: '可使用', color: Colors.green);
+    return _CouponStatusData(
+      text: '可使用',
+      color: MemberUi.of(context).success,
+      tone: MemberChipTone.success,
+    );
   }
 }
 
@@ -675,115 +718,13 @@ class _CouponDetailRow extends StatelessWidget {
 }
 
 class _CouponStatusData {
-  const _CouponStatusData({required this.text, required this.color});
+  const _CouponStatusData({
+    required this.text,
+    required this.color,
+    required this.tone,
+  });
 
   final String text;
   final Color color;
-}
-
-class _StatusChip extends StatelessWidget {
-  const _StatusChip({required this.text, required this.color});
-
-  final String text;
-  final Color color;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
-      decoration: BoxDecoration(
-        color: color.withOpacity(0.12),
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Text(
-        text,
-        style: TextStyle(
-          color: color,
-          fontSize: 12,
-          fontWeight: FontWeight.bold,
-        ),
-      ),
-    );
-  }
-}
-
-class _InfoRow extends StatelessWidget {
-  const _InfoRow({required this.icon, required this.text});
-
-  final IconData icon;
-  final String text;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Icon(icon, size: 17, color: Colors.grey.shade600),
-        const SizedBox(width: 7),
-        Expanded(
-          child: Text(
-            text,
-            style: TextStyle(color: Colors.grey.shade700, fontSize: 13),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _EmptyCouponView extends StatelessWidget {
-  const _EmptyCouponView();
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              Icons.confirmation_number_outlined,
-              size: 72,
-              color: Colors.grey.shade400,
-            ),
-            const SizedBox(height: 16),
-            const Text(
-              '目前沒有優惠券',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              '之後可透過店家贈送或點數兌換取得優惠券',
-              textAlign: TextAlign.center,
-              style: TextStyle(color: Colors.grey.shade600),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _EmptySectionCard extends StatelessWidget {
-  const _EmptySectionCard({required this.text});
-
-  final String text;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.grey.shade100,
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Text(
-        text,
-        textAlign: TextAlign.center,
-        style: TextStyle(color: Colors.grey.shade600),
-      ),
-    );
-  }
+  final MemberChipTone tone;
 }

@@ -2,7 +2,10 @@
 // 🔥 前台預約下一步按鈕：進入填寫資料頁
 
 import 'package:flutter/material.dart';
+import 'package:petnest_saas/core/models/booking_fee_line_item.dart';
 import 'package:petnest_saas/core/models/home_theme_model.dart';
+import 'package:petnest_saas/core/models/policy_applicable_service.dart';
+import 'package:petnest_saas/core/models/terms_consent_snapshot.dart';
 import 'package:petnest_saas/features/booking/pages/booking_form_page.dart';
 import 'package:petnest_saas/features/shop/widgets/booking/booking_step_widgets.dart';
 import 'package:petnest_saas/features/shop/widgets/booking/booking_submit_helper.dart';
@@ -73,6 +76,7 @@ class BookingNextStepSection extends StatelessWidget {
     int depositAmount,
     String paymentMethod,
     String payAmountType,
+    TermsConsentSnapshot termsConsent,
   )
   onSubmitWithData;
 
@@ -123,13 +127,70 @@ class BookingNextStepSection extends StatelessWidget {
 
                   final basePrice = (selectedRoomType!['price'] ?? 0).toInt();
 
-                  final extraPrice = (selectedRoomType!['extraPrice'] ?? 0)
-                      .toInt();
+                  final int extraPrice =
+                      ((selectedRoomType!['extraPrice'] ?? 0) is num
+                      ? (selectedRoomType!['extraPrice'] as num).toInt()
+                      : int.tryParse(
+                              (selectedRoomType!['extraPrice'] ?? 0).toString(),
+                            ) ??
+                            0);
 
                   final petCount = (selectedRoomType!['selectedPetCount'] ?? 1)
                       .toInt();
 
-                  final extraPetCount = petCount > 1 ? petCount - 1 : 0;
+                  final int extraPetCount = petCount > 1 ? petCount - 1 : 0;
+                  final int extraPetTotal = extraPetCount * extraPrice * nights;
+                  final String roomName = (selectedRoomType!['name'] ?? '住宿房型')
+                      .toString();
+                  final List<BookingFeeLineItem>
+                  feeLines = <BookingFeeLineItem>[
+                    BookingFeeLineItem(
+                      label: '$roomName・固定日價',
+                      amount: basePrice * nights,
+                    ),
+                    if (extraPetTotal > 0)
+                      BookingFeeLineItem(
+                        label: extraPetCount == 1
+                            ? '第 2 隻寵物加收'
+                            : '第 2～${extraPetCount + 1} 隻寵物加收',
+                        amount: extraPetTotal,
+                      ),
+                    if (specialDateSurchargeAmount > 0)
+                      BookingFeeLineItem(
+                        label: '特殊日期加價',
+                        amount: specialDateSurchargeAmount,
+                      ),
+                    ...valueServices.map(
+                      (Map<String, dynamic> addon) => BookingFeeLineItem(
+                        label: (addon['name'] ?? '加值服務').toString(),
+                        amount: (addon['amount'] ?? addon['price'] ?? 0) is num
+                            ? (addon['amount'] ?? addon['price'] as num).toInt()
+                            : int.tryParse(
+                                    (addon['amount'] ?? addon['price'] ?? 0)
+                                        .toString(),
+                                  ) ??
+                                  0,
+                      ),
+                    ),
+                    if (discountAmount > 0)
+                      BookingFeeLineItem(
+                        label: discountCampaignName.trim().isEmpty
+                            ? '優惠折抵'
+                            : discountCampaignName,
+                        amount: -discountAmount,
+                        kind: BookingFeeLineKind.discount,
+                      ),
+                    BookingFeeLineItem(
+                      label: '預估總額',
+                      amount: totalPrice,
+                      kind: BookingFeeLineKind.total,
+                    ),
+                    BookingFeeLineItem(
+                      label: '本次應付',
+                      amount: totalPrice,
+                      kind: BookingFeeLineKind.payable,
+                    ),
+                  ];
 
                   final int roomSubtotal =
                       (basePrice * nights) +
@@ -159,6 +220,9 @@ class BookingNextStepSection extends StatelessWidget {
                         isSubmitting: isSubmitting,
                         canSubmit: canSubmit,
                         isBlacklisted: isBlacklisted,
+                        theme: theme,
+                        termsServiceType: PolicyApplicableService.accommodation,
+                        feeLineItems: feeLines,
                       ),
                     ),
                   );

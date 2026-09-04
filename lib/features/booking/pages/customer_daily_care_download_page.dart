@@ -148,8 +148,9 @@ class _CustomerDailyCareDownloadPageState
             final DocumentSnapshot<Map<String, dynamic>> shopSnapshot =
                 settingSnapshot.data![1]
                     as DocumentSnapshot<Map<String, dynamic>>;
-            final String shopLogoUrl =
-                (shopSnapshot.data()?['logoUrl'] ?? '').toString().trim();
+            final String shopLogoUrl = (shopSnapshot.data()?['logoUrl'] ?? '')
+                .toString()
+                .trim();
             final DailyCareStayInfo stayInfo = DailyCareStayInfo.fromBookingMap(
               data,
               fallbackRoomName: roomName,
@@ -285,8 +286,7 @@ class _CustomerDailyCareDownloadPageState
                               stayInfo: stayInfo,
                               setting: setting,
                               booking: data,
-                              shop:
-                                  shopSnapshot.data() ?? <String, dynamic>{},
+                              shop: shopSnapshot.data() ?? <String, dynamic>{},
                             );
                           },
                         );
@@ -560,9 +560,7 @@ class _CustomerDailyCareDownloadPageState
       }
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(
-            kIsWeb ? '照護報告已產生，開始下載。' : '照護報告已產生，請選擇儲存或分享位置。',
-          ),
+          content: Text(kIsWeb ? '照護報告已產生，開始下載。' : '照護報告已產生，請選擇儲存或分享位置。'),
         ),
       );
     } catch (error) {

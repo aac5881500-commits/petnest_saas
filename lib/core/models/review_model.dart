@@ -3,6 +3,7 @@
 // 功能：統一 reviews 文件資料格式，供前台、店家後台、平台後台共用
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:petnest_saas/core/utils/safe_parse.dart';
 
 class ReviewModel {
   const ReviewModel({
@@ -75,11 +76,11 @@ class ReviewModel {
       roomTypeName: (data['roomTypeName'] ?? '').toString(),
       startDate: data['startDate'] is Timestamp ? data['startDate'] : null,
       endDate: data['endDate'] is Timestamp ? data['endDate'] : null,
-      nights: ((data['nights'] ?? 0) as num).toInt(),
-      rating: ((data['rating'] ?? 0) as num).toInt(),
-      environmentRating: ((data['environmentRating'] ?? 0) as num).toInt(),
-      serviceRating: ((data['serviceRating'] ?? 0) as num).toInt(),
-      priceRating: ((data['priceRating'] ?? 0) as num).toInt(),
+      nights: SafeParse.parseMoney(data['nights']),
+      rating: SafeParse.parseMoney(data['rating']),
+      environmentRating: SafeParse.parseMoney(data['environmentRating']),
+      serviceRating: SafeParse.parseMoney(data['serviceRating']),
+      priceRating: SafeParse.parseMoney(data['priceRating']),
       content: (data['content'] ?? '').toString(),
       imageUrls: (data['imageUrls'] as List? ?? [])
           .map((e) => e.toString())

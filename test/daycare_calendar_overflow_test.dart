@@ -51,4 +51,10 @@ void main() {
   ) async {
     await pumpAtWidth(tester, 392);
   });
+
+  testWidgets('406px compact calendar has no overflow', (
+    WidgetTester tester,
+  ) async {
+    await pumpAtWidth(tester, 406);
+  });
 }

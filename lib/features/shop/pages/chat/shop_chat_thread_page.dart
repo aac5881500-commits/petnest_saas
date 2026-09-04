@@ -69,11 +69,11 @@ class _ShopChatThreadPageState extends State<ShopChatThreadPage> {
 
   Future<void> _loadBooking() async {
     try {
-      final Map<String, dynamic>? booking =
-          await ShopChatService.instance.findActiveBooking(
-        shopId: widget.shopId,
-        customerUid: widget.threadId,
-      );
+      final Map<String, dynamic>? booking = await ShopChatService.instance
+          .findActiveBooking(
+            shopId: widget.shopId,
+            customerUid: widget.threadId,
+          );
       if (mounted) {
         setState(() {
           _booking = booking;
@@ -89,11 +89,8 @@ class _ShopChatThreadPageState extends State<ShopChatThreadPage> {
     }
     String name = (user.displayName ?? '').trim();
     try {
-      final Map<String, dynamic>? member =
-          await ShopService.instance.getUserMemberInShop(
-        shopId: widget.shopId,
-        uid: user.uid,
-      );
+      final Map<String, dynamic>? member = await ShopService.instance
+          .getUserMemberInShop(shopId: widget.shopId, uid: user.uid);
       final String memberName =
           (member?['name'] ?? member?['displayName'] ?? '').toString().trim();
       if (memberName.isNotEmpty) {
@@ -124,9 +121,9 @@ class _ShopChatThreadPageState extends State<ShopChatThreadPage> {
       _input.clear();
     } catch (error) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('$error')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('$error')));
       }
     } finally {
       if (mounted) {
@@ -140,8 +137,8 @@ class _ShopChatThreadPageState extends State<ShopChatThreadPage> {
       return;
     }
     try {
-      final XFile? image =
-          await InventoryImageService.instance.pickAndValidateImage();
+      final XFile? image = await InventoryImageService.instance
+          .pickAndValidateImage();
       if (image == null) {
         return;
       }
@@ -155,9 +152,9 @@ class _ShopChatThreadPageState extends State<ShopChatThreadPage> {
       );
     } catch (error) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('$error')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('$error')));
       }
     } finally {
       if (mounted) {
@@ -176,12 +173,12 @@ class _ShopChatThreadPageState extends State<ShopChatThreadPage> {
     }
     setState(() => _loadingOlder = true);
     try {
-      final List<ShopChatMessageModel> older =
-          await ShopChatService.instance.loadOlderMessages(
-        shopId: widget.shopId,
-        threadId: widget.threadId,
-        before: all.first.createdAt!,
-      );
+      final List<ShopChatMessageModel> older = await ShopChatService.instance
+          .loadOlderMessages(
+            shopId: widget.shopId,
+            threadId: widget.threadId,
+            before: all.first.createdAt!,
+          );
       if (!mounted) {
         return;
       }
@@ -200,8 +197,9 @@ class _ShopChatThreadPageState extends State<ShopChatThreadPage> {
   }
 
   List<ShopChatMessageModel> _merge(List<ShopChatMessageModel> latest) {
-    final Set<String> ids =
-        latest.map((ShopChatMessageModel item) => item.id).toSet();
+    final Set<String> ids = latest
+        .map((ShopChatMessageModel item) => item.id)
+        .toSet();
     return <ShopChatMessageModel>[
       ..._older.where((ShopChatMessageModel item) => !ids.contains(item.id)),
       ...latest,
@@ -212,112 +210,119 @@ class _ShopChatThreadPageState extends State<ShopChatThreadPage> {
   Widget build(BuildContext context) {
     return StreamBuilder<Map<String, dynamic>?>(
       stream: ShopService.instance.streamShop(widget.shopId),
-      builder: (
-        BuildContext context,
-        AsyncSnapshot<Map<String, dynamic>?> shopSnap,
-      ) {
-        final Map<String, dynamic> shop =
-            shopSnap.data ?? const <String, dynamic>{};
-        final String shopName = (shop['name'] ?? '店家').toString();
-        final bool enabled = ShopChatService.isEnabled(shop);
-        return StreamBuilder<ShopChatThreadModel?>(
-          stream: ShopChatService.instance.watchThread(
-            shopId: widget.shopId,
-            threadId: widget.threadId,
-          ),
-          builder: (
+      builder:
+          (
             BuildContext context,
-            AsyncSnapshot<ShopChatThreadModel?> threadSnap,
+            AsyncSnapshot<Map<String, dynamic>?> shopSnap,
           ) {
-            final ShopChatThreadModel? thread = threadSnap.data;
-            final String customerName = thread?.customerName.trim().isNotEmpty ==
-                    true
-                ? thread!.customerName
-                : '會員';
-            final String photo = thread?.customerPhotoUrl ?? '';
-            if (thread != null && thread.shopUnreadCount > 0) {
-              WidgetsBinding.instance.addPostFrameCallback((_) {
-                _markRead();
-              });
-            }
-            return Scaffold(
-              appBar: AppBar(
-                title: Row(
-                  children: <Widget>[
-                    CircleAvatar(
-                      radius: 16,
-                      backgroundImage:
-                          photo.isNotEmpty ? NetworkImage(photo) : null,
-                      child: photo.isEmpty
-                          ? Text(
-                              customerName.characters.first,
-                            )
-                          : null,
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Text(
-                        customerName,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                  ],
-                ),
+            final Map<String, dynamic> shop =
+                shopSnap.data ?? const <String, dynamic>{};
+            final String shopName = (shop['name'] ?? '店家').toString();
+            final bool enabled = ShopChatService.isEnabled(shop);
+            return StreamBuilder<ShopChatThreadModel?>(
+              stream: ShopChatService.instance.watchThread(
+                shopId: widget.shopId,
+                threadId: widget.threadId,
               ),
-              body: Column(
-                children: <Widget>[
-                  if (!enabled)
-                    Material(
-                      color: Colors.orange.shade50,
-                      child: const SizedBox(
-                        width: double.infinity,
-                        child: Padding(
-                          padding: EdgeInsets.all(10),
-                          child: Text('店家聊天目前已關閉'),
+              builder:
+                  (
+                    BuildContext context,
+                    AsyncSnapshot<ShopChatThreadModel?> threadSnap,
+                  ) {
+                    final ShopChatThreadModel? thread = threadSnap.data;
+                    final String customerName =
+                        thread?.customerName.trim().isNotEmpty == true
+                        ? thread!.customerName
+                        : '會員';
+                    final String photo = thread?.customerPhotoUrl ?? '';
+                    if (thread != null && thread.shopUnreadCount > 0) {
+                      WidgetsBinding.instance.addPostFrameCallback((_) {
+                        _markRead();
+                      });
+                    }
+                    return Scaffold(
+                      appBar: AppBar(
+                        title: Row(
+                          children: <Widget>[
+                            CircleAvatar(
+                              radius: 16,
+                              backgroundImage: photo.isNotEmpty
+                                  ? NetworkImage(photo)
+                                  : null,
+                              child: photo.isEmpty
+                                  ? Text(customerName.characters.first)
+                                  : null,
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Text(
+                                customerName,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
-                    ),
-                  if (_booking != null) _BookingBanner(booking: _booking!),
-                  Expanded(
-                    child: StreamBuilder<List<ShopChatMessageModel>>(
-                      stream: ShopChatService.instance.watchLatestMessages(
-                        shopId: widget.shopId,
-                        threadId: widget.threadId,
+                      body: Column(
+                        children: <Widget>[
+                          if (!enabled)
+                            Material(
+                              color: Colors.orange.shade50,
+                              child: const SizedBox(
+                                width: double.infinity,
+                                child: Padding(
+                                  padding: EdgeInsets.all(10),
+                                  child: Text('店家聊天目前已關閉'),
+                                ),
+                              ),
+                            ),
+                          if (_booking != null)
+                            _BookingBanner(booking: _booking!),
+                          Expanded(
+                            child: StreamBuilder<List<ShopChatMessageModel>>(
+                              stream: ShopChatService.instance
+                                  .watchLatestMessages(
+                                    shopId: widget.shopId,
+                                    threadId: widget.threadId,
+                                  ),
+                              builder:
+                                  (
+                                    BuildContext context,
+                                    AsyncSnapshot<List<ShopChatMessageModel>>
+                                    snapshot,
+                                  ) {
+                                    final List<ShopChatMessageModel> latest =
+                                        snapshot.data ??
+                                        const <ShopChatMessageModel>[];
+                                    final List<ShopChatMessageModel> all =
+                                        _merge(latest);
+                                    if (all.isEmpty) {
+                                      return const Center(child: Text('尚無訊息'));
+                                    }
+                                    return ShopChatMessageList(
+                                      messages: all,
+                                      shopName: shopName,
+                                      primaryColor: const Color(0xFFFF8A00),
+                                      loadingOlder: _loadingOlder,
+                                      onLoadOlder: () => _loadOlder(latest),
+                                    );
+                                  },
+                            ),
+                          ),
+                          ShopChatComposer(
+                            controller: _input,
+                            enabled: true,
+                            sending: _sending,
+                            onSendText: _sendText,
+                            onPickImage: _sendImage,
+                          ),
+                        ],
                       ),
-                      builder: (
-                        BuildContext context,
-                        AsyncSnapshot<List<ShopChatMessageModel>> snapshot,
-                      ) {
-                        final List<ShopChatMessageModel> latest =
-                            snapshot.data ?? const <ShopChatMessageModel>[];
-                        final List<ShopChatMessageModel> all = _merge(latest);
-                        if (all.isEmpty) {
-                          return const Center(child: Text('尚無訊息'));
-                        }
-                        return ShopChatMessageList(
-                          messages: all,
-                          shopName: shopName,
-                          primaryColor: const Color(0xFFFF8A00),
-                          loadingOlder: _loadingOlder,
-                          onLoadOlder: () => _loadOlder(latest),
-                        );
-                      },
-                    ),
-                  ),
-                  ShopChatComposer(
-                    controller: _input,
-                    enabled: true,
-                    sending: _sending,
-                    onSendText: _sendText,
-                    onPickImage: _sendImage,
-                  ),
-                ],
-              ),
+                    );
+                  },
             );
           },
-        );
-      },
     );
   }
 }
@@ -362,7 +367,8 @@ class _BookingBanner extends StatelessWidget {
                 }
                 Navigator.of(context).push(
                   MaterialPageRoute<void>(
-                    builder: (_) => AdminBookingDetailPage(bookingId: bookingId),
+                    builder: (_) =>
+                        AdminBookingDetailPage(bookingId: bookingId),
                   ),
                 );
               },

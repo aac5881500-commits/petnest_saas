@@ -217,7 +217,7 @@ class _ShopDaycareDateOverridePageState
                         );
                         if (!open) {
                           blocked.add(key);
-                        } else {
+                        } else if (dailyMax > 0) {
                           final int left = (dailyMax - (used[key] ?? 0)).clamp(
                             0,
                             dailyMax,

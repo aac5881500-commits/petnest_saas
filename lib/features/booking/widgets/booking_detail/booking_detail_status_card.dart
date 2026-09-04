@@ -39,7 +39,7 @@ class BookingDetailStatusCard extends StatelessWidget {
       if (status == 'completed') {
         bgColor = Colors.grey.shade300;
         textColor = Colors.black87;
-        text = '臨托已完成';
+        text = '安親已完成';
         icon = Icons.flag;
       } else if (status == 'cancelled') {
         bgColor = Colors.red.shade50;
@@ -49,7 +49,7 @@ class BookingDetailStatusCard extends StatelessWidget {
       } else if (status == 'checked_in') {
         bgColor = Colors.blue.shade50;
         textColor = Colors.blue;
-        text = '臨托中';
+        text = '安親中';
         icon = Icons.home;
       } else if (status == 'confirmed') {
         bgColor = Colors.green.shade50;

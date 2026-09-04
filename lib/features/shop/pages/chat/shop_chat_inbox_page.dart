@@ -35,11 +35,8 @@ class _ShopChatInboxPageState extends State<ShopChatInboxPage> {
       return;
     }
     try {
-      final Map<String, dynamic>? member =
-          await ShopService.instance.getUserMemberInShop(
-        shopId: widget.shopId,
-        uid: user.uid,
-      );
+      final Map<String, dynamic>? member = await ShopService.instance
+          .getUserMemberInShop(shopId: widget.shopId, uid: user.uid);
       final String role = (member?['role'] ?? '').toString();
       if (mounted) {
         setState(() {
@@ -90,9 +87,9 @@ class _ShopChatInboxPageState extends State<ShopChatInboxPage> {
       if (!mounted) {
         return;
       }
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('$error')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('$error')));
     }
   }
 
@@ -100,15 +97,10 @@ class _ShopChatInboxPageState extends State<ShopChatInboxPage> {
   Widget build(BuildContext context) {
     return StreamBuilder<Map<String, dynamic>?>(
       stream: ShopService.instance.streamShop(widget.shopId),
-      builder: (
-        BuildContext context,
-        AsyncSnapshot<Map<String, dynamic>?> shopSnap,
-      ) {
+      builder: (BuildContext context, AsyncSnapshot<Map<String, dynamic>?> shopSnap) {
         final bool enabled = ShopChatService.isEnabled(shopSnap.data);
         return Scaffold(
-          appBar: AppBar(
-            title: const Text('店家聊天'),
-          ),
+          appBar: AppBar(title: const Text('店家聊天')),
           body: Column(
             children: <Widget>[
               if (!enabled)
@@ -139,14 +131,8 @@ class _ShopChatInboxPageState extends State<ShopChatInboxPage> {
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 child: SegmentedButton<bool>(
                   segments: const <ButtonSegment<bool>>[
-                    ButtonSegment<bool>(
-                      value: false,
-                      label: Text('收件匣'),
-                    ),
-                    ButtonSegment<bool>(
-                      value: true,
-                      label: Text('已封存'),
-                    ),
+                    ButtonSegment<bool>(value: false, label: Text('收件匣')),
+                    ButtonSegment<bool>(value: true, label: Text('已封存')),
                   ],
                   selected: <bool>{_showArchived},
                   onSelectionChanged: (Set<bool> value) {
@@ -164,145 +150,160 @@ class _ShopChatInboxPageState extends State<ShopChatInboxPage> {
                           widget.shopId,
                         )
                       : ShopChatService.instance.watchShopInbox(widget.shopId),
-                  builder: (
-                    BuildContext context,
-                    AsyncSnapshot<List<ShopChatThreadModel>> snapshot,
-                  ) {
-                    if (snapshot.hasError) {
-                      final Object error = snapshot.error!;
-                      final String code = error is FirebaseException
-                          ? error.code
-                          : error.runtimeType.toString();
-                      debugPrint(
-                        '[ShopChatInbox] shopId=${widget.shopId} '
-                        'uid=${FirebaseAuth.instance.currentUser?.uid} '
-                        'role=$_debugRole '
-                        'path=shops/${widget.shopId}/chat_threads '
-                        'query=status==${_showArchived ? 'archived' : 'active'} '
-                        'orderBy lastMessageAt desc limit 80',
-                      );
-                      debugPrint(
-                        '[ShopChatInbox] 失敗：code=$code message=$error',
-                      );
-                      debugPrint(
-                        '[ShopChatInbox] stack=${snapshot.stackTrace}',
-                      );
-                      return Center(child: Text('載入失敗：$error'));
-                    }
-                    if (!snapshot.hasData) {
-                      return const Center(child: CircularProgressIndicator());
-                    }
-                    final List<ShopChatThreadModel> threads =
-                        _filter(snapshot.data!);
-                    if (threads.isEmpty) {
-                      return Center(
-                        child: Text(_showArchived ? '沒有已封存的聊天' : '目前沒有聊天訊息'),
-                      );
-                    }
-                    return ListView.separated(
-                      itemCount: threads.length,
-                      separatorBuilder: (_, _) => const Divider(height: 1),
-                      itemBuilder: (BuildContext context, int index) {
-                        final ShopChatThreadModel thread = threads[index];
-                        final String badge =
-                            ShopChatService.badgeLabel(thread.shopUnreadCount);
-                        return ListTile(
-                          leading: CircleAvatar(
-                            backgroundImage: thread.customerPhotoUrl.isNotEmpty
-                                ? NetworkImage(thread.customerPhotoUrl)
-                                : null,
-                            child: thread.customerPhotoUrl.isEmpty
-                                ? Text(
-                                    thread.customerName.isNotEmpty
-                                        ? thread.customerName.characters.first
-                                        : '會',
-                                  )
-                                : null,
-                          ),
-                          title: Text(
-                            thread.customerName.isNotEmpty
-                                ? thread.customerName
-                                : '會員',
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          subtitle: Text(
-                            thread.lastMessage,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          trailing: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            crossAxisAlignment: CrossAxisAlignment.end,
-                            children: <Widget>[
-                              Text(
-                                _timeLabel(thread.lastMessageAt),
-                                style: const TextStyle(
-                                  fontSize: 12,
-                                  color: Colors.grey,
-                                ),
+                  builder:
+                      (
+                        BuildContext context,
+                        AsyncSnapshot<List<ShopChatThreadModel>> snapshot,
+                      ) {
+                        if (snapshot.hasError) {
+                          final Object error = snapshot.error!;
+                          final String code = error is FirebaseException
+                              ? error.code
+                              : error.runtimeType.toString();
+                          debugPrint(
+                            '[ShopChatInbox] shopId=${widget.shopId} '
+                            'uid=${FirebaseAuth.instance.currentUser?.uid} '
+                            'role=$_debugRole '
+                            'path=shops/${widget.shopId}/chat_threads '
+                            'query=status==${_showArchived ? 'archived' : 'active'} '
+                            'orderBy lastMessageAt desc limit 80',
+                          );
+                          debugPrint(
+                            '[ShopChatInbox] 失敗：code=$code message=$error',
+                          );
+                          debugPrint(
+                            '[ShopChatInbox] stack=${snapshot.stackTrace}',
+                          );
+                          return Center(child: Text('載入失敗：$error'));
+                        }
+                        if (!snapshot.hasData) {
+                          return const Center(
+                            child: CircularProgressIndicator(),
+                          );
+                        }
+                        final List<ShopChatThreadModel> threads = _filter(
+                          snapshot.data!,
+                        );
+                        if (threads.isEmpty) {
+                          return Center(
+                            child: Text(
+                              _showArchived ? '沒有已封存的聊天' : '目前沒有聊天訊息',
+                            ),
+                          );
+                        }
+                        return ListView.separated(
+                          itemCount: threads.length,
+                          separatorBuilder: (_, _) => const Divider(height: 1),
+                          itemBuilder: (BuildContext context, int index) {
+                            final ShopChatThreadModel thread = threads[index];
+                            final String badge = ShopChatService.badgeLabel(
+                              thread.shopUnreadCount,
+                            );
+                            return ListTile(
+                              leading: CircleAvatar(
+                                backgroundImage:
+                                    thread.customerPhotoUrl.isNotEmpty
+                                    ? NetworkImage(thread.customerPhotoUrl)
+                                    : null,
+                                child: thread.customerPhotoUrl.isEmpty
+                                    ? Text(
+                                        thread.customerName.isNotEmpty
+                                            ? thread
+                                                  .customerName
+                                                  .characters
+                                                  .first
+                                            : '會',
+                                      )
+                                    : null,
                               ),
-                              if (badge.isNotEmpty) ...<Widget>[
-                                const SizedBox(height: 4),
-                                CircleAvatar(
-                                  radius: 10,
-                                  backgroundColor: Colors.red,
-                                  child: Text(
-                                    badge,
+                              title: Text(
+                                thread.customerName.isNotEmpty
+                                    ? thread.customerName
+                                    : '會員',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              subtitle: Text(
+                                thread.lastMessage,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              trailing: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                crossAxisAlignment: CrossAxisAlignment.end,
+                                children: <Widget>[
+                                  Text(
+                                    _timeLabel(thread.lastMessageAt),
                                     style: const TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 10,
+                                      fontSize: 12,
+                                      color: Colors.grey,
                                     ),
                                   ),
-                                ),
-                              ],
-                            ],
-                          ),
-                          onTap: () {
-                            Navigator.of(context).push(
-                              MaterialPageRoute<void>(
-                                builder: (_) => ShopChatThreadPage(
-                                  shopId: widget.shopId,
-                                  threadId: thread.id,
-                                ),
+                                  if (badge.isNotEmpty) ...<Widget>[
+                                    const SizedBox(height: 4),
+                                    CircleAvatar(
+                                      radius: 10,
+                                      backgroundColor: Colors.red,
+                                      child: Text(
+                                        badge,
+                                        style: const TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 10,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ],
                               ),
+                              onTap: () {
+                                Navigator.of(context).push(
+                                  MaterialPageRoute<void>(
+                                    builder: (_) => ShopChatThreadPage(
+                                      shopId: widget.shopId,
+                                      threadId: thread.id,
+                                    ),
+                                  ),
+                                );
+                              },
+                              onLongPress: _showArchived
+                                  ? null
+                                  : () async {
+                                      final bool?
+                                      confirmed = await showDialog<bool>(
+                                        context: context,
+                                        builder: (BuildContext context) {
+                                          return AlertDialog(
+                                            title: const Text('封存聊天'),
+                                            content: const Text(
+                                              '封存後會從收件匣隱藏，不會刪除紀錄。會員再傳訊息時會自動恢復。',
+                                            ),
+                                            actions: <Widget>[
+                                              TextButton(
+                                                onPressed: () => Navigator.pop(
+                                                  context,
+                                                  false,
+                                                ),
+                                                child: const Text('取消'),
+                                              ),
+                                              FilledButton(
+                                                onPressed: () => Navigator.pop(
+                                                  context,
+                                                  true,
+                                                ),
+                                                child: const Text('封存'),
+                                              ),
+                                            ],
+                                          );
+                                        },
+                                      );
+                                      if (confirmed == true) {
+                                        await _archive(thread);
+                                      }
+                                    },
                             );
                           },
-                          onLongPress: _showArchived
-                              ? null
-                              : () async {
-                                  final bool? confirmed =
-                                      await showDialog<bool>(
-                                    context: context,
-                                    builder: (BuildContext context) {
-                                      return AlertDialog(
-                                        title: const Text('封存聊天'),
-                                        content: const Text(
-                                          '封存後會從收件匣隱藏，不會刪除紀錄。會員再傳訊息時會自動恢復。',
-                                        ),
-                                        actions: <Widget>[
-                                          TextButton(
-                                            onPressed: () =>
-                                                Navigator.pop(context, false),
-                                            child: const Text('取消'),
-                                          ),
-                                          FilledButton(
-                                            onPressed: () =>
-                                                Navigator.pop(context, true),
-                                            child: const Text('封存'),
-                                          ),
-                                        ],
-                                      );
-                                    },
-                                  );
-                                  if (confirmed == true) {
-                                    await _archive(thread);
-                                  }
-                                },
                         );
                       },
-                    );
-                  },
                 ),
               ),
             ],

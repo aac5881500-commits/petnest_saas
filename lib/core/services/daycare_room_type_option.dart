@@ -29,17 +29,18 @@ class DaycareRoomTypeOption {
   final bool isRoomBased;
 
   String get billingLabel {
-    if (isRoomBased) {
-      return '固定日價 NT\$${setting.basePrice}';
-    }
-    return '小時計價 NT\$${setting.basePrice}';
+    final String included = setting.includedMinutes % 60 == 0
+        ? '${setting.includedMinutes ~/ 60} 小時'
+        : '${setting.includedMinutes} 分鐘';
+    final String extra = setting.extraBillingMinutes == 30 ? '每 30 分鐘' : '每小時';
+    return '$included NT\$${setting.basePrice}・超過後$extra NT\$${setting.extraBillingPrice}';
   }
 
   String get extraPetLabel {
     if (setting.extraPetPrice <= 0) {
       return '';
     }
-    return '多一隻 +NT\$${setting.extraPetPrice}';
+    return '每多 1 隻 +NT\$${setting.extraPetPrice}';
   }
 
   String get capacitySummary => '最多 ${setting.maxPets} 隻';
@@ -66,6 +67,7 @@ class DaycareRoomTypeCatalog {
     } else if (petCount > 0 && petCount > setting.maxPets) {
       reason = '寵物數量超過容量';
     } else if (dailyRemaining != null &&
+        dailyRemaining >= 0 &&
         petCount > 0 &&
         dailyRemaining < petCount) {
       reason = '當日名額已滿';
@@ -124,13 +126,7 @@ class DaycareRoomTypeCatalog {
               endAt: endAt,
               petCount: petCount < 1 ? 1 : petCount,
             );
-        final int lateFee = DaycarePricingService.instance
-            .estimatedLatePickupFee(
-              settings: settings,
-              roomSetting: setting,
-              endAt: endAt,
-            );
-        estimate = roomQuote.cappedRoomAmount + lateFee;
+        estimate = roomQuote.cappedRoomAmount;
         overtimeSummary = DaycarePricingService.instance.overtimeRuleSummary(
           settings: settings,
           roomSetting: setting,

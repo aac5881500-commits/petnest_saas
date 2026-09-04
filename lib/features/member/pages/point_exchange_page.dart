@@ -8,15 +8,21 @@ import 'package:petnest_saas/core/models/member_coupon_model.dart';
 import 'package:petnest_saas/core/models/member_point_model.dart';
 import 'package:petnest_saas/core/models/point_reward_model.dart';
 import 'package:petnest_saas/core/models/point_setting_model.dart';
+import 'package:petnest_saas/core/models/shop_frontend_theme.dart';
 import 'package:petnest_saas/core/services/member_point_service.dart';
 import 'package:petnest_saas/core/services/point_setting_service.dart';
 import 'package:petnest_saas/core/services/point_exchange_service.dart';
 import 'package:petnest_saas/core/services/point_reward_service.dart';
+import 'package:petnest_saas/core/widgets/shop_frontend_theme_scope.dart';
 import 'package:petnest_saas/features/member/pages/member_coupon_page.dart';
 import 'package:petnest_saas/features/member/pages/point_exchange_history_page.dart';
 import 'package:petnest_saas/features/member/pages/member_point_redemption_page.dart';
+import 'package:petnest_saas/features/member/widgets/member_empty_state.dart';
+import 'package:petnest_saas/features/member/widgets/member_page_scaffold.dart';
+import 'package:petnest_saas/features/member/widgets/member_section_card.dart';
+import 'package:petnest_saas/features/member/widgets/member_ui_tokens.dart';
 
-class PointExchangePage extends StatefulWidget {
+class PointExchangePage extends StatelessWidget {
   const PointExchangePage({
     super.key,
     required this.shopId,
@@ -27,10 +33,27 @@ class PointExchangePage extends StatefulWidget {
   final String shopName;
 
   @override
-  State<PointExchangePage> createState() => _PointExchangePageState();
+  Widget build(BuildContext context) {
+    return ShopFrontendThemeScope(
+      shopId: shopId,
+      builder: (BuildContext context) {
+        return _PointExchangeBody(shopId: shopId, shopName: shopName);
+      },
+    );
+  }
 }
 
-class _PointExchangePageState extends State<PointExchangePage> {
+class _PointExchangeBody extends StatefulWidget {
+  const _PointExchangeBody({required this.shopId, required this.shopName});
+
+  final String shopId;
+  final String shopName;
+
+  @override
+  State<_PointExchangeBody> createState() => _PointExchangePageState();
+}
+
+class _PointExchangePageState extends State<_PointExchangeBody> {
   String? _exchangingRewardId;
 
   @override
@@ -39,64 +62,71 @@ class _PointExchangePageState extends State<PointExchangePage> {
     final String shopId = widget.shopId.trim();
 
     if (userId.isEmpty) {
-      return const Scaffold(body: Center(child: Text('請先登入會員帳號')));
+      return const MemberPageScaffold(
+        title: '點數商城',
+        body: MemberEmptyState(
+          icon: Icons.lock_outline,
+          title: '請先登入',
+          message: '登入後即可使用點數兌換。',
+        ),
+      );
     }
 
     if (shopId.isEmpty) {
-      return const Scaffold(body: Center(child: Text('找不到目前店家資料')));
+      return const MemberPageScaffold(
+        title: '點數商城',
+        body: MemberEmptyState(
+          icon: Icons.storefront_outlined,
+          title: '找不到店家',
+          message: '目前沒有可查看的店家資料。',
+        ),
+      );
     }
 
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(
-          widget.shopName.trim().isEmpty
-              ? '點數商城'
-              : '${widget.shopName.trim()}・點數商城',
+    final ShopFrontendTheme theme = ShopFrontendTheme.of(context);
+    final String title = widget.shopName.trim().isEmpty
+        ? '點數商城'
+        : '${widget.shopName.trim()}・點數商城';
+
+    return MemberPageScaffold(
+      title: title,
+      actions: <Widget>[
+        IconButton(
+          tooltip: '我的實體商品',
+          icon: const Icon(Icons.inventory_2_outlined),
+          onPressed: () {
+            Navigator.of(context).push(
+              MaterialPageRoute<void>(
+                builder: (_) => MemberPointRedemptionPage(
+                  shopId: shopId,
+                  shopName: widget.shopName,
+                ),
+              ),
+            );
+          },
         ),
-        actions: [
-          IconButton(
-            tooltip: '我的實體商品',
-            icon: const Icon(Icons.inventory_2_outlined),
-            onPressed: () {
-              Navigator.of(context).push(
-                MaterialPageRoute<void>(
-                  builder: (_) => MemberPointRedemptionPage(
-                    shopId: shopId,
-                    shopName: widget.shopName,
-                  ),
+        IconButton(
+          tooltip: '兌換紀錄',
+          icon: const Icon(Icons.history_outlined),
+          onPressed: () {
+            Navigator.of(context).push(
+              MaterialPageRoute<void>(
+                builder: (_) => PointExchangeHistoryPage(
+                  shopId: shopId,
+                  shopName: widget.shopName,
                 ),
-              );
-            },
-          ),
-          IconButton(
-            tooltip: '兌換紀錄',
-            icon: const Icon(Icons.history_outlined),
-            onPressed: () {
-              Navigator.of(context).push(
-                MaterialPageRoute<void>(
-                  builder: (_) => PointExchangeHistoryPage(
-                    shopId: shopId,
-                    shopName: widget.shopName,
-                  ),
-                ),
-              );
-            },
-          ),
-          const SizedBox(width: 4),
-        ],
-      ),
+              ),
+            );
+          },
+        ),
+      ],
       body: StreamBuilder<PointSettingModel>(
         stream: PointSettingService.instance.streamPointSetting(shopId),
         builder: (context, settingSnapshot) {
           if (settingSnapshot.hasError) {
-            return Center(
-              child: Padding(
-                padding: const EdgeInsets.all(24),
-                child: Text(
-                  '讀取點數設定失敗\n${settingSnapshot.error}',
-                  textAlign: TextAlign.center,
-                ),
-              ),
+            MemberUi.logError(settingSnapshot.error!);
+            return MemberErrorState(
+              message: MemberUi.friendlyError(settingSnapshot.error!),
             );
           }
 
@@ -117,14 +147,9 @@ class _PointExchangePageState extends State<PointExchangePage> {
             ),
             builder: (context, pointSnapshot) {
               if (pointSnapshot.hasError) {
-                return Center(
-                  child: Padding(
-                    padding: const EdgeInsets.all(24),
-                    child: Text(
-                      '讀取點數失敗\n${pointSnapshot.error}',
-                      textAlign: TextAlign.center,
-                    ),
-                  ),
+                MemberUi.logError(pointSnapshot.error!);
+                return MemberErrorState(
+                  message: MemberUi.friendlyError(pointSnapshot.error!),
                 );
               }
 
@@ -140,14 +165,9 @@ class _PointExchangePageState extends State<PointExchangePage> {
                 ),
                 builder: (context, rewardSnapshot) {
                   if (rewardSnapshot.hasError) {
-                    return Center(
-                      child: Padding(
-                        padding: const EdgeInsets.all(24),
-                        child: Text(
-                          '讀取兌換商品失敗\n${rewardSnapshot.error}',
-                          textAlign: TextAlign.center,
-                        ),
-                      ),
+                    MemberUi.logError(rewardSnapshot.error!);
+                    return MemberErrorState(
+                      message: MemberUi.friendlyError(rewardSnapshot.error!),
                     );
                   }
 
@@ -180,11 +200,15 @@ class _PointExchangePageState extends State<PointExchangePage> {
                         Container(
                           margin: const EdgeInsets.symmetric(horizontal: 16),
                           decoration: BoxDecoration(
-                            color: Colors.grey.shade100,
+                            color: theme.cardColor,
                             borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: theme.borderColor),
                           ),
-                          child: const TabBar(
-                            tabs: <Widget>[
+                          child: TabBar(
+                            indicatorColor: theme.primaryColor,
+                            labelColor: theme.primaryColor,
+                            unselectedLabelColor: theme.subtitleColor,
+                            tabs: const <Widget>[
                               Tab(
                                 icon: Icon(Icons.confirmation_number_outlined),
                                 text: '優惠券',
@@ -205,7 +229,7 @@ class _PointExchangePageState extends State<PointExchangePage> {
                                 shopId: shopId,
                                 userId: userId,
                                 currentPoints: point.currentPoints,
-                                emptyTitle: '目前沒有可兌換優惠券',
+                                emptyTitle: '目前沒有可兌換的優惠券',
                                 emptyDescription: '店家建立點數優惠券後會顯示在這裡',
                                 emptyIcon: Icons.confirmation_number_outlined,
                               ),
@@ -214,7 +238,7 @@ class _PointExchangePageState extends State<PointExchangePage> {
                                 shopId: shopId,
                                 userId: userId,
                                 currentPoints: point.currentPoints,
-                                emptyTitle: '目前沒有可兌換實體商品',
+                                emptyTitle: '目前沒有可兌換的實體商品',
                                 emptyDescription: '店家建立實體兌換商品後會顯示在這裡',
                                 emptyIcon: Icons.inventory_2_outlined,
                               ),
@@ -305,22 +329,33 @@ class _PointExchangePageState extends State<PointExchangePage> {
       return;
     }
 
+    final ShopFrontendTheme theme = ShopFrontendTheme.of(context);
+    final int remaining = currentPoints - reward.pointsCost;
     final bool? confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) {
         return AlertDialog(
-          title: const Text('確認兌換'),
+          backgroundColor: theme.cardColor,
+          title: Text('確認兌換', style: TextStyle(color: theme.titleColor)),
           content: Text(
-            '確定使用 ${reward.pointsCost} 點兌換「${reward.name}」嗎？\n\n'
-            '${reward.isPhysicalProduct ? '兌換成功後，請到「我的實體商品」查看領取碼，再至店家領取。' : '兌換成功後，優惠券會放入「我的優惠券」。'}',
+            '兌換前：$currentPoints 點\n'
+            '本次扣除：${reward.pointsCost} 點\n'
+            '兌換後剩餘：${remaining < 0 ? 0 : remaining} 點\n\n'
+            '確定兌換「${reward.name}」嗎？\n\n'
+            '${reward.isPhysicalProduct ? '兌換成功後，請到「我的實體商品」查看領取碼，並於兌換後 ${reward.validDays > 0 ? '${reward.validDays} 天內' : '期限內'}至店家領取。${reward.fulfillmentNote.trim().isEmpty ? '' : '\n${reward.fulfillmentNote.trim()}'}' : '兌換成功後，優惠券會放入「我的優惠券」。'}',
+            style: TextStyle(color: theme.bodyTextColor, height: 1.45),
           ),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(dialogContext, false),
-              child: const Text('取消'),
+              child: Text('取消', style: TextStyle(color: theme.subtitleColor)),
             ),
             FilledButton(
               onPressed: () => Navigator.pop(dialogContext, true),
+              style: FilledButton.styleFrom(
+                backgroundColor: theme.buttonColor,
+                foregroundColor: theme.onPrimaryColor,
+              ),
               child: const Text('確認兌換'),
             ),
           ],
@@ -396,30 +431,43 @@ class _PointsExchangeClosedView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ShopFrontendTheme theme = ShopFrontendTheme.of(context);
     return Center(
       child: SingleChildScrollView(
         padding: const EdgeInsets.all(24),
-        child: Card(
+        child: MemberSectionCard(
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 36),
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(
-                  Icons.storefront_outlined,
-                  size: 64,
-                  color: Colors.grey.shade400,
+                Container(
+                  width: 64,
+                  height: 64,
+                  decoration: BoxDecoration(
+                    color: theme.primarySoft,
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Icon(
+                    Icons.storefront_outlined,
+                    size: 30,
+                    color: theme.primaryColor,
+                  ),
                 ),
                 const SizedBox(height: 16),
-                const Text(
+                Text(
                   '點數商城目前未開放',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: theme.titleColor,
+                  ),
                 ),
                 const SizedBox(height: 8),
                 Text(
                   '店家目前沒有開放會員使用點數兌換商品。',
                   textAlign: TextAlign.center,
-                  style: TextStyle(color: Colors.grey.shade600),
+                  style: TextStyle(color: theme.subtitleColor),
                 ),
               ],
             ),
@@ -437,41 +485,49 @@ class _PointBalanceCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
-        child: Row(
-          children: [
-            CircleAvatar(
-              radius: 28,
-              backgroundColor: Colors.amber.shade50,
-              child: Icon(
-                Icons.paid_outlined,
-                color: Colors.amber.shade800,
-                size: 30,
-              ),
+    final ShopFrontendTheme theme = ShopFrontendTheme.of(context);
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 22),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(MemberUi.radius),
+        gradient: theme.heroGradient,
+      ),
+      child: Row(
+        children: [
+          CircleAvatar(
+            radius: 28,
+            backgroundColor: theme.onPrimaryColor.withValues(alpha: 0.16),
+            child: Icon(
+              Icons.paid_outlined,
+              color: theme.onPrimaryColor,
+              size: 30,
             ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    '目前可使用點數',
-                    style: TextStyle(color: Colors.grey.shade700),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '目前可使用點數',
+                  style: TextStyle(
+                    color: theme.onPrimaryColor.withValues(alpha: 0.82),
                   ),
-                  const SizedBox(height: 4),
-                  Text(
-                    '$points 點',
-                    style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  '$points 點',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 28,
+                    color: theme.onPrimaryColor,
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -494,7 +550,9 @@ class _RewardCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ShopFrontendTheme theme = ShopFrontendTheme.of(context);
     final bool hasEnoughPoints = currentPoints >= reward.pointsCost;
+    final int pointsShort = reward.pointsCost - currentPoints;
     final bool isSoldOut = reward.isSoldOut;
     final bool hasReachedMemberLimit =
         reward.exchangeLimitPerMember > 0 &&
@@ -506,8 +564,7 @@ class _RewardCard extends StatelessWidget {
         !hasReachedMemberLimit &&
         !isExchanging;
 
-    return Card(
-      clipBehavior: Clip.antiAlias,
+    return MemberSectionCard(
       child: Padding(
         padding: const EdgeInsets.all(14),
         child: Column(
@@ -522,6 +579,7 @@ class _RewardCard extends StatelessWidget {
                 ],
                 Expanded(
                   child: _buildRewardDetails(
+                    context: context,
                     memberExchangedCount: memberExchangedCount,
                   ),
                 ),
@@ -534,22 +592,33 @@ class _RewardCard extends StatelessWidget {
               width: double.infinity,
               child: FilledButton(
                 onPressed: canExchange ? onExchange : null,
+                style: FilledButton.styleFrom(
+                  backgroundColor: theme.buttonColor,
+                  foregroundColor: theme.onPrimaryColor,
+                  disabledBackgroundColor: theme.disabledColor,
+                  disabledForegroundColor: ShopFrontendTheme.contrastOn(
+                    theme.disabledColor,
+                  ),
+                ),
                 child: isExchanging
-                    ? const SizedBox(
+                    ? SizedBox(
                         width: 20,
                         height: 20,
-                        child: CircularProgressIndicator(strokeWidth: 2),
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: theme.onPrimaryColor,
+                        ),
                       )
                     : Text(
                         isSoldOut
-                            ? '已兌換完畢'
+                            ? '庫存不足'
                             : hasReachedMemberLimit
                             ? '已達個人兌換上限'
                             : hasEnoughPoints
                             ? reward.isPhysicalProduct
                                   ? '使用 ${reward.pointsCost} 點兌換商品'
                                   : '使用 ${reward.pointsCost} 點兌換'
-                            : '點數不足',
+                            : '尚差 $pointsShort 點',
                       ),
               ),
             ),
@@ -559,7 +628,10 @@ class _RewardCard extends StatelessWidget {
     );
   }
 
-  Widget _buildRewardDetails({required int memberExchangedCount}) {
+  Widget _buildRewardDetails({
+    required BuildContext context,
+    required int memberExchangedCount,
+  }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
@@ -567,7 +639,11 @@ class _RewardCard extends StatelessWidget {
           reward.name,
           maxLines: 2,
           overflow: TextOverflow.ellipsis,
-          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+          style: TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.bold,
+            color: ShopFrontendTheme.of(context).titleColor,
+          ),
         ),
         if (reward.description.trim().isNotEmpty) ...<Widget>[
           const SizedBox(height: 5),
@@ -575,7 +651,10 @@ class _RewardCard extends StatelessWidget {
             reward.description.trim(),
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
-            style: TextStyle(fontSize: 13, color: Colors.grey.shade700),
+            style: TextStyle(
+              fontSize: 13,
+              color: ShopFrontendTheme.of(context).subtitleColor,
+            ),
           ),
         ],
         const SizedBox(height: 8),
@@ -669,20 +748,21 @@ class _PhysicalRewardThumbnail extends StatelessWidget {
   Widget build(BuildContext context) {
     final String normalizedImageUrl = imageUrl.trim();
 
+    final ShopFrontendTheme theme = ShopFrontendTheme.of(context);
     return Container(
       width: 92,
       height: 92,
       decoration: BoxDecoration(
-        color: Colors.grey.shade100,
+        color: theme.primarySoft,
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: Colors.grey.shade300),
+        border: Border.all(color: theme.borderColor),
       ),
       clipBehavior: Clip.antiAlias,
       child: normalizedImageUrl.isEmpty
           ? Icon(
               Icons.inventory_2_outlined,
               size: 36,
-              color: Colors.grey.shade400,
+              color: theme.primaryColor,
             )
           : Image.network(
               normalizedImageUrl,
@@ -710,7 +790,7 @@ class _PhysicalRewardThumbnail extends StatelessWidget {
                     return Icon(
                       Icons.broken_image_outlined,
                       size: 36,
-                      color: Colors.grey.shade400,
+                      color: ShopFrontendTheme.of(context).subtitleColor,
                     );
                   },
             ),
@@ -725,17 +805,18 @@ class _RewardPointsBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ShopFrontendTheme theme = ShopFrontendTheme.of(context);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
       decoration: BoxDecoration(
-        color: Colors.amber.shade50,
+        color: theme.primarySoft,
         borderRadius: BorderRadius.circular(20),
       ),
       child: Text(
         '$pointsCost 點',
         style: TextStyle(
           fontSize: 13,
-          color: Colors.amber.shade900,
+          color: theme.primaryColor,
           fontWeight: FontWeight.bold,
         ),
       ),
@@ -754,10 +835,19 @@ class _RewardInfoRow extends StatelessWidget {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Icon(icon, size: 18, color: Colors.grey.shade600),
+        Icon(
+          icon,
+          size: 18,
+          color: ShopFrontendTheme.of(context).subtitleColor,
+        ),
         const SizedBox(width: 8),
         Expanded(
-          child: Text(text, style: TextStyle(color: Colors.grey.shade700)),
+          child: Text(
+            text,
+            style: TextStyle(
+              color: ShopFrontendTheme.of(context).bodyTextColor,
+            ),
+          ),
         ),
       ],
     );
@@ -777,27 +867,6 @@ class _EmptyRewardCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 36),
-        child: Column(
-          children: <Widget>[
-            Icon(icon, size: 56, color: Colors.grey.shade400),
-            const SizedBox(height: 14),
-            Text(
-              title,
-              textAlign: TextAlign.center,
-              style: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              description,
-              textAlign: TextAlign.center,
-              style: TextStyle(color: Colors.grey.shade600),
-            ),
-          ],
-        ),
-      ),
-    );
+    return MemberEmptyState(icon: icon, title: title, message: description);
   }
 }

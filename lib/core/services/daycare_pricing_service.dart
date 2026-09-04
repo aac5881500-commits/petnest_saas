@@ -2,6 +2,7 @@
 // 🐾 臨托計價：前台、手動訂單與測試共用同一套公式。
 // 金額一律四捨五入為整數新台幣。
 
+import 'package:petnest_saas/core/models/booking_fee_line_item.dart';
 import 'package:petnest_saas/core/models/daycare_plan_model.dart';
 import 'package:petnest_saas/core/models/daycare_settings_model.dart';
 import 'package:petnest_saas/core/services/daycare_time_helper.dart';
@@ -68,6 +69,13 @@ class DaycareRoomQuote {
     required this.cappedRoomAmount,
     required this.roundingMode,
     required this.capMode,
+    this.extraMinutes = 0,
+    this.extraUnits = 0,
+    this.includedMinutes = 0,
+    this.extraBillingMinutes = 60,
+    this.extraPetCount = 0,
+    this.timeCharge = 0,
+    this.maxBaseCharge = 0,
   });
 
   final int durationMinutes;
@@ -79,6 +87,13 @@ class DaycareRoomQuote {
   final int cappedRoomAmount;
   final String roundingMode;
   final String capMode;
+  final int extraMinutes;
+  final int extraUnits;
+  final int includedMinutes;
+  final int extraBillingMinutes;
+  final int extraPetCount;
+  final int timeCharge;
+  final int maxBaseCharge;
 }
 
 class DaycareTimeCharge {
@@ -201,6 +216,122 @@ class DaycarePricingService {
     );
   }
 
+  Map<String, dynamic> timeChargeSnapshot(DaycareTimeCharge charge) {
+    return <String, dynamic>{
+      'includedMinutes': charge.includedMinutes,
+      'extraMinutes': charge.extraMinutes,
+      'extraUnits': charge.extraUnits,
+      'extraBillingMinutes': charge.extraBillingMinutes,
+      'uncappedTimeCharge': charge.uncappedTimeCharge,
+      'timeCharge': charge.timeCharge,
+      'extraPetCount': charge.extraPetCount,
+      'extraPetCharge': charge.extraPetCharge,
+      'maxBaseCharge': charge.maxBaseCharge,
+      'durationMinutes': charge.durationMinutes,
+    };
+  }
+
+  List<BookingFeeLineItem> customerFeeLines({
+    required DaycareQuote quote,
+    required String primaryLabel,
+    List<BookingFeeLineItem> addonLines = const <BookingFeeLineItem>[],
+  }) {
+    final List<BookingFeeLineItem> lines = <BookingFeeLineItem>[
+      BookingFeeLineItem(label: primaryLabel, amount: quote.baseAmount),
+    ];
+    if (quote.extraTimeAmount > 0) {
+      lines.add(
+        BookingFeeLineItem(
+          label: '超過後${quote.extraBillingMinutes == 30 ? '每 30 分鐘' : '每小時'}加收',
+          amount: quote.extraTimeAmount,
+        ),
+      );
+    }
+    if (quote.extraPetAmount > 0) {
+      final int petNo = quote.extraPetCount + 1;
+      lines.add(
+        BookingFeeLineItem(
+          label: petNo <= 2 ? '第 2 隻寵物加收' : '第 2～$petNo 隻寵物加收',
+          amount: quote.extraPetAmount,
+        ),
+      );
+    }
+    lines.addAll(addonLines);
+    final int discount =
+        quote.discountAmount + quote.couponAmount + quote.pointAmount;
+    if (discount > 0) {
+      lines.add(
+        BookingFeeLineItem(
+          label: '優惠折抵',
+          amount: -discount,
+          kind: BookingFeeLineKind.discount,
+        ),
+      );
+    }
+    lines.add(
+      BookingFeeLineItem(
+        label: '預估總額',
+        amount: quote.totalAmount,
+        kind: BookingFeeLineKind.total,
+      ),
+    );
+    lines.add(
+      BookingFeeLineItem(
+        label: '本次應付',
+        amount: quote.depositAmount > 0
+            ? quote.depositAmount
+            : quote.totalAmount,
+        kind: BookingFeeLineKind.payable,
+      ),
+    );
+    return lines;
+  }
+
+  String shopLatePickupExample(DaycareSettingsModel settings) {
+    if (!settings.latePickupEnabled || settings.latePickupPrice <= 0) {
+      return '目前不收取逾時接回費。';
+    }
+    return latePickupExample(
+      scheduledPickup: settings.latestPickUp,
+      graceMinutes: settings.overtimeGraceMinutes,
+      unitMinutes: settings.latePickupUnitMinutes,
+      unitPrice: settings.latePickupPrice,
+    );
+  }
+
+  String latePickupExample({
+    required String scheduledPickup,
+    required int graceMinutes,
+    required int unitMinutes,
+    required int unitPrice,
+  }) {
+    final String unitLabel = unitMinutes == 30 ? '每 30 分鐘' : '每 1 小時';
+    if (graceMinutes <= 0) {
+      return '預定 $scheduledPickup 接回，不寬限；之後$unitLabel加收 NT\$$unitPrice。';
+    }
+    return '預定 $scheduledPickup 接回，免費寬限至 ${_addMinutes(scheduledPickup, graceMinutes)}；之後$unitLabel加收 NT\$$unitPrice。';
+  }
+
+  int shopLatePickupFee({
+    required DaycareSettingsModel settings,
+    required DateTime scheduledEndAt,
+    required DateTime actualEndAt,
+  }) {
+    if (!settings.latePickupEnabled || settings.latePickupPrice <= 0) {
+      return 0;
+    }
+    final int extra = actualEndAt.difference(scheduledEndAt).inMinutes;
+    final int billable = extra - settings.overtimeGraceMinutes;
+    if (billable <= 0) {
+      return 0;
+    }
+    return intervalOvertimeFee(
+      extraMinutes: billable,
+      unitMinutes: settings.latePickupUnitMinutes,
+      unitPrice: settings.latePickupPrice,
+    );
+  }
+
   DaycareQuote quote({
     required DaycareSettingsModel settings,
     required DaycarePlanModel plan,
@@ -246,7 +377,7 @@ class DaycarePricingService {
       durationMinutes: charge.durationMinutes,
       baseAmount: plan.basePrice,
       extraPetAmount: charge.extraPetCharge,
-      roomTypeExtra: charge.timeCharge - plan.basePrice,
+      roomTypeExtra: roomTypeExtra,
       addonAmount: addonAmount,
       surchargeAmount: surchargeAmount,
       discountAmount: discountAmount,
@@ -305,13 +436,13 @@ class DaycarePricingService {
       totalAmount: total,
       depositAmount: _deposit(settings: settings, total: total),
       extraTimeAmount: room.extraTimeAmount,
-      extraMinutes: 0,
-      extraUnits: 0,
-      includedMinutes: 0,
-      extraBillingMinutes: 60,
-      extraPetCount: room.extraPetAmount > 0 ? 1 : 0,
-      timeCharge: room.baseAmount + room.extraTimeAmount,
-      maxBaseCharge: room.capAmount,
+      extraMinutes: room.extraMinutes,
+      extraUnits: room.extraUnits,
+      includedMinutes: room.includedMinutes,
+      extraBillingMinutes: room.extraBillingMinutes,
+      extraPetCount: room.extraPetCount,
+      timeCharge: room.timeCharge,
+      maxBaseCharge: room.maxBaseCharge,
     );
   }
 
@@ -414,25 +545,25 @@ class DaycarePricingService {
 
   String overtimeRuleSummary({
     required DaycareSettingsModel settings,
-    required DaycareRoomTypeSetting roomSetting,
+    DaycareRoomTypeSetting? roomSetting,
   }) {
-    if (!roomSetting.overtimeEnabled || roomSetting.latePickupPrice <= 0) {
+    if (settings.latePickupEnabled && settings.latePickupPrice > 0) {
+      return shopLatePickupExample(settings);
+    }
+    if (roomSetting == null ||
+        !roomSetting.overtimeEnabled ||
+        roomSetting.latePickupPrice <= 0) {
       return '';
     }
-    final int grace = resolvedOvertimeGraceMinutes(
-      settings: settings,
-      roomSetting: roomSetting,
+    return latePickupExample(
+      scheduledPickup: settings.latestPickUp,
+      graceMinutes: resolvedOvertimeGraceMinutes(
+        settings: settings,
+        roomSetting: roomSetting,
+      ),
+      unitMinutes: roomSetting.latePickupUnitMinutes,
+      unitPrice: roomSetting.latePickupPrice,
     );
-    final String unitLabel = roomSetting.latePickupUnitMinutes == 30
-        ? '每 30 分鐘'
-        : '每 1 小時';
-    final String graceLabel = grace <= 0
-        ? '不寬限'
-        : '免費寬限至 ${_addMinutes(settings.latestPickUp, grace)}';
-    if (grace <= 0) {
-      return '預定 ${settings.latestPickUp} 接回，不寬限；之後$unitLabel加收 NT\$${roomSetting.latePickupPrice}。';
-    }
-    return '預定 ${settings.latestPickUp} 接回，$graceLabel；之後$unitLabel加收 NT\$${roomSetting.latePickupPrice}。';
   }
 
   String _addMinutes(String hhmm, int minutes) {
@@ -448,30 +579,8 @@ class DaycarePricingService {
     required DaycareRoomTypeSetting roomSetting,
     required DateTime endAt,
   }) {
-    if (!roomSetting.overtimeEnabled || roomSetting.latePickupPrice <= 0) {
-      return 0;
-    }
-    final int closeMinutes = DaycareTimeHelper.minutesOf(settings.latestPickUp);
-    final DateTime closeAt = DateTime(
-      endAt.year,
-      endAt.month,
-      endAt.day,
-      closeMinutes ~/ 60,
-      closeMinutes % 60,
-    );
-    final int grace = resolvedOvertimeGraceMinutes(
-      settings: settings,
-      roomSetting: roomSetting,
-    );
-    final int extra = endAt.difference(closeAt).inMinutes - grace;
-    if (extra <= 0) {
-      return 0;
-    }
-    return intervalOvertimeFee(
-      extraMinutes: extra,
-      unitMinutes: roomSetting.latePickupUnitMinutes,
-      unitPrice: roomSetting.latePickupPrice,
-    );
+    // 逾時接回費只在實際接回後結算，下單前不預估。
+    return 0;
   }
 
   int estimatedPlanLatePickupFee({
@@ -575,6 +684,13 @@ class DaycarePricingService {
       cappedRoomAmount: charge.subtotal,
       roundingMode: roomSetting.roundingMode,
       capMode: roomSetting.capMode,
+      extraMinutes: charge.extraMinutes,
+      extraUnits: charge.extraUnits,
+      includedMinutes: charge.includedMinutes,
+      extraBillingMinutes: charge.extraBillingMinutes,
+      extraPetCount: charge.extraPetCount,
+      timeCharge: charge.timeCharge,
+      maxBaseCharge: charge.maxBaseCharge,
     );
   }
 
@@ -622,63 +738,24 @@ class DaycarePricingService {
         .clamp(0, 24 * 60);
     int overtimeAmount = 0;
     String roundingLabel = '未超時';
-    final bool roomBased = DaycarePricingModes.isRoomBased(
-      (booking['pricingMode'] ?? settings.pricingMode).toString(),
-    );
-    if (!waiveOvertime && overtimeMinutes > settings.overtimeGraceMinutes) {
-      if (roomBased) {
-        final String roomTypeId = (booking['roomTypeId'] ?? '').toString();
-        final DaycareRoomTypeSetting roomSetting =
-            settings.roomTypeSetting(roomTypeId) ??
-            const DaycareRoomTypeSetting(roomTypeId: '');
-        overtimeAmount = extraTimeAmount(
-          extraMinutes: overtimeMinutes - settings.overtimeGraceMinutes,
-          unitMinutes: roomSetting.extraTimeUnitMinutes,
-          unitPrice: roomSetting.extraTimePrice,
-          roundingMode: roomSetting.roundingMode,
-        );
-        roundingLabel = _roundingLabel(roomSetting.roundingMode);
-        final Map<String, dynamic> snap = booking['priceQuoteSnapshot'] is Map
-            ? Map<String, dynamic>.from(booking['priceQuoteSnapshot'] as Map)
-            : const <String, dynamic>{};
-        final int quotedRoom = _toInt(
-          snap['cappedRoomAmount'] ?? quoted,
-          quoted,
-        );
-        final int cap = roomSetting.capMode == DaycareCapModes.fixedAmount
-            ? roomSetting.fixedCapAmount
-            : _toInt(
-                snap['overnightCapAmount'] ?? overnightCapAmount,
-                overnightCapAmount,
-              );
-        final int newRoom = applyCap(
-          amount: quotedRoom + overtimeAmount,
-          capMode: roomSetting.capMode,
-          capAmount: cap,
-        );
-        overtimeAmount = (newRoom - quotedRoom).clamp(0, 999999);
-        final int addonKeep = quoted - quotedRoom;
-        final int finalTotal = newRoom + addonKeep;
-        return DaycareSettlement(
-          quotedTotal: quoted,
-          overtimeMinutes: overtimeMinutes,
-          overtimeAmount: overtimeAmount,
-          capAmount: roomSetting.capMode == DaycareCapModes.none ? 0 : cap,
-          finalTotal: finalTotal < quoted ? quoted : finalTotal,
-          paidAmount: paid,
-          waivedOvertime: false,
-          roundingLabel: roundingLabel,
-        );
-      } else if (plan != null) {
+    if (!waiveOvertime) {
+      overtimeAmount = shopLatePickupFee(
+        settings: settings,
+        scheduledEndAt: scheduledEnd,
+        actualEndAt: actualEndAt,
+      );
+      if (overtimeAmount <= 0 && plan != null) {
         overtimeAmount = overtimeFee(
           plan: plan,
           settings: settings,
           scheduledEndAt: scheduledEnd,
           actualEndAt: actualEndAt,
         );
-        roundingLabel = plan.overtimeMode == DaycareOvertimeModes.halfHourly
-            ? '不足半小時以半小時計'
-            : '不足一小時以整小時計';
+      }
+      if (overtimeAmount > 0) {
+        roundingLabel = settings.latePickupUnitMinutes == 30
+            ? '寬限後每 30 分鐘加收'
+            : '寬限後每 1 小時加收';
       }
     }
     final int finalTotal = quoted + (waiveOvertime ? 0 : overtimeAmount);
@@ -692,46 +769,6 @@ class DaycarePricingService {
       waivedOvertime: waiveOvertime,
       roundingLabel: roundingLabel,
     );
-  }
-
-  String _roundingLabel(String mode) {
-    switch (mode) {
-      case DaycareRoundingModes.ceilHalfHour:
-        return '不足半小時，以半小時計';
-      case DaycareRoundingModes.prorated:
-        return '依實際分鐘比例計價，四捨五入為整數元';
-      default:
-        return '不足一小時，以整小時計';
-    }
-  }
-
-  int _baseAmount({required DaycarePlanModel plan, required int minutes}) {
-    switch (plan.type) {
-      case DaycarePlanTypes.halfHourly:
-        final int units = (minutes / 30).ceil().clamp(plan.minChargeUnits, 999);
-        return units * plan.basePrice;
-      case DaycarePlanTypes.hourly:
-        final int units = (minutes / 60).ceil().clamp(plan.minChargeUnits, 999);
-        return units * plan.basePrice;
-      case DaycarePlanTypes.fixedHours:
-      case DaycarePlanTypes.morning:
-      case DaycarePlanTypes.afternoon:
-      case DaycarePlanTypes.fullDay:
-      case DaycarePlanTypes.custom:
-        int amount = plan.basePrice;
-        if (minutes > plan.includedMinutes &&
-            plan.overtimeMode != DaycareOvertimeModes.none) {
-          final int extra = minutes - plan.includedMinutes;
-          if (plan.overtimeMode == DaycareOvertimeModes.halfHourly) {
-            amount += (extra / 30).ceil() * plan.overtimeUnitPrice;
-          } else {
-            amount += (extra / 60).ceil() * plan.overtimeUnitPrice;
-          }
-        }
-        return amount;
-      default:
-        return plan.basePrice;
-    }
   }
 
   int _deposit({required DaycareSettingsModel settings, required int total}) {

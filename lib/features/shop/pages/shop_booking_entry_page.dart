@@ -85,14 +85,6 @@ class ShopBookingEntryPage extends StatelessWidget {
     bool useModernDrawer = false,
     bool replaceCurrent = false,
   }) async {
-    final bool ok = await ensureAccommodationPolicy(
-      context: context,
-      shopId: shopId,
-      theme: theme,
-    );
-    if (!ok || !context.mounted) {
-      return;
-    }
     final MaterialPageRoute<void> route = MaterialPageRoute<void>(
       builder: (_) => ShopBookingPage(
         shopId: shopId,

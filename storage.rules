@@ -67,6 +67,16 @@ service firebase.storage {
     // shops/{shopId}/store/banners/{bannerId}/...
     // shops/{shopId}/booking_entry/accommodation/cover.jpg
     // shops/{shopId}/booking_entry/daycare/cover.jpg
+    // shops/{shopId}/pre_arrival_guides/{serviceType}/{fileId}.jpg
+    match /shops/{shopId}/pre_arrival_guides/{serviceType}/{fileName} {
+      allow read: if true;
+      allow create, update: if (isShopMember(shopId) || isRootAdmin())
+        && (serviceType == 'accommodation' || serviceType == 'daycare')
+        && isImage()
+        && isUnder5MB();
+      allow delete: if isShopMember(shopId) || isRootAdmin();
+    }
+
     match /shops/{shopId}/{allPaths=**} {
   allow read: if true;
 

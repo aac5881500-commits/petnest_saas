@@ -3,6 +3,7 @@
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:petnest_saas/core/models/daycare_settings_model.dart';
 import 'package:petnest_saas/core/services/daycare_function_service.dart';
 import 'package:petnest_saas/core/services/daycare_occupancy_service.dart';
 import 'package:petnest_saas/core/services/daycare_time_helper.dart';
@@ -47,6 +48,16 @@ class _AssignRoomDialogState extends State<_AssignRoomDialog> {
   String? _selectedTypeId;
   List<DaycareAssignableRoom> _rooms = const <DaycareAssignableRoom>[];
 
+  bool get _roomTypeLocked {
+    return DaycarePricingModes.isRoomBased(
+          (widget.booking['pricingMode'] ?? '').toString(),
+        ) &&
+        (widget.booking['requestedRoomTypeId'] ?? '').toString().isNotEmpty;
+  }
+
+  String get _requestedTypeId =>
+      (widget.booking['requestedRoomTypeId'] ?? '').toString();
+
   @override
   void initState() {
     super.initState();
@@ -67,7 +78,7 @@ class _AssignRoomDialogState extends State<_AssignRoomDialog> {
         ? widget.booking['petIds'] as List<dynamic>
         : const <dynamic>[];
     try {
-      final List<DaycareAssignableRoom> rooms = await DaycareOccupancyService
+      final List<DaycareAssignableRoom> listed = await DaycareOccupancyService
           .instance
           .listAssignableRooms(
             shopId: widget.shopId,
@@ -79,9 +90,20 @@ class _AssignRoomDialogState extends State<_AssignRoomDialog> {
       if (!mounted) {
         return;
       }
+      List<DaycareAssignableRoom> rooms = listed;
+      if (_roomTypeLocked) {
+        rooms = listed
+            .where(
+              (DaycareAssignableRoom room) =>
+                  room.roomTypeId == _requestedTypeId,
+            )
+            .toList();
+      }
       setState(() {
         _rooms = rooms;
-        _selectedTypeId = rooms.isEmpty ? null : rooms.first.roomTypeId;
+        _selectedTypeId = _roomTypeLocked
+            ? _requestedTypeId
+            : (rooms.isEmpty ? null : rooms.first.roomTypeId);
         _loading = false;
       });
     } catch (error) {
@@ -146,11 +168,31 @@ class _AssignRoomDialogState extends State<_AssignRoomDialog> {
             : _error != null
             ? Text(_error!)
             : _rooms.isEmpty
-            ? const Text('目前沒有可分配的房間，請改約其他時間或取消訂單。')
+            ? Text(
+                _roomTypeLocked
+                    ? '客戶選擇的房型目前無房可分，請聯絡客戶處理。'
+                    : '目前沒有可分配的房間，請改約其他時間或取消訂單。',
+              )
             : Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
+                  if (!_roomTypeLocked)
+                    const Padding(
+                      padding: EdgeInsets.only(bottom: 8),
+                      child: Text(
+                        '請選擇房型與實際房間。分房只供房務與容量管理，不會改變客戶方案價格。',
+                        style: TextStyle(color: Colors.black54),
+                      ),
+                    ),
+                  if (_roomTypeLocked)
+                    const Padding(
+                      padding: EdgeInsets.only(bottom: 8),
+                      child: Text(
+                        '請在客戶已選房型中選擇實際房間，不可改成其他房型。',
+                        style: TextStyle(color: Colors.black54),
+                      ),
+                    ),
                   if (start != null && end != null)
                     Text(
                       '${DaycareTimeHelper.formatDate(start)}  '
@@ -178,9 +220,11 @@ class _AssignRoomDialogState extends State<_AssignRoomDialog> {
                       return ChoiceChip(
                         label: Text(name),
                         selected: selected,
-                        onSelected: (_) {
-                          setState(() => _selectedTypeId = id);
-                        },
+                        onSelected: _roomTypeLocked
+                            ? null
+                            : (_) {
+                                setState(() => _selectedTypeId = id);
+                              },
                       );
                     }).toList(),
                   ),
@@ -194,30 +238,31 @@ class _AssignRoomDialogState extends State<_AssignRoomDialog> {
                     child: ConstrainedBox(
                       constraints: const BoxConstraints(maxHeight: 280),
                       child: ListView(
-                      shrinkWrap: true,
-                      children: filtered.map((DaycareAssignableRoom room) {
-                        return Card(
-                          child: ListTile(
-                            enabled: !_saving,
-                            leading: const Icon(Icons.meeting_room),
-                            title: Text(
-                              '${room.roomTypeName}　${room.roomName}',
+                        shrinkWrap: true,
+                        children: filtered.map((DaycareAssignableRoom room) {
+                          return Card(
+                            child: ListTile(
+                              enabled: !_saving,
+                              leading: const Icon(Icons.meeting_room),
+                              title: Text(
+                                '${room.roomTypeName}　${room.roomName}',
+                              ),
+                              subtitle: Text(
+                                <String>[
+                                  if (room.capacity > 0)
+                                    '容量 ${room.capacity} 隻',
+                                  if (room.status == 'cleaning') '待清潔',
+                                  if (room.overlappingSummaries.isNotEmpty)
+                                    room.overlappingSummaries.join('、'),
+                                  if (room.overlappingSummaries.isEmpty)
+                                    '此時段無其他訂單',
+                                ].join('\n'),
+                              ),
+                              onTap: _saving ? null : () => _assign(room),
                             ),
-                            subtitle: Text(
-                              <String>[
-                                if (room.capacity > 0) '容量 ${room.capacity} 隻',
-                                if (room.status == 'cleaning') '待清潔',
-                                if (room.overlappingSummaries.isNotEmpty)
-                                  room.overlappingSummaries.join('、'),
-                                if (room.overlappingSummaries.isEmpty)
-                                  '此時段無其他訂單',
-                              ].join('\n'),
-                            ),
-                            onTap: _saving ? null : () => _assign(room),
-                          ),
-                        );
-                      }).toList(),
-                    ),
+                          );
+                        }).toList(),
+                      ),
                     ),
                   ),
                 ],

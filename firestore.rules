@@ -2031,6 +2031,45 @@ allow update: if
         allow delete: if false;
       }
 
+      // 🧳 入住前準備（不是條款）
+      match /pre_arrival_guides/{serviceType} {
+        allow read: if
+          isShopMember(shopId)
+          || isRootAdmin()
+          || (
+            signedIn()
+            && resource.data.shopId == shopId
+            && (serviceType == 'accommodation' || serviceType == 'daycare')
+            && (
+              resource.data.enabled == true
+              || resource.data.inheritAccommodation == true
+            )
+          );
+
+        allow create, update: if
+          (isShopMember(shopId) || isRootAdmin())
+          && (serviceType == 'accommodation' || serviceType == 'daycare')
+          && request.resource.data.shopId == shopId
+          && request.resource.data.serviceType == serviceType
+          && request.resource.data.keys().hasOnly([
+            'shopId',
+            'serviceType',
+            'enabled',
+            'title',
+            'blocks',
+            'inheritAccommodation',
+            'updatedAt',
+            'updatedBy'
+          ])
+          && request.resource.data.enabled is bool
+          && request.resource.data.title is string
+          && request.resource.data.blocks is list
+          && request.resource.data.inheritAccommodation is bool
+          && request.resource.data.updatedBy == request.auth.uid;
+
+        allow delete: if false;
+      }
+
       match /daycare_date_overrides/{dateId} {
         allow read: if true;
         allow create, update, delete: if isShopMember(shopId) || isRootAdmin();

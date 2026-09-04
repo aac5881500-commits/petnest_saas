@@ -14,11 +14,13 @@ class BookingDetailReviewSection extends StatelessWidget {
     required this.bookingId,
     required this.data,
     required this.bookingStatus,
+    this.titleOverride,
   });
 
   final String bookingId;
   final Map<String, dynamic> data;
   final String bookingStatus;
+  final String? titleOverride;
 
   @override
   Widget build(BuildContext context) {
@@ -120,15 +122,15 @@ class BookingDetailReviewSection extends StatelessWidget {
           children: [
             Icon(Icons.star_rounded, color: Colors.amber.shade700),
             const SizedBox(width: 8),
-            const Text(
-              '住宿評價',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+            Text(
+              titleOverride ?? '住宿評價',
+              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
             ),
           ],
         ),
         const SizedBox(height: 8),
         Text(
-          '分享這次住宿體驗，幫助其他飼主選擇適合的旅宿。',
+          '分享這次${titleOverride ?? '住宿'}體驗，幫助其他飼主選擇適合的旅宿。',
           style: TextStyle(color: Colors.grey.shade700, height: 1.4),
         ),
         const SizedBox(height: 14),

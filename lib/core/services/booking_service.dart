@@ -4,6 +4,7 @@
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:petnest_saas/core/models/terms_consent_snapshot.dart';
 import 'package:petnest_saas/core/services/shop_service.dart';
 import 'package:petnest_saas/core/services/member_coupon_service.dart';
 import 'package:petnest_saas/core/services/inventory_stock_service.dart';
@@ -107,6 +108,7 @@ class BookingService {
     int policyVersion = 0,
     String policyTitle = '入住須知',
     Timestamp? policyAcceptedAt,
+    TermsConsentSnapshot? termsConsent,
 
     /// 🔒 同一次送出請求的唯一識別碼，用來避免網路重送建立兩筆訂單
     String requestId = '',
@@ -213,6 +215,7 @@ class BookingService {
         'policyVersion': policyVersion,
         'policyTitle': policyTitle,
         'policyAcceptedAt': policyAcceptedAt ?? FieldValue.serverTimestamp(),
+        if (termsConsent != null) ...termsConsent.toBookingFields(),
         'customerName': customerName.trim(),
         'customerPhone': customerPhone.trim(),
         'address': address,

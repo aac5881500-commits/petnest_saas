@@ -251,8 +251,10 @@ class DaycareRoomTypeSetting {
     int? fixedCapAmount,
   }) {
     final int included = includedMinutes ?? baseMinutes ?? this.includedMinutes;
-    final int extraMin = extraBillingMinutes ?? extraTimeUnitMinutes ?? this.extraBillingMinutes;
-    final int extraPrice = extraBillingPrice ?? extraTimePrice ?? this.extraBillingPrice;
+    final int extraMin =
+        extraBillingMinutes ?? extraTimeUnitMinutes ?? this.extraBillingMinutes;
+    final int extraPrice =
+        extraBillingPrice ?? extraTimePrice ?? this.extraBillingPrice;
     return DaycareRoomTypeSetting(
       roomTypeId: roomTypeId,
       enabled: enabled ?? this.enabled,
@@ -388,6 +390,9 @@ class DaycareSettingsModel {
     this.refundDepositOnCancel = true,
     this.forfeitDepositOnNoShow = true,
     this.overtimeGraceMinutes = 15,
+    this.latePickupEnabled = false,
+    this.latePickupUnitMinutes = 30,
+    this.latePickupPrice = 0,
     this.pointsEarnEnabled = false,
     this.pointsSpendEnabled = false,
     this.pointsIncludeAddons = false,
@@ -434,6 +439,9 @@ class DaycareSettingsModel {
   final bool refundDepositOnCancel;
   final bool forfeitDepositOnNoShow;
   final int overtimeGraceMinutes;
+  final bool latePickupEnabled;
+  final int latePickupUnitMinutes;
+  final int latePickupPrice;
   final bool pointsEarnEnabled;
   final bool pointsSpendEnabled;
   final bool pointsIncludeAddons;
@@ -494,7 +502,19 @@ class DaycareSettingsModel {
       allowCoupon: map['allowCoupon'] == true,
       refundDepositOnCancel: map['refundDepositOnCancel'] != false,
       forfeitDepositOnNoShow: map['forfeitDepositOnNoShow'] != false,
-      overtimeGraceMinutes: _int(map['overtimeGraceMinutes'], 15).clamp(0, 180),
+      overtimeGraceMinutes: _grace(
+        map['overtimeGraceMinutes'] ?? map['latePickupGraceMinutes'],
+      ),
+      latePickupEnabled: DaycareBool.parse(
+        map['latePickupEnabled'] ?? map['overtimeEnabled'],
+      ),
+      latePickupUnitMinutes: _timeUnit(
+        map['latePickupUnitMinutes'] ?? map['extraTimeUnitMinutes'],
+      ),
+      latePickupPrice: _int(
+        map['latePickupPrice'] ?? map['latePickupUnitPrice'],
+        0,
+      ),
       pointsEarnEnabled: map['pointsEarnEnabled'] == true,
       pointsSpendEnabled: map['pointsSpendEnabled'] == true,
       pointsIncludeAddons: map['pointsIncludeAddons'] == true,
@@ -543,6 +563,9 @@ class DaycareSettingsModel {
       'refundDepositOnCancel': refundDepositOnCancel,
       'forfeitDepositOnNoShow': forfeitDepositOnNoShow,
       'overtimeGraceMinutes': overtimeGraceMinutes,
+      'latePickupEnabled': latePickupEnabled,
+      'latePickupUnitMinutes': latePickupUnitMinutes,
+      'latePickupPrice': latePickupPrice,
       'updatedAt': FieldValue.serverTimestamp(),
     };
   }
@@ -569,7 +592,8 @@ class DaycareSettingsModel {
       enabledPlans,
     );
     plans.sort(
-      (DaycarePlanModel a, DaycarePlanModel b) => a.sortOrder.compareTo(b.sortOrder),
+      (DaycarePlanModel a, DaycarePlanModel b) =>
+          a.sortOrder.compareTo(b.sortOrder),
     );
     return plans;
   }
@@ -589,16 +613,10 @@ class DaycareSettingsModel {
 
   List<DaycarePlanModel> get enabledPlans {
     final List<DaycarePlanModel> list =
-        plans
-            .where(
-              (DaycarePlanModel e) =>
-                  e.enabled && DaycarePlanTypes.isSelectable(e.type),
-            )
-            .toList()
-          ..sort(
-            (DaycarePlanModel a, DaycarePlanModel b) =>
-                a.sortOrder.compareTo(b.sortOrder),
-          );
+        plans.where((DaycarePlanModel e) => e.enabled).toList()..sort(
+          (DaycarePlanModel a, DaycarePlanModel b) =>
+              a.sortOrder.compareTo(b.sortOrder),
+        );
     return list;
   }
 
@@ -633,6 +651,24 @@ class DaycareSettingsModel {
       return value;
     }
     return 30;
+  }
+
+  static int _grace(dynamic raw) {
+    final int value = _int(raw, 15);
+    if (value <= 0) {
+      return 0;
+    }
+    if (value <= 15) {
+      return 15;
+    }
+    if (value <= 30) {
+      return 30;
+    }
+    return 60;
+  }
+
+  static int _timeUnit(dynamic raw) {
+    return _int(raw, 30) == 60 ? 60 : 30;
   }
 
   static List<int> _intList(dynamic raw, List<int> fallback) {

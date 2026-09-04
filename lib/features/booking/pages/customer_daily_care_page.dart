@@ -53,7 +53,8 @@ class CustomerDailyCarePage extends StatefulWidget {
       return false;
     }
 
-    final bool allowed = ShopService.instance.hasPermission(
+    final bool allowed =
+        ShopService.instance.hasPermission(
           member,
           ShopPermissionKeys.manageRoomDashboard,
         ) ||
@@ -249,16 +250,16 @@ class _CustomerDailyCarePageState extends State<CustomerDailyCarePage> {
 
             final Map<String, dynamic> bookingData =
                 bookingSnapshot.data?.data() ?? <String, dynamic>{};
-            final String bookingUserId =
-                (bookingData['userId'] ?? '').toString().trim();
-            final String bookingShopId =
-                (bookingData['shopId'] ?? '').toString().trim();
-            final String? currentUid =
-                FirebaseAuth.instance.currentUser?.uid;
+            final String bookingUserId = (bookingData['userId'] ?? '')
+                .toString()
+                .trim();
+            final String bookingShopId = (bookingData['shopId'] ?? '')
+                .toString()
+                .trim();
+            final String? currentUid = FirebaseAuth.instance.currentUser?.uid;
 
             if (widget.previewMode) {
-              if (bookingShopId.isNotEmpty &&
-                  bookingShopId != widget.shopId) {
+              if (bookingShopId.isNotEmpty && bookingShopId != widget.shopId) {
                 return _journalScaffold(
                   setting: setting,
                   child: _errorView('你沒有權限查看這筆照護紀錄'),
@@ -308,9 +309,7 @@ class _CustomerDailyCarePageState extends State<CustomerDailyCarePage> {
                   );
                   return _journalScaffold(
                     setting: setting,
-                    child: _errorView(
-                      _loadErrorMessage(recordSnapshot.error),
-                    ),
+                    child: _errorView(_loadErrorMessage(recordSnapshot.error)),
                   );
                 }
 
@@ -450,8 +449,7 @@ class _CustomerDailyCarePageState extends State<CustomerDailyCarePage> {
           Column(
             children: <Widget>[
               SizedBox(
-                height:
-                    MediaQuery.paddingOf(context).top + kToolbarHeight,
+                height: MediaQuery.paddingOf(context).top + kToolbarHeight,
               ),
               if (widget.previewMode) _previewBanner(),
               Expanded(child: child),
@@ -474,11 +472,7 @@ class _CustomerDailyCarePageState extends State<CustomerDailyCarePage> {
       ),
       child: const Row(
         children: <Widget>[
-          Icon(
-            Icons.visibility_outlined,
-            size: 16,
-            color: Color(0xFF3D6F9F),
-          ),
+          Icon(Icons.visibility_outlined, size: 16, color: Color(0xFF3D6F9F)),
           SizedBox(width: 8),
           Expanded(
             child: Text(
@@ -713,32 +707,34 @@ class _CustomerDailyCarePageState extends State<CustomerDailyCarePage> {
                             : colors.outline.withValues(alpha: 0.18),
                       ),
                     ),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: <Widget>[
-                    Text(
-                      date == null ? dateKey : '${date.month}/${date.day}',
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w700,
-                        color: selected ? colors.onPrimary : colors.onSurface,
-                      ),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: <Widget>[
+                        Text(
+                          date == null ? dateKey : '${date.month}/${date.day}',
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w700,
+                            color: selected
+                                ? colors.onPrimary
+                                : colors.onSurface,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          date == null ? '' : _weekdayShort(date),
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: selected
+                                ? colors.onPrimary.withValues(alpha: 0.86)
+                                : colors.onSurface.withValues(alpha: 0.55),
+                          ),
+                        ),
+                      ],
                     ),
-                    const SizedBox(height: 2),
-                    Text(
-                      date == null ? '' : _weekdayShort(date),
-                      style: TextStyle(
-                        fontSize: 11,
-                        color: selected
-                            ? colors.onPrimary.withValues(alpha: 0.86)
-                            : colors.onSurface.withValues(alpha: 0.55),
-                      ),
-                    ),
-                  ],
+                  ),
                 ),
-              ),
-            ),
-          );
+              );
             },
           ),
         ),
@@ -756,11 +752,7 @@ class _CustomerDailyCarePageState extends State<CustomerDailyCarePage> {
       return _JournalCard(
         setting: setting,
         padding: const EdgeInsets.all(4),
-        child: _sessionChip(
-          colors: colors,
-          tab: tabs.first,
-          selected: true,
-        ),
+        child: _sessionChip(colors: colors, tab: tabs.first, selected: true),
       );
     }
 
@@ -772,11 +764,7 @@ class _CustomerDailyCarePageState extends State<CustomerDailyCarePage> {
           final bool selected = tab.sessionIndex == selectedSessionIndex;
 
           return Expanded(
-            child: _sessionChip(
-              colors: colors,
-              tab: tab,
-              selected: selected,
-            ),
+            child: _sessionChip(colors: colors, tab: tab, selected: selected),
           );
         }).toList(),
       ),
@@ -914,11 +902,7 @@ class _CustomerDailyCarePageState extends State<CustomerDailyCarePage> {
 
     return Column(
       children: <Widget>[
-        _buildEnvironmentCard(
-          colors: colors,
-          values: values,
-          setting: setting,
-        ),
+        _buildEnvironmentCard(colors: colors, values: values, setting: setting),
         if (foodItems.isNotEmpty) ...<Widget>[
           const SizedBox(height: 10),
           _CategoryCard(
@@ -1300,10 +1284,7 @@ class _CustomerDailyCarePageState extends State<CustomerDailyCarePage> {
 }
 
 class _SessionTab {
-  const _SessionTab({
-    required this.sessionIndex,
-    required this.sessionName,
-  });
+  const _SessionTab({required this.sessionIndex, required this.sessionName});
 
   final int sessionIndex;
   final String sessionName;

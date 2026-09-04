@@ -5,6 +5,28 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:petnest_saas/core/models/policy_applicable_service.dart';
+import 'package:petnest_saas/core/models/terms_consent_snapshot.dart';
+
+/// 前台條款確認狀態（userId + shopId + termsType + termsVersion）
+class TermsStatus {
+  const TermsStatus({
+    required this.required,
+    required this.accepted,
+    required this.versionUpdated,
+    required this.version,
+    required this.title,
+    this.acceptedAt,
+  });
+
+  final bool required;
+  final bool accepted;
+  final bool versionUpdated;
+  final int version;
+  final String title;
+  final DateTime? acceptedAt;
+
+  bool get canSubmit => !required || accepted;
+}
 
 class ShopPolicyService {
   ShopPolicyService._();
@@ -15,6 +37,108 @@ class ShopPolicyService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
 
   User? get _currentUser => _auth.currentUser;
+
+  String termsTitleForService(String serviceType) {
+    return serviceType == PolicyApplicableService.daycare ? '安親須知' : '入住須知';
+  }
+
+  String consentRecordPath({required String userId, required String shopId}) {
+    return 'users/$userId/policy_acceptances/$shopId';
+  }
+
+  Future<TermsStatus> getTermsStatus({
+    required String shopId,
+    required String userId,
+    String serviceType = PolicyApplicableService.accommodation,
+  }) async {
+    final Map<String, dynamic>? policy = await getCheckinPolicy(shopId);
+    final String title = termsTitleForService(serviceType);
+    if (policy == null) {
+      return TermsStatus(
+        required: false,
+        accepted: true,
+        versionUpdated: false,
+        version: 0,
+        title: title,
+      );
+    }
+    final Map<String, dynamic> filtered = filterPolicyForService(
+      policy: policy,
+      serviceType: serviceType,
+    );
+    if (!policyRequiresSignature(filteredPolicy: filtered)) {
+      return TermsStatus(
+        required: false,
+        accepted: true,
+        versionUpdated: false,
+        version: (filtered['version'] as num?)?.toInt() ?? 0,
+        title: title,
+      );
+    }
+    final int currentVersion = (policy['version'] as num?)?.toInt() ?? 1;
+    final DocumentSnapshot<Map<String, dynamic>> doc = await _firestore
+        .collection('users')
+        .doc(userId)
+        .collection('policy_acceptances')
+        .doc(shopId)
+        .get();
+    final Map<String, dynamic> data = doc.data() ?? <String, dynamic>{};
+    final Map<String, dynamic> byService = Map<String, dynamic>.from(
+      data['acceptedAtByService'] ?? <String, dynamic>{},
+    );
+    final Map<String, dynamic> versions = Map<String, dynamic>.from(
+      data['acceptedVersions'] ?? <String, dynamic>{},
+    );
+    final dynamic rawAccepted =
+        versions[serviceType] ??
+        (serviceType == PolicyApplicableService.accommodation
+            ? data['acceptedVersion']
+            : null);
+    final int acceptedVersion = rawAccepted is int
+        ? rawAccepted
+        : int.tryParse(rawAccepted?.toString() ?? '') ?? 0;
+    DateTime? acceptedAt;
+    final dynamic rawAt = byService[serviceType] ?? data['acceptedAt'];
+    if (rawAt is Timestamp) {
+      acceptedAt = rawAt.toDate();
+    }
+    final bool accepted = acceptedVersion == currentVersion;
+    final bool versionUpdated =
+        !accepted && acceptedVersion > 0 && acceptedVersion != currentVersion;
+    return TermsStatus(
+      required: true,
+      accepted: accepted,
+      versionUpdated: versionUpdated,
+      version: currentVersion,
+      title: title,
+      acceptedAt: acceptedAt,
+    );
+  }
+
+  Future<TermsConsentSnapshot> confirmTerms({
+    required String shopId,
+    required String userId,
+    String serviceType = PolicyApplicableService.accommodation,
+  }) async {
+    await acceptPolicy(
+      shopId: shopId,
+      userId: userId,
+      serviceType: serviceType,
+    );
+    final TermsStatus status = await getTermsStatus(
+      shopId: shopId,
+      userId: userId,
+      serviceType: serviceType,
+    );
+    return TermsConsentSnapshot(
+      termsType: serviceType,
+      termsVersion: status.version,
+      termsTitle: status.title,
+      termsAcceptedAt: status.acceptedAt ?? DateTime.now(),
+      consentRecordId: consentRecordPath(userId: userId, shopId: shopId),
+      termsVersionDocumentId: status.version > 0 ? 'v${status.version}' : '',
+    );
+  }
 
   Future<Map<String, dynamic>?> getCheckinPolicy(String shopId) async {
     final doc = await _firestore
@@ -246,6 +370,11 @@ class ShopPolicyService {
         data['acceptedVersions'] ?? {},
       );
       byService[serviceType] = version;
+      final Map<String, dynamic> acceptedAtByService =
+          Map<String, dynamic>.from(
+            data['acceptedAtByService'] ?? <String, dynamic>{},
+          );
+      acceptedAtByService[serviceType] = FieldValue.serverTimestamp();
       transaction.set(ref, {
         'shopId': shopId,
         'userId': userId,
@@ -253,6 +382,7 @@ class ShopPolicyService {
             ? version
             : (data['acceptedVersion'] ?? version),
         'acceptedVersions': byService,
+        'acceptedAtByService': acceptedAtByService,
         'acceptedAt': FieldValue.serverTimestamp(),
         'lastAcceptedServiceType': serviceType,
         'email': _currentUser?.email ?? '',

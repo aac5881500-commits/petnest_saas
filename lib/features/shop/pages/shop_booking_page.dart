@@ -21,7 +21,7 @@ import 'package:petnest_saas/core/models/create_payment_request_model.dart';
 import 'package:petnest_saas/core/services/payment_function_service.dart';
 import 'package:petnest_saas/features/payment/pages/ecpay_payment_page.dart';
 import 'package:flutter/material.dart';
-import 'package:petnest_saas/core/services/booking_service.dart';
+import 'package:petnest_saas/core/models/terms_consent_snapshot.dart';
 import 'package:petnest_saas/core/services/shop_report_format.dart';
 import 'package:petnest_saas/core/services/shop_service.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -52,6 +52,7 @@ import 'package:petnest_saas/core/services/member_coupon_service.dart';
 import 'package:petnest_saas/core/models/home_theme_model.dart';
 import 'package:petnest_saas/core/models/coupon_template_model.dart';
 import '../../../core/models/payment_gateway_status.dart';
+import 'package:petnest_saas/core/services/booking_service.dart';
 
 class ShopBookingPage extends StatefulWidget {
   const ShopBookingPage({
@@ -1032,6 +1033,7 @@ class _ShopBookingPageState extends State<ShopBookingPage> {
             depositAmount,
             paymentMethod,
             payAmountType,
+            termsConsent,
           ) async {
             await _submitBooking(
               shop,
@@ -1044,6 +1046,7 @@ class _ShopBookingPageState extends State<ShopBookingPage> {
               depositAmount: depositAmount,
               paymentMethod: paymentMethod,
               payAmountType: payAmountType,
+              termsConsent: termsConsent,
             );
           },
     );
@@ -1781,6 +1784,7 @@ class _ShopBookingPageState extends State<ShopBookingPage> {
     int depositAmount = 0,
     String paymentMethod = '',
     String payAmountType = '',
+    TermsConsentSnapshot? termsConsent,
   }) async {
     /// 🔒 防止卡頓、連點或其他事件重複進入建單流程
     if (_submitting) return;
@@ -1941,6 +1945,7 @@ class _ShopBookingPageState extends State<ShopBookingPage> {
 
         /// 🔒 同一次送出固定使用同一個訂單文件 ID
         requestId: _bookingRequestId!,
+        termsConsent: termsConsent,
       );
       if (!mounted) return;
 

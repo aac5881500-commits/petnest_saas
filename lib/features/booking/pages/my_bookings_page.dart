@@ -10,145 +10,47 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:petnest_saas/core/models/booking_kind.dart';
-import 'package:petnest_saas/features/shop/pages/shop_public_page.dart';
-import 'booking_detail_page.dart';
+import 'package:petnest_saas/core/models/shop_frontend_theme.dart';
+import 'package:petnest_saas/core/widgets/shop_frontend_theme_scope.dart';
+import 'package:petnest_saas/features/booking/widgets/booking_detail/booking_detail_view_data.dart';
+import 'package:petnest_saas/features/member/widgets/member_booking_card.dart';
+import 'package:petnest_saas/features/member/widgets/member_empty_state.dart';
+import 'package:petnest_saas/features/member/widgets/member_filter_chips.dart';
+import 'package:petnest_saas/features/member/widgets/member_list_helpers.dart';
+import 'package:petnest_saas/features/member/widgets/member_page_scaffold.dart';
+import 'package:petnest_saas/features/member/widgets/member_ui_tokens.dart';
+import 'package:petnest_saas/features/shop/pages/shop_booking_entry_page.dart';
 
-class MyBookingsPage extends StatefulWidget {
+class MyBookingsPage extends StatelessWidget {
   const MyBookingsPage({super.key, this.returnShopId});
 
   final String? returnShopId;
 
   @override
-  State<MyBookingsPage> createState() => _MyBookingsPageState();
+  Widget build(BuildContext context) {
+    return ShopFrontendThemeScope(
+      shopId: returnShopId ?? '',
+      builder: (BuildContext context) {
+        return _MyBookingsBody(returnShopId: returnShopId);
+      },
+    );
+  }
 }
 
-class _MyBookingsPageState extends State<MyBookingsPage> {
+class _MyBookingsBody extends StatefulWidget {
+  const _MyBookingsBody({this.returnShopId});
+
+  final String? returnShopId;
+
+  @override
+  State<_MyBookingsBody> createState() => _MyBookingsPageState();
+}
+
+class _MyBookingsPageState extends State<_MyBookingsBody> {
   int _limit = 5;
   bool _checkingHistoryMergedNotice = false;
   bool _historyNoticeCheckedOnce = false;
-
-  String _bookingStatusText(Map<String, dynamic> data) {
-    final status = (data['status'] ?? '').toString();
-    final depositStatus = (data['depositStatus'] ?? '').toString();
-    final paymentMethod = (data['paymentMethod'] ?? '').toString();
-
-    final depositAmountRaw = data['depositAmount'];
-    final int depositAmount = depositAmountRaw is int
-        ? depositAmountRaw
-        : depositAmountRaw is double
-        ? depositAmountRaw.round()
-        : 0;
-
-    final bool hasDeposit = depositAmount > 0;
-    final bool isBankTransfer =
-        paymentMethod == 'transfer' ||
-        paymentMethod == 'bank_transfer' ||
-        paymentMethod == 'bankTransfer' ||
-        paymentMethod == '銀行轉帳';
-
-    if (BookingKind.isDaycare(data)) {
-      switch (status) {
-        case 'completed':
-          return '臨托已完成';
-        case 'cancelled':
-          return '訂單已取消';
-        case 'checked_in':
-          return '臨托中';
-        case 'confirmed':
-          return '店家已確認';
-        default:
-          return '等待店家確認';
-      }
-    }
-
-    if (status == 'completed') {
-      return '已完成';
-    }
-
-    if (status == 'cancelled') {
-      return '已取消';
-    }
-
-    if (status == 'checked_in') {
-      return '入住中';
-    }
-
-    if (status == 'confirmed') {
-      return '已確認';
-    }
-
-    if (depositStatus == 'pending_review') {
-      return hasDeposit ? '已付款・待確認' : '已回傳轉帳';
-    }
-
-    if (hasDeposit) {
-      return '需支付訂金';
-    }
-
-    if (isBankTransfer) {
-      return '尚未轉帳';
-    }
-
-    return BookingKind.isDaycare(data) ? '等待店家確認' : '待店家確認';
-  }
-
-  String _formatDate(DateTime date) {
-    final y = date.year.toString().padLeft(4, '0');
-    final m = date.month.toString().padLeft(2, '0');
-    final d = date.day.toString().padLeft(2, '0');
-    return '$y-$m-$d';
-  }
-
-  String _formatTime(DateTime date) {
-    final h = date.hour.toString().padLeft(2, '0');
-    final m = date.minute.toString().padLeft(2, '0');
-    return '$h:$m';
-  }
-
-  String _formatDateTime(dynamic value) {
-    if (value == null) return '';
-
-    DateTime? date;
-
-    if (value is Timestamp) {
-      date = value.toDate();
-    } else if (value is DateTime) {
-      date = value;
-    }
-
-    if (date == null) return '';
-
-    final y = date.year.toString().padLeft(4, '0');
-    final m = date.month.toString().padLeft(2, '0');
-    final d = date.day.toString().padLeft(2, '0');
-    final hh = date.hour.toString().padLeft(2, '0');
-    final mm = date.minute.toString().padLeft(2, '0');
-
-    return '$y-$m-$d $hh:$mm';
-  }
-
-  int _getPetCount(Map<String, dynamic> data) {
-    final petIds = data['petIds'];
-    if (petIds is List) return petIds.length;
-
-    final pets = data['pets'];
-    if (pets is List) return pets.length;
-
-    return 0;
-  }
-
-  int _getTotalPrice(Map<String, dynamic> data) {
-    final totalPrice = data['totalPrice'];
-    if (totalPrice is int) return totalPrice;
-    if (totalPrice is double) return totalPrice.round();
-
-    final totalAmount = data['totalAmount'];
-    if (totalAmount is int) return totalAmount;
-    if (totalAmount is double) return totalAmount.round();
-
-    return 0;
-  }
+  String _filter = MemberBookingFilters.all;
 
   Future<void> _checkHistoryMergedNotice({
     required String shopId,
@@ -207,36 +109,39 @@ class _MyBookingsPageState extends State<MyBookingsPage> {
     }
   }
 
+  void _goBook() {
+    final String shopId = widget.returnShopId?.trim() ?? '';
+    if (shopId.isEmpty) {
+      return;
+    }
+    Navigator.push(
+      context,
+      MaterialPageRoute<void>(
+        builder: (_) => ShopBookingEntryPage(
+          shopId: shopId,
+          theme: ShopFrontendTheme.of(context).home,
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final user = FirebaseAuth.instance.currentUser;
 
     if (user == null) {
-      return const Scaffold(body: Center(child: Text('請先登入')));
+      return const MemberPageScaffold(
+        title: '我的訂單',
+        body: MemberEmptyState(
+          icon: Icons.lock_outline,
+          title: '請先登入',
+          message: '登入後即可查看訂單。',
+        ),
+      );
     }
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('我的訂單'),
-        leading: IconButton(
-          icon: const Icon(Icons.home),
-          onPressed: () {
-            final shopId = widget.returnShopId;
-
-            if (shopId != null && shopId.isNotEmpty) {
-              Navigator.pushAndRemoveUntil(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => ShopPublicPage(shopId: shopId),
-                ),
-                (route) => false,
-              );
-            } else {
-              Navigator.pop(context);
-            }
-          },
-        ),
-      ),
+    return MemberPageScaffold(
+      title: '我的訂單',
       body: StreamBuilder<QuerySnapshot>(
         stream: () {
           Query<Map<String, dynamic>> query = FirebaseFirestore.instance
@@ -254,24 +159,33 @@ class _MyBookingsPageState extends State<MyBookingsPage> {
               .limit(30)
               .snapshots();
         }(),
-
         builder: (context, snapshot) {
           if (snapshot.hasError) {
-            return Center(
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Text('讀取失敗：${snapshot.error}'),
-              ),
+            MemberUi.logError(snapshot.error!);
+            return MemberErrorState(
+              message: MemberUi.friendlyError(snapshot.error!),
             );
           }
 
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
+          if (snapshot.connectionState == ConnectionState.waiting &&
+              !snapshot.hasData) {
+            return const Padding(
+              padding: EdgeInsets.all(24),
+              child: Center(child: CircularProgressIndicator()),
+            );
           }
 
           if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-            return const Center(child: Text('目前沒有訂單'));
+            final String shopId = widget.returnShopId?.trim() ?? '';
+            return MemberEmptyState(
+              icon: Icons.receipt_long_outlined,
+              title: '目前沒有訂單',
+              message: '完成預約後，住宿與安親訂單會顯示在這裡。',
+              actionLabel: shopId.isEmpty ? null : '前往預約',
+              onAction: shopId.isEmpty ? null : _goBook,
+            );
           }
+
           final docs = snapshot.data!.docs.toList();
 
           final firstData = docs.first.data() as Map<String, dynamic>;
@@ -283,388 +197,126 @@ class _MyBookingsPageState extends State<MyBookingsPage> {
             });
           }
 
-          final visibleDocs = docs.take(_limit).toList();
+          final List<QueryDocumentSnapshot> filtered = docs.where((doc) {
+            final Map<String, dynamic> data =
+                doc.data() as Map<String, dynamic>;
+            final String status = (data['status'] ?? '').toString();
+            return MemberBookingFilters.matches(_filter, status);
+          }).toList();
 
-          return ListView.builder(
-            padding: const EdgeInsets.all(12),
-            itemCount: visibleDocs.length + 1,
-            itemBuilder: (context, index) {
-              if (index == visibleDocs.length) {
-                return Padding(
-                  padding: const EdgeInsets.only(bottom: 24),
-                  child: OutlinedButton.icon(
-                    onPressed: docs.length < _limit
-                        ? null
-                        : () {
-                            setState(() {
-                              _limit += 10;
-                            });
-                          },
-                    icon: const Icon(Icons.expand_more),
-                    label: Text(docs.length < _limit ? '沒有更多訂單了' : '載入更多訂單'),
+          final visibleDocs = filtered.take(_limit).toList();
+          final bool hasMore = visibleDocs.length < filtered.length;
+
+          if (filtered.isEmpty) {
+            return MemberUi.constrain(
+              ListView(
+                padding: const EdgeInsets.all(MemberUi.pagePadding),
+                children: <Widget>[
+                  _filterBar(docs),
+                  MemberEmptyState(
+                    icon: Icons.filter_list_outlined,
+                    title: '這個分類目前沒有訂單',
+                    message: '試試切換其他狀態查看。',
                   ),
-                );
-              }
-              final data = visibleDocs[index].data() as Map<String, dynamic>;
+                ],
+              ),
+            );
+          }
 
-              final start = (data['startDate'] as Timestamp).toDate();
-              final end = (data['endDate'] as Timestamp).toDate();
-
-              final roomName = (data['roomName'] ?? '房型').toString();
-              final roomTypeName =
-                  (data['roomTypeName'] ?? data['roomName'] ?? '預約訂單')
-                      .toString();
-
-              final statusText = _bookingStatusText(data);
-              final petCount = _getPetCount(data);
-              final totalPrice = _getTotalPrice(data);
-              final paymentMethod = (data['paymentMethod'] ?? '').toString();
-
-              final depositAmount = (data['depositAmount'] ?? 0) as num;
-
-              final depositExpireAt = data['depositExpireAt'];
-
-              final paymentMethodText = paymentMethod == 'transfer'
-                  ? '銀行轉帳'
-                  : '現場付款';
-
-              final depositExpireText = _formatDateTime(depositExpireAt);
-
-              final bool hasDeposit = depositAmount > 0;
-              final bool isDaycare = BookingKind.isDaycare(data);
-              final bookingCode = (data['bookingCode'] ?? '').toString();
-              final shopName = (data['shopName'] ?? '').toString();
-              final createdAtText = _formatDateTime(data['createdAt']);
-
-              final source = (data['source'] ?? '').toString();
-
-              final bool isAdminBooking =
-                  source == 'admin' || source == 'manual';
-              final shortBookingId = bookingCode.isNotEmpty
-                  ? bookingCode
-                  : (visibleDocs[index].id.length > 8
-                        ? visibleDocs[index].id.substring(0, 8)
-                        : visibleDocs[index].id);
-
-              return Card(
-                margin: const EdgeInsets.only(bottom: 12),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(14),
-                ),
-                child: InkWell(
-                  borderRadius: BorderRadius.circular(14),
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => BookingDetailPage(
-                          data: data,
-                          docId: visibleDocs[index].id,
-                        ),
+          return MemberUi.constrain(
+            ListView.builder(
+              padding: const EdgeInsets.all(MemberUi.pagePadding),
+              itemCount: visibleDocs.length + 2,
+              itemBuilder: (context, index) {
+                if (index == 0) {
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: _filterBar(docs),
+                  );
+                }
+                if (index == visibleDocs.length + 1) {
+                  if (hasMore) {
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 24),
+                      child: TextButton(
+                        onPressed: () {
+                          setState(() {
+                            _limit += 10;
+                          });
+                        },
+                        child: const Text('載入更多訂單'),
                       ),
                     );
-                  },
-                  child: Padding(
-                    padding: const EdgeInsets.all(14),
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.center,
-                      children: [
-                        Container(
-                          width: 58,
-                          height: 58,
-                          alignment: Alignment.center,
-                          decoration: BoxDecoration(
-                            color: Colors.blueGrey.shade800,
-                            borderRadius: BorderRadius.circular(14),
-                          ),
-                          child: Text(
-                            roomName,
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 20,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
-
-                        const SizedBox(width: 12),
-
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  if (shopName.isNotEmpty)
-                                    Padding(
-                                      padding: const EdgeInsets.only(bottom: 4),
-                                      child: Row(
-                                        children: [
-                                          const Icon(
-                                            Icons.storefront,
-                                            size: 14,
-                                            color: Colors.orange,
-                                          ),
-                                          const SizedBox(width: 4),
-                                          Expanded(
-                                            child: Text(
-                                              shopName,
-                                              style: const TextStyle(
-                                                fontSize: 13,
-                                                fontWeight: FontWeight.w700,
-                                                color: Colors.orange,
-                                              ),
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  if (isAdminBooking)
-                                    Padding(
-                                      padding: const EdgeInsets.only(bottom: 4),
-                                      child: Row(
-                                        children: [
-                                          Icon(
-                                            Icons.badge_outlined,
-                                            size: 14,
-                                            color: Colors.orange.shade700,
-                                          ),
-                                          const SizedBox(width: 4),
-                                          Text(
-                                            '店家代為建立',
-                                            style: TextStyle(
-                                              fontSize: 12,
-                                              fontWeight: FontWeight.w700,
-                                              color: Colors.orange.shade700,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  Text(
-                                    isDaycare
-                                        ? '臨托　$roomTypeName'
-                                        : roomTypeName,
-                                    style: const TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 15,
-                                    ),
-                                  ),
-                                ],
-                              ),
-
-                              const SizedBox(height: 4),
-
-                              Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    isDaycare
-                                        ? '${_formatDate(start)}  ${_formatTime(start)} → ${_formatTime(end)}'
-                                        : '${_formatDate(start)} → ${_formatDate(end)}',
-                                    style: TextStyle(
-                                      color: Colors.grey.shade700,
-                                      fontSize: 13,
-                                    ),
-                                  ),
-
-                                  if (createdAtText.isNotEmpty)
-                                    Padding(
-                                      padding: const EdgeInsets.only(top: 2),
-                                      child: Text(
-                                        '下訂 $createdAtText',
-                                        style: TextStyle(
-                                          color: Colors.grey.shade500,
-                                          fontSize: 11,
-                                        ),
-                                      ),
-                                    ),
-                                ],
-                              ),
-                              const SizedBox(height: 6),
-
-                              Wrap(
-                                spacing: 6,
-                                runSpacing: 6,
-                                children: [
-                                  _SmallInfoChip(text: '#$shortBookingId'),
-                                  _SmallInfoChip(text: '寵物 $petCount 隻'),
-                                  _SmallInfoChip(text: paymentMethodText),
-                                  if (hasDeposit)
-                                    _SmallInfoChip(
-                                      text: '訂金 NT\$ ${depositAmount.toInt()}',
-                                    ),
-                                  _StatusChip(text: statusText),
-                                ],
-                              ),
-
-                              if (hasDeposit &&
-                                  depositExpireText.isNotEmpty) ...[
-                                const SizedBox(height: 6),
-                                Text(
-                                  '付款期限：$depositExpireText',
-                                  style: const TextStyle(
-                                    fontSize: 12,
-                                    color: Colors.red,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                              ],
-                            ],
-                          ),
-                        ),
-
-                        const SizedBox(width: 8),
-
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.end,
-                          children: [
-                            Text(
-                              totalPrice > 0 ? 'NT\$ $totalPrice' : '',
-                              style: const TextStyle(
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            const SizedBox(height: 10),
-                            const Icon(Icons.chevron_right, size: 22),
-                          ],
-                        ),
-                      ],
+                  }
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 24, top: 4),
+                    child: Text(
+                      '已顯示全部訂單',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: MemberUi.captionSize,
+                        color: MemberUi.of(context).muted,
+                      ),
                     ),
-                  ),
-                ),
-              );
-            },
+                  );
+                }
+                final data =
+                    visibleDocs[index - 1].data() as Map<String, dynamic>;
+                final BookingDetailViewData view =
+                    BookingDetailViewData.fromBooking(
+                      data: data,
+                      docId: visibleDocs[index - 1].id,
+                    );
+                return MemberBookingCard(view: view);
+              },
+            ),
           );
         },
       ),
     );
   }
-}
 
-class _StatusChip extends StatelessWidget {
-  const _StatusChip({required this.text});
-
-  final String text;
-
-  Color get backgroundColor {
-    switch (text) {
-      case '需支付訂金':
-        return Colors.amber.shade100;
-
-      case '尚未轉帳':
-        return Colors.deepOrange.shade50;
-
-      case '已回傳轉帳':
-        return Colors.lightBlue.shade100;
-
-      case '已付款・待確認':
-        return Colors.orange.shade100;
-
-      case '待店家確認':
-      case '等待店家確認':
-        return Colors.blueGrey.shade100;
-
-      case '已確認':
-      case '已確認，等待入住／分房':
-      case '店家已確認':
-        return Colors.blue.shade100;
-
-      case '入住中':
-      case '臨托中':
-        return Colors.green.shade100;
-
-      case '已完成':
-      case '臨托已完成':
-        return Colors.grey.shade300;
-
-      case '已取消':
-      case '訂單已取消':
-        return Colors.red.shade100;
-
-      default:
-        return Colors.grey.shade100;
+  Widget _filterBar(List<QueryDocumentSnapshot> docs) {
+    int countFor(String filter) {
+      return docs.where((doc) {
+        final Map<String, dynamic> data = doc.data() as Map<String, dynamic>;
+        return MemberBookingFilters.matches(
+          filter,
+          (data['status'] ?? '').toString(),
+        );
+      }).length;
     }
-  }
 
-  Color get textColor {
-    switch (text) {
-      case '需支付訂金':
-        return Colors.amber.shade900;
-
-      case '尚未轉帳':
-        return Colors.deepOrange.shade700;
-
-      case '已回傳轉帳':
-        return Colors.lightBlue.shade800;
-
-      case '已付款・待確認':
-        return Colors.orange.shade800;
-
-      case '待店家確認':
-      case '等待店家確認':
-        return Colors.blueGrey.shade800;
-
-      case '已確認':
-      case '已確認，等待入住／分房':
-      case '店家已確認':
-        return Colors.blue.shade800;
-
-      case '入住中':
-      case '臨托中':
-        return Colors.green.shade800;
-
-      case '已完成':
-      case '臨托已完成':
-        return Colors.grey.shade800;
-
-      case '已取消':
-      case '訂單已取消':
-        return Colors.red.shade800;
-
-      default:
-        return Colors.black87;
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: backgroundColor,
-        borderRadius: BorderRadius.circular(999),
-      ),
-      child: Text(
-        text,
-        style: TextStyle(
-          fontSize: 12,
-          fontWeight: FontWeight.bold,
-          color: textColor,
+    return MemberFilterChips(
+      selectedId: _filter,
+      onSelected: (String id) {
+        setState(() {
+          _filter = id;
+          _limit = 5;
+        });
+      },
+      options: <MemberFilterOption>[
+        MemberFilterOption(
+          id: MemberBookingFilters.all,
+          label: '全部',
+          count: docs.length,
         ),
-      ),
-    );
-  }
-}
-
-class _SmallInfoChip extends StatelessWidget {
-  const _SmallInfoChip({required this.text});
-
-  final String text;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: Colors.grey.shade100,
-        borderRadius: BorderRadius.circular(999),
-      ),
-      child: Text(
-        text,
-        style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
-      ),
+        MemberFilterOption(
+          id: MemberBookingFilters.active,
+          label: '進行中',
+          count: countFor(MemberBookingFilters.active),
+        ),
+        MemberFilterOption(
+          id: MemberBookingFilters.completed,
+          label: '已完成',
+          count: countFor(MemberBookingFilters.completed),
+        ),
+        MemberFilterOption(
+          id: MemberBookingFilters.cancelled,
+          label: '已取消',
+          count: countFor(MemberBookingFilters.cancelled),
+        ),
+      ],
     );
   }
 }

@@ -121,6 +121,9 @@ class _BookingDetailMessageSectionState
                 widget.bookingId,
               ),
               builder: (context, snapshot) {
+                if (snapshot.hasError) {
+                  return const Text('留言載入失敗，請稍後再試');
+                }
                 final messages = snapshot.data ?? [];
 
                 if (messages.isEmpty) {

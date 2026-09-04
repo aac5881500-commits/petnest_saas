@@ -39,64 +39,152 @@ void main() {
       depositValue: 50,
     );
 
-    test('每小時計費四捨五入為整數', () {
+    test('訂金依總額百分比計算', () {
       final DaycarePlanModel plan = const DaycarePlanModel(
-        id: 'h',
-        name: '每小時',
-        type: DaycarePlanTypes.hourly,
-        basePrice: 200,
+        id: 'p',
+        name: '4 小時安親方案',
+        includedMinutes: 240,
+        basePrice: 880,
       );
       final DaycareQuote quote = pricing.quote(
         settings: settings,
         plan: plan,
         startAt: DateTime(2026, 9, 1, 9),
-        endAt: DateTime(2026, 9, 1, 10, 30),
+        endAt: DateTime(2026, 9, 1, 12),
         petCount: 1,
       );
-      expect(quote.durationMinutes, 90);
-      expect(quote.baseAmount, 400);
-      expect(quote.depositAmount, 200);
+      expect(quote.totalAmount, 880);
+      expect(quote.depositAmount, 440);
     });
 
-    test('每 30 分鐘與第二隻加價', () {
+    test('4 小時 NT\$880，使用 3 小時只收起步價格', () {
+      final DaycareTimeCharge charge = pricing.quoteTimeCharge(
+        includedMinutes: 240,
+        basePrice: 880,
+        extraBillingMinutes: 60,
+        extraBillingPrice: 200,
+        extraPetPrice: 0,
+        maxBaseCharge: 0,
+        durationMinutes: 180,
+        petCount: 1,
+      );
+      expect(charge.timeCharge, 880);
+      expect(charge.extraUnits, 0);
+      expect(charge.extraPetCharge, 0);
+    });
+
+    test('4 小時 NT\$880，超過後每小時 NT\$200，使用 6 小時為 1280', () {
+      final DaycareTimeCharge charge = pricing.quoteTimeCharge(
+        includedMinutes: 240,
+        basePrice: 880,
+        extraBillingMinutes: 60,
+        extraBillingPrice: 200,
+        extraPetPrice: 0,
+        maxBaseCharge: 0,
+        durationMinutes: 360,
+        petCount: 1,
+      );
+      expect(charge.timeCharge, 1280);
+      expect(charge.extraUnits, 2);
+    });
+
+    test('2 隻寵物每多 1 隻 NT\$100 加在時間費用之外', () {
+      final DaycareTimeCharge charge = pricing.quoteTimeCharge(
+        includedMinutes: 240,
+        basePrice: 880,
+        extraBillingMinutes: 60,
+        extraBillingPrice: 200,
+        extraPetPrice: 100,
+        maxBaseCharge: 0,
+        durationMinutes: 360,
+        petCount: 2,
+      );
+      expect(charge.timeCharge, 1280);
+      expect(charge.extraPetCharge, 100);
+      expect(charge.subtotal, 1380);
+    });
+
+    test('最高時間費用只限制時間費，不限制多寵加收', () {
+      final DaycareTimeCharge charge = pricing.quoteTimeCharge(
+        includedMinutes: 240,
+        basePrice: 880,
+        extraBillingMinutes: 60,
+        extraBillingPrice: 200,
+        extraPetPrice: 100,
+        maxBaseCharge: 1100,
+        durationMinutes: 360,
+        petCount: 2,
+      );
+      expect(charge.timeCharge, 1100);
+      expect(charge.extraPetCharge, 100);
+      expect(charge.subtotal, 1200);
+    });
+
+    test('最高時間費用 0 不限制', () {
+      final DaycareTimeCharge charge = pricing.quoteTimeCharge(
+        includedMinutes: 240,
+        basePrice: 880,
+        extraBillingMinutes: 60,
+        extraBillingPrice: 200,
+        extraPetPrice: 0,
+        maxBaseCharge: 0,
+        durationMinutes: 360,
+        petCount: 1,
+      );
+      expect(charge.timeCharge, 1280);
+    });
+
+    test('每多 1 隻加收 0 不增加費用', () {
+      final DaycareTimeCharge charge = pricing.quoteTimeCharge(
+        includedMinutes: 240,
+        basePrice: 880,
+        extraBillingMinutes: 60,
+        extraBillingPrice: 200,
+        extraPetPrice: 0,
+        maxBaseCharge: 0,
+        durationMinutes: 240,
+        petCount: 4,
+      );
+      expect(charge.extraPetCharge, 0);
+      expect(charge.subtotal, 880);
+    });
+
+    test('超過 10 分鐘、每 30 分鐘加收計算 1 個單位', () {
+      final DaycareTimeCharge charge = pricing.quoteTimeCharge(
+        includedMinutes: 240,
+        basePrice: 880,
+        extraBillingMinutes: 30,
+        extraBillingPrice: 200,
+        extraPetPrice: 0,
+        maxBaseCharge: 0,
+        durationMinutes: 250,
+        petCount: 1,
+      );
+      expect(charge.extraMinutes, 10);
+      expect(charge.extraUnits, 1);
+      expect(charge.timeCharge, 1080);
+    });
+
+    test('方案 quote 與 quoteTimeCharge 使用同一結果', () {
       final DaycarePlanModel plan = const DaycarePlanModel(
-        id: 'hh',
-        name: '半小時',
-        type: DaycarePlanTypes.halfHourly,
-        basePrice: 100,
-        extraPetSurcharge: 50,
+        id: 'p',
+        name: '4 小時安親方案',
+        includedMinutes: 240,
+        basePrice: 880,
+        extraBillingMinutes: 60,
+        extraBillingPrice: 200,
+        extraPetPrice: 100,
       );
       final DaycareQuote quote = pricing.quote(
         settings: const DaycareSettingsModel(),
         plan: plan,
         startAt: DateTime(2026, 9, 1, 9),
-        endAt: DateTime(2026, 9, 1, 10),
-        petCount: 3,
+        endAt: DateTime(2026, 9, 1, 15),
+        petCount: 2,
       );
-      expect(quote.baseAmount, 200);
+      expect(quote.timeCharge, 1280);
       expect(quote.extraPetAmount, 100);
-      expect(quote.totalAmount, 300);
-    });
-
-    test('每小時計費一小時無其他加價合計為 200', () {
-      final DaycarePlanModel plan = const DaycarePlanModel(
-        id: 'h',
-        name: '每小時',
-        type: DaycarePlanTypes.hourly,
-        basePrice: 200,
-      );
-      final DaycareQuote quote = pricing.quote(
-        settings: const DaycareSettingsModel(),
-        plan: plan,
-        startAt: DateTime(2026, 9, 1, 9),
-        endAt: DateTime(2026, 9, 1, 10),
-        petCount: 1,
-      );
-      expect(quote.baseAmount, 200);
-      expect(quote.extraPetAmount, 0);
-      expect(quote.roomTypeExtra, 0);
-      expect(quote.addonAmount, 0);
-      expect(quote.totalAmount, 200);
+      expect(quote.totalAmount, 1380);
     });
 
     test('新報價不加入房型加價', () {
@@ -335,11 +423,11 @@ void main() {
   });
 
   group('Daycare room-based pricing', () {
-    test('舊資料沒有 pricingMode 視為 time_based', () {
+    test('舊資料沒有 pricingMode 視為 independentPlan', () {
       final DaycareSettingsModel settings = DaycareSettingsModel.fromMap(
         const <String, dynamic>{},
       );
-      expect(settings.pricingMode, DaycarePricingModes.timeBased);
+      expect(settings.pricingMode, DaycarePricingModes.independentPlan);
       expect(settings.isRoomBased, isFalse);
     });
 
@@ -387,14 +475,28 @@ void main() {
       );
       expect(threePets.extraPetAmount, 200);
       expect(threePets.cappedRoomAmount, 700);
-      const settings = DaycareSettingsModel(latestPickUp: '18:00');
+      const settings = DaycareSettingsModel(
+        latestPickUp: '18:00',
+        latePickupEnabled: true,
+        overtimeGraceMinutes: 15,
+        latePickupUnitMinutes: 30,
+        latePickupPrice: 150,
+      );
+      expect(
+        pricing.shopLatePickupFee(
+          settings: settings,
+          scheduledEndAt: DateTime(2026, 9, 1, 18),
+          actualEndAt: DateTime(2026, 9, 1, 18, 45),
+        ),
+        150,
+      );
       expect(
         pricing.estimatedLatePickupFee(
           settings: settings,
           roomSetting: room,
           endAt: DateTime(2026, 9, 1, 18, 45),
         ),
-        150,
+        0,
       );
     });
 

@@ -111,7 +111,12 @@ void main() {
     expect(flag.isOpen, isFalse);
   });
 
-  test('override 文件 ID 為 yyyyMMdd', () {
-    expect(DaycareTimeHelper.overrideDocId(DateTime(2026, 9, 1)), '20260901');
+  test('每日上限 0 代表不限制', () {
+    expect(
+      DaycareDateAvailability.dailyMaxPets(
+        settings: const DaycareSettingsModel(dailyMaxPets: 0),
+      ),
+      0,
+    );
   });
 }

@@ -4,7 +4,11 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:petnest_saas/core/models/booking_fee_line_item.dart';
 import 'package:petnest_saas/core/models/create_payment_request_model.dart';
+import 'package:petnest_saas/core/models/home_theme_model.dart';
+import 'package:petnest_saas/core/models/policy_applicable_service.dart';
+import 'package:petnest_saas/core/models/terms_consent_snapshot.dart';
 import 'package:petnest_saas/core/models/daycare_plan_model.dart';
 import 'package:petnest_saas/core/models/daycare_settings_model.dart';
 import 'package:petnest_saas/core/models/member_coupon_model.dart';
@@ -41,8 +45,6 @@ class ShopDaycareBookingConfirmPage extends StatefulWidget {
     required this.selectedPetIds,
     required this.pets,
     required this.addons,
-    required this.policyVersion,
-    required this.policyTitle,
   });
 
   final String shopId;
@@ -56,8 +58,6 @@ class ShopDaycareBookingConfirmPage extends StatefulWidget {
   final List<String> selectedPetIds;
   final List<Map<String, dynamic>> pets;
   final List<Map<String, dynamic>> addons;
-  final int policyVersion;
-  final String policyTitle;
 
   @override
   State<ShopDaycareBookingConfirmPage> createState() =>
@@ -249,6 +249,7 @@ class _ShopDaycareBookingConfirmPageState
     if (!mounted) {
       return;
     }
+    final List<BookingFeeLineItem> feeLines = _buildFeeLines(quote);
     await Navigator.push<void>(
       context,
       MaterialPageRoute<void>(
@@ -280,9 +281,31 @@ class _ShopDaycareBookingConfirmPageState
           allowCashOverride: widget.settings.allowCash,
           daycareDepositType: widget.settings.depositType,
           daycareDepositValue: widget.settings.depositValue,
+          theme: HomeThemeModel.classicDefault,
+          termsServiceType: PolicyApplicableService.daycare,
+          feeLineItems: feeLines,
           onSubmitWithData: _submit,
         ),
       ),
+    );
+  }
+
+  List<BookingFeeLineItem> _buildFeeLines(DaycareQuote quote) {
+    return DaycarePricingService.instance.customerFeeLines(
+      quote: quote,
+      primaryLabel: widget.settings.isRoomBased
+          ? (widget.requestedRoomTypeName.isEmpty
+                ? '安親房型・起步價格'
+                : '${widget.requestedRoomTypeName}・起步價格')
+          : widget.plan.name,
+      addonLines: _addonLines
+          .map(
+            (Map<String, dynamic> addon) => BookingFeeLineItem(
+              label: DaycareAddonCatalog.displayName(addon),
+              amount: (addon['amount'] as num?)?.toInt() ?? 0,
+            ),
+          )
+          .toList(),
     );
   }
 
@@ -296,6 +319,7 @@ class _ShopDaycareBookingConfirmPageState
     int depositAmount,
     String paymentMethod,
     String payAmountType,
+    TermsConsentSnapshot termsConsent,
   ) async {
     final User? user = FirebaseAuth.instance.currentUser;
     if (user == null) {
@@ -394,9 +418,47 @@ class _ShopDaycareBookingConfirmPageState
             'scheduledEndAt': widget.endAt.toIso8601String(),
             'petIds': widget.selectedPetIds,
             'pets': petSnaps,
-            'daycarePlanId': widget.plan.id,
-            'requestedRoomTypeId': widget.requestedRoomTypeId,
-            'requestedRoomTypeName': widget.requestedRoomTypeName,
+            'daycarePlanId': widget.settings.isRoomBased ? '' : widget.plan.id,
+            'daycarePlanName': widget.settings.isRoomBased
+                ? ''
+                : widget.plan.name,
+            'daycarePlanPriceSnapshot': widget.settings.isRoomBased
+                ? <String, dynamic>{}
+                : widget.plan.toMap(),
+            'pricingMode': widget.settings.isRoomBased
+                ? DaycarePricingModes.roomType
+                : DaycarePricingModes.independentPlan,
+            'requestedRoomTypeId': widget.settings.isRoomBased
+                ? widget.requestedRoomTypeId
+                : '',
+            'requestedRoomTypeName': widget.settings.isRoomBased
+                ? widget.requestedRoomTypeName
+                : '',
+            'requestedRoomTypePriceSnapshot': widget.settings.isRoomBased
+                ? (widget.settings
+                          .roomTypeSetting(widget.requestedRoomTypeId)
+                          ?.toMap() ??
+                      <String, dynamic>{})
+                : <String, dynamic>{},
+            'assignedRoomTypeId': null,
+            'assignedRoomId': null,
+            'assignedRoomName': null,
+            'priceQuoteSnapshot': <String, dynamic>{
+              'durationMinutes': quote.durationMinutes,
+              'baseAmount': quote.baseAmount,
+              'timeCharge': quote.timeCharge,
+              'extraTimeAmount': quote.extraTimeAmount,
+              'extraMinutes': quote.extraMinutes,
+              'extraUnits': quote.extraUnits,
+              'extraPetAmount': quote.extraPetAmount,
+              'extraPetCount': quote.extraPetCount,
+              'addonAmount': quote.addonAmount,
+              'discountAmount': quote.discountAmount,
+              'couponAmount': quote.couponAmount,
+              'totalAmount': quote.totalAmount,
+              'depositAmount': quote.depositAmount,
+              'maxBaseCharge': quote.maxBaseCharge,
+            },
             'addons': _addonLines,
             'customerName': _name.text.trim(),
             'customerPhone': _phone.text.trim(),
@@ -407,8 +469,7 @@ class _ShopDaycareBookingConfirmPageState
             'emergencyAddress': emergencyAddress,
             'phone2': phone2,
             'note': _note.text.trim(),
-            'policyVersion': widget.policyVersion,
-            'policyTitle': widget.policyTitle,
+            ...termsConsent.toBookingFields(),
             'policySignMethod': 'member_online',
             'paymentMethod': paymentMethod,
             'payAmountType': payAmountType,

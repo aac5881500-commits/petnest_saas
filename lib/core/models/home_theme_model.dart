@@ -155,15 +155,51 @@ class HomeThemeModel {
   }
 
   static int _readColorValue(dynamic value, int fallback) {
+    return parseColorValue(value, fallback);
+  }
+
+  /// 相容 int、24-bit、hex 字串（含 #／0x、RRGGBB／AARRGGBB）。
+  static int parseColorValue(dynamic value, int fallback) {
+    if (value == null) {
+      return fallback;
+    }
     if (value is int) {
-      return value;
+      return _normalizeColorInt(value);
     }
-
     if (value is num) {
-      return value.toInt();
+      return _normalizeColorInt(value.toInt());
     }
+    String text = value.toString().trim();
+    if (text.isEmpty) {
+      return fallback;
+    }
+    if (text.startsWith('0x') || text.startsWith('0X')) {
+      text = text.substring(2);
+    } else if (text.startsWith('#')) {
+      text = text.substring(1);
+    }
+    if (text.length == 3) {
+      text =
+          '${text[0]}${text[0]}${text[1]}${text[1]}${text[2]}${text[2]}';
+    }
+    if (text.length == 6) {
+      text = 'FF$text';
+    }
+    if (text.length != 8) {
+      return int.tryParse(value.toString()) ?? fallback;
+    }
+    final int? parsed = int.tryParse(text, radix: 16);
+    if (parsed == null) {
+      return fallback;
+    }
+    return parsed;
+  }
 
-    return int.tryParse(value?.toString() ?? '') ?? fallback;
+  static int _normalizeColorInt(int value) {
+    if (value >= 0 && value <= 0xFFFFFF) {
+      return 0xFF000000 | value;
+    }
+    return value;
   }
 
   static int _withOpacityValue(int colorValue, double opacity) {

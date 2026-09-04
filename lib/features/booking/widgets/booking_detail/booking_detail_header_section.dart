@@ -64,7 +64,7 @@ class BookingDetailHeaderSection extends StatelessWidget {
             const Padding(
               padding: EdgeInsets.only(bottom: 8),
               child: Text(
-                '臨托',
+                '安親',
                 style: TextStyle(
                   color: Colors.orangeAccent,
                   fontWeight: FontWeight.bold,

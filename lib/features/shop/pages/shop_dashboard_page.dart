@@ -39,6 +39,7 @@ import 'package:petnest_saas/features/shop/pages/shop_daycare_settings_page.dart
 import 'package:petnest_saas/features/admin/pages/admin_member_list_page.dart';
 import 'package:petnest_saas/features/admin/pages/admin_payment_center_page.dart';
 import 'package:petnest_saas/features/shop/pages/shop_policy_page.dart';
+import 'package:petnest_saas/features/shop/pages/shop_pre_arrival_guide_setting_page.dart';
 import 'package:petnest_saas/features/shop/pages/shop_custom_form_settings_page.dart';
 import 'package:petnest_saas/features/shop/pages/shop_policy_logs_page.dart';
 import 'package:petnest_saas/features/room/pages/room_dashboard_page.dart';
@@ -1034,6 +1035,24 @@ class _CatHotelTab extends StatelessWidget {
               Navigator.push(
                 context,
                 MaterialPageRoute(builder: (_) => ShopRoomPage(shopId: shopId)),
+              );
+            },
+          ),
+
+        if (_can(ShopPermissionKeys.manageBookingSettings) ||
+            _can(ShopPermissionKeys.managePolicy))
+          _MenuTile(
+            title: '入住前準備',
+            subtitle: isProfileComplete ? '設定入住前需要攜帶與注意的內容' : '請先完成基本資料',
+            icon: Icons.checklist_outlined,
+            enabled: isProfileComplete,
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) =>
+                      ShopPreArrivalGuideSettingPage(shopId: shopId),
+                ),
               );
             },
           ),

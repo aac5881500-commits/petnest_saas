@@ -1,14 +1,13 @@
 // lib/features/shop/pages/shop_daycare_booking_page.dart
-// 🐾 前台安親預約：沿用住宿日期表、寵物卡、加值、條款簽署與價格摘要
+// 🐾 前台安親預約：沿用住宿日期表、寵物卡、加值與價格摘要
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:petnest_saas/core/models/booking_fee_line_item.dart';
 import 'package:petnest_saas/core/models/daycare_date_override_model.dart';
 import 'package:petnest_saas/core/models/daycare_plan_model.dart';
 import 'package:petnest_saas/core/models/daycare_settings_model.dart';
-import 'package:petnest_saas/core/models/home_theme_model.dart';
-import 'package:petnest_saas/core/models/policy_applicable_service.dart';
 import 'package:petnest_saas/core/services/daycare_addon_catalog.dart';
 import 'package:petnest_saas/core/services/daycare_booking_validator.dart';
 import 'package:petnest_saas/core/services/daycare_calendar_helper.dart';
@@ -19,11 +18,9 @@ import 'package:petnest_saas/core/services/daycare_pricing_service.dart';
 import 'package:petnest_saas/core/services/daycare_room_type_option.dart';
 import 'package:petnest_saas/core/services/daycare_settings_service.dart';
 import 'package:petnest_saas/core/services/daycare_time_helper.dart';
-import 'package:petnest_saas/core/services/shop_policy_service.dart';
 import 'package:petnest_saas/core/services/shop_service.dart';
 import 'package:petnest_saas/features/auth/pages/login_page.dart';
 import 'package:petnest_saas/features/shop/pages/shop_daycare_booking_confirm_page.dart';
-import 'package:petnest_saas/features/shop/pages/shop_policy_view_page.dart';
 import 'package:petnest_saas/features/shop/widgets/booking/booking_calendar_dialog.dart';
 import 'package:petnest_saas/features/shop/widgets/booking/booking_pet_section.dart';
 import 'package:petnest_saas/features/shop/widgets/booking/daycare_date_card.dart';
@@ -61,10 +58,6 @@ class _ShopDaycareBookingPageState extends State<ShopDaycareBookingPage> {
   bool _submitting = false;
   int? _remaining;
   bool _isBlacklisted = false;
-  bool _policyRequired = false;
-  bool _policyAccepted = false;
-  int _policyVersion = 0;
-  String _policyTitle = '安親須知';
   DaycareDateOverrideModel? _dateOverride;
 
   @override
@@ -72,7 +65,6 @@ class _ShopDaycareBookingPageState extends State<ShopDaycareBookingPage> {
     super.initState();
     _loadExtras();
     _loadBlacklist();
-    _refreshPolicy();
     _refreshRoomOptions();
     if (!widget.settings.isRoomBased &&
         widget.settings.customerPlans.length == 1) {
@@ -112,48 +104,6 @@ class _ShopDaycareBookingPageState extends State<ShopDaycareBookingPage> {
     });
   }
 
-  Future<void> _refreshPolicy() async {
-    final Map<String, dynamic>? policy = await ShopPolicyService.instance
-        .getCheckinPolicy(widget.shopId);
-    if (!mounted) {
-      return;
-    }
-    if (policy == null) {
-      setState(() {
-        _policyRequired = false;
-        _policyAccepted = true;
-        _policyVersion = 0;
-      });
-      return;
-    }
-    final Map<String, dynamic> filtered = ShopPolicyService.instance
-        .filterPolicyForService(
-          policy: policy,
-          serviceType: PolicyApplicableService.daycare,
-        );
-    final bool required = ShopPolicyService.instance.policyRequiresSignature(
-      filteredPolicy: filtered,
-    );
-    final User? user = FirebaseAuth.instance.currentUser;
-    bool accepted = !required;
-    if (required && user != null) {
-      accepted = await ShopPolicyService.instance.hasAcceptedPolicy(
-        shopId: widget.shopId,
-        userId: user.uid,
-        serviceType: PolicyApplicableService.daycare,
-      );
-    }
-    if (!mounted) {
-      return;
-    }
-    setState(() {
-      _policyRequired = required;
-      _policyAccepted = accepted;
-      _policyVersion = (filtered['version'] as num?)?.toInt() ?? 0;
-      _policyTitle = required ? '安親須知' : '安親須知';
-    });
-  }
-
   Future<void> _loadExtras() async {
     final DocumentSnapshot<Map<String, dynamic>> addonSnap =
         await FirebaseFirestore.instance
@@ -183,14 +133,24 @@ class _ShopDaycareBookingPageState extends State<ShopDaycareBookingPage> {
 
   Future<void> _refreshRoomOptions() async {
     if (!widget.settings.isRoomBased) {
+      if (_roomOptions.isNotEmpty || _selectedRoomTypeId != null) {
+        setState(() {
+          _roomOptions = const <DaycareRoomTypeOption>[];
+          _selectedRoomTypeId = null;
+        });
+      }
       return;
     }
+    final int dailyMax = DaycareDateAvailability.dailyMaxPets(
+      settings: widget.settings,
+      override: _dateOverride,
+    );
     final List<DaycareRoomTypeOption> options =
         await DaycareRoomTypeCatalog.load(
           shopId: widget.shopId,
           settings: widget.settings,
           petCount: _selectedPetIds.length,
-          dailyRemaining: _remaining,
+          dailyRemaining: dailyMax <= 0 ? null : _remaining,
           startAt: _startAt,
           endAt: _endAt,
         );
@@ -215,6 +175,18 @@ class _ShopDaycareBookingPageState extends State<ShopDaycareBookingPage> {
 
   Future<void> _refreshRemaining() async {
     if (_date == null) {
+      return;
+    }
+    final int dailyMax = DaycareDateAvailability.dailyMaxPets(
+      settings: widget.settings,
+      override: _dateOverride,
+    );
+    if (!widget.settings.showRemainingSlots || dailyMax <= 0) {
+      if (mounted) {
+        setState(() => _remaining = dailyMax <= 0 ? -1 : _remaining);
+      }
+      await _refreshRoomOptions();
+      await _loadExtras();
       return;
     }
     int? left = _remaining;
@@ -290,11 +262,6 @@ class _ShopDaycareBookingPageState extends State<ShopDaycareBookingPage> {
         settings: widget.settings,
         room: roomQuote,
         addonAmount: addonAmount,
-        overtimeAmount: DaycarePricingService.instance.estimatedLatePickupFee(
-          settings: widget.settings,
-          roomSetting: roomSetting,
-          endAt: _endAt!,
-        ),
       );
     }
     return DaycarePricingService.instance.quote(
@@ -430,32 +397,6 @@ class _ShopDaycareBookingPageState extends State<ShopDaycareBookingPage> {
     return int.tryParse(value?.toString() ?? '') ?? fallback;
   }
 
-  Future<void> _openPolicy() async {
-    final User? user = FirebaseAuth.instance.currentUser;
-    if (user == null) {
-      await Navigator.push(
-        context,
-        MaterialPageRoute<void>(
-          builder: (_) => LoginPage(redirectShopId: widget.shopId),
-        ),
-      );
-      return;
-    }
-    final bool? accepted = await Navigator.push<bool>(
-      context,
-      MaterialPageRoute<bool>(
-        builder: (_) => ShopPolicyViewPage(
-          shopId: widget.shopId,
-          theme: HomeThemeModel.classicDefault,
-          serviceType: PolicyApplicableService.daycare,
-        ),
-      ),
-    );
-    if (accepted == true) {
-      await _refreshPolicy();
-    }
-  }
-
   Future<void> _submit() async {
     final User? user = FirebaseAuth.instance.currentUser;
     if (user == null) {
@@ -573,32 +514,25 @@ class _ShopDaycareBookingPageState extends State<ShopDaycareBookingPage> {
       ).showSnackBar(SnackBar(content: Text(addonCheck.error!)));
       return;
     }
-    final int petsLeft = await DaycareOccupancyService.instance.remainingPets(
-      shopId: widget.shopId,
-      serviceDate: _date!,
-      dailyMaxPets: DaycareDateAvailability.dailyMaxPets(
-        settings: widget.settings,
-        override: _dateOverride,
-      ),
+    final int dailyMax = DaycareDateAvailability.dailyMaxPets(
+      settings: widget.settings,
+      override: _dateOverride,
     );
-    if (petsLeft < _selectedPetIds.length) {
-      if (!mounted) {
+    if (dailyMax > 0) {
+      final int petsLeft = await DaycareOccupancyService.instance.remainingPets(
+        shopId: widget.shopId,
+        serviceDate: _date!,
+        dailyMaxPets: dailyMax,
+      );
+      if (petsLeft < _selectedPetIds.length) {
+        if (!mounted) {
+          return;
+        }
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('當日安親名額不足')));
         return;
       }
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('當日安親名額不足')));
-      return;
-    }
-    await _refreshPolicy();
-    if (_policyRequired && !_policyAccepted) {
-      if (!mounted) {
-        return;
-      }
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('請先閱讀並同意安親條款')));
-      return;
     }
     final bool conflict = await DaycareOccupancyService.instance.hasPetConflict(
       shopId: widget.shopId,
@@ -647,8 +581,6 @@ class _ShopDaycareBookingPageState extends State<ShopDaycareBookingPage> {
             selectedPetIds: List<String>.from(_selectedPetIds),
             pets: _pets,
             addons: selectedAddons,
-            policyVersion: _policyVersion,
-            policyTitle: _policyTitle,
           ),
         ),
       );
@@ -675,9 +607,6 @@ class _ShopDaycareBookingPageState extends State<ShopDaycareBookingPage> {
     if (!widget.settings.isRoomBased && _plan == null) {
       return '請選擇安親方案';
     }
-    if (_policyRequired && !_policyAccepted) {
-      return '請先閱讀並同意安親條款';
-    }
     return '';
   }
 
@@ -698,8 +627,7 @@ class _ShopDaycareBookingPageState extends State<ShopDaycareBookingPage> {
         (widget.settings.isRoomBased || _plan != null) &&
         (!widget.settings.isRoomBased ||
             (_selectedRoomTypeId != null && _selectedPetIds.isNotEmpty)) &&
-        _selectedPetIds.isNotEmpty &&
-        (!_policyRequired || _policyAccepted);
+        _selectedPetIds.isNotEmpty;
     final String submitHint = _submitHint;
     return Scaffold(
       appBar: AppBar(
@@ -753,9 +681,20 @@ class _ShopDaycareBookingPageState extends State<ShopDaycareBookingPage> {
                 ],
                 const SizedBox(height: 16),
                 DaycareDateCard(date: _date, onTap: _openCalendar),
-                if (_remaining != null) ...<Widget>[
+                if (widget.settings.showRemainingSlots &&
+                    _date != null) ...<Widget>[
                   const SizedBox(height: 8),
-                  Text('當日剩餘名額：$_remaining'),
+                  Text(
+                    DaycareDateAvailability.dailyMaxPets(
+                              settings: widget.settings,
+                              override: _dateOverride,
+                            ) <=
+                            0
+                        ? '當日名額：不限量'
+                        : ((_remaining == null || _remaining! < 0)
+                              ? '當日剩餘名額：計算中'
+                              : '當日剩餘名額：$_remaining'),
+                  ),
                 ],
                 const SizedBox(height: 16),
                 DropdownButtonFormField<String>(
@@ -819,7 +758,7 @@ class _ShopDaycareBookingPageState extends State<ShopDaycareBookingPage> {
                 const SizedBox(height: 20),
                 if (!widget.settings.isRoomBased) ...<Widget>[
                   const Text(
-                    '安親方案',
+                    '選擇安親方案',
                     style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                   ),
                   const SizedBox(height: 8),
@@ -831,9 +770,8 @@ class _ShopDaycareBookingPageState extends State<ShopDaycareBookingPage> {
                       color: selected ? Colors.blue.shade50 : null,
                       child: ListTile(
                         title: Text(plan.name),
-                        subtitle: Text(
-                          '${DaycarePlanTypes.label(plan.type)} ｜ \$${plan.basePrice}',
-                        ),
+                        subtitle: Text(plan.customerSummaryLines.join('\n')),
+                        isThreeLine: plan.customerSummaryLines.length > 1,
                         trailing: selected
                             ? const Icon(Icons.check_circle, color: Colors.blue)
                             : null,
@@ -844,7 +782,7 @@ class _ShopDaycareBookingPageState extends State<ShopDaycareBookingPage> {
                 ],
                 if (widget.settings.isRoomBased) ...<Widget>[
                   const Text(
-                    '安親房型／計價方案',
+                    '選擇安親房型',
                     style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                   ),
                   const SizedBox(height: 4),
@@ -1006,76 +944,82 @@ class _ShopDaycareBookingPageState extends State<ShopDaycareBookingPage> {
                       padding: const EdgeInsets.all(16),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
-                        children: <Widget>[
-                          const Text(
-                            '費用摘要',
-                            style: TextStyle(fontWeight: FontWeight.bold),
-                          ),
-                          Text('基本費：\$${quote.baseAmount}'),
-                          if (quote.extraPetAmount > 0)
-                            Text('多寵加價：\$${quote.extraPetAmount}'),
-                          if (quote.overtimeAmount > 0)
-                            Text('預估超時費：\$${quote.overtimeAmount}'),
-                          ..._addons
-                              .where(
-                                (Map<String, dynamic> e) => _selectedAddonIds
-                                    .contains((e['id'] ?? '').toString()),
-                              )
-                              .map((Map<String, dynamic> addon) {
-                                final int amount = DaycarePricingService
-                                    .instance
-                                    .addonLineAmount(
-                                      addon: addon,
-                                      minutes: quote.durationMinutes,
-                                      petCount: _selectedPetIds.isEmpty
-                                          ? 1
-                                          : _selectedPetIds.length,
-                                    );
-                                return Text(
-                                  '${DaycareAddonCatalog.displayName(addon)}：\$$amount',
-                                );
-                              }),
-                          if (quote.surchargeAmount > 0)
-                            Text('特殊日期加價：\$${quote.surchargeAmount}'),
-                          if (quote.discountAmount > 0)
-                            Text('優惠折扣：-\$${quote.discountAmount}'),
-                          if (quote.couponAmount > 0)
-                            Text('優惠券：-\$${quote.couponAmount}'),
-                          if (quote.pointAmount > 0)
-                            Text('點數折抵：-\$${quote.pointAmount}'),
-                          const Divider(),
-                          Text(
-                            widget.settings.isRoomBased
-                                ? '預估總額 NT\$${quote.totalAmount}'
-                                : '合計 \$${quote.totalAmount}',
-                            style: const TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.w900,
-                            ),
-                          ),
-                          if (quote.depositAmount > 0)
-                            Text('訂金 \$${quote.depositAmount}'),
-                        ],
+                        children: DaycarePricingService.instance
+                            .customerFeeLines(
+                              quote: quote,
+                              primaryLabel: widget.settings.isRoomBased
+                                  ? (_roomOptions
+                                        .where(
+                                          (DaycareRoomTypeOption e) =>
+                                              e.roomTypeId ==
+                                              _selectedRoomTypeId,
+                                        )
+                                        .map(
+                                          (DaycareRoomTypeOption e) =>
+                                              '${e.name}・起步價格',
+                                        )
+                                        .fold<String>(
+                                          '安親房型・起步價格',
+                                          (String prev, String name) => name,
+                                        ))
+                                  : (_plan?.name ?? '安親方案'),
+                              addonLines: _addons
+                                  .where(
+                                    (Map<String, dynamic> e) =>
+                                        _selectedAddonIds.contains(
+                                          (e['id'] ?? '').toString(),
+                                        ),
+                                  )
+                                  .map(
+                                    (
+                                      Map<String, dynamic> addon,
+                                    ) => BookingFeeLineItem(
+                                      label: DaycareAddonCatalog.displayName(
+                                        addon,
+                                      ),
+                                      amount: DaycarePricingService.instance
+                                          .addonLineAmount(
+                                            addon: addon,
+                                            minutes: quote.durationMinutes,
+                                            petCount: _selectedPetIds.isEmpty
+                                                ? 1
+                                                : _selectedPetIds.length,
+                                          ),
+                                    ),
+                                  )
+                                  .toList(),
+                            )
+                            .map(
+                              (BookingFeeLineItem line) => Padding(
+                                padding: const EdgeInsets.only(bottom: 4),
+                                child: Row(
+                                  children: <Widget>[
+                                    Expanded(child: Text(line.label)),
+                                    Text(
+                                      line.amount < 0
+                                          ? '-NT\$ ${line.amount.abs()}'
+                                          : 'NT\$ ${line.amount}',
+                                      style: TextStyle(
+                                        color:
+                                            line.kind ==
+                                                BookingFeeLineKind.discount
+                                            ? const Color(0xFF2E8B47)
+                                            : null,
+                                        fontWeight:
+                                            line.kind ==
+                                                    BookingFeeLineKind.total ||
+                                                line.kind ==
+                                                    BookingFeeLineKind.payable
+                                            ? FontWeight.w800
+                                            : FontWeight.w500,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            )
+                            .toList(),
                       ),
-                    ),
-                  ),
-                ],
-                if (_policyRequired) ...<Widget>[
-                  const SizedBox(height: 16),
-                  Card(
-                    child: ListTile(
-                      leading: Icon(
-                        _policyAccepted
-                            ? Icons.verified
-                            : Icons.policy_outlined,
-                        color: _policyAccepted ? Colors.green : null,
-                      ),
-                      title: Text(
-                        _policyAccepted ? '已閱讀並同意安親條款' : '請閱讀並同意安親條款',
-                      ),
-                      subtitle: Text('條款版本 v$_policyVersion'),
-                      trailing: const Icon(Icons.chevron_right),
-                      onTap: _openPolicy,
                     ),
                   ),
                 ],

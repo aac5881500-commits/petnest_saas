@@ -123,8 +123,8 @@ class _BookingCalendarState extends State<BookingCalendar> {
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
               crossAxisSpacing: 4,
-              mainAxisSpacing: 8,
-              childAspectRatio: widget.compactCells ? 0.86 : 0.62,
+              mainAxisSpacing: widget.compactCells ? 4 : 8,
+              childAspectRatio: widget.compactCells ? 1.0 : 0.72,
               children: dayCells,
             ),
           ],
@@ -258,7 +258,7 @@ class _BookingCalendarState extends State<BookingCalendar> {
         height: double.infinity,
         padding: EdgeInsets.symmetric(
           horizontal: 2,
-          vertical: widget.compactCells ? 2 : 8,
+          vertical: widget.compactCells ? 0 : 8,
         ),
         decoration: BoxDecoration(
           color: backgroundColor,
@@ -266,60 +266,83 @@ class _BookingCalendarState extends State<BookingCalendar> {
           border: Border.all(color: borderColor),
         ),
         clipBehavior: Clip.hardEdge,
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            FittedBox(
-              fit: BoxFit.scaleDown,
-              child: Text(
-                '${date.day}',
-                maxLines: 1,
-                softWrap: false,
-                style: TextStyle(
-                  fontSize: widget.compactCells ? 12 : 16,
-                  fontWeight: FontWeight.bold,
-                  color: dayTextColor,
-                  height: 1.0,
-                ),
-              ),
-            ),
-            if (widget.compactCells)
-              _compactMarker(isUnbookable: isUnbookable, isBlocked: isBlocked)
-            else ...<Widget>[
-              if (isUnbookable)
-                Text(
-                  '滿',
-                  style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.orange.shade800,
-                  ),
-                ),
-              if (isBlocked && reason != null && reason.isNotEmpty)
-                Container(
-                  margin: const EdgeInsets.only(top: 2),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 4,
-                    vertical: 1,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Colors.red.shade100,
-                    borderRadius: BorderRadius.circular(6),
-                  ),
-                  child: Text(
-                    reason,
-                    style: const TextStyle(
-                      fontSize: 9,
-                      color: Colors.red,
-                      fontWeight: FontWeight.bold,
+        child: widget.compactCells
+            ? Stack(
+                alignment: Alignment.center,
+                children: <Widget>[
+                  FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Text(
+                      '${date.day}',
+                      maxLines: 1,
+                      softWrap: false,
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                        color: dayTextColor,
+                        height: 1.0,
+                      ),
                     ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
                   ),
-                ),
-            ],
-          ],
-        ),
+                  Positioned(
+                    bottom: 1,
+                    child: _compactMarker(
+                      isUnbookable: isUnbookable,
+                      isBlocked: isBlocked,
+                    ),
+                  ),
+                ],
+              )
+            : Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Text(
+                      '${date.day}',
+                      maxLines: 1,
+                      softWrap: false,
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: dayTextColor,
+                        height: 1.0,
+                      ),
+                    ),
+                  ),
+                  if (isUnbookable)
+                    Text(
+                      '滿',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.orange.shade800,
+                      ),
+                    ),
+                  if (isBlocked && reason != null && reason.isNotEmpty)
+                    Container(
+                      margin: const EdgeInsets.only(top: 2),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 4,
+                        vertical: 1,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.red.shade100,
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Text(
+                        reason,
+                        style: const TextStyle(
+                          fontSize: 9,
+                          color: Colors.red,
+                          fontWeight: FontWeight.bold,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                ],
+              ),
       ),
     );
   }
@@ -327,7 +350,6 @@ class _BookingCalendarState extends State<BookingCalendar> {
   Widget _compactMarker({required bool isUnbookable, required bool isBlocked}) {
     if (isUnbookable) {
       return Container(
-        margin: const EdgeInsets.only(top: 2),
         width: 5,
         height: 5,
         decoration: const BoxDecoration(
@@ -338,7 +360,6 @@ class _BookingCalendarState extends State<BookingCalendar> {
     }
     if (isBlocked) {
       return Container(
-        margin: const EdgeInsets.only(top: 2),
         width: 5,
         height: 5,
         decoration: const BoxDecoration(

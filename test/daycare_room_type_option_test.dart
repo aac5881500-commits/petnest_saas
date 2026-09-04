@@ -61,6 +61,25 @@ void main() {
     expect(option.selectable, isTrue);
   });
 
+  test('extraPetPrice 不會當成 maxPets', () {
+    final DaycareRoomTypeSetting setting = DaycareRoomTypeSetting.fromMap(
+      const <String, dynamic>{
+        'roomTypeId': 'std',
+        'enabled': true,
+        'maxPets': 5,
+        'extraPetPrice': 100,
+      },
+    );
+    expect(setting.maxPets, 5);
+    expect(setting.extraPetPrice, 100);
+    final DaycareRoomTypeOption option = DaycareRoomTypeCatalog.evaluate(
+      setting: setting,
+      name: '舒適標準房',
+      petCount: 2,
+    );
+    expect(option.selectable, isTrue);
+  });
+
   test('不會把住宿 capacity 或缺欄位預設成全房型都只能 1 隻', () {
     final DaycareRoomTypeSetting missing = DaycareRoomTypeSetting.fromMap(
       const <String, dynamic>{'roomTypeId': 'a', 'enabled': true},

@@ -142,10 +142,7 @@ class DaycarePlanModel {
         map['extraBillingPrice'] ?? map['overtimeUnitPrice'],
         0,
       ),
-      extraPetPrice: _int(
-        map['extraPetPrice'] ?? map['extraPetSurcharge'],
-        0,
-      ),
+      extraPetPrice: _int(map['extraPetPrice'] ?? map['extraPetSurcharge'], 0),
       maxBaseCharge: _int(map['maxBaseCharge'], 0),
       maxPets: _int(map['maxPets'], 20).clamp(1, 20),
       minChargeUnits: _int(map['minChargeUnits'], 1).clamp(1, 99),
@@ -241,6 +238,28 @@ class DaycarePlanModel {
       createdAt: createdAt,
       updatedAt: updatedAt,
     );
+  }
+
+  String get includedTimeLabel {
+    if (includedMinutes % 60 == 0) {
+      return '${includedMinutes ~/ 60} 小時';
+    }
+    return '$includedMinutes 分鐘';
+  }
+
+  String get extraUnitLabel => extraBillingMinutes == 30 ? '每 30 分鐘' : '每小時';
+
+  List<String> get customerSummaryLines {
+    final List<String> lines = <String>[
+      '$includedTimeLabel NT\$$basePrice・超過後$extraUnitLabel NT\$$extraBillingPrice',
+    ];
+    if (extraPetPrice > 0) {
+      lines.add('每多 1 隻 +NT\$$extraPetPrice');
+    }
+    if (maxBaseCharge > 0) {
+      lines.add('最高時間費用 NT\$$maxBaseCharge');
+    }
+    return lines;
   }
 
   static int _int(dynamic raw, int fallback) {

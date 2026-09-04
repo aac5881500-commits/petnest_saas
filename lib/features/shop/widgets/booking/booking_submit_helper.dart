@@ -4,6 +4,8 @@
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:petnest_saas/core/models/policy_applicable_service.dart';
+import 'package:petnest_saas/core/models/terms_consent_snapshot.dart';
 import 'package:petnest_saas/core/services/booking_service.dart';
 import 'package:petnest_saas/core/services/member_service.dart';
 import 'package:petnest_saas/core/services/member_coupon_service.dart';
@@ -126,6 +128,7 @@ class BookingSubmitHelper {
 
     /// 🔒 同一次前台送出請求的唯一識別碼
     required String requestId,
+    TermsConsentSnapshot? termsConsent,
   }) async {
     await MemberService.instance.ensureMember(
       shopId: shopId,
@@ -164,32 +167,22 @@ class BookingSubmitHelper {
           'updatedAt': FieldValue.serverTimestamp(),
         }, SetOptions(merge: true));
 
-    await ShopPolicyService.instance.acceptPolicy(
-      shopId: shopId,
-      userId: user.uid,
-    );
+    TermsConsentSnapshot resolvedConsent;
+    if (termsConsent != null && termsConsent.termsVersion >= 0) {
+      resolvedConsent = termsConsent;
+    } else {
+      resolvedConsent = await ShopPolicyService.instance.confirmTerms(
+        shopId: shopId,
+        userId: user.uid,
+        serviceType: PolicyApplicableService.accommodation,
+      );
+    }
 
-    final policyAcceptanceDoc = await FirebaseFirestore.instance
-        .collection('users')
-        .doc(user.uid)
-        .collection('policy_acceptances')
-        .doc(shopId)
-        .get();
-
-    final policyAcceptance = policyAcceptanceDoc.data() ?? {};
-
-    final rawPolicyVersion = policyAcceptance['acceptedVersion'];
-
-    final int policyVersion = rawPolicyVersion is int
-        ? rawPolicyVersion
-        : int.tryParse(rawPolicyVersion?.toString() ?? '') ?? 0;
-
-    final policyTitle = '入住須知';
-
-    final Timestamp? policyAcceptedAt =
-        policyAcceptance['acceptedAt'] is Timestamp
-        ? policyAcceptance['acceptedAt'] as Timestamp
-        : null;
+    final int policyVersion = resolvedConsent.termsVersion;
+    final String policyTitle = resolvedConsent.termsTitle;
+    final Timestamp? policyAcceptedAt = resolvedConsent.termsAcceptedAt == null
+        ? null
+        : Timestamp.fromDate(resolvedConsent.termsAcceptedAt!);
 
     final basePrice = (selectedRoomType['price'] ?? 0).toInt();
     final petCount = selectedPetIds.length;
@@ -268,6 +261,7 @@ class BookingSubmitHelper {
       policyVersion: policyVersion,
       policyTitle: policyTitle,
       policyAcceptedAt: policyAcceptedAt,
+      termsConsent: resolvedConsent,
 
       /// 🔒 傳入固定訂單文件 ID，避免同一請求重送建立兩筆
       requestId: requestId,
@@ -330,6 +324,14 @@ class BookingSubmitHelper {
           'policyTitle': policyTitle,
           'policyAcceptedAt': policyAcceptedAt,
           'policyAcceptedFrom': 'customer',
+          'termsType': resolvedConsent.termsType,
+          'termsVersion': resolvedConsent.termsVersion,
+          'termsTitle': resolvedConsent.termsTitle,
+          if (resolvedConsent.consentRecordId.isNotEmpty)
+            'consentRecordId': resolvedConsent.consentRecordId,
+          if (resolvedConsent.termsVersionDocumentId.isNotEmpty)
+            'termsVersionDocumentId':
+                resolvedConsent.termsVersionDocumentId,
           'updatedAt': FieldValue.serverTimestamp(),
         }, SetOptions(merge: true));
 

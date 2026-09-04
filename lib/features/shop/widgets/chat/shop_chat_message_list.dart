@@ -1,9 +1,9 @@
-// lib/features/shop/widgets/chat/shop_chat_message_list.dart
 // 💬 聊天訊息列表：前後台共用
 
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:petnest_saas/core/models/shop_chat_message_model.dart';
+import 'package:petnest_saas/core/models/shop_frontend_theme.dart';
 import 'package:petnest_saas/features/shop/widgets/chat/shop_chat_image_viewer.dart';
 
 class ShopChatMessageList extends StatelessWidget {
@@ -12,6 +12,7 @@ class ShopChatMessageList extends StatelessWidget {
     required this.messages,
     required this.shopName,
     required this.primaryColor,
+    this.appearance,
     this.showShopReadReceipt = false,
     this.shopHasReadLast = false,
     this.onLoadOlder,
@@ -21,6 +22,7 @@ class ShopChatMessageList extends StatelessWidget {
   final List<ShopChatMessageModel> messages;
   final String shopName;
   final Color primaryColor;
+  final ShopFrontendTheme? appearance;
   final bool showShopReadReceipt;
   final bool shopHasReadLast;
   final VoidCallback? onLoadOlder;
@@ -57,28 +59,39 @@ class ShopChatMessageList extends StatelessWidget {
           }
           final int reversedIndex = messages.length - 1 - index;
           final ShopChatMessageModel message = messages[reversedIndex];
-          final ShopChatMessageModel? previous =
-              reversedIndex > 0 ? messages[reversedIndex - 1] : null;
-          final bool showDate = previous == null ||
+          final ShopChatMessageModel? previous = reversedIndex > 0
+              ? messages[reversedIndex - 1]
+              : null;
+          final bool showDate =
+              previous == null ||
               !_sameDay(previous.createdAt, message.createdAt);
-          final bool isLastCustomer = reversedIndex == messages.length - 1 &&
+          final bool isLastCustomer =
+              reversedIndex == messages.length - 1 &&
               message.senderType == ShopChatSenderTypes.customer;
           return Column(
             children: <Widget>[
-              if (showDate) _DateDivider(time: message.createdAt),
+              if (showDate)
+                _DateDivider(
+                  time: message.createdAt,
+                  color: appearance?.subtitleColor,
+                ),
               _Bubble(
                 message: message,
                 shopName: shopName,
                 primaryColor: primaryColor,
+                appearance: appearance,
               ),
               if (showShopReadReceipt && isLastCustomer && shopHasReadLast)
-                const Align(
+                Align(
                   alignment: Alignment.centerRight,
                   child: Padding(
-                    padding: EdgeInsets.only(right: 8, bottom: 6),
+                    padding: const EdgeInsets.only(right: 8, bottom: 6),
                     child: Text(
                       '已讀',
-                      style: TextStyle(fontSize: 11, color: Colors.grey),
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: appearance?.subtitleColor ?? Colors.grey,
+                      ),
                     ),
                   ),
                 ),
@@ -98,9 +111,10 @@ class ShopChatMessageList extends StatelessWidget {
 }
 
 class _DateDivider extends StatelessWidget {
-  const _DateDivider({required this.time});
+  const _DateDivider({required this.time, this.color});
 
   final DateTime? time;
+  final Color? color;
 
   @override
   Widget build(BuildContext context) {
@@ -108,7 +122,7 @@ class _DateDivider extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: 10),
       child: Text(
         _label(),
-        style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+        style: TextStyle(fontSize: 12, color: color ?? Colors.grey.shade600),
       ),
     );
   }
@@ -135,16 +149,28 @@ class _Bubble extends StatelessWidget {
     required this.message,
     required this.shopName,
     required this.primaryColor,
+    this.appearance,
   });
 
   final ShopChatMessageModel message;
   final String shopName;
   final Color primaryColor;
+  final ShopFrontendTheme? appearance;
 
   @override
   Widget build(BuildContext context) {
     final bool mine = !message.isFromShop;
     final String timeText = _timeLabel(message.createdAt);
+    final Color bubbleColor = mine
+        ? (appearance?.primaryColor ?? primaryColor)
+        : (appearance?.primarySoft ?? const Color(0xFFF3EEE8));
+    final Color textColor = mine
+        ? (appearance?.onPrimaryColor ?? Colors.white)
+        : (appearance?.bodyTextColor ?? const Color(0xFF2A221C));
+    final Color timeColor = mine
+        ? textColor.withValues(alpha: 0.78)
+        : (appearance?.subtitleColor ?? Colors.grey.shade600);
+    final double maxW = MediaQuery.sizeOf(context).width * 0.78;
     final Widget content = message.isImage
         ? GestureDetector(
             onTap: () {
@@ -168,28 +194,27 @@ class _Bubble extends StatelessWidget {
           )
         : Text(
             message.text,
-            style: TextStyle(
-              color: mine ? Colors.white : const Color(0xFF2A221C),
-              height: 1.35,
-            ),
+            softWrap: true,
+            style: TextStyle(color: textColor, height: 1.35),
           );
 
     return Align(
       alignment: mine ? Alignment.centerRight : Alignment.centerLeft,
       child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 280),
+        constraints: BoxConstraints(maxWidth: maxW.clamp(200, 420)),
         child: Container(
           margin: const EdgeInsets.only(bottom: 8),
           padding: message.isImage
               ? const EdgeInsets.all(4)
               : const EdgeInsets.fromLTRB(12, 8, 12, 8),
           decoration: BoxDecoration(
-            color: mine ? primaryColor : const Color(0xFFF3EEE8),
+            color: bubbleColor,
             borderRadius: BorderRadius.circular(16),
           ),
           child: Column(
-            crossAxisAlignment:
-                mine ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+            crossAxisAlignment: mine
+                ? CrossAxisAlignment.end
+                : CrossAxisAlignment.start,
             children: <Widget>[
               if (!mine && !message.isImage)
                 Padding(
@@ -198,20 +223,14 @@ class _Bubble extends StatelessWidget {
                     shopName,
                     style: TextStyle(
                       fontSize: 11,
-                      color: primaryColor,
+                      color: appearance?.primaryColor ?? primaryColor,
                       fontWeight: FontWeight.w700,
                     ),
                   ),
                 ),
               content,
               const SizedBox(height: 4),
-              Text(
-                timeText,
-                style: TextStyle(
-                  fontSize: 10,
-                  color: mine ? Colors.white70 : Colors.grey.shade600,
-                ),
-              ),
+              Text(timeText, style: TextStyle(fontSize: 10, color: timeColor)),
             ],
           ),
         ),

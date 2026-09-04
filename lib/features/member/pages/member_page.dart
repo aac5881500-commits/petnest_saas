@@ -9,6 +9,8 @@ import 'package:flutter/services.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:petnest_saas/core/widgets/shop_frontend_theme_scope.dart';
+import 'package:petnest_saas/core/models/shop_frontend_theme.dart';
 import 'package:petnest_saas/core/services/member_avatar_service.dart';
 import 'package:petnest_saas/core/services/pet_service.dart';
 import 'package:petnest_saas/core/models/home_theme_model.dart';
@@ -18,20 +20,20 @@ import 'package:petnest_saas/features/pet/pages/add_pet_page.dart';
 import 'package:petnest_saas/features/shop/widgets/media/banner_image_crop_page.dart';
 import 'package:petnest_saas/core/constants/taiwan_city_data.dart';
 import 'package:petnest_saas/features/booking/pages/my_reviews_page.dart';
+import 'package:petnest_saas/features/booking/pages/my_bookings_page.dart';
 import 'package:petnest_saas/features/member/pages/member_point_detail_page.dart';
 import 'package:petnest_saas/features/member/pages/member_coupon_page.dart';
 import 'package:petnest_saas/core/services/notification_service.dart';
 import 'package:petnest_saas/features/notifications/pages/notification_center_page.dart';
 import 'package:petnest_saas/features/notifications/pages/notification_setting_page.dart';
 import 'package:petnest_saas/features/member/pages/member_point_redemption_page.dart';
-import 'package:petnest_saas/core/widgets/point_module_visibility.dart';
 import 'package:petnest_saas/core/widgets/member_point_history_visibility.dart';
 import 'package:petnest_saas/core/debug/chat_error_probe.dart';
 import 'package:petnest_saas/core/services/shop_chat_service.dart';
 import 'package:petnest_saas/core/services/shop_service.dart';
 import 'package:petnest_saas/features/shop/pages/chat/shop_customer_chat_page.dart';
 
-class MemberPage extends StatefulWidget {
+class MemberPage extends StatelessWidget {
   const MemberPage({
     super.key,
     required this.shopId,
@@ -41,13 +43,32 @@ class MemberPage extends StatefulWidget {
 
   final String shopId;
   final String shopName;
+
+  /// 保留建構子相容；實際配色一律讀取店家 homeAppearance。
   final HomeThemeModel theme;
 
   @override
-  State<MemberPage> createState() => _MemberPageState();
+  Widget build(BuildContext context) {
+    return ShopFrontendThemeScope(
+      shopId: shopId,
+      builder: (BuildContext context) {
+        return _MemberPageBody(shopId: shopId, shopName: shopName);
+      },
+    );
+  }
 }
 
-class _MemberPageState extends State<MemberPage> {
+class _MemberPageBody extends StatefulWidget {
+  const _MemberPageBody({required this.shopId, required this.shopName});
+
+  final String shopId;
+  final String shopName;
+
+  @override
+  State<_MemberPageBody> createState() => _MemberPageState();
+}
+
+class _MemberPageState extends State<_MemberPageBody> {
   final _formKey = GlobalKey<FormState>();
   final TextEditingController _phoneController = TextEditingController();
 
@@ -985,7 +1006,9 @@ class _MemberPageState extends State<MemberPage> {
   void _openAddPetPage() {
     Navigator.push(
       context,
-      MaterialPageRoute<void>(builder: (_) => AddPetPage(theme: widget.theme)),
+      MaterialPageRoute<void>(
+        builder: (_) => AddPetPage(theme: ShopFrontendTheme.of(context).home),
+      ),
     );
   }
 
@@ -1086,11 +1109,12 @@ class _MemberPageState extends State<MemberPage> {
       _syncMemberByEmail(user);
     }
 
+    final ShopFrontendTheme appearance = ShopFrontendTheme.of(context);
     return Scaffold(
-      backgroundColor: widget.theme.backgroundColor,
+      backgroundColor: appearance.pageBackgroundColor,
       appBar: AppBar(
-        backgroundColor: widget.theme.cardColor,
-        foregroundColor: widget.theme.textColor,
+        backgroundColor: appearance.cardColor,
+        foregroundColor: appearance.titleColor,
         surfaceTintColor: Colors.transparent,
         title: const Text(
           '會員中心',
@@ -1393,6 +1417,112 @@ class _MemberPageState extends State<MemberPage> {
                               _buildBlockTitle('訂單中心'),
                               Column(
                                 children: [
+                                  _memberNavTile(
+                                    icon: Icons.receipt_long_outlined,
+                                    iconColor: ShopFrontendTheme.of(
+                                      context,
+                                    ).primaryColor,
+                                    title: '我的訂單',
+                                    subtitle: '查看住宿與安親預約',
+                                    onTap: () {
+                                      Navigator.push(
+                                        context,
+                                        MaterialPageRoute<void>(
+                                          builder: (_) => MyBookingsPage(
+                                            returnShopId: widget.shopId,
+                                          ),
+                                        ),
+                                      );
+                                    },
+                                  ),
+                                  _memberNavTile(
+                                    icon: Icons.confirmation_number_outlined,
+                                    iconColor: const Color(0xFF8A6BBF),
+                                    title: '我的優惠券',
+                                    subtitle: '查看目前店家的可用與歷史優惠券',
+                                    onTap: () {
+                                      final currentShopId = widget.shopId
+                                          .trim();
+
+                                      if (currentShopId.isEmpty) {
+                                        ScaffoldMessenger.of(
+                                          context,
+                                        ).showSnackBar(
+                                          const SnackBar(
+                                            content: Text('找不到目前店家資料'),
+                                          ),
+                                        );
+                                        return;
+                                      }
+
+                                      Navigator.push(
+                                        context,
+                                        MaterialPageRoute<void>(
+                                          builder: (_) => MemberCouponPage(
+                                            shopId: currentShopId,
+                                            shopName: widget.shopName.trim(),
+                                          ),
+                                        ),
+                                      );
+                                    },
+                                  ),
+                                  MemberPointHistoryVisibility(
+                                    shopId: widget.shopId,
+                                    userId: user.uid,
+                                    enabledChild: _buildMyPointsTile(user),
+                                    historyChild: _buildMyPointsTile(user),
+                                    emptyChild: const SizedBox.shrink(),
+                                  ),
+                                  StreamBuilder<
+                                    QuerySnapshot<Map<String, dynamic>>
+                                  >(
+                                    stream: FirebaseFirestore.instance
+                                        .collection('shops')
+                                        .doc(widget.shopId.trim())
+                                        .collection('point_redemptions')
+                                        .where('userId', isEqualTo: user.uid)
+                                        .limit(1)
+                                        .snapshots(),
+                                    builder:
+                                        (
+                                          BuildContext context,
+                                          AsyncSnapshot<
+                                            QuerySnapshot<Map<String, dynamic>>
+                                          >
+                                          snapshot,
+                                        ) {
+                                          final bool hasRedemptionHistory =
+                                              snapshot.hasData &&
+                                              snapshot.data!.docs.isNotEmpty;
+
+                                          return MemberPointHistoryVisibility(
+                                            shopId: widget.shopId,
+                                            userId: user.uid,
+                                            enabledChild:
+                                                _buildMyPointRedemptionTile(),
+                                            historyChild: hasRedemptionHistory
+                                                ? _buildMyPointRedemptionTile()
+                                                : const SizedBox.shrink(),
+                                            emptyChild: const SizedBox.shrink(),
+                                          );
+                                        },
+                                  ),
+                                  _memberNavTile(
+                                    icon: Icons.rate_review_outlined,
+                                    iconColor: const Color(0xFFC49A3A),
+                                    title: '我的評價',
+                                    subtitle: '查看住宿評價、店家回覆與修改',
+                                    onTap: () {
+                                      Navigator.push(
+                                        context,
+                                        MaterialPageRoute<void>(
+                                          builder: (_) => MyReviewsPage(
+                                            shopId: widget.shopId,
+                                          ),
+                                        ),
+                                      );
+                                    },
+                                  ),
                                   StreamBuilder<Map<String, dynamic>?>(
                                     stream: ShopService.instance.streamShop(
                                       widget.shopId,
@@ -1466,92 +1596,6 @@ class _MemberPageState extends State<MemberPage> {
                                                     },
                                               ),
                                             ],
-                                          );
-                                        },
-                                  ),
-                                  MemberPointHistoryVisibility(
-                                    shopId: widget.shopId,
-                                    userId: user.uid,
-                                    enabledChild: _buildMyPointsTile(user),
-                                    historyChild: _buildMyPointsTile(user),
-                                    emptyChild: const SizedBox.shrink(),
-                                  ),
-                                  _memberNavTile(
-                                    icon: Icons.confirmation_number_outlined,
-                                    iconColor: const Color(0xFF8A6BBF),
-                                    title: '我的優惠券',
-                                    subtitle: '查看目前店家的可用與歷史優惠券',
-                                    onTap: () {
-                                      final currentShopId = widget.shopId
-                                          .trim();
-
-                                      if (currentShopId.isEmpty) {
-                                        ScaffoldMessenger.of(
-                                          context,
-                                        ).showSnackBar(
-                                          const SnackBar(
-                                            content: Text('找不到目前店家資料'),
-                                          ),
-                                        );
-                                        return;
-                                      }
-
-                                      Navigator.push(
-                                        context,
-                                        MaterialPageRoute<void>(
-                                          builder: (_) => MemberCouponPage(
-                                            shopId: currentShopId,
-                                            shopName: widget.shopName.trim(),
-                                          ),
-                                        ),
-                                      );
-                                    },
-                                  ),
-                                  _memberNavTile(
-                                    icon: Icons.rate_review_outlined,
-                                    iconColor: const Color(0xFFC49A3A),
-                                    title: '我的評價',
-                                    subtitle: '查看住宿評價、店家回覆與修改',
-                                    onTap: () {
-                                      Navigator.push(
-                                        context,
-                                        MaterialPageRoute<void>(
-                                          builder: (_) => const MyReviewsPage(),
-                                        ),
-                                      );
-                                    },
-                                  ),
-                                  StreamBuilder<
-                                    QuerySnapshot<Map<String, dynamic>>
-                                  >(
-                                    stream: FirebaseFirestore.instance
-                                        .collection('shops')
-                                        .doc(widget.shopId.trim())
-                                        .collection('point_redemptions')
-                                        .where('userId', isEqualTo: user.uid)
-                                        .limit(1)
-                                        .snapshots(),
-                                    builder:
-                                        (
-                                          BuildContext context,
-                                          AsyncSnapshot<
-                                            QuerySnapshot<Map<String, dynamic>>
-                                          >
-                                          snapshot,
-                                        ) {
-                                          final bool hasRedemptionHistory =
-                                              snapshot.hasData &&
-                                              snapshot.data!.docs.isNotEmpty;
-
-                                          return MemberPointHistoryVisibility(
-                                            shopId: widget.shopId,
-                                            userId: user.uid,
-                                            enabledChild:
-                                                _buildMyPointRedemptionTile(),
-                                            historyChild: hasRedemptionHistory
-                                                ? _buildMyPointRedemptionTile()
-                                                : const SizedBox.shrink(),
-                                            emptyChild: const SizedBox.shrink(),
                                           );
                                         },
                                   ),
@@ -1699,7 +1743,7 @@ class _MemberPageState extends State<MemberPage> {
                   style: TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.w700,
-                    color: widget.theme.textColor,
+                    color: ShopFrontendTheme.of(context).home.textColor,
                   ),
                 ),
                 if (subtitle != null) ...[
@@ -1709,7 +1753,9 @@ class _MemberPageState extends State<MemberPage> {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
-                      color: widget.theme.textColor.withValues(alpha: 0.55),
+                      color: ShopFrontendTheme.of(
+                        context,
+                      ).home.textColor.withValues(alpha: 0.55),
                       fontSize: 12,
                     ),
                   ),
@@ -1738,16 +1784,20 @@ class _MemberPageState extends State<MemberPage> {
     return Container(
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: widget.theme.cardBorderColor),
+        border: Border.all(
+          color: ShopFrontendTheme.of(context).home.cardBorderColor,
+        ),
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: <Color>[
             Color.alphaBlend(
-              widget.theme.primaryColor.withValues(alpha: 0.14),
-              widget.theme.cardColor,
+              ShopFrontendTheme.of(
+                context,
+              ).home.primaryColor.withValues(alpha: 0.14),
+              ShopFrontendTheme.of(context).home.cardColor,
             ),
-            widget.theme.cardColor,
+            ShopFrontendTheme.of(context).home.cardColor,
           ],
         ),
       ),
@@ -1779,7 +1829,7 @@ class _MemberPageState extends State<MemberPage> {
                     style: TextStyle(
                       fontSize: 14,
                       fontWeight: FontWeight.w600,
-                      color: widget.theme.textColor,
+                      color: ShopFrontendTheme.of(context).home.textColor,
                     ),
                   ),
                   if (phone.isNotEmpty) ...[
@@ -1789,7 +1839,9 @@ class _MemberPageState extends State<MemberPage> {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
-                        color: widget.theme.textColor.withValues(alpha: 0.65),
+                        color: ShopFrontendTheme.of(
+                          context,
+                        ).home.textColor.withValues(alpha: 0.65),
                         fontSize: 13,
                       ),
                     ),
@@ -1801,7 +1853,9 @@ class _MemberPageState extends State<MemberPage> {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
-                        color: widget.theme.textColor.withValues(alpha: 0.55),
+                        color: ShopFrontendTheme.of(
+                          context,
+                        ).home.textColor.withValues(alpha: 0.55),
                         fontSize: 12,
                       ),
                     ),
@@ -1812,7 +1866,10 @@ class _MemberPageState extends State<MemberPage> {
             IconButton(
               tooltip: '編輯',
               onPressed: _avatarBusy ? null : () => _openProfileEditor(user),
-              icon: Icon(Icons.edit_outlined, color: widget.theme.primaryColor),
+              icon: Icon(
+                Icons.edit_outlined,
+                color: ShopFrontendTheme.of(context).home.primaryColor,
+              ),
             ),
           ],
         ),
@@ -1830,10 +1887,10 @@ class _MemberPageState extends State<MemberPage> {
     bool warning = false,
     bool muted = false,
   }) {
-    final HomeThemeModel theme = widget.theme;
+    final HomeThemeModel theme = ShopFrontendTheme.of(context).home;
     final Color border = warning ? Colors.red.shade200 : theme.cardBorderColor;
     final Color fill = warning
-        ? const Color(0xFFFFF7F6)
+        ? ShopFrontendTheme.errorSoft
         : muted
         ? Color.alphaBlend(
             theme.primaryColor.withValues(alpha: 0.04),
@@ -1922,7 +1979,7 @@ class _MemberPageState extends State<MemberPage> {
     required String subtitle,
     required VoidCallback onTap,
   }) {
-    final HomeThemeModel theme = widget.theme;
+    final HomeThemeModel theme = ShopFrontendTheme.of(context).home;
     return Material(
       color: theme.cardColor,
       borderRadius: BorderRadius.circular(16),
@@ -1978,7 +2035,7 @@ class _MemberPageState extends State<MemberPage> {
   }
 
   Widget _addPetDashedCard() {
-    final HomeThemeModel theme = widget.theme;
+    final HomeThemeModel theme = ShopFrontendTheme.of(context).home;
     return CustomPaint(
       painter: _DashedRRectPainter(color: theme.cardBorderColor),
       child: Material(
@@ -2010,7 +2067,7 @@ class _MemberPageState extends State<MemberPage> {
   }
 
   Widget _petCard(Map<String, dynamic> pet) {
-    final HomeThemeModel theme = widget.theme;
+    final HomeThemeModel theme = ShopFrontendTheme.of(context).home;
     final String photoUrl = (pet['photoUrl'] ?? pet['imageUrl'] ?? '')
         .toString()
         .trim();

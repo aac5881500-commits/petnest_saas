@@ -5,6 +5,14 @@
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/models/point_redemption_model.dart';
 import 'package:petnest_saas/core/services/point_redemption_service.dart';
+import 'package:petnest_saas/core/widgets/shop_frontend_theme_scope.dart';
+import 'package:petnest_saas/features/member/pages/point_exchange_page.dart';
+import 'package:petnest_saas/features/member/widgets/member_empty_state.dart';
+import 'package:petnest_saas/features/member/widgets/member_filter_chips.dart';
+import 'package:petnest_saas/features/member/widgets/member_page_scaffold.dart';
+import 'package:petnest_saas/features/member/widgets/member_section_card.dart';
+import 'package:petnest_saas/features/member/widgets/member_status_chip.dart';
+import 'package:petnest_saas/features/member/widgets/member_ui_tokens.dart';
 
 class MemberPointRedemptionPage extends StatelessWidget {
   const MemberPointRedemptionPage({
@@ -19,83 +27,129 @@ class MemberPointRedemptionPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final String normalizedShopId = shopId.trim();
+    final String title = shopName.trim().isEmpty
+        ? '我的實體商品'
+        : '${shopName.trim()}・我的實體商品';
 
-    if (normalizedShopId.isEmpty) {
-      return const Scaffold(body: Center(child: Text('找不到目前店家資料')));
-    }
-
-    return DefaultTabController(
-      length: 4,
-      child: Scaffold(
-        appBar: AppBar(
-          title: Text(
-            shopName.trim().isEmpty ? '我的實體商品' : '${shopName.trim()}・我的實體商品',
-          ),
-          bottom: const TabBar(
-            isScrollable: true,
-            tabs: [
-              Tab(text: '待領取'),
-              Tab(text: '已領取'),
-              Tab(text: '已取消'),
-              Tab(text: '已過期'),
-            ],
-          ),
-        ),
-        body: StreamBuilder<List<PointRedemptionModel>>(
-          stream: PointRedemptionService.instance.streamMyRedemptions(
-            shopId: normalizedShopId,
-          ),
-          builder: (context, snapshot) {
-            if (snapshot.hasError) {
-              return Center(
-                child: Padding(
-                  padding: const EdgeInsets.all(24),
-                  child: Text(
-                    '讀取實體商品紀錄失敗\n${snapshot.error}',
-                    textAlign: TextAlign.center,
-                  ),
+    return ShopFrontendThemeScope(
+      shopId: normalizedShopId,
+      builder: (BuildContext context) => normalizedShopId.isEmpty
+          ? MemberPageScaffold(
+              title: title,
+              body: const MemberEmptyState(
+                icon: Icons.storefront_outlined,
+                title: '找不到店家',
+                message: '目前沒有可查看的店家資料。',
+              ),
+            )
+          : DefaultTabController(
+              length: 4,
+              child: StreamBuilder<List<PointRedemptionModel>>(
+                stream: PointRedemptionService.instance.streamMyRedemptions(
+                  shopId: normalizedShopId,
                 ),
-              );
-            }
-
-            if (!snapshot.hasData) {
-              return const Center(child: CircularProgressIndicator());
-            }
-
-            final List<PointRedemptionModel> redemptions = snapshot.data!;
-
-            return TabBarView(
-              children: [
-                _RedemptionList(
-                  redemptions: redemptions.where(_isPendingPickup).toList(),
-                  emptyText: '目前沒有待領取商品',
-                ),
-                _RedemptionList(
-                  redemptions: redemptions
+                builder: (context, snapshot) {
+                  final List<PointRedemptionModel> redemptions =
+                      snapshot.data ?? const <PointRedemptionModel>[];
+                  final List<PointRedemptionModel> pending = redemptions
+                      .where(_isPendingPickup)
+                      .toList();
+                  final List<PointRedemptionModel> picked = redemptions
                       .where(
                         (item) => item.status == PointRedemptionStatus.pickedUp,
                       )
-                      .toList(),
-                  emptyText: '目前沒有已領取商品',
-                ),
-                _RedemptionList(
-                  redemptions: redemptions
+                      .toList();
+                  final List<PointRedemptionModel> cancelled = redemptions
                       .where(
                         (item) =>
                             item.status == PointRedemptionStatus.cancelled,
                       )
-                      .toList(),
-                  emptyText: '目前沒有已取消商品',
-                ),
-                _RedemptionList(
-                  redemptions: redemptions.where(_isExpired).toList(),
-                  emptyText: '目前沒有已過期商品',
-                ),
-              ],
-            );
-          },
-        ),
-      ),
+                      .toList();
+                  final List<PointRedemptionModel> expired = redemptions
+                      .where(_isExpired)
+                      .toList();
+
+                  Widget body;
+                  if (snapshot.hasError) {
+                    MemberUi.logError(snapshot.error!);
+                    body = MemberErrorState(
+                      message: MemberUi.friendlyError(snapshot.error!),
+                    );
+                  } else if (!snapshot.hasData) {
+                    body = const Padding(
+                      padding: EdgeInsets.all(24),
+                      child: Center(child: CircularProgressIndicator()),
+                    );
+                  } else {
+                    body = TabBarView(
+                      children: <Widget>[
+                        _RedemptionList(
+                          redemptions: pending,
+                          emptyTitle: '目前沒有待領取商品',
+                          emptyMessage: '兌換實體商品後，待領取項目會顯示在這裡。',
+                          showMallButton: true,
+                          shopId: normalizedShopId,
+                          shopName: shopName,
+                        ),
+                        _RedemptionList(
+                          redemptions: picked,
+                          emptyTitle: '目前沒有已領取商品',
+                          emptyMessage: '完成到店核銷後，紀錄會顯示在這裡。',
+                        ),
+                        _RedemptionList(
+                          redemptions: cancelled,
+                          emptyTitle: '目前沒有已取消商品',
+                          emptyMessage: '被取消的兌換紀錄會顯示在這裡。',
+                        ),
+                        _RedemptionList(
+                          redemptions: expired,
+                          emptyTitle: '目前沒有已過期商品',
+                          emptyMessage: '超過領取期限的兌換紀錄會顯示在這裡。',
+                        ),
+                      ],
+                    );
+                  }
+
+                  return MemberPageScaffold(
+                    title: title,
+                    bottom: TabBar(
+                      isScrollable: true,
+                      tabAlignment: TabAlignment.start,
+                      labelColor: MemberUi.of(context).primary,
+                      unselectedLabelColor: MemberUi.of(context).muted,
+                      indicatorColor: MemberUi.of(context).primary,
+                      tabs: <Widget>[
+                        Tab(
+                          child: MemberCountTab(
+                            label: '待領取',
+                            count: pending.length,
+                          ),
+                        ),
+                        Tab(
+                          child: MemberCountTab(
+                            label: '已領取',
+                            count: picked.length,
+                          ),
+                        ),
+                        Tab(
+                          child: MemberCountTab(
+                            label: '已取消',
+                            count: cancelled.length,
+                          ),
+                        ),
+                        Tab(
+                          child: MemberCountTab(
+                            label: '已過期',
+                            count: expired.length,
+                          ),
+                        ),
+                      ],
+                    ),
+                    body: body,
+                  );
+                },
+              ),
+            ),
     );
   }
 
@@ -111,25 +165,65 @@ class MemberPointRedemptionPage extends StatelessWidget {
   }
 }
 
-class _RedemptionList extends StatelessWidget {
-  const _RedemptionList({required this.redemptions, required this.emptyText});
+class _RedemptionList extends StatefulWidget {
+  const _RedemptionList({
+    required this.redemptions,
+    required this.emptyTitle,
+    required this.emptyMessage,
+    this.showMallButton = false,
+    this.shopId = '',
+    this.shopName = '',
+  });
 
   final List<PointRedemptionModel> redemptions;
-  final String emptyText;
+  final String emptyTitle;
+  final String emptyMessage;
+  final bool showMallButton;
+  final String shopId;
+  final String shopName;
+
+  @override
+  State<_RedemptionList> createState() => _RedemptionListState();
+}
+
+class _RedemptionListState extends State<_RedemptionList>
+    with AutomaticKeepAliveClientMixin {
+  @override
+  bool get wantKeepAlive => true;
 
   @override
   Widget build(BuildContext context) {
-    if (redemptions.isEmpty) {
-      return _EmptyView(text: emptyText);
+    super.build(context);
+    if (widget.redemptions.isEmpty) {
+      return MemberEmptyState(
+        icon: Icons.inventory_2_outlined,
+        title: widget.emptyTitle,
+        message: widget.emptyMessage,
+        actionLabel: widget.showMallButton ? '前往點數商城' : null,
+        onAction: widget.showMallButton
+            ? () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute<void>(
+                    builder: (_) => PointExchangePage(
+                      shopId: widget.shopId,
+                      shopName: widget.shopName,
+                    ),
+                  ),
+                );
+              }
+            : null,
+      );
     }
 
-    return ListView.separated(
-      padding: const EdgeInsets.all(16),
-      itemCount: redemptions.length,
-      separatorBuilder: (_, __) => const SizedBox(height: 12),
-      itemBuilder: (context, index) {
-        return _RedemptionCard(redemption: redemptions[index]);
-      },
+    return MemberUi.constrain(
+      ListView.builder(
+        padding: const EdgeInsets.all(MemberUi.pagePadding),
+        itemCount: widget.redemptions.length,
+        itemBuilder: (context, index) {
+          return _RedemptionCard(redemption: widget.redemptions[index]);
+        },
+      ),
     );
   }
 }
@@ -144,102 +238,158 @@ class _RedemptionCard extends StatelessWidget {
     final bool expired =
         redemption.status == PointRedemptionStatus.expired ||
         (redemption.isPendingPickup && redemption.hasExpired);
+    final bool muted =
+        expired || redemption.status == PointRedemptionStatus.cancelled;
+    final MemberChipTone tone;
+    final String statusLabel;
+    if (expired) {
+      statusLabel = '已過期';
+      tone = MemberChipTone.neutral;
+    } else if (redemption.status == PointRedemptionStatus.pickedUp) {
+      statusLabel = '已領取';
+      tone = MemberChipTone.success;
+    } else if (redemption.status == PointRedemptionStatus.cancelled) {
+      statusLabel = '已取消';
+      tone = MemberChipTone.danger;
+    } else {
+      statusLabel = '待領取';
+      tone = MemberChipTone.warning;
+    }
 
-    return Card(
-      clipBehavior: Clip.antiAlias,
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _RewardImage(imageUrl: redemption.rewardImageUrl),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
+    return MemberSectionCard(
+      muted: muted,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              _RewardImage(imageUrl: redemption.rewardImageUrl),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Text(
+                      redemption.rewardName,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: MemberUi.cardTitleSize,
+                        fontWeight: FontWeight.w700,
+                        color: MemberUi.of(context).text,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    MemberStatusChip(label: statusLabel, tone: tone),
+                    if (redemption.inventoryQuantity > 0) ...<Widget>[
+                      const SizedBox(height: 6),
                       Text(
-                        redemption.rewardName,
-                        style: const TextStyle(
-                          fontSize: 17,
-                          fontWeight: FontWeight.bold,
+                        '數量 ${redemption.inventoryQuantity}',
+                        style: TextStyle(
+                          fontSize: MemberUi.captionSize,
+                          color: MemberUi.of(context).muted,
                         ),
                       ),
-                      if (redemption.rewardDescription.trim().isNotEmpty) ...[
-                        const SizedBox(height: 5),
-                        Text(
-                          redemption.rewardDescription.trim(),
-                          style: TextStyle(color: Colors.grey.shade700),
-                        ),
-                      ],
-                      const SizedBox(height: 8),
-                      _StatusChip(status: redemption.status, expired: expired),
                     ],
-                  ),
+                  ],
                 ),
-              ],
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Text(
+            '使用 ${redemption.pointsCost} 點兌換',
+            style: TextStyle(
+              fontSize: MemberUi.bodySize,
+              color: MemberUi.of(context).text,
             ),
-            const SizedBox(height: 14),
-            _InfoRow(
-              icon: Icons.paid_outlined,
-              text: '使用 ${redemption.pointsCost} 點兌換',
+          ),
+          const SizedBox(height: 4),
+          Text(
+            '兌換時間：${_dateTimeText(redemption.createdAt)}',
+            style: TextStyle(
+              fontSize: MemberUi.captionSize,
+              color: MemberUi.of(context).muted,
             ),
-            const SizedBox(height: 7),
-            _InfoRow(
-              icon: Icons.schedule_outlined,
-              text: '兌換時間：${_dateTimeText(redemption.createdAt)}',
+          ),
+          Text(
+            redemption.expireAt == null
+                ? '領取期限：永久有效'
+                : '領取期限：${_dateTimeText(redemption.expireAt!)}',
+            style: TextStyle(
+              fontSize: MemberUi.captionSize,
+              color: MemberUi.of(context).muted,
             ),
-            if (redemption.expireAt != null) ...[
-              const SizedBox(height: 7),
-              _InfoRow(
-                icon: Icons.event_busy_outlined,
-                text: '領取期限：${_dateTimeText(redemption.expireAt!)}',
+          ),
+          if (redemption.fulfillmentNote.trim().isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: Text(
+                redemption.fulfillmentNote.trim(),
+                style: TextStyle(
+                  fontSize: MemberUi.captionSize,
+                  color: MemberUi.of(context).muted,
+                ),
               ),
-            ] else ...[
-              const SizedBox(height: 7),
-              const _InfoRow(
-                icon: Icons.all_inclusive_outlined,
-                text: '領取期限：永久有效',
-              ),
-            ],
-            if (redemption.isPendingPickup && !expired) ...[
-              const SizedBox(height: 16),
-              _PickupCodeBox(pickupCode: redemption.pickupCode),
-            ],
-            if (redemption.fulfillmentNote.trim().isNotEmpty) ...[
-              const SizedBox(height: 12),
-              _InfoRow(
-                icon: Icons.storefront_outlined,
-                text: redemption.fulfillmentNote.trim(),
-              ),
-            ],
-            if (redemption.pickedUpAt != null) ...[
-              const SizedBox(height: 7),
-              _InfoRow(
-                icon: Icons.check_circle_outline,
-                text: '領取時間：${_dateTimeText(redemption.pickedUpAt!)}',
-              ),
-            ],
-            if (redemption.isCancelled &&
-                redemption.cancelReason.trim().isNotEmpty) ...[
-              const SizedBox(height: 7),
-              _InfoRow(
-                icon: Icons.info_outline,
-                text: '取消原因：${redemption.cancelReason.trim()}',
-              ),
-            ],
-            if (redemption.isCancelled) ...[
-              const SizedBox(height: 7),
-              _InfoRow(
-                icon: Icons.currency_exchange_outlined,
-                text: redemption.pointsRefunded ? '點數已退回' : '點數尚未退回',
-              ),
-            ],
+            ),
+          if (redemption.isPendingPickup && !expired) ...<Widget>[
+            const SizedBox(height: 12),
+            _PickupCodeBox(pickupCode: redemption.pickupCode),
           ],
-        ),
+          if (redemption.pickedUpAt != null) ...<Widget>[
+            const SizedBox(height: 8),
+            Text(
+              '領取時間：${_dateTimeText(redemption.pickedUpAt!)}',
+              style: TextStyle(
+                fontSize: MemberUi.captionSize,
+                color: MemberUi.of(context).success,
+              ),
+            ),
+            Text(
+              '核銷完成',
+              style: TextStyle(
+                fontSize: MemberUi.captionSize,
+                fontWeight: FontWeight.w600,
+                color: MemberUi.of(context).success,
+              ),
+            ),
+          ],
+          if (redemption.isCancelled &&
+              redemption.cancelReason.trim().isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: Text(
+                '取消原因：${redemption.cancelReason.trim()}',
+                style: TextStyle(
+                  fontSize: MemberUi.captionSize,
+                  color: MemberUi.of(context).text,
+                ),
+              ),
+            ),
+          if (redemption.isCancelled)
+            Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: Text(
+                redemption.pointsRefunded ? '點數已退回' : '點數尚未退回',
+                style: TextStyle(
+                  fontSize: MemberUi.captionSize,
+                  color: MemberUi.of(context).muted,
+                ),
+              ),
+            ),
+          if (expired && redemption.expireAt != null)
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: Text(
+                '過期時間：${_dateTimeText(redemption.expireAt!)}',
+                style: TextStyle(
+                  fontSize: MemberUi.captionSize,
+                  color: MemberUi.of(context).muted,
+                ),
+              ),
+            ),
+        ],
       ),
     );
   }
@@ -266,98 +416,33 @@ class _RewardImage extends StatelessWidget {
     final String normalizedUrl = imageUrl.trim();
 
     return ClipRRect(
-      borderRadius: BorderRadius.circular(10),
+      borderRadius: BorderRadius.circular(12),
       child: Container(
-        width: 76,
-        height: 76,
-        color: Colors.grey.shade100,
+        width: 80,
+        height: 80,
+        color: MemberUi.of(context).iconSoft,
         child: normalizedUrl.isEmpty
             ? Icon(
                 Icons.inventory_2_outlined,
-                size: 36,
-                color: Colors.grey.shade500,
+                size: 32,
+                color: MemberUi.of(context).muted,
               )
             : Image.network(
                 normalizedUrl,
                 fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) {
-                  return Icon(
-                    Icons.broken_image_outlined,
-                    size: 34,
-                    color: Colors.grey.shade500,
-                  );
-                },
+                errorBuilder:
+                    (
+                      BuildContext context,
+                      Object error,
+                      StackTrace? stackTrace,
+                    ) {
+                      return Icon(
+                        Icons.broken_image_outlined,
+                        size: 32,
+                        color: MemberUi.of(context).muted,
+                      );
+                    },
               ),
-      ),
-    );
-  }
-}
-
-class _StatusChip extends StatelessWidget {
-  const _StatusChip({required this.status, required this.expired});
-
-  final PointRedemptionStatus status;
-  final bool expired;
-
-  @override
-  Widget build(BuildContext context) {
-    final String text;
-    final IconData icon;
-    final Color backgroundColor;
-    final Color foregroundColor;
-
-    if (expired) {
-      text = '已過期';
-      icon = Icons.event_busy_outlined;
-      backgroundColor = Colors.grey.shade200;
-      foregroundColor = Colors.grey.shade700;
-    } else {
-      switch (status) {
-        case PointRedemptionStatus.pendingPickup:
-          text = '待領取';
-          icon = Icons.schedule_outlined;
-          backgroundColor = Colors.orange.shade50;
-          foregroundColor = Colors.orange.shade800;
-
-        case PointRedemptionStatus.pickedUp:
-          text = '已領取';
-          icon = Icons.check_circle_outline;
-          backgroundColor = Colors.green.shade50;
-          foregroundColor = Colors.green.shade800;
-
-        case PointRedemptionStatus.cancelled:
-          text = '已取消';
-          icon = Icons.cancel_outlined;
-          backgroundColor = Colors.red.shade50;
-          foregroundColor = Colors.red.shade700;
-
-        case PointRedemptionStatus.expired:
-          text = '已過期';
-          icon = Icons.event_busy_outlined;
-          backgroundColor = Colors.grey.shade200;
-          foregroundColor = Colors.grey.shade700;
-      }
-    }
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
-      decoration: BoxDecoration(
-        color: backgroundColor,
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 16, color: foregroundColor),
-          const SizedBox(width: 5),
-          Text(
-            text,
-            style: TextStyle(
-              color: foregroundColor,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-        ],
       ),
     );
   }
@@ -372,89 +457,40 @@ class _PickupCodeBox extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
       decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.primaryContainer,
+        color: MemberUi.of(context).iconSoft,
         borderRadius: BorderRadius.circular(12),
       ),
       child: Column(
-        children: [
+        children: <Widget>[
           Text(
             '到店領取碼',
             style: TextStyle(
-              color: Theme.of(context).colorScheme.onPrimaryContainer,
-            ),
-          ),
-          const SizedBox(height: 7),
-          SelectableText(
-            pickupCode.trim().isEmpty ? '尚未產生' : pickupCode.trim(),
-            style: TextStyle(
-              fontSize: 25,
-              fontWeight: FontWeight.bold,
-              letterSpacing: 3,
-              color: Theme.of(context).colorScheme.onPrimaryContainer,
+              fontSize: MemberUi.captionSize,
+              color: MemberUi.of(context).muted,
             ),
           ),
           const SizedBox(height: 6),
+          SelectableText(
+            pickupCode.trim().isEmpty ? '尚未產生' : pickupCode.trim(),
+            style: TextStyle(
+              fontSize: 24,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 3,
+              color: MemberUi.of(context).text,
+            ),
+          ),
+          const SizedBox(height: 4),
           Text(
             '領取商品時請向店員出示此代碼',
             textAlign: TextAlign.center,
             style: TextStyle(
-              fontSize: 12,
-              color: Theme.of(context).colorScheme.onPrimaryContainer,
+              fontSize: MemberUi.captionSize,
+              color: MemberUi.of(context).muted,
             ),
           ),
         ],
-      ),
-    );
-  }
-}
-
-class _InfoRow extends StatelessWidget {
-  const _InfoRow({required this.icon, required this.text});
-
-  final IconData icon;
-  final String text;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Icon(icon, size: 18, color: Colors.grey.shade600),
-        const SizedBox(width: 8),
-        Expanded(
-          child: Text(text, style: TextStyle(color: Colors.grey.shade700)),
-        ),
-      ],
-    );
-  }
-}
-
-class _EmptyView extends StatelessWidget {
-  const _EmptyView({required this.text});
-
-  final String text;
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          children: [
-            Icon(
-              Icons.inventory_2_outlined,
-              size: 64,
-              color: Colors.grey.shade400,
-            ),
-            const SizedBox(height: 14),
-            Text(
-              text,
-              style: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
-            ),
-          ],
-        ),
       ),
     );
   }
