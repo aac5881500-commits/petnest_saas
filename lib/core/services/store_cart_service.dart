@@ -226,8 +226,9 @@ class StoreCartService {
         .whereType<Map>()
         .map((Map<dynamic, dynamic> item) {
           final String productId = (item['productId'] ?? '').toString().trim();
-          final String bundlePromotionId =
-              (item['bundlePromotionId'] ?? '').toString().trim();
+          final String bundlePromotionId = (item['bundlePromotionId'] ?? '')
+              .toString()
+              .trim();
           final int quantity = item['quantity'] is int
               ? item['quantity'] as int
               : int.tryParse(item['quantity']?.toString() ?? '') ?? 0;

@@ -87,7 +87,8 @@ class _StoreProductPickerSheetState extends State<StoreProductPickerSheet> {
                 itemCount: filtered.length,
                 itemBuilder: (BuildContext context, int index) {
                   final StoreProductModel product = filtered[index];
-                  final String category = widget.categoryNames[product.categoryId] ??
+                  final String category =
+                      widget.categoryNames[product.categoryId] ??
                       product.categoryNameSnapshot;
                   return CheckboxListTile(
                     value: _selected.contains(product.id),

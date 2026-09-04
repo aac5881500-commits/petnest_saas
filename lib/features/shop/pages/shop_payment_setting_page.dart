@@ -20,9 +20,7 @@ class ShopPaymentSettingPage extends StatelessWidget {
       child: Scaffold(
         appBar: AppBar(
           title: const Text('營運設定'),
-          actions: <Widget>[
-            ShopTaskCenterButton(shopId: shopId),
-          ],
+          actions: <Widget>[ShopTaskCenterButton(shopId: shopId)],
           bottom: const TabBar(
             tabs: <Widget>[
               Tab(

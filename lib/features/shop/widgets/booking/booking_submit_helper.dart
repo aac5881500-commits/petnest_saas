@@ -330,8 +330,7 @@ class BookingSubmitHelper {
           if (resolvedConsent.consentRecordId.isNotEmpty)
             'consentRecordId': resolvedConsent.consentRecordId,
           if (resolvedConsent.termsVersionDocumentId.isNotEmpty)
-            'termsVersionDocumentId':
-                resolvedConsent.termsVersionDocumentId,
+            'termsVersionDocumentId': resolvedConsent.termsVersionDocumentId,
           'updatedAt': FieldValue.serverTimestamp(),
         }, SetOptions(merge: true));
 

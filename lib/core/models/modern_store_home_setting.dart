@@ -196,7 +196,9 @@ class ModernStoreCardPositions {
   }
 
   static CrossAxisAlignment cross(String value) {
-    return value == center ? CrossAxisAlignment.center : CrossAxisAlignment.start;
+    return value == center
+        ? CrossAxisAlignment.center
+        : CrossAxisAlignment.start;
   }
 
   static TextAlign textAlign(String value) {
@@ -248,20 +250,14 @@ class ModernStoreHomeSetting {
 
   bool get hasBackgroundImage => storeBannerImageUrl.trim().isNotEmpty;
 
-  String get resolvedTitle => _textOrDefault(
-        storeBannerTitle,
-        defaultBannerTitle,
-      );
+  String get resolvedTitle =>
+      _textOrDefault(storeBannerTitle, defaultBannerTitle);
 
-  String get resolvedSubtitle => _textOrDefault(
-        storeBannerSubtitle,
-        defaultBannerSubtitle,
-      );
+  String get resolvedSubtitle =>
+      _textOrDefault(storeBannerSubtitle, defaultBannerSubtitle);
 
-  String get resolvedButtonText => _textOrDefault(
-        storeBannerButtonText,
-        defaultBannerButtonText,
-      );
+  String get resolvedButtonText =>
+      _textOrDefault(storeBannerButtonText, defaultBannerButtonText);
 
   BoxFit get backgroundBoxFit {
     return storeBannerBackgroundFit == ModernStoreCardFits.contain
@@ -270,9 +266,7 @@ class ModernStoreHomeSetting {
   }
 
   Alignment get backgroundAlignment {
-    return ModernStoreCardAlignments.geometry(
-      storeBannerBackgroundAlignment,
-    );
+    return ModernStoreCardAlignments.geometry(storeBannerBackgroundAlignment);
   }
 
   factory ModernStoreHomeSetting.fromMap(Map<String, dynamic> map) {
@@ -301,8 +295,9 @@ class ModernStoreHomeSetting {
         defaultBannerButtonText,
       ),
       storeBannerImageUrl: (map['storeBannerImageUrl'] ?? '').toString().trim(),
-      storeBannerImageStoragePath:
-          (map['storeBannerImageStoragePath'] ?? '').toString().trim(),
+      storeBannerImageStoragePath: (map['storeBannerImageStoragePath'] ?? '')
+          .toString()
+          .trim(),
       storeBannerBackgroundFit: pick(
         ModernStoreCardFits.all,
         map['storeBannerBackgroundFit'],
@@ -409,8 +404,7 @@ class ModernStoreHomeSetting {
       storeBannerTitleColorPreset:
           storeBannerTitleColorPreset ?? this.storeBannerTitleColorPreset,
       storeBannerSubtitleColorPreset:
-          storeBannerSubtitleColorPreset ??
-          this.storeBannerSubtitleColorPreset,
+          storeBannerSubtitleColorPreset ?? this.storeBannerSubtitleColorPreset,
       storeBannerButtonColorPreset:
           storeBannerButtonColorPreset ?? this.storeBannerButtonColorPreset,
       storeBannerContentPosition:

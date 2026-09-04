@@ -42,15 +42,9 @@ class BookingSearchBar extends StatelessWidget {
         onChanged: onChanged,
         decoration: InputDecoration(
           hintText: '搜尋訂單編號 / 顧客姓名 / 手機 / 寵物名 / 房號',
-          hintStyle: TextStyle(
-            color: Colors.grey.shade500,
-            fontSize: 14,
-          ),
+          hintStyle: TextStyle(color: Colors.grey.shade500, fontSize: 14),
           border: InputBorder.none,
-          icon: Icon(
-            Icons.search,
-            color: Colors.grey.shade600,
-          ),
+          icon: Icon(Icons.search, color: Colors.grey.shade600),
         ),
       ),
     );

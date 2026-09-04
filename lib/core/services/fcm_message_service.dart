@@ -137,10 +137,7 @@ class FcmMessageService {
                   }
 
                   if (canOpenChat) {
-                    openShopChat(
-                      shopId: shopId,
-                      threadId: threadId,
-                    );
+                    openShopChat(shopId: shopId, threadId: threadId);
                     return;
                   }
 
@@ -223,10 +220,8 @@ class FcmMessageService {
       if (isShopMember) {
         await navigator.push(
           MaterialPageRoute<void>(
-            builder: (_) => ShopChatThreadPage(
-              shopId: shopId,
-              threadId: threadId,
-            ),
+            builder: (_) =>
+                ShopChatThreadPage(shopId: shopId, threadId: threadId),
           ),
         );
         return;

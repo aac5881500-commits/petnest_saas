@@ -27,48 +27,49 @@ class InventoryMovementsTab extends StatelessWidget {
         itemId: item.id,
         limit: InventoryConstants.movementPageLimit,
       ),
-      builder: (
-        BuildContext context,
-        AsyncSnapshot<List<InventoryMovementModel>> snapshot,
-      ) {
-        final List<InventoryMovementModel> movements =
-            snapshot.data ?? const <InventoryMovementModel>[];
+      builder:
+          (
+            BuildContext context,
+            AsyncSnapshot<List<InventoryMovementModel>> snapshot,
+          ) {
+            final List<InventoryMovementModel> movements =
+                snapshot.data ?? const <InventoryMovementModel>[];
 
-        if (snapshot.connectionState == ConnectionState.waiting &&
-            movements.isEmpty) {
-          return const Center(child: CircularProgressIndicator());
-        }
-
-        if (movements.isEmpty) {
-          return const Center(child: Text('尚無異動紀錄'));
-        }
-
-        return ListView.builder(
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
-          itemCount: movements.length + 1,
-          itemBuilder: (BuildContext context, int index) {
-            if (index == 0) {
-              return Padding(
-                padding: const EdgeInsets.only(bottom: 10),
-                child: Text(
-                  movements.length >= InventoryConstants.movementPageLimit
-                      ? '最近 ${InventoryConstants.movementPageLimit} 筆異動'
-                      : '異動流水',
-                  style: const TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              );
+            if (snapshot.connectionState == ConnectionState.waiting &&
+                movements.isEmpty) {
+              return const Center(child: CircularProgressIndicator());
             }
 
-            return InventoryMovementTile(
-              movement: movements[index - 1],
-              unit: item.unit,
+            if (movements.isEmpty) {
+              return const Center(child: Text('尚無異動紀錄'));
+            }
+
+            return ListView.builder(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+              itemCount: movements.length + 1,
+              itemBuilder: (BuildContext context, int index) {
+                if (index == 0) {
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 10),
+                    child: Text(
+                      movements.length >= InventoryConstants.movementPageLimit
+                          ? '最近 ${InventoryConstants.movementPageLimit} 筆異動'
+                          : '異動流水',
+                      style: const TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  );
+                }
+
+                return InventoryMovementTile(
+                  movement: movements[index - 1],
+                  unit: item.unit,
+                );
+              },
             );
           },
-        );
-      },
     );
   }
 }

@@ -36,7 +36,8 @@ class ModernStayingDailyCareSection extends StatelessWidget {
     return StreamBuilder<User?>(
       stream: FirebaseAuth.instance.authStateChanges(),
       builder: (context, authSnapshot) {
-        final User? user = authSnapshot.data ?? FirebaseAuth.instance.currentUser;
+        final User? user =
+            authSnapshot.data ?? FirebaseAuth.instance.currentUser;
         if (user == null) {
           return const SizedBox.shrink();
         }
@@ -117,9 +118,11 @@ class ModernStayingDailyCareSection extends StatelessWidget {
                         ],
                       ),
                       const SizedBox(height: 9),
-                      for (int index = 0; index < visibleCount; index++) ...<
-                        Widget
-                      >[
+                      for (
+                        int index = 0;
+                        index < visibleCount;
+                        index++
+                      ) ...<Widget>[
                         if (index > 0) const SizedBox(height: 8),
                         _StayingDailyCareCard(
                           shopId: shopId,
@@ -139,9 +142,8 @@ class ModernStayingDailyCareSection extends StatelessWidget {
                               Navigator.push(
                                 context,
                                 MaterialPageRoute<void>(
-                                  builder: (_) => MyBookingsPage(
-                                    returnShopId: shopId,
-                                  ),
+                                  builder: (_) =>
+                                      MyBookingsPage(returnShopId: shopId),
                                 ),
                               );
                             },
@@ -294,44 +296,47 @@ class _StayingDailyCareCard extends StatelessWidget {
                       ...List<Widget>.generate(setting.sessionCount, (
                         int index,
                       ) {
-                      final bool done = filled.contains(index);
-                      return Padding(
-                        padding: const EdgeInsets.only(bottom: 4),
-                        child: Row(
-                          children: <Widget>[
-                            Icon(
-                              _sessionIcon(index, setting.sessionLabel(index)),
-                              size: 15,
-                              color: done
-                                  ? theme.primaryColor
-                                  : theme.textColor.withValues(alpha: 0.40),
-                            ),
-                            const SizedBox(width: 6),
-                            Expanded(
-                              child: Text(
-                                setting.sessionLabel(index),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: TextStyle(
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w600,
-                                  color: theme.textColor,
+                        final bool done = filled.contains(index);
+                        return Padding(
+                          padding: const EdgeInsets.only(bottom: 4),
+                          child: Row(
+                            children: <Widget>[
+                              Icon(
+                                _sessionIcon(
+                                  index,
+                                  setting.sessionLabel(index),
+                                ),
+                                size: 15,
+                                color: done
+                                    ? theme.primaryColor
+                                    : theme.textColor.withValues(alpha: 0.40),
+                              ),
+                              const SizedBox(width: 6),
+                              Expanded(
+                                child: Text(
+                                  setting.sessionLabel(index),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600,
+                                    color: theme.textColor,
+                                  ),
                                 ),
                               ),
-                            ),
-                            Text(
-                              done ? '✓ 已更新' : '尚未更新',
-                              style: TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w700,
-                                color: done
-                                    ? const Color(0xFF2E7D32)
-                                    : theme.textColor.withValues(alpha: 0.45),
+                              Text(
+                                done ? '✓ 已更新' : '尚未更新',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w700,
+                                  color: done
+                                      ? const Color(0xFF2E7D32)
+                                      : theme.textColor.withValues(alpha: 0.45),
+                                ),
                               ),
-                            ),
-                          ],
-                        ),
-                      );
+                            ],
+                          ),
+                        );
                       }),
                     ],
                   );

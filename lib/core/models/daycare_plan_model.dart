@@ -144,7 +144,13 @@ class DaycarePlanModel {
       ),
       extraPetPrice: _int(map['extraPetPrice'] ?? map['extraPetSurcharge'], 0),
       maxBaseCharge: _int(map['maxBaseCharge'], 0),
-      maxPets: _int(map['maxPets'], 20).clamp(1, 20),
+      maxPets: () {
+        final int pets = _int(map['maxPets'], 20);
+        if (pets < 0) {
+          return 0;
+        }
+        return pets > 99 ? 99 : pets;
+      }(),
       minChargeUnits: _int(map['minChargeUnits'], 1).clamp(1, 99),
       extraPetSurcharge: _int(
         map['extraPetPrice'] ?? map['extraPetSurcharge'],
@@ -247,19 +253,69 @@ class DaycarePlanModel {
     return '$includedMinutes 分鐘';
   }
 
-  String get extraUnitLabel => extraBillingMinutes == 30 ? '每 30 分鐘' : '每小時';
+  String get extraUnitLabel => extraBillingMinutes == 30 ? '每 30 分鐘' : '每 1 小時';
 
-  List<String> get customerSummaryLines {
-    final List<String> lines = <String>[
-      '$includedTimeLabel NT\$$basePrice・超過後$extraUnitLabel NT\$$extraBillingPrice',
-    ];
-    if (extraPetPrice > 0) {
-      lines.add('每多 1 隻 +NT\$$extraPetPrice');
+  static String moneyLabel(int amount) => 'NT\$$amount';
+
+  static String includedTimeText(int minutes) {
+    if (minutes <= 0) {
+      return '0 分鐘';
     }
+    if (minutes % 60 == 0) {
+      return '${minutes ~/ 60} 小時';
+    }
+    if (minutes > 60) {
+      return '${minutes ~/ 60} 小時 ${minutes % 60} 分鐘';
+    }
+    return '$minutes 分鐘';
+  }
+
+  static String extraUnitText(int extraBillingMinutes) {
+    return extraBillingMinutes == 30 ? '每 30 分鐘' : '每 1 小時';
+  }
+
+  static List<String> offerDetailLines({
+    required int includedMinutes,
+    required int basePrice,
+    required int extraBillingMinutes,
+    required int extraBillingPrice,
+    required int maxBaseCharge,
+    required int extraPetPrice,
+    required int maxPets,
+    required bool enabled,
+  }) {
+    final List<String> lines = <String>[
+      '基本 ${includedTimeText(includedMinutes)}｜${moneyLabel(basePrice)}',
+      '超過後${extraUnitText(extraBillingMinutes)} ${moneyLabel(extraBillingPrice)}',
+    ];
     if (maxBaseCharge > 0) {
-      lines.add('最高時間費用 NT\$$maxBaseCharge');
+      lines.add('時間費上限 ${moneyLabel(maxBaseCharge)}');
+    }
+    if (extraPetPrice > 0) {
+      lines.add('每增加 1 隻 +${moneyLabel(extraPetPrice)}');
+    }
+    if (maxPets > 0) {
+      lines.add('最多 $maxPets 隻');
+    } else {
+      lines.add('寵物數量不限');
+    }
+    if (!enabled) {
+      lines.add('方案未啟用');
     }
     return lines;
+  }
+
+  List<String> get customerSummaryLines {
+    return offerDetailLines(
+      includedMinutes: includedMinutes,
+      basePrice: basePrice,
+      extraBillingMinutes: extraBillingMinutes,
+      extraBillingPrice: extraBillingPrice,
+      maxBaseCharge: maxBaseCharge,
+      extraPetPrice: extraPetPrice,
+      maxPets: maxPets,
+      enabled: enabled,
+    );
   }
 
   static int _int(dynamic raw, int fallback) {

@@ -43,13 +43,7 @@ class ShopModules {
   ];
 
   /// pro 可自由開啟的模板
-  static const proModules = [
-    catHotel,
-    dogHotel,
-    grooming,
-    hospital,
-    store,
-  ];
+  static const proModules = [catHotel, dogHotel, grooming, hospital, store];
 
   /// 舊資料 fallback
   static const defaultEnabled = [basicInfo, catHotel, reports];

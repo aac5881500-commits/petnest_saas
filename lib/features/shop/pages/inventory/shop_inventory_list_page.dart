@@ -42,8 +42,7 @@ class _ShopInventoryListPageState extends State<ShopInventoryListPage> {
   bool get _canManage => _can(ShopPermissionKeys.manageInventory);
   bool get _canReceive =>
       _can(ShopPermissionKeys.receiveInventory) || _canManage;
-  bool get _canAdjust =>
-      _can(ShopPermissionKeys.adjustInventory) || _canManage;
+  bool get _canAdjust => _can(ShopPermissionKeys.adjustInventory) || _canManage;
   bool get _canViewCost => _can(ShopPermissionKeys.viewInventoryCost);
 
   @override
@@ -51,9 +50,7 @@ class _ShopInventoryListPageState extends State<ShopInventoryListPage> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('庫存管理'),
-        actions: <Widget>[
-          ShopTaskCenterButton(shopId: widget.shopId),
-        ],
+        actions: <Widget>[ShopTaskCenterButton(shopId: widget.shopId)],
       ),
       floatingActionButton: _canManage
           ? FloatingActionButton(
@@ -72,82 +69,91 @@ class _ShopInventoryListPageState extends State<ShopInventoryListPage> {
           : null,
       body: StreamBuilder<List<InventoryItemModel>>(
         stream: InventoryService.instance.streamItems(widget.shopId),
-        builder: (
-          BuildContext context,
-          AsyncSnapshot<List<InventoryItemModel>> snapshot,
-        ) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
+        builder:
+            (
+              BuildContext context,
+              AsyncSnapshot<List<InventoryItemModel>> snapshot,
+            ) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const Center(child: CircularProgressIndicator());
+              }
 
-          final List<InventoryItemModel> allItems =
-              snapshot.data ?? const <InventoryItemModel>[];
-          final int lowCount = allItems
-              .where(
-                (InventoryItemModel item) =>
-                    item.stockStatus == InventoryStockStatus.low,
-              )
-              .length;
-          final int outCount = allItems
-              .where(
-                (InventoryItemModel item) =>
-                    item.stockStatus == InventoryStockStatus.outOfStock,
-              )
-              .length;
+              final List<InventoryItemModel> allItems =
+                  snapshot.data ?? const <InventoryItemModel>[];
+              final int lowCount = allItems
+                  .where(
+                    (InventoryItemModel item) =>
+                        item.stockStatus == InventoryStockStatus.low,
+                  )
+                  .length;
+              final int outCount = allItems
+                  .where(
+                    (InventoryItemModel item) =>
+                        item.stockStatus == InventoryStockStatus.outOfStock,
+                  )
+                  .length;
 
-          final List<InventoryItemModel> visible = allItems
-              .where(_matchesKeyword)
-              .where(_matchesFilter)
-              .toList();
+              final List<InventoryItemModel> visible = allItems
+                  .where(_matchesKeyword)
+                  .where(_matchesFilter)
+                  .toList();
 
-          return ListView(
-            padding: const EdgeInsets.fromLTRB(12, 12, 12, 88),
-            children: <Widget>[
-              Row(
+              return ListView(
+                padding: const EdgeInsets.fromLTRB(12, 12, 12, 88),
                 children: <Widget>[
-                  _SummaryChip(label: '品項', value: '${allItems.length}'),
-                  const SizedBox(width: 8),
-                  _SummaryChip(label: '低庫存', value: '$lowCount', warning: true),
-                  const SizedBox(width: 8),
-                  _SummaryChip(label: '缺貨', value: '$outCount', danger: true),
+                  Row(
+                    children: <Widget>[
+                      _SummaryChip(label: '品項', value: '${allItems.length}'),
+                      const SizedBox(width: 8),
+                      _SummaryChip(
+                        label: '低庫存',
+                        value: '$lowCount',
+                        warning: true,
+                      ),
+                      const SizedBox(width: 8),
+                      _SummaryChip(
+                        label: '缺貨',
+                        value: '$outCount',
+                        danger: true,
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    decoration: const InputDecoration(
+                      hintText: '搜尋名稱、SKU、條碼',
+                      prefixIcon: Icon(Icons.search),
+                      border: OutlineInputBorder(),
+                      isDense: true,
+                    ),
+                    onChanged: (String value) {
+                      setState(() => _keyword = value.trim());
+                    },
+                  ),
+                  const SizedBox(height: 8),
+                  SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Row(
+                      children: <Widget>[
+                        _filterChip('全部', _InventoryFilter.all),
+                        _filterChip('正常', _InventoryFilter.normal),
+                        _filterChip('低庫存', _InventoryFilter.low),
+                        _filterChip('缺貨', _InventoryFilter.outOfStock),
+                        _filterChip('停用', _InventoryFilter.disabled),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  if (visible.isEmpty)
+                    const Padding(
+                      padding: EdgeInsets.only(top: 48),
+                      child: Center(child: Text('目前沒有符合條件的庫存品項')),
+                    )
+                  else
+                    ...visible.map(_buildItemCard),
                 ],
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                decoration: const InputDecoration(
-                  hintText: '搜尋名稱、SKU、條碼',
-                  prefixIcon: Icon(Icons.search),
-                  border: OutlineInputBorder(),
-                  isDense: true,
-                ),
-                onChanged: (String value) {
-                  setState(() => _keyword = value.trim());
-                },
-              ),
-              const SizedBox(height: 8),
-              SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                child: Row(
-                  children: <Widget>[
-                    _filterChip('全部', _InventoryFilter.all),
-                    _filterChip('正常', _InventoryFilter.normal),
-                    _filterChip('低庫存', _InventoryFilter.low),
-                    _filterChip('缺貨', _InventoryFilter.outOfStock),
-                    _filterChip('停用', _InventoryFilter.disabled),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 8),
-              if (visible.isEmpty)
-                const Padding(
-                  padding: EdgeInsets.only(top: 48),
-                  child: Center(child: Text('目前沒有符合條件的庫存品項')),
-                )
-              else
-                ...visible.map(_buildItemCard),
-            ],
-          );
-        },
+              );
+            },
       ),
     );
   }
@@ -254,10 +260,7 @@ class _ShopInventoryListPageState extends State<ShopInventoryListPage> {
                         );
                         break;
                       case 'adjust':
-                        showInventoryAdjustDialog(
-                          context: context,
-                          item: item,
-                        );
+                        showInventoryAdjustDialog(context: context, item: item);
                         break;
                     }
                   },

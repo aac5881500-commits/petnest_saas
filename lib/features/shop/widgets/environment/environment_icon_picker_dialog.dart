@@ -4,66 +4,27 @@
 import 'package:flutter/material.dart';
 
 class EnvironmentIconPickerDialog extends StatelessWidget {
-  const EnvironmentIconPickerDialog({
-    super.key,
-    required this.onSelect,
-  });
+  const EnvironmentIconPickerDialog({super.key, required this.onSelect});
 
   final Function(String key) onSelect;
 
   @override
   Widget build(BuildContext context) {
     final icons = [
-      {
-        'key': 'home',
-        'label': '住宿空間',
-        'icon': Icons.home_rounded,
-      },
+      {'key': 'home', 'label': '住宿空間', 'icon': Icons.home_rounded},
       {
         'key': 'clean',
         'label': '清潔消毒',
         'icon': Icons.cleaning_services_rounded,
       },
-      {
-        'key': 'air',
-        'label': '空調',
-        'icon': Icons.ac_unit_rounded,
-      },
-      {
-        'key': 'camera',
-        'label': '監視',
-        'icon': Icons.videocam_rounded,
-      },
-      {
-        'key': 'hospital',
-        'label': '醫療',
-        'icon': Icons.local_hospital_rounded,
-      },
-      {
-        'key': 'water',
-        'label': '飲水',
-        'icon': Icons.water_drop_rounded,
-      },
-      {
-        'key': 'sun',
-        'label': '日照',
-        'icon': Icons.wb_sunny_rounded,
-      },
-      {
-        'key': 'clean_hand',
-        'label': '定期消毒',
-        'icon': Icons.clean_hands_rounded,
-      },
-      {
-        'key': 'pets',
-        'label': '寵物照護',
-        'icon': Icons.pets_rounded,
-      },
-      {
-        'key': 'toys',
-        'label': '遊戲活動',
-        'icon': Icons.toys_rounded,
-      },
+      {'key': 'air', 'label': '空調', 'icon': Icons.ac_unit_rounded},
+      {'key': 'camera', 'label': '監視', 'icon': Icons.videocam_rounded},
+      {'key': 'hospital', 'label': '醫療', 'icon': Icons.local_hospital_rounded},
+      {'key': 'water', 'label': '飲水', 'icon': Icons.water_drop_rounded},
+      {'key': 'sun', 'label': '日照', 'icon': Icons.wb_sunny_rounded},
+      {'key': 'clean_hand', 'label': '定期消毒', 'icon': Icons.clean_hands_rounded},
+      {'key': 'pets', 'label': '寵物照護', 'icon': Icons.pets_rounded},
+      {'key': 'toys', 'label': '遊戲活動', 'icon': Icons.toys_rounded},
     ];
 
     return AlertDialog(

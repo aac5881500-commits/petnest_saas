@@ -23,10 +23,7 @@ class DailyCareReportField {
 }
 
 class DailyCareReportGroup {
-  const DailyCareReportGroup({
-    required this.title,
-    required this.fields,
-  });
+  const DailyCareReportGroup({required this.title, required this.fields});
 
   final String title;
   final List<DailyCareReportField> fields;
@@ -89,10 +86,7 @@ class DailyCareReportStatField {
 }
 
 class DailyCareReportStatGroup {
-  const DailyCareReportStatGroup({
-    required this.title,
-    required this.fields,
-  });
+  const DailyCareReportStatGroup({required this.title, required this.fields});
 
   final String title;
   final List<DailyCareReportStatField> fields;
@@ -150,16 +144,14 @@ class DailyCareReportStats {
     if (expectedSessions <= 0) {
       return completedSessions > 0 ? 100 : 0;
     }
-    final int raw =
-        ((completedSessions / expectedSessions) * 100).round();
+    final int raw = ((completedSessions / expectedSessions) * 100).round();
     if (raw > 100) {
       return 100;
     }
     return raw;
   }
 
-  bool get hasEnvironment =>
-      avgTemperature != null || avgHumidity != null;
+  bool get hasEnvironment => avgTemperature != null || avgHumidity != null;
 }
 
 class DailyCareReportData {

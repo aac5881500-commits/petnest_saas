@@ -8,6 +8,7 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:petnest_saas/core/models/environment_image_frame_setting.dart';
 import 'package:petnest_saas/core/models/environment_intro_style.dart';
+import 'package:petnest_saas/core/models/fixed_image_spec.dart';
 import 'package:petnest_saas/core/services/shop_profile_service.dart';
 import 'package:petnest_saas/core/services/shop_service.dart';
 import 'package:petnest_saas/features/shop/data/environment_facility_options.dart';
@@ -16,7 +17,7 @@ import 'package:petnest_saas/features/shop/widgets/environment/environment_featu
 import 'package:petnest_saas/features/shop/widgets/environment/environment_gallery_manager.dart';
 import 'package:petnest_saas/features/shop/widgets/environment/environment_icon_picker_dialog.dart';
 import 'package:petnest_saas/features/shop/widgets/environment/environment_image_upload_box.dart';
-import 'package:petnest_saas/features/shop/widgets/media/banner_image_crop_page.dart';
+import 'package:petnest_saas/features/shop/widgets/media/fixed_aspect_image_crop_page.dart';
 
 class ShopEnvironmentManagePage extends StatefulWidget {
   const ShopEnvironmentManagePage({super.key, required this.shopId});
@@ -396,17 +397,15 @@ class _ShopEnvironmentManagePageState extends State<ShopEnvironmentManagePage> {
         return;
       }
 
-      final EnvironmentImageFrameSetting frame = type == 'hero'
-          ? _heroFrame
-          : _bannerFrame;
+      final FixedImageSpec spec = type == 'hero'
+          ? FixedImageSpec.environmentHero
+          : FixedImageSpec.environmentBanner;
 
-      final Uint8List? croppedBytes = await BannerImageCropPage.open(
+      final Uint8List? croppedBytes = await FixedAspectImageCropPage.open(
         context: context,
         imageBytes: originalBytes,
-        cropAspectRatio: frame.cropAspectRatio,
-        outputWidth: frame.outputWidth,
-        outputHeight: frame.outputHeight,
-        hintText: '框內區域就是前台主要顯示範圍。可拖曳、縮放圖片來選擇實際要顯示的內容。',
+        spec: spec,
+        title: type == 'hero' ? '裁切環境介紹首頁大圖' : '裁切環境介紹中間橫幅',
       );
 
       if (croppedBytes == null || !mounted) {
@@ -819,14 +818,25 @@ class _ShopEnvironmentManagePageState extends State<ShopEnvironmentManagePage> {
         return;
       }
 
+      if (!mounted) {
+        return;
+      }
+
       setState(() {
-        _busyMessage = '正在處理圖片…';
+        _busyMessage = '正在準備圖片…';
       });
 
-      final Uint8List? compressed = ShopService.instance
-          .compressEnvironmentImageBytes(bytes: originalBytes, maxSide: 1200);
-      if (compressed == null || compressed.isEmpty) {
-        _showImageError('圖片處理失敗，請重新選擇圖片。');
+      final Uint8List? cropped = await FixedAspectImageCropPage.open(
+        context: context,
+        imageBytes: originalBytes,
+        spec: FixedImageSpec.environmentFeature,
+        title: '裁切環境特色圖片',
+      );
+      if (cropped == null || !mounted) {
+        return;
+      }
+      if (cropped.length > _maxImageBytes) {
+        _showImageError('單張圖片最大 5 MB，請換一張較小的照片');
         return;
       }
 
@@ -836,10 +846,7 @@ class _ShopEnvironmentManagePageState extends State<ShopEnvironmentManagePage> {
 
       final ShopEnvironmentIntroImageUpload uploaded = await ShopService
           .instance
-          .uploadEnvironmentFeatureImage(
-            shopId: widget.shopId,
-            bytes: compressed,
-          );
+          .uploadEnvironmentFeatureImage(shopId: widget.shopId, bytes: cropped);
 
       final Map<String, dynamic> previous = Map<String, dynamic>.from(
         environmentFeatures[index],
@@ -1010,9 +1017,9 @@ class _ShopEnvironmentManagePageState extends State<ShopEnvironmentManagePage> {
                   style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
                 ),
                 const SizedBox(height: 8),
-                const Text(
-                  '建議比例 4:3，建議尺寸 1200 × 900。最低建議 900 × 675。單張最大 5 MB。',
-                  style: TextStyle(
+                Text(
+                  FixedImageSpec.environmentFeature.hintText,
+                  style: const TextStyle(
                     fontSize: 13,
                     height: 1.4,
                     color: Color(0xFF8A6A45),
@@ -1576,8 +1583,7 @@ class _ShopEnvironmentManagePageState extends State<ShopEnvironmentManagePage> {
                               busy: _imageBusy,
                               overlayTitle: heroTitleController.text,
                               overlaySubtitle: heroSubtitleController.text,
-                              hint:
-                                  '建議比例：11:8\n建議尺寸：1760 × 1280 px\n最低建議：1100 × 800 px\n其他尺寸也可以上傳，下一步可拖曳、縮放並選擇顯示範圍。\n單張圖片最大 5 MB。',
+                              hint: FixedImageSpec.environmentHero.hintText,
                               onUpload: () => _pickAndUploadImage(type: 'hero'),
                               onDelete: () => _removeSlotImage(type: 'hero'),
                               onFrameChanged:
@@ -1646,8 +1652,7 @@ class _ShopEnvironmentManagePageState extends State<ShopEnvironmentManagePage> {
                               uploading: _uploadingBannerImage,
                               busy: _imageBusy,
                               overlayTitle: bannerTitleController.text,
-                              hint:
-                                  '建議比例：12:5\n建議尺寸：1680 × 700 px\n最低建議：1200 × 500 px\n其他尺寸也可以上傳，下一步可拖曳、縮放並選擇顯示範圍。\n單張圖片最大 5 MB。',
+                              hint: FixedImageSpec.environmentBanner.hintText,
                               onUpload: () =>
                                   _pickAndUploadImage(type: 'banner'),
                               onDelete: () => _removeSlotImage(type: 'banner'),

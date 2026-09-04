@@ -20,73 +20,99 @@ class StoreAdminSummaryBar extends StatelessWidget {
   Widget build(BuildContext context) {
     return StreamBuilder<List<StoreOrderModel>>(
       stream: StoreOrderService.instance.streamShopOrders(shopId),
-      builder: (
-        BuildContext context,
-        AsyncSnapshot<List<StoreOrderModel>> orderSnap,
-      ) {
-        return StreamBuilder<List<StoreProductModel>>(
-          stream: StoreProductService.instance.streamProducts(shopId),
-          builder: (
+      builder:
+          (
             BuildContext context,
-            AsyncSnapshot<List<StoreProductModel>> productSnap,
+            AsyncSnapshot<List<StoreOrderModel>> orderSnap,
           ) {
-            return StreamBuilder<List<StorePromotionModel>>(
-              stream: StorePromotionService.instance.streamPromotions(shopId),
-              builder: (
-                BuildContext context,
-                AsyncSnapshot<List<StorePromotionModel>> promoSnap,
-              ) {
-                final DateTime now = DateTime.now();
-                final DateTime start = DateTime(now.year, now.month, now.day);
-                final List<StoreOrderModel> orders =
-                    orderSnap.data ?? const <StoreOrderModel>[];
-                final List<StoreOrderModel> today = orders
-                    .where((StoreOrderModel order) =>
-                        !order.createdAt.isBefore(start))
-                    .toList();
-                final int pending = orders
-                    .where((StoreOrderModel order) =>
-                        order.status == StoreConstants.statusPaid ||
-                        order.status == StoreConstants.statusPreparing)
-                    .length;
-                final int revenue = today
-                    .where((StoreOrderModel order) =>
-                        order.paymentStatus == StoreConstants.paymentPaid)
-                    .fold<int>(
-                      0,
-                      (int sum, StoreOrderModel order) =>
-                          sum + order.totalAmount,
-                    );
-                final int activePromos = (promoSnap.data ??
-                        const <StorePromotionModel>[])
-                    .where((StorePromotionModel item) => item.statusKey == 'active')
-                    .length;
-                final int lowStock = (productSnap.data ??
-                        const <StoreProductModel>[])
-                    .where((StoreProductModel product) {
-                  final String label =
-                      StoreStockHelper.adminStatusLabel(product);
-                  return label == '低庫存' || label == '售罄';
-                }).length;
+            return StreamBuilder<List<StoreProductModel>>(
+              stream: StoreProductService.instance.streamProducts(shopId),
+              builder:
+                  (
+                    BuildContext context,
+                    AsyncSnapshot<List<StoreProductModel>> productSnap,
+                  ) {
+                    return StreamBuilder<List<StorePromotionModel>>(
+                      stream: StorePromotionService.instance.streamPromotions(
+                        shopId,
+                      ),
+                      builder:
+                          (
+                            BuildContext context,
+                            AsyncSnapshot<List<StorePromotionModel>> promoSnap,
+                          ) {
+                            final DateTime now = DateTime.now();
+                            final DateTime start = DateTime(
+                              now.year,
+                              now.month,
+                              now.day,
+                            );
+                            final List<StoreOrderModel> orders =
+                                orderSnap.data ?? const <StoreOrderModel>[];
+                            final List<StoreOrderModel> today = orders
+                                .where(
+                                  (StoreOrderModel order) =>
+                                      !order.createdAt.isBefore(start),
+                                )
+                                .toList();
+                            final int pending = orders
+                                .where(
+                                  (StoreOrderModel order) =>
+                                      order.status ==
+                                          StoreConstants.statusPaid ||
+                                      order.status ==
+                                          StoreConstants.statusPreparing,
+                                )
+                                .length;
+                            final int revenue = today
+                                .where(
+                                  (StoreOrderModel order) =>
+                                      order.paymentStatus ==
+                                      StoreConstants.paymentPaid,
+                                )
+                                .fold<int>(
+                                  0,
+                                  (int sum, StoreOrderModel order) =>
+                                      sum + order.totalAmount,
+                                );
+                            final int activePromos =
+                                (promoSnap.data ??
+                                        const <StorePromotionModel>[])
+                                    .where(
+                                      (StorePromotionModel item) =>
+                                          item.statusKey == 'active',
+                                    )
+                                    .length;
+                            final int lowStock =
+                                (productSnap.data ??
+                                        const <StoreProductModel>[])
+                                    .where((StoreProductModel product) {
+                                      final String label =
+                                          StoreStockHelper.adminStatusLabel(
+                                            product,
+                                          );
+                                      return label == '低庫存' || label == '售罄';
+                                    })
+                                    .length;
 
-                return SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
-                  child: Row(
-                    children: <Widget>[
-                      _cell('今日訂單', '${today.length}'),
-                      _cell('待處理', '$pending'),
-                      _cell('今日營業額', 'NT\$$revenue'),
-                      _cell('活動中', '$activePromos'),
-                      _cell('低庫存', '$lowStock'),
-                    ],
-                  ),
-                );
-              },
+                            return SingleChildScrollView(
+                              scrollDirection: Axis.horizontal,
+                              padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+                              child: Row(
+                                children: <Widget>[
+                                  _cell('今日訂單', '${today.length}'),
+                                  _cell('待處理', '$pending'),
+                                  _cell('今日營業額', 'NT\$$revenue'),
+                                  _cell('活動中', '$activePromos'),
+                                  _cell('低庫存', '$lowStock'),
+                                ],
+                              ),
+                            );
+                          },
+                    );
+                  },
             );
           },
-        );
-      },
     );
   }
 

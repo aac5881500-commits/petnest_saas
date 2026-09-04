@@ -62,10 +62,10 @@ class _FloatingContactButtonState extends State<FloatingContactButton> {
       return const SizedBox.shrink();
     }
 
-    final String contactType =
-        ShopChatService.resolvedFloatingType(widget.shop);
-    final bool isChat =
-        contactType == ShopChatService.floatingTypePetnestChat;
+    final String contactType = ShopChatService.resolvedFloatingType(
+      widget.shop,
+    );
+    final bool isChat = contactType == ShopChatService.floatingTypePetnestChat;
     final contact = isChat ? null : _resolveContact(_setting);
 
     if (!isChat && contact == null) {
@@ -430,10 +430,7 @@ class _FloatingButtonStyle {
 }
 
 class _ChatButtonFace extends StatefulWidget {
-  const _ChatButtonFace({
-    required this.shopId,
-    required this.iconSize,
-  });
+  const _ChatButtonFace({required this.shopId, required this.iconSize});
 
   final String shopId;
   final double iconSize;

@@ -32,94 +32,96 @@ class _MyStoreOrdersPageState extends State<MyStoreOrdersPage> {
       shopId: widget.shopId,
       shopTheme: widget.theme,
       builder: (BuildContext context, HomeThemeModel theme, _) {
-    return Scaffold(
-      backgroundColor: theme.backgroundColor,
-      appBar: AppBar(
-        backgroundColor: theme.cardColor,
-        foregroundColor: theme.textColor,
-        title: const Text('我的商城訂單'),
-      ),
-      body: Column(
-        children: <Widget>[
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-            child: Row(
-              children: <Widget>[
-                _chip('全部', 'all'),
-                _chip('待付款', StoreConstants.statusPendingPayment),
-                _chip('備貨中', StoreConstants.statusPreparing),
-                _chip('可取貨', StoreConstants.statusReadyForPickup),
-                _chip('完成', StoreConstants.statusCompleted),
-                _chip('取消', StoreConstants.statusCancelled),
-              ],
-            ),
+        return Scaffold(
+          backgroundColor: theme.backgroundColor,
+          appBar: AppBar(
+            backgroundColor: theme.cardColor,
+            foregroundColor: theme.textColor,
+            title: const Text('我的商城訂單'),
           ),
-          Expanded(
-            child: StreamBuilder<List<StoreOrderModel>>(
-              stream: StoreOrderService.instance.streamMemberOrders(
-                shopId: widget.shopId,
+          body: Column(
+            children: <Widget>[
+              SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+                child: Row(
+                  children: <Widget>[
+                    _chip('全部', 'all'),
+                    _chip('待付款', StoreConstants.statusPendingPayment),
+                    _chip('備貨中', StoreConstants.statusPreparing),
+                    _chip('可取貨', StoreConstants.statusReadyForPickup),
+                    _chip('完成', StoreConstants.statusCompleted),
+                    _chip('取消', StoreConstants.statusCancelled),
+                  ],
+                ),
               ),
-              builder: (
-                BuildContext context,
-                AsyncSnapshot<List<StoreOrderModel>> snapshot,
-              ) {
-                if (snapshot.hasError) {
-                  return Center(child: Text('讀取失敗：${snapshot.error}'));
-                }
-                final List<StoreOrderModel> orders =
-                    (snapshot.data ?? const <StoreOrderModel>[])
-                        .where((StoreOrderModel order) {
-                          if (_filter == 'all') {
-                            return true;
-                          }
-                          if (_filter == StoreConstants.statusPreparing) {
-                            return order.status ==
-                                    StoreConstants.statusPreparing ||
-                                order.status == StoreConstants.statusPaid;
-                          }
-                          return order.status == _filter;
-                        })
-                        .toList();
-                if (orders.isEmpty) {
-                  return const Center(child: Text('目前沒有商城訂單'));
-                }
-                return ListView.separated(
-                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
-                  itemCount: orders.length,
-                  separatorBuilder: (_, __) => const SizedBox(height: 8),
-                  itemBuilder: (BuildContext context, int index) {
-                    final StoreOrderModel order = orders[index];
-                    return Card(
-                      child: ListTile(
-                        title: Text(order.orderCode),
-                        subtitle: Text(
-                          '${StoreConstants.statusLabel(order.status)} · '
-                          'NT\$ ${order.totalAmount} · ${order.itemCount} 件',
-                        ),
-                        trailing: const Icon(Icons.chevron_right),
-                        onTap: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute<void>(
-                              builder: (_) => MyStoreOrderDetailPage(
-                                shopId: order.shopId,
-                                orderId: order.id,
-                                theme: theme,
+              Expanded(
+                child: StreamBuilder<List<StoreOrderModel>>(
+                  stream: StoreOrderService.instance.streamMemberOrders(
+                    shopId: widget.shopId,
+                  ),
+                  builder:
+                      (
+                        BuildContext context,
+                        AsyncSnapshot<List<StoreOrderModel>> snapshot,
+                      ) {
+                        if (snapshot.hasError) {
+                          return Center(child: Text('讀取失敗：${snapshot.error}'));
+                        }
+                        final List<StoreOrderModel> orders =
+                            (snapshot.data ?? const <StoreOrderModel>[]).where((
+                              StoreOrderModel order,
+                            ) {
+                              if (_filter == 'all') {
+                                return true;
+                              }
+                              if (_filter == StoreConstants.statusPreparing) {
+                                return order.status ==
+                                        StoreConstants.statusPreparing ||
+                                    order.status == StoreConstants.statusPaid;
+                              }
+                              return order.status == _filter;
+                            }).toList();
+                        if (orders.isEmpty) {
+                          return const Center(child: Text('目前沒有商城訂單'));
+                        }
+                        return ListView.separated(
+                          padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+                          itemCount: orders.length,
+                          separatorBuilder: (_, __) =>
+                              const SizedBox(height: 8),
+                          itemBuilder: (BuildContext context, int index) {
+                            final StoreOrderModel order = orders[index];
+                            return Card(
+                              child: ListTile(
+                                title: Text(order.orderCode),
+                                subtitle: Text(
+                                  '${StoreConstants.statusLabel(order.status)} · '
+                                  'NT\$ ${order.totalAmount} · ${order.itemCount} 件',
+                                ),
+                                trailing: const Icon(Icons.chevron_right),
+                                onTap: () {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute<void>(
+                                      builder: (_) => MyStoreOrderDetailPage(
+                                        shopId: order.shopId,
+                                        orderId: order.id,
+                                        theme: theme,
+                                      ),
+                                    ),
+                                  );
+                                },
                               ),
-                            ),
-                          );
-                        },
-                      ),
-                    );
-                  },
-                );
-              },
-            ),
+                            );
+                          },
+                        );
+                      },
+                ),
+              ),
+            ],
           ),
-        ],
-      ),
-    );
+        );
       },
     );
   }

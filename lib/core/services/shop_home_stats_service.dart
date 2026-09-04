@@ -12,49 +12,43 @@ class ShopHomeStatsService {
 
   static final instance = ShopHomeStatsService._();
 
-  final FirebaseFirestore _firestore =
-      FirebaseFirestore.instance;
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
-  Future<Map<String, int>> getShopHomeStats(
-  String shopId,
-) async {
-  /// 待確認：status = pending
-  final pendingSnapshot = await _firestore
-      .collection('bookings')
-      .where('shopId', isEqualTo: shopId)
-      .where('status', isEqualTo: 'pending')
-      .get();
+  Future<Map<String, int>> getShopHomeStats(String shopId) async {
+    /// 待確認：status = pending
+    final pendingSnapshot = await _firestore
+        .collection('bookings')
+        .where('shopId', isEqualTo: shopId)
+        .where('status', isEqualTo: 'pending')
+        .get();
 
-  /// 已轉帳回傳：已上傳訂金等待店家確認
-final transferUploadedSnapshot = await _firestore
-    .collection('bookings')
-    .where('shopId', isEqualTo: shopId)
-    .where(
-      'depositStatus',
-      isEqualTo: 'pending_review',
-    )
-    .get();
+    /// 已轉帳回傳：已上傳訂金等待店家確認
+    final transferUploadedSnapshot = await _firestore
+        .collection('bookings')
+        .where('shopId', isEqualTo: shopId)
+        .where('depositStatus', isEqualTo: 'pending_review')
+        .get();
 
-  /// 會員數：該店所有訂單的不重複 userId
-  final allBookingsSnapshot = await _firestore
-      .collection('bookings')
-      .where('shopId', isEqualTo: shopId)
-      .get();
+    /// 會員數：該店所有訂單的不重複 userId
+    final allBookingsSnapshot = await _firestore
+        .collection('bookings')
+        .where('shopId', isEqualTo: shopId)
+        .get();
 
-  final memberIds = <String>{};
+    final memberIds = <String>{};
 
-  for (final doc in allBookingsSnapshot.docs) {
-    final userId = doc.data()['userId']?.toString() ?? '';
+    for (final doc in allBookingsSnapshot.docs) {
+      final userId = doc.data()['userId']?.toString() ?? '';
 
-    if (userId.isNotEmpty) {
-      memberIds.add(userId);
+      if (userId.isNotEmpty) {
+        memberIds.add(userId);
+      }
     }
-  }
 
-  return {
-    'pendingOrders': pendingSnapshot.docs.length,
-    'transferUploadedOrders': transferUploadedSnapshot.docs.length,
-    'memberCount': memberIds.length,
-  };
-}
+    return {
+      'pendingOrders': pendingSnapshot.docs.length,
+      'transferUploadedOrders': transferUploadedSnapshot.docs.length,
+      'memberCount': memberIds.length,
+    };
+  }
 }

@@ -31,27 +31,25 @@ class StoreEntranceBanner extends StatelessWidget {
 
     return StreamBuilder<Map<String, dynamic>>(
       stream: StoreSettingsService.instance.streamSettings(shopId),
-      builder: (
-        BuildContext context,
-        AsyncSnapshot<Map<String, dynamic>> snapshot,
-      ) {
-        if (!StorefrontAccess.isStorefrontOpen(
-          shop: shop,
-          settings: snapshot.data,
-        )) {
-          return const SizedBox.shrink();
-        }
+      builder:
+          (BuildContext context, AsyncSnapshot<Map<String, dynamic>> snapshot) {
+            if (!StorefrontAccess.isStorefrontOpen(
+              shop: shop,
+              settings: snapshot.data,
+            )) {
+              return const SizedBox.shrink();
+            }
 
-        return Padding(
-          padding: const EdgeInsets.only(bottom: 18),
-          child: ModernHomeStoreCard(
-            theme: theme,
-            setting: setting,
-            fallbackImageUrl: _fallbackImageUrl(),
-            onTap: () => _openStore(context),
-          ),
-        );
-      },
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 18),
+              child: ModernHomeStoreCard(
+                theme: theme,
+                setting: setting,
+                fallbackImageUrl: _fallbackImageUrl(),
+                onTap: () => _openStore(context),
+              ),
+            );
+          },
     );
   }
 
@@ -69,11 +67,7 @@ class StoreEntranceBanner extends StatelessWidget {
   void _openStore(BuildContext context) {
     Navigator.of(context).push(
       MaterialPageRoute<void>(
-        builder: (_) => StoreHomePage(
-          shopId: shopId,
-          shop: shop,
-          theme: theme,
-        ),
+        builder: (_) => StoreHomePage(shopId: shopId, shop: shop, theme: theme),
       ),
     );
   }

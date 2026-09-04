@@ -26,7 +26,7 @@ class MemberAvatarService {
   static final MemberAvatarService instance = MemberAvatarService._();
 
   static const int maxImageBytes = 5 * 1024 * 1024;
-  static const int outputSize = 512;
+  static const int outputSize = 800;
 
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseStorage _storage = FirebaseStorage.instance;

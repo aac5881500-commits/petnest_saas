@@ -56,9 +56,7 @@ class PlatformMemberManagePage extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF6F7FB),
-      appBar: AppBar(
-        title: const Text('平台會員管理'),
-      ),
+      appBar: AppBar(title: const Text('平台會員管理')),
       body: StreamBuilder<QuerySnapshot>(
         stream: FirebaseFirestore.instance
             .collection('users')
@@ -66,17 +64,13 @@ class PlatformMemberManagePage extends StatelessWidget {
             .snapshots(),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(
-              child: CircularProgressIndicator(),
-            );
+            return const Center(child: CircularProgressIndicator());
           }
 
           final docs = snapshot.data?.docs ?? [];
 
           if (docs.isEmpty) {
-            return const Center(
-              child: Text('目前沒有平台會員'),
-            );
+            return const Center(child: Text('目前沒有平台會員'));
           }
 
           return ListView.separated(
@@ -229,9 +223,7 @@ class PlatformMemberManagePage extends StatelessWidget {
                                     : Icons.block,
                                 size: 18,
                               ),
-                              label: Text(
-                                status == 'blocked' ? '解除封鎖' : '封鎖',
-                              ),
+                              label: Text(status == 'blocked' ? '解除封鎖' : '封鎖'),
                             ),
                           ),
                         ],
@@ -249,10 +241,7 @@ class PlatformMemberManagePage extends StatelessWidget {
 }
 
 class _InfoPill extends StatelessWidget {
-  const _InfoPill({
-    required this.icon,
-    required this.label,
-  });
+  const _InfoPill({required this.icon, required this.label});
 
   final IconData icon;
   final String label;
@@ -260,10 +249,7 @@ class _InfoPill extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: 9,
-        vertical: 6,
-      ),
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
       decoration: BoxDecoration(
         color: Colors.grey.shade100,
         borderRadius: BorderRadius.circular(999),
@@ -271,11 +257,7 @@ class _InfoPill extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(
-            icon,
-            size: 14,
-            color: Colors.grey.shade600,
-          ),
+          Icon(icon, size: 14, color: Colors.grey.shade600),
           const SizedBox(width: 4),
           Text(
             label,

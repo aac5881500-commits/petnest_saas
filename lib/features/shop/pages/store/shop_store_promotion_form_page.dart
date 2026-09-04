@@ -58,9 +58,7 @@ class _ShopStorePromotionFormPageState
   void initState() {
     super.initState();
     final StorePromotionModel? promotion = widget.promotion;
-    _type = promotion?.type ??
-        widget.initialType ??
-        StorePromotionTypes.bundle;
+    _type = promotion?.type ?? widget.initialType ?? StorePromotionTypes.bundle;
     if (promotion == null) {
       _productIds = List<String>.from(widget.preselectedProductIds);
       if (_type == StorePromotionTypes.quantity) {
@@ -215,10 +213,8 @@ class _ShopStorePromotionFormPageState
       productIds: _type == StorePromotionTypes.quantity
           ? _productIds
           : _type == StorePromotionTypes.bundle
-              ? _bundleItems
-                  .map((StoreBundleItem item) => item.productId)
-                  .toList()
-              : const <String>[],
+          ? _bundleItems.map((StoreBundleItem item) => item.productId).toList()
+          : const <String>[],
       bundleItems: _type == StorePromotionTypes.bundle
           ? _bundleItems
           : const <StoreBundleItem>[],
@@ -297,7 +293,9 @@ class _ShopStorePromotionFormPageState
   Future<void> _save() async {
     final String? error = _validate();
     if (error != null) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error)));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(error)));
       return;
     }
     setState(() => _saving = true);
@@ -314,9 +312,9 @@ class _ShopStorePromotionFormPageState
       if (!mounted) {
         return;
       }
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(error.toString())),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(error.toString())));
     } finally {
       if (mounted) {
         setState(() => _saving = false);
@@ -337,167 +335,184 @@ class _ShopStorePromotionFormPageState
       ),
       body: StreamBuilder<List<StoreProductModel>>(
         stream: StoreProductService.instance.streamProducts(widget.shopId),
-        builder: (
-          BuildContext context,
-          AsyncSnapshot<List<StoreProductModel>> productSnapshot,
-        ) {
-          final List<StoreProductModel> products =
-              productSnapshot.data ?? const <StoreProductModel>[];
-          return StreamBuilder<List<StoreCategoryModel>>(
-            stream: StoreCategoryService.instance.streamCategories(
-              widget.shopId,
-            ),
-            builder: (
+        builder:
+            (
               BuildContext context,
-              AsyncSnapshot<List<StoreCategoryModel>> categorySnapshot,
+              AsyncSnapshot<List<StoreProductModel>> productSnapshot,
             ) {
-              final List<StoreCategoryModel> categories =
-                  categorySnapshot.data ?? const <StoreCategoryModel>[];
-              final Map<String, String> categoryNames = <String, String>{
-                for (final StoreCategoryModel item in categories)
-                  item.id: item.name,
-              };
-              final Map<String, StoreProductModel> productsById =
-                  <String, StoreProductModel>{
-                for (final StoreProductModel item in products) item.id: item,
-              };
-              return Column(
-                children: <Widget>[
-                  Expanded(
-                    child: ListView(
-                      padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
-                      children: <Widget>[
-                        _FormCard(
-                          title: '基本資料',
-                          children: <Widget>[
-                            TextField(
-                              controller: _name,
-                              decoration: const InputDecoration(
-                                labelText: '活動名稱',
-                                filled: true,
-                                fillColor: Colors.white,
+              final List<StoreProductModel> products =
+                  productSnapshot.data ?? const <StoreProductModel>[];
+              return StreamBuilder<List<StoreCategoryModel>>(
+                stream: StoreCategoryService.instance.streamCategories(
+                  widget.shopId,
+                ),
+                builder:
+                    (
+                      BuildContext context,
+                      AsyncSnapshot<List<StoreCategoryModel>> categorySnapshot,
+                    ) {
+                      final List<StoreCategoryModel> categories =
+                          categorySnapshot.data ?? const <StoreCategoryModel>[];
+                      final Map<String, String> categoryNames =
+                          <String, String>{
+                            for (final StoreCategoryModel item in categories)
+                              item.id: item.name,
+                          };
+                      final Map<String, StoreProductModel> productsById =
+                          <String, StoreProductModel>{
+                            for (final StoreProductModel item in products)
+                              item.id: item,
+                          };
+                      return Column(
+                        children: <Widget>[
+                          Expanded(
+                            child: ListView(
+                              padding: const EdgeInsets.fromLTRB(
+                                16,
+                                12,
+                                16,
+                                16,
+                              ),
+                              children: <Widget>[
+                                _FormCard(
+                                  title: '基本資料',
+                                  children: <Widget>[
+                                    TextField(
+                                      controller: _name,
+                                      decoration: const InputDecoration(
+                                        labelText: '活動名稱',
+                                        filled: true,
+                                        fillColor: Colors.white,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 10),
+                                    TextField(
+                                      controller: _description,
+                                      maxLines: 2,
+                                      decoration: const InputDecoration(
+                                        labelText: '活動說明',
+                                        filled: true,
+                                        fillColor: Colors.white,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                if (_type == StorePromotionTypes.bundle)
+                                  _bundleSection(
+                                    products,
+                                    productsById,
+                                    categoryNames,
+                                  ),
+                                if (_type == StorePromotionTypes.quantity)
+                                  _mixMatchSection(products, categoryNames),
+                                if (_type == StorePromotionTypes.category)
+                                  _categorySection(categories),
+                                if (_type == StorePromotionTypes.amount)
+                                  _amountSection(),
+                                _FormCard(
+                                  title: '活動時間',
+                                  children: <Widget>[
+                                    const Text('開始'),
+                                    RadioListTile<bool>(
+                                      contentPadding: EdgeInsets.zero,
+                                      title: const Text('立即生效'),
+                                      value: true,
+                                      groupValue: _startImmediately,
+                                      onChanged: (bool? value) {
+                                        setState(() {
+                                          _startImmediately = true;
+                                          _startAt = null;
+                                        });
+                                      },
+                                    ),
+                                    RadioListTile<bool>(
+                                      contentPadding: EdgeInsets.zero,
+                                      title: const Text('指定時間'),
+                                      subtitle: Text(
+                                        _formatDate(_startAt) ?? '尚未選擇',
+                                      ),
+                                      value: false,
+                                      groupValue: _startImmediately,
+                                      onChanged: (bool? value) {
+                                        setState(
+                                          () => _startImmediately = false,
+                                        );
+                                        _pickDateTime(start: true);
+                                      },
+                                    ),
+                                    const SizedBox(height: 8),
+                                    const Text('結束'),
+                                    RadioListTile<bool>(
+                                      contentPadding: EdgeInsets.zero,
+                                      title: const Text('直到手動關閉'),
+                                      value: true,
+                                      groupValue: _endManually,
+                                      onChanged: (bool? value) {
+                                        setState(() {
+                                          _endManually = true;
+                                          _endAt = null;
+                                        });
+                                      },
+                                    ),
+                                    RadioListTile<bool>(
+                                      contentPadding: EdgeInsets.zero,
+                                      title: const Text('指定時間'),
+                                      subtitle: Text(
+                                        _formatDate(_endAt) ?? '尚未選擇',
+                                      ),
+                                      value: false,
+                                      groupValue: _endManually,
+                                      onChanged: (bool? value) {
+                                        setState(() => _endManually = false);
+                                        _pickDateTime(start: false);
+                                      },
+                                    ),
+                                  ],
+                                ),
+                                _FormCard(
+                                  title: '其他',
+                                  children: <Widget>[
+                                    SwitchListTile(
+                                      contentPadding: EdgeInsets.zero,
+                                      title: const Text('啟用活動'),
+                                      value: _enabled,
+                                      onChanged: (bool value) {
+                                        setState(() => _enabled = value);
+                                      },
+                                    ),
+                                    SwitchListTile(
+                                      contentPadding: EdgeInsets.zero,
+                                      title: const Text('可與其他活動併用'),
+                                      subtitle: const Text(
+                                        '關閉時只取對客戶最有利的方案，不會全部自動疊加。',
+                                      ),
+                                      value: _allowStack,
+                                      onChanged: (bool value) {
+                                        setState(() => _allowStack = value);
+                                      },
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
+                          SafeArea(
+                            child: Padding(
+                              padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                              child: SizedBox(
+                                width: double.infinity,
+                                child: FilledButton(
+                                  onPressed: _saving ? null : _save,
+                                  child: Text(_saving ? '儲存中...' : '儲存活動'),
+                                ),
                               ),
                             ),
-                            const SizedBox(height: 10),
-                            TextField(
-                              controller: _description,
-                              maxLines: 2,
-                              decoration: const InputDecoration(
-                                labelText: '活動說明',
-                                filled: true,
-                                fillColor: Colors.white,
-                              ),
-                            ),
-                          ],
-                        ),
-                        if (_type == StorePromotionTypes.bundle)
-                          _bundleSection(products, productsById, categoryNames),
-                        if (_type == StorePromotionTypes.quantity)
-                          _mixMatchSection(products, categoryNames),
-                        if (_type == StorePromotionTypes.category)
-                          _categorySection(categories),
-                        if (_type == StorePromotionTypes.amount)
-                          _amountSection(),
-                        _FormCard(
-                          title: '活動時間',
-                          children: <Widget>[
-                            const Text('開始'),
-                            RadioListTile<bool>(
-                              contentPadding: EdgeInsets.zero,
-                              title: const Text('立即生效'),
-                              value: true,
-                              groupValue: _startImmediately,
-                              onChanged: (bool? value) {
-                                setState(() {
-                                  _startImmediately = true;
-                                  _startAt = null;
-                                });
-                              },
-                            ),
-                            RadioListTile<bool>(
-                              contentPadding: EdgeInsets.zero,
-                              title: const Text('指定時間'),
-                              subtitle: Text(
-                                _formatDate(_startAt) ?? '尚未選擇',
-                              ),
-                              value: false,
-                              groupValue: _startImmediately,
-                              onChanged: (bool? value) {
-                                setState(() => _startImmediately = false);
-                                _pickDateTime(start: true);
-                              },
-                            ),
-                            const SizedBox(height: 8),
-                            const Text('結束'),
-                            RadioListTile<bool>(
-                              contentPadding: EdgeInsets.zero,
-                              title: const Text('直到手動關閉'),
-                              value: true,
-                              groupValue: _endManually,
-                              onChanged: (bool? value) {
-                                setState(() {
-                                  _endManually = true;
-                                  _endAt = null;
-                                });
-                              },
-                            ),
-                            RadioListTile<bool>(
-                              contentPadding: EdgeInsets.zero,
-                              title: const Text('指定時間'),
-                              subtitle: Text(_formatDate(_endAt) ?? '尚未選擇'),
-                              value: false,
-                              groupValue: _endManually,
-                              onChanged: (bool? value) {
-                                setState(() => _endManually = false);
-                                _pickDateTime(start: false);
-                              },
-                            ),
-                          ],
-                        ),
-                        _FormCard(
-                          title: '其他',
-                          children: <Widget>[
-                            SwitchListTile(
-                              contentPadding: EdgeInsets.zero,
-                              title: const Text('啟用活動'),
-                              value: _enabled,
-                              onChanged: (bool value) {
-                                setState(() => _enabled = value);
-                              },
-                            ),
-                            SwitchListTile(
-                              contentPadding: EdgeInsets.zero,
-                              title: const Text('可與其他活動併用'),
-                              subtitle: const Text(
-                                '關閉時只取對客戶最有利的方案，不會全部自動疊加。',
-                              ),
-                              value: _allowStack,
-                              onChanged: (bool value) {
-                                setState(() => _allowStack = value);
-                              },
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                  SafeArea(
-                    child: Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-                      child: SizedBox(
-                        width: double.infinity,
-                        child: FilledButton(
-                          onPressed: _saving ? null : _save,
-                          child: Text(_saving ? '儲存中...' : '儲存活動'),
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
+                          ),
+                        ],
+                      );
+                    },
               );
             },
-          );
-        },
       ),
     );
   }
@@ -678,7 +693,9 @@ class _ShopStorePromotionFormPageState
             ),
             TextField(
               controller: _discountValue,
-              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: true,
+              ),
               decoration: InputDecoration(
                 labelText: _discountMethod == StoreDiscountMethods.specialPrice
                     ? '固定總價，例如 199'
@@ -722,7 +739,9 @@ class _ShopStorePromotionFormPageState
           children: <Widget>[
             TextField(
               controller: _discountValue,
-              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: true,
+              ),
               decoration: const InputDecoration(
                 labelText: '打折，例如 9＝九折',
                 filled: true,
@@ -735,7 +754,8 @@ class _ShopStorePromotionFormPageState
           title: '適用範圍',
           children: <Widget>[
             DropdownButtonFormField<String>(
-              initialValue: categories.any(
+              initialValue:
+                  categories.any(
                     (StoreCategoryModel item) => item.id == _categoryId,
                   )
                   ? _categoryId
@@ -746,10 +766,7 @@ class _ShopStorePromotionFormPageState
                 fillColor: Colors.white,
               ),
               items: <DropdownMenuItem<String>>[
-                const DropdownMenuItem<String>(
-                  value: '',
-                  child: Text('請選擇分類'),
-                ),
+                const DropdownMenuItem<String>(value: '', child: Text('請選擇分類')),
                 ...categories.map((StoreCategoryModel category) {
                   return DropdownMenuItem<String>(
                     value: category.id,
@@ -843,10 +860,7 @@ class _FormCard extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: <Widget>[
-              Text(
-                title,
-                style: const TextStyle(fontWeight: FontWeight.w800),
-              ),
+              Text(title, style: const TextStyle(fontWeight: FontWeight.w800)),
               const SizedBox(height: 10),
               ...children,
             ],

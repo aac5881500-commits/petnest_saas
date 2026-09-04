@@ -2,8 +2,11 @@
 // 🛒 活動海報編輯器：首頁 / 商城共用 StoreBannerView。
 // scope 決定儲存位置與連結選項，不要複製第二套 Editor。
 
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/constants/store_constants.dart';
+import 'package:petnest_saas/core/models/fixed_image_spec.dart';
 import 'package:petnest_saas/core/models/home_theme_model.dart';
 import 'package:petnest_saas/core/models/modern_banner_frame_setting.dart';
 import 'package:petnest_saas/core/models/store_appearance_model.dart';
@@ -18,6 +21,8 @@ import 'package:petnest_saas/core/services/store_category_service.dart';
 import 'package:petnest_saas/core/services/store_product_service.dart';
 import 'package:petnest_saas/core/services/store_promotion_service.dart';
 import 'package:petnest_saas/core/services/store_settings_service.dart';
+import 'package:petnest_saas/features/shop/widgets/media/fixed_image_pick_flow.dart';
+import 'package:petnest_saas/features/shop/widgets/media/fixed_image_spec_hint.dart';
 import 'package:petnest_saas/features/shop/widgets/store/store_banner_color_field.dart';
 import 'package:petnest_saas/features/shop/widgets/store/store_banner_view.dart';
 
@@ -155,16 +160,17 @@ class _ShopStoreBannerEditorPageState extends State<ShopStoreBannerEditorPage>
   Future<void> _pickImage() async {
     try {
       setState(() => _uploading = true);
-      final image = await InventoryImageService.instance.pickAndValidateImage();
-      if (image == null) {
-        return;
-      }
+      final FixedImageSpec spec = widget.isHomeScope
+          ? FixedImageSpec.homeBanner
+          : FixedImageSpec.storeBanner;
       final String itemId =
           '${_draft.id}/p_${DateTime.now().millisecondsSinceEpoch}';
-      final result = await InventoryImageService.instance.uploadImage(
+      final result = await FixedImagePickFlow.pickCropAndUpload(
+        context: context,
+        spec: spec,
+        title: widget.isHomeScope ? '裁切首頁活動海報' : '裁切商城活動海報',
         shopId: widget.shopId,
         itemId: itemId,
-        image: image,
         folder:
             widget.imageFolder ??
             (widget.isHomeScope
@@ -175,6 +181,9 @@ class _ShopStoreBannerEditorPageState extends State<ShopStoreBannerEditorPage>
             (widget.isHomeScope ? 'home_banner' : 'store_banner'),
         idMetadataKey: 'bannerId',
       );
+      if (result == null) {
+        return;
+      }
       if (_pendingPath.isNotEmpty || _pendingUrl.isNotEmpty) {
         await InventoryImageService.instance.tryDeleteImage(
           imageUrl: _pendingUrl,
@@ -696,6 +705,7 @@ class _EditorColumn extends StatelessWidget {
               _TextPanel(
                 draft: draft,
                 theme: theme,
+                scope: scope,
                 textController: textController,
                 selected: selected,
                 onAddText: onAddText,
@@ -744,13 +754,14 @@ class _ImagePanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final String hint = scope == PetNestBannerScope.home
-        ? '建議比例 16:9。建議尺寸 1600 × 900，最低 1280 × 720。單張最大 5 MB，支援 JPG / PNG / WEBP。上傳後可調整縮放與顯示位置。'
-        : '建議比例 2:1 或 16:8。單張最大 5 MB，支援 JPG / PNG / WEBP。上傳後可調整縮放與顯示位置。';
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 28),
       children: <Widget>[
-        Text(hint, style: const TextStyle(fontSize: 12, height: 1.4)),
+        FixedImageSpecHint(
+          spec: scope == PetNestBannerScope.home
+              ? FixedImageSpec.homeBanner
+              : FixedImageSpec.storeBanner,
+        ),
         const SizedBox(height: 8),
         Wrap(
           spacing: 8,
@@ -947,6 +958,7 @@ class _TextPanel extends StatelessWidget {
   const _TextPanel({
     required this.draft,
     required this.theme,
+    required this.scope,
     required this.textController,
     required this.selected,
     required this.onAddText,
@@ -958,6 +970,7 @@ class _TextPanel extends StatelessWidget {
 
   final StoreBannerModel draft;
   final HomeThemeModel theme;
+  final PetNestBannerScope scope;
   final TextEditingController textController;
   final StoreBannerTextElement? selected;
   final VoidCallback onAddText;
@@ -970,6 +983,18 @@ class _TextPanel extends StatelessWidget {
   Widget build(BuildContext context) {
     final List<StoreBannerTextElement> items = draft.resolvedTextElements;
     final StoreBannerTextElement? current = selected;
+    final double canvasHeight = StoreBannerSizePresets.heightForWidth(
+      draft.sizePreset,
+      390,
+      scope: scope,
+    );
+    final double sliderMax = StoreBannerFontSizes.sliderMaxForBanner(
+      canvasHeight,
+    );
+    final int sliderDivisions = math.max(
+      1,
+      (sliderMax - StoreBannerFontSizes.minPx).round(),
+    );
     final bool contrastWarn =
         current != null &&
         StoreBannerContrast.mayBeLow(
@@ -1047,13 +1072,19 @@ class _TextPanel extends StatelessWidget {
             ),
             child: Slider(
               min: StoreBannerFontSizes.minPx,
-              max: StoreBannerFontSizes.maxPx,
-              divisions: StoreBannerFontSizes.sliderDivisions,
+              max: sliderMax,
+              divisions: sliderDivisions,
               padding: EdgeInsets.zero,
               label: '${current.sliderFontSize.round()} px',
-              value: current.sliderFontSize,
+              value: current.sliderFontSize.clamp(
+                StoreBannerFontSizes.minPx,
+                sliderMax,
+              ),
               onChanged: (double value) {
-                final double px = value.roundToDouble();
+                final double px = StoreBannerFontSizes.clampForBanner(
+                  value.roundToDouble(),
+                  canvasHeight,
+                );
                 onReplaceText(
                   current.copyWith(
                     fontSize: px,

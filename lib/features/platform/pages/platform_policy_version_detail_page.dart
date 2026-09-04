@@ -43,9 +43,7 @@ class PlatformPolicyVersionDetailPage extends StatelessWidget {
 
     return Scaffold(
       backgroundColor: const Color(0xFFF6F7FB),
-      appBar: AppBar(
-        title: Text('v$version 條款內容'),
-      ),
+      appBar: AppBar(title: Text('v$version 條款內容')),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
@@ -54,9 +52,7 @@ class PlatformPolicyVersionDetailPage extends StatelessWidget {
             decoration: BoxDecoration(
               color: Colors.white,
               borderRadius: BorderRadius.circular(18),
-              border: Border.all(
-                color: Colors.grey.shade200,
-              ),
+              border: Border.all(color: Colors.grey.shade200),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -79,9 +75,7 @@ class PlatformPolicyVersionDetailPage extends StatelessWidget {
                 const SizedBox(height: 4),
                 Text(
                   '更新時間：${_formatDate(updatedAt)}',
-                  style: TextStyle(
-                    color: Colors.grey.shade600,
-                  ),
+                  style: TextStyle(color: Colors.grey.shade600),
                 ),
               ],
             ),
@@ -94,16 +88,11 @@ class PlatformPolicyVersionDetailPage extends StatelessWidget {
             decoration: BoxDecoration(
               color: Colors.white,
               borderRadius: BorderRadius.circular(18),
-              border: Border.all(
-                color: Colors.grey.shade200,
-              ),
+              border: Border.all(color: Colors.grey.shade200),
             ),
             child: Text(
               content.isEmpty ? '此版本沒有內容' : content,
-              style: const TextStyle(
-                fontSize: 15,
-                height: 1.8,
-              ),
+              style: const TextStyle(fontSize: 15, height: 1.8),
             ),
           ),
         ],

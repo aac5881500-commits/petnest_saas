@@ -63,10 +63,7 @@ class EnvironmentGalleryManager extends StatelessWidget {
           itemBuilder: (BuildContext context, int index) {
             final bool isAddTile = index >= images.length;
             if (isAddTile) {
-              return _AddTile(
-                enabled: !busy && canAdd,
-                onTap: onUpload,
-              );
+              return _AddTile(enabled: !busy && canAdd, onTap: onUpload);
             }
 
             return _GalleryThumb(
@@ -120,13 +117,13 @@ class _GalleryThumb extends StatelessWidget {
               fit: BoxFit.cover,
               errorBuilder:
                   (BuildContext context, Object error, StackTrace? stackTrace) {
-                return const Center(
-                  child: Icon(
-                    Icons.broken_image_rounded,
-                    color: Color(0xFFB87535),
-                  ),
-                );
-              },
+                    return const Center(
+                      child: Icon(
+                        Icons.broken_image_rounded,
+                        color: Color(0xFFB87535),
+                      ),
+                    );
+                  },
             ),
           ),
           Positioned(
@@ -156,10 +153,7 @@ class _GalleryThumb extends StatelessWidget {
 }
 
 class _AddTile extends StatelessWidget {
-  const _AddTile({
-    required this.enabled,
-    required this.onTap,
-  });
+  const _AddTile({required this.enabled, required this.onTap});
 
   final bool enabled;
   final VoidCallback onTap;

@@ -5,10 +5,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 class StoreBundleItem {
-  const StoreBundleItem({
-    required this.productId,
-    this.quantity = 1,
-  });
+  const StoreBundleItem({required this.productId, this.quantity = 1});
 
   final String productId;
   final int quantity;
@@ -175,7 +172,8 @@ class StorePromotionModel {
       type == StorePromotionTypes.flash;
 
   bool get isCartLevel =>
-      type == StorePromotionTypes.amount || type == StorePromotionTypes.quantity;
+      type == StorePromotionTypes.amount ||
+      type == StorePromotionTypes.quantity;
 
   bool get isBundle => type == StorePromotionTypes.bundle;
 
@@ -260,10 +258,12 @@ class StorePromotionModel {
       if (bundleItems.isEmpty) {
         return '尚未選擇商品';
       }
-      return bundleItems.map((StoreBundleItem item) {
-        final String name = productNames[item.productId] ?? '商品';
-        return '$name×${item.quantity}';
-      }).join(' + ');
+      return bundleItems
+          .map((StoreBundleItem item) {
+            final String name = productNames[item.productId] ?? '商品';
+            return '$name×${item.quantity}';
+          })
+          .join(' + ');
     }
     if (isMixMatch) {
       return '指定 ${productIds.length} 款任選 $minimumQuantity 件';
@@ -323,8 +323,8 @@ class StorePromotionModel {
         return bundleItems.isEmpty
             ? '套裝'
             : bundleItems
-                .map((StoreBundleItem item) => '×${item.quantity}')
-                .join(' + ');
+                  .map((StoreBundleItem item) => '×${item.quantity}')
+                  .join(' + ');
       case StorePromotionTypes.storewide:
         return '全館';
       case StorePromotionTypes.amount:
@@ -344,21 +344,22 @@ class StorePromotionModel {
   }) {
     final Object? rawIds = data['productIds'];
     final List<String> productIds = rawIds is List
-        ? rawIds.map((Object? item) => item.toString().trim()).where((String id) {
+        ? rawIds.map((Object? item) => item.toString().trim()).where((
+            String id,
+          ) {
             return id.isNotEmpty;
           }).toList()
         : <String>[];
     final Object? rawBundle = data['bundleItems'];
     final List<StoreBundleItem> bundleItems = rawBundle is List
         ? rawBundle
-            .whereType<Map>()
-            .map(
-              (Map<dynamic, dynamic> item) => StoreBundleItem.fromMap(
-                Map<String, dynamic>.from(item),
-              ),
-            )
-            .where((StoreBundleItem item) => item.productId.isNotEmpty)
-            .toList()
+              .whereType<Map>()
+              .map(
+                (Map<dynamic, dynamic> item) =>
+                    StoreBundleItem.fromMap(Map<String, dynamic>.from(item)),
+              )
+              .where((StoreBundleItem item) => item.productId.isNotEmpty)
+              .toList()
         : <StoreBundleItem>[];
 
     return StorePromotionModel(
@@ -367,8 +368,8 @@ class StorePromotionModel {
       name: (data['name'] ?? '').toString(),
       description: (data['description'] ?? '').toString(),
       type: StorePromotionTypes.normalize(data['type']),
-      discountMethod:
-          (data['discountMethod'] ?? StoreDiscountMethods.percent).toString(),
+      discountMethod: (data['discountMethod'] ?? StoreDiscountMethods.percent)
+          .toString(),
       discountValue: _numFromValue(data['discountValue']),
       productIds: productIds.isEmpty
           ? bundleItems.map((StoreBundleItem item) => item.productId).toList()
@@ -400,7 +401,9 @@ class StorePromotionModel {
       'productIds': productIds.isEmpty
           ? bundleItems.map((StoreBundleItem item) => item.productId).toList()
           : productIds,
-      'bundleItems': bundleItems.map((StoreBundleItem item) => item.toMap()).toList(),
+      'bundleItems': bundleItems
+          .map((StoreBundleItem item) => item.toMap())
+          .toList(),
       'categoryId': categoryId.trim(),
       'minimumAmount': minimumAmount,
       'minimumQuantity': minimumQuantity,

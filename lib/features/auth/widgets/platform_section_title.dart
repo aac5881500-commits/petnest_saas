@@ -5,11 +5,7 @@
 import 'package:flutter/material.dart';
 
 class PlatformSectionTitle extends StatelessWidget {
-  const PlatformSectionTitle({
-    super.key,
-    required this.title,
-    this.trailing,
-  });
+  const PlatformSectionTitle({super.key, required this.title, this.trailing});
 
   final String title;
   final Widget? trailing;
@@ -21,10 +17,7 @@ class PlatformSectionTitle extends StatelessWidget {
         Expanded(
           child: Text(
             title,
-            style: const TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.w900,
-            ),
+            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900),
           ),
         ),
 

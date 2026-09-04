@@ -23,10 +23,9 @@ class StoreOrderService {
   }
 
   Stream<List<StoreOrderModel>> streamShopOrders(String shopId) {
-    return shopOrdersRef(shopId)
-        .orderBy('createdAt', descending: true)
-        .snapshots()
-        .map(_mapDocs);
+    return shopOrdersRef(
+      shopId,
+    ).orderBy('createdAt', descending: true).snapshots().map(_mapDocs);
   }
 
   Stream<List<StoreOrderModel>> streamMemberOrders({String shopId = ''}) {
@@ -43,7 +42,10 @@ class StoreOrderService {
       query = query.where('shopId', isEqualTo: shopId.trim());
     }
 
-    return query.orderBy('createdAt', descending: true).snapshots().map(_mapDocs);
+    return query
+        .orderBy('createdAt', descending: true)
+        .snapshots()
+        .map(_mapDocs);
   }
 
   Stream<StoreOrderModel?> streamOrder({
@@ -64,17 +66,16 @@ class StoreOrderService {
     required String shopId,
     required String orderId,
   }) async {
-    final DocumentSnapshot<Map<String, dynamic>> snapshot =
-        await shopOrdersRef(shopId).doc(orderId.trim()).get();
+    final DocumentSnapshot<Map<String, dynamic>> snapshot = await shopOrdersRef(
+      shopId,
+    ).doc(orderId.trim()).get();
     if (!snapshot.exists || snapshot.data() == null) {
       return null;
     }
     return StoreOrderModel.fromMap(id: snapshot.id, data: snapshot.data()!);
   }
 
-  List<StoreOrderModel> _mapDocs(
-    QuerySnapshot<Map<String, dynamic>> snapshot,
-  ) {
+  List<StoreOrderModel> _mapDocs(QuerySnapshot<Map<String, dynamic>> snapshot) {
     return snapshot.docs.map((QueryDocumentSnapshot<Map<String, dynamic>> doc) {
       return StoreOrderModel.fromMap(id: doc.id, data: doc.data());
     }).toList();

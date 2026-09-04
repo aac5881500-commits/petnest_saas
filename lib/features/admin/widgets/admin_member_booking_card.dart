@@ -31,19 +31,15 @@ class AdminMemberBookingCard extends StatelessWidget {
 
     return Card(
       margin: const EdgeInsets.only(bottom: 10),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(14),
-      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
       child: ListTile(
         contentPadding: const EdgeInsets.all(12),
         onTap: () {
           Navigator.push(
             context,
             MaterialPageRoute(
-              builder: (_) => AdminBookingDetailPage(
-                bookingId: bookingId,
-                canEdit: false,
-              ),
+              builder: (_) =>
+                  AdminBookingDetailPage(bookingId: bookingId, canEdit: false),
             ),
           );
         },
@@ -81,9 +77,7 @@ class AdminMemberBookingCard extends StatelessWidget {
               const SizedBox(height: 4),
               Text(
                 'NT\$ $totalPrice｜訂金 NT\$ $depositAmount',
-                style: const TextStyle(
-                  fontWeight: FontWeight.w600,
-                ),
+                style: const TextStyle(fontWeight: FontWeight.w600),
               ),
               const SizedBox(height: 4),
               Text(

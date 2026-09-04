@@ -434,10 +434,7 @@ class _ScaleField extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(height: 4),
-                      _StatDot(
-                        filled: option.isPrimary,
-                        brand: brand,
-                      ),
+                      _StatDot(filled: option.isPrimary, brand: brand),
                       const SizedBox(height: 3),
                       Text(
                         '${option.count}',

@@ -113,7 +113,9 @@ class StoreAppearancePresets {
   }
 
   static Color swatchOf(String preset) {
-    return Color(themeOf(preset, HomeThemeModel.modernDefault).primaryColorValue);
+    return Color(
+      themeOf(preset, HomeThemeModel.modernDefault).primaryColorValue,
+    );
   }
 }
 
@@ -179,12 +181,13 @@ class StoreHomeDisplaySettings {
   bool get hasStorefrontSubtitle => resolvedStorefrontSubtitle.isNotEmpty;
 
   List<StoreBannerModel> get enabledBanners {
-    final List<StoreBannerModel> items = banners
-        .where((StoreBannerModel item) => item.enabled && item.hasImage)
-        .toList()
-      ..sort((StoreBannerModel a, StoreBannerModel b) {
-        return a.sortOrder.compareTo(b.sortOrder);
-      });
+    final List<StoreBannerModel> items =
+        banners
+            .where((StoreBannerModel item) => item.enabled && item.hasImage)
+            .toList()
+          ..sort((StoreBannerModel a, StoreBannerModel b) {
+            return a.sortOrder.compareTo(b.sortOrder);
+          });
     if (items.length > 5) {
       return items.sublist(0, 5);
     }
@@ -193,21 +196,19 @@ class StoreHomeDisplaySettings {
 
   String get announcementText => announcement.trim();
 
-  bool get hasAnnouncement =>
-      showAnnouncement && announcementText.isNotEmpty;
+  bool get hasAnnouncement => showAnnouncement && announcementText.isNotEmpty;
 
   factory StoreHomeDisplaySettings.fromMap(Map<String, dynamic> data) {
     final Object? rawBanners = data['banners'];
     final List<StoreBannerModel> banners = rawBanners is List
         ? rawBanners
-            .whereType<Map>()
-            .map(
-              (Map<dynamic, dynamic> item) => StoreBannerModel.fromMap(
-                Map<String, dynamic>.from(item),
-              ),
-            )
-            .where((StoreBannerModel item) => item.id.isNotEmpty)
-            .toList()
+              .whereType<Map>()
+              .map(
+                (Map<dynamic, dynamic> item) =>
+                    StoreBannerModel.fromMap(Map<String, dynamic>.from(item)),
+              )
+              .where((StoreBannerModel item) => item.id.isNotEmpty)
+              .toList()
         : <StoreBannerModel>[];
     final int count = data['featuredCount'] is int
         ? data['featuredCount'] as int
@@ -219,12 +220,13 @@ class StoreHomeDisplaySettings {
       showCategories: data['showCategories'] != false,
       showFeaturedProducts: data['showFeaturedProducts'] != false,
       showPromoProducts: data['showPromoProducts'] != false,
-      appearancePreset: StoreAppearancePresets.all.contains(
+      appearancePreset:
+          StoreAppearancePresets.all.contains(
             (data['appearancePreset'] ?? StoreAppearancePresets.system)
                 .toString(),
           )
           ? (data['appearancePreset'] ?? StoreAppearancePresets.system)
-              .toString()
+                .toString()
           : StoreAppearancePresets.system,
       banners: banners,
       bannerAutoPlay: data['bannerAutoPlay'] != false,
@@ -243,8 +245,10 @@ class StoreHomeDisplaySettings {
   }
 
   HomeThemeModel resolveTheme(HomeThemeModel shopTheme) {
-    final HomeThemeModel base =
-        StoreAppearancePresets.themeOf(appearancePreset, shopTheme);
+    final HomeThemeModel base = StoreAppearancePresets.themeOf(
+      appearancePreset,
+      shopTheme,
+    );
     return storeAppearance.applyTo(base, shopTheme);
   }
 
@@ -335,12 +339,7 @@ class StoreCardTextPresets {
   static const String darkGray = 'darkGray';
   static const String white = 'white';
   static const String brand = 'brand';
-  static const List<String> all = <String>[
-    darkBrown,
-    darkGray,
-    white,
-    brand,
-  ];
+  static const List<String> all = <String>[darkBrown, darkGray, white, brand];
 
   static String label(String value) {
     switch (value) {
@@ -588,25 +587,27 @@ class StoreAppearanceSetting {
   String get resolvedStoreTitle =>
       storeTitle.trim().isEmpty ? defaultStoreTitle : storeTitle.trim();
 
-  String get resolvedStoreSubtitle =>
-      storeSubtitle.trim().isEmpty ? defaultStoreSubtitle : storeSubtitle.trim();
+  String get resolvedStoreSubtitle => storeSubtitle.trim().isEmpty
+      ? defaultStoreSubtitle
+      : storeSubtitle.trim();
 
-  String get resolvedFeaturedTitle =>
-      featuredTitle.trim().isEmpty ? defaultFeaturedTitle : featuredTitle.trim();
+  String get resolvedFeaturedTitle => featuredTitle.trim().isEmpty
+      ? defaultFeaturedTitle
+      : featuredTitle.trim();
 
   String get resolvedPromoTitle =>
       promoTitle.trim().isEmpty ? defaultPromoTitle : promoTitle.trim();
 
-  String get resolvedAllTitle =>
-      allProductsTitle.trim().isEmpty
-          ? defaultAllTitle
-          : allProductsTitle.trim();
+  String get resolvedAllTitle => allProductsTitle.trim().isEmpty
+      ? defaultAllTitle
+      : allProductsTitle.trim();
 
   String get resolvedLatestTitle =>
       latestTitle.trim().isEmpty ? defaultLatestTitle : latestTitle.trim();
 
-  BoxFit get cardBoxFit =>
-      cardBackgroundFit == StoreCardFits.contain ? BoxFit.contain : BoxFit.cover;
+  BoxFit get cardBoxFit => cardBackgroundFit == StoreCardFits.contain
+      ? BoxFit.contain
+      : BoxFit.cover;
 
   Alignment get cardAlignment =>
       StoreCardAlignments.geometry(cardBackgroundAlignment);
@@ -635,8 +636,9 @@ class StoreAppearanceSetting {
         data['cardBackgroundPreset'],
         StoreCardColorPresets.system,
       ),
-      cardBackgroundImageUrl:
-          (data['cardBackgroundImageUrl'] ?? '').toString().trim(),
+      cardBackgroundImageUrl: (data['cardBackgroundImageUrl'] ?? '')
+          .toString()
+          .trim(),
       cardBackgroundImageStoragePath:
           (data['cardBackgroundImageStoragePath'] ?? '').toString().trim(),
       cardBackgroundFit: pick(
@@ -732,8 +734,8 @@ class StoreAppearanceSetting {
       cardBackgroundPreset: cardBackgroundPreset ?? this.cardBackgroundPreset,
       cardBackgroundImageUrl:
           cardBackgroundImageUrl ?? this.cardBackgroundImageUrl,
-      cardBackgroundImageStoragePath: cardBackgroundImageStoragePath ??
-          this.cardBackgroundImageStoragePath,
+      cardBackgroundImageStoragePath:
+          cardBackgroundImageStoragePath ?? this.cardBackgroundImageStoragePath,
       cardBackgroundFit: cardBackgroundFit ?? this.cardBackgroundFit,
       cardBackgroundAlignment:
           cardBackgroundAlignment ?? this.cardBackgroundAlignment,
@@ -775,9 +777,9 @@ class StoreAppearanceSetting {
 
   Color secondaryTextColor(HomeThemeModel theme) {
     final Color main = primaryTextColor(theme);
-    return main.withValues(alpha: cardTextPreset == StoreCardTextPresets.white
-        ? 0.78
-        : 0.62);
+    return main.withValues(
+      alpha: cardTextPreset == StoreCardTextPresets.white ? 0.78 : 0.62,
+    );
   }
 
   Color priceColor(HomeThemeModel theme) {

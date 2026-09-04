@@ -11,10 +11,7 @@ import 'package:intl/intl.dart';
 import 'package:petnest_saas/features/shop/pages/policy_version_detail_page.dart';
 
 class PolicyVersionHistoryPage extends StatelessWidget {
-  const PolicyVersionHistoryPage({
-    super.key,
-    required this.shopId,
-  });
+  const PolicyVersionHistoryPage({super.key, required this.shopId});
 
   final String shopId;
 
@@ -27,9 +24,7 @@ class PolicyVersionHistoryPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('條款歷史版本'),
-      ),
+      appBar: AppBar(title: const Text('條款歷史版本')),
       body: StreamBuilder<QuerySnapshot>(
         stream: FirebaseFirestore.instance
             .collection('shops')
@@ -39,17 +34,13 @@ class PolicyVersionHistoryPage extends StatelessWidget {
             .snapshots(),
         builder: (context, snapshot) {
           if (!snapshot.hasData) {
-            return const Center(
-              child: CircularProgressIndicator(),
-            );
+            return const Center(child: CircularProgressIndicator());
           }
 
           final docs = snapshot.data!.docs;
 
           if (docs.isEmpty) {
-            return const Center(
-              child: Text('目前沒有歷史版本'),
-            );
+            return const Center(child: Text('目前沒有歷史版本'));
           }
 
           return ListView.builder(
@@ -60,8 +51,7 @@ class PolicyVersionHistoryPage extends StatelessWidget {
 
               final version = data['version'] ?? '-';
               final updatedAt = _formatTime(data['updatedAt']);
-              final updatedByEmail =
-                  data['updatedByEmail']?.toString() ?? '-';
+              final updatedByEmail = data['updatedByEmail']?.toString() ?? '-';
 
               return Card(
                 margin: const EdgeInsets.only(bottom: 12),
@@ -69,24 +59,18 @@ class PolicyVersionHistoryPage extends StatelessWidget {
                   leading: const Icon(Icons.history),
                   title: Text(
                     'v$version',
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                    ),
+                    style: const TextStyle(fontWeight: FontWeight.bold),
                   ),
-                  subtitle: Text(
-                    '更新時間：$updatedAt\n更新者：$updatedByEmail',
-                  ),
+                  subtitle: Text('更新時間：$updatedAt\n更新者：$updatedByEmail'),
                   trailing: const Icon(Icons.chevron_right),
-                 onTap: () {
-  Navigator.push(
-    context,
-    MaterialPageRoute(
-      builder: (_) => PolicyVersionDetailPage(
-        data: data,
-      ),
-    ),
-  );
-},
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => PolicyVersionDetailPage(data: data),
+                      ),
+                    );
+                  },
                 ),
               );
             },

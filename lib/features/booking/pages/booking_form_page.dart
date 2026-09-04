@@ -103,14 +103,18 @@ class BookingFormPage extends StatefulWidget {
 }
 
 class _BookingFormPageState extends State<BookingFormPage> {
+  final GlobalKey<FormState> _localFormKey = GlobalKey<FormState>();
   bool _isSubmitting = false;
   bool _depositEnabled = false;
   int _depositAmount = 0;
   double _depositRate = 0;
   String _depositBase = 'total';
-  bool _cashEnabled = true;
-  bool _transferEnabled = true;
+  bool _cashEnabled = false;
+  bool _transferEnabled = false;
   bool _loadingTerms = true;
+  bool _paymentSettingsLoaded = false;
+  String? _paymentLoadError;
+  bool _termsLoadError = false;
   TermsStatus? _termsStatus;
 
   /// 💳 綠界線上付款方式
@@ -510,6 +514,14 @@ class _BookingFormPageState extends State<BookingFormPage> {
     '連江縣': ['南竿鄉', '北竿鄉', '莒光鄉', '東引鄉'],
   };
 
+  User? _currentAuthUser() {
+    try {
+      return FirebaseAuth.instance.currentUser;
+    } catch (_) {
+      return null;
+    }
+  }
+
   @override
   void initState() {
     super.initState();
@@ -519,25 +531,40 @@ class _BookingFormPageState extends State<BookingFormPage> {
   }
 
   Future<void> _loadTermsStatus() async {
-    final User? user = FirebaseAuth.instance.currentUser;
+    final User? user = _currentAuthUser();
     if (user == null) {
       if (mounted) {
-        setState(() => _loadingTerms = false);
+        setState(() {
+          _loadingTerms = false;
+          _termsLoadError = false;
+        });
       }
       return;
     }
-    final TermsStatus status = await ShopPolicyService.instance.getTermsStatus(
-      shopId: widget.shopId,
-      userId: user.uid,
-      serviceType: widget.termsServiceType,
-    );
-    if (!mounted) {
-      return;
+    try {
+      final TermsStatus status = await ShopPolicyService.instance
+          .getTermsStatus(
+            shopId: widget.shopId,
+            userId: user.uid,
+            serviceType: widget.termsServiceType,
+          );
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _termsStatus = status;
+        _loadingTerms = false;
+        _termsLoadError = false;
+      });
+    } catch (_) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _loadingTerms = false;
+        _termsLoadError = true;
+      });
     }
-    setState(() {
-      _termsStatus = status;
-      _loadingTerms = false;
-    });
   }
 
   Future<void> _openTermsSheet() async {
@@ -719,7 +746,7 @@ class _BookingFormPageState extends State<BookingFormPage> {
             widget.termsServiceType,
           ),
         );
-    final User? user = FirebaseAuth.instance.currentUser;
+    final User? user = _currentAuthUser();
     return TermsConsentSnapshot(
       termsType: widget.termsServiceType,
       termsVersion: status.version,
@@ -755,218 +782,245 @@ class _BookingFormPageState extends State<BookingFormPage> {
   /// 3. 店家已開啟綠界總開關
   /// 4. 對應的付款方式已核准且已開啟
   Future<void> _loadShopPaymentSettings() async {
-    final DocumentSnapshot<Map<String, dynamic>> document =
-        await FirebaseFirestore.instance
-            .collection('shops')
-            .doc(widget.shopId)
-            .get();
+    try {
+      final DocumentSnapshot<Map<String, dynamic>> document =
+          await FirebaseFirestore.instance
+              .collection('shops')
+              .doc(widget.shopId)
+              .get();
 
-    final Map<String, dynamic>? data = document.data();
+      final Map<String, dynamic>? data = document.data();
 
-    if (data == null || !mounted) {
-      return;
+      if (!mounted) {
+        return;
+      }
+      if (data == null) {
+        setState(() {
+          _paymentSettingsLoaded = true;
+          _paymentLoadError = '無法載入店家付款設定';
+          _cashEnabled = false;
+          _transferEnabled = false;
+        });
+        return;
+      }
+
+      // 💰 訂金設定
+      bool depositEnabled = data['depositEnabled'] == true;
+      String depositType = (data['depositType'] ?? 'fixed').toString();
+      String depositBase = (data['depositBase'] ?? 'room').toString();
+
+      final dynamic rawDepositValue = data['depositValue'];
+
+      int depositValue = rawDepositValue is int
+          ? rawDepositValue
+          : rawDepositValue is double
+          ? rawDepositValue.toInt()
+          : int.tryParse(rawDepositValue?.toString() ?? '') ?? 0;
+
+      final String? daycareDepositType = widget.daycareDepositType;
+      if (daycareDepositType != null) {
+        depositType = daycareDepositType;
+        depositBase = 'total';
+        depositValue = widget.daycareDepositValue;
+        depositEnabled =
+            daycareDepositType == 'fixed' || daycareDepositType == 'percent';
+      }
+
+      // 💳 綠界公開設定
+      final dynamic rawPaymentSetting = data['paymentSetting'];
+
+      final Map<String, dynamic> paymentSetting = rawPaymentSetting is Map
+          ? Map<String, dynamic>.from(rawPaymentSetting)
+          : <String, dynamic>{};
+
+      final String reviewStatus = (paymentSetting['reviewStatus'] ?? '')
+          .toString()
+          .trim()
+          .toLowerCase();
+
+      final bool platformSuspended =
+          paymentSetting['platformSuspended'] == true;
+
+      final bool shopDisabled = paymentSetting['shopDisabled'] == true;
+
+      // 🏪 店家的實際營運開關
+      final dynamic rawOperationSettings = paymentSetting['operationSettings'];
+
+      final Map<String, dynamic> operationSettings = rawOperationSettings is Map
+          ? Map<String, dynamic>.from(rawOperationSettings)
+          : <String, dynamic>{};
+
+      final bool cashEnabled = operationSettings['cashPaymentEnabled'] ?? true;
+
+      final bool transferEnabled =
+          operationSettings['bankTransferEnabled'] ?? true;
+
+      final bool ecpayEnabled = operationSettings['ecpayEnabled'] == true;
+
+      // ✅ 平台核准的綠界付款方式
+      final dynamic rawApprovedMethods = paymentSetting['enabledMethods'];
+
+      final Map<String, dynamic> approvedMethods = rawApprovedMethods is Map
+          ? Map<String, dynamic>.from(rawApprovedMethods)
+          : <String, dynamic>{};
+
+      final bool approvedCreditCard =
+          approvedMethods['creditCard'] == true ||
+          paymentSetting['creditCardEnabled'] == true;
+
+      final bool approvedAtm =
+          approvedMethods['atm'] == true ||
+          paymentSetting['atmEnabled'] == true;
+
+      final bool approvedCvsCode =
+          approvedMethods['cvsCode'] == true ||
+          paymentSetting['cvsCodeEnabled'] == true ||
+          paymentSetting['convenienceStoreCodeEnabled'] == true;
+
+      // 🔐 綠界總資格
+      final bool canUseEcpay =
+          reviewStatus == 'approved' &&
+          !platformSuspended &&
+          !shopDisabled &&
+          ecpayEnabled;
+
+      // 🎛️ 店家實際開啟的綠界付款方式
+      final bool creditCardEnabled =
+          canUseEcpay &&
+          approvedCreditCard &&
+          operationSettings['creditCardEnabled'] == true;
+
+      final bool atmEnabled =
+          canUseEcpay && approvedAtm && operationSettings['atmEnabled'] == true;
+
+      final bool cvsCodeEnabled =
+          canUseEcpay &&
+          approvedCvsCode &&
+          operationSettings['cvsCodeEnabled'] == true;
+
+      setState(() {
+        _depositEnabled = depositEnabled;
+        _depositBase = depositBase;
+
+        if (depositType == 'percent') {
+          _depositAmount = 0;
+          _depositRate = depositValue / 100;
+        } else {
+          _depositAmount = depositValue;
+          _depositRate = 0;
+        }
+
+        _cashEnabled = cashEnabled && (widget.allowCashOverride ?? true);
+        _transferEnabled = transferEnabled;
+
+        _creditCardEnabled = creditCardEnabled;
+        _atmEnabled = atmEnabled;
+        _cvsCodeEnabled = cvsCodeEnabled;
+        _paymentSettingsLoaded = true;
+        _paymentLoadError = null;
+
+        if (widget.daycareDepositType == 'full' ||
+            widget.daycareDepositType == 'none' ||
+            widget.daycareDepositType == 'staff_decide') {
+          _payAmountType = 'full';
+        }
+
+        // 目前選擇的方式若已被店家關閉，就清除選擇
+        final bool selectedMethodStillAvailable =
+            (_paymentMethod == 'cash' && _cashEnabled) ||
+            (_paymentMethod == 'transfer' && _transferEnabled) ||
+            (_paymentMethod == 'credit_card' && _creditCardEnabled) ||
+            (_paymentMethod == 'atm' && _atmEnabled) ||
+            (_paymentMethod == 'cvs_code' && _cvsCodeEnabled);
+
+        if (_paymentMethod != null && !selectedMethodStillAvailable) {
+          _paymentMethod = null;
+        }
+      });
+    } catch (_) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _paymentSettingsLoaded = true;
+        _paymentLoadError = '無法載入付款設定';
+        _cashEnabled = false;
+        _transferEnabled = false;
+      });
     }
-
-    // 💰 訂金設定
-    bool depositEnabled = data['depositEnabled'] == true;
-    String depositType = (data['depositType'] ?? 'fixed').toString();
-    String depositBase = (data['depositBase'] ?? 'room').toString();
-
-    final dynamic rawDepositValue = data['depositValue'];
-
-    int depositValue = rawDepositValue is int
-        ? rawDepositValue
-        : rawDepositValue is double
-        ? rawDepositValue.toInt()
-        : int.tryParse(rawDepositValue?.toString() ?? '') ?? 0;
-
-    final String? daycareDepositType = widget.daycareDepositType;
-    if (daycareDepositType != null) {
-      depositType = daycareDepositType;
-      depositBase = 'total';
-      depositValue = widget.daycareDepositValue;
-      depositEnabled =
-          daycareDepositType == 'fixed' || daycareDepositType == 'percent';
-    }
-
-    // 💳 綠界公開設定
-    final dynamic rawPaymentSetting = data['paymentSetting'];
-
-    final Map<String, dynamic> paymentSetting = rawPaymentSetting is Map
-        ? Map<String, dynamic>.from(rawPaymentSetting)
-        : <String, dynamic>{};
-
-    final String reviewStatus = (paymentSetting['reviewStatus'] ?? '')
-        .toString()
-        .trim()
-        .toLowerCase();
-
-    final bool platformSuspended = paymentSetting['platformSuspended'] == true;
-
-    final bool shopDisabled = paymentSetting['shopDisabled'] == true;
-
-    // 🏪 店家的實際營運開關
-    final dynamic rawOperationSettings = paymentSetting['operationSettings'];
-
-    final Map<String, dynamic> operationSettings = rawOperationSettings is Map
-        ? Map<String, dynamic>.from(rawOperationSettings)
-        : <String, dynamic>{};
-
-    final bool cashEnabled = operationSettings['cashPaymentEnabled'] ?? true;
-
-    final bool transferEnabled =
-        operationSettings['bankTransferEnabled'] ?? true;
-
-    final bool ecpayEnabled = operationSettings['ecpayEnabled'] == true;
-
-    // ✅ 平台核准的綠界付款方式
-    final dynamic rawApprovedMethods = paymentSetting['enabledMethods'];
-
-    final Map<String, dynamic> approvedMethods = rawApprovedMethods is Map
-        ? Map<String, dynamic>.from(rawApprovedMethods)
-        : <String, dynamic>{};
-
-    final bool approvedCreditCard =
-        approvedMethods['creditCard'] == true ||
-        paymentSetting['creditCardEnabled'] == true;
-
-    final bool approvedAtm =
-        approvedMethods['atm'] == true || paymentSetting['atmEnabled'] == true;
-
-    final bool approvedCvsCode =
-        approvedMethods['cvsCode'] == true ||
-        paymentSetting['cvsCodeEnabled'] == true ||
-        paymentSetting['convenienceStoreCodeEnabled'] == true;
-
-    // 🔐 綠界總資格
-    final bool canUseEcpay =
-        reviewStatus == 'approved' &&
-        !platformSuspended &&
-        !shopDisabled &&
-        ecpayEnabled;
-
-    // 🎛️ 店家實際開啟的綠界付款方式
-    final bool creditCardEnabled =
-        canUseEcpay &&
-        approvedCreditCard &&
-        operationSettings['creditCardEnabled'] == true;
-
-    final bool atmEnabled =
-        canUseEcpay && approvedAtm && operationSettings['atmEnabled'] == true;
-
-    final bool cvsCodeEnabled =
-        canUseEcpay &&
-        approvedCvsCode &&
-        operationSettings['cvsCodeEnabled'] == true;
-
-    setState(() {
-      _depositEnabled = depositEnabled;
-      _depositBase = depositBase;
-
-      if (depositType == 'percent') {
-        _depositAmount = 0;
-        _depositRate = depositValue / 100;
-      } else {
-        _depositAmount = depositValue;
-        _depositRate = 0;
-      }
-
-      _cashEnabled = cashEnabled && (widget.allowCashOverride ?? true);
-      _transferEnabled = transferEnabled;
-
-      _creditCardEnabled = creditCardEnabled;
-      _atmEnabled = atmEnabled;
-      _cvsCodeEnabled = cvsCodeEnabled;
-
-      if (widget.daycareDepositType == 'full' ||
-          widget.daycareDepositType == 'none' ||
-          widget.daycareDepositType == 'staff_decide') {
-        _payAmountType = 'full';
-      }
-
-      // 目前選擇的方式若已被店家關閉，就清除選擇
-      final bool selectedMethodStillAvailable =
-          (_paymentMethod == 'cash' && _cashEnabled) ||
-          (_paymentMethod == 'transfer' && _transferEnabled) ||
-          (_paymentMethod == 'credit_card' && _creditCardEnabled) ||
-          (_paymentMethod == 'atm' && _atmEnabled) ||
-          (_paymentMethod == 'cvs_code' && _cvsCodeEnabled);
-
-      if (_paymentMethod != null && !selectedMethodStillAvailable) {
-        _paymentMethod = null;
-      }
-    });
   }
 
   /// 🔥 會員資料完整帶入（重點）
   Future<void> _loadMemberData() async {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) return;
+    try {
+      final user = _currentAuthUser();
+      if (user == null) return;
 
-    final doc = await FirebaseFirestore.instance
-        .collection('user_profiles')
-        .doc(user.uid)
-        .get();
+      final doc = await FirebaseFirestore.instance
+          .collection('user_profiles')
+          .doc(user.uid)
+          .get();
 
-    final data = doc.data();
-    if (data == null) return;
+      final data = doc.data();
+      if (data == null) return;
 
-    if (!mounted) return;
+      if (!mounted) return;
 
-    setState(() {
-      /// 👤 基本資料
-      widget.customerNameController.text = data['name'] ?? '';
-      widget.customerPhoneController.text = data['phone'] ?? '';
+      setState(() {
+        /// 👤 基本資料
+        widget.customerNameController.text = data['name'] ?? '';
+        widget.customerPhoneController.text = data['phone'] ?? '';
 
-      /// 📍 地址（目前先塞詳細地址）
-      final address = data['address'] ?? '';
+        /// 📍 地址（目前先塞詳細地址）
+        final address = data['address'] ?? '';
 
-      /// 🔥 嘗試拆縣市 & 區
-      for (final city in cityData.keys) {
-        if (address.startsWith(city)) {
-          _city = city;
+        /// 🔥 嘗試拆縣市 & 區
+        for (final city in cityData.keys) {
+          if (address.startsWith(city)) {
+            _city = city;
 
-          final districts = cityData[city]!;
+            final districts = cityData[city]!;
 
-          for (final d in districts) {
-            if (address.contains(d)) {
-              _district = d;
-              break;
+            for (final d in districts) {
+              if (address.contains(d)) {
+                _district = d;
+                break;
+              }
             }
+
+            break;
           }
-
-          break;
         }
-      }
 
-      /// 剩下當詳細地址
-      /// 🔥 去掉縣市 + 區，只留詳細地址
-      String detail = address;
+        /// 剩下當詳細地址
+        /// 🔥 去掉縣市 + 區，只留詳細地址
+        String detail = address;
 
-      if (_city != null && detail.startsWith(_city!)) {
-        detail = detail.substring(_city!.length);
-      }
+        if (_city != null && detail.startsWith(_city!)) {
+          detail = detail.substring(_city!.length);
+        }
 
-      if (_district != null && detail.startsWith(_district!)) {
-        detail = detail.substring(_district!.length);
-      }
+        if (_district != null && detail.startsWith(_district!)) {
+          detail = detail.substring(_district!.length);
+        }
 
-      _detailAddressController.text = detail;
+        _detailAddressController.text = detail;
 
-      /// 🚨 緊急聯絡人
-      final emergency = data['emergencyContact'];
+        /// 🚨 緊急聯絡人
+        final emergency = data['emergencyContact'];
 
-      if (emergency != null) {
-        _emergencyNameController.text = emergency['name'] ?? '';
-        _emergencyPhoneController.text = emergency['phone'] ?? '';
-        _emergencyRelation = (emergency['relation'] ?? '').toString().isEmpty
-            ? null
-            : emergency['relation'].toString();
+        if (emergency != null) {
+          _emergencyNameController.text = emergency['name'] ?? '';
+          _emergencyPhoneController.text = emergency['phone'] ?? '';
+          _emergencyRelation = (emergency['relation'] ?? '').toString().isEmpty
+              ? null
+              : emergency['relation'].toString();
 
-        _emergencyAddressController.text = emergency['address'] ?? '';
-        _phone2Controller.text = emergency['phone2'] ?? '';
-      }
-    });
+          _emergencyAddressController.text = emergency['address'] ?? '';
+          _phone2Controller.text = emergency['phone2'] ?? '';
+        }
+      });
+    } catch (_) {}
   }
 
   Future<void> _handleSubmit(int calculatedDeposit) async {
@@ -1075,7 +1129,7 @@ class _BookingFormPageState extends State<BookingFormPage> {
       fontSize: isPayable || isTotal ? 15 : 14,
       fontWeight: isPayable || isTotal ? FontWeight.w700 : FontWeight.w500,
       color: isDiscount
-          ? const Color(0xFF2E8B47)
+          ? widget.theme.primaryColor
           : isPayable
           ? widget.theme.primaryColor
           : widget.theme.textColor,
@@ -1093,7 +1147,7 @@ class _BookingFormPageState extends State<BookingFormPage> {
 
   @override
   Widget build(BuildContext context) {
-    final User? user = FirebaseAuth.instance.currentUser;
+    final User? user = _currentAuthUser();
     final int depositBasePrice = _depositBase == 'room'
         ? widget.roomPrice
         : widget.totalPrice;
@@ -1133,7 +1187,7 @@ class _BookingFormPageState extends State<BookingFormPage> {
         ),
       ),
       body: Form(
-        key: widget.formKey,
+        key: _localFormKey,
         child: ListView(
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 120),
           children: <Widget>[
@@ -1286,17 +1340,42 @@ class _BookingFormPageState extends State<BookingFormPage> {
               title: '費用與付款',
               children: <Widget>[
                 _feeLinesSection(payableAmount),
-                if (!_cashEnabled &&
+                if (!_paymentSettingsLoaded)
+                  const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 16),
+                    child: Center(child: CircularProgressIndicator()),
+                  )
+                else if (_paymentLoadError != null)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 8),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: <Widget>[
+                        Text(
+                          _paymentLoadError!,
+                          style: TextStyle(color: widget.theme.primaryColor),
+                        ),
+                        TextButton(
+                          onPressed: () {
+                            setState(() {
+                              _paymentSettingsLoaded = false;
+                              _paymentLoadError = null;
+                            });
+                            _loadShopPaymentSettings();
+                          },
+                          child: const Text('重試'),
+                        ),
+                      ],
+                    ),
+                  )
+                else if (!_cashEnabled &&
                     !_transferEnabled &&
                     !_creditCardEnabled &&
                     !_atmEnabled &&
                     !_cvsCodeEnabled)
                   const Padding(
                     padding: EdgeInsets.only(top: 8),
-                    child: Text(
-                      '目前未開放付款方式',
-                      style: TextStyle(color: Colors.red),
-                    ),
+                    child: Text('店家目前尚未設定可用的付款方式，請聯絡店家。'),
                   ),
                 if (_depositEnabled) ...<Widget>[
                   const SizedBox(height: 12),
@@ -1329,45 +1408,71 @@ class _BookingFormPageState extends State<BookingFormPage> {
                     color: widget.theme.textColor,
                   ),
                 ),
-                if (_cashEnabled)
-                  _choiceCard(
-                    title: '到店付款',
-                    selected: _paymentMethod == 'cash',
-                    onTap: () => setState(() => _paymentMethod = 'cash'),
-                  ),
-                if (_transferEnabled)
-                  _choiceCard(
-                    title: '銀行轉帳',
-                    selected: _paymentMethod == 'transfer',
-                    onTap: () => setState(() => _paymentMethod = 'transfer'),
-                  ),
-                if (_creditCardEnabled)
-                  _choiceCard(
-                    title: '信用卡',
-                    subtitle: '透過綠界線上付款',
-                    selected: _paymentMethod == 'credit_card',
-                    onTap: () => setState(() => _paymentMethod = 'credit_card'),
-                  ),
-                if (_atmEnabled)
-                  _choiceCard(
-                    title: 'ATM 虛擬帳號',
-                    subtitle: '透過綠界取得轉帳帳號',
-                    selected: _paymentMethod == 'atm',
-                    onTap: () => setState(() => _paymentMethod = 'atm'),
-                  ),
-                if (_cvsCodeEnabled)
-                  _choiceCard(
-                    title: '超商代碼',
-                    subtitle: '透過綠界取得繳費代碼',
-                    selected: _paymentMethod == 'cvs_code',
-                    onTap: () => setState(() => _paymentMethod = 'cvs_code'),
-                  ),
+                if (_paymentSettingsLoaded &&
+                    _paymentLoadError == null) ...<Widget>[
+                  if (_cashEnabled)
+                    _choiceCard(
+                      title: '到店付款',
+                      selected: _paymentMethod == 'cash',
+                      onTap: () => setState(() => _paymentMethod = 'cash'),
+                    ),
+                  if (_transferEnabled)
+                    _choiceCard(
+                      title: '銀行轉帳',
+                      selected: _paymentMethod == 'transfer',
+                      onTap: () => setState(() => _paymentMethod = 'transfer'),
+                    ),
+                  if (_creditCardEnabled)
+                    _choiceCard(
+                      title: '信用卡',
+                      subtitle: '透過綠界線上付款',
+                      selected: _paymentMethod == 'credit_card',
+                      onTap: () =>
+                          setState(() => _paymentMethod = 'credit_card'),
+                    ),
+                  if (_atmEnabled)
+                    _choiceCard(
+                      title: 'ATM 虛擬帳號',
+                      subtitle: '透過綠界取得轉帳帳號',
+                      selected: _paymentMethod == 'atm',
+                      onTap: () => setState(() => _paymentMethod = 'atm'),
+                    ),
+                  if (_cvsCodeEnabled)
+                    _choiceCard(
+                      title: '超商代碼',
+                      subtitle: '透過綠界取得繳費代碼',
+                      selected: _paymentMethod == 'cvs_code',
+                      onTap: () => setState(() => _paymentMethod = 'cvs_code'),
+                    ),
+                ],
               ],
             ),
             if (_loadingTerms)
               const Padding(
                 padding: EdgeInsets.symmetric(vertical: 12),
                 child: Center(child: CircularProgressIndicator()),
+              )
+            else if (_termsLoadError)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                child: Column(
+                  children: <Widget>[
+                    Text(
+                      '條款載入失敗',
+                      style: TextStyle(color: widget.theme.textColor),
+                    ),
+                    TextButton(
+                      onPressed: () {
+                        setState(() {
+                          _loadingTerms = true;
+                          _termsLoadError = false;
+                        });
+                        _loadTermsStatus();
+                      },
+                      child: const Text('重試'),
+                    ),
+                  ],
+                ),
               )
             else if (_termsStatus != null)
               TermsConfirmationCard(

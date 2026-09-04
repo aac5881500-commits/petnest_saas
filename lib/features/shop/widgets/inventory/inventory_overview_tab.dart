@@ -71,34 +71,36 @@ class InventoryOverviewTab extends StatelessWidget {
             itemId: item.id,
             limit: InventoryConstants.recentMovementLimit,
           ),
-          builder: (
-            BuildContext context,
-            AsyncSnapshot<List<InventoryMovementModel>> snapshot,
-          ) {
-            final List<InventoryMovementModel> movements =
-                snapshot.data ?? const <InventoryMovementModel>[];
+          builder:
+              (
+                BuildContext context,
+                AsyncSnapshot<List<InventoryMovementModel>> snapshot,
+              ) {
+                final List<InventoryMovementModel> movements =
+                    snapshot.data ?? const <InventoryMovementModel>[];
 
-            if (movements.isEmpty) {
-              return Padding(
-                padding: const EdgeInsets.only(top: 12),
-                child: Text(
-                  '尚無異動紀錄',
-                  style: TextStyle(color: Colors.grey.shade600),
-                ),
-              );
-            }
-
-            return Column(
-              children: movements
-                  .map(
-                    (InventoryMovementModel movement) => InventoryMovementTile(
-                      movement: movement,
-                      unit: item.unit,
+                if (movements.isEmpty) {
+                  return Padding(
+                    padding: const EdgeInsets.only(top: 12),
+                    child: Text(
+                      '尚無異動紀錄',
+                      style: TextStyle(color: Colors.grey.shade600),
                     ),
-                  )
-                  .toList(),
-            );
-          },
+                  );
+                }
+
+                return Column(
+                  children: movements
+                      .map(
+                        (InventoryMovementModel movement) =>
+                            InventoryMovementTile(
+                              movement: movement,
+                              unit: item.unit,
+                            ),
+                      )
+                      .toList(),
+                );
+              },
         ),
       ],
     );
@@ -198,10 +200,7 @@ class _SectionLabel extends StatelessWidget {
 }
 
 class _StockSummaryGrid extends StatelessWidget {
-  const _StockSummaryGrid({
-    required this.item,
-    required this.canViewCost,
-  });
+  const _StockSummaryGrid({required this.item, required this.canViewCost});
 
   final InventoryItemModel item;
   final bool canViewCost;
@@ -222,12 +221,14 @@ class _StockSummaryGrid extends StatelessWidget {
       if (canViewCost)
         _SummaryData(
           label: '最近進貨價',
-          value: '\$${InventoryConstants.formatMoney(item.lastPurchaseUnitCost)}',
+          value:
+              '\$${InventoryConstants.formatMoney(item.lastPurchaseUnitCost)}',
         ),
       if (canViewCost)
         _SummaryData(
           label: '加權平均成本',
-          value: '\$${InventoryConstants.formatMoney(item.weightedAverageCost)}',
+          value:
+              '\$${InventoryConstants.formatMoney(item.weightedAverageCost)}',
         ),
     ];
 

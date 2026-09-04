@@ -1,12 +1,7 @@
 // lib/core/models/booking_fee_line_item.dart
 // 💰 填寫資料頁費用明細列
 
-enum BookingFeeLineKind {
-  normal,
-  discount,
-  total,
-  payable,
-}
+enum BookingFeeLineKind { normal, discount, total, payable }
 
 class BookingFeeLineItem {
   const BookingFeeLineItem({

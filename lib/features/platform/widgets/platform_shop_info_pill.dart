@@ -17,10 +17,7 @@ class PlatformShopInfoPill extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: 9,
-        vertical: 6,
-      ),
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
       decoration: BoxDecoration(
         color: Colors.grey.shade100,
         borderRadius: BorderRadius.circular(999),
@@ -28,11 +25,7 @@ class PlatformShopInfoPill extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(
-            icon,
-            size: 14,
-            color: Colors.grey.shade600,
-          ),
+          Icon(icon, size: 14, color: Colors.grey.shade600),
           const SizedBox(width: 4),
           Text(
             label,

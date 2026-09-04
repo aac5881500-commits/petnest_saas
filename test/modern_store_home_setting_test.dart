@@ -14,11 +14,17 @@ void main() {
     expect(setting.resolvedButtonText, '逛逛賣場');
     expect(setting.hasBackgroundImage, isFalse);
     expect(setting.storeBannerOverlayPreset, ModernStoreCardOverlays.none);
-    expect(setting.storeBannerContentPosition, ModernStoreCardPositions.centerLeft);
+    expect(
+      setting.storeBannerContentPosition,
+      ModernStoreCardPositions.centerLeft,
+    );
   });
 
   test('遮罩強度為三段', () {
-    expect(ModernStoreCardOverlays.opacity(ModernStoreCardOverlays.light), 0.15);
+    expect(
+      ModernStoreCardOverlays.opacity(ModernStoreCardOverlays.light),
+      0.15,
+    );
     expect(
       ModernStoreCardOverlays.opacity(ModernStoreCardOverlays.standard),
       0.30,

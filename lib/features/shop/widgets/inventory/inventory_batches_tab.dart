@@ -28,44 +28,48 @@ class InventoryBatchesTab extends StatelessWidget {
         shopId: shopId,
         itemId: item.id,
       ),
-      builder: (
-        BuildContext context,
-        AsyncSnapshot<List<InventoryBatchModel>> snapshot,
-      ) {
-        final List<InventoryBatchModel> batches =
-            snapshot.data ?? const <InventoryBatchModel>[];
+      builder:
+          (
+            BuildContext context,
+            AsyncSnapshot<List<InventoryBatchModel>> snapshot,
+          ) {
+            final List<InventoryBatchModel> batches =
+                snapshot.data ?? const <InventoryBatchModel>[];
 
-        if (snapshot.connectionState == ConnectionState.waiting &&
-            batches.isEmpty) {
-          return const Center(child: CircularProgressIndicator());
-        }
-
-        if (batches.isEmpty) {
-          return const Center(child: Text('尚無進貨紀錄'));
-        }
-
-        return ListView.builder(
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
-          itemCount: batches.length + 1,
-          itemBuilder: (BuildContext context, int index) {
-            if (index == 0) {
-              return const Padding(
-                padding: EdgeInsets.only(bottom: 10),
-                child: Text(
-                  '進貨紀錄',
-                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
-                ),
-              );
+            if (snapshot.connectionState == ConnectionState.waiting &&
+                batches.isEmpty) {
+              return const Center(child: CircularProgressIndicator());
             }
 
-            return _BatchCard(
-              batch: batches[index - 1],
-              unit: item.unit,
-              canViewCost: canViewCost,
+            if (batches.isEmpty) {
+              return const Center(child: Text('尚無進貨紀錄'));
+            }
+
+            return ListView.builder(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+              itemCount: batches.length + 1,
+              itemBuilder: (BuildContext context, int index) {
+                if (index == 0) {
+                  return const Padding(
+                    padding: EdgeInsets.only(bottom: 10),
+                    child: Text(
+                      '進貨紀錄',
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  );
+                }
+
+                return _BatchCard(
+                  batch: batches[index - 1],
+                  unit: item.unit,
+                  canViewCost: canViewCost,
+                );
+              },
             );
           },
-        );
-      },
     );
   }
 }
@@ -112,10 +116,7 @@ class _BatchCard extends StatelessWidget {
           const SizedBox(height: 8),
           if (batch.batchNo.isNotEmpty)
             _Line(label: '批次號', value: batch.batchNo),
-          _Line(
-            label: '進貨日期',
-            value: InventoryUiFormat.date(batch.receivedAt),
-          ),
+          _Line(label: '進貨日期', value: InventoryUiFormat.date(batch.receivedAt)),
           if (batch.expiryDate != null)
             _Line(
               label: '有效期限',

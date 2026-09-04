@@ -992,9 +992,7 @@ class _ShopPayoutSettingPageState extends State<ShopPayoutSettingPage> {
       child: Scaffold(
         appBar: AppBar(
           title: const Text('收款帳戶 / 金流設定'),
-          actions: <Widget>[
-            ShopTaskCenterButton(shopId: widget.shopId),
-          ],
+          actions: <Widget>[ShopTaskCenterButton(shopId: widget.shopId)],
           bottom: const TabBar(
             tabs: <Widget>[
               Tab(icon: Icon(Icons.account_balance_outlined), text: '銀行轉帳'),

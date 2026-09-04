@@ -9,17 +9,13 @@ class PlatformPolicyManageService {
 
   static final instance = PlatformPolicyManageService._();
 
-  final FirebaseFirestore _firestore =
-      FirebaseFirestore.instance;
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
-  CollectionReference<Map<String, dynamic>>
-      get _policyRef =>
-          _firestore.collection('platform_policies');
+  CollectionReference<Map<String, dynamic>> get _policyRef =>
+      _firestore.collection('platform_policies');
 
   /// 讀取條款
-  Future<Map<String, dynamic>?> getPolicy(
-    String policyKey,
-  ) async {
+  Future<Map<String, dynamic>?> getPolicy(String policyKey) async {
     final doc = await _policyRef.doc(policyKey).get();
 
     return doc.data();
@@ -27,22 +23,22 @@ class PlatformPolicyManageService {
 
   /// 儲存條款
   Future<void> savePolicy({
-  required String policyKey,
-  required String title,
-  required String content,
-  required int version,
-}) async {
-  final policyDoc = _policyRef.doc(policyKey);
-  final versionDoc = policyDoc.collection('versions').doc('v$version');
+    required String policyKey,
+    required String title,
+    required String content,
+    required int version,
+  }) async {
+    final policyDoc = _policyRef.doc(policyKey);
+    final versionDoc = policyDoc.collection('versions').doc('v$version');
 
-  final data = {
-    'title': title,
-    'content': content,
-    'version': version,
-    'updatedAt': FieldValue.serverTimestamp(),
-  };
+    final data = {
+      'title': title,
+      'content': content,
+      'version': version,
+      'updatedAt': FieldValue.serverTimestamp(),
+    };
 
-  await policyDoc.set(data, SetOptions(merge: true));
-  await versionDoc.set(data, SetOptions(merge: true));
-}
+    await policyDoc.set(data, SetOptions(merge: true));
+    await versionDoc.set(data, SetOptions(merge: true));
+  }
 }

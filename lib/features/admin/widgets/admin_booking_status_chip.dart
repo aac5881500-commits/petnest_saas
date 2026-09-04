@@ -5,10 +5,7 @@
 import 'package:flutter/material.dart';
 
 class AdminBookingStatusChip extends StatelessWidget {
-  const AdminBookingStatusChip({
-    super.key,
-    required this.status,
-  });
+  const AdminBookingStatusChip({super.key, required this.status});
 
   final String status;
 
@@ -40,20 +37,14 @@ class AdminBookingStatusChip extends StatelessWidget {
     }
 
     return Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: 12,
-        vertical: 6,
-      ),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       decoration: BoxDecoration(
         color: color.withOpacity(0.1),
         borderRadius: BorderRadius.circular(20),
       ),
       child: Text(
         text,
-        style: TextStyle(
-          color: color,
-          fontWeight: FontWeight.bold,
-        ),
+        style: TextStyle(color: color, fontWeight: FontWeight.bold),
       ),
     );
   }

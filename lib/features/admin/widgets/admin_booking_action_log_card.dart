@@ -8,10 +8,7 @@ import 'package:petnest_saas/features/admin/widgets/admin_booking_status_chip.da
 import 'package:petnest_saas/features/admin/widgets/admin_booking_text_helpers.dart';
 
 class AdminBookingActionLogCard extends StatelessWidget {
-  const AdminBookingActionLogCard({
-    super.key,
-    required this.log,
-  });
+  const AdminBookingActionLogCard({super.key, required this.log});
 
   final Map<String, dynamic> log;
 
@@ -21,8 +18,8 @@ class AdminBookingActionLogCard extends StatelessWidget {
     final time = adminBookingFormatDateTime(log['createdAt']);
     final operatorEmail = log['operatorEmail'];
 
-    final operatorText = operatorEmail != null &&
-            operatorEmail.toString().isNotEmpty
+    final operatorText =
+        operatorEmail != null && operatorEmail.toString().isNotEmpty
         ? operatorEmail.toString()
         : adminBookingOperatorRoleText(log['operatorRole']);
 
@@ -65,17 +62,11 @@ class AdminBookingActionLogCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            title,
-            style: const TextStyle(fontWeight: FontWeight.bold),
-          ),
+          Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
           const SizedBox(height: 4),
           Text(
             '$time ・ 操作者：$operatorText',
-            style: TextStyle(
-              fontSize: 12,
-              color: Colors.grey.shade600,
-            ),
+            style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
           ),
         ],
       ),

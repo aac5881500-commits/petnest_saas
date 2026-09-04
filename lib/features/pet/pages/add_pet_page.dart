@@ -4,10 +4,11 @@
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
-import 'package:image_picker/image_picker.dart';
+import 'package:petnest_saas/core/models/fixed_image_spec.dart';
 import 'package:petnest_saas/core/models/home_theme_model.dart';
 import 'package:petnest_saas/core/services/pet_service.dart';
 import 'package:petnest_saas/features/pet/widgets/pet_profile_form.dart';
+import 'package:petnest_saas/features/shop/widgets/media/fixed_image_pick_flow.dart';
 
 class AddPetPage extends StatefulWidget {
   const AddPetPage({super.key, this.theme = HomeThemeModel.modernDefault});
@@ -45,13 +46,24 @@ class _AddPetPageState extends State<AddPetPage> {
   }
 
   Future<void> _pickImage() async {
-    final ImagePicker picker = ImagePicker();
-    final XFile? picked = await picker.pickImage(source: ImageSource.gallery);
-    if (picked == null) {
-      return;
+    try {
+      final Uint8List? cropped = await FixedImagePickFlow.pickAndCrop(
+        context: context,
+        spec: FixedImageSpec.memberAvatar,
+        title: '裁切寵物頭像',
+      );
+      if (cropped == null) {
+        return;
+      }
+      setState(() => _imageBytes = cropped);
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('選擇圖片失敗：$error')));
     }
-    final Uint8List bytes = await picked.readAsBytes();
-    setState(() => _imageBytes = bytes);
   }
 
   Future<void> _submit() async {
@@ -81,6 +93,7 @@ class _AddPetPageState extends State<AddPetPage> {
         await PetService.instance.uploadPetPhoto(
           petId: petId,
           bytes: _imageBytes!,
+          alreadyProcessed: true,
         );
       }
       if (!mounted) {

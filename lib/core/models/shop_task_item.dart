@@ -99,11 +99,13 @@ class ShopTaskCenterSnapshot {
 
   int get totalCount => items.length;
 
-  int get dailyCareCount =>
-      items.where((ShopTaskItem item) => item.type == ShopTaskType.dailyCare).length;
+  int get dailyCareCount => items
+      .where((ShopTaskItem item) => item.type == ShopTaskType.dailyCare)
+      .length;
 
-  int get bookingCount =>
-      items.where((ShopTaskItem item) => item.type == ShopTaskType.booking).length;
+  int get bookingCount => items
+      .where((ShopTaskItem item) => item.type == ShopTaskType.booking)
+      .length;
 
   List<ShopTaskItem> ofType(ShopTaskType type) {
     return items.where((ShopTaskItem item) => item.type == type).toList();

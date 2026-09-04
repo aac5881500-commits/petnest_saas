@@ -58,59 +58,60 @@ class _ShopStoreOrderListPageState extends State<ShopStoreOrderListPage> {
         Expanded(
           child: StreamBuilder<List<StoreOrderModel>>(
             stream: StoreOrderService.instance.streamShopOrders(widget.shopId),
-            builder: (
-              BuildContext context,
-              AsyncSnapshot<List<StoreOrderModel>> snapshot,
-            ) {
-              final List<StoreOrderModel> all =
-                  snapshot.data ?? const <StoreOrderModel>[];
-              if (snapshot.connectionState == ConnectionState.waiting &&
-                  all.isEmpty) {
-                return const Center(child: CircularProgressIndicator());
-              }
-              if (all.isEmpty) {
-                return const StoreEmptyState(
-                  title: '目前沒有商城訂單',
-                  subtitle: '客人下單後，會顯示訂單編號、付款與取貨狀態。',
-                  icon: Icons.receipt_long_outlined,
-                );
-              }
-              final List<StoreOrderModel> orders = all
-                  .where((StoreOrderModel order) {
+            builder:
+                (
+                  BuildContext context,
+                  AsyncSnapshot<List<StoreOrderModel>> snapshot,
+                ) {
+                  final List<StoreOrderModel> all =
+                      snapshot.data ?? const <StoreOrderModel>[];
+                  if (snapshot.connectionState == ConnectionState.waiting &&
+                      all.isEmpty) {
+                    return const Center(child: CircularProgressIndicator());
+                  }
+                  if (all.isEmpty) {
+                    return const StoreEmptyState(
+                      title: '目前沒有商城訂單',
+                      subtitle: '客人下單後，會顯示訂單編號、付款與取貨狀態。',
+                      icon: Icons.receipt_long_outlined,
+                    );
+                  }
+                  final List<StoreOrderModel> orders = all.where((
+                    StoreOrderModel order,
+                  ) {
                     return _filter == 'all' || order.status == _filter;
-                  })
-                  .toList();
-              if (orders.isEmpty) {
-                return const StoreEmptyState(
-                  title: '這個狀態沒有訂單',
-                  subtitle: '試試其他篩選。',
-                  icon: Icons.filter_alt_outlined,
-                );
-              }
-              return ListView.separated(
-                padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
-                itemCount: orders.length,
-                separatorBuilder: (_, _) => const SizedBox(height: 8),
-                itemBuilder: (BuildContext context, int index) {
-                  final StoreOrderModel order = orders[index];
-                  return StoreOrderCard(
-                    order: order,
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute<void>(
-                          builder: (_) => ShopStoreOrderDetailPage(
-                            shopId: widget.shopId,
-                            orderId: order.id,
-                            canManage: widget.canManage,
-                          ),
-                        ),
+                  }).toList();
+                  if (orders.isEmpty) {
+                    return const StoreEmptyState(
+                      title: '這個狀態沒有訂單',
+                      subtitle: '試試其他篩選。',
+                      icon: Icons.filter_alt_outlined,
+                    );
+                  }
+                  return ListView.separated(
+                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+                    itemCount: orders.length,
+                    separatorBuilder: (_, _) => const SizedBox(height: 8),
+                    itemBuilder: (BuildContext context, int index) {
+                      final StoreOrderModel order = orders[index];
+                      return StoreOrderCard(
+                        order: order,
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute<void>(
+                              builder: (_) => ShopStoreOrderDetailPage(
+                                shopId: widget.shopId,
+                                orderId: order.id,
+                                canManage: widget.canManage,
+                              ),
+                            ),
+                          );
+                        },
                       );
                     },
                   );
                 },
-              );
-            },
           ),
         ),
       ],

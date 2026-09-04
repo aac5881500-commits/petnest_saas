@@ -37,43 +37,45 @@ class StoreBannerView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (BuildContext context, BoxConstraints constraints) {
-        final double width = constraints.maxWidth;
-        final double rawHeight = StoreBannerSizePresets.heightForWidth(
-          sizePresetOverride ?? banner.sizePreset,
-          width,
-          scope: scope,
-        );
-        final double height;
-        if (scope == PetNestBannerScope.home &&
-            constraints.maxHeight.isFinite &&
-            constraints.maxHeight > 0) {
-          height = constraints.maxHeight;
-        } else if (constraints.maxHeight.isFinite) {
-          height = rawHeight.clamp(0.0, constraints.maxHeight);
-        } else {
-          height = rawHeight;
-        }
-        return SizedBox(
-          width: width,
-          height: height,
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(borderRadius),
-            child: _BannerStage(
-              banner: banner,
-              theme: theme,
-              width: width,
-              height: height,
-              interactMode: interactMode,
-              selectedTextId: selectedTextId,
-              onChanged: onChanged,
-              onTextSelected: onTextSelected,
-              onTap: onTap,
+    return MediaQuery.withNoTextScaling(
+      child: LayoutBuilder(
+        builder: (BuildContext context, BoxConstraints constraints) {
+          final double width = constraints.maxWidth;
+          final double rawHeight = StoreBannerSizePresets.heightForWidth(
+            sizePresetOverride ?? banner.sizePreset,
+            width,
+            scope: scope,
+          );
+          final double height;
+          if (scope == PetNestBannerScope.home &&
+              constraints.maxHeight.isFinite &&
+              constraints.maxHeight > 0) {
+            height = constraints.maxHeight;
+          } else if (constraints.maxHeight.isFinite) {
+            height = rawHeight.clamp(0.0, constraints.maxHeight);
+          } else {
+            height = rawHeight;
+          }
+          return SizedBox(
+            width: width,
+            height: height,
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(borderRadius),
+              child: _BannerStage(
+                banner: banner,
+                theme: theme,
+                width: width,
+                height: height,
+                interactMode: interactMode,
+                selectedTextId: selectedTextId,
+                onChanged: onChanged,
+                onTextSelected: onTextSelected,
+                onTap: onTap,
+              ),
             ),
-          ),
-        );
-      },
+          );
+        },
+      ),
     );
   }
 }

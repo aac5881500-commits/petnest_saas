@@ -9,8 +9,5 @@ class ShopRoles {
   static const staff = 'staff';
 
   /// 所有角色
-  static const all = [
-    owner,
-    staff,
-  ];
+  static const all = [owner, staff];
 }

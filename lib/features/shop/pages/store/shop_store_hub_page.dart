@@ -12,11 +12,7 @@ import 'package:petnest_saas/features/shop/pages/store/shop_store_settings_page.
 import 'package:petnest_saas/features/shop/widgets/store/store_admin_summary_bar.dart';
 
 class ShopStoreHubPage extends StatelessWidget {
-  const ShopStoreHubPage({
-    super.key,
-    required this.shopId,
-    this.memberData,
-  });
+  const ShopStoreHubPage({super.key, required this.shopId, this.memberData});
 
   final String shopId;
   final Map<String, dynamic>? memberData;
@@ -28,7 +24,8 @@ class ShopStoreHubPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final bool canProducts = _can(ShopPermissionKeys.manageStoreProducts);
-    final bool canOrders = _can(ShopPermissionKeys.viewStoreOrders) ||
+    final bool canOrders =
+        _can(ShopPermissionKeys.viewStoreOrders) ||
         _can(ShopPermissionKeys.manageStoreOrders);
     final bool canSettings = _can(ShopPermissionKeys.manageStoreSettings);
 
@@ -60,18 +57,12 @@ class ShopStoreHubPage extends StatelessWidget {
                   canManage: _can(ShopPermissionKeys.manageStoreOrders),
                   canView: canOrders,
                 ),
-                ShopStoreCategoryPage(
-                  shopId: shopId,
-                  canManage: canProducts,
-                ),
+                ShopStoreCategoryPage(shopId: shopId, canManage: canProducts),
                 ShopStorePromotionListPage(
                   shopId: shopId,
                   canManage: canProducts,
                 ),
-                ShopStoreSettingsPage(
-                  shopId: shopId,
-                  canManage: canSettings,
-                ),
+                ShopStoreSettingsPage(shopId: shopId, canManage: canSettings),
               ],
             ),
           ),

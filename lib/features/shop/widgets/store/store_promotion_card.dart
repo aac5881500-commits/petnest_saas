@@ -74,11 +74,7 @@ class StorePromotionCard extends StatelessWidget {
             ),
             Text(
               promotion.isBundle && products.isNotEmpty
-                  ? 'NT\$${promotion.bundleOriginalOf(<String, int>{
-                      for (final MapEntry<String, StoreProductModel> entry
-                          in products.entries)
-                        entry.key: entry.value.price,
-                    })} → NT\$${promotion.discountValue.round()}'
+                  ? 'NT\$${promotion.bundleOriginalOf(<String, int>{for (final MapEntry<String, StoreProductModel> entry in products.entries) entry.key: entry.value.price})} → NT\$${promotion.discountValue.round()}'
                   : promotion.offerDetail,
               style: const TextStyle(fontWeight: FontWeight.w700),
             ),

@@ -3,6 +3,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/models/about_cover_frame_setting.dart';
+import 'package:petnest_saas/core/models/fixed_image_spec.dart';
 import 'package:petnest_saas/features/shop/widgets/about/about_cover_backdrop.dart';
 
 class AboutCoverImageBox extends StatelessWidget {
@@ -36,13 +37,9 @@ class AboutCoverImageBox extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
-          '建議比例：1:1。建議尺寸：1600 × 1600。最低建議：1200 × 1200。單張最大 5 MB，支援 JPG、PNG、WEBP。',
-          style: TextStyle(
-            fontSize: 12,
-            height: 1.4,
-            color: Color(0xFF8A6A45),
-          ),
+        Text(
+          FixedImageSpec.aboutCover.hintText,
+          style: TextStyle(fontSize: 12, height: 1.4, color: Color(0xFF8A6A45)),
         ),
         const SizedBox(height: 8),
         LayoutBuilder(
@@ -57,10 +54,7 @@ class AboutCoverImageBox extends StatelessWidget {
                   fit: StackFit.expand,
                   children: [
                     const ColoredBox(color: Color(0xFF2A1B12)),
-                    AboutCoverBackdrop(
-                      shopImageUrl: imageUrl,
-                      frame: frame,
-                    ),
+                    AboutCoverBackdrop(shopImageUrl: imageUrl, frame: frame),
                     const DecoratedBox(
                       decoration: BoxDecoration(
                         gradient: LinearGradient(
@@ -138,7 +132,8 @@ class AboutCoverImageBox extends StatelessWidget {
           children: [
             _chip(
               label: '精簡',
-              selected: frame.heightPreset == AboutCoverFrameSetting.heightCompact,
+              selected:
+                  frame.heightPreset == AboutCoverFrameSetting.heightCompact,
               onSelected: () {
                 onFrameChanged(
                   frame.copyWith(
@@ -161,7 +156,8 @@ class AboutCoverImageBox extends StatelessWidget {
             ),
             _chip(
               label: '大型',
-              selected: frame.heightPreset == AboutCoverFrameSetting.heightLarge,
+              selected:
+                  frame.heightPreset == AboutCoverFrameSetting.heightLarge,
               onSelected: () {
                 onFrameChanged(
                   frame.copyWith(
@@ -209,7 +205,8 @@ class AboutCoverImageBox extends StatelessWidget {
             children: [
               _chip(
                 label: '上方',
-                selected: frame.imageAlignment == AboutCoverFrameSetting.alignTop,
+                selected:
+                    frame.imageAlignment == AboutCoverFrameSetting.alignTop,
                 onSelected: () {
                   onFrameChanged(
                     frame.copyWith(
@@ -259,9 +256,7 @@ class AboutCoverImageBox extends StatelessWidget {
                   )
                 : const Icon(Icons.upload_rounded),
             label: Text(
-              uploading
-                  ? '圖片處理中...'
-                  : (_hasShopImage ? '更換封面圖' : '上傳自己的封面圖'),
+              uploading ? '圖片處理中...' : (_hasShopImage ? '更換封面圖' : '上傳自己的封面圖'),
             ),
           ),
         ),

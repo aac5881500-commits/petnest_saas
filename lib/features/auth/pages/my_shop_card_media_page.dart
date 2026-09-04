@@ -8,38 +8,27 @@ import 'package:image_picker/image_picker.dart';
 import 'package:petnest_saas/core/services/shop_card_media_service.dart';
 
 class MyShopCardMediaPage extends StatefulWidget {
-  const MyShopCardMediaPage({
-    super.key,
-    required this.shopId,
-  });
+  const MyShopCardMediaPage({super.key, required this.shopId});
 
   final String shopId;
 
   @override
-  State<MyShopCardMediaPage> createState() =>
-      _MyShopCardMediaPageState();
+  State<MyShopCardMediaPage> createState() => _MyShopCardMediaPageState();
 }
 
-class _MyShopCardMediaPageState
-    extends State<MyShopCardMediaPage> {
+class _MyShopCardMediaPageState extends State<MyShopCardMediaPage> {
   bool _uploadingCover = false;
   bool _uploadingLogo = false;
 
   Future<void> _pickAndUploadCover() async {
-    await _pickAndUpload(
-      isCover: true,
-    );
+    await _pickAndUpload(isCover: true);
   }
 
   Future<void> _pickAndUploadLogo() async {
-    await _pickAndUpload(
-      isCover: false,
-    );
+    await _pickAndUpload(isCover: false);
   }
 
-  Future<void> _pickAndUpload({
-    required bool isCover,
-  }) async {
+  Future<void> _pickAndUpload({required bool isCover}) async {
     try {
       final picker = ImagePicker();
 
@@ -53,15 +42,12 @@ class _MyShopCardMediaPageState
 
       final bytes = await file.readAsBytes();
 
-      if (bytes.lengthInBytes >
-          ShopCardMediaService.maxImageBytes) {
+      if (bytes.lengthInBytes > ShopCardMediaService.maxImageBytes) {
         if (!mounted) return;
 
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('圖片不可超過 5MB'),
-          ),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('圖片不可超過 5MB')));
         return;
       }
 
@@ -74,14 +60,12 @@ class _MyShopCardMediaPageState
       });
 
       if (isCover) {
-        await ShopCardMediaService.instance
-            .uploadPlatformHomeCover(
+        await ShopCardMediaService.instance.uploadPlatformHomeCover(
           shopId: widget.shopId,
           bytes: bytes,
         );
       } else {
-        await ShopCardMediaService.instance
-            .uploadPlatformHomeLogo(
+        await ShopCardMediaService.instance.uploadPlatformHomeLogo(
           shopId: widget.shopId,
           bytes: bytes,
         );
@@ -89,21 +73,15 @@ class _MyShopCardMediaPageState
 
       if (!mounted) return;
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            isCover ? '大圖已更新' : 'Logo 已更新',
-          ),
-        ),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(isCover ? '大圖已更新' : 'Logo 已更新')));
     } catch (e) {
       if (!mounted) return;
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('上傳失敗：$e'),
-        ),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('上傳失敗：$e')));
     } finally {
       if (!mounted) return;
 
@@ -120,9 +98,7 @@ class _MyShopCardMediaPageState
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('店家卡片圖片'),
-      ),
+      appBar: AppBar(title: const Text('店家卡片圖片')),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
@@ -148,10 +124,7 @@ class _MyShopCardMediaPageState
 
           Text(
             '圖片限制：單張不可超過 5MB。上傳新圖後，系統會自動刪除舊圖並更新資料。',
-            style: TextStyle(
-              fontSize: 12,
-              color: Colors.grey.shade700,
-            ),
+            style: TextStyle(fontSize: 12, color: Colors.grey.shade700),
           ),
         ],
       ),
@@ -185,9 +158,7 @@ class _UploadCard extends StatelessWidget {
             ? const SizedBox(
                 width: 18,
                 height: 18,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2,
-                ),
+                child: CircularProgressIndicator(strokeWidth: 2),
               )
             : const Icon(Icons.chevron_right),
         onTap: uploading ? null : onTap,

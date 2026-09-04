@@ -5,10 +5,7 @@
 import 'package:flutter/material.dart';
 
 class AdminSelectedMemberCard extends StatelessWidget {
-  const AdminSelectedMemberCard({
-    super.key,
-    required this.member,
-  });
+  const AdminSelectedMemberCard({super.key, required this.member});
 
   final Map<String, dynamic> member;
 
@@ -23,9 +20,7 @@ class AdminSelectedMemberCard extends StatelessWidget {
       ),
       child: Row(
         children: [
-          const CircleAvatar(
-            child: Icon(Icons.person),
-          ),
+          const CircleAvatar(child: Icon(Icons.person)),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
@@ -45,10 +40,7 @@ class AdminSelectedMemberCard extends StatelessWidget {
               ],
             ),
           ),
-          const Icon(
-            Icons.check_circle,
-            color: Colors.green,
-          ),
+          const Icon(Icons.check_circle, color: Colors.green),
         ],
       ),
     );

@@ -290,8 +290,9 @@ class PaymentModel {
         data['sourceType'],
         bookingId: (data['bookingId'] ?? '').toString(),
       ),
-      sourceId: (data['sourceId'] ?? data['bookingId'] ?? data['storeOrderId'] ?? '')
-          .toString(),
+      sourceId:
+          (data['sourceId'] ?? data['bookingId'] ?? data['storeOrderId'] ?? '')
+              .toString(),
       storeOrderId: (data['storeOrderId'] ?? '').toString(),
       storeOrderCode: (data['storeOrderCode'] ?? '').toString(),
       userId: (data['userId'] ?? '').toString(),

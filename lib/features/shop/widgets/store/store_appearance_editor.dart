@@ -34,7 +34,6 @@ class StoreAppearanceEditor extends StatefulWidget {
 }
 
 class _StoreAppearanceEditorState extends State<StoreAppearanceEditor> {
-
   StoreAppearanceSetting get value => widget.value;
 
   HomeThemeModel get _previewTheme =>
@@ -115,10 +114,8 @@ class _StoreAppearanceEditorState extends State<StoreAppearanceEditor> {
             options: StoreCardColorPresets.all,
             selected: value.cardBackgroundPreset,
             labelOf: StoreCardColorPresets.label,
-            colorOf: (String item) => StoreCardColorPresets.colorOf(
-              item,
-              widget.shopTheme.cardColor,
-            ),
+            colorOf: (String item) =>
+                StoreCardColorPresets.colorOf(item, widget.shopTheme.cardColor),
             onSelected: (String next) {
               widget.onChanged(value.copyWith(cardBackgroundPreset: next));
             },
@@ -252,10 +249,8 @@ class _StoreAppearanceEditorState extends State<StoreAppearanceEditor> {
           options: StoreAccentPresets.all,
           selected: value.accentPreset,
           labelOf: StoreAccentPresets.label,
-          colorOf: (String item) => StoreAccentPresets.colorOf(
-            item,
-            widget.shopTheme.primaryColor,
-          ),
+          colorOf: (String item) =>
+              StoreAccentPresets.colorOf(item, widget.shopTheme.primaryColor),
           onSelected: (String next) {
             widget.onChanged(value.copyWith(accentPreset: next));
           },
@@ -272,10 +267,8 @@ class _StoreAppearanceEditorState extends State<StoreAppearanceEditor> {
           options: StoreAccentPresets.all,
           selected: value.primaryButtonPreset,
           labelOf: StoreAccentPresets.label,
-          colorOf: (String item) => StoreAccentPresets.colorOf(
-            item,
-            widget.shopTheme.primaryColor,
-          ),
+          colorOf: (String item) =>
+              StoreAccentPresets.colorOf(item, widget.shopTheme.primaryColor),
           onSelected: (String next) {
             widget.onChanged(value.copyWith(primaryButtonPreset: next));
           },
@@ -335,10 +328,7 @@ class _StoreAppearanceEditorState extends State<StoreAppearanceEditor> {
   Widget _label(String text) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
-      child: Text(
-        text,
-        style: const TextStyle(fontWeight: FontWeight.w800),
-      ),
+      child: Text(text, style: const TextStyle(fontWeight: FontWeight.w800)),
     );
   }
 

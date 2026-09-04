@@ -381,7 +381,7 @@ void main() {
     );
   });
 
-  test('首頁標準尺寸接近 16:9 且手機不過高', () {
+  test('首頁標準尺寸為 16:9，大型為 3:2', () {
     const double width = 390;
     expect(
       StoreBannerSizePresets.heightForWidth(
@@ -389,7 +389,7 @@ void main() {
         width,
         scope: PetNestBannerScope.home,
       ),
-      inInclusiveRange(180, 210),
+      closeTo(width / (16 / 9), 0.01),
     );
     expect(
       StoreBannerSizePresets.heightForWidth(
@@ -397,7 +397,7 @@ void main() {
         width,
         scope: PetNestBannerScope.home,
       ),
-      inInclusiveRange(210, 230),
+      closeTo(width / (3 / 2), 0.01),
     );
   });
 }

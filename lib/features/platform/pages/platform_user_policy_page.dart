@@ -6,10 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/services/platform_policy_manage_service.dart';
 
 class PlatformUserPolicyPage extends StatefulWidget {
-  const PlatformUserPolicyPage({
-    super.key,
-    required this.onAgree,
-  });
+  const PlatformUserPolicyPage({super.key, required this.onAgree});
 
   static const String policyKey = 'platform_user_policy';
 
@@ -82,19 +79,13 @@ class _PlatformUserPolicyPageState extends State<PlatformUserPolicyPage> {
   Widget build(BuildContext context) {
     if (loading) {
       return Scaffold(
-        appBar: AppBar(
-          title: const Text('平台會員條款'),
-        ),
-        body: const Center(
-          child: CircularProgressIndicator(),
-        ),
+        appBar: AppBar(title: const Text('平台會員條款')),
+        body: const Center(child: CircularProgressIndicator()),
       );
     }
 
     return Scaffold(
-      appBar: AppBar(
-        title: Text(title),
-      ),
+      appBar: AppBar(title: Text(title)),
       body: Column(
         children: [
           Container(
@@ -103,9 +94,7 @@ class _PlatformUserPolicyPageState extends State<PlatformUserPolicyPage> {
             color: const Color(0xFFFFF7ED),
             child: Text(
               '目前版本：v$version，請閱讀至最下方後勾選同意。',
-              style: const TextStyle(
-                fontWeight: FontWeight.w700,
-              ),
+              style: const TextStyle(fontWeight: FontWeight.w700),
             ),
           ),
           Expanded(
@@ -114,10 +103,7 @@ class _PlatformUserPolicyPageState extends State<PlatformUserPolicyPage> {
               padding: const EdgeInsets.all(16),
               child: Text(
                 content,
-                style: const TextStyle(
-                  fontSize: 15,
-                  height: 1.8,
-                ),
+                style: const TextStyle(fontSize: 15, height: 1.8),
               ),
             ),
           ),
@@ -125,11 +111,7 @@ class _PlatformUserPolicyPageState extends State<PlatformUserPolicyPage> {
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
               color: Colors.white,
-              border: Border(
-                top: BorderSide(
-                  color: Colors.grey.shade200,
-                ),
-              ),
+              border: Border(top: BorderSide(color: Colors.grey.shade200)),
             ),
             child: Column(
               children: [

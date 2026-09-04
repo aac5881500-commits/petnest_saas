@@ -9,12 +9,14 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:petnest_saas/core/models/home_text_style_model.dart';
 import 'package:petnest_saas/core/models/home_theme_model.dart';
+import 'package:petnest_saas/core/models/fixed_image_spec.dart';
 import 'package:petnest_saas/core/models/modern_banner_frame_setting.dart';
 import 'package:petnest_saas/core/models/modern_store_home_setting.dart';
 import 'package:petnest_saas/core/services/inventory_image_service.dart';
 import 'package:petnest_saas/core/services/shop_chat_service.dart';
 import 'package:petnest_saas/core/services/shop_service.dart';
 import 'package:petnest_saas/features/shop/pages/shop_media_page.dart';
+import 'package:petnest_saas/features/shop/widgets/media/fixed_image_pick_flow.dart';
 import 'package:petnest_saas/features/shop/widgets/modern_home/modern_home_store_card.dart';
 
 class ShopThemeSettingPage extends StatefulWidget {
@@ -242,18 +244,19 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage> {
   Future<void> _pickStoreEntryCardImage() async {
     try {
       setState(() => _uploadingStoreCardImage = true);
-      final image = await InventoryImageService.instance.pickAndValidateImage();
-      if (image == null) {
-        return;
-      }
-      final result = await InventoryImageService.instance.uploadImage(
+      final result = await FixedImagePickFlow.pickCropAndUpload(
+        context: context,
+        spec: FixedImageSpec.storeEntryBackground,
+        title: '裁切商城入口背景',
         shopId: widget.shopId,
         itemId: 'store_entry_card/p_${DateTime.now().millisecondsSinceEpoch}',
-        image: image,
         folder: 'home',
         imageType: 'home_store_entry_card',
         idMetadataKey: 'storeEntryCardId',
       );
+      if (result == null) {
+        return;
+      }
       await _discardPendingStoreCardImage();
       if (!mounted) {
         return;
@@ -1844,8 +1847,7 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage> {
           const Text('卡片背景圖片', style: TextStyle(fontWeight: FontWeight.w800)),
           const SizedBox(height: 4),
           Text(
-            '建議比例 16:9。建議尺寸 1600 × 900 px，最低 1200 × 675 px。\n'
-            '最大 5 MB，支援 JPG / PNG / WEBP。圖片會吃滿整張卡片。',
+            FixedImageSpec.storeEntryBackground.hintText,
             style: TextStyle(
               fontSize: 12,
               height: 1.4,

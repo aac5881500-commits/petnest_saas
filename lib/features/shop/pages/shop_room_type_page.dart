@@ -4,7 +4,10 @@
 import 'package:image_picker/image_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:petnest_saas/core/models/fixed_image_spec.dart';
 import 'package:petnest_saas/core/services/shop_service.dart';
+import 'package:petnest_saas/features/shop/widgets/media/fixed_aspect_image_crop_page.dart';
+import 'package:petnest_saas/features/shop/widgets/media/fixed_image_spec_hint.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:petnest_saas/core/services/action_log_service.dart';
@@ -711,9 +714,7 @@ class _ShopRoomTypePageState extends State<ShopRoomTypePage> {
               controller: _extraPriceController,
               keyboardType: TextInputType.number,
               inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-              decoration: const InputDecoration(
-                labelText: '每隻加購價格（例：200）',
-              ),
+              decoration: const InputDecoration(labelText: '每隻加購價格（例：200）'),
             ),
 
             TextField(
@@ -736,12 +737,8 @@ class _ShopRoomTypePageState extends State<ShopRoomTypePage> {
                   child: TextField(
                     controller: _widthController,
                     keyboardType: TextInputType.number,
-                    inputFormatters: [
-                      FilteringTextInputFormatter.digitsOnly,
-                    ],
-                    decoration: const InputDecoration(
-                      labelText: '寬(cm)',
-                    ),
+                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                    decoration: const InputDecoration(labelText: '寬(cm)'),
                   ),
                 ),
                 const SizedBox(width: 8),
@@ -749,12 +746,8 @@ class _ShopRoomTypePageState extends State<ShopRoomTypePage> {
                   child: TextField(
                     controller: _depthController,
                     keyboardType: TextInputType.number,
-                    inputFormatters: [
-                      FilteringTextInputFormatter.digitsOnly,
-                    ],
-                    decoration: const InputDecoration(
-                      labelText: '深(cm)',
-                    ),
+                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                    decoration: const InputDecoration(labelText: '深(cm)'),
                   ),
                 ),
                 const SizedBox(width: 8),
@@ -762,12 +755,8 @@ class _ShopRoomTypePageState extends State<ShopRoomTypePage> {
                   child: TextField(
                     controller: _heightController,
                     keyboardType: TextInputType.number,
-                    inputFormatters: [
-                      FilteringTextInputFormatter.digitsOnly,
-                    ],
-                    decoration: const InputDecoration(
-                      labelText: '高(cm)',
-                    ),
+                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                    decoration: const InputDecoration(labelText: '高(cm)'),
                   ),
                 ),
               ],
@@ -877,19 +866,14 @@ class _ShopRoomTypePageState extends State<ShopRoomTypePage> {
               children: <Widget>[
                 _compactChip('$capacity 隻入住'),
                 _compactChip('$totalRooms 間房'),
-                _compactChip(
-                  extraPrice > 0 ? '加寵 +\$$extraPrice' : '不加收寵物費',
-                ),
+                _compactChip(extraPrice > 0 ? '加寵 +\$$extraPrice' : '不加收寵物費'),
               ],
             ),
             if (sizeText != null) ...<Widget>[
               const SizedBox(height: 8),
               Text(
                 '尺寸  $sizeText',
-                style: TextStyle(
-                  fontSize: 12,
-                  color: Colors.grey.shade600,
-                ),
+                style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
               ),
             ],
             if (featureLabels.isNotEmpty) ...<Widget>[
@@ -898,9 +882,7 @@ class _ShopRoomTypePageState extends State<ShopRoomTypePage> {
                 spacing: 6,
                 runSpacing: 6,
                 children: <Widget>[
-                  ...featureLabels
-                      .take(visibleFeatureCount)
-                      .map(_compactChip),
+                  ...featureLabels.take(visibleFeatureCount).map(_compactChip),
                   if (featureLabels.length > visibleFeatureCount)
                     _compactChip(
                       '+${featureLabels.length - visibleFeatureCount}',
@@ -920,30 +902,28 @@ class _ShopRoomTypePageState extends State<ShopRoomTypePage> {
 
     /// 🔥 限制最多5張
     if (images.length >= 5) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('最多只能上傳5張圖片')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('最多只能上傳5張圖片')));
       return;
     }
 
     final ImagePicker picker = ImagePicker();
-    final XFile? file = await picker.pickImage(
-      source: ImageSource.gallery,
-    );
+    final XFile? file = await picker.pickImage(source: ImageSource.gallery);
     if (file == null) {
       return;
     }
 
-    final Uint8List bytes = await file.readAsBytes();
+    final Uint8List originalBytes = await file.readAsBytes();
 
-    if (bytes.length > 5 * 1024 * 1024) {
+    if (originalBytes.length > 5 * 1024 * 1024) {
       if (!mounted) {
         return;
       }
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('圖片不可超過 5MB')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('圖片不可超過 5MB')));
       return;
     }
 
@@ -958,8 +938,7 @@ class _ShopRoomTypePageState extends State<ShopRoomTypePage> {
         contentType = 'image/png';
       } else if (fileName.endsWith('.webp')) {
         contentType = 'image/webp';
-      } else if (fileName.endsWith('.jpg') ||
-          fileName.endsWith('.jpeg')) {
+      } else if (fileName.endsWith('.jpg') || fileName.endsWith('.jpeg')) {
         contentType = 'image/jpeg';
       }
     }
@@ -971,11 +950,22 @@ class _ShopRoomTypePageState extends State<ShopRoomTypePage> {
         return;
       }
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('目前只支援 JPG、PNG、WEBP'),
-        ),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('目前只支援 JPG、PNG、WEBP')));
+      return;
+    }
+
+    if (!mounted) {
+      return;
+    }
+    final Uint8List? bytes = await FixedAspectImageCropPage.open(
+      context: context,
+      imageBytes: originalBytes,
+      spec: FixedImageSpec.roomTypePhoto,
+      title: '裁切房型照片',
+    );
+    if (bytes == null || !mounted) {
       return;
     }
 
@@ -983,16 +973,16 @@ class _ShopRoomTypePageState extends State<ShopRoomTypePage> {
       shopId: widget.shopId,
       roomTypeId: item['id'],
       bytes: bytes,
-      contentType: contentType,
+      contentType: 'image/jpeg',
     );
 
     if (!mounted) {
       return;
     }
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('圖片上傳成功')),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('圖片上傳成功')));
   }
 
   Future<void> _showRoomTypeImageManager(Map<String, dynamic> item) async {
@@ -1006,116 +996,120 @@ class _ShopRoomTypePageState extends State<ShopRoomTypePage> {
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
             child: StreamBuilder<List<Map<String, dynamic>>>(
               stream: ShopService.instance.streamRoomTypes(widget.shopId),
-              builder: (BuildContext context, AsyncSnapshot<List<Map<String, dynamic>>> snapshot) {
-                Map<String, dynamic> current = item;
-                for (final Map<String, dynamic> roomType in snapshot.data ?? <Map<String, dynamic>>[]) {
-                  if (roomType['id'] == item['id']) {
-                    current = roomType;
-                    break;
-                  }
-                }
+              builder:
+                  (
+                    BuildContext context,
+                    AsyncSnapshot<List<Map<String, dynamic>>> snapshot,
+                  ) {
+                    Map<String, dynamic> current = item;
+                    for (final Map<String, dynamic> roomType
+                        in snapshot.data ?? <Map<String, dynamic>>[]) {
+                      if (roomType['id'] == item['id']) {
+                        current = roomType;
+                        break;
+                      }
+                    }
 
-                final List<dynamic> images = List<dynamic>.from(
-                  current['images'] ?? [],
-                );
+                    final List<dynamic> images = List<dynamic>.from(
+                      current['images'] ?? [],
+                    );
 
-                return Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: <Widget>[
-                    Text(
-                      '圖片管理',
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    if (images.isEmpty)
-                      Text(
-                        '尚未上傳圖片',
-                        style: TextStyle(
-                          fontSize: 13,
-                          color: Colors.grey.shade600,
+                    return Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: <Widget>[
+                        Text(
+                          '圖片管理',
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w800,
+                          ),
                         ),
-                      )
-                    else
-                      SizedBox(
-                        height: 72,
-                        child: ListView.builder(
-                          scrollDirection: Axis.horizontal,
-                          itemCount: images.length,
-                          itemBuilder: (BuildContext context, int i) {
-                            final String url = images[i].toString();
+                        const FixedImageSpecHint(
+                          spec: FixedImageSpec.roomTypePhoto,
+                        ),
+                        const SizedBox(height: 12),
+                        if (images.isEmpty)
+                          Text(
+                            '尚未上傳圖片',
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: Colors.grey.shade600,
+                            ),
+                          )
+                        else
+                          SizedBox(
+                            height: 72,
+                            child: ListView.builder(
+                              scrollDirection: Axis.horizontal,
+                              itemCount: images.length,
+                              itemBuilder: (BuildContext context, int i) {
+                                final String url = images[i].toString();
 
-                            return Stack(
-                              children: [
-                                Container(
-                                  margin: const EdgeInsets.only(
-                                    right: 8,
-                                  ),
-                                  child: SizedBox(
-                                    width: 60,
-                                    height: 60,
-                                    child: Image.network(
-                                      url,
-                                      width: 60,
-                                      height: 60,
-                                      fit: BoxFit.cover,
-                                      errorBuilder:
-                                          (context, error, stackTrace) {
-                                        return Container(
+                                return Stack(
+                                  children: [
+                                    Container(
+                                      margin: const EdgeInsets.only(right: 8),
+                                      child: SizedBox(
+                                        width: 60,
+                                        height: 60,
+                                        child: Image.network(
+                                          url,
                                           width: 60,
                                           height: 60,
-                                          color:
-                                              Colors.grey.shade300,
-                                          alignment:
-                                              Alignment.center,
-                                          child: const Icon(
-                                            Icons.broken_image,
-                                            size: 22,
-                                          ),
-                                        );
-                                      },
-                                    ),
-                                  ),
-                                ),
-                                Positioned(
-                                  right: 0,
-                                  top: 0,
-                                  child: GestureDetector(
-                                    onTap: () async {
-                                      await ShopService.instance
-                                          .deleteRoomTypeImage(
-                                        shopId: widget.shopId,
-                                        roomTypeId: current['id'],
-                                        imageUrl: url,
-                                      );
-                                    },
-                                    child: Container(
-                                      color: Colors.black54,
-                                      child: const Icon(
-                                        Icons.close,
-                                        color: Colors.white,
-                                        size: 16,
+                                          fit: BoxFit.cover,
+                                          errorBuilder:
+                                              (context, error, stackTrace) {
+                                                return Container(
+                                                  width: 60,
+                                                  height: 60,
+                                                  color: Colors.grey.shade300,
+                                                  alignment: Alignment.center,
+                                                  child: const Icon(
+                                                    Icons.broken_image,
+                                                    size: 22,
+                                                  ),
+                                                );
+                                              },
+                                        ),
                                       ),
                                     ),
-                                  ),
-                                ),
-                              ],
-                            );
-                          },
+                                    Positioned(
+                                      right: 0,
+                                      top: 0,
+                                      child: GestureDetector(
+                                        onTap: () async {
+                                          await ShopService.instance
+                                              .deleteRoomTypeImage(
+                                                shopId: widget.shopId,
+                                                roomTypeId: current['id'],
+                                                imageUrl: url,
+                                              );
+                                        },
+                                        child: Container(
+                                          color: Colors.black54,
+                                          child: const Icon(
+                                            Icons.close,
+                                            color: Colors.white,
+                                            size: 16,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                );
+                              },
+                            ),
+                          ),
+                        const SizedBox(height: 12),
+                        FilledButton.icon(
+                          onPressed: () => _uploadRoomTypeImage(current),
+                          icon: const Icon(Icons.add_photo_alternate),
+                          label: const Text('上傳圖片'),
                         ),
-                      ),
-                    const SizedBox(height: 12),
-                    FilledButton.icon(
-                      onPressed: () => _uploadRoomTypeImage(current),
-                      icon: const Icon(Icons.add_photo_alternate),
-                      label: const Text('上傳圖片'),
-                    ),
-                  ],
-                );
-              },
+                      ],
+                    );
+                  },
             ),
           ),
         );
@@ -1197,9 +1191,7 @@ class _ShopRoomTypePageState extends State<ShopRoomTypePage> {
       backgroundColor: const Color(0xFFF6F8FB),
       appBar: AppBar(
         title: const Text('房型管理'),
-        actions: <Widget>[
-          ShopTaskCenterButton(shopId: widget.shopId),
-        ],
+        actions: <Widget>[ShopTaskCenterButton(shopId: widget.shopId)],
       ),
       body: Padding(
         padding: const EdgeInsets.all(16),
@@ -1248,9 +1240,7 @@ class _ShopRoomTypePageState extends State<ShopRoomTypePage> {
                     _createFormExpanded = !_createFormExpanded;
                   });
                 },
-                icon: Icon(
-                  _createFormExpanded ? Icons.expand_less : Icons.add,
-                ),
+                icon: Icon(_createFormExpanded ? Icons.expand_less : Icons.add),
                 label: Text(_createFormExpanded ? '收合新增房型' : '新增房型'),
               ),
             ),

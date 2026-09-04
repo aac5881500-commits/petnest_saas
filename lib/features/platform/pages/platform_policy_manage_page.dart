@@ -11,13 +11,13 @@ class PlatformPolicyManagePage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final policyRef = FirebaseFirestore.instance.collection('platform_policies');
+    final policyRef = FirebaseFirestore.instance.collection(
+      'platform_policies',
+    );
 
     return Scaffold(
       backgroundColor: const Color(0xFFF6F7FB),
-      appBar: AppBar(
-        title: const Text('平台條款管理'),
-      ),
+      appBar: AppBar(title: const Text('平台條款管理')),
       body: StreamBuilder<QuerySnapshot>(
         stream: policyRef.snapshots(),
         builder: (context, snapshot) {
@@ -42,8 +42,7 @@ class PlatformPolicyManagePage extends StatelessWidget {
                 icon: Icons.person_outline,
                 title: '平台會員條款',
                 subtitle: '一般會員登入後需同意的平台使用條款',
-                versionText:
-                    '目前版本：v${userPolicy['version'] ?? 1}',
+                versionText: '目前版本：v${userPolicy['version'] ?? 1}',
                 onTap: () {
                   Navigator.push(
                     context,
@@ -61,8 +60,7 @@ class PlatformPolicyManagePage extends StatelessWidget {
                 icon: Icons.storefront_outlined,
                 title: '創店主條款',
                 subtitle: '店家建立店家前需同意的平台創店條款',
-                versionText:
-                    '目前版本：v${ownerPolicy['version'] ?? 1}',
+                versionText: '目前版本：v${ownerPolicy['version'] ?? 1}',
                 onTap: () {
                   Navigator.push(
                     context,
@@ -116,10 +114,7 @@ class _PolicyManageCard extends StatelessWidget {
             children: [
               CircleAvatar(
                 backgroundColor: const Color(0xFFEAF3FF),
-                child: Icon(
-                  icon,
-                  color: const Color(0xFF1565C0),
-                ),
+                child: Icon(icon, color: const Color(0xFF1565C0)),
               ),
               const SizedBox(width: 12),
               Expanded(

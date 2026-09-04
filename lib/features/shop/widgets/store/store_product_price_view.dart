@@ -18,18 +18,23 @@ class StoreEnabledPromotionsBuilder extends StatelessWidget {
   final Widget Function(
     BuildContext context,
     List<StorePromotionModel> promotions,
-  ) builder;
+  )
+  builder;
 
   @override
   Widget build(BuildContext context) {
     return StreamBuilder<List<StorePromotionModel>>(
       stream: StorePromotionService.instance.streamEnabledPromotions(shopId),
-      builder: (
-        BuildContext context,
-        AsyncSnapshot<List<StorePromotionModel>> snapshot,
-      ) {
-        return builder(context, snapshot.data ?? const <StorePromotionModel>[]);
-      },
+      builder:
+          (
+            BuildContext context,
+            AsyncSnapshot<List<StorePromotionModel>> snapshot,
+          ) {
+            return builder(
+              context,
+              snapshot.data ?? const <StorePromotionModel>[],
+            );
+          },
     );
   }
 }
@@ -85,11 +90,7 @@ class StoreProductPriceView extends StatelessWidget {
                 ),
               ),
             if (showBadge)
-              StorePromotionBadge(
-                line: line,
-                color: tone,
-                compact: compact,
-              ),
+              StorePromotionBadge(line: line, color: tone, compact: compact),
           ],
         ),
         if (showSaved && cheaper)

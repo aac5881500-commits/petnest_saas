@@ -5,10 +5,7 @@
 import 'package:flutter/material.dart';
 
 class AdminBookingNoteSection extends StatelessWidget {
-  const AdminBookingNoteSection({
-    super.key,
-    required this.data,
-  });
+  const AdminBookingNoteSection({super.key, required this.data});
 
   final Map<String, dynamic> data;
 
@@ -27,10 +24,7 @@ class AdminBookingNoteSection extends StatelessWidget {
       ),
       child: Text(
         note.isEmpty ? '無備註' : note,
-        style: const TextStyle(
-          fontSize: 15,
-          height: 1.5,
-        ),
+        style: const TextStyle(fontSize: 15, height: 1.5),
       ),
     );
   }

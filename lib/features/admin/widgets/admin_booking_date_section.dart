@@ -25,10 +25,7 @@ class AdminBookingDateSection extends StatelessWidget {
       children: [
         const Text(
           '第三步：選擇日期',
-          style: TextStyle(
-            fontSize: 22,
-            fontWeight: FontWeight.w900,
-          ),
+          style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900),
         ),
 
         const SizedBox(height: 8),
@@ -66,9 +63,7 @@ class AdminBookingDateSection extends StatelessWidget {
             ),
             child: Text(
               '已選擇：${formatDate(startDate!)} ～ ${formatDate(endDate!)}，共 ${endDate!.difference(startDate!).inDays} 晚',
-              style: const TextStyle(
-                fontWeight: FontWeight.bold,
-              ),
+              style: const TextStyle(fontWeight: FontWeight.bold),
             ),
           ),
       ],

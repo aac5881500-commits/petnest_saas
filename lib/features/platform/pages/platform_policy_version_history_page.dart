@@ -45,24 +45,18 @@ class PlatformPolicyVersionHistoryPage extends StatelessWidget {
 
     return Scaffold(
       backgroundColor: const Color(0xFFF6F7FB),
-      appBar: AppBar(
-        title: Text('$titleText 歷史版本'),
-      ),
+      appBar: AppBar(title: Text('$titleText 歷史版本')),
       body: StreamBuilder<QuerySnapshot>(
         stream: versionsRef.snapshots(),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(
-              child: CircularProgressIndicator(),
-            );
+            return const Center(child: CircularProgressIndicator());
           }
 
           final docs = snapshot.data?.docs ?? [];
 
           if (docs.isEmpty) {
-            return const Center(
-              child: Text('目前沒有歷史版本紀錄'),
-            );
+            return const Center(child: Text('目前沒有歷史版本紀錄'));
           }
 
           return ListView.separated(
@@ -81,9 +75,7 @@ class PlatformPolicyVersionHistoryPage extends StatelessWidget {
                 color: Colors.white,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(18),
-                  side: BorderSide(
-                    color: Colors.grey.shade200,
-                  ),
+                  side: BorderSide(color: Colors.grey.shade200),
                 ),
                 child: ListTile(
                   contentPadding: const EdgeInsets.all(16),
@@ -100,26 +92,24 @@ class PlatformPolicyVersionHistoryPage extends StatelessWidget {
                   ),
                   title: Text(
                     title,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.w900,
-                    ),
+                    style: const TextStyle(fontWeight: FontWeight.w900),
                   ),
                   subtitle: Padding(
                     padding: const EdgeInsets.only(top: 6),
                     child: Text('更新時間：${_formatDate(updatedAt)}'),
                   ),
                   trailing: const Icon(Icons.chevron_right),
-                 onTap: () {
-  Navigator.push(
-    context,
-    MaterialPageRoute(
-      builder: (_) => PlatformPolicyVersionDetailPage(
-        titleText: titleText,
-        data: data,
-      ),
-    ),
-  );
-},
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => PlatformPolicyVersionDetailPage(
+                          titleText: titleText,
+                          data: data,
+                        ),
+                      ),
+                    );
+                  },
                 ),
               );
             },

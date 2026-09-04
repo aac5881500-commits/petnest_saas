@@ -121,6 +121,49 @@ class PointRewardImageService {
     return imageReference.getDownloadURL();
   }
 
+  Future<String> uploadBytes({
+    required String shopId,
+    required String rewardId,
+    required Uint8List bytes,
+    String fileExtension = 'jpg',
+  }) async {
+    final String normalizedShopId = shopId.trim();
+    final String normalizedRewardId = rewardId.trim();
+    if (normalizedShopId.isEmpty) {
+      throw const PointRewardImageException('缺少店家資料');
+    }
+    if (normalizedRewardId.isEmpty) {
+      throw const PointRewardImageException('缺少商品資料');
+    }
+    if (bytes.isEmpty) {
+      throw const PointRewardImageException('讀取圖片失敗，請重新選擇圖片');
+    }
+    if (bytes.length > maximumImageBytes) {
+      throw const PointRewardImageException('圖片大小不可超過 5 MB');
+    }
+    final String extension = fileExtension.trim().toLowerCase().isEmpty
+        ? 'jpg'
+        : fileExtension.trim().toLowerCase();
+    final String contentType = _contentTypeFromExtension(extension);
+    final Reference imageReference = _storage.ref().child(
+      'shops/$normalizedShopId/'
+      'point_rewards/$normalizedRewardId/'
+      'product_image.$extension',
+    );
+    await imageReference.putData(
+      bytes,
+      SettableMetadata(
+        contentType: contentType,
+        customMetadata: <String, String>{
+          'shopId': normalizedShopId,
+          'rewardId': normalizedRewardId,
+          'imageType': 'point_reward_product',
+        },
+      ),
+    );
+    return imageReference.getDownloadURL();
+  }
+
   /// 依照 Firebase Storage 下載網址刪除圖片。
   ///
   /// 空網址會直接略過。

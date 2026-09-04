@@ -27,48 +27,49 @@ class ShopBookingSupplySettingsPage extends StatelessWidget {
       ),
       body: StreamBuilder<List<BookingSupplySettingModel>>(
         stream: BookingSupplySettingService.instance.streamSettings(shopId),
-        builder: (
-          BuildContext context,
-          AsyncSnapshot<List<BookingSupplySettingModel>> snapshot,
-        ) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
+        builder:
+            (
+              BuildContext context,
+              AsyncSnapshot<List<BookingSupplySettingModel>> snapshot,
+            ) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const Center(child: CircularProgressIndicator());
+              }
 
-          final List<BookingSupplySettingModel> settings =
-              snapshot.data ?? const <BookingSupplySettingModel>[];
+              final List<BookingSupplySettingModel> settings =
+                  snapshot.data ?? const <BookingSupplySettingModel>[];
 
-          if (settings.isEmpty) {
-            return const Center(child: Text('尚未設定住宿耗材。可先新增手動用品或綁定中央庫存。'));
-          }
+              if (settings.isEmpty) {
+                return const Center(child: Text('尚未設定住宿耗材。可先新增手動用品或綁定中央庫存。'));
+              }
 
-          return ListView.separated(
-            padding: const EdgeInsets.fromLTRB(12, 12, 12, 88),
-            itemCount: settings.length,
-            separatorBuilder: (BuildContext context, int index) =>
-                const SizedBox(height: 8),
-            itemBuilder: (BuildContext context, int index) {
-              final BookingSupplySettingModel setting = settings[index];
-              return Card(
-                child: ListTile(
-                  title: Text(setting.name),
-                  subtitle: Text(
-                    [
-                      setting.useInventory
-                          ? '中央庫存：${setting.inventoryItemName.isEmpty ? setting.inventoryItemId : setting.inventoryItemName}'
-                          : '不管理庫存',
-                      '${InventoryConstants.deductionModeLabel(setting.deductionMode)} ${InventoryConstants.formatQuantity(setting.quantityPerUnit)} ${setting.unit}',
-                      setting.enabled ? '啟用' : '停用',
-                    ].join('｜'),
-                  ),
-                  onTap: () {
-                    _openEditor(context: context, setting: setting);
-                  },
-                ),
+              return ListView.separated(
+                padding: const EdgeInsets.fromLTRB(12, 12, 12, 88),
+                itemCount: settings.length,
+                separatorBuilder: (BuildContext context, int index) =>
+                    const SizedBox(height: 8),
+                itemBuilder: (BuildContext context, int index) {
+                  final BookingSupplySettingModel setting = settings[index];
+                  return Card(
+                    child: ListTile(
+                      title: Text(setting.name),
+                      subtitle: Text(
+                        [
+                          setting.useInventory
+                              ? '中央庫存：${setting.inventoryItemName.isEmpty ? setting.inventoryItemId : setting.inventoryItemName}'
+                              : '不管理庫存',
+                          '${InventoryConstants.deductionModeLabel(setting.deductionMode)} ${InventoryConstants.formatQuantity(setting.quantityPerUnit)} ${setting.unit}',
+                          setting.enabled ? '啟用' : '停用',
+                        ].join('｜'),
+                      ),
+                      onTap: () {
+                        _openEditor(context: context, setting: setting);
+                      },
+                    ),
+                  );
+                },
               );
             },
-          );
-        },
       ),
     );
   }
@@ -89,10 +90,7 @@ class ShopBookingSupplySettingsPage extends StatelessWidget {
 }
 
 class _BookingSupplyEditorPage extends StatefulWidget {
-  const _BookingSupplyEditorPage({
-    required this.shopId,
-    this.setting,
-  });
+  const _BookingSupplyEditorPage({required this.shopId, this.setting});
 
   final String shopId;
   final BookingSupplySettingModel? setting;
@@ -125,7 +123,8 @@ class _BookingSupplyEditorPageState extends State<_BookingSupplyEditorPage> {
     _noteController = TextEditingController(text: setting?.note ?? '');
     _useInventory = setting?.useInventory ?? false;
     _enabled = setting?.enabled ?? true;
-    _mode = setting?.deductionMode ?? BookingSupplyDeductionMode.perRoomPerNight;
+    _mode =
+        setting?.deductionMode ?? BookingSupplyDeductionMode.perRoomPerNight;
     _inventoryItemId = setting?.inventoryItemId ?? '';
     _inventoryItemName = setting?.inventoryItemName ?? '';
     _unit = setting?.unit ?? '';
@@ -187,9 +186,7 @@ class _BookingSupplyEditorPageState extends State<_BookingSupplyEditorPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: Text(widget.setting == null ? '新增住宿耗材' : '編輯住宿耗材'),
-      ),
+      appBar: AppBar(title: Text(widget.setting == null ? '新增住宿耗材' : '編輯住宿耗材')),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: <Widget>[
@@ -221,15 +218,15 @@ class _BookingSupplyEditorPageState extends State<_BookingSupplyEditorPage> {
               onTap: () async {
                 final InventoryItemModel? selected = await Navigator.of(context)
                     .push<InventoryItemModel>(
-                  MaterialPageRoute<InventoryItemModel>(
-                    builder: (BuildContext context) {
-                      return ShopInventoryItemPickerPage(
-                        shopId: widget.shopId,
-                        selectedItemId: _inventoryItemId,
-                      );
-                    },
-                  ),
-                );
+                      MaterialPageRoute<InventoryItemModel>(
+                        builder: (BuildContext context) {
+                          return ShopInventoryItemPickerPage(
+                            shopId: widget.shopId,
+                            selectedItemId: _inventoryItemId,
+                          );
+                        },
+                      ),
+                    );
 
                 if (selected == null) {
                   return;

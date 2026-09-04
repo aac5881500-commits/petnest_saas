@@ -292,9 +292,7 @@ class _ShopBasicInfoPageState extends State<ShopBasicInfoPage> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('店家基本資料'),
-        actions: <Widget>[
-          ShopTaskCenterButton(shopId: widget.shopId),
-        ],
+        actions: <Widget>[ShopTaskCenterButton(shopId: widget.shopId)],
       ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())

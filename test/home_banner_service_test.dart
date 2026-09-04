@@ -5,50 +5,43 @@ import 'package:petnest_saas/core/services/home_banner_service.dart';
 
 void main() {
   test('前台只顯示 enabled / isActive 海報並依 sortOrder', () {
-    final List<StoreBannerModel> banners =
-        HomeBannerService.instance.parseEnabledFrontBanners(
-      <String, dynamic>{
-        'banners': <Map<String, dynamic>>[
-          <String, dynamic>{
-            'id': 'a',
-            'imageUrl': 'https://a.jpg',
-            'isActive': false,
-            'sortOrder': 0,
-          },
-          <String, dynamic>{
-            'id': 'b',
-            'imageUrl': 'https://b.jpg',
-            'enabled': true,
-            'sortOrder': 2,
-          },
-          <String, dynamic>{
-            'id': 'c',
-            'imageUrl': 'https://c.jpg',
-            'isActive': true,
-            'sortOrder': 1,
-          },
-        ],
-      },
-    );
-    expect(
-      banners.map((StoreBannerModel item) => item.id).toList(),
-      <String>['c', 'b'],
-    );
+    final List<StoreBannerModel> banners = HomeBannerService.instance
+        .parseEnabledFrontBanners(<String, dynamic>{
+          'banners': <Map<String, dynamic>>[
+            <String, dynamic>{
+              'id': 'a',
+              'imageUrl': 'https://a.jpg',
+              'isActive': false,
+              'sortOrder': 0,
+            },
+            <String, dynamic>{
+              'id': 'b',
+              'imageUrl': 'https://b.jpg',
+              'enabled': true,
+              'sortOrder': 2,
+            },
+            <String, dynamic>{
+              'id': 'c',
+              'imageUrl': 'https://c.jpg',
+              'isActive': true,
+              'sortOrder': 1,
+            },
+          ],
+        });
+    expect(banners.map((StoreBannerModel item) => item.id).toList(), <String>[
+      'c',
+      'b',
+    ]);
   });
 
   test('沒有活動海報時才用 coverUrl 後備', () {
-    final List<StoreBannerModel> banners =
-        HomeBannerService.instance.parseEnabledFrontBanners(
-      <String, dynamic>{
-        'coverUrl': 'https://cover.jpg',
-        'banners': <Map<String, dynamic>>[
-          <String, dynamic>{
-            'imageUrl': 'https://a.jpg',
-            'isActive': false,
-          },
-        ],
-      },
-    );
+    final List<StoreBannerModel> banners = HomeBannerService.instance
+        .parseEnabledFrontBanners(<String, dynamic>{
+          'coverUrl': 'https://cover.jpg',
+          'banners': <Map<String, dynamic>>[
+            <String, dynamic>{'imageUrl': 'https://a.jpg', 'isActive': false},
+          ],
+        });
     expect(banners.length, 1);
     expect(banners.first.id, HomeBannerService.coverFallbackId);
     expect(banners.first.imageUrl, 'https://cover.jpg');

@@ -2,13 +2,14 @@
 // 🛒 商品新增 / 編輯
 
 import 'dart:async';
+import 'dart:typed_data';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-import 'package:image_picker/image_picker.dart';
 import 'package:petnest_saas/core/constants/inventory_constants.dart';
 import 'package:petnest_saas/core/constants/store_constants.dart';
+import 'package:petnest_saas/core/models/fixed_image_spec.dart';
 import 'package:petnest_saas/core/models/inventory_item_model.dart';
 import 'package:petnest_saas/core/models/store_category_model.dart';
 import 'package:petnest_saas/core/models/store_product_model.dart';
@@ -24,6 +25,8 @@ import 'package:petnest_saas/core/services/store_product_service.dart';
 import 'package:petnest_saas/core/services/store_stock_helper.dart';
 import 'package:petnest_saas/features/shop/pages/inventory/shop_inventory_item_picker_page.dart';
 import 'package:petnest_saas/features/shop/widgets/inventory/inventory_item_cover.dart';
+import 'package:petnest_saas/features/shop/widgets/media/fixed_image_pick_flow.dart';
+import 'package:petnest_saas/features/shop/widgets/media/fixed_image_spec_hint.dart';
 
 class ShopStoreProductFormPage extends StatefulWidget {
   const ShopStoreProductFormPage({
@@ -74,7 +77,8 @@ class _ShopStoreProductFormPageState extends State<ShopStoreProductFormPage> {
   @override
   void initState() {
     super.initState();
-    _productId = widget.product?.id ??
+    _productId =
+        widget.product?.id ??
         StoreProductService.instance.productsRef(widget.shopId).doc().id;
     final StoreProductModel? product = widget.product;
     if (product != null) {
@@ -121,19 +125,19 @@ class _ShopStoreProductFormPageState extends State<ShopStoreProductFormPage> {
     _linkedItemSub = InventoryService.instance
         .streamItem(shopId: widget.shopId, itemId: _inventoryItemId)
         .listen((InventoryItemModel? item) {
-      if (!mounted || item == null) {
-        return;
-      }
-      setState(() {
-        _linkedItem = item;
-        _inventoryItemName = item.name.trim().isEmpty
-            ? _inventoryItemName
-            : item.name.trim();
-        _inventoryUnit = item.unit.trim().isEmpty
-            ? _inventoryUnit
-            : item.unit.trim();
-      });
-    });
+          if (!mounted || item == null) {
+            return;
+          }
+          setState(() {
+            _linkedItem = item;
+            _inventoryItemName = item.name.trim().isEmpty
+                ? _inventoryItemName
+                : item.name.trim();
+            _inventoryUnit = item.unit.trim().isEmpty
+                ? _inventoryUnit
+                : item.unit.trim();
+          });
+        });
   }
 
   @override
@@ -149,15 +153,18 @@ class _ShopStoreProductFormPageState extends State<ShopStoreProductFormPage> {
 
   Future<void> _pickImage() async {
     try {
-      final XFile? image =
-          await InventoryImageService.instance.pickAndValidateImage();
-      if (image == null) {
+      final Uint8List? cropped = await FixedImagePickFlow.pickAndCrop(
+        context: context,
+        spec: FixedImageSpec.storeProduct,
+        title: '裁切商品圖片',
+      );
+      if (cropped == null) {
         return;
       }
-      final result = await InventoryImageService.instance.uploadImage(
+      final result = await InventoryImageService.instance.uploadBytes(
         shopId: widget.shopId,
         itemId: _productId,
-        image: image,
+        bytes: cropped,
         folder: StoreConstants.imageFolder,
         imageType: 'store_cover',
         idMetadataKey: 'productId',
@@ -175,9 +182,9 @@ class _ShopStoreProductFormPageState extends State<ShopStoreProductFormPage> {
       if (!mounted) {
         return;
       }
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(error.toString())),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(error.toString())));
     }
   }
 
@@ -228,20 +235,19 @@ class _ShopStoreProductFormPageState extends State<ShopStoreProductFormPage> {
 
   bool get _hasInventoryBound => _inventoryItemId.trim().isNotEmpty;
 
-  bool get _showCommerceFields =>
-      _hasInventoryBound || widget.product != null;
+  bool get _showCommerceFields => _hasInventoryBound || widget.product != null;
 
   Future<void> _pickInventoryItem() async {
     final InventoryItemModel? selected =
         await Navigator.push<InventoryItemModel>(
-      context,
-      MaterialPageRoute<InventoryItemModel>(
-        builder: (_) => ShopInventoryItemPickerPage(
-          shopId: widget.shopId,
-          selectedItemId: _inventoryItemId,
-        ),
-      ),
-    );
+          context,
+          MaterialPageRoute<InventoryItemModel>(
+            builder: (_) => ShopInventoryItemPickerPage(
+              shopId: widget.shopId,
+              selectedItemId: _inventoryItemId,
+            ),
+          ),
+        );
     if (selected == null || !mounted) {
       return;
     }
@@ -293,7 +299,9 @@ class _ShopStoreProductFormPageState extends State<ShopStoreProductFormPage> {
       _linkedItem = item;
       if (!item.allowDecimal) {
         final num qty = num.tryParse(_qty.text.trim()) ?? 1;
-        _qty.text = InventoryConstants.formatQuantity(qty.round() < 1 ? 1 : qty.round());
+        _qty.text = InventoryConstants.formatQuantity(
+          qty.round() < 1 ? 1 : qty.round(),
+        );
       }
     });
     _listenLinkedItem();
@@ -311,9 +319,7 @@ class _ShopStoreProductFormPageState extends State<ShopStoreProductFormPage> {
       builder: (BuildContext context) {
         return AlertDialog(
           title: const Text('套用庫存商品資料？'),
-          content: const Text(
-            '庫存品項已有商品名稱、說明或圖片。\n是否帶入商城商品？\n\n售價不會帶入成本。',
-          ),
+          content: const Text('庫存品項已有商品名稱、說明或圖片。\n是否帶入商城商品？\n\n售價不會帶入成本。'),
           actions: <Widget>[
             TextButton(
               onPressed: () => Navigator.pop(context, false),
@@ -413,79 +419,79 @@ class _ShopStoreProductFormPageState extends State<ShopStoreProductFormPage> {
     final String name = _name.text.trim();
     final int price = int.tryParse(_price.text.trim()) ?? -1;
     if (name.isEmpty || price < 0) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('請輸入商品名稱與正確價格')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('請輸入商品名稱與正確價格')));
       return;
     }
     num qty = num.tryParse(_qty.text.trim()) ?? 1;
     final bool linked = _hasInventoryBound;
     if (!linked) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('請先從中央庫存選擇商品')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('請先從中央庫存選擇商品')));
       return;
     }
     if (qty <= 0) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('每出貨 1 件扣除數量必須大於 0')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('每出貨 1 件扣除數量必須大於 0')));
       return;
     }
     if (!_allowDecimal && qty % 1 != 0) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('此庫存品項只能輸入整數扣除數量')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('此庫存品項只能輸入整數扣除數量')));
       return;
     }
     final String? promoError = _validateItemPromotion(price);
     if (promoError != null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(promoError)),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(promoError)));
       return;
     }
 
     setState(() => _saving = true);
     try {
       final Map<String, dynamic> data = <String, dynamic>{
-      'name': name,
-      'description': _desc.text.trim(),
-      'price': price,
-      'enabled': _enabled,
-      'featured': _featured,
-      'useInventory': true,
-      'categoryId': _categoryId,
-      'categoryNameSnapshot': _categoryName,
-      'imageUrl': _imageUrl,
-      'imageStoragePath': _imagePath,
-      'inventoryItemId': _inventoryItemId,
-      'inventoryItemNameSnapshot': _inventoryItemName,
-      'inventoryUnitSnapshot': _inventoryUnit,
-      'inventoryQuantityPerSale': qty,
-      'sortOrder': widget.product?.sortOrder ?? 0,
-      'itemPromotionEnabled': _itemPromoEnabled,
-      'itemPromotionType': _itemPromoType,
-      'itemPromotionValue': num.tryParse(_itemPromoValue.text.trim()) ?? 0,
-      'itemPromotionBuyQuantity': _itemBuy < 1 ? 1 : _itemBuy,
-      'itemPromotionFreeQuantity': _itemFree < 1 ? 1 : _itemFree,
-      'itemPromotionAllowStack': _itemAllowStack,
-      'itemPromotionStartAt': _itemStartAt == null
-          ? null
-          : Timestamp.fromDate(_itemStartAt!),
-      'itemPromotionEndAt': _itemEndAt == null
-          ? null
-          : Timestamp.fromDate(_itemEndAt!),
-    };
+        'name': name,
+        'description': _desc.text.trim(),
+        'price': price,
+        'enabled': _enabled,
+        'featured': _featured,
+        'useInventory': true,
+        'categoryId': _categoryId,
+        'categoryNameSnapshot': _categoryName,
+        'imageUrl': _imageUrl,
+        'imageStoragePath': _imagePath,
+        'inventoryItemId': _inventoryItemId,
+        'inventoryItemNameSnapshot': _inventoryItemName,
+        'inventoryUnitSnapshot': _inventoryUnit,
+        'inventoryQuantityPerSale': qty,
+        'sortOrder': widget.product?.sortOrder ?? 0,
+        'itemPromotionEnabled': _itemPromoEnabled,
+        'itemPromotionType': _itemPromoType,
+        'itemPromotionValue': num.tryParse(_itemPromoValue.text.trim()) ?? 0,
+        'itemPromotionBuyQuantity': _itemBuy < 1 ? 1 : _itemBuy,
+        'itemPromotionFreeQuantity': _itemFree < 1 ? 1 : _itemFree,
+        'itemPromotionAllowStack': _itemAllowStack,
+        'itemPromotionStartAt': _itemStartAt == null
+            ? null
+            : Timestamp.fromDate(_itemStartAt!),
+        'itemPromotionEndAt': _itemEndAt == null
+            ? null
+            : Timestamp.fromDate(_itemEndAt!),
+      };
 
-    final InventoryItemModel? item = await _readInventoryForSave();
-    data.addAll(
-      StoreStockHelper.publicStockFields(
-        useInventory: true,
-        item: item,
-        inventoryQuantityPerSale: qty,
-      ),
-    );
+      final InventoryItemModel? item = await _readInventoryForSave();
+      data.addAll(
+        StoreStockHelper.publicStockFields(
+          useInventory: true,
+          item: item,
+          inventoryQuantityPerSale: qty,
+        ),
+      );
 
       debugPrint(
         '[StoreProductSave] form payload keys=${(data.keys.toList()..sort()).join(',')}\n'
@@ -516,9 +522,9 @@ class _ShopStoreProductFormPageState extends State<ShopStoreProductFormPage> {
       if (!mounted) {
         return;
       }
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(error.toString())),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(error.toString())));
     } finally {
       if (mounted) {
         setState(() => _saving = false);
@@ -529,9 +535,7 @@ class _ShopStoreProductFormPageState extends State<ShopStoreProductFormPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: Text(widget.product == null ? '新增商品' : '編輯商品'),
-      ),
+      appBar: AppBar(title: Text(widget.product == null ? '新增商品' : '編輯商品')),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: <Widget>[
@@ -568,6 +572,7 @@ class _ShopStoreProductFormPageState extends State<ShopStoreProductFormPage> {
         onPressed: _pickImage,
         child: Text(_imageUrl.isEmpty ? '選擇商品圖片' : '更換商品圖片'),
       ),
+      const FixedImageSpecHint(spec: FixedImageSpec.storeProduct),
       TextButton(
         onPressed: _imageUrl.isEmpty
             ? null
@@ -600,51 +605,51 @@ class _ShopStoreProductFormPageState extends State<ShopStoreProductFormPage> {
       const SizedBox(height: 8),
       StreamBuilder<List<StoreCategoryModel>>(
         stream: StoreCategoryService.instance.streamCategories(widget.shopId),
-        builder: (
-          BuildContext context,
-          AsyncSnapshot<List<StoreCategoryModel>> snapshot,
-        ) {
-          final List<StoreCategoryModel> categories =
-              snapshot.data ?? const <StoreCategoryModel>[];
-          return DropdownButtonFormField<String>(
-            initialValue: categories.any(
-                  (StoreCategoryModel item) => item.id == _categoryId,
-                )
-                ? _categoryId
-                : '',
-            decoration: const InputDecoration(labelText: '分類'),
-            items: <DropdownMenuItem<String>>[
-              const DropdownMenuItem<String>(value: '', child: Text('未分類')),
-              ...categories.map((StoreCategoryModel item) {
-                return DropdownMenuItem<String>(
-                  value: item.id,
-                  child: Text(item.name),
-                );
-              }),
-            ],
-            onChanged: (String? value) {
-              final StoreCategoryModel? selected = categories
-                  .where((StoreCategoryModel item) => item.id == value)
-                  .firstOrNull;
-              setState(() {
-                _categoryId = value ?? '';
-                _categoryName = selected?.name ?? '';
-              });
+        builder:
+            (
+              BuildContext context,
+              AsyncSnapshot<List<StoreCategoryModel>> snapshot,
+            ) {
+              final List<StoreCategoryModel> categories =
+                  snapshot.data ?? const <StoreCategoryModel>[];
+              return DropdownButtonFormField<String>(
+                initialValue:
+                    categories.any(
+                      (StoreCategoryModel item) => item.id == _categoryId,
+                    )
+                    ? _categoryId
+                    : '',
+                decoration: const InputDecoration(labelText: '分類'),
+                items: <DropdownMenuItem<String>>[
+                  const DropdownMenuItem<String>(value: '', child: Text('未分類')),
+                  ...categories.map((StoreCategoryModel item) {
+                    return DropdownMenuItem<String>(
+                      value: item.id,
+                      child: Text(item.name),
+                    );
+                  }),
+                ],
+                onChanged: (String? value) {
+                  final StoreCategoryModel? selected = categories
+                      .where((StoreCategoryModel item) => item.id == value)
+                      .firstOrNull;
+                  setState(() {
+                    _categoryId = value ?? '';
+                    _categoryName = selected?.name ?? '';
+                  });
+                },
+              );
             },
-          );
-        },
       ),
       SwitchListTile(
         title: const Text('上架'),
-        subtitle: _hasInventoryBound
-            ? null
-            : const Text('尚未連結中央庫存，無法上架販售。'),
+        subtitle: _hasInventoryBound ? null : const Text('尚未連結中央庫存，無法上架販售。'),
         value: _enabled && _hasInventoryBound,
         onChanged: (bool value) {
           if (value && !_hasInventoryBound) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('請先選擇庫存品項後才能上架販售')),
-            );
+            ScaffoldMessenger.of(
+              context,
+            ).showSnackBar(const SnackBar(content: Text('請先選擇庫存品項後才能上架販售')));
             return;
           }
           setState(() => _enabled = value);
@@ -659,10 +664,7 @@ class _ShopStoreProductFormPageState extends State<ShopStoreProductFormPage> {
       const SizedBox(height: 12),
       _buildItemPromotionSection(),
       const SizedBox(height: 16),
-      FilledButton(
-        onPressed: _saving ? null : _save,
-        child: const Text('儲存'),
-      ),
+      FilledButton(onPressed: _saving ? null : _save, child: const Text('儲存')),
     ];
   }
 
@@ -768,7 +770,8 @@ class _ShopStoreProductFormPageState extends State<ShopStoreProductFormPage> {
   }
 
   Future<void> _pickItemPromoDate({required bool start}) async {
-    final DateTime initial = (start ? _itemStartAt : _itemEndAt) ?? DateTime.now();
+    final DateTime initial =
+        (start ? _itemStartAt : _itemEndAt) ?? DateTime.now();
     final DateTime? date = await showDatePicker(
       context: context,
       initialDate: initial,
@@ -814,7 +817,8 @@ class _ShopStoreProductFormPageState extends State<ShopStoreProductFormPage> {
   Widget _buildItemPromotionSection() {
     final int price = int.tryParse(_price.text.trim()) ?? 0;
     final num value = num.tryParse(_itemPromoValue.text.trim()) ?? 0;
-    final bool specialTooHigh = _itemPromoEnabled &&
+    final bool specialTooHigh =
+        _itemPromoEnabled &&
         _itemPromoType == StoreItemPromotionTypes.specialPrice &&
         value > 0 &&
         price > 0 &&
@@ -833,10 +837,7 @@ class _ShopStoreProductFormPageState extends State<ShopStoreProductFormPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: <Widget>[
-            const Text(
-              '商品優惠',
-              style: TextStyle(fontWeight: FontWeight.w800),
-            ),
+            const Text('商品優惠', style: TextStyle(fontWeight: FontWeight.w800)),
             const SizedBox(height: 4),
             const Text(
               '只套用在這一個商品。關閉後會保留設定，只是不再套用。',
@@ -864,19 +865,20 @@ class _ShopStoreProductFormPageState extends State<ShopStoreProductFormPage> {
               Wrap(
                 spacing: 8,
                 runSpacing: 8,
-                children: <String>[
-                  ...StoreItemPromotionTypes.selectable,
-                  if (_itemPromoType == StoreItemPromotionTypes.amountOff)
-                    StoreItemPromotionTypes.amountOff,
-                ].map((String type) {
-                  return ChoiceChip(
-                    label: Text(StoreItemPromotionTypes.label(type)),
-                    selected: _itemPromoType == type,
-                    onSelected: (_) {
-                      setState(() => _itemPromoType = type);
-                    },
-                  );
-                }).toList(),
+                children:
+                    <String>[
+                      ...StoreItemPromotionTypes.selectable,
+                      if (_itemPromoType == StoreItemPromotionTypes.amountOff)
+                        StoreItemPromotionTypes.amountOff,
+                    ].map((String type) {
+                      return ChoiceChip(
+                        label: Text(StoreItemPromotionTypes.label(type)),
+                        selected: _itemPromoType == type,
+                        onSelected: (_) {
+                          setState(() => _itemPromoType = type);
+                        },
+                      );
+                    }).toList(),
               ),
               if (_itemPromoType == StoreItemPromotionTypes.specialPrice)
                 TextField(
@@ -908,7 +910,8 @@ class _ShopStoreProductFormPageState extends State<ShopStoreProductFormPage> {
                   ),
                   onChanged: (_) => setState(() {}),
                 ),
-              if (_itemPromoType == StoreItemPromotionTypes.buyXGetY) ...<Widget>[
+              if (_itemPromoType ==
+                  StoreItemPromotionTypes.buyXGetY) ...<Widget>[
                 const SizedBox(height: 8),
                 _qtyStepper(
                   label: '買',
@@ -978,9 +981,7 @@ class _ShopStoreProductFormPageState extends State<ShopStoreProductFormPage> {
               const SizedBox(height: 6),
               Text('原價 NT\$$price'),
               if (_itemPromoType == StoreItemPromotionTypes.buyXGetY)
-                Text(
-                  '買 $_itemBuy 送 $_itemFree　每組省 NT\$${price * _itemFree}',
-                )
+                Text('買 $_itemBuy 送 $_itemFree　每組省 NT\$${price * _itemFree}')
               else
                 StoreProductPriceView(
                   line: preview,
@@ -1020,74 +1021,82 @@ class _ShopStoreProductFormPageState extends State<ShopStoreProductFormPage> {
       stream: StorePromotionService.instance.streamEnabledPromotions(
         widget.shopId,
       ),
-      builder: (
-        BuildContext context,
-        AsyncSnapshot<List<StorePromotionModel>> snapshot,
-      ) {
-        final StoreProductModel preview = _previewProduct();
-        final StorePricedLine line = StorePricingService.instance.quoteProduct(
-          product: preview,
-          promotions: snapshot.data ?? const <StorePromotionModel>[],
-        );
-        final StorePromotionModel? promo = line.promotion;
-        return Card(
-          margin: const EdgeInsets.only(bottom: 8),
-          child: Padding(
-            padding: const EdgeInsets.all(12),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[
-                const Text(
-                  '跨商品促銷活動',
-                  style: TextStyle(fontWeight: FontWeight.w800),
+      builder:
+          (
+            BuildContext context,
+            AsyncSnapshot<List<StorePromotionModel>> snapshot,
+          ) {
+            final StoreProductModel preview = _previewProduct();
+            final StorePricedLine line = StorePricingService.instance
+                .quoteProduct(
+                  product: preview,
+                  promotions: snapshot.data ?? const <StorePromotionModel>[],
+                );
+            final StorePromotionModel? promo = line.promotion;
+            return Card(
+              margin: const EdgeInsets.only(bottom: 8),
+              child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    const Text(
+                      '跨商品促銷活動',
+                      style: TextStyle(fontWeight: FontWeight.w800),
+                    ),
+                    const SizedBox(height: 6),
+                    const Text(
+                      '單一商品特價、打折、買X送Y請在下方「商品優惠」設定。此處只顯示分類／多商品／全館活動。',
+                      style: TextStyle(fontSize: 12),
+                    ),
+                    const SizedBox(height: 6),
+                    if (promo == null)
+                      const Text('目前沒有套用跨商品活動')
+                    else ...<Widget>[
+                      Text(promo.name),
+                      Text('${promo.offerLabel}　${promo.periodLabel}'),
+                      StoreProductPriceView(
+                        line: line,
+                        compact: true,
+                        showSaved: true,
+                      ),
+                    ],
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: TextButton(
+                        onPressed: promo == null
+                            ? () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute<void>(
+                                    builder: (_) => ShopStorePromotionFormPage(
+                                      shopId: widget.shopId,
+                                      preselectedProductIds: <String>[
+                                        _productId,
+                                      ],
+                                    ),
+                                  ),
+                                );
+                              }
+                            : () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute<void>(
+                                    builder: (_) => ShopStorePromotionFormPage(
+                                      shopId: widget.shopId,
+                                      promotion: promo,
+                                    ),
+                                  ),
+                                );
+                              },
+                        child: Text(promo == null ? '前往促銷活動' : '查看促銷活動'),
+                      ),
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 6),
-                const Text(
-                  '單一商品特價、打折、買X送Y請在下方「商品優惠」設定。此處只顯示分類／多商品／全館活動。',
-                  style: TextStyle(fontSize: 12),
-                ),
-                const SizedBox(height: 6),
-                if (promo == null)
-                  const Text('目前沒有套用跨商品活動')
-                else ...<Widget>[
-                  Text(promo.name),
-                  Text('${promo.offerLabel}　${promo.periodLabel}'),
-                  StoreProductPriceView(line: line, compact: true, showSaved: true),
-                ],
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: TextButton(
-                    onPressed: promo == null
-                        ? () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute<void>(
-                                builder: (_) => ShopStorePromotionFormPage(
-                                  shopId: widget.shopId,
-                                  preselectedProductIds: <String>[_productId],
-                                ),
-                              ),
-                            );
-                          }
-                        : () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute<void>(
-                                builder: (_) => ShopStorePromotionFormPage(
-                                  shopId: widget.shopId,
-                                  promotion: promo,
-                                ),
-                              ),
-                            );
-                          },
-                    child: Text(promo == null ? '前往促銷活動' : '查看促銷活動'),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        );
-      },
+              ),
+            );
+          },
     );
   }
 
@@ -1097,13 +1106,11 @@ class _ShopStoreProductFormPageState extends State<ShopStoreProductFormPage> {
         shopId: widget.shopId,
         itemId: _inventoryItemId,
       ),
-      builder: (
-        BuildContext context,
-        AsyncSnapshot<InventoryItemModel?> snapshot,
-      ) {
-        final InventoryItemModel? item = snapshot.data ?? _linkedItem;
-        return _buildInventoryCard(item);
-      },
+      builder:
+          (BuildContext context, AsyncSnapshot<InventoryItemModel?> snapshot) {
+            final InventoryItemModel? item = snapshot.data ?? _linkedItem;
+            return _buildInventoryCard(item);
+          },
     );
   }
 
@@ -1111,10 +1118,11 @@ class _ShopStoreProductFormPageState extends State<ShopStoreProductFormPage> {
     final String name = item?.name.trim().isNotEmpty == true
         ? item!.name.trim()
         : (_inventoryItemName.isEmpty ? '未命名庫存品項' : _inventoryItemName);
-    final String unit = (item?.unit.trim().isNotEmpty == true
-            ? item!.unit.trim()
-            : _inventoryUnit)
-        .trim();
+    final String unit =
+        (item?.unit.trim().isNotEmpty == true
+                ? item!.unit.trim()
+                : _inventoryUnit)
+            .trim();
     final String unitLabel = unit.isEmpty ? '個' : unit;
     final ColorScheme colors = Theme.of(context).colorScheme;
 

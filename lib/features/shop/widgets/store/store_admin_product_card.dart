@@ -46,7 +46,8 @@ class StoreAdminProductCard extends StatelessWidget {
         : inventoryItem == null
         ? '中央庫存：${product.inventoryItemNameSnapshot.isEmpty ? '已連結' : product.inventoryItemNameSnapshot}'
         : '中央庫存：${InventoryConstants.formatQuantity(inventoryItem!.currentStock)} $unit';
-    final StorePricedLine line = priced ??
+    final StorePricedLine line =
+        priced ??
         StorePricedLine(
           product: product,
           quantity: 1,
@@ -72,10 +73,9 @@ class StoreAdminProductCard extends StatelessWidget {
                   height: 64,
                   child: product.imageUrl.isEmpty
                       ? ColoredBox(
-                          color: Theme.of(context)
-                              .colorScheme
-                              .primary
-                              .withValues(alpha: 0.08),
+                          color: Theme.of(
+                            context,
+                          ).colorScheme.primary.withValues(alpha: 0.08),
                           child: const Icon(Icons.shopping_bag_outlined),
                         )
                       : Image.network(product.imageUrl, fit: BoxFit.cover),
@@ -101,10 +101,7 @@ class StoreAdminProductCard extends StatelessWidget {
                         ),
                       ),
                     const SizedBox(height: 4),
-                    StoreProductPriceView(
-                      line: line,
-                      compact: true,
-                    ),
+                    StoreProductPriceView(line: line, compact: true),
                     Text(
                       stockLine,
                       style: TextStyle(

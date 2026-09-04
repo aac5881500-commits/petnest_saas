@@ -36,17 +36,11 @@ class PermissionInviteListCard extends StatelessWidget {
                   alignment: Alignment.centerLeft,
                   child: Text(
                     '待綁定邀請',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                    ),
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                   ),
                 ),
                 const SizedBox(height: 8),
-                if (invites.isEmpty)
-                  const ListTile(
-                    title: Text('目前沒有待綁定邀請'),
-                  ),
+                if (invites.isEmpty) const ListTile(title: Text('目前沒有待綁定邀請')),
                 ...invites.map((invite) {
                   final role = invite['role']?.toString() ?? '-';
 

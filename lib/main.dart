@@ -3,6 +3,7 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter/services.dart';
 import 'package:petnest_saas/features/auth/pages/home_page.dart';
 import 'package:petnest_saas/features/auth/pages/login_page.dart';
@@ -35,13 +36,13 @@ Future<void> main() async {
     };
     WidgetsBinding.instance.platformDispatcher.onError =
         (Object error, StackTrace stack) {
-      print('[GLOBAL PlatformError]');
-      print('type=${error.runtimeType}');
-      print(error);
-      print(stack);
-      ChatErrorProbe.dump('GLOBAL PlatformError', error, stack);
-      return false;
-    };
+          print('[GLOBAL PlatformError]');
+          print('type=${error.runtimeType}');
+          print(error);
+          print(stack);
+          ChatErrorProbe.dump('GLOBAL PlatformError', error, stack);
+          return false;
+        };
   }
 
   // 📱 只在手機 App 鎖直向；Web 後台不鎖方向
@@ -65,6 +66,13 @@ class PetNestApp extends StatelessWidget {
       navigatorKey: AppNavigator.key,
       title: 'PetNest SaaS',
       debugShowCheckedModeBanner: false,
+      locale: const Locale('zh', 'TW'),
+      supportedLocales: const <Locale>[Locale('zh', 'TW'), Locale('en', 'US')],
+      localizationsDelegates: const <LocalizationsDelegate<dynamic>>[
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
       theme: ThemeData(useMaterial3: true, colorSchemeSeed: Colors.blue),
 
       /// 🔥 一定要有這段

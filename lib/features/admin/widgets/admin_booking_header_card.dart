@@ -95,7 +95,9 @@ class AdminBookingHeaderCard extends StatelessWidget {
                         ? '待分房'
                         : data['assignStatus'] == 'unassigned'
                         ? '待分房'
-                        : (data['roomName'] ?? data['roomNumberSnapshot'] ?? '-'),
+                        : (data['roomName'] ??
+                              data['roomNumberSnapshot'] ??
+                              '-'),
                     style: const TextStyle(
                       color: Colors.white,
                       fontSize: 28,

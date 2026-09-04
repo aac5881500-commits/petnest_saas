@@ -76,10 +76,7 @@ class ShopTaskCenterPanel extends StatelessWidget {
             style: const TextStyle(fontSize: 14, height: 1.5),
           ),
           const SizedBox(height: 14),
-          OutlinedButton(
-            onPressed: onRetry,
-            child: const Text('重新整理'),
-          ),
+          OutlinedButton(onPressed: onRetry, child: const Text('重新整理')),
         ],
       ),
     );
@@ -101,8 +98,12 @@ class _TaskList extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final List<ShopTaskItem> careItems = snapshot.ofType(ShopTaskType.dailyCare);
-    final List<ShopTaskItem> bookingItems = snapshot.ofType(ShopTaskType.booking);
+    final List<ShopTaskItem> careItems = snapshot.ofType(
+      ShopTaskType.dailyCare,
+    );
+    final List<ShopTaskItem> bookingItems = snapshot.ofType(
+      ShopTaskType.booking,
+    );
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -133,7 +134,11 @@ class _TaskList extends StatelessWidget {
             padding: EdgeInsets.fromLTRB(20, 28, 20, 32),
             child: Column(
               children: <Widget>[
-                Icon(Icons.check_circle_outline, size: 36, color: Color(0xFF2E7D32)),
+                Icon(
+                  Icons.check_circle_outline,
+                  size: 36,
+                  color: Color(0xFF2E7D32),
+                ),
                 SizedBox(height: 10),
                 Text(
                   '✓ 今日待辦已完成',
@@ -154,10 +159,8 @@ class _TaskList extends StatelessWidget {
               count: careItems.length,
               children: careItems
                   .map(
-                    (ShopTaskItem item) => _CareTile(
-                      item: item,
-                      closeBeforeOpen: closeBeforeOpen,
-                    ),
+                    (ShopTaskItem item) =>
+                        _CareTile(item: item, closeBeforeOpen: closeBeforeOpen),
                   )
                   .toList(),
             ),
@@ -266,7 +269,8 @@ class _CareTile extends StatelessWidget {
     final int sessionIndex = meta['sessionIndex'] is int
         ? meta['sessionIndex'] as int
         : int.tryParse('${meta['sessionIndex']}') ?? 0;
-    final String sessionName = (meta['sessionName'] ?? item.subtitle).toString();
+    final String sessionName = (meta['sessionName'] ?? item.subtitle)
+        .toString();
     final DateTime recordDate = DateTime(
       meta['recordDateYear'] as int? ?? DateTime.now().year,
       meta['recordDateMonth'] as int? ?? DateTime.now().month,
@@ -314,7 +318,8 @@ class _BookingTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final String stayDates = (item.metadata['stayDates'] ?? '').toString();
-    final String createdLabel = (item.metadata['createdLabel'] ?? '').toString();
+    final String createdLabel = (item.metadata['createdLabel'] ?? '')
+        .toString();
     final String petNames = (item.metadata['petNames'] ?? '').toString();
 
     return _TaskCard(
@@ -335,9 +340,8 @@ class _BookingTile extends StatelessWidget {
               }
               Navigator.of(context).push(
                 MaterialPageRoute<void>(
-                  builder: (_) => AdminBookingDetailPage(
-                    bookingId: item.targetId,
-                  ),
+                  builder: (_) =>
+                      AdminBookingDetailPage(bookingId: item.targetId),
                 ),
               );
             }
@@ -379,7 +383,11 @@ class _TaskCard extends StatelessWidget {
         children: <Widget>[
           Row(
             children: <Widget>[
-              Icon(icon, size: 18, color: Theme.of(context).colorScheme.primary),
+              Icon(
+                icon,
+                size: 18,
+                color: Theme.of(context).colorScheme.primary,
+              ),
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
@@ -415,10 +423,7 @@ class _TaskCard extends StatelessWidget {
             const SizedBox(height: 8),
             Align(
               alignment: Alignment.centerRight,
-              child: TextButton(
-                onPressed: onAction,
-                child: Text(actionLabel!),
-              ),
+              child: TextButton(onPressed: onAction, child: Text(actionLabel!)),
             ),
           ],
         ],

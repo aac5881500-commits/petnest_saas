@@ -5,19 +5,17 @@
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
-import 'package:image_picker/image_picker.dart';
 import 'package:petnest_saas/core/constants/inventory_constants.dart';
 import 'package:petnest_saas/core/exceptions/inventory_exception.dart';
 import 'package:petnest_saas/core/models/inventory_item_model.dart';
+import 'package:petnest_saas/core/models/fixed_image_spec.dart';
 import 'package:petnest_saas/core/services/inventory_image_service.dart';
+import 'package:petnest_saas/features/shop/widgets/media/fixed_image_pick_flow.dart';
+import 'package:petnest_saas/features/shop/widgets/media/fixed_image_spec_hint.dart';
 import 'package:petnest_saas/core/services/inventory_service.dart';
 
 class ShopInventoryFormPage extends StatefulWidget {
-  const ShopInventoryFormPage({
-    super.key,
-    required this.shopId,
-    this.item,
-  });
+  const ShopInventoryFormPage({super.key, required this.shopId, this.item});
 
   final String shopId;
   final InventoryItemModel? item;
@@ -38,7 +36,7 @@ class _ShopInventoryFormPageState extends State<ShopInventoryFormPage> {
   late bool _enabled;
   late final String _legacyCategory;
   String? _selectedCategory;
-  XFile? _selectedImage;
+  Uint8List? _selectedImageBytes;
   bool _removeExistingImage = false;
   bool _selectingImage = false;
   bool _saving = false;
@@ -50,7 +48,9 @@ class _ShopInventoryFormPageState extends State<ShopInventoryFormPage> {
     super.initState();
     final InventoryItemModel? item = widget.item;
     _nameController = TextEditingController(text: item?.name ?? '');
-    _descriptionController = TextEditingController(text: item?.description ?? '');
+    _descriptionController = TextEditingController(
+      text: item?.description ?? '',
+    );
     _skuController = TextEditingController(text: item?.sku ?? '');
     _barcodeController = TextEditingController(text: item?.barcode ?? '');
     _unitController = TextEditingController(text: item?.unit ?? '個');
@@ -82,15 +82,18 @@ class _ShopInventoryFormPageState extends State<ShopInventoryFormPage> {
     setState(() => _selectingImage = true);
 
     try {
-      final XFile? selected =
-          await InventoryImageService.instance.pickAndValidateImage();
+      final Uint8List? cropped = await FixedImagePickFlow.pickAndCrop(
+        context: context,
+        spec: FixedImageSpec.inventoryItem,
+        title: '裁切庫存品項圖片',
+      );
 
-      if (selected == null || !mounted) {
+      if (cropped == null || !mounted) {
         return;
       }
 
       setState(() {
-        _selectedImage = selected;
+        _selectedImageBytes = cropped;
         _removeExistingImage = false;
       });
     } catch (error) {
@@ -110,7 +113,7 @@ class _ShopInventoryFormPageState extends State<ShopInventoryFormPage> {
 
   void _clearImage() {
     setState(() {
-      _selectedImage = null;
+      _selectedImageBytes = null;
       _removeExistingImage = true;
     });
   }
@@ -202,15 +205,16 @@ class _ShopInventoryFormPageState extends State<ShopInventoryFormPage> {
 
   Future<void> _saveCoverImage(String itemId) async {
     final InventoryItemModel? existing = widget.item;
-    final XFile? selectedImage = _selectedImage;
+    final Uint8List? selectedBytes = _selectedImageBytes;
 
-    if (selectedImage != null) {
-      final InventoryImageUploadResult uploaded =
-          await InventoryImageService.instance.uploadImage(
-        shopId: widget.shopId,
-        itemId: itemId,
-        image: selectedImage,
-      );
+    if (selectedBytes != null) {
+      final InventoryImageUploadResult uploaded = await InventoryImageService
+          .instance
+          .uploadBytes(
+            shopId: widget.shopId,
+            itemId: itemId,
+            bytes: selectedBytes,
+          );
 
       try {
         await InventoryService.instance.updateItemCover(
@@ -267,9 +271,7 @@ class _ShopInventoryFormPageState extends State<ShopInventoryFormPage> {
                   color: Colors.orange.shade50,
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: const Text(
-                  '目前庫存不可在此直接修改。請使用進貨、手動出庫或盤點調整。',
-                ),
+                child: const Text('目前庫存不可在此直接修改。請使用進貨、手動出庫或盤點調整。'),
               ),
             _buildImagePicker(),
             const SizedBox(height: 16),
@@ -307,13 +309,14 @@ class _ShopInventoryFormPageState extends State<ShopInventoryFormPage> {
                   value: '',
                   child: Text(InventoryConstants.categoryUnspecifiedLabel),
                 ),
-                ...InventoryConstants.categoryDropdownOptions(_legacyCategory)
-                    .map((String category) {
-                      return DropdownMenuItem<String>(
-                        value: category,
-                        child: Text(category),
-                      );
-                    }),
+                ...InventoryConstants.categoryDropdownOptions(
+                  _legacyCategory,
+                ).map((String category) {
+                  return DropdownMenuItem<String>(
+                    value: category,
+                    child: Text(category),
+                  );
+                }),
               ],
               onChanged: (String? value) {
                 setState(() {
@@ -351,7 +354,9 @@ class _ShopInventoryFormPageState extends State<ShopInventoryFormPage> {
             const SizedBox(height: 12),
             TextFormField(
               controller: _safetyStockController,
-              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: true,
+              ),
               decoration: const InputDecoration(
                 labelText: '安全庫存',
                 helperText: '庫存低於或等於此數量時顯示低庫存',
@@ -388,11 +393,11 @@ class _ShopInventoryFormPageState extends State<ShopInventoryFormPage> {
   }
 
   Widget _buildImagePicker() {
-    final XFile? selectedImage = _selectedImage;
+    final Uint8List? selectedBytes = _selectedImageBytes;
     final String existingImageUrl = _removeExistingImage
         ? ''
         : (widget.item?.imageUrl ?? '').trim();
-    final bool hasSelectedImage = selectedImage != null;
+    final bool hasSelectedImage = selectedBytes != null;
     final bool hasExistingImage = existingImageUrl.isNotEmpty;
     final bool hasImage = hasSelectedImage || hasExistingImage;
 
@@ -403,12 +408,7 @@ class _ShopInventoryFormPageState extends State<ShopInventoryFormPage> {
           '品項圖片',
           style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
         ),
-        const SizedBox(height: 4),
-        Text(
-          '選填。僅支援 JPG、JPEG、PNG、WEBP，原始檔最大 5MB',
-          style: TextStyle(color: Colors.grey.shade700, fontSize: 13),
-        ),
-        const SizedBox(height: 10),
+        const FixedImageSpecHint(spec: FixedImageSpec.inventoryItem),
         if (hasImage)
           Container(
             width: double.infinity,
@@ -420,36 +420,18 @@ class _ShopInventoryFormPageState extends State<ShopInventoryFormPage> {
             ),
             clipBehavior: Clip.antiAlias,
             child: hasSelectedImage
-                ? FutureBuilder<Uint8List>(
-                    future: selectedImage.readAsBytes(),
-                    builder: (
-                      BuildContext context,
-                      AsyncSnapshot<Uint8List> snapshot,
-                    ) {
-                      if (snapshot.connectionState != ConnectionState.done) {
-                        return const Center(child: CircularProgressIndicator());
-                      }
-
-                      if (!snapshot.hasData || snapshot.data!.isEmpty) {
-                        return const Center(child: Text('無法預覽圖片'));
-                      }
-
-                      return Image.memory(
-                        snapshot.data!,
-                        fit: BoxFit.contain,
-                      );
-                    },
-                  )
+                ? Image.memory(selectedBytes, fit: BoxFit.contain)
                 : Image.network(
                     existingImageUrl,
                     fit: BoxFit.contain,
-                    errorBuilder: (
-                      BuildContext context,
-                      Object error,
-                      StackTrace? stackTrace,
-                    ) {
-                      return const Center(child: Text('原圖片載入失敗'));
-                    },
+                    errorBuilder:
+                        (
+                          BuildContext context,
+                          Object error,
+                          StackTrace? stackTrace,
+                        ) {
+                          return const Center(child: Text('原圖片載入失敗'));
+                        },
                   ),
           )
         else

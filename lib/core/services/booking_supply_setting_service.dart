@@ -64,14 +64,14 @@ class BookingSupplySettingService {
       normalizedShopId,
     ).get();
 
-    return snapshot.docs
-        .map((QueryDocumentSnapshot<Map<String, dynamic>> document) {
-          return BookingSupplySettingModel.fromMap(
-            id: document.id,
-            data: document.data(),
-          );
-        })
-        .toList();
+    return snapshot.docs.map((
+      QueryDocumentSnapshot<Map<String, dynamic>> document,
+    ) {
+      return BookingSupplySettingModel.fromMap(
+        id: document.id,
+        data: document.data(),
+      );
+    }).toList();
   }
 
   Future<String> saveSetting({

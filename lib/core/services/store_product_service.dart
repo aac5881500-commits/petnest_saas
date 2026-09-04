@@ -74,24 +74,26 @@ class StoreProductService {
         .where('enabled', isEqualTo: true)
         .snapshots()
         .map((QuerySnapshot<Map<String, dynamic>> snapshot) {
-      final List<StoreProductModel> products = snapshot.docs.map((
-        QueryDocumentSnapshot<Map<String, dynamic>> doc,
-      ) {
-        return StoreProductModel.fromMap(id: doc.id, data: doc.data());
-      }).toList();
-      products.sort((StoreProductModel a, StoreProductModel b) {
-        final int order = a.sortOrder.compareTo(b.sortOrder);
-        if (order != 0) {
-          return order;
-        }
-        return a.name.compareTo(b.name);
-      });
-      return products;
-    });
+          final List<StoreProductModel> products = snapshot.docs.map((
+            QueryDocumentSnapshot<Map<String, dynamic>> doc,
+          ) {
+            return StoreProductModel.fromMap(id: doc.id, data: doc.data());
+          }).toList();
+          products.sort((StoreProductModel a, StoreProductModel b) {
+            final int order = a.sortOrder.compareTo(b.sortOrder);
+            if (order != 0) {
+              return order;
+            }
+            return a.name.compareTo(b.name);
+          });
+          return products;
+        });
   }
 
   Stream<List<StoreProductModel>> streamFeaturedProducts(String shopId) {
-    return streamEnabledProducts(shopId).map((List<StoreProductModel> products) {
+    return streamEnabledProducts(shopId).map((
+      List<StoreProductModel> products,
+    ) {
       return products
           .where((StoreProductModel item) => item.featured)
           .take(8)
@@ -103,8 +105,9 @@ class StoreProductService {
     required String shopId,
     required String productId,
   }) async {
-    final DocumentSnapshot<Map<String, dynamic>> snapshot =
-        await productsRef(shopId).doc(productId.trim()).get();
+    final DocumentSnapshot<Map<String, dynamic>> snapshot = await productsRef(
+      shopId,
+    ).doc(productId.trim()).get();
     if (!snapshot.exists || snapshot.data() == null) {
       return null;
     }
@@ -144,8 +147,9 @@ class StoreProductService {
     required String productId,
     required Map<String, dynamic> data,
   }) async {
-    final DocumentReference<Map<String, dynamic>> reference =
-        productsRef(shopId).doc(productId.trim());
+    final DocumentReference<Map<String, dynamic>> reference = productsRef(
+      shopId,
+    ).doc(productId.trim());
     final Map<String, dynamic> payload = <String, dynamic>{
       ...data,
       'shopId': shopId.trim(),
@@ -216,8 +220,10 @@ class StoreProductService {
     );
 
     try {
-      final DocumentSnapshot<Map<String, dynamic>> shopSnap =
-          await _firestore.collection('shops').doc(shopId.trim()).get();
+      final DocumentSnapshot<Map<String, dynamic>> shopSnap = await _firestore
+          .collection('shops')
+          .doc(shopId.trim())
+          .get();
       debugPrint(
         '[StoreProductSave] STEP 0 shop read success\n'
         'path=shops/${shopId.trim()}\n'
@@ -237,8 +243,9 @@ class StoreProductService {
 
     final String memberPath = 'shop_members/${shopId.trim()}_$uid';
     try {
-      final DocumentSnapshot<Map<String, dynamic>> memberSnap =
-          await _firestore.doc(memberPath).get();
+      final DocumentSnapshot<Map<String, dynamic>> memberSnap = await _firestore
+          .doc(memberPath)
+          .get();
       debugPrint(
         '[StoreProductSave] STEP 0 member read success\n'
         'path=$memberPath\n'

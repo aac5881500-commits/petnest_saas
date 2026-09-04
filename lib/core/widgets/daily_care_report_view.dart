@@ -171,7 +171,8 @@ class _StayCard extends StatelessWidget {
           _row('入住日期', data.checkInText),
           _row('退房日期', data.checkOutText),
           _row('住宿晚數', data.nightsText),
-          if (data.bookingCode.isNotEmpty) _row('訂單編號', data.bookingCode, last: true),
+          if (data.bookingCode.isNotEmpty)
+            _row('訂單編號', data.bookingCode, last: true),
         ],
       ),
     );
@@ -312,10 +313,8 @@ class _SessionCard extends StatelessWidget {
               runSpacing: 8,
               children: group.fields
                   .map(
-                    (DailyCareReportField field) => _FieldChip(
-                      field: field,
-                      brand: brand,
-                    ),
+                    (DailyCareReportField field) =>
+                        _FieldChip(field: field, brand: brand),
                   )
                   .toList(),
             ),
@@ -473,7 +472,10 @@ class _Footer extends StatelessWidget {
         Text(
           '產生日期：${data.generatedAtText}',
           textAlign: TextAlign.center,
-          style: const TextStyle(fontSize: 11, color: DailyCareReportView.muted),
+          style: const TextStyle(
+            fontSize: 11,
+            color: DailyCareReportView.muted,
+          ),
         ),
       ],
     );

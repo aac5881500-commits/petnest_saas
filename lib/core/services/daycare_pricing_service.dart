@@ -30,6 +30,7 @@ class DaycareQuote {
     this.extraPetCount = 0,
     this.timeCharge = 0,
     this.maxBaseCharge = 0,
+    this.uncappedTimeCharge = 0,
   });
 
   final int durationMinutes;
@@ -53,6 +54,38 @@ class DaycareQuote {
   final int extraPetCount;
   final int timeCharge;
   final int maxBaseCharge;
+  final int uncappedTimeCharge;
+
+  int get timeChargeCapDiscount {
+    final int discount = uncappedTimeCharge - timeCharge;
+    return discount > 0 ? discount : 0;
+  }
+
+  Map<String, dynamic> toPriceSnapshot() {
+    return <String, dynamic>{
+      'durationMinutes': durationMinutes,
+      'baseAmount': baseAmount,
+      'timeCharge': timeCharge,
+      'uncappedTimeCharge': uncappedTimeCharge,
+      'timeChargeCapDiscount': timeChargeCapDiscount,
+      'extraTimeAmount': extraTimeAmount,
+      'extraMinutes': extraMinutes,
+      'extraUnits': extraUnits,
+      'includedMinutes': includedMinutes,
+      'extraBillingMinutes': extraBillingMinutes,
+      'extraPetAmount': extraPetAmount,
+      'extraPetCount': extraPetCount,
+      'addonAmount': addonAmount,
+      'discountAmount': discountAmount,
+      'couponAmount': couponAmount,
+      'pointAmount': pointAmount,
+      'surchargeAmount': surchargeAmount,
+      'overtimeAmount': overtimeAmount,
+      'totalAmount': totalAmount,
+      'depositAmount': depositAmount,
+      'maxBaseCharge': maxBaseCharge,
+    };
+  }
 
   int get remainingAmount =>
       (totalAmount - depositAmount).clamp(0, totalAmount);
@@ -76,6 +109,7 @@ class DaycareRoomQuote {
     this.extraPetCount = 0,
     this.timeCharge = 0,
     this.maxBaseCharge = 0,
+    this.uncappedTimeCharge = 0,
   });
 
   final int durationMinutes;
@@ -94,6 +128,7 @@ class DaycareRoomQuote {
   final int extraPetCount;
   final int timeCharge;
   final int maxBaseCharge;
+  final int uncappedTimeCharge;
 }
 
 class DaycareTimeCharge {
@@ -235,28 +270,48 @@ class DaycarePricingService {
     required DaycareQuote quote,
     required String primaryLabel,
     List<BookingFeeLineItem> addonLines = const <BookingFeeLineItem>[],
+    String depositType = DaycareDepositTypes.none,
   }) {
     final List<BookingFeeLineItem> lines = <BookingFeeLineItem>[
-      BookingFeeLineItem(label: primaryLabel, amount: quote.baseAmount),
+      BookingFeeLineItem(label: '起步價格', amount: quote.baseAmount),
     ];
-    if (quote.extraTimeAmount > 0) {
+    final int extraTime = quote.extraUnits > 0
+        ? (quote.uncappedTimeCharge - quote.baseAmount).clamp(0, 1 << 30)
+        : 0;
+    if (quote.extraUnits > 0 && extraTime > 0) {
+      lines.add(BookingFeeLineItem(label: '超時計費', amount: extraTime));
+    }
+    final bool capHit =
+        quote.maxBaseCharge > 0 && quote.timeChargeCapDiscount > 0;
+    if (capHit) {
+      lines.add(
+        BookingFeeLineItem(label: '時間費原計', amount: quote.uncappedTimeCharge),
+      );
       lines.add(
         BookingFeeLineItem(
-          label: '超過後${quote.extraBillingMinutes == 30 ? '每 30 分鐘' : '每小時'}加收',
-          amount: quote.extraTimeAmount,
+          label: '時間費上限折抵',
+          amount: -quote.timeChargeCapDiscount,
+          kind: BookingFeeLineKind.discount,
         ),
       );
+      lines.add(BookingFeeLineItem(label: '計費後時間費', amount: quote.timeCharge));
     }
-    if (quote.extraPetAmount > 0) {
-      final int petNo = quote.extraPetCount + 1;
+    if (quote.extraPetCount > 0 && quote.extraPetAmount > 0) {
       lines.add(
         BookingFeeLineItem(
-          label: petNo <= 2 ? '第 2 隻寵物加收' : '第 2～$petNo 隻寵物加收',
+          label: '多寵費（增加 ${quote.extraPetCount} 隻）',
           amount: quote.extraPetAmount,
         ),
       );
     }
-    lines.addAll(addonLines);
+    if (addonLines.isNotEmpty) {
+      lines.addAll(addonLines);
+      int addonTotal = 0;
+      for (final BookingFeeLineItem line in addonLines) {
+        addonTotal += line.amount;
+      }
+      lines.add(BookingFeeLineItem(label: '加值服務', amount: addonTotal));
+    }
     final int discount =
         quote.discountAmount + quote.couponAmount + quote.pointAmount;
     if (discount > 0) {
@@ -277,14 +332,37 @@ class DaycarePricingService {
     );
     lines.add(
       BookingFeeLineItem(
-        label: '本次應付',
-        amount: quote.depositAmount > 0
-            ? quote.depositAmount
-            : quote.totalAmount,
+        label: payableLabel(depositType),
+        amount: payableAmount(quote: quote, depositType: depositType),
         kind: BookingFeeLineKind.payable,
       ),
     );
     return lines;
+  }
+
+  String payableLabel(String depositType) {
+    switch (depositType) {
+      case DaycareDepositTypes.full:
+        return '預計付款金額';
+      case DaycareDepositTypes.fixed:
+      case DaycareDepositTypes.percent:
+        return '預計訂金';
+      default:
+        return '到店付款';
+    }
+  }
+
+  int payableAmount({
+    required DaycareQuote quote,
+    required String depositType,
+  }) {
+    switch (depositType) {
+      case DaycareDepositTypes.fixed:
+      case DaycareDepositTypes.percent:
+        return quote.depositAmount;
+      default:
+        return quote.totalAmount;
+    }
   }
 
   String shopLatePickupExample(DaycareSettingsModel settings) {
@@ -387,7 +465,7 @@ class DaycarePricingService {
       manualAdjust: manualAdjust,
       totalAmount: total,
       depositAmount: deposit,
-      extraTimeAmount: charge.timeCharge - plan.basePrice,
+      extraTimeAmount: charge.extraUnits * plan.extraBillingPrice,
       extraMinutes: charge.extraMinutes,
       extraUnits: charge.extraUnits,
       includedMinutes: charge.includedMinutes,
@@ -395,6 +473,7 @@ class DaycarePricingService {
       extraPetCount: charge.extraPetCount,
       timeCharge: charge.timeCharge,
       maxBaseCharge: charge.maxBaseCharge,
+      uncappedTimeCharge: charge.uncappedTimeCharge,
     );
   }
 
@@ -443,6 +522,7 @@ class DaycarePricingService {
       extraPetCount: room.extraPetCount,
       timeCharge: room.timeCharge,
       maxBaseCharge: room.maxBaseCharge,
+      uncappedTimeCharge: room.uncappedTimeCharge,
     );
   }
 
@@ -678,7 +758,7 @@ class DaycarePricingService {
       durationMinutes: charge.durationMinutes,
       baseAmount: roomSetting.basePrice,
       extraPetAmount: charge.extraPetCharge,
-      extraTimeAmount: charge.timeCharge - roomSetting.basePrice,
+      extraTimeAmount: charge.extraUnits * roomSetting.extraBillingPrice,
       uncappedRoomAmount: charge.uncappedTimeCharge + charge.extraPetCharge,
       capAmount: charge.maxBaseCharge,
       cappedRoomAmount: charge.subtotal,
@@ -691,6 +771,7 @@ class DaycarePricingService {
       extraPetCount: charge.extraPetCount,
       timeCharge: charge.timeCharge,
       maxBaseCharge: charge.maxBaseCharge,
+      uncappedTimeCharge: charge.uncappedTimeCharge,
     );
   }
 

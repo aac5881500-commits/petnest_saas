@@ -61,12 +61,12 @@ class AddonInventoryBindingEditor extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final ColorScheme colors = Theme.of(context).colorScheme;
-    final List<InventoryBindingModel> namedBindings = _models
-        .where((InventoryBindingModel item) {
-          return item.inventoryItemName.trim().isNotEmpty ||
-              item.inventoryItemId.trim().isNotEmpty;
-        })
-        .toList();
+    final List<InventoryBindingModel> namedBindings = _models.where((
+      InventoryBindingModel item,
+    ) {
+      return item.inventoryItemName.trim().isNotEmpty ||
+          item.inventoryItemId.trim().isNotEmpty;
+    }).toList();
 
     return Container(
       width: double.infinity,
@@ -124,7 +124,9 @@ class AddonInventoryBindingEditor extends StatelessWidget {
                   _useInventory ? _subtitle : '不使用庫存',
                   style: TextStyle(
                     fontSize: 12,
-                    color: _useInventory ? colors.primary : Colors.grey.shade600,
+                    color: _useInventory
+                        ? colors.primary
+                        : Colors.grey.shade600,
                     fontWeight: FontWeight.w600,
                   ),
                 ),
@@ -509,136 +511,143 @@ class _AddonInventoryBindingSheetState
         child: ConstrainedBox(
           constraints: BoxConstraints(maxHeight: maxHeight),
           child: StreamBuilder<List<InventoryItemModel>>(
-          stream: InventoryService.instance.streamItems(widget.shopId),
-          builder: (
-            BuildContext context,
-            AsyncSnapshot<List<InventoryItemModel>> snapshot,
-          ) {
-            final Map<String, InventoryItemModel> itemsById =
-                <String, InventoryItemModel>{
-                  for (final InventoryItemModel item
-                      in snapshot.data ?? const <InventoryItemModel>[])
-                    item.id: item,
-                };
-            final bool itemsLoaded = snapshot.hasData;
+            stream: InventoryService.instance.streamItems(widget.shopId),
+            builder:
+                (
+                  BuildContext context,
+                  AsyncSnapshot<List<InventoryItemModel>> snapshot,
+                ) {
+                  final Map<String, InventoryItemModel> itemsById =
+                      <String, InventoryItemModel>{
+                        for (final InventoryItemModel item
+                            in snapshot.data ?? const <InventoryItemModel>[])
+                          item.id: item,
+                      };
+                  final bool itemsLoaded = snapshot.hasData;
 
-            return Column(
-              mainAxisSize: MainAxisSize.min,
-              children: <Widget>[
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 4, 20, 12),
-                  child: Align(
-                    alignment: Alignment.centerLeft,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: <Widget>[
-                        const Text(
-                          '管理庫存綁定',
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                        const SizedBox(height: 6),
-                        Text(
-                          '此服務每售出 1 份，系統會依下方設定自動扣除庫存。',
-                          style: TextStyle(
-                            fontSize: 13,
-                            color: Colors.grey.shade700,
-                            height: 1.4,
-                          ),
-                        ),
-                        if (bindings.isNotEmpty) ...<Widget>[
-                          const SizedBox(height: 8),
-                          Text(
-                            '已綁定 ${bindings.length} 項庫存',
-                            style: TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w700,
-                              color: colors.primary,
-                            ),
-                          ),
-                        ],
-                      ],
-                    ),
-                  ),
-                ),
-                if (bindings.isEmpty)
-                  _EmptyBindingState(onAdd: _addBinding)
-                else
-                  Flexible(
-                    child: ListView.separated(
-                      shrinkWrap: true,
-                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-                      itemCount: bindings.length,
-                      separatorBuilder: (BuildContext context, int index) =>
-                          const SizedBox(height: 10),
-                      itemBuilder: (BuildContext context, int index) {
-                        final Map<String, dynamic> binding = bindings[index];
-                        final InventoryBindingModel model =
-                            InventoryBindingModel.fromMap(binding);
-                        final InventoryItemModel? item =
-                            itemsById[model.inventoryItemId];
-
-                        return _BoundItemCard(
-                          model: model,
-                          item: item,
-                          itemsLoaded: itemsLoaded,
-                          onNudge: (num next) => _updateQuantity(index, next),
-                          onEditQuantity: () async {
-                            final num? quantity = await _editQuantityValue(
-                              itemName: model.inventoryItemName.isEmpty
-                                  ? '庫存品項'
-                                  : model.inventoryItemName,
-                              unit: item?.unit ?? model.unit,
-                              allowDecimal: item?.allowDecimal ?? true,
-                              initial: model.quantityPerUnit,
-                            );
-                            if (quantity != null) {
-                              _updateQuantity(index, quantity);
-                            }
-                          },
-                          onReplace: () => _replaceItem(index),
-                          onRemove: () {
-                            final List<Map<String, dynamic>> next =
-                                <Map<String, dynamic>>[...bindings]
-                                  ..removeAt(index);
-                            _commit(next);
-                          },
-                        );
-                      },
-                    ),
-                  ),
-                if (bindings.isNotEmpty)
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
-                    child: SizedBox(
-                      width: double.infinity,
-                      child: OutlinedButton.icon(
-                        onPressed: _addBinding,
-                        icon: const Icon(Icons.add),
-                        label: const Text('新增庫存品項'),
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: colors.primary,
-                          backgroundColor: colors.primary.withValues(
-                            alpha: 0.06,
-                          ),
-                          side: BorderSide(
-                            color: colors.primary.withValues(alpha: 0.28),
-                          ),
-                          padding: const EdgeInsets.symmetric(vertical: 14),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
+                  return Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: <Widget>[
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(20, 4, 20, 12),
+                        child: Align(
+                          alignment: Alignment.centerLeft,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: <Widget>[
+                              const Text(
+                                '管理庫存綁定',
+                                style: TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                              const SizedBox(height: 6),
+                              Text(
+                                '此服務每售出 1 份，系統會依下方設定自動扣除庫存。',
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  color: Colors.grey.shade700,
+                                  height: 1.4,
+                                ),
+                              ),
+                              if (bindings.isNotEmpty) ...<Widget>[
+                                const SizedBox(height: 8),
+                                Text(
+                                  '已綁定 ${bindings.length} 項庫存',
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w700,
+                                    color: colors.primary,
+                                  ),
+                                ),
+                              ],
+                            ],
                           ),
                         ),
                       ),
-                    ),
-                  ),
-              ],
-            );
-          },
+                      if (bindings.isEmpty)
+                        _EmptyBindingState(onAdd: _addBinding)
+                      else
+                        Flexible(
+                          child: ListView.separated(
+                            shrinkWrap: true,
+                            padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                            itemCount: bindings.length,
+                            separatorBuilder:
+                                (BuildContext context, int index) =>
+                                    const SizedBox(height: 10),
+                            itemBuilder: (BuildContext context, int index) {
+                              final Map<String, dynamic> binding =
+                                  bindings[index];
+                              final InventoryBindingModel model =
+                                  InventoryBindingModel.fromMap(binding);
+                              final InventoryItemModel? item =
+                                  itemsById[model.inventoryItemId];
+
+                              return _BoundItemCard(
+                                model: model,
+                                item: item,
+                                itemsLoaded: itemsLoaded,
+                                onNudge: (num next) =>
+                                    _updateQuantity(index, next),
+                                onEditQuantity: () async {
+                                  final num?
+                                  quantity = await _editQuantityValue(
+                                    itemName: model.inventoryItemName.isEmpty
+                                        ? '庫存品項'
+                                        : model.inventoryItemName,
+                                    unit: item?.unit ?? model.unit,
+                                    allowDecimal: item?.allowDecimal ?? true,
+                                    initial: model.quantityPerUnit,
+                                  );
+                                  if (quantity != null) {
+                                    _updateQuantity(index, quantity);
+                                  }
+                                },
+                                onReplace: () => _replaceItem(index),
+                                onRemove: () {
+                                  final List<Map<String, dynamic>> next =
+                                      <Map<String, dynamic>>[...bindings]
+                                        ..removeAt(index);
+                                  _commit(next);
+                                },
+                              );
+                            },
+                          ),
+                        ),
+                      if (bindings.isNotEmpty)
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
+                          child: SizedBox(
+                            width: double.infinity,
+                            child: OutlinedButton.icon(
+                              onPressed: _addBinding,
+                              icon: const Icon(Icons.add),
+                              label: const Text('新增庫存品項'),
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: colors.primary,
+                                backgroundColor: colors.primary.withValues(
+                                  alpha: 0.06,
+                                ),
+                                side: BorderSide(
+                                  color: colors.primary.withValues(alpha: 0.28),
+                                ),
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 14,
+                                ),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                    ],
+                  );
+                },
+          ),
         ),
-      ),
       ),
     );
   }
@@ -691,9 +700,7 @@ class _EmptyBindingState extends StatelessWidget {
               style: OutlinedButton.styleFrom(
                 foregroundColor: colors.primary,
                 backgroundColor: colors.primary.withValues(alpha: 0.06),
-                side: BorderSide(
-                  color: colors.primary.withValues(alpha: 0.28),
-                ),
+                side: BorderSide(color: colors.primary.withValues(alpha: 0.28)),
                 padding: const EdgeInsets.symmetric(vertical: 14),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12),
@@ -733,7 +740,8 @@ class _BoundItemCard extends StatelessWidget {
         ? '尚未選擇庫存品項'
         : (item?.name ?? model.inventoryItemName);
     final String unit = (item?.unit ?? model.unit).trim();
-    final bool allowDecimal = item?.allowDecimal ?? model.quantityPerUnit % 1 != 0;
+    final bool allowDecimal =
+        item?.allowDecimal ?? model.quantityPerUnit % 1 != 0;
     final bool missing = itemsLoaded && item == null;
 
     return Container(
@@ -869,7 +877,11 @@ class _BoundItemCard extends StatelessWidget {
             children: <Widget>[
               TextButton.icon(
                 onPressed: onReplace,
-                icon: Icon(Icons.edit_outlined, color: colors.primary, size: 18),
+                icon: Icon(
+                  Icons.edit_outlined,
+                  color: colors.primary,
+                  size: 18,
+                ),
                 label: const Text('更換品項'),
               ),
               const Spacer(),
@@ -987,9 +999,7 @@ class _StepperButton extends StatelessWidget {
       width: 36,
       height: 36,
       child: Material(
-        color: enabled
-            ? Colors.white
-            : Colors.grey.shade100,
+        color: enabled ? Colors.white : Colors.grey.shade100,
         shape: CircleBorder(
           side: BorderSide(
             color: enabled
@@ -1012,10 +1022,7 @@ class _StepperButton extends StatelessWidget {
 }
 
 class _DeductQuantitySheet extends StatefulWidget {
-  const _DeductQuantitySheet({
-    required this.item,
-    required this.initial,
-  });
+  const _DeductQuantitySheet({required this.item, required this.initial});
 
   final InventoryItemModel item;
   final num initial;
@@ -1070,15 +1077,15 @@ class _DeductQuantitySheetState extends State<_DeductQuantitySheet> {
               onPressed: () {
                 final num? quantity = num.tryParse(controller.text.trim());
                 if (quantity == null || quantity <= 0) {
-                  ScaffoldMessenger.of(dialogContext).showSnackBar(
-                    const SnackBar(content: Text('每份扣除數量必須大於 0')),
-                  );
+                  ScaffoldMessenger.of(
+                    dialogContext,
+                  ).showSnackBar(const SnackBar(content: Text('每份扣除數量必須大於 0')));
                   return;
                 }
                 if (!allowDecimal && quantity % 1 != 0) {
-                  ScaffoldMessenger.of(dialogContext).showSnackBar(
-                    const SnackBar(content: Text('此品項只能輸入整數')),
-                  );
+                  ScaffoldMessenger.of(
+                    dialogContext,
+                  ).showSnackBar(const SnackBar(content: Text('此品項只能輸入整數')));
                   return;
                 }
                 Navigator.pop(

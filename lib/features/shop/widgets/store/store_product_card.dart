@@ -174,7 +174,8 @@ class StoreProductCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final StorePricedLine line = priced ??
+    final StorePricedLine line =
+        priced ??
         StorePricedLine(
           product: product,
           quantity: 1,
@@ -207,9 +208,7 @@ class StoreProductCard extends StatelessWidget {
           borderRadius: BorderRadius.circular(14),
           child: Stack(
             children: <Widget>[
-              Positioned.fill(
-                child: ColoredBox(color: cardColor),
-              ),
+              Positioned.fill(child: ColoredBox(color: cardColor)),
               if (look.usesCardImage)
                 Positioned.fill(
                   child: Image.network(
@@ -222,9 +221,9 @@ class StoreProductCard extends StatelessWidget {
               if (look.usesCardImage)
                 Positioned.fill(
                   child: ColoredBox(
-                    color: look.overlayColor(theme).withValues(
-                      alpha: look.overlayOpacity,
-                    ),
+                    color: look
+                        .overlayColor(theme)
+                        .withValues(alpha: look.overlayOpacity),
                   ),
                 ),
               DecoratedBox(
@@ -233,162 +232,165 @@ class StoreProductCard extends StatelessWidget {
                   border: Border.all(color: theme.cardBorderColor),
                 ),
                 child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: <Widget>[
-              AspectRatio(
-                aspectRatio: 1,
-                child: ClipRRect(
-                  borderRadius: const BorderRadius.vertical(
-                    top: Radius.circular(13),
-                  ),
-                  child: Stack(
-                    fit: StackFit.expand,
-                    children: <Widget>[
-                      ColoredBox(
-                        color: look.usesCardImage
-                            ? Colors.transparent
-                            : cardColor,
-                        child: product.imageUrl.isEmpty
-                            ? Icon(
-                                Icons.shopping_bag_outlined,
-                                color: accent,
-                              )
-                            : Opacity(
-                                opacity: soldOut ? 0.6 : 1,
-                                child: Image.network(
-                                  product.imageUrl,
-                                  fit: BoxFit.contain,
-                                  loadingBuilder: (
-                                    BuildContext context,
-                                    Widget child,
-                                    ImageChunkEvent? progress,
-                                  ) {
-                                    if (progress == null) {
-                                      return child;
-                                    }
-                                      return ColoredBox(
-                                      color: look.usesCardImage
-                                          ? Colors.transparent
-                                          : cardColor,
-                                      child: Center(
-                                        child: SizedBox(
-                                          width: 18,
-                                          height: 18,
-                                          child: CircularProgressIndicator(
-                                            strokeWidth: 2,
-                                            color: accent,
-                                          ),
-                                        ),
-                                      ),
-                                    );
-                                  },
-                                  errorBuilder: (_, _, _) {
-                                    return Icon(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: <Widget>[
+                    AspectRatio(
+                      aspectRatio: 1,
+                      child: ClipRRect(
+                        borderRadius: const BorderRadius.vertical(
+                          top: Radius.circular(13),
+                        ),
+                        child: Stack(
+                          fit: StackFit.expand,
+                          children: <Widget>[
+                            ColoredBox(
+                              color: look.usesCardImage
+                                  ? Colors.transparent
+                                  : cardColor,
+                              child: product.imageUrl.isEmpty
+                                  ? Icon(
                                       Icons.shopping_bag_outlined,
                                       color: accent,
-                                    );
-                                  },
+                                    )
+                                  : Opacity(
+                                      opacity: soldOut ? 0.6 : 1,
+                                      child: Image.network(
+                                        product.imageUrl,
+                                        fit: BoxFit.contain,
+                                        loadingBuilder:
+                                            (
+                                              BuildContext context,
+                                              Widget child,
+                                              ImageChunkEvent? progress,
+                                            ) {
+                                              if (progress == null) {
+                                                return child;
+                                              }
+                                              return ColoredBox(
+                                                color: look.usesCardImage
+                                                    ? Colors.transparent
+                                                    : cardColor,
+                                                child: Center(
+                                                  child: SizedBox(
+                                                    width: 18,
+                                                    height: 18,
+                                                    child:
+                                                        CircularProgressIndicator(
+                                                          strokeWidth: 2,
+                                                          color: accent,
+                                                        ),
+                                                  ),
+                                                ),
+                                              );
+                                            },
+                                        errorBuilder: (_, _, _) {
+                                          return Icon(
+                                            Icons.shopping_bag_outlined,
+                                            color: accent,
+                                          );
+                                        },
+                                      ),
+                                    ),
+                            ),
+                            if (line.showsPromotionOnProductImage)
+                              Positioned(
+                                top: 6,
+                                left: 6,
+                                child: StorePromotionBadge(
+                                  line: line,
+                                  color: accent,
                                 ),
                               ),
-                      ),
-                      if (line.showsPromotionOnProductImage)
-                        Positioned(
-                          top: 6,
-                          left: 6,
-                          child: StorePromotionBadge(
-                            line: line,
-                            color: accent,
-                          ),
+                            if (soldOut)
+                              Center(
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 8,
+                                    vertical: 4,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: Colors.black.withValues(alpha: 0.58),
+                                    borderRadius: BorderRadius.circular(999),
+                                  ),
+                                  child: const Text(
+                                    '已售完',
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w800,
+                                      color: Colors.white,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                          ],
                         ),
-                      if (soldOut)
-                        Center(
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 8,
-                              vertical: 4,
+                      ),
+                    ),
+                    Padding(
+                      padding: EdgeInsets.fromLTRB(
+                        compact ? 8 : 9,
+                        7,
+                        compact ? 8 : 9,
+                        compact ? 8 : 10,
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: <Widget>[
+                          Text(
+                            product.name,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: compact ? 12 : 13,
+                              height: 1.25,
+                              fontWeight: FontWeight.w800,
+                              color: titleColor,
                             ),
-                            decoration: BoxDecoration(
-                              color: Colors.black.withValues(alpha: 0.58),
-                              borderRadius: BorderRadius.circular(999),
-                            ),
-                            child: const Text(
-                              '已售完',
-                              style: TextStyle(
-                                fontSize: 11,
-                                fontWeight: FontWeight.w800,
-                                color: Colors.white,
+                          ),
+                          const SizedBox(height: 4),
+                          StoreProductPriceView(
+                            line: line,
+                            compact: true,
+                            showBadge: false,
+                            color: priceColor,
+                          ),
+                          if (line.isBuyXGetYOffer &&
+                              line.offerBadge.isNotEmpty)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 3),
+                              child: Text(
+                                line.offerBadge,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w800,
+                                  color: accent,
+                                ),
                               ),
                             ),
-                          ),
-                        ),
-                    ],
-                  ),
-                ),
-              ),
-              Padding(
-                padding: EdgeInsets.fromLTRB(
-                  compact ? 8 : 9,
-                  7,
-                  compact ? 8 : 9,
-                  compact ? 8 : 10,
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: <Widget>[
-                    Text(
-                      product.name,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontSize: compact ? 12 : 13,
-                        height: 1.25,
-                        fontWeight: FontWeight.w800,
-                        color: titleColor,
+                          if (status.isNotEmpty)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 3),
+                              child: Text(
+                                status,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w600,
+                                  color: soldOut
+                                      ? const Color(0xFFB45309)
+                                      : mutedColor,
+                                ),
+                              ),
+                            ),
+                        ],
                       ),
                     ),
-                    const SizedBox(height: 4),
-                    StoreProductPriceView(
-                      line: line,
-                      compact: true,
-                      showBadge: false,
-                      color: priceColor,
-                    ),
-                    if (line.isBuyXGetYOffer && line.offerBadge.isNotEmpty)
-                      Padding(
-                        padding: const EdgeInsets.only(top: 3),
-                        child: Text(
-                          line.offerBadge,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w800,
-                            color: accent,
-                          ),
-                        ),
-                      ),
-                    if (status.isNotEmpty)
-                      Padding(
-                        padding: const EdgeInsets.only(top: 3),
-                        child: Text(
-                          status,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w600,
-                            color: soldOut
-                                ? const Color(0xFFB45309)
-                                : mutedColor,
-                          ),
-                        ),
-                      ),
                   ],
                 ),
-              ),
-            ],
-          ),
               ),
             ],
           ),

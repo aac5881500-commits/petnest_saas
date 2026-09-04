@@ -7,11 +7,7 @@ import 'package:petnest_saas/core/models/store_order_model.dart';
 import 'package:petnest_saas/features/shop/widgets/store/store_status_chip.dart';
 
 class StoreOrderCard extends StatelessWidget {
-  const StoreOrderCard({
-    super.key,
-    required this.order,
-    required this.onTap,
-  });
+  const StoreOrderCard({super.key, required this.order, required this.onTap});
 
   final StoreOrderModel order;
   final VoidCallback onTap;

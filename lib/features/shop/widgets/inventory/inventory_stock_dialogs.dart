@@ -27,8 +27,10 @@ Future<void> showInventoryReceiveDialog({
     builder: (BuildContext dialogContext) {
       return StatefulBuilder(
         builder: (BuildContext context, void Function(void Function()) setState) {
-          final num quantity = num.tryParse(quantityController.text.trim()) ?? 0;
-          final num unitCost = num.tryParse(unitCostController.text.trim()) ?? 0;
+          final num quantity =
+              num.tryParse(quantityController.text.trim()) ?? 0;
+          final num unitCost =
+              num.tryParse(unitCostController.text.trim()) ?? 0;
           final num totalCost = quantity * unitCost;
 
           return AlertDialog(
@@ -107,7 +109,9 @@ Future<void> showInventoryReceiveDialog({
                         firstDate: DateTime.now().subtract(
                           const Duration(days: 1),
                         ),
-                        lastDate: DateTime.now().add(const Duration(days: 3650)),
+                        lastDate: DateTime.now().add(
+                          const Duration(days: 3650),
+                        ),
                       );
                       if (selected != null) {
                         setState(() => expiryDate = selected);
@@ -202,7 +206,9 @@ Future<void> showInventoryReceiveDialog({
                           if (context.mounted) {
                             ScaffoldMessenger.of(context).showSnackBar(
                               SnackBar(
-                                content: Text(InventoryException.userMessage(error)),
+                                content: Text(
+                                  InventoryException.userMessage(error),
+                                ),
                               ),
                             );
                           }
@@ -364,7 +370,9 @@ Future<void> showInventoryOutboundDialog({
                           if (context.mounted) {
                             ScaffoldMessenger.of(context).showSnackBar(
                               SnackBar(
-                                content: Text(InventoryException.userMessage(error)),
+                                content: Text(
+                                  InventoryException.userMessage(error),
+                                ),
                               ),
                             );
                           }
@@ -516,7 +524,9 @@ Future<void> showInventoryAdjustDialog({
                           if (context.mounted) {
                             ScaffoldMessenger.of(context).showSnackBar(
                               SnackBar(
-                                content: Text(InventoryException.userMessage(error)),
+                                content: Text(
+                                  InventoryException.userMessage(error),
+                                ),
                               ),
                             );
                           }

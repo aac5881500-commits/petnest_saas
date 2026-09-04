@@ -20,22 +20,21 @@ class StorefrontTheme extends StatelessWidget {
     BuildContext context,
     HomeThemeModel theme,
     StoreHomeDisplaySettings home,
-  ) builder;
+  )
+  builder;
 
   @override
   Widget build(BuildContext context) {
     return StreamBuilder<Map<String, dynamic>>(
       stream: StoreSettingsService.instance.streamSettings(shopId),
-      builder: (
-        BuildContext context,
-        AsyncSnapshot<Map<String, dynamic>> snapshot,
-      ) {
-        final StoreHomeDisplaySettings home =
-            StoreHomeDisplaySettings.fromMap(
-          snapshot.data ?? const <String, dynamic>{},
-        );
-        return builder(context, home.resolveTheme(shopTheme), home);
-      },
+      builder:
+          (BuildContext context, AsyncSnapshot<Map<String, dynamic>> snapshot) {
+            final StoreHomeDisplaySettings home =
+                StoreHomeDisplaySettings.fromMap(
+                  snapshot.data ?? const <String, dynamic>{},
+                );
+            return builder(context, home.resolveTheme(shopTheme), home);
+          },
     );
   }
 }

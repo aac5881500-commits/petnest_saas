@@ -12,8 +12,7 @@ class AdminQuickCreatePetDialog extends StatefulWidget {
       _AdminQuickCreatePetDialogState();
 }
 
-class _AdminQuickCreatePetDialogState
-    extends State<AdminQuickCreatePetDialog> {
+class _AdminQuickCreatePetDialogState extends State<AdminQuickCreatePetDialog> {
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _breedController = TextEditingController();
   final TextEditingController _noteController = TextEditingController();
@@ -204,10 +203,7 @@ class _AdminQuickCreatePetDialogState
           onPressed: () => Navigator.pop(context),
           child: const Text('取消'),
         ),
-        ElevatedButton(
-          onPressed: _submit,
-          child: const Text('建立'),
-        ),
+        ElevatedButton(onPressed: _submit, child: const Text('建立')),
       ],
     );
   }

@@ -179,8 +179,7 @@ class HomeThemeModel {
       text = text.substring(1);
     }
     if (text.length == 3) {
-      text =
-          '${text[0]}${text[0]}${text[1]}${text[1]}${text[2]}${text[2]}';
+      text = '${text[0]}${text[0]}${text[1]}${text[1]}${text[2]}${text[2]}';
     }
     if (text.length == 6) {
       text = 'FF$text';

@@ -55,10 +55,14 @@ class StoreBannerPlacement {
     required Size bannerSize,
     required Size elementSize,
   }) {
-    final double maxX =
-        (bannerSize.width - padX - elementSize.width).clamp(padX, bannerSize.width);
-    final double maxY = (bannerSize.height - padY - elementSize.height)
-        .clamp(padY, bannerSize.height);
+    final double maxX = (bannerSize.width - padX - elementSize.width).clamp(
+      padX,
+      bannerSize.width,
+    );
+    final double maxY = (bannerSize.height - padY - elementSize.height).clamp(
+      padY,
+      bannerSize.height,
+    );
     return Offset(actual.dx.clamp(padX, maxX), actual.dy.clamp(padY, maxY));
   }
 

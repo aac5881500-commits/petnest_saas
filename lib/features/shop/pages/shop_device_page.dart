@@ -19,9 +19,7 @@ class ShopDevicePage extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(
         title: const Text('攝影機設定'),
-        actions: <Widget>[
-          ShopTaskCenterButton(shopId: shopId),
-        ],
+        actions: <Widget>[ShopTaskCenterButton(shopId: shopId)],
       ),
       body: Column(
         children: [

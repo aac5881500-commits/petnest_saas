@@ -73,8 +73,10 @@ class _MyStoreOrderDetailPageState extends State<MyStoreOrderDetailPage> {
         throw Exception('店家目前沒有可用的線上付款方式');
       }
 
-      final String requestId =
-          FirebaseFirestore.instance.collection('payments').doc().id;
+      final String requestId = FirebaseFirestore.instance
+          .collection('payments')
+          .doc()
+          .id;
       final paymentResult = await PaymentFunctionService.instance.createPayment(
         request: CreatePaymentRequestModel(
           shopId: shopId,
@@ -107,9 +109,9 @@ class _MyStoreOrderDetailPageState extends State<MyStoreOrderDetailPage> {
       if (!context.mounted) {
         return;
       }
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(error.toString())),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(error.toString())));
     }
   }
 
@@ -125,9 +127,9 @@ class _MyStoreOrderDetailPageState extends State<MyStoreOrderDetailPage> {
       if (!context.mounted) {
         return;
       }
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(error.toString())),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(error.toString())));
     }
   }
 
@@ -137,116 +139,120 @@ class _MyStoreOrderDetailPageState extends State<MyStoreOrderDetailPage> {
       shopId: shopId,
       shopTheme: widget.theme,
       builder: (BuildContext context, HomeThemeModel theme, _) {
-    return Scaffold(
-      backgroundColor: theme.backgroundColor,
-      appBar: AppBar(
-        backgroundColor: theme.cardColor,
-        foregroundColor: theme.textColor,
-        title: const Text('商城訂單'),
-      ),
-      body: StreamBuilder<StoreOrderModel?>(
-        stream: StoreOrderService.instance.streamOrder(
-          shopId: shopId,
-          orderId: orderId,
-        ),
-        builder: (
-          BuildContext context,
-          AsyncSnapshot<StoreOrderModel?> snapshot,
-        ) {
-          final StoreOrderModel? order = snapshot.data;
-          if (order == null) {
-            return const Center(child: CircularProgressIndicator());
-          }
+        return Scaffold(
+          backgroundColor: theme.backgroundColor,
+          appBar: AppBar(
+            backgroundColor: theme.cardColor,
+            foregroundColor: theme.textColor,
+            title: const Text('商城訂單'),
+          ),
+          body: StreamBuilder<StoreOrderModel?>(
+            stream: StoreOrderService.instance.streamOrder(
+              shopId: shopId,
+              orderId: orderId,
+            ),
+            builder: (BuildContext context, AsyncSnapshot<StoreOrderModel?> snapshot) {
+              final StoreOrderModel? order = snapshot.data;
+              if (order == null) {
+                return const Center(child: CircularProgressIndicator());
+              }
 
-          _touchIfNeeded(order);
+              _touchIfNeeded(order);
 
-          return ListView(
-            padding: const EdgeInsets.all(16),
-            children: <Widget>[
-              Text(
-                order.orderCode,
-                style: const TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(StoreConstants.statusLabel(order.status)),
-              const SizedBox(height: 12),
-              Text(
-                StoreConstants.fulfillmentLabel(order.fulfillmentType),
-                style: const TextStyle(fontWeight: FontWeight.w700),
-              ),
-              if (order.status == StoreConstants.statusReadyForPickup) ...<Widget>[
-                const SizedBox(height: 8),
-                Card(
-                  color: const Color(0xFFFFF7ED),
-                  child: ListTile(
-                    leading: const Icon(Icons.storefront),
-                    title: const Text('可取貨 · 店內自取'),
-                    subtitle: Text(
-                      order.shopAddressSnapshot.isEmpty
-                          ? '請至店家櫃台取貨'
-                          : order.shopAddressSnapshot,
+              return ListView(
+                padding: const EdgeInsets.all(16),
+                children: <Widget>[
+                  Text(
+                    order.orderCode,
+                    style: const TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.w800,
                     ),
                   ),
-                ),
-              ],
-              if (order.status == StoreConstants.statusPreparing ||
-                  order.status == StoreConstants.statusPaid)
-                const Padding(
-                  padding: EdgeInsets.only(top: 8),
-                  child: Text('店家備貨中，可取貨時會顯示自取資訊。'),
-                ),
-              if (order.pickupNote.isNotEmpty) Text(order.pickupNote),
-              const Divider(height: 32),
-              const Text('商品明細', style: TextStyle(fontWeight: FontWeight.w700)),
-              ...order.items.map((StoreOrderItemModel item) {
-                return ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  title: Text(item.productName),
-                  subtitle: Text(
-                    item.hasPromotionSnapshot
-                        ? '原價 NT\$ ${item.snapshotOriginalUnitPrice} → '
-                            'NT\$ ${item.snapshotFinalUnitPrice} × ${item.snapshotPurchaseQuantity}'
-                            '${item.snapshotFreeQuantity > 0 ? '\n購買 ${item.snapshotPurchaseQuantity} 件　贈送 ${item.snapshotFreeQuantity} 件　共收到 ${item.snapshotFulfillmentQuantity} 件' : ''}'
-                            '${item.itemPromotionName.isEmpty ? '' : '\n${item.itemPromotionName}'}'
-                            '${item.promotionName.isEmpty ? '' : '\n${item.promotionName}'}'
-                        : 'NT\$ ${item.unitPrice} × ${item.quantity}',
+                  const SizedBox(height: 4),
+                  Text(StoreConstants.statusLabel(order.status)),
+                  const SizedBox(height: 12),
+                  Text(
+                    StoreConstants.fulfillmentLabel(order.fulfillmentType),
+                    style: const TextStyle(fontWeight: FontWeight.w700),
                   ),
-                  trailing: Text('NT\$ ${item.subtotal}'),
-                );
-              }),
-              const SizedBox(height: 8),
-              if ((order.originalSubtotal ?? order.subtotal) >
-                  order.totalAmount) ...<Widget>[
-                Text('商品原價 NT\$ ${order.originalSubtotal ?? order.subtotal}'),
-                Text('活動優惠 -NT\$ ${order.promotionDiscount}'),
-              ],
-              Text(
-                '合計 NT\$ ${order.totalAmount}',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w800,
-                  color: theme.primaryColor,
-                ),
-              ),
-              const SizedBox(height: 16),
-              if (order.status == StoreConstants.statusPendingPayment) ...<Widget>[
-                FilledButton(
-                  onPressed: () => _pay(context, order),
-                  child: const Text('前往付款'),
-                ),
-                TextButton(
-                  onPressed: () => _cancel(context),
-                  child: const Text('取消訂單'),
-                ),
-              ],
-            ],
-          );
-        },
-      ),
-    );
+                  if (order.status ==
+                      StoreConstants.statusReadyForPickup) ...<Widget>[
+                    const SizedBox(height: 8),
+                    Card(
+                      color: const Color(0xFFFFF7ED),
+                      child: ListTile(
+                        leading: const Icon(Icons.storefront),
+                        title: const Text('可取貨 · 店內自取'),
+                        subtitle: Text(
+                          order.shopAddressSnapshot.isEmpty
+                              ? '請至店家櫃台取貨'
+                              : order.shopAddressSnapshot,
+                        ),
+                      ),
+                    ),
+                  ],
+                  if (order.status == StoreConstants.statusPreparing ||
+                      order.status == StoreConstants.statusPaid)
+                    const Padding(
+                      padding: EdgeInsets.only(top: 8),
+                      child: Text('店家備貨中，可取貨時會顯示自取資訊。'),
+                    ),
+                  if (order.pickupNote.isNotEmpty) Text(order.pickupNote),
+                  const Divider(height: 32),
+                  const Text(
+                    '商品明細',
+                    style: TextStyle(fontWeight: FontWeight.w700),
+                  ),
+                  ...order.items.map((StoreOrderItemModel item) {
+                    return ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      title: Text(item.productName),
+                      subtitle: Text(
+                        item.hasPromotionSnapshot
+                            ? '原價 NT\$ ${item.snapshotOriginalUnitPrice} → '
+                                  'NT\$ ${item.snapshotFinalUnitPrice} × ${item.snapshotPurchaseQuantity}'
+                                  '${item.snapshotFreeQuantity > 0 ? '\n購買 ${item.snapshotPurchaseQuantity} 件　贈送 ${item.snapshotFreeQuantity} 件　共收到 ${item.snapshotFulfillmentQuantity} 件' : ''}'
+                                  '${item.itemPromotionName.isEmpty ? '' : '\n${item.itemPromotionName}'}'
+                                  '${item.promotionName.isEmpty ? '' : '\n${item.promotionName}'}'
+                            : 'NT\$ ${item.unitPrice} × ${item.quantity}',
+                      ),
+                      trailing: Text('NT\$ ${item.subtotal}'),
+                    );
+                  }),
+                  const SizedBox(height: 8),
+                  if ((order.originalSubtotal ?? order.subtotal) >
+                      order.totalAmount) ...<Widget>[
+                    Text(
+                      '商品原價 NT\$ ${order.originalSubtotal ?? order.subtotal}',
+                    ),
+                    Text('活動優惠 -NT\$ ${order.promotionDiscount}'),
+                  ],
+                  Text(
+                    '合計 NT\$ ${order.totalAmount}',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w800,
+                      color: theme.primaryColor,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  if (order.status ==
+                      StoreConstants.statusPendingPayment) ...<Widget>[
+                    FilledButton(
+                      onPressed: () => _pay(context, order),
+                      child: const Text('前往付款'),
+                    ),
+                    TextButton(
+                      onPressed: () => _cancel(context),
+                      child: const Text('取消訂單'),
+                    ),
+                  ],
+                ],
+              );
+            },
+          ),
+        );
       },
     );
   }

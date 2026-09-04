@@ -46,26 +46,32 @@ class AboutHeroSection extends StatelessWidget {
 
     return StreamBuilder<Map<String, dynamic>?>(
       stream: ShopService.instance.streamShop(shopId),
-      builder: (BuildContext context, AsyncSnapshot<Map<String, dynamic>?> snapshot) {
-        final Map<String, dynamic> shop = snapshot.data ?? <String, dynamic>{};
+      builder:
+          (
+            BuildContext context,
+            AsyncSnapshot<Map<String, dynamic>?> snapshot,
+          ) {
+            final Map<String, dynamic> shop =
+                snapshot.data ?? <String, dynamic>{};
 
-        final String title =
-            (shop['aboutTitle'] ?? '用心照顧每一隻貓咪，讓牠們在這裡安心生活。')
+            final String title = (shop['aboutTitle'] ?? '用心照顧每一隻貓咪，讓牠們在這裡安心生活。')
                 .toString();
-        final String description =
-            (shop['aboutDescription'] ??
-                    '我們相信，每一隻貓咪都是家人。當您需要暫時離開時，'
-                        '我們會像您一樣，用心陪伴與照顧。')
-                .toString();
-        final String aboutImageUrl = (shop['aboutImageUrl'] ?? '').toString().trim();
+            final String description =
+                (shop['aboutDescription'] ??
+                        '我們相信，每一隻貓咪都是家人。當您需要暫時離開時，'
+                            '我們會像您一樣，用心陪伴與照顧。')
+                    .toString();
+            final String aboutImageUrl = (shop['aboutImageUrl'] ?? '')
+                .toString()
+                .trim();
 
-        return _buildHero(
-          title: title,
-          description: description,
-          imageUrl: aboutImageUrl,
-          frame: AboutCoverFrameSetting.fromMap(shop),
-        );
-      },
+            return _buildHero(
+              title: title,
+              description: description,
+              imageUrl: aboutImageUrl,
+              frame: AboutCoverFrameSetting.fromMap(shop),
+            );
+          },
     );
   }
 
@@ -88,10 +94,7 @@ class AboutHeroSection extends StatelessWidget {
             fit: StackFit.expand,
             children: [
               const ColoredBox(color: Color(0xFF2A1B12)),
-              AboutCoverBackdrop(
-                shopImageUrl: imageUrl,
-                frame: frame,
-              ),
+              AboutCoverBackdrop(shopImageUrl: imageUrl, frame: frame),
               Container(
                 padding: EdgeInsets.fromLTRB(
                   22,

@@ -124,11 +124,12 @@ class DailyCareReportExportService {
 
     final List<DailyCareReportDay> days = <DailyCareReportDay>[];
     for (final String key in dayKeys) {
-      final List<DailyCareRecordModel> dayRecords = List<DailyCareRecordModel>.from(
-        grouped[key] ?? <DailyCareRecordModel>[],
-      )..sort((DailyCareRecordModel a, DailyCareRecordModel b) {
-        return a.sessionIndex.compareTo(b.sessionIndex);
-      });
+      final List<DailyCareRecordModel> dayRecords =
+          List<DailyCareRecordModel>.from(
+            grouped[key] ?? <DailyCareRecordModel>[],
+          )..sort((DailyCareRecordModel a, DailyCareRecordModel b) {
+            return a.sessionIndex.compareTo(b.sessionIndex);
+          });
       days.add(
         DailyCareReportDay(
           dateKey: key,
@@ -151,7 +152,8 @@ class DailyCareReportExportService {
     final DateTime now = DailyCareDateHelper.todayInTaipei();
     final DateTime nowLocal = DateTime.now();
     final int stayNights = _stayNights(booking, careKeys);
-    final int expectedSessions = (careKeys.isEmpty ? stayNights : careKeys.length) *
+    final int expectedSessions =
+        (careKeys.isEmpty ? stayNights : careKeys.length) *
         (setting.sessionCount < 1 ? 1 : setting.sessionCount);
 
     return DailyCareReportData(
@@ -368,17 +370,12 @@ class DailyCareReportExportService {
       return;
     }
 
-    await Share.shareXFiles(
-      <XFile>[
-        XFile.fromData(bytes, mimeType: 'image/png', name: fileName),
-      ],
-      text: 'PetNest 照護報告',
-    );
+    await Share.shareXFiles(<XFile>[
+      XFile.fromData(bytes, mimeType: 'image/png', name: fileName),
+    ], text: 'PetNest 照護報告');
   }
 
-  String fileName({
-    required DailyCareReportData data,
-  }) {
+  String fileName({required DailyCareReportData data}) {
     final String room = _safeName(data.roomName);
     final String pets = _safeName(
       data.petNames == '尚未指定寵物' ? '' : data.petNames,
@@ -481,7 +478,10 @@ class DailyCareReportExportService {
       'relax': '放鬆與用品',
       'other': '其他紀錄',
     };
-    customByCategory.forEach((String category, List<DailyCareReportField> fields) {
+    customByCategory.forEach((
+      String category,
+      List<DailyCareReportField> fields,
+    ) {
       groups.add(
         DailyCareReportGroup(
           title: categoryTitles[category] ?? '其他紀錄',
@@ -622,7 +622,8 @@ class DailyCareReportExportService {
     DailyCareReportStatField? activityStatus;
     final List<DailyCareReportStatField> food = <DailyCareReportStatField>[];
     final List<DailyCareReportStatField> toilet = <DailyCareReportStatField>[];
-    final List<DailyCareReportStatField> activity = <DailyCareReportStatField>[];
+    final List<DailyCareReportStatField> activity =
+        <DailyCareReportStatField>[];
     final List<DailyCareReportStatField> relax = <DailyCareReportStatField>[];
     final List<DailyCareReportStatField> other = <DailyCareReportStatField>[];
 
@@ -683,7 +684,9 @@ class DailyCareReportExportService {
 
     return DailyCareReportStats(
       stayNights: stayNights < 1 ? 1 : stayNights,
-      expectedSessions: expectedSessions < 1 ? records.length : expectedSessions,
+      expectedSessions: expectedSessions < 1
+          ? records.length
+          : expectedSessions,
       completedSessions: records.length,
       avgTemperature: _average(temps),
       minTemperature: _min(temps),
@@ -706,7 +709,8 @@ class DailyCareReportExportService {
   }) {
     final List<String> scale = _scaleFor(inputType);
     final Set<String> seen = <String>{};
-    final List<DailyCareReportStatOption> options = <DailyCareReportStatOption>[];
+    final List<DailyCareReportStatOption> options =
+        <DailyCareReportStatOption>[];
     int observed = 0;
     int maxCount = 0;
 
@@ -734,11 +738,7 @@ class DailyCareReportExportService {
         maxCount = count;
       }
       options.add(
-        DailyCareReportStatOption(
-          label: value,
-          count: count,
-          isPrimary: false,
-        ),
+        DailyCareReportStatOption(label: value, count: count, isPrimary: false),
       );
     });
 
@@ -801,7 +801,8 @@ class DailyCareReportExportService {
       if (inputType == 'amount' && mapped == '正常') {
         return '一般';
       }
-      if (inputType == 'yesNo' && (mapped == '少' || mapped == '一般' || mapped == '多')) {
+      if (inputType == 'yesNo' &&
+          (mapped == '少' || mapped == '一般' || mapped == '多')) {
         return mapped == '無' ? '無' : '有';
       }
       return mapped;
@@ -845,15 +846,15 @@ class DailyCareReportExportService {
     List<DailyCareRecordModel> records,
   ) {
     final Map<String, String> firstNotes = <String, String>{};
-    final List<DailyCareRecordModel> sorted = List<DailyCareRecordModel>.from(
-      records,
-    )..sort((DailyCareRecordModel a, DailyCareRecordModel b) {
-      final int byDate = a.recordDate.compareTo(b.recordDate);
-      if (byDate != 0) {
-        return byDate;
-      }
-      return a.sessionIndex.compareTo(b.sessionIndex);
-    });
+    final List<DailyCareRecordModel> sorted =
+        List<DailyCareRecordModel>.from(records)
+          ..sort((DailyCareRecordModel a, DailyCareRecordModel b) {
+            final int byDate = a.recordDate.compareTo(b.recordDate);
+            if (byDate != 0) {
+              return byDate;
+            }
+            return a.sessionIndex.compareTo(b.sessionIndex);
+          });
 
     for (final DailyCareRecordModel record in sorted) {
       final String note = _stringValue(record.values['generalNote']);
@@ -947,17 +948,17 @@ class DailyCareReportExportService {
             child: Directionality(
               textDirection: TextDirection.ltr,
               child: Theme(
-              data: Theme.of(context),
-              child: MediaQuery(
-                data: const MediaQueryData(
-                  size: Size(logicalWidth, 20000),
-                  textScaler: TextScaler.linear(1),
+                data: Theme.of(context),
+                child: MediaQuery(
+                  data: const MediaQueryData(
+                    size: Size(logicalWidth, 20000),
+                    textScaler: TextScaler.linear(1),
+                  ),
+                  child: SizedBox(
+                    width: logicalWidth,
+                    child: RepaintBoundary(key: key, child: child),
+                  ),
                 ),
-                child: SizedBox(
-                  width: logicalWidth,
-                  child: RepaintBoundary(key: key, child: child),
-                ),
-              ),
               ),
             ),
           ),

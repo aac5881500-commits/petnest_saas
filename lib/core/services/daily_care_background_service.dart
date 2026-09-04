@@ -25,8 +25,7 @@ class DailyCareBackgroundService {
 
   static const int maxImageBytes = 5 * 1024 * 1024;
   static const String folderPath = 'daily_care/settings/background';
-  static const String cardFolderPath =
-      'daily_care/settings/card_backgrounds';
+  static const String cardFolderPath = 'daily_care/settings/card_backgrounds';
 
   final FirebaseStorage _storage = FirebaseStorage.instance;
 

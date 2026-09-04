@@ -283,832 +283,895 @@ class _RoomDashboardPageState extends State<RoomDashboardPage> {
                         const <String, ShopRoomCareProgress>{};
 
                     return StreamBuilder<QuerySnapshot>(
-                  stream: FirebaseFirestore.instance
-                      .collection('bookings')
-                      .where('shopId', isEqualTo: widget.shopId)
-                      .where(
-                        'status',
-                        whereIn: [
-                          'pending',
-                          'confirmed',
-                          'checked_in',
-                          'completed',
-                        ],
-                      )
-                      .snapshots(),
-                  builder: (context, bookingSnap) {
-                    final bookings = bookingSnap.data?.docs ?? [];
-                    final unassignedBookings = bookings.where((doc) {
-                      final data = doc.data() as Map<String, dynamic>;
-
-                      return data['assignStatus'] == 'unassigned' &&
-                          data['status'] != 'cancelled' &&
-                          data['status'] != 'completed';
-                    }).toList();
-
-                    return StreamBuilder<QuerySnapshot>(
-                      stream: ShopService.instance
-                          .roomCalendarRef(widget.shopId)
+                      stream: FirebaseFirestore.instance
+                          .collection('bookings')
+                          .where('shopId', isEqualTo: widget.shopId)
+                          .where(
+                            'status',
+                            whereIn: [
+                              'pending',
+                              'confirmed',
+                              'checked_in',
+                              'completed',
+                            ],
+                          )
                           .snapshots(),
-                      builder: (context, calendarSnap) {
-                        final calendarDocs = calendarSnap.data?.docs ?? [];
-
-                        final roomCalendarStatus = <String, String>{};
-
-                        for (var doc in calendarDocs) {
+                      builder: (context, bookingSnap) {
+                        final bookings = bookingSnap.data?.docs ?? [];
+                        final unassignedBookings = bookings.where((doc) {
                           final data = doc.data() as Map<String, dynamic>;
-                          final roomId = (data['roomId'] ?? '').toString();
-                          final date = (data['date'] ?? '').toString();
-                          final status = (data['status'] ?? '').toString();
 
-                          roomCalendarStatus['$roomId|$date'] = status;
-                        }
-
-                        final roomStatusList = filteredRooms.map((room) {
-                          Map<String, dynamic>? todayBooking;
-
-                          for (var doc in bookings) {
-                            final data = doc.data() as Map<String, dynamic>;
-
-                            if (data['roomId'] != room['id']) continue;
-
-                            final start = (data['startDate'] as Timestamp)
-                                .toDate();
-                            final end = (data['endDate'] as Timestamp).toDate();
-                            final now = DateTime.parse(dateStr);
-
-                            if (now.isAfter(
-                                  start.subtract(const Duration(days: 1)),
-                                ) &&
-                                now.isBefore(end)) {
-                              todayBooking = data;
-                              break;
-                            }
-                          }
-
-                          final roomId = (room['id'] ?? '').toString();
-                          final roomStatus =
-                              roomCalendarStatus['$roomId|$dateStr'];
-
-                          if (roomStatus == 'closed') {
-                            return '今日關閉';
-                          }
-
-                          if (roomStatus == 'blocked' ||
-                              roomStatus == 'maintenance' ||
-                              roomStatus == 'unavailable') {
-                            return '維修中';
-                          }
-
-                          if (roomStatus == 'cleaning') {
-                            return '清潔中';
-                          }
-
-                          return _getRoomStatusText(todayBooking);
+                          return data['assignStatus'] == 'unassigned' &&
+                              data['status'] != 'cancelled' &&
+                              data['status'] != 'completed';
                         }).toList();
 
-                        final emptyCount = roomStatusList
-                            .where((status) => status == '空房')
-                            .length;
+                        return StreamBuilder<QuerySnapshot>(
+                          stream: ShopService.instance
+                              .roomCalendarRef(widget.shopId)
+                              .snapshots(),
+                          builder: (context, calendarSnap) {
+                            final calendarDocs = calendarSnap.data?.docs ?? [];
 
-                        final usingCount = roomStatusList.where((status) {
-                          return status == '已訂' ||
-                              status == '入住中' ||
-                              status == '已完成';
-                        }).length;
+                            final roomCalendarStatus = <String, String>{};
 
-                        final cleaningCount = roomStatusList
-                            .where((status) => status == '清潔中')
-                            .length;
+                            for (var doc in calendarDocs) {
+                              final data = doc.data() as Map<String, dynamic>;
+                              final roomId = (data['roomId'] ?? '').toString();
+                              final date = (data['date'] ?? '').toString();
+                              final status = (data['status'] ?? '').toString();
 
-                        final closedCount = roomStatusList
-                            .where((status) => status == '今日關閉')
-                            .length;
+                              roomCalendarStatus['$roomId|$date'] = status;
+                            }
 
-                        final blockedCount = roomStatusList
-                            .where((status) => status == '維修中')
-                            .length;
+                            final roomStatusList = filteredRooms.map((room) {
+                              Map<String, dynamic>? todayBooking;
 
-                        return Column(
-                          children: [
-                            SizedBox(
-                              height: 52,
-                              child: ListView(
-                                scrollDirection: Axis.horizontal,
-                                padding: const EdgeInsets.fromLTRB(
-                                  12,
-                                  6,
-                                  12,
-                                  6,
-                                ),
-                                children: [
-                                  Padding(
-                                    padding: const EdgeInsets.only(right: 8),
-                                    child: ChoiceChip(
-                                      label: Text('全部 (${rooms.length})'),
-                                      selected:
-                                          effectiveRoomTypeFilter == '__all__',
-                                      onSelected: (_) {
-                                        setState(() {
-                                          _selectedRoomTypeFilter = '__all__';
-                                        });
-                                      },
+                              for (var doc in bookings) {
+                                final data = doc.data() as Map<String, dynamic>;
+
+                                if (data['roomId'] != room['id']) continue;
+
+                                final start = (data['startDate'] as Timestamp)
+                                    .toDate();
+                                final end = (data['endDate'] as Timestamp)
+                                    .toDate();
+                                final now = DateTime.parse(dateStr);
+
+                                if (now.isAfter(
+                                      start.subtract(const Duration(days: 1)),
+                                    ) &&
+                                    now.isBefore(end)) {
+                                  todayBooking = data;
+                                  break;
+                                }
+                              }
+
+                              final roomId = (room['id'] ?? '').toString();
+                              final roomStatus =
+                                  roomCalendarStatus['$roomId|$dateStr'];
+
+                              if (roomStatus == 'closed') {
+                                return '今日關閉';
+                              }
+
+                              if (roomStatus == 'blocked' ||
+                                  roomStatus == 'maintenance' ||
+                                  roomStatus == 'unavailable') {
+                                return '維修中';
+                              }
+
+                              if (roomStatus == 'cleaning') {
+                                return '清潔中';
+                              }
+
+                              return _getRoomStatusText(todayBooking);
+                            }).toList();
+
+                            final emptyCount = roomStatusList
+                                .where((status) => status == '空房')
+                                .length;
+
+                            final usingCount = roomStatusList.where((status) {
+                              return status == '已訂' ||
+                                  status == '入住中' ||
+                                  status == '已完成';
+                            }).length;
+
+                            final cleaningCount = roomStatusList
+                                .where((status) => status == '清潔中')
+                                .length;
+
+                            final closedCount = roomStatusList
+                                .where((status) => status == '今日關閉')
+                                .length;
+
+                            final blockedCount = roomStatusList
+                                .where((status) => status == '維修中')
+                                .length;
+
+                            return Column(
+                              children: [
+                                SizedBox(
+                                  height: 52,
+                                  child: ListView(
+                                    scrollDirection: Axis.horizontal,
+                                    padding: const EdgeInsets.fromLTRB(
+                                      12,
+                                      6,
+                                      12,
+                                      6,
                                     ),
-                                  ),
-                                  ...roomTypeNames.map((roomTypeName) {
-                                    final count = rooms.where((room) {
-                                      final name = (room['roomTypeName'] ?? '')
-                                          .toString()
-                                          .trim();
-                                      final currentRoomTypeName = name.isEmpty
-                                          ? '未分類'
-                                          : name;
-
-                                      return currentRoomTypeName ==
-                                          roomTypeName;
-                                    }).length;
-
-                                    return Padding(
-                                      padding: const EdgeInsets.only(right: 8),
-                                      child: ChoiceChip(
-                                        label: Text('$roomTypeName ($count)'),
-                                        selected:
-                                            effectiveRoomTypeFilter ==
-                                            roomTypeName,
-                                        onSelected: (_) {
-                                          setState(() {
-                                            _selectedRoomTypeFilter =
-                                                roomTypeName;
-                                          });
-                                        },
-                                      ),
-                                    );
-                                  }),
-                                ],
-                              ),
-                            ),
-                            if (unassignedBookings.isNotEmpty)
-                              Container(
-                                width: double.infinity,
-                                margin: const EdgeInsets.fromLTRB(12, 8, 12, 4),
-                                decoration: BoxDecoration(
-                                  color: Colors.orange.shade50,
-                                  borderRadius: BorderRadius.circular(14),
-                                  border: Border.all(
-                                    color: Colors.orange.shade200,
-                                  ),
-                                ),
-                                child: Column(
-                                  children: [
-                                    InkWell(
-                                      borderRadius: BorderRadius.circular(14),
-                                      onTap: () {
-                                        setState(() {
-                                          _showUnassignedBookings =
-                                              !_showUnassignedBookings;
-                                        });
-                                      },
-                                      child: Padding(
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 12,
-                                          vertical: 10,
-                                        ),
-                                        child: Row(
-                                          children: [
-                                            Icon(
-                                              Icons.warning_amber_rounded,
-                                              color: Colors.orange.shade800,
-                                              size: 20,
-                                            ),
-                                            const SizedBox(width: 8),
-                                            Expanded(
-                                              child: Text(
-                                                '待分房訂單 (${unassignedBookings.length})',
-                                                style: TextStyle(
-                                                  color: Colors.orange.shade800,
-                                                  fontWeight: FontWeight.w900,
-                                                  fontSize: 15,
-                                                ),
-                                              ),
-                                            ),
-                                            Icon(
-                                              _showUnassignedBookings
-                                                  ? Icons.keyboard_arrow_up
-                                                  : Icons.keyboard_arrow_down,
-                                              color: Colors.orange.shade800,
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                    ),
-
-                                    if (_showUnassignedBookings) ...[
-                                      const Divider(height: 1),
+                                    children: [
                                       Padding(
-                                        padding: const EdgeInsets.fromLTRB(
-                                          10,
-                                          8,
-                                          10,
-                                          10,
+                                        padding: const EdgeInsets.only(
+                                          right: 8,
                                         ),
-                                        child: Column(
-                                          children: unassignedBookings.map((
-                                            doc,
-                                          ) {
-                                            final data =
-                                                doc.data()
-                                                    as Map<String, dynamic>;
+                                        child: ChoiceChip(
+                                          label: Text('全部 (${rooms.length})'),
+                                          selected:
+                                              effectiveRoomTypeFilter ==
+                                              '__all__',
+                                          onSelected: (_) {
+                                            setState(() {
+                                              _selectedRoomTypeFilter =
+                                                  '__all__';
+                                            });
+                                          },
+                                        ),
+                                      ),
+                                      ...roomTypeNames.map((roomTypeName) {
+                                        final count = rooms.where((room) {
+                                          final name =
+                                              (room['roomTypeName'] ?? '')
+                                                  .toString()
+                                                  .trim();
+                                          final currentRoomTypeName =
+                                              name.isEmpty ? '未分類' : name;
 
-                                            final customerName =
-                                                data['customerName'] ?? '';
-                                            final roomTypeName =
-                                                data['roomTypeName'] ?? '';
+                                          return currentRoomTypeName ==
+                                              roomTypeName;
+                                        }).length;
 
-                                            final start =
-                                                (data['startDate'] as Timestamp)
-                                                    .toDate();
-                                            final end =
-                                                (data['endDate'] as Timestamp)
-                                                    .toDate();
-
-                                            return InkWell(
-                                              onTap: () {
-                                                Navigator.push(
-                                                  context,
-                                                  MaterialPageRoute(
-                                                    builder: (_) =>
-                                                        AdminBookingDetailPage(
-                                                          bookingId: doc.id,
-                                                          canEdit: true,
-                                                        ),
-                                                  ),
-                                                );
-                                              },
-                                              child: Container(
-                                                margin: const EdgeInsets.only(
-                                                  bottom: 8,
+                                        return Padding(
+                                          padding: const EdgeInsets.only(
+                                            right: 8,
+                                          ),
+                                          child: ChoiceChip(
+                                            label: Text(
+                                              '$roomTypeName ($count)',
+                                            ),
+                                            selected:
+                                                effectiveRoomTypeFilter ==
+                                                roomTypeName,
+                                            onSelected: (_) {
+                                              setState(() {
+                                                _selectedRoomTypeFilter =
+                                                    roomTypeName;
+                                              });
+                                            },
+                                          ),
+                                        );
+                                      }),
+                                    ],
+                                  ),
+                                ),
+                                if (unassignedBookings.isNotEmpty)
+                                  Container(
+                                    width: double.infinity,
+                                    margin: const EdgeInsets.fromLTRB(
+                                      12,
+                                      8,
+                                      12,
+                                      4,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: Colors.orange.shade50,
+                                      borderRadius: BorderRadius.circular(14),
+                                      border: Border.all(
+                                        color: Colors.orange.shade200,
+                                      ),
+                                    ),
+                                    child: Column(
+                                      children: [
+                                        InkWell(
+                                          borderRadius: BorderRadius.circular(
+                                            14,
+                                          ),
+                                          onTap: () {
+                                            setState(() {
+                                              _showUnassignedBookings =
+                                                  !_showUnassignedBookings;
+                                            });
+                                          },
+                                          child: Padding(
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 12,
+                                              vertical: 10,
+                                            ),
+                                            child: Row(
+                                              children: [
+                                                Icon(
+                                                  Icons.warning_amber_rounded,
+                                                  color: Colors.orange.shade800,
+                                                  size: 20,
                                                 ),
-                                                padding: const EdgeInsets.all(
-                                                  10,
-                                                ),
-                                                decoration: BoxDecoration(
-                                                  color: Colors.white,
-                                                  borderRadius:
-                                                      BorderRadius.circular(12),
-                                                ),
-                                                child: Row(
-                                                  children: [
-                                                    const Icon(
-                                                      Icons
-                                                          .warning_amber_rounded,
-                                                      color: Colors.orange,
+                                                const SizedBox(width: 8),
+                                                Expanded(
+                                                  child: Text(
+                                                    '待分房訂單 (${unassignedBookings.length})',
+                                                    style: TextStyle(
+                                                      color: Colors
+                                                          .orange
+                                                          .shade800,
+                                                      fontWeight:
+                                                          FontWeight.w900,
+                                                      fontSize: 15,
                                                     ),
-                                                    const SizedBox(width: 10),
-                                                    Expanded(
-                                                      child: Column(
-                                                        crossAxisAlignment:
-                                                            CrossAxisAlignment
-                                                                .start,
-                                                        children: [
-                                                          Text(
-                                                            customerName,
-                                                            style:
-                                                                const TextStyle(
+                                                  ),
+                                                ),
+                                                Icon(
+                                                  _showUnassignedBookings
+                                                      ? Icons.keyboard_arrow_up
+                                                      : Icons
+                                                            .keyboard_arrow_down,
+                                                  color: Colors.orange.shade800,
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                        ),
+
+                                        if (_showUnassignedBookings) ...[
+                                          const Divider(height: 1),
+                                          Padding(
+                                            padding: const EdgeInsets.fromLTRB(
+                                              10,
+                                              8,
+                                              10,
+                                              10,
+                                            ),
+                                            child: Column(
+                                              children: unassignedBookings.map((
+                                                doc,
+                                              ) {
+                                                final data =
+                                                    doc.data()
+                                                        as Map<String, dynamic>;
+
+                                                final customerName =
+                                                    data['customerName'] ?? '';
+                                                final roomTypeName =
+                                                    data['roomTypeName'] ?? '';
+
+                                                final start =
+                                                    (data['startDate']
+                                                            as Timestamp)
+                                                        .toDate();
+                                                final end =
+                                                    (data['endDate']
+                                                            as Timestamp)
+                                                        .toDate();
+
+                                                return InkWell(
+                                                  onTap: () {
+                                                    Navigator.push(
+                                                      context,
+                                                      MaterialPageRoute(
+                                                        builder: (_) =>
+                                                            AdminBookingDetailPage(
+                                                              bookingId: doc.id,
+                                                              canEdit: true,
+                                                            ),
+                                                      ),
+                                                    );
+                                                  },
+                                                  child: Container(
+                                                    margin:
+                                                        const EdgeInsets.only(
+                                                          bottom: 8,
+                                                        ),
+                                                    padding:
+                                                        const EdgeInsets.all(
+                                                          10,
+                                                        ),
+                                                    decoration: BoxDecoration(
+                                                      color: Colors.white,
+                                                      borderRadius:
+                                                          BorderRadius.circular(
+                                                            12,
+                                                          ),
+                                                    ),
+                                                    child: Row(
+                                                      children: [
+                                                        const Icon(
+                                                          Icons
+                                                              .warning_amber_rounded,
+                                                          color: Colors.orange,
+                                                        ),
+                                                        const SizedBox(
+                                                          width: 10,
+                                                        ),
+                                                        Expanded(
+                                                          child: Column(
+                                                            crossAxisAlignment:
+                                                                CrossAxisAlignment
+                                                                    .start,
+                                                            children: [
+                                                              Text(
+                                                                customerName,
+                                                                style: const TextStyle(
                                                                   fontWeight:
                                                                       FontWeight
                                                                           .w800,
                                                                 ),
+                                                              ),
+                                                              const SizedBox(
+                                                                height: 2,
+                                                              ),
+                                                              Text(
+                                                                '$roomTypeName ｜ '
+                                                                '${DateFormat('MM/dd').format(start)}'
+                                                                ' - '
+                                                                '${DateFormat('MM/dd').format(end)}',
+                                                                style: TextStyle(
+                                                                  fontSize: 12,
+                                                                  color: Colors
+                                                                      .grey
+                                                                      .shade700,
+                                                                ),
+                                                              ),
+                                                            ],
                                                           ),
-                                                          const SizedBox(
-                                                            height: 2,
-                                                          ),
-                                                          Text(
-                                                            '$roomTypeName ｜ '
-                                                            '${DateFormat('MM/dd').format(start)}'
-                                                            ' - '
-                                                            '${DateFormat('MM/dd').format(end)}',
-                                                            style: TextStyle(
-                                                              fontSize: 12,
-                                                              color: Colors
-                                                                  .grey
-                                                                  .shade700,
-                                                            ),
-                                                          ),
-                                                        ],
+                                                        ),
+                                                      ],
+                                                    ),
+                                                  ),
+                                                );
+                                              }).toList(),
+                                            ),
+                                          ),
+                                        ],
+                                      ],
+                                    ),
+                                  ),
+                                Padding(
+                                  padding: const EdgeInsets.fromLTRB(
+                                    12,
+                                    4,
+                                    12,
+                                    8,
+                                  ),
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        '目前顯示：${DateFormat('yyyy-MM-dd').format(selectedDate)} 當日房況',
+                                        style: const TextStyle(
+                                          fontSize: 15,
+                                          color: Colors.black87,
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 6),
+                                      Row(
+                                        children: [
+                                          _buildSummaryCard(
+                                            '空房',
+                                            emptyCount,
+                                            Colors.green,
+                                          ),
+                                          const SizedBox(width: 6),
+                                          _buildSummaryCard(
+                                            '使用中',
+                                            usingCount,
+                                            Colors.blue,
+                                          ),
+                                          const SizedBox(width: 6),
+                                          _buildSummaryCard(
+                                            '清潔中',
+                                            cleaningCount,
+                                            Colors.orange,
+                                          ),
+                                          const SizedBox(width: 6),
+                                          _buildSummaryCard(
+                                            '今日關閉',
+                                            closedCount,
+                                            const Color(0xFF6D4C41),
+                                          ),
+                                          const SizedBox(width: 6),
+                                          _buildSummaryCard(
+                                            '維修中',
+                                            blockedCount,
+                                            Colors.black,
+                                          ),
+                                        ],
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                Expanded(
+                                  child: ListView.builder(
+                                    itemCount: filteredRooms.length,
+                                    itemBuilder: (context, index) {
+                                      final room = filteredRooms[index];
+
+                                      /// 🔍 找今天訂單
+                                      Map<String, dynamic>? todayBooking;
+
+                                      for (var doc in bookings) {
+                                        final data =
+                                            doc.data() as Map<String, dynamic>;
+
+                                        if (data['roomId'] != room['id'])
+                                          continue;
+
+                                        final start =
+                                            (data['startDate'] as Timestamp)
+                                                .toDate();
+                                        final end =
+                                            (data['endDate'] as Timestamp)
+                                                .toDate();
+
+                                        final now = DateTime.parse(dateStr);
+
+                                        if (now.isAfter(
+                                              start.subtract(
+                                                const Duration(days: 1),
+                                              ),
+                                            ) &&
+                                            now.isBefore(end)) {
+                                          todayBooking = data;
+                                          break;
+                                        }
+                                      }
+
+                                      /// 🔥 右邊狀態顏色
+                                      Color color = Colors.green;
+
+                                      final roomId = (room['id'] ?? '')
+                                          .toString();
+                                      final manualStatus =
+                                          roomCalendarStatus['$roomId|$dateStr'];
+
+                                      if (manualStatus == 'closed') {
+                                        color = const Color(0xFF6D4C41);
+                                      } else if (manualStatus == 'blocked' ||
+                                          manualStatus == 'maintenance' ||
+                                          manualStatus == 'unavailable') {
+                                        color = Colors.black;
+                                      } else if (manualStatus == 'cleaning') {
+                                        color = Colors.orange;
+                                      } else if (todayBooking != null) {
+                                        final status =
+                                            todayBooking['status'] ?? '';
+
+                                        switch (status) {
+                                          case 'pending':
+                                          case 'confirmed':
+                                            color = Colors.red;
+                                            break;
+
+                                          case 'checked_in':
+                                            color = Colors.blue;
+                                            break;
+
+                                          case 'completed':
+                                            color = Colors.grey;
+                                            break;
+
+                                          default:
+                                            color = Colors.green;
+                                        }
+                                      }
+                                      return InkWell(
+                                        onTap: () async {
+                                          String roomTypeName = '未設定房型';
+                                          String roomImageUrl = '';
+
+                                          final roomTypeId =
+                                              room['roomTypeId'] ?? '';
+
+                                          if (roomTypeId
+                                              .toString()
+                                              .isNotEmpty) {
+                                            final roomTypeDoc =
+                                                await FirebaseFirestore.instance
+                                                    .collection('shops')
+                                                    .doc(widget.shopId)
+                                                    .collection('room_types')
+                                                    .doc(roomTypeId)
+                                                    .get();
+
+                                            final roomTypeData = roomTypeDoc
+                                                .data();
+
+                                            if (roomTypeData != null) {
+                                              roomTypeName =
+                                                  roomTypeData['name'] ??
+                                                  '未設定房型';
+
+                                              final images =
+                                                  roomTypeData['images'];
+
+                                              if (images is List &&
+                                                  images.isNotEmpty) {
+                                                final firstImage = images.first;
+
+                                                if (firstImage is String) {
+                                                  roomImageUrl = firstImage;
+                                                } else if (firstImage is Map) {
+                                                  roomImageUrl =
+                                                      firstImage['imageUrl']
+                                                          ?.toString() ??
+                                                      '';
+                                                }
+                                              }
+                                            }
+                                          }
+
+                                          if (!context.mounted) return;
+
+                                          Navigator.push(
+                                            context,
+                                            MaterialPageRoute(
+                                              builder: (_) => RoomCalendarPage(
+                                                shopId: widget.shopId,
+                                                roomId: room['id'],
+                                                roomName: room['name'] ?? '',
+                                                roomTypeName: roomTypeName,
+                                                roomImageUrl: roomImageUrl,
+                                              ),
+                                            ),
+                                          );
+                                        },
+                                        child: Container(
+                                          margin: const EdgeInsets.symmetric(
+                                            horizontal: 12,
+                                            vertical: 4,
+                                          ),
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 12,
+                                            vertical: 10,
+                                          ),
+                                          decoration: BoxDecoration(
+                                            color: Colors.white,
+                                            borderRadius: BorderRadius.circular(
+                                              14,
+                                            ),
+                                            border: Border.all(
+                                              color: Colors.grey.shade200,
+                                            ),
+                                          ),
+                                          child: Row(
+                                            children: [
+                                              /// 房號
+                                              SizedBox(
+                                                width: 78,
+                                                child: Column(
+                                                  crossAxisAlignment:
+                                                      CrossAxisAlignment.start,
+                                                  children: [
+                                                    Text(
+                                                      room['roomTypeName'] ??
+                                                          '未分類',
+                                                      maxLines: 1,
+                                                      overflow:
+                                                          TextOverflow.ellipsis,
+                                                      style: const TextStyle(
+                                                        fontSize: 11,
+                                                        fontWeight:
+                                                            FontWeight.w600,
+                                                        color: Colors.grey,
+                                                      ),
+                                                    ),
+
+                                                    const SizedBox(height: 2),
+
+                                                    Text(
+                                                      room['name'] ?? '',
+                                                      style: const TextStyle(
+                                                        fontSize: 22,
+                                                        fontWeight:
+                                                            FontWeight.w900,
+                                                        color: Color(
+                                                          0xFF222222,
+                                                        ),
                                                       ),
                                                     ),
                                                   ],
                                                 ),
                                               ),
-                                            );
-                                          }).toList(),
-                                        ),
-                                      ),
-                                    ],
-                                  ],
-                                ),
-                              ),
-                            Padding(
-                              padding: const EdgeInsets.fromLTRB(12, 4, 12, 8),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    '目前顯示：${DateFormat('yyyy-MM-dd').format(selectedDate)} 當日房況',
-                                    style: const TextStyle(
-                                      fontSize: 15,
-                                      color: Colors.black87,
-                                      fontWeight: FontWeight.w700,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 6),
-                                  Row(
-                                    children: [
-                                      _buildSummaryCard(
-                                        '空房',
-                                        emptyCount,
-                                        Colors.green,
-                                      ),
-                                      const SizedBox(width: 6),
-                                      _buildSummaryCard(
-                                        '使用中',
-                                        usingCount,
-                                        Colors.blue,
-                                      ),
-                                      const SizedBox(width: 6),
-                                      _buildSummaryCard(
-                                        '清潔中',
-                                        cleaningCount,
-                                        Colors.orange,
-                                      ),
-                                      const SizedBox(width: 6),
-                                      _buildSummaryCard(
-                                        '今日關閉',
-                                        closedCount,
-                                        const Color(0xFF6D4C41),
-                                      ),
-                                      const SizedBox(width: 6),
-                                      _buildSummaryCard(
-                                        '維修中',
-                                        blockedCount,
-                                        Colors.black,
-                                      ),
-                                    ],
-                                  ),
-                                ],
-                              ),
-                            ),
-                            Expanded(
-                              child: ListView.builder(
-                                itemCount: filteredRooms.length,
-                                itemBuilder: (context, index) {
-                                  final room = filteredRooms[index];
 
-                                  /// 🔍 找今天訂單
-                                  Map<String, dynamic>? todayBooking;
+                                              const SizedBox(width: 8),
 
-                                  for (var doc in bookings) {
-                                    final data =
-                                        doc.data() as Map<String, dynamic>;
+                                              /// 中間資訊
+                                              Expanded(
+                                                child: Column(
+                                                  crossAxisAlignment:
+                                                      CrossAxisAlignment.start,
+                                                  children: [
+                                                    if (todayBooking !=
+                                                        null) ...[
+                                                      Text(
+                                                        todayBooking['customerName'] ??
+                                                            '',
+                                                        style: const TextStyle(
+                                                          fontSize: 13,
+                                                          fontWeight:
+                                                              FontWeight.w600,
+                                                          color: Color(
+                                                            0xFF555555,
+                                                          ),
+                                                        ),
+                                                      ),
+                                                      const SizedBox(height: 2),
+                                                      Text(
+                                                        '${DateFormat('MM/dd').format((todayBooking['startDate'] as Timestamp).toDate())} - ${DateFormat('MM/dd').format((todayBooking['endDate'] as Timestamp).toDate())}',
+                                                        style: const TextStyle(
+                                                          fontSize: 12,
+                                                          color:
+                                                              Colors.blueGrey,
+                                                        ),
+                                                      ),
+                                                      const SizedBox(height: 6),
+                                                    ] else ...[
+                                                      const Text(
+                                                        '空房',
+                                                        style: TextStyle(
+                                                          fontSize: 13,
+                                                          color: Colors.grey,
+                                                        ),
+                                                      ),
+                                                      const SizedBox(height: 8),
+                                                    ],
 
-                                    if (data['roomId'] != room['id']) continue;
+                                                    /// 近 7 天小圓點
+                                                    /// 星期 + 近 7 天狀態
+                                                    Column(
+                                                      crossAxisAlignment:
+                                                          CrossAxisAlignment
+                                                              .start,
+                                                      children: [
+                                                        Row(
+                                                          children: const [
+                                                            _WeekText('一'),
+                                                            _WeekText('二'),
+                                                            _WeekText('三'),
+                                                            _WeekText('四'),
+                                                            _WeekText('五'),
+                                                            _WeekText('六'),
+                                                            _WeekText('日'),
+                                                          ],
+                                                        ),
 
-                                    final start =
-                                        (data['startDate'] as Timestamp)
-                                            .toDate();
-                                    final end = (data['endDate'] as Timestamp)
-                                        .toDate();
+                                                        const SizedBox(
+                                                          height: 4,
+                                                        ),
 
-                                    final now = DateTime.parse(dateStr);
+                                                        Row(
+                                                          children: List.generate(7, (
+                                                            i,
+                                                          ) {
+                                                            final day =
+                                                                weekDays[i];
+                                                            final dayKey =
+                                                                DateFormat(
+                                                                  'yyyy-MM-dd',
+                                                                ).format(day);
+                                                            final roomId =
+                                                                (room['id'] ??
+                                                                        '')
+                                                                    .toString();
 
-                                    if (now.isAfter(
-                                          start.subtract(
-                                            const Duration(days: 1),
-                                          ),
-                                        ) &&
-                                        now.isBefore(end)) {
-                                      todayBooking = data;
-                                      break;
-                                    }
-                                  }
+                                                            Color dotColor =
+                                                                Colors.green;
 
-                                  /// 🔥 右邊狀態顏色
-                                  Color color = Colors.green;
+                                                            final manualStatus =
+                                                                roomCalendarStatus['$roomId|$dayKey'];
 
-                                  final roomId = (room['id'] ?? '').toString();
-                                  final manualStatus =
-                                      roomCalendarStatus['$roomId|$dateStr'];
+                                                            final bool
+                                                            hasManualStatus =
+                                                                manualStatus ==
+                                                                    'closed' ||
+                                                                manualStatus ==
+                                                                    'blocked' ||
+                                                                manualStatus ==
+                                                                    'maintenance' ||
+                                                                manualStatus ==
+                                                                    'unavailable' ||
+                                                                manualStatus ==
+                                                                    'cleaning';
 
-                                  if (manualStatus == 'closed') {
-                                    color = const Color(0xFF6D4C41);
-                                  } else if (manualStatus == 'blocked' ||
-                                      manualStatus == 'maintenance' ||
-                                      manualStatus == 'unavailable') {
-                                    color = Colors.black;
-                                  } else if (manualStatus == 'cleaning') {
-                                    color = Colors.orange;
-                                  } else if (todayBooking != null) {
-                                    final status = todayBooking['status'] ?? '';
+                                                            if (manualStatus ==
+                                                                'closed') {
+                                                              dotColor =
+                                                                  const Color(
+                                                                    0xFF6D4C41,
+                                                                  );
+                                                            } else if (manualStatus ==
+                                                                    'blocked' ||
+                                                                manualStatus ==
+                                                                    'maintenance' ||
+                                                                manualStatus ==
+                                                                    'unavailable') {
+                                                              dotColor =
+                                                                  Colors.black;
+                                                            } else if (manualStatus ==
+                                                                'cleaning') {
+                                                              dotColor =
+                                                                  Colors.orange;
+                                                            }
 
-                                    switch (status) {
-                                      case 'pending':
-                                      case 'confirmed':
-                                        color = Colors.red;
-                                        break;
+                                                            if (!hasManualStatus) {
+                                                              for (var doc
+                                                                  in bookings) {
+                                                                final data =
+                                                                    doc.data()
+                                                                        as Map<
+                                                                          String,
+                                                                          dynamic
+                                                                        >;
 
-                                      case 'checked_in':
-                                        color = Colors.blue;
-                                        break;
+                                                                if (data['roomId'] !=
+                                                                    room['id']) {
+                                                                  continue;
+                                                                }
 
-                                      case 'completed':
-                                        color = Colors.grey;
-                                        break;
+                                                                final start =
+                                                                    (data['startDate']
+                                                                            as Timestamp)
+                                                                        .toDate();
 
-                                      default:
-                                        color = Colors.green;
-                                    }
-                                  }
-                                  return InkWell(
-                                    onTap: () async {
-                                      String roomTypeName = '未設定房型';
-                                      String roomImageUrl = '';
+                                                                final end =
+                                                                    (data['endDate']
+                                                                            as Timestamp)
+                                                                        .toDate();
 
-                                      final roomTypeId =
-                                          room['roomTypeId'] ?? '';
+                                                                final status =
+                                                                    data['status']
+                                                                        ?.toString() ??
+                                                                    '';
 
-                                      if (roomTypeId.toString().isNotEmpty) {
-                                        final roomTypeDoc =
-                                            await FirebaseFirestore.instance
-                                                .collection('shops')
-                                                .doc(widget.shopId)
-                                                .collection('room_types')
-                                                .doc(roomTypeId)
-                                                .get();
+                                                                final dayOnly =
+                                                                    DateTime(
+                                                                      day.year,
+                                                                      day.month,
+                                                                      day.day,
+                                                                    );
 
-                                        final roomTypeData = roomTypeDoc.data();
+                                                                final startOnly =
+                                                                    DateTime(
+                                                                      start
+                                                                          .year,
+                                                                      start
+                                                                          .month,
+                                                                      start.day,
+                                                                    );
 
-                                        if (roomTypeData != null) {
-                                          roomTypeName =
-                                              roomTypeData['name'] ?? '未設定房型';
+                                                                final endOnly =
+                                                                    DateTime(
+                                                                      end.year,
+                                                                      end.month,
+                                                                      end.day,
+                                                                    );
 
-                                          final images = roomTypeData['images'];
+                                                                if (!dayOnly.isBefore(
+                                                                      startOnly,
+                                                                    ) &&
+                                                                    dayOnly
+                                                                        .isBefore(
+                                                                          endOnly,
+                                                                        )) {
+                                                                  switch (status) {
+                                                                    case 'pending':
+                                                                    case 'confirmed':
+                                                                      dotColor =
+                                                                          Colors
+                                                                              .deepOrange;
+                                                                      break;
 
-                                          if (images is List &&
-                                              images.isNotEmpty) {
-                                            final firstImage = images.first;
+                                                                    case 'checked_in':
+                                                                      dotColor =
+                                                                          Colors
+                                                                              .blue;
+                                                                      break;
 
-                                            if (firstImage is String) {
-                                              roomImageUrl = firstImage;
-                                            } else if (firstImage is Map) {
-                                              roomImageUrl =
-                                                  firstImage['imageUrl']
-                                                      ?.toString() ??
-                                                  '';
-                                            }
-                                          }
-                                        }
-                                      }
+                                                                    case 'completed':
+                                                                      dotColor =
+                                                                          Colors
+                                                                              .purple;
+                                                                      break;
 
-                                      if (!context.mounted) return;
+                                                                    default:
+                                                                      dotColor =
+                                                                          Colors
+                                                                              .green;
+                                                                  }
 
-                                      Navigator.push(
-                                        context,
-                                        MaterialPageRoute(
-                                          builder: (_) => RoomCalendarPage(
-                                            shopId: widget.shopId,
-                                            roomId: room['id'],
-                                            roomName: room['name'] ?? '',
-                                            roomTypeName: roomTypeName,
-                                            roomImageUrl: roomImageUrl,
+                                                                  break;
+                                                                }
+                                                              }
+                                                            }
+
+                                                            return _buildDot(
+                                                              dotColor,
+                                                            );
+                                                          }),
+                                                        ),
+                                                      ],
+                                                    ),
+                                                  ],
+                                                ),
+                                              ),
+
+                                              const SizedBox(width: 8),
+
+                                              if (todayBooking != null &&
+                                                  (todayBooking['status'] ?? '')
+                                                          .toString() ==
+                                                      'checked_in' &&
+                                                  careProgress[roomId] != null)
+                                                Padding(
+                                                  padding:
+                                                      const EdgeInsets.only(
+                                                        right: 6,
+                                                      ),
+                                                  child: _careHint(
+                                                    careProgress[roomId]!,
+                                                  ),
+                                                ),
+
+                                              /// 右邊狀態
+                                              _buildStatusChip(
+                                                color: manualStatus == 'closed'
+                                                    ? const Color(0xFF6D4C41)
+                                                    : manualStatus ==
+                                                              'blocked' ||
+                                                          manualStatus ==
+                                                              'maintenance' ||
+                                                          manualStatus ==
+                                                              'unavailable'
+                                                    ? Colors.black
+                                                    : manualStatus == 'cleaning'
+                                                    ? Colors.orange
+                                                    : color,
+                                                text: manualStatus == 'closed'
+                                                    ? '今日關閉'
+                                                    : manualStatus ==
+                                                              'blocked' ||
+                                                          manualStatus ==
+                                                              'maintenance' ||
+                                                          manualStatus ==
+                                                              'unavailable'
+                                                    ? '維修中'
+                                                    : manualStatus == 'cleaning'
+                                                    ? '清潔中'
+                                                    : _getRoomStatusText(
+                                                        todayBooking,
+                                                      ),
+                                              ),
+                                              const SizedBox(width: 4),
+
+                                              const Icon(
+                                                Icons.chevron_right,
+                                                size: 20,
+                                                color: Colors.grey,
+                                              ),
+                                            ],
                                           ),
                                         ),
                                       );
                                     },
-                                    child: Container(
-                                      margin: const EdgeInsets.symmetric(
-                                        horizontal: 12,
-                                        vertical: 4,
-                                      ),
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 12,
-                                        vertical: 10,
-                                      ),
-                                      decoration: BoxDecoration(
-                                        color: Colors.white,
-                                        borderRadius: BorderRadius.circular(14),
-                                        border: Border.all(
-                                          color: Colors.grey.shade200,
-                                        ),
-                                      ),
-                                      child: Row(
-                                        children: [
-                                          /// 房號
-                                          SizedBox(
-                                            width: 78,
-                                            child: Column(
-                                              crossAxisAlignment:
-                                                  CrossAxisAlignment.start,
-                                              children: [
-                                                Text(
-                                                  room['roomTypeName'] ?? '未分類',
-                                                  maxLines: 1,
-                                                  overflow:
-                                                      TextOverflow.ellipsis,
-                                                  style: const TextStyle(
-                                                    fontSize: 11,
-                                                    fontWeight: FontWeight.w600,
-                                                    color: Colors.grey,
-                                                  ),
-                                                ),
-
-                                                const SizedBox(height: 2),
-
-                                                Text(
-                                                  room['name'] ?? '',
-                                                  style: const TextStyle(
-                                                    fontSize: 22,
-                                                    fontWeight: FontWeight.w900,
-                                                    color: Color(0xFF222222),
-                                                  ),
-                                                ),
-                                              ],
-                                            ),
-                                          ),
-
-                                          const SizedBox(width: 8),
-
-                                          /// 中間資訊
-                                          Expanded(
-                                            child: Column(
-                                              crossAxisAlignment:
-                                                  CrossAxisAlignment.start,
-                                              children: [
-                                                if (todayBooking != null) ...[
-                                                  Text(
-                                                    todayBooking['customerName'] ??
-                                                        '',
-                                                    style: const TextStyle(
-                                                      fontSize: 13,
-                                                      fontWeight:
-                                                          FontWeight.w600,
-                                                      color: Color(0xFF555555),
-                                                    ),
-                                                  ),
-                                                  const SizedBox(height: 2),
-                                                  Text(
-                                                    '${DateFormat('MM/dd').format((todayBooking['startDate'] as Timestamp).toDate())} - ${DateFormat('MM/dd').format((todayBooking['endDate'] as Timestamp).toDate())}',
-                                                    style: const TextStyle(
-                                                      fontSize: 12,
-                                                      color: Colors.blueGrey,
-                                                    ),
-                                                  ),
-                                                  const SizedBox(height: 6),
-                                                ] else ...[
-                                                  const Text(
-                                                    '空房',
-                                                    style: TextStyle(
-                                                      fontSize: 13,
-                                                      color: Colors.grey,
-                                                    ),
-                                                  ),
-                                                  const SizedBox(height: 8),
-                                                ],
-
-                                                /// 近 7 天小圓點
-                                                /// 星期 + 近 7 天狀態
-                                                Column(
-                                                  crossAxisAlignment:
-                                                      CrossAxisAlignment.start,
-                                                  children: [
-                                                    Row(
-                                                      children: const [
-                                                        _WeekText('一'),
-                                                        _WeekText('二'),
-                                                        _WeekText('三'),
-                                                        _WeekText('四'),
-                                                        _WeekText('五'),
-                                                        _WeekText('六'),
-                                                        _WeekText('日'),
-                                                      ],
-                                                    ),
-
-                                                    const SizedBox(height: 4),
-
-                                                    Row(
-                                                      children: List.generate(7, (
-                                                        i,
-                                                      ) {
-                                                        final day = weekDays[i];
-                                                        final dayKey =
-                                                            DateFormat(
-                                                              'yyyy-MM-dd',
-                                                            ).format(day);
-                                                        final roomId =
-                                                            (room['id'] ?? '')
-                                                                .toString();
-
-                                                        Color dotColor =
-                                                            Colors.green;
-
-                                                        final manualStatus =
-                                                            roomCalendarStatus['$roomId|$dayKey'];
-
-                                                        final bool
-                                                        hasManualStatus =
-                                                            manualStatus ==
-                                                                'closed' ||
-                                                            manualStatus ==
-                                                                'blocked' ||
-                                                            manualStatus ==
-                                                                'maintenance' ||
-                                                            manualStatus ==
-                                                                'unavailable' ||
-                                                            manualStatus ==
-                                                                'cleaning';
-
-                                                        if (manualStatus ==
-                                                            'closed') {
-                                                          dotColor =
-                                                              const Color(
-                                                                0xFF6D4C41,
-                                                              );
-                                                        } else if (manualStatus ==
-                                                                'blocked' ||
-                                                            manualStatus ==
-                                                                'maintenance' ||
-                                                            manualStatus ==
-                                                                'unavailable') {
-                                                          dotColor =
-                                                              Colors.black;
-                                                        } else if (manualStatus ==
-                                                            'cleaning') {
-                                                          dotColor =
-                                                              Colors.orange;
-                                                        }
-
-                                                        if (!hasManualStatus) {
-                                                          for (var doc
-                                                              in bookings) {
-                                                            final data =
-                                                                doc.data()
-                                                                    as Map<
-                                                                      String,
-                                                                      dynamic
-                                                                    >;
-
-                                                            if (data['roomId'] !=
-                                                                room['id']) {
-                                                              continue;
-                                                            }
-
-                                                            final start =
-                                                                (data['startDate']
-                                                                        as Timestamp)
-                                                                    .toDate();
-
-                                                            final end =
-                                                                (data['endDate']
-                                                                        as Timestamp)
-                                                                    .toDate();
-
-                                                            final status =
-                                                                data['status']
-                                                                    ?.toString() ??
-                                                                '';
-
-                                                            final dayOnly =
-                                                                DateTime(
-                                                                  day.year,
-                                                                  day.month,
-                                                                  day.day,
-                                                                );
-
-                                                            final startOnly =
-                                                                DateTime(
-                                                                  start.year,
-                                                                  start.month,
-                                                                  start.day,
-                                                                );
-
-                                                            final endOnly =
-                                                                DateTime(
-                                                                  end.year,
-                                                                  end.month,
-                                                                  end.day,
-                                                                );
-
-                                                            if (!dayOnly
-                                                                    .isBefore(
-                                                                      startOnly,
-                                                                    ) &&
-                                                                dayOnly
-                                                                    .isBefore(
-                                                                      endOnly,
-                                                                    )) {
-                                                              switch (status) {
-                                                                case 'pending':
-                                                                case 'confirmed':
-                                                                  dotColor = Colors
-                                                                      .deepOrange;
-                                                                  break;
-
-                                                                case 'checked_in':
-                                                                  dotColor =
-                                                                      Colors
-                                                                          .blue;
-                                                                  break;
-
-                                                                case 'completed':
-                                                                  dotColor =
-                                                                      Colors
-                                                                          .purple;
-                                                                  break;
-
-                                                                default:
-                                                                  dotColor =
-                                                                      Colors
-                                                                          .green;
-                                                              }
-
-                                                              break;
-                                                            }
-                                                          }
-                                                        }
-
-                                                        return _buildDot(
-                                                          dotColor,
-                                                        );
-                                                      }),
-                                                    ),
-                                                  ],
-                                                ),
-                                              ],
-                                            ),
-                                          ),
-
-                                          const SizedBox(width: 8),
-
-                                          if (todayBooking != null &&
-                                              (todayBooking['status'] ?? '')
-                                                      .toString() ==
-                                                  'checked_in' &&
-                                              careProgress[roomId] != null)
-                                            Padding(
-                                              padding: const EdgeInsets.only(
-                                                right: 6,
-                                              ),
-                                              child: _careHint(
-                                                careProgress[roomId]!,
-                                              ),
-                                            ),
-
-                                          /// 右邊狀態
-                                          _buildStatusChip(
-                                            color: manualStatus == 'closed'
-                                                ? const Color(0xFF6D4C41)
-                                                : manualStatus == 'blocked' ||
-                                                      manualStatus ==
-                                                          'maintenance' ||
-                                                      manualStatus ==
-                                                          'unavailable'
-                                                ? Colors.black
-                                                : manualStatus == 'cleaning'
-                                                ? Colors.orange
-                                                : color,
-                                            text: manualStatus == 'closed'
-                                                ? '今日關閉'
-                                                : manualStatus == 'blocked' ||
-                                                      manualStatus ==
-                                                          'maintenance' ||
-                                                      manualStatus ==
-                                                          'unavailable'
-                                                ? '維修中'
-                                                : manualStatus == 'cleaning'
-                                                ? '清潔中'
-                                                : _getRoomStatusText(
-                                                    todayBooking,
-                                                  ),
-                                          ),
-                                          const SizedBox(width: 4),
-
-                                          const Icon(
-                                            Icons.chevron_right,
-                                            size: 20,
-                                            color: Colors.grey,
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  );
-                                },
-                              ),
-                            ),
-                          ],
+                                  ),
+                                ),
+                              ],
+                            );
+                          },
                         );
                       },
                     );
-                  },
-                );
                   },
                 );
               },

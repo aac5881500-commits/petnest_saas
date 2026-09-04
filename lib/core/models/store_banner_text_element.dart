@@ -1,6 +1,8 @@
 // lib/core/models/store_banner_text_element.dart
 // 🛒 商城海報自由文字元件。位置用 0~1，不存 pixel。
 
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/models/store_banner_placement.dart';
 
@@ -69,6 +71,15 @@ class StoreBannerFontSizes {
 
   static double clampPx(double value) {
     return value.clamp(minPx, maxPx);
+  }
+
+  static double clampForBanner(double px, double bannerHeight) {
+    return px.clamp(minPx, sliderMaxForBanner(bannerHeight));
+  }
+
+  /// 編輯器滑桿上限與 [clampForBanner] 相同。
+  static double sliderMaxForBanner(double bannerHeight) {
+    return math.min(maxPx, math.max(minPx, bannerHeight * 0.30));
   }
 
   static double fontSize(String value, double bannerHeight) {
@@ -367,10 +378,10 @@ class StoreBannerTextElement {
 
   /// 有保存 fontSize 時用數值；舊海報只剩 preset 時維持原本依高度縮放。
   double resolvedFontSize(double bannerHeight) {
-    if (fontSize != null) {
-      return StoreBannerFontSizes.clampPx(fontSize!);
-    }
-    return StoreBannerFontSizes.fontSize(fontSizePreset, bannerHeight);
+    final double raw = fontSize != null
+        ? StoreBannerFontSizes.clampPx(fontSize!)
+        : StoreBannerFontSizes.fontSize(fontSizePreset, bannerHeight);
+    return StoreBannerFontSizes.clampForBanner(raw, bannerHeight);
   }
 
   /// 編輯器 Slider 顯示值：新資料用保存的 px，舊資料用 preset 基準 px。

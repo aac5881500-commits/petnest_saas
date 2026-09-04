@@ -31,14 +31,18 @@ class InventoryService {
     required String shopId,
     required String itemId,
   }) {
-    return itemsRef(shopId).doc(itemId).collection(InventoryConstants.batchesCollection);
+    return itemsRef(
+      shopId,
+    ).doc(itemId).collection(InventoryConstants.batchesCollection);
   }
 
   CollectionReference<Map<String, dynamic>> movementsRef({
     required String shopId,
     required String itemId,
   }) {
-    return itemsRef(shopId).doc(itemId).collection(InventoryConstants.movementsCollection);
+    return itemsRef(
+      shopId,
+    ).doc(itemId).collection(InventoryConstants.movementsCollection);
   }
 
   CollectionReference<Map<String, dynamic>> consumptionsRef(String shopId) {
@@ -52,7 +56,9 @@ class InventoryService {
     final String normalizedShopId = shopId.trim();
 
     if (normalizedShopId.isEmpty) {
-      return Stream<List<InventoryItemModel>>.value(const <InventoryItemModel>[]);
+      return Stream<List<InventoryItemModel>>.value(
+        const <InventoryItemModel>[],
+      );
     }
 
     return itemsRef(normalizedShopId).snapshots().map((
@@ -61,7 +67,10 @@ class InventoryService {
       final List<InventoryItemModel> items = snapshot.docs.map((
         QueryDocumentSnapshot<Map<String, dynamic>> document,
       ) {
-        return InventoryItemModel.fromMap(id: document.id, data: document.data());
+        return InventoryItemModel.fromMap(
+          id: document.id,
+          data: document.data(),
+        );
       }).toList();
 
       items.sort((InventoryItemModel a, InventoryItemModel b) {
@@ -76,25 +85,30 @@ class InventoryService {
     final String normalizedShopId = shopId.trim();
 
     if (normalizedShopId.isEmpty) {
-      return Stream<List<InventoryItemModel>>.value(const <InventoryItemModel>[]);
+      return Stream<List<InventoryItemModel>>.value(
+        const <InventoryItemModel>[],
+      );
     }
 
     return itemsRef(normalizedShopId)
         .where('enabled', isEqualTo: true)
         .snapshots()
         .map((QuerySnapshot<Map<String, dynamic>> snapshot) {
-      final List<InventoryItemModel> items = snapshot.docs.map((
-        QueryDocumentSnapshot<Map<String, dynamic>> document,
-      ) {
-        return InventoryItemModel.fromMap(id: document.id, data: document.data());
-      }).toList();
+          final List<InventoryItemModel> items = snapshot.docs.map((
+            QueryDocumentSnapshot<Map<String, dynamic>> document,
+          ) {
+            return InventoryItemModel.fromMap(
+              id: document.id,
+              data: document.data(),
+            );
+          }).toList();
 
-      items.sort((InventoryItemModel a, InventoryItemModel b) {
-        return a.name.compareTo(b.name);
-      });
+          items.sort((InventoryItemModel a, InventoryItemModel b) {
+            return a.name.compareTo(b.name);
+          });
 
-      return items;
-    });
+          return items;
+        });
   }
 
   Future<InventoryItemModel?> getItem({
@@ -153,7 +167,9 @@ class InventoryService {
     final String normalizedItemId = itemId.trim();
 
     if (normalizedShopId.isEmpty || normalizedItemId.isEmpty) {
-      return Stream<List<InventoryBatchModel>>.value(const <InventoryBatchModel>[]);
+      return Stream<List<InventoryBatchModel>>.value(
+        const <InventoryBatchModel>[],
+      );
     }
 
     return batchesRef(shopId: normalizedShopId, itemId: normalizedItemId)
@@ -345,14 +361,14 @@ class InventoryService {
       throw const InventoryException('找不到庫存品項');
     }
 
-    await itemsRef(normalizedShopId).doc(normalizedItemId).update(
-      <String, dynamic>{
-        'imageUrl': imageUrl.trim(),
-        'imageStoragePath': imageStoragePath.trim(),
-        'updatedBy': _auth.currentUser?.uid ?? '',
-        'updatedAt': FieldValue.serverTimestamp(),
-      },
-    );
+    await itemsRef(
+      normalizedShopId,
+    ).doc(normalizedItemId).update(<String, dynamic>{
+      'imageUrl': imageUrl.trim(),
+      'imageStoragePath': imageStoragePath.trim(),
+      'updatedBy': _auth.currentUser?.uid ?? '',
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
   }
 
   Future<void> clearItemCover({

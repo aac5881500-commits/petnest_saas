@@ -95,8 +95,9 @@ class StoreStockHelper {
       };
     }
 
-    final num perSale =
-        inventoryQuantityPerSale <= 0 ? 1 : inventoryQuantityPerSale;
+    final num perSale = inventoryQuantityPerSale <= 0
+        ? 1
+        : inventoryQuantityPerSale;
     final num available = item.availableStock;
     final int sellable = (available / perSale).floor();
     if (sellable <= 0) {
@@ -108,7 +109,8 @@ class StoreStockHelper {
 
     final bool lowBySafety =
         item.safetyStock > 0 && available <= item.safetyStock;
-    final bool lowByUnits = sellable <= StoreConstants.lowStockSellableThreshold;
+    final bool lowByUnits =
+        sellable <= StoreConstants.lowStockSellableThreshold;
     return <String, dynamic>{
       'publicStockStatus': (lowBySafety || lowByUnits)
           ? StoreConstants.stockLow

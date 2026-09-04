@@ -18,12 +18,16 @@ import 'package:petnest_saas/core/services/daycare_pricing_service.dart';
 import 'package:petnest_saas/core/services/daycare_room_type_option.dart';
 import 'package:petnest_saas/core/services/daycare_settings_service.dart';
 import 'package:petnest_saas/core/services/daycare_time_helper.dart';
+import 'package:petnest_saas/core/models/home_theme_model.dart';
+import 'package:petnest_saas/core/services/home_banner_service.dart';
 import 'package:petnest_saas/core/services/shop_service.dart';
 import 'package:petnest_saas/features/auth/pages/login_page.dart';
 import 'package:petnest_saas/features/shop/pages/shop_daycare_booking_confirm_page.dart';
 import 'package:petnest_saas/features/shop/widgets/booking/booking_calendar_dialog.dart';
 import 'package:petnest_saas/features/shop/widgets/booking/booking_pet_section.dart';
+import 'package:petnest_saas/features/shop/widgets/booking/booking_step_widgets.dart';
 import 'package:petnest_saas/features/shop/widgets/booking/daycare_date_card.dart';
+import 'package:petnest_saas/features/shop/widgets/booking/daycare_offer_card.dart';
 import 'package:petnest_saas/features/shop/widgets/booking/front_calendar_payload.dart';
 
 class ShopDaycareBookingPage extends StatefulWidget {
@@ -59,6 +63,7 @@ class _ShopDaycareBookingPageState extends State<ShopDaycareBookingPage> {
   int? _remaining;
   bool _isBlacklisted = false;
   DaycareDateOverrideModel? _dateOverride;
+  int _step = 1;
 
   @override
   void initState() {
@@ -596,7 +601,7 @@ class _ShopDaycareBookingPageState extends State<ShopDaycareBookingPage> {
       return '請先選擇安親日期';
     }
     if (_dropOff == null || _pickUp == null) {
-      return '請選擇預計送達與接回時間';
+      return '請選擇送達與接回時間';
     }
     if (_selectedPetIds.isEmpty) {
       return '請先選擇安親寵物';
@@ -612,29 +617,29 @@ class _ShopDaycareBookingPageState extends State<ShopDaycareBookingPage> {
 
   @override
   Widget build(BuildContext context) {
+    final HomeThemeModel theme = HomeBannerService.instance.themeFromShop(
+      widget.shop,
+    );
     final List<String> slots = DaycareTimeHelper.slots(
       start: _dayHours.earliestDropOff,
       end: _dayHours.latestPickUp,
       stepMinutes: widget.settings.slotMinutes,
     );
     final DaycareQuote? quote = _quote;
-    final bool canSubmit =
-        !_submitting &&
-        !_isBlacklisted &&
-        _date != null &&
-        _startAt != null &&
-        _endAt != null &&
-        (widget.settings.isRoomBased || _plan != null) &&
-        (!widget.settings.isRoomBased ||
-            (_selectedRoomTypeId != null && _selectedPetIds.isNotEmpty)) &&
-        _selectedPetIds.isNotEmpty;
-    final String submitHint = _submitHint;
+    final String stepHint = _stepHint;
+    final bool canAdvance = stepHint.isEmpty && !_submitting && !_isBlacklisted;
     return Scaffold(
+      backgroundColor: theme.backgroundColor,
       appBar: AppBar(
+        backgroundColor: theme.backgroundColor,
+        foregroundColor: theme.textColor,
+        surfaceTintColor: Colors.transparent,
+        elevation: 0,
         title: Text(
           widget.settings.serviceName.isEmpty
               ? '安親預約'
               : widget.settings.serviceName,
+          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
         ),
       ),
       body: _isBlacklisted
@@ -644,419 +649,465 @@ class _ShopDaycareBookingPageState extends State<ShopDaycareBookingPage> {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: <Widget>[
-                    Icon(Icons.block, size: 48, color: Colors.red.shade700),
+                    Icon(Icons.block, size: 48, color: theme.primaryColor),
                     const SizedBox(height: 12),
-                    const Text(
+                    Text(
                       '目前無法使用預約功能',
                       style: TextStyle(
                         fontSize: 22,
                         fontWeight: FontWeight.w900,
+                        color: theme.textColor,
                       ),
                     ),
                     const SizedBox(height: 8),
                     Text(
                       '目前無法使用線上預約服務。\n如需協助，請聯繫店家確認。',
                       textAlign: TextAlign.center,
-                      style: TextStyle(color: Colors.red.shade700),
+                      style: TextStyle(color: theme.textColor),
                     ),
                   ],
                 ),
               ),
             )
-          : ListView(
-              padding: const EdgeInsets.all(16),
+          : Column(
               children: <Widget>[
-                Text(
-                  (widget.shop['name'] ?? '').toString(),
-                  style: const TextStyle(
-                    fontSize: 22,
-                    fontWeight: FontWeight.bold,
+                BookingStepIndicator(
+                  currentStep: _step,
+                  theme: theme,
+                  labels: const <String>['日期與寵物', '方案與服務', '費用與確認'],
+                ),
+                Expanded(
+                  child: ListView(
+                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+                    children: <Widget>[
+                      if (_step == 1) ..._stepDatePets(theme, slots),
+                      if (_step == 2) ..._stepPlanAddons(theme),
+                      if (_step == 3) ..._stepFees(theme, quote),
+                    ],
                   ),
                 ),
-                const SizedBox(height: 8),
-                const Text('請先選擇安親日期，再安排送達與接回時間'),
-                if (widget.settings.intro.isNotEmpty) ...<Widget>[
-                  const SizedBox(height: 8),
-                  Text(widget.settings.intro),
-                ],
-                const SizedBox(height: 16),
-                DaycareDateCard(date: _date, onTap: _openCalendar),
-                if (widget.settings.showRemainingSlots &&
-                    _date != null) ...<Widget>[
-                  const SizedBox(height: 8),
-                  Text(
-                    DaycareDateAvailability.dailyMaxPets(
-                              settings: widget.settings,
-                              override: _dateOverride,
-                            ) <=
-                            0
-                        ? '當日名額：不限量'
-                        : ((_remaining == null || _remaining! < 0)
-                              ? '當日剩餘名額：計算中'
-                              : '當日剩餘名額：$_remaining'),
-                  ),
-                ],
-                const SizedBox(height: 16),
-                DropdownButtonFormField<String>(
-                  initialValue: _dropOff,
-                  decoration: const InputDecoration(
-                    labelText: '預計送達時間',
-                    border: OutlineInputBorder(),
-                  ),
-                  items: slots
-                      .map(
-                        (String item) => DropdownMenuItem<String>(
-                          value: item,
-                          child: Text(item),
-                        ),
-                      )
-                      .toList(),
-                  onChanged: (String? value) {
-                    setState(() => _dropOff = value);
-                    _refreshRoomOptions();
-                  },
-                ),
-                const SizedBox(height: 12),
-                DropdownButtonFormField<String>(
-                  initialValue: _pickUp,
-                  decoration: const InputDecoration(
-                    labelText: '預計接回時間',
-                    border: OutlineInputBorder(),
-                  ),
-                  items: slots
-                      .map(
-                        (String item) => DropdownMenuItem<String>(
-                          value: item,
-                          child: Text(item),
-                        ),
-                      )
-                      .toList(),
-                  onChanged: (String? value) {
-                    setState(() => _pickUp = value);
-                    _refreshRoomOptions();
-                  },
-                ),
-                const SizedBox(height: 20),
-                BookingPetSection(
-                  title: '選擇安親寵物（已選 ${_selectedPetIds.length} 隻）',
-                  selectedPetIds: _selectedPetIds,
-                  onPetsLoaded: (List<Map<String, dynamic>> pets) {
-                    _pets = pets;
-                  },
-                  onTogglePet: (String petId, bool selected) {
-                    setState(() {
-                      if (selected) {
-                        _selectedPetIds.add(petId);
-                      } else {
-                        _selectedPetIds.remove(petId);
-                      }
-                    });
-                    _refreshRoomOptions();
-                    _loadExtras();
-                  },
-                ),
-                const SizedBox(height: 20),
-                if (!widget.settings.isRoomBased) ...<Widget>[
-                  const Text(
-                    '選擇安親方案',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 8),
-                  if (widget.settings.customerPlans.isEmpty)
-                    const Text('目前沒有可預約的安親方案'),
-                  ...widget.settings.customerPlans.map((DaycarePlanModel plan) {
-                    final bool selected = _plan?.id == plan.id;
-                    return Card(
-                      color: selected ? Colors.blue.shade50 : null,
-                      child: ListTile(
-                        title: Text(plan.name),
-                        subtitle: Text(plan.customerSummaryLines.join('\n')),
-                        isThreeLine: plan.customerSummaryLines.length > 1,
-                        trailing: selected
-                            ? const Icon(Icons.check_circle, color: Colors.blue)
-                            : null,
-                        onTap: () => setState(() => _plan = plan),
-                      ),
-                    );
-                  }),
-                ],
-                if (widget.settings.isRoomBased) ...<Widget>[
-                  const Text(
-                    '選擇安親房型',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    _selectedPetIds.isEmpty
-                        ? '請先選擇安親寵物，再確認房型。'
-                        : '實際房間由店家確認訂單後分配。',
-                    style: TextStyle(fontSize: 13, color: Colors.grey.shade800),
-                  ),
-                  const SizedBox(height: 8),
-                  if (_roomOptions.isEmpty) const Text('尚未設定安親房型'),
-                  ..._roomOptions.map((DaycareRoomTypeOption option) {
-                    final bool petsReady = _selectedPetIds.isNotEmpty;
-                    final bool selected =
-                        petsReady && _selectedRoomTypeId == option.roomTypeId;
-                    final bool canPick = petsReady && option.selectable;
-                    return Padding(
-                      padding: const EdgeInsets.only(bottom: 10),
-                      child: Material(
-                        color: selected
-                            ? const Color(0xFFFFF4EA)
-                            : Colors.white,
-                        borderRadius: BorderRadius.circular(16),
-                        child: InkWell(
-                          borderRadius: BorderRadius.circular(16),
-                          onTap: () {
-                            if (!petsReady) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(content: Text('請先選擇安親寵物')),
-                              );
-                              return;
-                            }
-                            if (!option.selectable) {
-                              return;
-                            }
-                            setState(
-                              () => _selectedRoomTypeId = option.roomTypeId,
-                            );
-                          },
-                          child: Container(
-                            width: double.infinity,
-                            padding: const EdgeInsets.all(14),
-                            decoration: BoxDecoration(
-                              borderRadius: BorderRadius.circular(16),
-                              border: Border.all(
-                                color: selected
-                                    ? const Color(0xFFE8A87C)
-                                    : const Color(0xFFF0E0CC),
-                                width: selected ? 2 : 1,
-                              ),
-                            ),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: <Widget>[
-                                Row(
-                                  children: <Widget>[
-                                    Expanded(
-                                      child: Text(
-                                        option.name,
-                                        style: const TextStyle(
-                                          fontSize: 16,
-                                          fontWeight: FontWeight.w800,
-                                          color: Color(0xFF3A2A1A),
-                                        ),
-                                      ),
-                                    ),
-                                    if (selected)
-                                      const Icon(
-                                        Icons.check_circle,
-                                        color: Color(0xFFB86B18),
-                                      ),
-                                  ],
-                                ),
-                                const SizedBox(height: 6),
-                                Text(
-                                  option.billingLabel,
-                                  style: const TextStyle(
-                                    fontSize: 13,
-                                    color: Color(0xFF3A2A1A),
-                                  ),
-                                ),
-                                if (option.extraPetLabel.isNotEmpty)
-                                  Text(
-                                    option.extraPetLabel,
-                                    style: const TextStyle(fontSize: 13),
-                                  ),
-                                Text(
-                                  option.capacitySummary,
-                                  style: const TextStyle(fontSize: 13),
-                                ),
-                                if (option.overtimeSummary.isNotEmpty)
-                                  Text(
-                                    option.overtimeSummary,
-                                    style: TextStyle(
-                                      fontSize: 12,
-                                      color: Colors.grey.shade700,
-                                    ),
-                                  ),
-                                if (petsReady && !canPick)
-                                  Padding(
-                                    padding: const EdgeInsets.only(top: 6),
-                                    child: Text(
-                                      option.blockedReason ?? '目前不可選',
-                                      style: const TextStyle(
-                                        color: Color(0xFFC45C26),
-                                        fontSize: 13,
-                                      ),
-                                    ),
-                                  ),
-                                if (option.estimateAmount > 0 && canPick)
-                                  Padding(
-                                    padding: const EdgeInsets.only(top: 6),
-                                    child: Text(
-                                      '預估 NT\$${option.estimateAmount}',
-                                      style: const TextStyle(
-                                        fontWeight: FontWeight.w700,
-                                      ),
-                                    ),
-                                  ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ),
-                    );
-                  }),
-                ],
-                if (_addons.isNotEmpty) ...<Widget>[
-                  const SizedBox(height: 16),
-                  const Text(
-                    '加值服務',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                  ),
-                  ..._addons.map((Map<String, dynamic> addon) {
-                    final String id = (addon['id'] ?? '').toString();
-                    final bool selected = _selectedAddonIds.contains(id);
-                    return CheckboxListTile(
-                      value: selected,
-                      title: Text(DaycareAddonCatalog.displayName(addon)),
-                      subtitle: Text(
-                        '\$${addon['price'] ?? 0}　${DaycareAddonCatalog.chargeLabel(addon)}',
-                      ),
-                      onChanged: (bool? value) {
-                        setState(() {
-                          if (value == true) {
-                            _selectedAddonIds.add(id);
-                          } else {
-                            _selectedAddonIds.remove(id);
-                          }
-                        });
-                      },
-                    );
-                  }),
-                ],
-                if (quote != null) ...<Widget>[
-                  const SizedBox(height: 16),
-                  Card(
-                    child: Padding(
-                      padding: const EdgeInsets.all(16),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: DaycarePricingService.instance
-                            .customerFeeLines(
-                              quote: quote,
-                              primaryLabel: widget.settings.isRoomBased
-                                  ? (_roomOptions
-                                        .where(
-                                          (DaycareRoomTypeOption e) =>
-                                              e.roomTypeId ==
-                                              _selectedRoomTypeId,
-                                        )
-                                        .map(
-                                          (DaycareRoomTypeOption e) =>
-                                              '${e.name}・起步價格',
-                                        )
-                                        .fold<String>(
-                                          '安親房型・起步價格',
-                                          (String prev, String name) => name,
-                                        ))
-                                  : (_plan?.name ?? '安親方案'),
-                              addonLines: _addons
-                                  .where(
-                                    (Map<String, dynamic> e) =>
-                                        _selectedAddonIds.contains(
-                                          (e['id'] ?? '').toString(),
-                                        ),
-                                  )
-                                  .map(
-                                    (
-                                      Map<String, dynamic> addon,
-                                    ) => BookingFeeLineItem(
-                                      label: DaycareAddonCatalog.displayName(
-                                        addon,
-                                      ),
-                                      amount: DaycarePricingService.instance
-                                          .addonLineAmount(
-                                            addon: addon,
-                                            minutes: quote.durationMinutes,
-                                            petCount: _selectedPetIds.isEmpty
-                                                ? 1
-                                                : _selectedPetIds.length,
-                                          ),
-                                    ),
-                                  )
-                                  .toList(),
-                            )
-                            .map(
-                              (BookingFeeLineItem line) => Padding(
-                                padding: const EdgeInsets.only(bottom: 4),
-                                child: Row(
-                                  children: <Widget>[
-                                    Expanded(child: Text(line.label)),
-                                    Text(
-                                      line.amount < 0
-                                          ? '-NT\$ ${line.amount.abs()}'
-                                          : 'NT\$ ${line.amount}',
-                                      style: TextStyle(
-                                        color:
-                                            line.kind ==
-                                                BookingFeeLineKind.discount
-                                            ? const Color(0xFF2E8B47)
-                                            : null,
-                                        fontWeight:
-                                            line.kind ==
-                                                    BookingFeeLineKind.total ||
-                                                line.kind ==
-                                                    BookingFeeLineKind.payable
-                                            ? FontWeight.w800
-                                            : FontWeight.w500,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            )
-                            .toList(),
-                      ),
-                    ),
-                  ),
-                ],
-                const SizedBox(height: 88),
               ],
             ),
       bottomNavigationBar: _isBlacklisted
           ? null
-          : SafeArea(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: <Widget>[
-                    if (!canSubmit && submitHint.isNotEmpty)
-                      Padding(
-                        padding: const EdgeInsets.only(bottom: 8),
-                        child: Text(
-                          submitHint,
-                          style: const TextStyle(
-                            color: Color(0xFFC45C26),
-                            fontWeight: FontWeight.w600,
-                          ),
+          : BookingStickyBar(
+              theme: theme,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: <Widget>[
+                  if (stepHint.isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: Text(
+                        stepHint,
+                        style: TextStyle(
+                          color: theme.primaryColor,
+                          fontWeight: FontWeight.w600,
                         ),
                       ),
-                    SizedBox(
-                      width: double.infinity,
-                      height: 48,
-                      child: ElevatedButton(
-                        onPressed: canSubmit ? _submit : null,
-                        child: Text(_submitting ? '處理中...' : '下一步：填寫資料'),
+                    ),
+                  Row(
+                    children: <Widget>[
+                      if (_step > 1)
+                        Expanded(
+                          child: OutlinedButton(
+                            onPressed: () => setState(() => _step -= 1),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: theme.textColor,
+                              side: BorderSide(color: theme.cardBorderColor),
+                              minimumSize: const Size.fromHeight(48),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(14),
+                              ),
+                            ),
+                            child: const Text('上一步'),
+                          ),
+                        ),
+                      if (_step > 1) const SizedBox(width: 10),
+                      Expanded(
+                        flex: 2,
+                        child: BookingPrimaryButton(
+                          theme: theme,
+                          label: _submitting
+                              ? '處理中...'
+                              : (_step < 3 ? '下一步' : '下一步：填寫資料'),
+                          onPressed: canAdvance
+                              ? () {
+                                  if (_step < 3) {
+                                    setState(() => _step += 1);
+                                    return;
+                                  }
+                                  _submit();
+                                }
+                              : null,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+    );
+  }
+
+  String get _stepHint {
+    if (_step == 1) {
+      if (_date == null) {
+        return '請先選擇安親日期';
+      }
+      if (_dropOff == null || _pickUp == null) {
+        return '請選擇送達與接回時間';
+      }
+      if (_startAt != null && _endAt != null && !_startAt!.isBefore(_endAt!)) {
+        return '接回時間必須晚於送達時間';
+      }
+      if (_selectedPetIds.isEmpty) {
+        return '請先選擇安親寵物';
+      }
+      return '';
+    }
+    if (_step == 2) {
+      if (widget.settings.isRoomBased && _selectedRoomTypeId == null) {
+        return '請選擇安親房型';
+      }
+      if (!widget.settings.isRoomBased && _plan == null) {
+        return '請選擇安親方案';
+      }
+      return '';
+    }
+    return _submitHint;
+  }
+
+  List<Widget> _stepDatePets(HomeThemeModel theme, List<String> slots) {
+    return <Widget>[
+      Text(
+        (widget.shop['name'] ?? '').toString(),
+        style: TextStyle(
+          fontSize: 22,
+          fontWeight: FontWeight.bold,
+          color: theme.textColor,
+        ),
+      ),
+      const SizedBox(height: 8),
+      Text('請先選擇安親日期，再安排送達與接回時間', style: TextStyle(color: theme.textColor)),
+      if (widget.settings.intro.isNotEmpty) ...<Widget>[
+        const SizedBox(height: 8),
+        Text(widget.settings.intro, style: TextStyle(color: theme.textColor)),
+      ],
+      const SizedBox(height: 16),
+      BookingThemedCard(
+        theme: theme,
+        child: DaycareDateCard(date: _date, onTap: _openCalendar),
+      ),
+      if (widget.settings.showRemainingSlots && _date != null) ...<Widget>[
+        const SizedBox(height: 8),
+        Text(
+          DaycareDateAvailability.dailyMaxPets(
+                    settings: widget.settings,
+                    override: _dateOverride,
+                  ) <=
+                  0
+              ? '當日名額：不限量'
+              : ((_remaining == null || _remaining! < 0)
+                    ? '當日剩餘名額：計算中'
+                    : '當日剩餘名額：$_remaining'),
+          style: TextStyle(color: theme.textColor),
+        ),
+      ],
+      const SizedBox(height: 16),
+      BookingThemedCard(
+        theme: theme,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            Text(
+              '請選擇預計送達與接回寵物的時間。',
+              style: TextStyle(color: theme.textColor, fontSize: 13),
+            ),
+            const SizedBox(height: 12),
+            DropdownButtonFormField<String>(
+              initialValue: _dropOff,
+              decoration: InputDecoration(
+                labelText: '送達時間',
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(14),
+                ),
+              ),
+              items: slots
+                  .map(
+                    (String item) => DropdownMenuItem<String>(
+                      value: item,
+                      child: Text(item),
+                    ),
+                  )
+                  .toList(),
+              onChanged: (String? value) {
+                setState(() => _dropOff = value);
+                _refreshRoomOptions();
+              },
+            ),
+            const SizedBox(height: 12),
+            DropdownButtonFormField<String>(
+              initialValue: _pickUp,
+              decoration: InputDecoration(
+                labelText: '接回時間',
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(14),
+                ),
+              ),
+              items: slots
+                  .map(
+                    (String item) => DropdownMenuItem<String>(
+                      value: item,
+                      child: Text(item),
+                    ),
+                  )
+                  .toList(),
+              onChanged: (String? value) {
+                setState(() => _pickUp = value);
+                _refreshRoomOptions();
+              },
+            ),
+          ],
+        ),
+      ),
+      const SizedBox(height: 16),
+      BookingThemedCard(
+        theme: theme,
+        child: BookingPetSection(
+          title: '選擇安親寵物（已選 ${_selectedPetIds.length} 隻）',
+          selectedPetIds: _selectedPetIds,
+          onPetsLoaded: (List<Map<String, dynamic>> pets) {
+            _pets = pets;
+          },
+          onTogglePet: (String petId, bool selected) {
+            setState(() {
+              if (selected) {
+                _selectedPetIds.add(petId);
+              } else {
+                _selectedPetIds.remove(petId);
+              }
+            });
+            _refreshRoomOptions();
+            _loadExtras();
+          },
+        ),
+      ),
+    ];
+  }
+
+  List<Widget> _stepPlanAddons(HomeThemeModel theme) {
+    final List<DaycarePlanModel> plans =
+        List<DaycarePlanModel>.from(widget.settings.plans)..sort(
+          (DaycarePlanModel a, DaycarePlanModel b) =>
+              a.sortOrder.compareTo(b.sortOrder),
+        );
+    return <Widget>[
+      if (!widget.settings.isRoomBased) ...<Widget>[
+        Text(
+          '選擇安親方案',
+          style: TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.bold,
+            color: theme.textColor,
+          ),
+        ),
+        const SizedBox(height: 8),
+        if (plans.isEmpty) const Text('目前沒有可預約的安親方案'),
+        ...plans.map((DaycarePlanModel plan) {
+          final bool selected = _plan?.id == plan.id;
+          return DaycareOfferCard(
+            theme: theme,
+            title: plan.name,
+            lines: plan.customerSummaryLines,
+            selected: selected,
+            enabled: plan.enabled,
+            blockedReason: plan.enabled ? null : '方案未啟用',
+            onTap: () => setState(() => _plan = plan),
+          );
+        }),
+      ],
+      if (widget.settings.isRoomBased) ...<Widget>[
+        Text(
+          '選擇安親房型',
+          style: TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.bold,
+            color: theme.textColor,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          _selectedPetIds.isEmpty ? '請先選擇安親寵物，再確認房型。' : '實際房間由店家確認訂單後分配。',
+          style: TextStyle(
+            fontSize: 13,
+            color: theme.textColor.withValues(alpha: 0.7),
+          ),
+        ),
+        const SizedBox(height: 8),
+        if (_roomOptions.isEmpty) const Text('尚未設定安親房型'),
+        ..._roomOptions.map((DaycareRoomTypeOption option) {
+          final bool petsReady = _selectedPetIds.isNotEmpty;
+          final bool selected =
+              petsReady && _selectedRoomTypeId == option.roomTypeId;
+          final bool canPick = petsReady && option.selectable;
+          final DaycareRoomTypeSetting setting = option.setting;
+          return DaycareOfferCard(
+            theme: theme,
+            title: option.name,
+            lines: DaycarePlanModel.offerDetailLines(
+              includedMinutes: setting.includedMinutes,
+              basePrice: setting.basePrice,
+              extraBillingMinutes: setting.extraBillingMinutes,
+              extraBillingPrice: setting.extraBillingPrice,
+              maxBaseCharge: setting.maxBaseCharge,
+              extraPetPrice: setting.extraPetPrice,
+              maxPets: setting.maxPets,
+              enabled: setting.enabled,
+            ),
+            selected: selected,
+            enabled: canPick,
+            blockedReason: petsReady && !canPick
+                ? (option.blockedReason ?? '目前不可選')
+                : (setting.enabled ? null : '方案未啟用'),
+            onTap: () {
+              if (!petsReady) {
+                ScaffoldMessenger.of(
+                  context,
+                ).showSnackBar(const SnackBar(content: Text('請先選擇安親寵物')));
+                return;
+              }
+              setState(() => _selectedRoomTypeId = option.roomTypeId);
+            },
+          );
+        }),
+      ],
+      if (_addons.isNotEmpty) ...<Widget>[
+        const SizedBox(height: 16),
+        Text(
+          '加值服務',
+          style: TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.bold,
+            color: theme.textColor,
+          ),
+        ),
+        ..._addons.map((Map<String, dynamic> addon) {
+          final String id = (addon['id'] ?? '').toString();
+          final bool selected = _selectedAddonIds.contains(id);
+          return CheckboxListTile(
+            value: selected,
+            title: Text(DaycareAddonCatalog.displayName(addon)),
+            subtitle: Text(
+              '${DaycarePlanModel.moneyLabel((addon['price'] as num?)?.toInt() ?? 0)}　${DaycareAddonCatalog.chargeLabel(addon)}',
+            ),
+            activeColor: theme.primaryColor,
+            onChanged: (bool? value) {
+              setState(() {
+                if (value == true) {
+                  _selectedAddonIds.add(id);
+                } else {
+                  _selectedAddonIds.remove(id);
+                }
+              });
+            },
+          );
+        }),
+      ],
+    ];
+  }
+
+  List<Widget> _stepFees(HomeThemeModel theme, DaycareQuote? quote) {
+    if (quote == null) {
+      return <Widget>[
+        Text('請先完成日期、時間、寵物與方案選擇。', style: TextStyle(color: theme.textColor)),
+      ];
+    }
+    final List<BookingFeeLineItem> lines = DaycarePricingService.instance
+        .customerFeeLines(
+          quote: quote,
+          primaryLabel: _plan?.name ?? '安親方案',
+          depositType: widget.settings.depositType,
+          addonLines: _addons
+              .where(
+                (Map<String, dynamic> e) =>
+                    _selectedAddonIds.contains((e['id'] ?? '').toString()),
+              )
+              .map(
+                (Map<String, dynamic> addon) => BookingFeeLineItem(
+                  label: DaycareAddonCatalog.displayName(addon),
+                  amount: DaycarePricingService.instance.addonLineAmount(
+                    addon: addon,
+                    minutes: quote.durationMinutes,
+                    petCount: _selectedPetIds.isEmpty
+                        ? 1
+                        : _selectedPetIds.length,
+                  ),
+                ),
+              )
+              .toList(),
+        );
+    return <Widget>[
+      BookingThemedCard(
+        theme: theme,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            Text(
+              '費用明細',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w800,
+                color: theme.textColor,
+              ),
+            ),
+            const SizedBox(height: 12),
+            ...lines.map(
+              (BookingFeeLineItem line) => Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Row(
+                  children: <Widget>[
+                    Expanded(
+                      child: Text(
+                        line.label,
+                        style: TextStyle(
+                          color: theme.textColor,
+                          fontWeight:
+                              line.kind == BookingFeeLineKind.total ||
+                                  line.kind == BookingFeeLineKind.payable
+                              ? FontWeight.w800
+                              : FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                    Text(
+                      line.amount < 0
+                          ? '-NT\$${line.amount.abs()}'
+                          : 'NT\$${line.amount}',
+                      style: TextStyle(
+                        color: theme.textColor,
+                        fontWeight:
+                            line.kind == BookingFeeLineKind.total ||
+                                line.kind == BookingFeeLineKind.payable
+                            ? FontWeight.w800
+                            : FontWeight.w500,
                       ),
                     ),
                   ],
                 ),
               ),
             ),
-    );
+            const SizedBox(height: 8),
+            Text(
+              '此為依預約時間計算的預估金額，實際金額將於接回時結算。',
+              style: TextStyle(
+                fontSize: 12,
+                color: theme.textColor.withValues(alpha: 0.7),
+              ),
+            ),
+          ],
+        ),
+      ),
+    ];
   }
 }

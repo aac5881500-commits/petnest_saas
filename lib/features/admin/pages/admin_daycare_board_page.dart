@@ -45,12 +45,12 @@ class AdminDaycareBoardPage extends StatelessWidget {
                 return const Center(child: CircularProgressIndicator());
               }
               final List<QueryDocumentSnapshot<Map<String, dynamic>>> docs =
-                  snapshot.data!.docs
-                      .where((QueryDocumentSnapshot<Map<String, dynamic>> doc) {
-                        return (doc.data()['status'] ?? '').toString() !=
-                            'cancelled';
-                      })
-                      .toList();
+                  snapshot.data!.docs.where((
+                    QueryDocumentSnapshot<Map<String, dynamic>> doc,
+                  ) {
+                    return (doc.data()['status'] ?? '').toString() !=
+                        'cancelled';
+                  }).toList();
               if (docs.isEmpty) {
                 return ListView(
                   padding: const EdgeInsets.all(24),
@@ -121,36 +121,12 @@ class AdminDaycareBoardPage extends StatelessWidget {
               return ListView(
                 padding: const EdgeInsets.all(16),
                 children: <Widget>[
-                  _BoardSection(
-                    shopId: shopId,
-                    title: '待店家確認',
-                    items: pending,
-                  ),
-                  _BoardSection(
-                    shopId: shopId,
-                    title: '等待送達',
-                    items: waiting,
-                  ),
-                  _BoardSection(
-                    shopId: shopId,
-                    title: '臨托中',
-                    items: ongoing,
-                  ),
-                  _BoardSection(
-                    shopId: shopId,
-                    title: '即將接回',
-                    items: pickup,
-                  ),
-                  _BoardSection(
-                    shopId: shopId,
-                    title: '已超時',
-                    items: overtime,
-                  ),
-                  _BoardSection(
-                    shopId: shopId,
-                    title: '今日已完成',
-                    items: done,
-                  ),
+                  _BoardSection(shopId: shopId, title: '待店家確認', items: pending),
+                  _BoardSection(shopId: shopId, title: '等待送達', items: waiting),
+                  _BoardSection(shopId: shopId, title: '臨托中', items: ongoing),
+                  _BoardSection(shopId: shopId, title: '即將接回', items: pickup),
+                  _BoardSection(shopId: shopId, title: '已超時', items: overtime),
+                  _BoardSection(shopId: shopId, title: '今日已完成', items: done),
                 ],
               );
             },
@@ -193,11 +169,8 @@ class _BoardSection extends StatelessWidget {
           ),
         ),
         ...items.map(
-          (QueryDocumentSnapshot<Map<String, dynamic>> doc) => _BoardCard(
-            shopId: shopId,
-            bookingId: doc.id,
-            data: doc.data(),
-          ),
+          (QueryDocumentSnapshot<Map<String, dynamic>> doc) =>
+              _BoardCard(shopId: shopId, bookingId: doc.id, data: doc.data()),
         ),
       ],
     );
@@ -247,7 +220,8 @@ class _BoardCardState extends State<_BoardCard> {
   Widget build(BuildContext context) {
     final Map<String, dynamic> data = widget.data;
     final String status = (data['status'] ?? '').toString();
-    final bool assigned = (data['assignStatus'] ?? '') == 'assigned' &&
+    final bool assigned =
+        (data['assignStatus'] ?? '') == 'assigned' &&
         (data['roomId'] ?? '').toString().isNotEmpty;
     final DateTime? start = data['scheduledStartAt'] is Timestamp
         ? (data['scheduledStartAt'] as Timestamp).toDate()

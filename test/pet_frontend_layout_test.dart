@@ -54,7 +54,9 @@ void main() {
     expect(find.byType(PetProfileForm), findsOneWidget);
   });
 
-  testWidgets('three mini feature cards fit 392px', (WidgetTester tester) async {
+  testWidgets('three mini feature cards fit 392px', (
+    WidgetTester tester,
+  ) async {
     tester.view.physicalSize = const Size(392, 850);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);

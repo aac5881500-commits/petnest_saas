@@ -48,10 +48,7 @@ class InventorySettingsTab extends StatelessWidget {
         _Group(
           title: '進階資料',
           children: <Widget>[
-            _InfoRow(
-              label: 'SKU',
-              value: item.sku.isEmpty ? '未填寫' : item.sku,
-            ),
+            _InfoRow(label: 'SKU', value: item.sku.isEmpty ? '未填寫' : item.sku),
             _InfoRow(
               label: '條碼',
               value: item.barcode.isEmpty ? '未填寫' : item.barcode,

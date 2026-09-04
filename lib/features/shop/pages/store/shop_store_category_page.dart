@@ -81,119 +81,129 @@ class ShopStoreCategoryPage extends StatelessWidget {
           : null,
       body: StreamBuilder<List<StoreCategoryModel>>(
         stream: StoreCategoryService.instance.streamCategories(shopId),
-        builder: (
-          BuildContext context,
-          AsyncSnapshot<List<StoreCategoryModel>> snapshot,
-        ) {
-          final List<StoreCategoryModel> categories =
-              snapshot.data ?? const <StoreCategoryModel>[];
-          if (categories.isEmpty) {
-            return StoreEmptyState(
-              title: '尚未建立分類',
-              subtitle: '用分類整理商品，之後也能做分類優惠。',
-              actionLabel: canManage ? '新增分類' : null,
-              onAction: canManage ? () => _edit(context) : null,
-              icon: Icons.category_outlined,
-            );
-          }
-          return StreamBuilder<List<StoreProductModel>>(
-            stream: StoreProductService.instance.streamProducts(shopId),
-            builder: (
+        builder:
+            (
               BuildContext context,
-              AsyncSnapshot<List<StoreProductModel>> productSnap,
+              AsyncSnapshot<List<StoreCategoryModel>> snapshot,
             ) {
-              final List<StoreProductModel> products =
-                  productSnap.data ?? const <StoreProductModel>[];
-              return ReorderableListView.builder(
-                padding: const EdgeInsets.fromLTRB(16, 12, 16, 88),
-                itemCount: categories.length,
-                onReorder: canManage
-                    ? (int oldIndex, int newIndex) async {
-                        if (newIndex > oldIndex) {
-                          newIndex -= 1;
-                        }
-                        final List<StoreCategoryModel> next =
-                            List<StoreCategoryModel>.from(categories);
-                        final StoreCategoryModel moved = next.removeAt(oldIndex);
-                        next.insert(newIndex, moved);
-                        for (int i = 0; i < next.length; i++) {
-                          await StoreCategoryService.instance.updateCategory(
-                            shopId: shopId,
-                            categoryId: next[i].id,
-                            data: <String, dynamic>{'sortOrder': i},
-                          );
-                        }
-                      }
-                    : (_, _) {},
-                itemBuilder: (BuildContext context, int index) {
-                  final StoreCategoryModel category = categories[index];
-                  final List<StoreProductModel> used = products
-                      .where((StoreProductModel item) =>
-                          item.categoryId == category.id)
-                      .toList();
-                  final int enabledCount = used
-                      .where((StoreProductModel item) => item.enabled)
-                      .length;
-                  return Card(
-                    key: ValueKey<String>(category.id),
-                    child: ListTile(
-                      title: Text(category.name),
-                      subtitle: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: <Widget>[
-                          Text('商品 ${used.length}　上架 $enabledCount'),
-                          const SizedBox(height: 4),
-                          StoreStatusChip(
-                            label: category.enabled ? '啟用中' : '已停用',
-                            tone: category.enabled
-                                ? StoreStatusTone.success
-                                : StoreStatusTone.neutral,
-                          ),
-                        ],
-                      ),
-                      isThreeLine: true,
-                      trailing: canManage
-                          ? Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: <Widget>[
-                                IconButton(
-                                  icon: const Icon(Icons.edit_outlined),
-                                  onPressed: () =>
-                                      _edit(context, category: category),
-                                ),
-                                Switch(
-                                  value: category.enabled,
-                                  onChanged: (bool value) {
-                                    if (!value && used.isNotEmpty) {
-                                      ScaffoldMessenger.of(context)
-                                          .showSnackBar(
-                                        const SnackBar(
-                                          content: Text(
-                                            '此分類仍有商品使用，已改為停用。請先移動商品再刪除分類。',
+              final List<StoreCategoryModel> categories =
+                  snapshot.data ?? const <StoreCategoryModel>[];
+              if (categories.isEmpty) {
+                return StoreEmptyState(
+                  title: '尚未建立分類',
+                  subtitle: '用分類整理商品，之後也能做分類優惠。',
+                  actionLabel: canManage ? '新增分類' : null,
+                  onAction: canManage ? () => _edit(context) : null,
+                  icon: Icons.category_outlined,
+                );
+              }
+              return StreamBuilder<List<StoreProductModel>>(
+                stream: StoreProductService.instance.streamProducts(shopId),
+                builder:
+                    (
+                      BuildContext context,
+                      AsyncSnapshot<List<StoreProductModel>> productSnap,
+                    ) {
+                      final List<StoreProductModel> products =
+                          productSnap.data ?? const <StoreProductModel>[];
+                      return ReorderableListView.builder(
+                        padding: const EdgeInsets.fromLTRB(16, 12, 16, 88),
+                        itemCount: categories.length,
+                        onReorder: canManage
+                            ? (int oldIndex, int newIndex) async {
+                                if (newIndex > oldIndex) {
+                                  newIndex -= 1;
+                                }
+                                final List<StoreCategoryModel> next =
+                                    List<StoreCategoryModel>.from(categories);
+                                final StoreCategoryModel moved = next.removeAt(
+                                  oldIndex,
+                                );
+                                next.insert(newIndex, moved);
+                                for (int i = 0; i < next.length; i++) {
+                                  await StoreCategoryService.instance
+                                      .updateCategory(
+                                        shopId: shopId,
+                                        categoryId: next[i].id,
+                                        data: <String, dynamic>{'sortOrder': i},
+                                      );
+                                }
+                              }
+                            : (_, _) {},
+                        itemBuilder: (BuildContext context, int index) {
+                          final StoreCategoryModel category = categories[index];
+                          final List<StoreProductModel> used = products
+                              .where(
+                                (StoreProductModel item) =>
+                                    item.categoryId == category.id,
+                              )
+                              .toList();
+                          final int enabledCount = used
+                              .where((StoreProductModel item) => item.enabled)
+                              .length;
+                          return Card(
+                            key: ValueKey<String>(category.id),
+                            child: ListTile(
+                              title: Text(category.name),
+                              subtitle: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: <Widget>[
+                                  Text('商品 ${used.length}　上架 $enabledCount'),
+                                  const SizedBox(height: 4),
+                                  StoreStatusChip(
+                                    label: category.enabled ? '啟用中' : '已停用',
+                                    tone: category.enabled
+                                        ? StoreStatusTone.success
+                                        : StoreStatusTone.neutral,
+                                  ),
+                                ],
+                              ),
+                              isThreeLine: true,
+                              trailing: canManage
+                                  ? Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: <Widget>[
+                                        IconButton(
+                                          icon: const Icon(Icons.edit_outlined),
+                                          onPressed: () => _edit(
+                                            context,
+                                            category: category,
                                           ),
                                         ),
-                                      );
-                                    }
-                                    StoreCategoryService.instance
-                                        .updateCategory(
-                                      shopId: shopId,
-                                      categoryId: category.id,
-                                      data: <String, dynamic>{
-                                        'enabled': value,
-                                      },
-                                    );
-                                  },
-                                ),
-                              ],
-                            )
-                          : null,
-                    ),
-                  );
-                },
+                                        Switch(
+                                          value: category.enabled,
+                                          onChanged: (bool value) {
+                                            if (!value && used.isNotEmpty) {
+                                              ScaffoldMessenger.of(
+                                                context,
+                                              ).showSnackBar(
+                                                const SnackBar(
+                                                  content: Text(
+                                                    '此分類仍有商品使用，已改為停用。請先移動商品再刪除分類。',
+                                                  ),
+                                                ),
+                                              );
+                                            }
+                                            StoreCategoryService.instance
+                                                .updateCategory(
+                                                  shopId: shopId,
+                                                  categoryId: category.id,
+                                                  data: <String, dynamic>{
+                                                    'enabled': value,
+                                                  },
+                                                );
+                                          },
+                                        ),
+                                      ],
+                                    )
+                                  : null,
+                            ),
+                          );
+                        },
+                      );
+                    },
               );
             },
-          );
-        },
       ),
     );
   }

@@ -34,11 +34,17 @@ class AboutMessageSection extends StatelessWidget {
 
     return StreamBuilder<Map<String, dynamic>?>(
       stream: ShopService.instance.streamShop(shopId),
-      builder: (BuildContext context, AsyncSnapshot<Map<String, dynamic>?> snapshot) {
-        final Map<String, dynamic> shop = snapshot.data ?? <String, dynamic>{};
-        final String message = (shop['aboutMessage'] ?? _fallbackMessage).toString();
-        return _buildCard(message);
-      },
+      builder:
+          (
+            BuildContext context,
+            AsyncSnapshot<Map<String, dynamic>?> snapshot,
+          ) {
+            final Map<String, dynamic> shop =
+                snapshot.data ?? <String, dynamic>{};
+            final String message = (shop['aboutMessage'] ?? _fallbackMessage)
+                .toString();
+            return _buildCard(message);
+          },
     );
   }
 

@@ -6,11 +6,11 @@ import 'package:petnest_saas/core/services/shop_service.dart';
 
 class PermissionMemberListCard extends StatelessWidget {
   const PermissionMemberListCard({
-  super.key,
-  required this.shopId,
-  required this.roleLabelBuilder,
-  required this.onTapMember,
-});
+    super.key,
+    required this.shopId,
+    required this.roleLabelBuilder,
+    required this.onTapMember,
+  });
 
   final String shopId;
   final String Function(String role) roleLabelBuilder;
@@ -32,47 +32,39 @@ class PermissionMemberListCard extends StatelessWidget {
                   alignment: Alignment.centerLeft,
                   child: Text(
                     '目前成員',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                    ),
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                   ),
                 ),
 
                 const SizedBox(height: 8),
 
-                if (members.isEmpty)
-                  const ListTile(
-                    title: Text('目前沒有其他成員'),
-                  ),
+                if (members.isEmpty) const ListTile(title: Text('目前沒有其他成員')),
 
                 ...members.map((member) {
-                  final role =
-                      member['role']?.toString() ?? '-';
+                  final role = member['role']?.toString() ?? '-';
 
-                  final email =
-                      member['email']?.toString() ?? '-';
+                  final email = member['email']?.toString() ?? '-';
 
-                  final permissions =
-                      ShopService.instance.normalizePermissions(
+                  final permissions = ShopService.instance.normalizePermissions(
                     member['permissions'],
                     role: role,
                   );
 
-                  final enabledCount =
-                      permissions.values.where((e) => e).length;
+                  final enabledCount = permissions.values
+                      .where((e) => e)
+                      .length;
 
                   return ListTile(
-  leading: const Icon(Icons.person),
-  title: Text(email),
-  subtitle: Text(
-    '角色：${roleLabelBuilder(role)}｜啟用權限：$enabledCount',
-  ),
-  trailing: const Icon(Icons.chevron_right),
-  onTap: () {
-    onTapMember(member);
-  },
-);
+                    leading: const Icon(Icons.person),
+                    title: Text(email),
+                    subtitle: Text(
+                      '角色：${roleLabelBuilder(role)}｜啟用權限：$enabledCount',
+                    ),
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: () {
+                      onTapMember(member);
+                    },
+                  );
                 }),
               ],
             ),

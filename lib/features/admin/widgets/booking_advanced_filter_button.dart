@@ -8,10 +8,7 @@
 import 'package:flutter/material.dart';
 
 class BookingAdvancedFilterButton extends StatelessWidget {
-  const BookingAdvancedFilterButton({
-    super.key,
-    required this.onTap,
-  });
+  const BookingAdvancedFilterButton({super.key, required this.onTap});
 
   final VoidCallback onTap;
 
@@ -25,10 +22,7 @@ class BookingAdvancedFilterButton extends StatelessWidget {
           borderRadius: BorderRadius.circular(14),
           onTap: null,
           child: Container(
-            padding: const EdgeInsets.symmetric(
-              horizontal: 18,
-              vertical: 10,
-            ),
+            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
             decoration: BoxDecoration(
               color: Colors.grey.shade100.withOpacity(0.65),
               borderRadius: BorderRadius.circular(14),
@@ -39,12 +33,12 @@ class BookingAdvancedFilterButton extends StatelessWidget {
                 Icon(Icons.tune, size: 18, color: Colors.grey),
                 SizedBox(width: 8),
                 Text(
-  '進階篩選',
-  style: TextStyle(
-    fontWeight: FontWeight.bold,
-    color: Colors.grey,
-  ),
-),
+                  '進階篩選',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: Colors.grey,
+                  ),
+                ),
                 SizedBox(width: 6),
                 Icon(Icons.keyboard_arrow_down, size: 18, color: Colors.grey),
               ],

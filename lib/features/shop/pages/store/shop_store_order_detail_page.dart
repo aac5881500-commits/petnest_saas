@@ -62,9 +62,9 @@ class _ShopStoreOrderDetailPageState extends State<ShopStoreOrderDetailPage> {
       );
     } catch (error) {
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(error.toString())),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(error.toString())));
       }
     }
   }
@@ -78,10 +78,7 @@ class _ShopStoreOrderDetailPageState extends State<ShopStoreOrderDetailPage> {
           shopId: shopId,
           orderId: orderId,
         ),
-        builder: (
-          BuildContext context,
-          AsyncSnapshot<StoreOrderModel?> snapshot,
-        ) {
+        builder: (BuildContext context, AsyncSnapshot<StoreOrderModel?> snapshot) {
           final StoreOrderModel? order = snapshot.data;
           if (order == null) {
             return const Center(child: CircularProgressIndicator());
@@ -177,9 +174,7 @@ class _ShopStoreOrderDetailPageState extends State<ShopStoreOrderDetailPage> {
                 ),
               ]),
               _section('付款資訊', <Widget>[
-                Text(
-                  StoreConstants.paymentStatusLabel(order.paymentStatus),
-                ),
+                Text(StoreConstants.paymentStatusLabel(order.paymentStatus)),
                 if (order.lastPaymentId.isNotEmpty)
                   Text('付款單：${order.lastPaymentId}'),
               ]),

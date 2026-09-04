@@ -278,14 +278,14 @@ class PointRedemptionService {
         existing.useCentralInventory &&
         existing.inventoryItemId.trim().isNotEmpty) {
       try {
-        await FirebaseFunctions.instanceFor(region: 'asia-east1')
-            .httpsCallable('cancelPointRedemption')
-            .call(<String, dynamic>{
-              'shopId': normalizedShopId,
-              'redemptionId': normalizedRedemptionId,
-              'reason': normalizedReason,
-              'refundPoints': refundPoints,
-            });
+        await FirebaseFunctions.instanceFor(
+          region: 'asia-east1',
+        ).httpsCallable('cancelPointRedemption').call(<String, dynamic>{
+          'shopId': normalizedShopId,
+          'redemptionId': normalizedRedemptionId,
+          'reason': normalizedReason,
+          'refundPoints': refundPoints,
+        });
       } on FirebaseFunctionsException catch (error) {
         throw StateError(error.message ?? '無法取消兌換');
       }

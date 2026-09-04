@@ -232,11 +232,14 @@ void main() {
       ],
       now: now,
     );
-    expect(line.finalUnitPrice, pricing.applyDiscount(
-      original: 799,
-      method: StoreDiscountMethods.percent,
-      value: 9,
-    ));
+    expect(
+      line.finalUnitPrice,
+      pricing.applyDiscount(
+        original: 799,
+        method: StoreDiscountMethods.percent,
+        value: 9,
+      ),
+    );
     expect(line.itemPromotionDiscount, 200);
     expect(line.campaignDiscount, greaterThan(0));
   });

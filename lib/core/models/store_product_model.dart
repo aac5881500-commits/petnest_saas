@@ -93,8 +93,7 @@ class StoreProductModel {
     return true;
   }
 
-  bool get isBuyXGetY =>
-      itemPromotionType == StoreItemPromotionTypes.buyXGetY;
+  bool get isBuyXGetY => itemPromotionType == StoreItemPromotionTypes.buyXGetY;
 
   String itemOfferLabel({DateTime? now}) {
     if (!isItemPromotionActiveAt(now ?? DateTime.now()) &&
@@ -152,8 +151,8 @@ class StoreProductModel {
       featured: data['featured'] == true,
       useInventory: data['useInventory'] == true,
       inventoryItemId: (data['inventoryItemId'] ?? '').toString(),
-      inventoryItemNameSnapshot:
-          (data['inventoryItemNameSnapshot'] ?? '').toString(),
+      inventoryItemNameSnapshot: (data['inventoryItemNameSnapshot'] ?? '')
+          .toString(),
       inventoryUnitSnapshot: (data['inventoryUnitSnapshot'] ?? '').toString(),
       inventoryQuantityPerSale: _numFromValue(data['inventoryQuantityPerSale']),
       publicStockStatus: _stockStatusFromValue(data['publicStockStatus']),
@@ -168,10 +167,12 @@ class StoreProductModel {
         data['itemPromotionType'],
       ),
       itemPromotionValue: _optionalNumFromValue(data['itemPromotionValue']),
-      itemPromotionBuyQuantity: _intFromValue(data['itemPromotionBuyQuantity'])
-          .clamp(1, 99),
-      itemPromotionFreeQuantity:
-          _intFromValue(data['itemPromotionFreeQuantity']).clamp(1, 99),
+      itemPromotionBuyQuantity: _intFromValue(
+        data['itemPromotionBuyQuantity'],
+      ).clamp(1, 99),
+      itemPromotionFreeQuantity: _intFromValue(
+        data['itemPromotionFreeQuantity'],
+      ).clamp(1, 99),
       itemPromotionAllowStack: data['itemPromotionAllowStack'] == true,
       itemPromotionStartAt: _dateTimeFromValue(data['itemPromotionStartAt']),
       itemPromotionEndAt: _dateTimeFromValue(data['itemPromotionEndAt']),

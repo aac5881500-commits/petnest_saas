@@ -26,7 +26,8 @@ class ShopInventoryDetailPage extends StatefulWidget {
   final Map<String, dynamic>? memberData;
 
   @override
-  State<ShopInventoryDetailPage> createState() => _ShopInventoryDetailPageState();
+  State<ShopInventoryDetailPage> createState() =>
+      _ShopInventoryDetailPageState();
 }
 
 class _ShopInventoryDetailPageState extends State<ShopInventoryDetailPage>
@@ -65,86 +66,84 @@ class _ShopInventoryDetailPageState extends State<ShopInventoryDetailPage>
         shopId: widget.shopId,
         itemId: widget.itemId,
       ),
-      builder: (
-        BuildContext context,
-        AsyncSnapshot<InventoryItemModel?> snapshot,
-      ) {
-        final InventoryItemModel? item = snapshot.data;
+      builder:
+          (BuildContext context, AsyncSnapshot<InventoryItemModel?> snapshot) {
+            final InventoryItemModel? item = snapshot.data;
 
-        return Scaffold(
-          backgroundColor: const Color(0xFFF6F8FB),
-          appBar: AppBar(
-            title: Text(item?.name ?? '庫存詳情'),
-            actions: <Widget>[
-              if (canManage && item != null)
-                IconButton(
-                  icon: const Icon(Icons.edit_outlined),
-                  onPressed: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute<void>(
-                        builder: (BuildContext context) {
-                          return ShopInventoryFormPage(
-                            shopId: widget.shopId,
-                            item: item,
-                          );
-                        },
-                      ),
-                    );
-                  },
-                ),
-            ],
-            bottom: TabBar(
-              controller: _tabController,
-              isScrollable: compactTabs,
-              tabAlignment: compactTabs
-                  ? TabAlignment.start
-                  : TabAlignment.fill,
-              labelPadding: const EdgeInsets.symmetric(horizontal: 12),
-              labelStyle: const TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w700,
-              ),
-              unselectedLabelStyle: const TextStyle(fontSize: 13),
-              tabs: const <Widget>[
-                Tab(text: '總覽'),
-                Tab(text: '進貨紀錄'),
-                Tab(text: '異動流水'),
-                Tab(text: '設定'),
-              ],
-            ),
-          ),
-          body: item == null
-              ? const Center(child: CircularProgressIndicator())
-              : TabBarView(
+            return Scaffold(
+              backgroundColor: const Color(0xFFF6F8FB),
+              appBar: AppBar(
+                title: Text(item?.name ?? '庫存詳情'),
+                actions: <Widget>[
+                  if (canManage && item != null)
+                    IconButton(
+                      icon: const Icon(Icons.edit_outlined),
+                      onPressed: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute<void>(
+                            builder: (BuildContext context) {
+                              return ShopInventoryFormPage(
+                                shopId: widget.shopId,
+                                item: item,
+                              );
+                            },
+                          ),
+                        );
+                      },
+                    ),
+                ],
+                bottom: TabBar(
                   controller: _tabController,
-                  children: <Widget>[
-                    InventoryOverviewTab(
-                      shopId: widget.shopId,
-                      item: item,
-                      canReceive: canReceive,
-                      canAdjust: canAdjust,
-                      canViewCost: canViewCost,
-                      onViewAllMovements: () => _tabController.animateTo(2),
-                    ),
-                    InventoryBatchesTab(
-                      shopId: widget.shopId,
-                      item: item,
-                      canViewCost: canViewCost,
-                    ),
-                    InventoryMovementsTab(
-                      shopId: widget.shopId,
-                      item: item,
-                    ),
-                    InventorySettingsTab(
-                      shopId: widget.shopId,
-                      item: item,
-                      canManage: canManage,
-                    ),
+                  isScrollable: compactTabs,
+                  tabAlignment: compactTabs
+                      ? TabAlignment.start
+                      : TabAlignment.fill,
+                  labelPadding: const EdgeInsets.symmetric(horizontal: 12),
+                  labelStyle: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                  ),
+                  unselectedLabelStyle: const TextStyle(fontSize: 13),
+                  tabs: const <Widget>[
+                    Tab(text: '總覽'),
+                    Tab(text: '進貨紀錄'),
+                    Tab(text: '異動流水'),
+                    Tab(text: '設定'),
                   ],
                 ),
-        );
-      },
+              ),
+              body: item == null
+                  ? const Center(child: CircularProgressIndicator())
+                  : TabBarView(
+                      controller: _tabController,
+                      children: <Widget>[
+                        InventoryOverviewTab(
+                          shopId: widget.shopId,
+                          item: item,
+                          canReceive: canReceive,
+                          canAdjust: canAdjust,
+                          canViewCost: canViewCost,
+                          onViewAllMovements: () => _tabController.animateTo(2),
+                        ),
+                        InventoryBatchesTab(
+                          shopId: widget.shopId,
+                          item: item,
+                          canViewCost: canViewCost,
+                        ),
+                        InventoryMovementsTab(
+                          shopId: widget.shopId,
+                          item: item,
+                        ),
+                        InventorySettingsTab(
+                          shopId: widget.shopId,
+                          item: item,
+                          canManage: canManage,
+                        ),
+                      ],
+                    ),
+            );
+          },
     );
   }
 }

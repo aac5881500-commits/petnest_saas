@@ -34,24 +34,26 @@ class InventoryItemCover extends StatelessWidget {
                 width: size,
                 height: size,
                 gaplessPlayback: true,
-                loadingBuilder: (
-                  BuildContext context,
-                  Widget child,
-                  ImageChunkEvent? loadingProgress,
-                ) {
-                  if (loadingProgress == null) {
-                    return child;
-                  }
+                loadingBuilder:
+                    (
+                      BuildContext context,
+                      Widget child,
+                      ImageChunkEvent? loadingProgress,
+                    ) {
+                      if (loadingProgress == null) {
+                        return child;
+                      }
 
-                  return _Placeholder(color: colors.primary, size: size);
-                },
-                errorBuilder: (
-                  BuildContext context,
-                  Object error,
-                  StackTrace? stackTrace,
-                ) {
-                  return _Placeholder(color: colors.primary, size: size);
-                },
+                      return _Placeholder(color: colors.primary, size: size);
+                    },
+                errorBuilder:
+                    (
+                      BuildContext context,
+                      Object error,
+                      StackTrace? stackTrace,
+                    ) {
+                      return _Placeholder(color: colors.primary, size: size);
+                    },
               )
             : _Placeholder(color: colors.primary, size: size),
       ),
@@ -60,10 +62,7 @@ class InventoryItemCover extends StatelessWidget {
 }
 
 class _Placeholder extends StatelessWidget {
-  const _Placeholder({
-    required this.color,
-    required this.size,
-  });
+  const _Placeholder({required this.color, required this.size});
 
   final Color color;
   final double size;
@@ -71,11 +70,7 @@ class _Placeholder extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Center(
-      child: Icon(
-        Icons.inventory_2_outlined,
-        color: color,
-        size: size * 0.42,
-      ),
+      child: Icon(Icons.inventory_2_outlined, color: color, size: size * 0.42),
     );
   }
 }

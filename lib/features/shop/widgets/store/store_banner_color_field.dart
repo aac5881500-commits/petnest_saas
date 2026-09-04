@@ -102,7 +102,9 @@ class _ColorDot extends StatelessWidget {
             color: color,
             shape: BoxShape.circle,
             border: Border.all(
-              color: selected ? Theme.of(context).colorScheme.primary : Colors.black26,
+              color: selected
+                  ? Theme.of(context).colorScheme.primary
+                  : Colors.black26,
               width: selected ? 2.5 : 1,
             ),
           ),
@@ -143,7 +145,9 @@ class _StoreBannerColorPickerDialogState
   void initState() {
     super.initState();
     _hsv = HSVColor.fromColor(widget.initial);
-    _hex = TextEditingController(text: StoreBannerColorCodec.hexOf(widget.initial.toARGB32()));
+    _hex = TextEditingController(
+      text: StoreBannerColorCodec.hexOf(widget.initial.toARGB32()),
+    );
   }
 
   @override
@@ -294,9 +298,9 @@ class _StoreBannerColorPickerDialogState
       return;
     }
     _setHsv(
-      _hsv.withSaturation((local.dx / size.width).clamp(0.0, 1.0)).withValue(
-            (1 - local.dy / size.height).clamp(0.0, 1.0),
-          ),
+      _hsv
+          .withSaturation((local.dx / size.width).clamp(0.0, 1.0))
+          .withValue((1 - local.dy / size.height).clamp(0.0, 1.0)),
     );
   }
 
@@ -336,5 +340,6 @@ class _SvPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant _SvPainter oldDelegate) => oldDelegate.hue != hue;
+  bool shouldRepaint(covariant _SvPainter oldDelegate) =>
+      oldDelegate.hue != hue;
 }

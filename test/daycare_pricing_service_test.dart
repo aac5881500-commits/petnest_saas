@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:petnest_saas/core/models/booking_fee_line_item.dart';
 import 'package:petnest_saas/core/models/booking_kind.dart';
 import 'package:petnest_saas/core/models/daycare_plan_model.dart';
 import 'package:petnest_saas/core/models/daycare_settings_model.dart';
@@ -38,6 +39,25 @@ void main() {
       depositType: DaycareDepositTypes.percent,
       depositValue: 50,
     );
+
+    test('新版 toMap 不寫入營業開始／結束，fromMap 仍讀舊欄位', () {
+      final Map<String, dynamic> saved = const DaycareSettingsModel(
+        openTime: '08:00',
+        closeTime: '21:00',
+        earliestDropOff: '09:30',
+      ).toMap();
+      expect(saved.containsKey('openTime'), isFalse);
+      expect(saved.containsKey('closeTime'), isFalse);
+      expect(saved['earliestDropOff'], '09:30');
+      expect(saved['maxDurationMinutes'], 1440);
+      expect(
+        DaycareSettingsModel.fromMap(<String, dynamic>{
+          'openTime': '07:15',
+          'closeTime': '22:00',
+        }).openTime,
+        '07:15',
+      );
+    });
 
     test('訂金依總額百分比計算', () {
       final DaycarePlanModel plan = const DaycarePlanModel(
@@ -528,6 +548,93 @@ void main() {
       );
       expect(quote.extraPetAmount, 100);
       expect(quote.cappedRoomAmount <= 2600, isTrue);
+    });
+
+    test('費用明細顯示多寵費與時間費上限折抵，且總額與 quote 相同', () {
+      final DaycarePricingService pricing = DaycarePricingService.instance;
+      const DaycarePlanModel plan = DaycarePlanModel(
+        id: 'cap',
+        name: '安親方案',
+        includedMinutes: 240,
+        basePrice: 880,
+        extraBillingMinutes: 60,
+        extraBillingPrice: 200,
+        extraPetPrice: 100,
+        maxBaseCharge: 1100,
+      );
+      final DaycareQuote quote = pricing.quote(
+        settings: const DaycareSettingsModel(
+          depositType: DaycareDepositTypes.percent,
+          depositValue: 50,
+        ),
+        plan: plan,
+        startAt: DateTime(2026, 9, 1, 9),
+        endAt: DateTime(2026, 9, 1, 15),
+        petCount: 2,
+      );
+      expect(quote.timeCharge, 1100);
+      expect(quote.extraPetAmount, 100);
+      expect(quote.totalAmount, 1200);
+      expect(quote.toPriceSnapshot()['totalAmount'], quote.totalAmount);
+      final List<BookingFeeLineItem> lines = pricing.customerFeeLines(
+        quote: quote,
+        primaryLabel: plan.name,
+        depositType: DaycareDepositTypes.percent,
+      );
+      expect(
+        lines.any((BookingFeeLineItem e) => e.label.contains('多寵費')),
+        isTrue,
+      );
+      expect(lines.any((BookingFeeLineItem e) => e.label == '時間費上限折抵'), isTrue);
+      expect(
+        lines
+            .firstWhere(
+              (BookingFeeLineItem e) => e.kind == BookingFeeLineKind.total,
+            )
+            .amount,
+        quote.totalAmount,
+      );
+      expect(
+        lines
+            .firstWhere(
+              (BookingFeeLineItem e) => e.kind == BookingFeeLineKind.payable,
+            )
+            .label,
+        '預計訂金',
+      );
+    });
+
+    test('上限為 0 不限制時間費；多寵費為 0 不加價', () {
+      final DaycarePricingService pricing = DaycarePricingService.instance;
+      final DaycareTimeCharge uncapped = pricing.quoteTimeCharge(
+        includedMinutes: 240,
+        basePrice: 880,
+        extraBillingMinutes: 60,
+        extraBillingPrice: 200,
+        extraPetPrice: 0,
+        maxBaseCharge: 0,
+        durationMinutes: 360,
+        petCount: 3,
+      );
+      expect(uncapped.timeCharge, 1280);
+      expect(uncapped.extraPetCharge, 0);
+    });
+
+    test('超過 10 分鐘且每 30 分鐘計費收 1 單位', () {
+      final DaycarePricingService pricing = DaycarePricingService.instance;
+      final DaycareTimeCharge charge = pricing.quoteTimeCharge(
+        includedMinutes: 240,
+        basePrice: 880,
+        extraBillingMinutes: 30,
+        extraBillingPrice: 100,
+        extraPetPrice: 0,
+        maxBaseCharge: 0,
+        durationMinutes: 250,
+        petCount: 1,
+      );
+      expect(charge.extraMinutes, 10);
+      expect(charge.extraUnits, 1);
+      expect(charge.timeCharge, 980);
     });
   });
 }

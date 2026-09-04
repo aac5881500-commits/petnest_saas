@@ -91,9 +91,7 @@ class _HousekeepingSettingPageState extends State<HousekeepingSettingPage> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('房務設定'),
-        actions: <Widget>[
-          ShopTaskCenterButton(shopId: widget.shopId),
-        ],
+        actions: <Widget>[ShopTaskCenterButton(shopId: widget.shopId)],
       ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())

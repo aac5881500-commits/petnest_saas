@@ -27,8 +27,8 @@ class AboutCoverBackdrop extends StatelessWidget {
         height: double.infinity,
         errorBuilder:
             (BuildContext context, Object error, StackTrace? stackTrace) {
-          return _DefaultCover(frame: frame);
-        },
+              return _DefaultCover(frame: frame);
+            },
       );
     }
 
@@ -51,8 +51,8 @@ class _DefaultCover extends StatelessWidget {
       height: double.infinity,
       errorBuilder:
           (BuildContext context, Object error, StackTrace? stackTrace) {
-        return const ColoredBox(color: Color(0xFF2A1B12));
-      },
+            return const ColoredBox(color: Color(0xFF2A1B12));
+          },
     );
   }
 }

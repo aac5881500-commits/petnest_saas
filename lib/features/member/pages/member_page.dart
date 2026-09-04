@@ -12,12 +12,13 @@ import 'package:image_picker/image_picker.dart';
 import 'package:petnest_saas/core/widgets/shop_frontend_theme_scope.dart';
 import 'package:petnest_saas/core/models/shop_frontend_theme.dart';
 import 'package:petnest_saas/core/services/member_avatar_service.dart';
+import 'package:petnest_saas/core/models/fixed_image_spec.dart';
 import 'package:petnest_saas/core/services/pet_service.dart';
 import 'package:petnest_saas/core/models/home_theme_model.dart';
 import 'package:petnest_saas/core/widgets/member_avatar.dart';
 import 'package:petnest_saas/features/pet/pages/pet_detail_page.dart';
 import 'package:petnest_saas/features/pet/pages/add_pet_page.dart';
-import 'package:petnest_saas/features/shop/widgets/media/banner_image_crop_page.dart';
+import 'package:petnest_saas/features/shop/widgets/media/fixed_aspect_image_crop_page.dart';
 import 'package:petnest_saas/core/constants/taiwan_city_data.dart';
 import 'package:petnest_saas/features/booking/pages/my_reviews_page.dart';
 import 'package:petnest_saas/features/booking/pages/my_bookings_page.dart';
@@ -898,13 +899,11 @@ class _MemberPageState extends State<_MemberPageBody> {
         return;
       }
 
-      final Uint8List? croppedBytes = await BannerImageCropPage.open(
+      final Uint8List? croppedBytes = await FixedAspectImageCropPage.open(
         context: context,
         imageBytes: originalBytes,
-        cropAspectRatio: 1,
-        outputWidth: MemberAvatarService.outputSize,
-        outputHeight: MemberAvatarService.outputSize,
-        hintText: '框內區域就是大頭貼顯示範圍。可拖曳、縮放圖片來選擇臉部或主體。',
+        spec: FixedImageSpec.memberAvatar,
+        title: '裁切大頭貼',
       );
 
       if (croppedBytes == null) {

@@ -6,10 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/services/platform_policy_manage_service.dart';
 
 class PlatformShopOwnerPolicyPage extends StatefulWidget {
-  const PlatformShopOwnerPolicyPage({
-    super.key,
-    required this.onAgree,
-  });
+  const PlatformShopOwnerPolicyPage({super.key, required this.onAgree});
 
   static const String policyKey = 'shop_owner_policy';
 
@@ -84,19 +81,13 @@ class _PlatformShopOwnerPolicyPageState
   Widget build(BuildContext context) {
     if (loading) {
       return Scaffold(
-        appBar: AppBar(
-          title: const Text('創店主條款'),
-        ),
-        body: const Center(
-          child: CircularProgressIndicator(),
-        ),
+        appBar: AppBar(title: const Text('創店主條款')),
+        body: const Center(child: CircularProgressIndicator()),
       );
     }
 
     return Scaffold(
-      appBar: AppBar(
-        title: Text(title),
-      ),
+      appBar: AppBar(title: Text(title)),
       body: Column(
         children: [
           Container(
@@ -105,9 +96,7 @@ class _PlatformShopOwnerPolicyPageState
             color: const Color(0xFFFFF7ED),
             child: Text(
               '目前版本：v$version，請閱讀至最下方後勾選同意。',
-              style: const TextStyle(
-                fontWeight: FontWeight.w700,
-              ),
+              style: const TextStyle(fontWeight: FontWeight.w700),
             ),
           ),
           Expanded(
@@ -116,10 +105,7 @@ class _PlatformShopOwnerPolicyPageState
               padding: const EdgeInsets.all(16),
               child: Text(
                 content,
-                style: const TextStyle(
-                  fontSize: 15,
-                  height: 1.8,
-                ),
+                style: const TextStyle(fontSize: 15, height: 1.8),
               ),
             ),
           ),
@@ -127,11 +113,7 @@ class _PlatformShopOwnerPolicyPageState
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
               color: Colors.white,
-              border: Border(
-                top: BorderSide(
-                  color: Colors.grey.shade200,
-                ),
-              ),
+              border: Border(top: BorderSide(color: Colors.grey.shade200)),
             ),
             child: Column(
               children: [

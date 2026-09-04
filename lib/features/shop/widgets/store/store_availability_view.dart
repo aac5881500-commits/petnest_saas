@@ -39,10 +39,7 @@ class StoreAvailabilityView extends StatelessWidget {
     );
   }
 
-  static bool isSoldOut(
-    StoreProductModel product, {
-    bool unpublished = false,
-  }) {
+  static bool isSoldOut(StoreProductModel product, {bool unpublished = false}) {
     if (unpublished || !product.enabled) {
       return true;
     }
@@ -68,8 +65,7 @@ class StoreAvailabilityView extends StatelessWidget {
       style: TextStyle(
         fontSize: compact ? 11 : 13,
         fontWeight: FontWeight.w700,
-        color: color ??
-            (soldOut ? const Color(0xFFB45309) : Colors.black54),
+        color: color ?? (soldOut ? const Color(0xFFB45309) : Colors.black54),
       ),
     );
   }

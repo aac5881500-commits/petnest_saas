@@ -7,9 +7,10 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
-import 'package:image_picker/image_picker.dart';
+import 'package:petnest_saas/core/models/fixed_image_spec.dart';
 import 'package:petnest_saas/core/models/home_theme_model.dart';
 import 'package:petnest_saas/features/pet/widgets/pet_profile_form.dart';
+import 'package:petnest_saas/features/shop/widgets/media/fixed_image_pick_flow.dart';
 
 Future<bool> showEditPetSheet({
   required BuildContext context,
@@ -122,13 +123,24 @@ class _EditPetSheetState extends State<EditPetSheet> {
   }
 
   Future<void> _pickImage() async {
-    final ImagePicker picker = ImagePicker();
-    final XFile? picked = await picker.pickImage(source: ImageSource.gallery);
-    if (picked == null) {
-      return;
+    try {
+      final Uint8List? cropped = await FixedImagePickFlow.pickAndCrop(
+        context: context,
+        spec: FixedImageSpec.memberAvatar,
+        title: '裁切寵物頭像',
+      );
+      if (cropped == null) {
+        return;
+      }
+      setState(() => _imageBytes = cropped);
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('選擇圖片失敗：$error')));
     }
-    final Uint8List bytes = await picked.readAsBytes();
-    setState(() => _imageBytes = bytes);
   }
 
   Future<void> _save() async {
@@ -144,13 +156,6 @@ class _EditPetSheetState extends State<EditPetSheet> {
     try {
       final String uid = (widget.pet['userId'] ?? user.uid).toString();
       final String petId = (widget.pet['petId'] ?? '').toString();
-      final String photoUrl = (widget.pet['photoUrl'] ?? '').toString();
-
-      if (_imageBytes != null && photoUrl.isNotEmpty) {
-        try {
-          await FirebaseStorage.instance.refFromURL(photoUrl).delete();
-        } catch (_) {}
-      }
 
       await FirebaseFirestore.instance
           .collection('user_profiles')

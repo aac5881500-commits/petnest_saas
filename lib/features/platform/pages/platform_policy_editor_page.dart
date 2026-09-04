@@ -21,13 +21,10 @@ class PlatformPolicyEditorPage extends StatefulWidget {
       _PlatformPolicyEditorPageState();
 }
 
-class _PlatformPolicyEditorPageState
-    extends State<PlatformPolicyEditorPage> {
-  final TextEditingController _titleController =
-      TextEditingController();
+class _PlatformPolicyEditorPageState extends State<PlatformPolicyEditorPage> {
+  final TextEditingController _titleController = TextEditingController();
 
-  final TextEditingController _contentController =
-      TextEditingController();
+  final TextEditingController _contentController = TextEditingController();
 
   bool _loading = true;
   bool _saving = false;
@@ -47,8 +44,7 @@ class _PlatformPolicyEditorPageState
     if (!mounted) return;
 
     setState(() {
-      _titleController.text =
-          data?['title']?.toString() ?? widget.titleText;
+      _titleController.text = data?['title']?.toString() ?? widget.titleText;
       _contentController.text = data?['content']?.toString() ?? '';
       _version = data?['version'] is int ? data!['version'] : 1;
       _loading = false;
@@ -60,9 +56,9 @@ class _PlatformPolicyEditorPageState
     final content = _contentController.text.trim();
 
     if (title.isEmpty || content.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('請輸入標題與條款內容')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('請輸入標題與條款內容')));
       return;
     }
 
@@ -88,17 +84,15 @@ class _PlatformPolicyEditorPageState
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(
-            publishNewVersion ? '已發布新版 v$nextVersion' : '已儲存條款',
-          ),
+          content: Text(publishNewVersion ? '已發布新版 v$nextVersion' : '已儲存條款'),
         ),
       );
     } catch (e) {
       if (!mounted) return;
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('儲存失敗：$e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('儲存失敗：$e')));
     } finally {
       if (mounted) {
         setState(() {
@@ -120,20 +114,14 @@ class _PlatformPolicyEditorPageState
     if (_loading) {
       return Scaffold(
         backgroundColor: const Color(0xFFF6F7FB),
-        appBar: AppBar(
-          title: Text(widget.titleText),
-        ),
-        body: const Center(
-          child: CircularProgressIndicator(),
-        ),
+        appBar: AppBar(title: Text(widget.titleText)),
+        body: const Center(child: CircularProgressIndicator()),
       );
     }
 
     return Scaffold(
       backgroundColor: const Color(0xFFF6F7FB),
-      appBar: AppBar(
-        title: Text(widget.titleText),
-      ),
+      appBar: AppBar(title: Text(widget.titleText)),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
@@ -142,15 +130,11 @@ class _PlatformPolicyEditorPageState
             decoration: BoxDecoration(
               color: Colors.amber.shade50,
               borderRadius: BorderRadius.circular(16),
-              border: Border.all(
-                color: Colors.amber.shade200,
-              ),
+              border: Border.all(color: Colors.amber.shade200),
             ),
             child: const Text(
               '發布新版條款後，會員或店家可能需要重新同意新版條款。',
-              style: TextStyle(
-                fontWeight: FontWeight.w700,
-              ),
+              style: TextStyle(fontWeight: FontWeight.w700),
             ),
           ),
 
@@ -173,9 +157,7 @@ class _PlatformPolicyEditorPageState
             decoration: BoxDecoration(
               color: Colors.white,
               borderRadius: BorderRadius.circular(16),
-              border: Border.all(
-                color: Colors.grey.shade300,
-              ),
+              border: Border.all(color: Colors.grey.shade300),
             ),
             child: Row(
               children: [
@@ -183,9 +165,7 @@ class _PlatformPolicyEditorPageState
                 const SizedBox(width: 8),
                 Text(
                   '目前版本：v$_version',
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w900,
-                  ),
+                  style: const TextStyle(fontWeight: FontWeight.w900),
                 ),
               ],
             ),
@@ -193,26 +173,26 @@ class _PlatformPolicyEditorPageState
 
           const SizedBox(height: 16),
 
-SizedBox(
-  width: double.infinity,
-  child: OutlinedButton.icon(
-    onPressed: () {
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (_) => PlatformPolicyVersionHistoryPage(
-            policyKey: widget.policyKey,
-            titleText: widget.titleText,
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => PlatformPolicyVersionHistoryPage(
+                      policyKey: widget.policyKey,
+                      titleText: widget.titleText,
+                    ),
+                  ),
+                );
+              },
+              icon: const Icon(Icons.history),
+              label: const Text('查看歷史版本'),
+            ),
           ),
-        ),
-      );
-    },
-    icon: const Icon(Icons.history),
-    label: const Text('查看歷史版本'),
-  ),
-),
 
-const SizedBox(height: 16),
+          const SizedBox(height: 16),
 
           TextField(
             controller: _contentController,
@@ -248,38 +228,38 @@ const SizedBox(height: 16),
             width: double.infinity,
             child: ElevatedButton.icon(
               onPressed: _saving
-    ? null
-    : () async {
-        final confirm = await showDialog<bool>(
-          context: context,
-          builder: (dialogContext) {
-            return AlertDialog(
-              title: const Text('發布新版條款？'),
-              content: Text(
-                '發布後版本會從 v$_version 變成 v${_version + 1}，使用者可能需要重新同意新版條款。',
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () {
-                    Navigator.pop(dialogContext, false);
-                  },
-                  child: const Text('取消'),
-                ),
-                ElevatedButton(
-                  onPressed: () {
-                    Navigator.pop(dialogContext, true);
-                  },
-                  child: const Text('確認發布'),
-                ),
-              ],
-            );
-          },
-        );
+                  ? null
+                  : () async {
+                      final confirm = await showDialog<bool>(
+                        context: context,
+                        builder: (dialogContext) {
+                          return AlertDialog(
+                            title: const Text('發布新版條款？'),
+                            content: Text(
+                              '發布後版本會從 v$_version 變成 v${_version + 1}，使用者可能需要重新同意新版條款。',
+                            ),
+                            actions: [
+                              TextButton(
+                                onPressed: () {
+                                  Navigator.pop(dialogContext, false);
+                                },
+                                child: const Text('取消'),
+                              ),
+                              ElevatedButton(
+                                onPressed: () {
+                                  Navigator.pop(dialogContext, true);
+                                },
+                                child: const Text('確認發布'),
+                              ),
+                            ],
+                          );
+                        },
+                      );
 
-        if (confirm != true) return;
+                      if (confirm != true) return;
 
-        _savePolicy(publishNewVersion: true);
-      },
+                      _savePolicy(publishNewVersion: true);
+                    },
               icon: const Icon(Icons.publish_outlined),
               label: Text(_saving ? '發布中...' : '發布新版'),
             ),

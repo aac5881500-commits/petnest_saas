@@ -52,9 +52,9 @@ class DaycareBookingSummaryCard extends StatelessWidget {
             const SizedBox(height: 12),
             _infoRow('安親日期', dateText),
             const SizedBox(height: 6),
-            _infoRow('預計送達時間', dropOffText),
+            _infoRow('送達時間', dropOffText),
             const SizedBox(height: 6),
-            _infoRow('預計接回時間', pickUpText),
+            _infoRow('接回時間', pickUpText),
             const SizedBox(height: 6),
             _infoRow(
               '預計安親時數',

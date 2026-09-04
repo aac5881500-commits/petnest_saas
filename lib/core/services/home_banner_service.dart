@@ -28,7 +28,8 @@ class HomeBannerService {
       banners.add(fromShopMap(Map<dynamic, dynamic>.from(item), index: i));
     }
     banners.sort(
-      (StoreBannerModel a, StoreBannerModel b) => a.sortOrder.compareTo(b.sortOrder),
+      (StoreBannerModel a, StoreBannerModel b) =>
+          a.sortOrder.compareTo(b.sortOrder),
     );
     return banners;
   }
@@ -54,7 +55,8 @@ class HomeBannerService {
       }
     }
     banners.sort(
-      (StoreBannerModel a, StoreBannerModel b) => a.sortOrder.compareTo(b.sortOrder),
+      (StoreBannerModel a, StoreBannerModel b) =>
+          a.sortOrder.compareTo(b.sortOrder),
     );
     if (banners.isNotEmpty) {
       return banners;
@@ -109,9 +111,7 @@ class HomeBannerService {
     }
     await ShopService.instance.updateShop(
       shopId: shopId,
-      data: <String, dynamic>{
-        'banners': next.map(toShopMap).toList(),
-      },
+      data: <String, dynamic>{'banners': next.map(toShopMap).toList()},
     );
   }
 
@@ -169,10 +169,7 @@ class HomeBannerService {
     return map['isActive'] != false;
   }
 
-  bool _isLegacyFlatBannerPath({
-    required String shopId,
-    required String path,
-  }) {
+  bool _isLegacyFlatBannerPath({required String shopId, required String path}) {
     final String normalized = path.trim();
     final String prefix = 'shops/${shopId.trim()}/';
     if (!normalized.startsWith(prefix)) {

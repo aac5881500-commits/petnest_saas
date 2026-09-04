@@ -32,12 +32,20 @@ void main() {
     final StoreHomeDisplaySettings home = StoreHomeDisplaySettings.fromMap(
       const <String, dynamic>{},
     );
-    expect(home.storeAppearance.cardBackgroundMode, StoreCardBackgroundModes.solid);
+    expect(
+      home.storeAppearance.cardBackgroundMode,
+      StoreCardBackgroundModes.solid,
+    );
     expect(home.storeAppearance.usesCardImage, isFalse);
     expect(home.storeAppearance.resolvedStoreTitle, '寵物賣場');
     expect(home.storeAppearance.resolvedFeaturedTitle, '精選商品');
-    final HomeThemeModel theme = home.resolveTheme(HomeThemeModel.modernDefault);
-    expect(theme.backgroundColorValue, HomeThemeModel.modernDefault.backgroundColorValue);
+    final HomeThemeModel theme = home.resolveTheme(
+      HomeThemeModel.modernDefault,
+    );
+    expect(
+      theme.backgroundColorValue,
+      HomeThemeModel.modernDefault.backgroundColorValue,
+    );
   });
 
   test('overlay 原圖 / 淡 / 很淡', () {
@@ -84,14 +92,13 @@ void main() {
   });
 
   test('parse storeAppearance 圖卡設定', () {
-    final StoreAppearanceSetting look = StoreAppearanceSetting.fromMap(
-      <String, dynamic>{
-        'cardBackgroundMode': 'image',
-        'cardBackgroundImageUrl': 'https://example.com/bg.jpg',
-        'cardBackgroundFit': 'contain',
-        'storeTitle': '毛孩選物',
-      },
-    );
+    final StoreAppearanceSetting look =
+        StoreAppearanceSetting.fromMap(<String, dynamic>{
+          'cardBackgroundMode': 'image',
+          'cardBackgroundImageUrl': 'https://example.com/bg.jpg',
+          'cardBackgroundFit': 'contain',
+          'storeTitle': '毛孩選物',
+        });
     expect(look.usesCardImage, isTrue);
     expect(look.cardBoxFit, BoxFit.contain);
     expect(look.resolvedStoreTitle, '毛孩選物');

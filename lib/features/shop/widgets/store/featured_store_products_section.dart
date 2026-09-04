@@ -40,142 +40,153 @@ class FeaturedStoreProductsSection extends StatelessWidget {
 
     return StreamBuilder<Map<String, dynamic>>(
       stream: StoreSettingsService.instance.streamSettings(shopId),
-      builder: (
-        BuildContext context,
-        AsyncSnapshot<Map<String, dynamic>> settingsSnapshot,
-      ) {
-        if (!StorefrontAccess.isStorefrontOpen(
-          shop: shop,
-          settings: settingsSnapshot.data,
-        )) {
-          return const SizedBox.shrink();
-        }
-
-        return StreamBuilder<List<StoreProductModel>>(
-          stream: StoreProductService.instance.streamFeaturedProducts(shopId),
-          builder: (
+      builder:
+          (
             BuildContext context,
-            AsyncSnapshot<List<StoreProductModel>> snapshot,
+            AsyncSnapshot<Map<String, dynamic>> settingsSnapshot,
           ) {
-            final List<StoreProductModel> products =
-                snapshot.data ?? const <StoreProductModel>[];
-            final Map<String, dynamic> storeSettings =
-                settingsSnapshot.data ?? const <String, dynamic>{};
-            if (storeSettings['showFeaturedProducts'] == false) {
-              return const SizedBox.shrink();
-            }
-            final int featuredCount = _featuredCount(storeSettings);
-            final bool hideOutOfStock =
-                storeSettings['hideOutOfStock'] == true;
-            final List<StoreProductModel> visible = products
-                .where((StoreProductModel item) {
-                  if (!item.hasInventoryLink) {
-                    return false;
-                  }
-                  return !hideOutOfStock ||
-                      !StoreStockHelper.isOutOfStock(item);
-                })
-                .take(featuredCount)
-                .toList();
-            if (visible.isEmpty) {
+            if (!StorefrontAccess.isStorefrontOpen(
+              shop: shop,
+              settings: settingsSnapshot.data,
+            )) {
               return const SizedBox.shrink();
             }
 
-            return StoreEnabledPromotionsBuilder(
-              shopId: shopId,
-              builder: (
-                BuildContext context,
-                List<StorePromotionModel> promotions,
-              ) {
-            return Padding(
-              padding: const EdgeInsets.only(bottom: 18),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: <Widget>[
-                  Row(
-                    children: <Widget>[
-                      Icon(
-                        Icons.shopping_bag_outlined,
-                        size: 16,
-                        color: theme.primaryColor,
-                      ),
-                      const SizedBox(width: 6),
-                      Expanded(
-                        child: Text(
-                          setting.featuredTitle,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            fontSize: 16,
-                            height: 1.2,
-                            fontWeight: FontWeight.w800,
-                            color: theme.textColor,
-                          ),
-                        ),
-                      ),
-                      GestureDetector(
-                        onTap: () => _openStore(context),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: <Widget>[
-                            Text(
-                              '查看全部',
-                              style: TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w700,
-                                color: theme.primaryColor,
-                              ),
-                            ),
-                            Icon(
-                              Icons.chevron_right_rounded,
-                              size: 16,
-                              color: theme.primaryColor,
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 9),
-                  SizedBox(
-                    height: 198,
-                    child: ListView.separated(
-                      scrollDirection: Axis.horizontal,
-                      physics: const BouncingScrollPhysics(),
-                      itemCount: visible.length,
-                      separatorBuilder: (_, _) => const SizedBox(width: 7),
-                      itemBuilder: (BuildContext context, int index) {
-                        return _FeaturedProductCard(
-                          product: visible[index],
-                          priced: StorePricingService.instance.quoteProduct(
-                            product: visible[index],
-                            promotions: promotions,
-                          ),
-                          theme: theme,
-                          onTap: () {
-                            Navigator.of(context).push(
-                              MaterialPageRoute<void>(
-                                builder: (_) => StoreProductDetailPage(
-                                  shopId: shopId,
-                                  shop: shop,
-                                  productId: visible[index].id,
-                                  theme: theme,
-                                ),
+            return StreamBuilder<List<StoreProductModel>>(
+              stream: StoreProductService.instance.streamFeaturedProducts(
+                shopId,
+              ),
+              builder:
+                  (
+                    BuildContext context,
+                    AsyncSnapshot<List<StoreProductModel>> snapshot,
+                  ) {
+                    final List<StoreProductModel> products =
+                        snapshot.data ?? const <StoreProductModel>[];
+                    final Map<String, dynamic> storeSettings =
+                        settingsSnapshot.data ?? const <String, dynamic>{};
+                    if (storeSettings['showFeaturedProducts'] == false) {
+                      return const SizedBox.shrink();
+                    }
+                    final int featuredCount = _featuredCount(storeSettings);
+                    final bool hideOutOfStock =
+                        storeSettings['hideOutOfStock'] == true;
+                    final List<StoreProductModel> visible = products
+                        .where((StoreProductModel item) {
+                          if (!item.hasInventoryLink) {
+                            return false;
+                          }
+                          return !hideOutOfStock ||
+                              !StoreStockHelper.isOutOfStock(item);
+                        })
+                        .take(featuredCount)
+                        .toList();
+                    if (visible.isEmpty) {
+                      return const SizedBox.shrink();
+                    }
+
+                    return StoreEnabledPromotionsBuilder(
+                      shopId: shopId,
+                      builder:
+                          (
+                            BuildContext context,
+                            List<StorePromotionModel> promotions,
+                          ) {
+                            return Padding(
+                              padding: const EdgeInsets.only(bottom: 18),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: <Widget>[
+                                  Row(
+                                    children: <Widget>[
+                                      Icon(
+                                        Icons.shopping_bag_outlined,
+                                        size: 16,
+                                        color: theme.primaryColor,
+                                      ),
+                                      const SizedBox(width: 6),
+                                      Expanded(
+                                        child: Text(
+                                          setting.featuredTitle,
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: TextStyle(
+                                            fontSize: 16,
+                                            height: 1.2,
+                                            fontWeight: FontWeight.w800,
+                                            color: theme.textColor,
+                                          ),
+                                        ),
+                                      ),
+                                      GestureDetector(
+                                        onTap: () => _openStore(context),
+                                        child: Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: <Widget>[
+                                            Text(
+                                              '查看全部',
+                                              style: TextStyle(
+                                                fontSize: 12,
+                                                fontWeight: FontWeight.w700,
+                                                color: theme.primaryColor,
+                                              ),
+                                            ),
+                                            Icon(
+                                              Icons.chevron_right_rounded,
+                                              size: 16,
+                                              color: theme.primaryColor,
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 9),
+                                  SizedBox(
+                                    height: 198,
+                                    child: ListView.separated(
+                                      scrollDirection: Axis.horizontal,
+                                      physics: const BouncingScrollPhysics(),
+                                      itemCount: visible.length,
+                                      separatorBuilder: (_, _) =>
+                                          const SizedBox(width: 7),
+                                      itemBuilder:
+                                          (BuildContext context, int index) {
+                                            return _FeaturedProductCard(
+                                              product: visible[index],
+                                              priced: StorePricingService
+                                                  .instance
+                                                  .quoteProduct(
+                                                    product: visible[index],
+                                                    promotions: promotions,
+                                                  ),
+                                              theme: theme,
+                                              onTap: () {
+                                                Navigator.of(context).push(
+                                                  MaterialPageRoute<void>(
+                                                    builder: (_) =>
+                                                        StoreProductDetailPage(
+                                                          shopId: shopId,
+                                                          shop: shop,
+                                                          productId:
+                                                              visible[index].id,
+                                                          theme: theme,
+                                                        ),
+                                                  ),
+                                                );
+                                              },
+                                            );
+                                          },
+                                    ),
+                                  ),
+                                ],
                               ),
                             );
                           },
-                        );
-                      },
-                    ),
-                  ),
-                ],
-              ),
-            );
-              },
+                    );
+                  },
             );
           },
-        );
-      },
     );
   }
 
@@ -192,11 +203,7 @@ class FeaturedStoreProductsSection extends StatelessWidget {
   void _openStore(BuildContext context) {
     Navigator.of(context).push(
       MaterialPageRoute<void>(
-        builder: (_) => StoreHomePage(
-          shopId: shopId,
-          shop: shop,
-          theme: theme,
-        ),
+        builder: (_) => StoreHomePage(shopId: shopId, shop: shop, theme: theme),
       ),
     );
   }

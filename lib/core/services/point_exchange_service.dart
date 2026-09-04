@@ -384,13 +384,13 @@ class PointExchangeService {
     final String requestId = _firestore.collection('_ids').doc().id;
     try {
       final HttpsCallableResult<dynamic> result =
-          await FirebaseFunctions.instanceFor(region: 'asia-east1')
-              .httpsCallable('exchangePointReward')
-              .call(<String, dynamic>{
-                'shopId': shopId,
-                'rewardId': rewardId,
-                'requestId': requestId,
-              });
+          await FirebaseFunctions.instanceFor(
+            region: 'asia-east1',
+          ).httpsCallable('exchangePointReward').call(<String, dynamic>{
+            'shopId': shopId,
+            'rewardId': rewardId,
+            'requestId': requestId,
+          });
       final Object? data = result.data;
       if (data is Map && data['redemptionId'] != null) {
         return data['redemptionId'].toString();

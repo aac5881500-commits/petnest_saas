@@ -44,27 +44,34 @@ class ShopModernLogo extends StatelessWidget {
                         Widget child,
                         ImageChunkEvent? progress,
                       ) {
-                    if (progress == null) {
-                      return child;
-                    }
-                    return ColoredBox(
-                      color: primaryColor.withValues(alpha: 0.08),
-                      child: Center(
-                        child: SizedBox(
-                          width: size * 0.28,
-                          height: size * 0.28,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: primaryColor,
+                        if (progress == null) {
+                          return child;
+                        }
+                        return ColoredBox(
+                          color: primaryColor.withValues(alpha: 0.08),
+                          child: Center(
+                            child: SizedBox(
+                              width: size * 0.28,
+                              height: size * 0.28,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: primaryColor,
+                              ),
+                            ),
                           ),
-                        ),
-                      ),
-                    );
-                  },
+                        );
+                      },
                   errorBuilder:
-                      (BuildContext context, Object error, StackTrace? stackTrace) {
-                    return _FallbackIcon(color: primaryColor, size: iconSize);
-                  },
+                      (
+                        BuildContext context,
+                        Object error,
+                        StackTrace? stackTrace,
+                      ) {
+                        return _FallbackIcon(
+                          color: primaryColor,
+                          size: iconSize,
+                        );
+                      },
                 ),
         ),
       ),
@@ -73,10 +80,7 @@ class ShopModernLogo extends StatelessWidget {
 }
 
 class _FallbackIcon extends StatelessWidget {
-  const _FallbackIcon({
-    required this.color,
-    required this.size,
-  });
+  const _FallbackIcon({required this.color, required this.size});
 
   final Color color;
   final double size;

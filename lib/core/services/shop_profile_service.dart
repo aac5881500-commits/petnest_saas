@@ -144,7 +144,8 @@ class ShopProfileService {
     required Uint8List bytes,
   }) async {
     final String normalizedShopId = shopId.trim();
-    final String fileName = 'banner_${DateTime.now().millisecondsSinceEpoch}.jpg';
+    final String fileName =
+        'banner_${DateTime.now().millisecondsSinceEpoch}.jpg';
     final String storagePath = 'shops/$normalizedShopId/$fileName';
     final Reference ref = _storage.ref().child(storagePath);
 
@@ -165,8 +166,7 @@ class ShopProfileService {
     final String prefix = slot == 'banner' ? 'banner' : 'hero';
     final String fileName =
         '${prefix}_${DateTime.now().millisecondsSinceEpoch}.jpg';
-    final String storagePath =
-        'shops/$normalizedShopId/environment/$fileName';
+    final String storagePath = 'shops/$normalizedShopId/environment/$fileName';
     final Reference ref = _storage.ref().child(storagePath);
 
     await ref.putData(bytes, SettableMetadata(contentType: 'image/jpeg'));
@@ -258,9 +258,7 @@ class ShopProfileService {
     }
 
     final String encoded = rawPath.substring(objectMarker + 3);
-    final String decoded = Uri.decodeComponent(
-      encoded.split('?').first,
-    );
+    final String decoded = Uri.decodeComponent(encoded.split('?').first);
     return _isOwnedEnvironmentIntroPath(shopId: shopId, path: decoded)
         ? decoded
         : null;
@@ -499,7 +497,7 @@ class ShopProfileService {
     required String imageStoragePath,
     required String imageUrl,
     required bool Function({required String shopId, required String path})
-        isOwned,
+    isOwned,
     required String label,
   }) async {
     final String normalizedShopId = shopId.trim();
@@ -540,7 +538,7 @@ class ShopProfileService {
     required String storagePath,
     required String imageUrl,
     required bool Function({required String shopId, required String path})
-        isOwned,
+    isOwned,
   }) {
     final String normalizedPath = storagePath.trim();
     if (isOwned(shopId: shopId, path: normalizedPath)) {
@@ -674,10 +672,7 @@ class ShopProfileService {
     );
   }
 
-  bool _isOwnedAboutCoverPath({
-    required String shopId,
-    required String path,
-  }) {
+  bool _isOwnedAboutCoverPath({required String shopId, required String path}) {
     if (shopId.isEmpty || path.isEmpty) {
       return false;
     }

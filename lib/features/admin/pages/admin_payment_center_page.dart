@@ -53,9 +53,7 @@ class _AdminPaymentCenterPageState extends State<AdminPaymentCenterPage> {
     return Scaffold(
       appBar: AppBar(
         title: Text(_isBookingMode ? '訂單交易紀錄' : '金流中心'),
-        actions: <Widget>[
-          ShopTaskCenterButton(shopId: widget.shopId),
-        ],
+        actions: <Widget>[ShopTaskCenterButton(shopId: widget.shopId)],
       ),
       body: StreamBuilder<List<PaymentModel>>(
         stream: _isBookingMode

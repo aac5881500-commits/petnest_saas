@@ -106,10 +106,7 @@ class _RegisterPageState extends State<RegisterPage> {
 
                 /// 錯誤訊息
                 if (_error != null)
-                  Text(
-                    _error!,
-                    style: const TextStyle(color: Colors.red),
-                  ),
+                  Text(_error!, style: const TextStyle(color: Colors.red)),
 
                 const SizedBox(height: 12),
 

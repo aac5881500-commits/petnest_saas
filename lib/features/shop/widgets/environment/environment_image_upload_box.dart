@@ -78,15 +78,19 @@ class EnvironmentImageUploadBox extends StatelessWidget {
                         width: double.infinity,
                         height: double.infinity,
                         errorBuilder:
-                            (BuildContext context, Object error, StackTrace? stackTrace) {
-                          return const Center(
-                            child: Icon(
-                              Icons.broken_image_rounded,
-                              size: 42,
-                              color: Color(0xFFB87535),
-                            ),
-                          );
-                        },
+                            (
+                              BuildContext context,
+                              Object error,
+                              StackTrace? stackTrace,
+                            ) {
+                              return const Center(
+                                child: Icon(
+                                  Icons.broken_image_rounded,
+                                  size: 42,
+                                  color: Color(0xFFB87535),
+                                ),
+                              );
+                            },
                       )
                     else
                       const Center(
@@ -102,10 +106,7 @@ class EnvironmentImageUploadBox extends StatelessWidget {
                           gradient: LinearGradient(
                             begin: Alignment.topCenter,
                             end: Alignment.bottomCenter,
-                            colors: [
-                              Color(0x0D000000),
-                              Color(0x8C000000),
-                            ],
+                            colors: [Color(0x0D000000), Color(0x8C000000)],
                           ),
                         ),
                       )
@@ -115,7 +116,9 @@ class EnvironmentImageUploadBox extends StatelessWidget {
                       Positioned(
                         left: 16,
                         right: 16,
-                        bottom: frame.slot == EnvironmentImageSlot.hero ? 14 : null,
+                        bottom: frame.slot == EnvironmentImageSlot.hero
+                            ? 14
+                            : null,
                         top: frame.slot == EnvironmentImageSlot.middleBanner
                             ? 0
                             : null,
@@ -182,7 +185,8 @@ class EnvironmentImageUploadBox extends StatelessWidget {
           children: [
             _chip(
               label: '精簡',
-              selected: frame.heightPreset ==
+              selected:
+                  frame.heightPreset ==
                   EnvironmentImageFrameSetting.heightCompact,
               onSelected: () {
                 onFrameChanged(
@@ -194,7 +198,8 @@ class EnvironmentImageUploadBox extends StatelessWidget {
             ),
             _chip(
               label: '標準',
-              selected: frame.heightPreset ==
+              selected:
+                  frame.heightPreset ==
                   EnvironmentImageFrameSetting.heightStandard,
               onSelected: () {
                 onFrameChanged(
@@ -207,7 +212,8 @@ class EnvironmentImageUploadBox extends StatelessWidget {
             _chip(
               label: '大型',
               selected:
-                  frame.heightPreset == EnvironmentImageFrameSetting.heightLarge,
+                  frame.heightPreset ==
+                  EnvironmentImageFrameSetting.heightLarge,
               onSelected: () {
                 onFrameChanged(
                   frame.copyWith(
@@ -257,7 +263,8 @@ class EnvironmentImageUploadBox extends StatelessWidget {
             children: [
               _chip(
                 label: '上方',
-                selected: frame.imageAlignment ==
+                selected:
+                    frame.imageAlignment ==
                     EnvironmentImageFrameSetting.alignTop,
                 onSelected: () {
                   onFrameChanged(
@@ -269,7 +276,8 @@ class EnvironmentImageUploadBox extends StatelessWidget {
               ),
               _chip(
                 label: '置中',
-                selected: frame.imageAlignment ==
+                selected:
+                    frame.imageAlignment ==
                     EnvironmentImageFrameSetting.alignCenter,
                 onSelected: () {
                   onFrameChanged(
@@ -281,7 +289,8 @@ class EnvironmentImageUploadBox extends StatelessWidget {
               ),
               _chip(
                 label: '下方',
-                selected: frame.imageAlignment ==
+                selected:
+                    frame.imageAlignment ==
                     EnvironmentImageFrameSetting.alignBottom,
                 onSelected: () {
                   onFrameChanged(
@@ -308,9 +317,7 @@ class EnvironmentImageUploadBox extends StatelessWidget {
                   )
                 : const Icon(Icons.upload_rounded),
             label: Text(
-              uploading
-                  ? '圖片處理中...'
-                  : (_hasImage ? '更換$title' : '上傳$title'),
+              uploading ? '圖片處理中...' : (_hasImage ? '更換$title' : '上傳$title'),
             ),
           ),
         ),
@@ -342,9 +349,7 @@ class EnvironmentImageUploadBox extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Icon(
-              selected
-                  ? Icons.radio_button_checked
-                  : Icons.radio_button_off,
+              selected ? Icons.radio_button_checked : Icons.radio_button_off,
               size: 22,
               color: const Color(0xFFB87535),
             ),

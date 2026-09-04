@@ -45,13 +45,7 @@ enum InventorySourceType {
 }
 
 /// 手動出庫原因
-enum InventoryOutboundReason {
-  inStoreUse,
-  damaged,
-  expired,
-  gift,
-  other,
-}
+enum InventoryOutboundReason { inStoreUse, damaged, expired, gift, other }
 
 /// 住宿耗材扣除方式
 enum BookingSupplyDeductionMode {
@@ -62,12 +56,7 @@ enum BookingSupplyDeductionMode {
 }
 
 /// 庫存狀態
-enum InventoryStockStatus {
-  normal,
-  low,
-  outOfStock,
-  disabled,
-}
+enum InventoryStockStatus { normal, low, outOfStock, disabled }
 
 class InventoryConstants {
   InventoryConstants._();
@@ -293,10 +282,7 @@ class InventoryConstants {
     return num.parse(value.toStringAsFixed(8));
   }
 
-  static num batchTotalCost({
-    required num quantity,
-    required num unitCost,
-  }) {
+  static num batchTotalCost({required num quantity, required num unitCost}) {
     return roundMoney(quantity * unitCost);
   }
 

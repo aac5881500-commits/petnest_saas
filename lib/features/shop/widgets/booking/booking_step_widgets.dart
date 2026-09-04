@@ -9,13 +9,13 @@ class BookingStepIndicator extends StatelessWidget {
     super.key,
     required this.currentStep,
     required this.theme,
+    this.labels = const <String>['日期與貓咪', '房型與服務', '費用與確認'],
   });
 
   /// 1 = 日期與貓咪、2 = 房型與服務、3 = 費用與確認
   final int currentStep;
   final HomeThemeModel theme;
-
-  static const List<String> labels = <String>['日期與貓咪', '房型與服務', '費用與確認'];
+  final List<String> labels;
 
   @override
   Widget build(BuildContext context) {
@@ -26,14 +26,10 @@ class BookingStepIndicator extends StatelessWidget {
           final int step = index + 1;
           final bool completed = step < currentStep;
           final bool active = step == currentStep;
-          final Color circleColor = completed
-              ? const Color(0xFF2E8B47)
-              : active
+          final Color circleColor = completed || active
               ? theme.primaryColor
               : theme.cardBorderColor;
-          final Color textColor = completed
-              ? const Color(0xFF2E8B47)
-              : active
+          final Color textColor = completed || active
               ? theme.textColor
               : theme.textColor.withValues(alpha: 0.45);
 

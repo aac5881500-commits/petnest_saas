@@ -13,11 +13,9 @@ class ShopCardMediaService {
 
   static final instance = ShopCardMediaService._();
 
-  final FirebaseFirestore _firestore =
-      FirebaseFirestore.instance;
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
-  final FirebaseStorage _storage =
-      FirebaseStorage.instance;
+  final FirebaseStorage _storage = FirebaseStorage.instance;
 
   static const int maxImageBytes = 5 * 1024 * 1024;
 
@@ -55,25 +53,20 @@ class ShopCardMediaService {
       throw Exception('圖片不可超過 5MB');
     }
 
-    final shopRef =
-        _firestore.collection('shops').doc(shopId);
+    final shopRef = _firestore.collection('shops').doc(shopId);
 
     final oldDoc = await shopRef.get();
-    final oldUrl =
-        oldDoc.data()?[fieldName]?.toString() ?? '';
+    final oldUrl = oldDoc.data()?[fieldName]?.toString() ?? '';
 
-    final fileName =
-        '${DateTime.now().millisecondsSinceEpoch}.jpg';
+    final fileName = '${DateTime.now().millisecondsSinceEpoch}.jpg';
 
     final storageRef = _storage.ref().child(
-          'shops/$shopId/$folderName/$fileName',
-        );
+      'shops/$shopId/$folderName/$fileName',
+    );
 
     await storageRef.putData(
       bytes,
-      SettableMetadata(
-        contentType: 'image/jpeg',
-      ),
+      SettableMetadata(contentType: 'image/jpeg'),
     );
 
     final newUrl = await storageRef.getDownloadURL();

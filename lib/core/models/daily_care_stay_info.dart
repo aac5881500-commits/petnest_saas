@@ -167,10 +167,7 @@ class DailyCareStayInfo {
         continue;
       }
       pets.add(
-        DailyCareStayPet(
-          name: name.isEmpty ? '毛孩' : name,
-          photoUrl: photoUrl,
-        ),
+        DailyCareStayPet(name: name.isEmpty ? '毛孩' : name, photoUrl: photoUrl),
       );
     }
     return pets;

@@ -32,9 +32,7 @@ class DailyCareCardSurface extends StatelessWidget {
       child: Stack(
         fit: StackFit.passthrough,
         children: <Widget>[
-          const Positioned.fill(
-            child: ColoredBox(color: Color(0xFFFFFDFB)),
-          ),
+          const Positioned.fill(child: ColoredBox(color: Color(0xFFFFFDFB))),
           if (setting.hasCardBackgroundVisual)
             Positioned.fill(
               child: DailyCareCardBackgroundFill(setting: setting),
@@ -56,9 +54,7 @@ class DailyCareCardSurface extends StatelessWidget {
             padding: padding,
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(radius),
-              border: Border.all(
-                color: colors.outline.withValues(alpha: 0.08),
-              ),
+              border: Border.all(color: colors.outline.withValues(alpha: 0.08)),
             ),
             child: child,
           ),
@@ -97,8 +93,8 @@ class DailyCareCardBackgroundFill extends StatelessWidget {
     if (setting.hasCustomCardBackgroundImage) {
       return _networkFill(
         url: setting.cardBackgroundImageUrl,
-        repeat: setting.cardBackgroundImageFit ==
-            DailyCareJournalTheme.fitContain,
+        repeat:
+            setting.cardBackgroundImageFit == DailyCareJournalTheme.fitContain,
       );
     }
 
@@ -106,25 +102,19 @@ class DailyCareCardBackgroundFill extends StatelessWidget {
     if (preset.hasAsset) {
       return _assetFill(
         assetPath: preset.assetPath,
-        repeat: setting.cardBackgroundImageFit ==
-            DailyCareJournalTheme.fitContain,
+        repeat:
+            setting.cardBackgroundImageFit == DailyCareJournalTheme.fitContain,
         fallbackKey: preset.key,
       );
     }
 
     return CustomPaint(
       size: Size(width, height),
-      painter: DailyCareCardPresetPainter(
-        presetKey: preset.key,
-        sparse: true,
-      ),
+      painter: DailyCareCardPresetPainter(presetKey: preset.key, sparse: true),
     );
   }
 
-  Widget _networkFill({
-    required String url,
-    required bool repeat,
-  }) {
+  Widget _networkFill({required String url, required bool repeat}) {
     return DecoratedBox(
       decoration: BoxDecoration(
         image: DecorationImage(

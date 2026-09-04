@@ -41,14 +41,14 @@ class StorePromotionService {
         .where('enabled', isEqualTo: true)
         .snapshots()
         .map((QuerySnapshot<Map<String, dynamic>> snapshot) {
-      return snapshot.docs
-          .map(
-            (QueryDocumentSnapshot<Map<String, dynamic>> doc) =>
-                StorePromotionModel.fromMap(id: doc.id, data: doc.data()),
-          )
-          .where((StorePromotionModel item) => !item.archived)
-          .toList();
-    });
+          return snapshot.docs
+              .map(
+                (QueryDocumentSnapshot<Map<String, dynamic>> doc) =>
+                    StorePromotionModel.fromMap(id: doc.id, data: doc.data()),
+              )
+              .where((StorePromotionModel item) => !item.archived)
+              .toList();
+        });
   }
 
   Future<String> savePromotion({
@@ -75,8 +75,9 @@ class StorePromotionService {
   }
 
   Future<List<StorePromotionModel>> listPromotions(String shopId) async {
-    final QuerySnapshot<Map<String, dynamic>> snapshot =
-        await promotionsRef(shopId).get();
+    final QuerySnapshot<Map<String, dynamic>> snapshot = await promotionsRef(
+      shopId,
+    ).get();
     return snapshot.docs
         .map(
           (QueryDocumentSnapshot<Map<String, dynamic>> doc) =>
@@ -111,8 +112,11 @@ class StorePromotionService {
           other.type == StorePromotionTypes.storewide) {
         return true;
       }
-      final bool sameProduct = candidate.productIds.any(other.productIds.contains);
-      final bool sameCategory = candidate.categoryId.trim().isNotEmpty &&
+      final bool sameProduct = candidate.productIds.any(
+        other.productIds.contains,
+      );
+      final bool sameCategory =
+          candidate.categoryId.trim().isNotEmpty &&
           candidate.categoryId == other.categoryId;
       return sameProduct || sameCategory;
     }).toList();

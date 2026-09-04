@@ -68,8 +68,8 @@ class NotificationCenterPage extends StatelessWidget {
 
         case 'shop_chat':
           final String shopId = notification.shopId;
-          final String threadId =
-              (notification.data['threadId'] ?? '').toString();
+          final String threadId = (notification.data['threadId'] ?? '')
+              .toString();
           if (shopId.isNotEmpty && threadId.isNotEmpty) {
             await FcmMessageService.instance.openShopChat(
               shopId: shopId,

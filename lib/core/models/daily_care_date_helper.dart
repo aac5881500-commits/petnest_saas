@@ -124,8 +124,9 @@ class DailyCareDateHelper {
     if (checkIn == null || checkOut == null) {
       return true;
     }
-    return careDateKeys(checkIn: checkIn, checkOut: checkOut).contains(
-      dateKey(date),
-    );
+    return careDateKeys(
+      checkIn: checkIn,
+      checkOut: checkOut,
+    ).contains(dateKey(date));
   }
 }

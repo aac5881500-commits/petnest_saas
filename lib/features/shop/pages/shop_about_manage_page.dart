@@ -8,12 +8,14 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:petnest_saas/core/models/about_cover_frame_setting.dart';
+import 'package:petnest_saas/core/models/fixed_image_spec.dart';
 import 'package:petnest_saas/core/models/home_theme_model.dart';
 import 'package:petnest_saas/core/services/shop_profile_service.dart';
 import 'package:petnest_saas/core/services/shop_service.dart';
 import 'package:petnest_saas/features/shop/pages/shop_about_page.dart';
 import 'package:petnest_saas/features/shop/widgets/about/about_cover_image_box.dart';
-import 'package:petnest_saas/features/shop/widgets/media/banner_image_crop_page.dart';
+import 'package:petnest_saas/features/shop/widgets/media/fixed_aspect_image_crop_page.dart';
+import 'package:petnest_saas/features/shop/widgets/media/fixed_image_spec_hint.dart';
 
 class ShopAboutManagePage extends StatefulWidget {
   const ShopAboutManagePage({super.key, required this.shopId});
@@ -94,16 +96,16 @@ class _ShopAboutManagePageState extends State<ShopAboutManagePage> {
   }
 
   Future<void> _loadAboutData() async {
-    final DocumentSnapshot<Map<String, dynamic>> doc =
-        await FirebaseFirestore.instance
-            .collection('shops')
-            .doc(widget.shopId)
-            .get();
+    final DocumentSnapshot<Map<String, dynamic>> doc = await FirebaseFirestore
+        .instance
+        .collection('shops')
+        .doc(widget.shopId)
+        .get();
 
     final Map<String, dynamic> data = doc.data() ?? <String, dynamic>{};
 
-    _titleController.text =
-        (data['aboutTitle'] ?? '用心照顧每一隻貓咪，讓牠們在這裡安心生活。').toString();
+    _titleController.text = (data['aboutTitle'] ?? '用心照顧每一隻貓咪，讓牠們在這裡安心生活。')
+        .toString();
     _descriptionController.text =
         (data['aboutDescription'] ??
                 '我們相信，每一隻貓咪都是家人。當您需要暫時離開時，我們會像您一樣，用心陪伴與照顧。')
@@ -188,7 +190,9 @@ class _ShopAboutManagePageState extends State<ShopAboutManagePage> {
     if (!mounted) {
       return;
     }
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 
   Future<void> _pickAndUploadAboutImage() async {
@@ -249,13 +253,11 @@ class _ShopAboutManagePageState extends State<ShopAboutManagePage> {
         return;
       }
 
-      final Uint8List? croppedBytes = await BannerImageCropPage.open(
+      final Uint8List? croppedBytes = await FixedAspectImageCropPage.open(
         context: context,
         imageBytes: originalBytes,
-        cropAspectRatio: AboutCoverFrameSetting.cropAspectRatio,
-        outputWidth: AboutCoverFrameSetting.outputWidth,
-        outputHeight: AboutCoverFrameSetting.outputHeight,
-        hintText: '框內區域就是前台關於我們封面主要顯示範圍。可拖曳、縮放圖片來選擇實際要顯示的內容。',
+        spec: FixedImageSpec.aboutCover,
+        title: '裁切關於我們封面',
       );
 
       if (croppedBytes == null || !mounted) {
@@ -278,11 +280,8 @@ class _ShopAboutManagePageState extends State<ShopAboutManagePage> {
         _busyMessage = '正在上傳圖片…';
       });
 
-      final ShopAboutCoverImageUpload uploaded =
-          await ShopService.instance.uploadAboutCoverImage(
-        shopId: widget.shopId,
-        bytes: croppedBytes,
-      );
+      final ShopAboutCoverImageUpload uploaded = await ShopService.instance
+          .uploadAboutCoverImage(shopId: widget.shopId, bytes: croppedBytes);
 
       if (!mounted) {
         await ShopService.instance.tryDeleteAboutCoverImage(
@@ -338,9 +337,7 @@ class _ShopAboutManagePageState extends State<ShopAboutManagePage> {
       builder: (BuildContext dialogContext) {
         return AlertDialog(
           title: const Text('移除自訂封面圖'),
-          content: const Text(
-            '移除後將恢復使用系統預設封面。自訂圖片也會從伺服器中刪除。',
-          ),
+          content: const Text('移除後將恢復使用系統預設封面。自訂圖片也會從伺服器中刪除。'),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(dialogContext, false),
@@ -379,14 +376,14 @@ class _ShopAboutManagePageState extends State<ShopAboutManagePage> {
     });
 
     try {
-      await FirebaseFirestore.instance.collection('shops').doc(widget.shopId).set(
-        {
-          'aboutImageUrl': '',
-          'aboutImageStoragePath': '',
-          'updatedAt': FieldValue.serverTimestamp(),
-        },
-        SetOptions(merge: true),
-      );
+      await FirebaseFirestore.instance
+          .collection('shops')
+          .doc(widget.shopId)
+          .set({
+            'aboutImageUrl': '',
+            'aboutImageStoragePath': '',
+            'updatedAt': FieldValue.serverTimestamp(),
+          }, SetOptions(merge: true));
 
       if (removingPending && pending != null) {
         await _cleanupTracked(pending, reason: 'removed-unsaved');
@@ -426,9 +423,7 @@ class _ShopAboutManagePageState extends State<ShopAboutManagePage> {
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(
-            cleaned ? '已恢復系統預設封面' : '照片已移除，但舊圖片清理失敗，請稍後再試。',
-          ),
+          content: Text(cleaned ? '已恢復系統預設封面' : '照片已移除，但舊圖片清理失敗，請稍後再試。'),
         ),
       );
     } catch (_) {
@@ -454,29 +449,30 @@ class _ShopAboutManagePageState extends State<ShopAboutManagePage> {
     });
 
     try {
-      await FirebaseFirestore.instance.collection('shops').doc(widget.shopId).set(
-        {
-          'aboutTitle': _titleController.text.trim(),
-          'aboutDescription': _descriptionController.text.trim(),
-          'aboutMessage': _messageController.text.trim(),
-          'aboutImageUrl': _aboutImageUrl,
-          'aboutImageStoragePath': _aboutImagePath,
-          ..._frame.toMap(),
-          'updatedAt': FieldValue.serverTimestamp(),
-        },
-        SetOptions(merge: true),
-      );
+      await FirebaseFirestore.instance
+          .collection('shops')
+          .doc(widget.shopId)
+          .set({
+            'aboutTitle': _titleController.text.trim(),
+            'aboutDescription': _descriptionController.text.trim(),
+            'aboutMessage': _messageController.text.trim(),
+            'aboutImageUrl': _aboutImageUrl,
+            'aboutImageStoragePath': _aboutImagePath,
+            ..._frame.toMap(),
+            'updatedAt': FieldValue.serverTimestamp(),
+          }, SetOptions(merge: true));
 
       bool cleanupFailed = false;
       final _TrackedAboutImage? retired = _retiredOfficial;
       if (retired != null &&
           retired.path != _aboutImagePath &&
           retired.url != _aboutImageUrl) {
-        final bool cleaned = await ShopService.instance.tryDeleteAboutCoverImage(
-          shopId: widget.shopId,
-          imageStoragePath: retired.path,
-          imageUrl: retired.url,
-        );
+        final bool cleaned = await ShopService.instance
+            .tryDeleteAboutCoverImage(
+              shopId: widget.shopId,
+              imageStoragePath: retired.path,
+              imageUrl: retired.url,
+            );
         if (!cleaned) {
           cleanupFailed = true;
         }
@@ -499,9 +495,7 @@ class _ShopAboutManagePageState extends State<ShopAboutManagePage> {
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(
-            cleanupFailed ? '設定已儲存，但舊圖片清理失敗，請稍後再試。' : '關於我們已儲存',
-          ),
+          content: Text(cleanupFailed ? '設定已儲存，但舊圖片清理失敗，請稍後再試。' : '關於我們已儲存'),
         ),
       );
     } catch (_) {
@@ -536,9 +530,7 @@ class _ShopAboutManagePageState extends State<ShopAboutManagePage> {
 
     if (_imageBusy) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(_saving ? '儲存中，請稍候再離開' : '圖片處理中，請稍候再離開'),
-        ),
+        SnackBar(content: Text(_saving ? '儲存中，請稍候再離開' : '圖片處理中，請稍候再離開')),
       );
       return;
     }
@@ -695,6 +687,7 @@ class _ShopAboutManagePageState extends State<ShopAboutManagePage> {
                   ),
                   const SizedBox(height: 16),
                   _sectionTitle('關於我們封面圖'),
+                  const FixedImageSpecHint(spec: FixedImageSpec.aboutCover),
                   const SizedBox(height: 8),
                   Container(
                     width: double.infinity,
@@ -813,10 +806,7 @@ class _ShopAboutManagePageState extends State<ShopAboutManagePage> {
 }
 
 class _TrackedAboutImage {
-  const _TrackedAboutImage({
-    required this.path,
-    required this.url,
-  });
+  const _TrackedAboutImage({required this.path, required this.url});
 
   final String path;
   final String url;

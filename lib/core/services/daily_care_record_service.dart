@@ -291,32 +291,35 @@ class DailyCareRecordService {
           sessionIndex: index,
         );
         subscriptions.add(
-          _collection.doc(recordId).snapshots().listen(
-            (DocumentSnapshot<Map<String, dynamic>> snapshot) {
-              final Map<String, dynamic>? data = snapshot.data();
-              if (snapshot.exists && data != null) {
-                byId[recordId] = DailyCareRecordModel.fromMap(
-                  id: snapshot.id,
-                  map: data,
-                );
-              } else {
-                byId.remove(recordId);
-              }
-              emit();
-            },
-            onError: (Object error, StackTrace stackTrace) {
-              _logQueryFailure(
-                bookingId: bookingId,
-                shopId: null,
-                error: error,
-                stackTrace: stackTrace,
-                extra: 'recordId=$recordId',
-              );
-              if (!controller.isClosed) {
-                controller.addError(error, stackTrace);
-              }
-            },
-          ),
+          _collection
+              .doc(recordId)
+              .snapshots()
+              .listen(
+                (DocumentSnapshot<Map<String, dynamic>> snapshot) {
+                  final Map<String, dynamic>? data = snapshot.data();
+                  if (snapshot.exists && data != null) {
+                    byId[recordId] = DailyCareRecordModel.fromMap(
+                      id: snapshot.id,
+                      map: data,
+                    );
+                  } else {
+                    byId.remove(recordId);
+                  }
+                  emit();
+                },
+                onError: (Object error, StackTrace stackTrace) {
+                  _logQueryFailure(
+                    bookingId: bookingId,
+                    shopId: null,
+                    error: error,
+                    stackTrace: stackTrace,
+                    extra: 'recordId=$recordId',
+                  );
+                  if (!controller.isClosed) {
+                    controller.addError(error, stackTrace);
+                  }
+                },
+              ),
         );
       }
     }
@@ -372,8 +375,7 @@ class DailyCareRecordService {
       return Stream<Set<int>>.value(const <int>{});
     }
 
-    final StreamController<Set<int>> controller =
-        StreamController<Set<int>>();
+    final StreamController<Set<int>> controller = StreamController<Set<int>>();
     final Set<int> filled = <int>{};
     final List<StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>>
     subscriptions =

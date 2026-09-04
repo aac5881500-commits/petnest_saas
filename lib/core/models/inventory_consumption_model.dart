@@ -107,7 +107,9 @@ class InventoryConsumptionModel {
       for (final Object? rawLine in rawLines) {
         if (rawLine is Map) {
           lines.add(
-            InventoryConsumptionLine.fromMap(Map<String, dynamic>.from(rawLine)),
+            InventoryConsumptionLine.fromMap(
+              Map<String, dynamic>.from(rawLine),
+            ),
           );
         }
       }

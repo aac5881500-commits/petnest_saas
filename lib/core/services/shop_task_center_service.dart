@@ -145,18 +145,20 @@ class ShopTaskCenterService {
     }
 
     subscriptions.add(
-      DailyCareSettingService.instance.streamSetting(normalizedShopId).listen(
-        (DailyCareSettingModel next) {
-          setting = next;
-          settingReady = true;
-          hasError = false;
-          bindRecordListeners();
-        },
-        onError: (_) {
-          hasError = true;
-          emit();
-        },
-      ),
+      DailyCareSettingService.instance
+          .streamSetting(normalizedShopId)
+          .listen(
+            (DailyCareSettingModel next) {
+              setting = next;
+              settingReady = true;
+              hasError = false;
+              bindRecordListeners();
+            },
+            onError: (_) {
+              hasError = true;
+              emit();
+            },
+          ),
     );
 
     subscriptions.add(
@@ -280,7 +282,9 @@ class ShopTaskCenterService {
               ].join(' '),
               subtitle: setting.sessionLabel(index),
               statusLabel: '待填',
-              createdAt: _readDate(booking['checkedInAt'] ?? booking['checkInAt']),
+              createdAt: _readDate(
+                booking['checkedInAt'] ?? booking['checkInAt'],
+              ),
               priority: index,
               iconKey: 'dailyCare',
               targetType: 'dailyCareRecord',
@@ -371,8 +375,10 @@ class ShopTaskCenterService {
       if (typeCompare != 0) {
         return typeCompare;
       }
-      final DateTime aTime = a.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
-      final DateTime bTime = b.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+      final DateTime aTime =
+          a.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+      final DateTime bTime =
+          b.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
       return bTime.compareTo(aTime);
     });
 

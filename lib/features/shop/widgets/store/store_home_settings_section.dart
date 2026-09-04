@@ -3,10 +3,12 @@
 
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/constants/store_constants.dart';
+import 'package:petnest_saas/core/models/fixed_image_spec.dart';
 import 'package:petnest_saas/core/models/store_appearance_model.dart';
 import 'package:petnest_saas/core/services/inventory_image_service.dart';
 import 'package:petnest_saas/core/services/store_settings_service.dart';
 import 'package:petnest_saas/features/shop/pages/store/shop_store_banner_editor_page.dart';
+import 'package:petnest_saas/features/shop/widgets/media/fixed_image_pick_flow.dart';
 
 class StoreHomeSettingsDraft {
   StoreHomeSettingsDraft({
@@ -65,19 +67,20 @@ class _StoreHomeSettingsSectionState extends State<StoreHomeSettingsSection> {
       return;
     }
     try {
-      final image = await InventoryImageService.instance.pickAndValidateImage();
-      if (image == null) {
-        return;
-      }
       final String id = 'banner_${DateTime.now().millisecondsSinceEpoch}';
-      final result = await InventoryImageService.instance.uploadImage(
+      final result = await FixedImagePickFlow.pickCropAndUpload(
+        context: context,
+        spec: FixedImageSpec.storeBanner,
+        title: '裁切商城活動海報',
         shopId: widget.shopId,
         itemId: '$id/p_${DateTime.now().millisecondsSinceEpoch}',
-        image: image,
         folder: StoreConstants.bannerImageFolder,
         imageType: 'store_banner',
         idMetadataKey: 'bannerId',
       );
+      if (result == null) {
+        return;
+      }
       final StoreBannerModel created = StoreBannerModel(
         id: id,
         imageUrl: result.imageUrl,

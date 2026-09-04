@@ -35,11 +35,7 @@ class DaycareBookingValidator {
         return const DaycareValidationResult.error('未達最短安親時間');
       }
     }
-    if (minutes > settings.maxDurationMinutes) {
-      if (!settings.isRoomBased) {
-        return const DaycareValidationResult.error('已超過最長安親時間');
-      }
-    }
+    // maxDurationMinutes 僅相容舊欄位，新版不再用來阻擋送單。
     if (settings.forbidOvernight &&
         !DaycareTimeHelper.sameCalendarDay(startAt, endAt)) {
       return const DaycareValidationResult.error('此店家不接受跨日安親');
@@ -89,7 +85,10 @@ class DaycareBookingValidator {
     required bool missingVaccine,
     required bool blacklisted,
   }) {
-    if (petCount < settings.minPets || petCount > settings.maxPets) {
+    if (settings.maxPets > 0 && petCount > settings.maxPets) {
+      return const DaycareValidationResult.error('寵物數量不符合安親限制');
+    }
+    if (petCount < settings.minPets) {
       return const DaycareValidationResult.error('寵物數量不符合安親限制');
     }
     if (settings.allowedPetTypes.isNotEmpty) {

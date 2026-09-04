@@ -22,11 +22,7 @@ class ChatErrorProbe {
   /// 二分：未登入也可開聊天頁 header。正式路徑關閉。
   static const bool allowAnonymousHeader = false;
 
-  static void dump(
-    String source,
-    Object error,
-    StackTrace stack,
-  ) {
+  static void dump(String source, Object error, StackTrace stack) {
     print('========== $source ==========');
     print('runtimeType=${error.runtimeType}');
     print(error);

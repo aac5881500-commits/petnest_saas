@@ -5,10 +5,7 @@
 import 'package:flutter/material.dart';
 
 class AdminBookingExtraChargeSection extends StatelessWidget {
-  const AdminBookingExtraChargeSection({
-    super.key,
-    required this.data,
-  });
+  const AdminBookingExtraChargeSection({super.key, required this.data});
 
   final Map<String, dynamic> data;
 
@@ -24,105 +21,94 @@ class AdminBookingExtraChargeSection extends StatelessWidget {
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 10,
-          ),
+          BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10),
         ],
       ),
       child: (extraCharges ?? []).isEmpty
-          ? const Text(
-              '目前無額外費用',
-              style: TextStyle(color: Colors.grey),
-            )
+          ? const Text('目前無額外費用', style: TextStyle(color: Colors.grey))
           : Column(
-              children: List.generate(
-                (extraCharges as List).length,
-                (index) {
-                  final item = extraCharges[index];
-                  final title = item['title'] ?? '額外費用';
-                  final amount = item['amount'] ?? 0;
-                  final note = item['note'] ?? '';
-                  final imageUrls = (item['imageUrls'] ?? []) as List;
+              children: List.generate((extraCharges as List).length, (index) {
+                final item = extraCharges[index];
+                final title = item['title'] ?? '額外費用';
+                final amount = item['amount'] ?? 0;
+                final note = item['note'] ?? '';
+                final imageUrls = (item['imageUrls'] ?? []) as List;
 
-                  return Container(
-                    margin: const EdgeInsets.only(bottom: 12),
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: Colors.red.shade50,
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: Colors.red.shade100),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Text(
-                              title,
-                              style: const TextStyle(
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            Text(
-                              'NT\$ $amount',
-                              style: const TextStyle(
-                                color: Colors.red,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ],
-                        ),
-
-                        if (note.toString().isNotEmpty) ...[
-                          const SizedBox(height: 6),
+                return Container(
+                  margin: const EdgeInsets.only(bottom: 12),
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.red.shade50,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.red.shade100),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
                           Text(
-                            note.toString(),
-                            style: const TextStyle(color: Colors.black87),
+                            title,
+                            style: const TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                          Text(
+                            'NT\$ $amount',
+                            style: const TextStyle(
+                              color: Colors.red,
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
                         ],
+                      ),
 
-                        if (imageUrls.isNotEmpty) ...[
-                          const SizedBox(height: 10),
-                          Wrap(
-                            spacing: 8,
-                            runSpacing: 8,
-                            children: List.generate(imageUrls.length, (imgIndex) {
-                              final url = imageUrls[imgIndex].toString();
+                      if (note.toString().isNotEmpty) ...[
+                        const SizedBox(height: 6),
+                        Text(
+                          note.toString(),
+                          style: const TextStyle(color: Colors.black87),
+                        ),
+                      ],
 
-                              return GestureDetector(
-                                onTap: () {
-                                  showDialog(
-                                    context: context,
-                                    builder: (_) => Dialog(
-                                      child: InteractiveViewer(
-                                        child: Image.network(
-                                          url,
-                                          fit: BoxFit.contain,
-                                        ),
+                      if (imageUrls.isNotEmpty) ...[
+                        const SizedBox(height: 10),
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: List.generate(imageUrls.length, (imgIndex) {
+                            final url = imageUrls[imgIndex].toString();
+
+                            return GestureDetector(
+                              onTap: () {
+                                showDialog(
+                                  context: context,
+                                  builder: (_) => Dialog(
+                                    child: InteractiveViewer(
+                                      child: Image.network(
+                                        url,
+                                        fit: BoxFit.contain,
                                       ),
                                     ),
-                                  );
-                                },
-                                child: ClipRRect(
-                                  borderRadius: BorderRadius.circular(10),
-                                  child: Image.network(
-                                    url,
-                                    width: 80,
-                                    height: 80,
-                                    fit: BoxFit.cover,
                                   ),
+                                );
+                              },
+                              child: ClipRRect(
+                                borderRadius: BorderRadius.circular(10),
+                                child: Image.network(
+                                  url,
+                                  width: 80,
+                                  height: 80,
+                                  fit: BoxFit.cover,
                                 ),
-                              );
-                            }),
-                          ),
-                        ],
+                              ),
+                            );
+                          }),
+                        ),
                       ],
-                    ),
-                  );
-                },
-              ),
+                    ],
+                  ),
+                );
+              }),
             ),
     );
   }

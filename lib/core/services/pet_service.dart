@@ -36,14 +36,13 @@ class PetService {
   Future<void> uploadPetPhoto({
     required String petId,
     required Uint8List bytes,
+    bool alreadyProcessed = false,
   }) async {
     Uint8List uploadData;
 
-    if (kIsWeb) {
-      /// 🔥 Web：不能用 image 套件 → 直接上傳
+    if (alreadyProcessed || kIsWeb) {
       uploadData = bytes;
     } else {
-      /// 🔥 手機：壓縮圖片
       final image = img.decodeImage(bytes);
 
       if (image == null) throw Exception('圖片解析失敗');

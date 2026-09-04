@@ -43,11 +43,5 @@ DateTime? _parseTimeToday(String value) {
 
   final now = DateTime.now();
 
-  return DateTime(
-    now.year,
-    now.month,
-    now.day,
-    hour,
-    minute,
-  );
+  return DateTime(now.year, now.month, now.day, hour, minute);
 }

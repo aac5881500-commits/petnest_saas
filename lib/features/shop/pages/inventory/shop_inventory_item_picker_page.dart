@@ -66,44 +66,47 @@ class _ShopInventoryItemPickerPageState
               stream: InventoryService.instance.streamEnabledItems(
                 widget.shopId,
               ),
-              builder: (
-                BuildContext context,
-                AsyncSnapshot<List<InventoryItemModel>> snapshot,
-              ) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator());
-                }
+              builder:
+                  (
+                    BuildContext context,
+                    AsyncSnapshot<List<InventoryItemModel>> snapshot,
+                  ) {
+                    if (snapshot.connectionState == ConnectionState.waiting) {
+                      return const Center(child: CircularProgressIndicator());
+                    }
 
-                final List<InventoryItemModel> items =
-                    (snapshot.data ?? const <InventoryItemModel>[])
-                        .where(_matchesKeyword)
-                        .toList();
+                    final List<InventoryItemModel> items =
+                        (snapshot.data ?? const <InventoryItemModel>[])
+                            .where(_matchesKeyword)
+                            .toList();
 
-                if (items.isEmpty) {
-                  return Center(
-                    child: Text(
-                      '沒有可選的庫存品項',
-                      style: TextStyle(color: Colors.grey.shade600),
-                    ),
-                  );
-                }
+                    if (items.isEmpty) {
+                      return Center(
+                        child: Text(
+                          '沒有可選的庫存品項',
+                          style: TextStyle(color: Colors.grey.shade600),
+                        ),
+                      );
+                    }
 
-                return ListView.separated(
-                  padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
-                  itemCount: items.length,
-                  separatorBuilder: (BuildContext context, int index) =>
-                      const SizedBox(height: 10),
-                  itemBuilder: (BuildContext context, int index) {
-                    return _PickerItemTile(
-                      item: items[index],
-                      selected: items[index].id == widget.selectedItemId,
-                      occupied:
-                          widget.occupiedItemIds.contains(items[index].id) &&
-                          items[index].id != widget.selectedItemId,
+                    return ListView.separated(
+                      padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
+                      itemCount: items.length,
+                      separatorBuilder: (BuildContext context, int index) =>
+                          const SizedBox(height: 10),
+                      itemBuilder: (BuildContext context, int index) {
+                        return _PickerItemTile(
+                          item: items[index],
+                          selected: items[index].id == widget.selectedItemId,
+                          occupied:
+                              widget.occupiedItemIds.contains(
+                                items[index].id,
+                              ) &&
+                              items[index].id != widget.selectedItemId,
+                        );
+                      },
                     );
                   },
-                );
-              },
             ),
           ),
         ],

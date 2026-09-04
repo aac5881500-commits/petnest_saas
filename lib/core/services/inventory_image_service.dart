@@ -173,10 +173,7 @@ class InventoryImageService {
     String imageStoragePath = '',
   }) async {
     try {
-      await deleteImage(
-        imageUrl: imageUrl,
-        imageStoragePath: imageStoragePath,
-      );
+      await deleteImage(imageUrl: imageUrl, imageStoragePath: imageStoragePath);
     } catch (_) {
       // 清理舊圖失敗不影響主流程。
     }
@@ -205,6 +202,52 @@ class InventoryImageService {
 
       throw const InventoryException('圖片壓縮失敗，請改選其他圖片');
     }
+  }
+
+  Future<InventoryImageUploadResult> uploadBytes({
+    required String shopId,
+    required String itemId,
+    required Uint8List bytes,
+    String folder = InventoryConstants.imageFolder,
+    String imageType = 'inventory_cover',
+    String idMetadataKey = 'inventoryItemId',
+    String contentType = 'image/jpeg',
+  }) async {
+    final String normalizedShopId = shopId.trim();
+    final String normalizedItemId = itemId.trim();
+    if (normalizedShopId.isEmpty) {
+      throw const InventoryException('找不到店家資料');
+    }
+    if (normalizedItemId.isEmpty) {
+      throw const InventoryException('找不到庫存品項');
+    }
+    if (bytes.isEmpty) {
+      throw const InventoryException('讀取圖片失敗，請重新選擇圖片');
+    }
+    if (bytes.length > InventoryConstants.originalImageMaxBytes) {
+      throw const InventoryException('圖片大小不可超過 5MB');
+    }
+    final String path = storagePath(
+      shopId: normalizedShopId,
+      itemId: normalizedItemId,
+      folder: folder,
+    );
+    final Reference imageReference = _storage.ref(path);
+    await imageReference.putData(
+      bytes,
+      SettableMetadata(
+        contentType: contentType,
+        customMetadata: <String, String>{
+          'shopId': normalizedShopId,
+          idMetadataKey: normalizedItemId,
+          'imageType': imageType,
+        },
+      ),
+    );
+    return InventoryImageUploadResult(
+      imageUrl: await imageReference.getDownloadURL(),
+      imageStoragePath: path,
+    );
   }
 
   String _extractExtension(String fileName) {

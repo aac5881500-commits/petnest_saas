@@ -101,4 +101,43 @@ void main() {
       isFalse,
     );
   });
+
+  test('長時間安親不再被最長安親時間阻擋', () {
+    final DaycareValidationResult result =
+        DaycareBookingValidator.validateSchedule(
+          settings: const DaycareSettingsModel(
+            maxDurationMinutes: 480,
+            minDurationMinutes: 30,
+            forbidOvernight: true,
+            blockOutsideHours: false,
+            allowSameDay: true,
+          ),
+          startAt: DateTime(2026, 9, 1, 8),
+          endAt: DateTime(2026, 9, 1, 20),
+          isAdmin: true,
+        );
+    expect(result.isOk, isTrue);
+    expect(result.error, isNot(contains('最長安親')));
+  });
+
+  test('接回時間早於或等於送達時間顯示錯誤', () {
+    expect(
+      DaycareBookingValidator.validateSchedule(
+        settings: const DaycareSettingsModel(),
+        startAt: DateTime(2026, 9, 1, 12),
+        endAt: DateTime(2026, 9, 1, 12),
+        isAdmin: true,
+      ).error,
+      '送達時間不得晚於接回時間',
+    );
+    expect(
+      DaycareBookingValidator.validateSchedule(
+        settings: const DaycareSettingsModel(),
+        startAt: DateTime(2026, 9, 1, 12),
+        endAt: DateTime(2026, 9, 1, 10),
+        isAdmin: true,
+      ).isOk,
+      isFalse,
+    );
+  });
 }

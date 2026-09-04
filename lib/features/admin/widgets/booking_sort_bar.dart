@@ -47,29 +47,14 @@ class BookingSortBar extends StatelessWidget {
             ),
             itemBuilder: (context) {
               return const [
-                PopupMenuItem(
-                  value: 'startDesc',
-                  child: Text('入住日新到舊'),
-                ),
-                PopupMenuItem(
-                  value: 'startAsc',
-                  child: Text('入住日舊到新'),
-                ),
-                PopupMenuItem(
-                  value: 'createdDesc',
-                  child: Text('下訂新到舊'),
-                ),
-                PopupMenuItem(
-                  value: 'createdAsc',
-                  child: Text('下訂舊到新'),
-                ),
+                PopupMenuItem(value: 'startDesc', child: Text('入住日新到舊')),
+                PopupMenuItem(value: 'startAsc', child: Text('入住日舊到新')),
+                PopupMenuItem(value: 'createdDesc', child: Text('下訂新到舊')),
+                PopupMenuItem(value: 'createdAsc', child: Text('下訂舊到新')),
               ];
             },
             child: Container(
-              padding: const EdgeInsets.symmetric(
-                horizontal: 12,
-                vertical: 9,
-              ),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
               decoration: BoxDecoration(
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(14),
@@ -83,40 +68,36 @@ class BookingSortBar extends StatelessWidget {
                 ],
               ),
               child: ConstrainedBox(
-  constraints: const BoxConstraints(maxWidth: 180),
-  child: Row(
-    mainAxisSize: MainAxisSize.min,
-    children: [
-                  Icon(
-                    Icons.sort,
-                    size: 16,
-                    color: Colors.grey.shade700,
-                  ),
-                  const SizedBox(width: 6),
-                  Flexible(
-  child: Text(
-    '排序：${_sortText(sortType)}',
-    maxLines: 1,
-    overflow: TextOverflow.ellipsis,
-    style: const TextStyle(
-      fontWeight: FontWeight.bold,
-      fontSize: 13,
-    ),
-  ),
-),
-                  const SizedBox(width: 4),
-                  Icon(
-                    Icons.keyboard_arrow_down,
-                    size: 18,
-                    color: Colors.grey.shade700,
-                  ),
-                ],
-                           ),
+                constraints: const BoxConstraints(maxWidth: 180),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.sort, size: 16, color: Colors.grey.shade700),
+                    const SizedBox(width: 6),
+                    Flexible(
+                      child: Text(
+                        '排序：${_sortText(sortType)}',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 13,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                    Icon(
+                      Icons.keyboard_arrow_down,
+                      size: 18,
+                      color: Colors.grey.shade700,
+                    ),
+                  ],
+                ),
+              ),
             ),
           ),
-        ),
 
-        const SizedBox(width: 8),
+          const SizedBox(width: 8),
 
           InkWell(
             borderRadius: BorderRadius.circular(12),

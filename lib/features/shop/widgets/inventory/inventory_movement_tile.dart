@@ -21,12 +21,13 @@ class InventoryMovementTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final Color accent = _accentColor(movement.type);
     final bool increase = movement.quantityChange > 0;
-    final String typeLabel = InventoryConstants.movementTypeLabel(movement.type);
+    final String typeLabel = InventoryConstants.movementTypeLabel(
+      movement.type,
+    );
     final String sourceLabel = InventoryConstants.sourceTypeLabel(
       movement.sourceType,
     );
-    final bool showSource =
-        sourceLabel.isNotEmpty && sourceLabel != typeLabel;
+    final bool showSource = sourceLabel.isNotEmpty && sourceLabel != typeLabel;
     final String changeText =
         '${increase ? '+' : ''}${InventoryConstants.formatQuantity(movement.quantityChange)} $unit';
 

@@ -121,8 +121,9 @@ class InventoryStockService {
         .batchesRef(shopId: shopId, itemId: itemId)
         .doc();
 
-    final DocumentReference<Map<String, dynamic>> movementReference =
-        _inventory.movementsRef(shopId: shopId, itemId: itemId).doc();
+    final DocumentReference<Map<String, dynamic>> movementReference = _inventory
+        .movementsRef(shopId: shopId, itemId: itemId)
+        .doc();
 
     await _firestore.runTransaction((Transaction transaction) async {
       final DocumentSnapshot<Map<String, dynamic>> itemSnapshot =
@@ -174,7 +175,9 @@ class InventoryStockService {
         'unitCost': InventoryConstants.roundMoney(unitCost),
         'totalCost': totalCost,
         'receivedAt': Timestamp.fromDate(receivedAt),
-        'expiryDate': expiryDate == null ? null : Timestamp.fromDate(expiryDate),
+        'expiryDate': expiryDate == null
+            ? null
+            : Timestamp.fromDate(expiryDate),
         'supplier': supplier.trim(),
         'note': note.trim(),
         'createdBy': operatorUid,
@@ -245,8 +248,9 @@ class InventoryStockService {
     final DocumentReference<Map<String, dynamic>> itemReference = _inventory
         .itemsRef(shopId)
         .doc(itemId.trim());
-    final DocumentReference<Map<String, dynamic>> movementReference =
-        _inventory.movementsRef(shopId: shopId, itemId: itemId).doc();
+    final DocumentReference<Map<String, dynamic>> movementReference = _inventory
+        .movementsRef(shopId: shopId, itemId: itemId)
+        .doc();
 
     await _firestore.runTransaction((Transaction transaction) async {
       final DocumentSnapshot<Map<String, dynamic>> itemSnapshot =
@@ -478,10 +482,7 @@ class InventoryStockService {
         lines: merged,
         note: note,
       );
-      commitPreparedConsumption(
-        transaction: transaction,
-        prepared: prepared,
-      );
+      commitPreparedConsumption(transaction: transaction, prepared: prepared);
       return;
     }
 
@@ -563,9 +564,7 @@ class InventoryStockService {
       }
 
       if (!isReturn && stockAfter < item.reservedQuantity) {
-        throw InventoryException(
-          '「${item.name}」可售庫存不足，部分數量已保留給商城訂單',
-        );
+        throw InventoryException('「${item.name}」可售庫存不足，部分數量已保留給商城訂單');
       }
 
       preparedLines.add(
@@ -789,8 +788,9 @@ class InventoryStockService {
     final DocumentReference<Map<String, dynamic>> itemReference = _inventory
         .itemsRef(shopId)
         .doc(itemId.trim());
-    final DocumentReference<Map<String, dynamic>> movementReference =
-        _inventory.movementsRef(shopId: shopId, itemId: itemId).doc();
+    final DocumentReference<Map<String, dynamic>> movementReference = _inventory
+        .movementsRef(shopId: shopId, itemId: itemId)
+        .doc();
 
     await _firestore.runTransaction((Transaction transaction) async {
       final DocumentSnapshot<Map<String, dynamic>> itemSnapshot =
@@ -846,7 +846,9 @@ class InventoryStockService {
     });
   }
 
-  List<InventoryStockLine> _addonLinesFromBooking(Map<String, dynamic> booking) {
+  List<InventoryStockLine> _addonLinesFromBooking(
+    Map<String, dynamic> booking,
+  ) {
     final Object? rawAddons = booking['addons'];
     if (rawAddons is! List) {
       return const <InventoryStockLine>[];
@@ -982,7 +984,8 @@ class InventoryStockService {
   }
 
   List<InventoryStockLine> _mergeLines(List<InventoryStockLine> lines) {
-    final Map<String, InventoryStockLine> merged = <String, InventoryStockLine>{};
+    final Map<String, InventoryStockLine> merged =
+        <String, InventoryStockLine>{};
 
     for (final InventoryStockLine line in lines) {
       final String itemId = line.inventoryItemId.trim();

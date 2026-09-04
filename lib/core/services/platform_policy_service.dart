@@ -35,8 +35,7 @@ class PlatformPolicyService {
 
     final doc = await _firestore.collection('users').doc(user.uid).get();
 
-    final acceptedVersion =
-        doc.data()?['acceptedPlatformPolicyVersion'] ?? 0;
+    final acceptedVersion = doc.data()?['acceptedPlatformPolicyVersion'] ?? 0;
 
     return acceptedVersion == currentVersion;
   }
@@ -64,11 +63,11 @@ class PlatformPolicyService {
         .collection('policy_acceptances')
         .doc('platform_user_policy_v$currentVersion')
         .set({
-      'type': 'platform_user_policy',
-      'version': currentVersion,
-      'acceptedAt': FieldValue.serverTimestamp(),
-      'acceptedByUid': user.uid,
-      'acceptedByEmail': user.email ?? '',
-    });
+          'type': 'platform_user_policy',
+          'version': currentVersion,
+          'acceptedAt': FieldValue.serverTimestamp(),
+          'acceptedByUid': user.uid,
+          'acceptedByEmail': user.email ?? '',
+        });
   }
 }

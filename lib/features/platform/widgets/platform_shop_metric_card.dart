@@ -29,9 +29,7 @@ class PlatformShopMetricCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: Colors.grey.shade200,
-        ),
+        border: Border.all(color: Colors.grey.shade200),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -43,11 +41,7 @@ class PlatformShopMetricCard extends StatelessWidget {
               color: iconColor.withOpacity(0.12),
               borderRadius: BorderRadius.circular(10),
             ),
-            child: Icon(
-              icon,
-              color: iconColor,
-              size: 18,
-            ),
+            child: Icon(icon, color: iconColor, size: 18),
           ),
 
           const SizedBox(height: 12),
@@ -76,10 +70,7 @@ class PlatformShopMetricCard extends StatelessWidget {
 
           Text(
             subtitle,
-            style: TextStyle(
-              fontSize: 11,
-              color: Colors.grey.shade500,
-            ),
+            style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
           ),
         ],
       ),

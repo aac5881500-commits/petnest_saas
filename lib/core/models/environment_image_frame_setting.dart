@@ -46,7 +46,9 @@ class EnvironmentImageFrameSetting {
       slot: EnvironmentImageSlot.hero,
       heightPreset: _readHeightPreset(map?['environmentHeroHeightPreset']),
       imageFit: _readImageFit(map?['environmentHeroImageFit']),
-      imageAlignment: _readImageAlignment(map?['environmentHeroImageAlignment']),
+      imageAlignment: _readImageAlignment(
+        map?['environmentHeroImageAlignment'],
+      ),
     );
   }
 

@@ -186,7 +186,8 @@ class StoreOrderItemModel {
       'purchaseQuantity': purchaseQuantity ?? quantity,
       'freeQuantity': freeQuantity,
       'fulfillmentQuantity':
-          fulfillmentQuantity ?? ((purchaseQuantity ?? quantity) + freeQuantity),
+          fulfillmentQuantity ??
+          ((purchaseQuantity ?? quantity) + freeQuantity),
       'originalSubtotal': originalSubtotal ?? (unitPrice * quantity),
       'discountAmount': discountAmount,
       'finalSubtotal': finalSubtotal ?? subtotal,
@@ -245,10 +246,12 @@ class StoreOrderBundleModel {
       bundlePromotionId: (data['bundlePromotionId'] ?? '').toString(),
       bundlePromotionName: (data['bundlePromotionName'] ?? '').toString(),
       bundleQuantity: StoreOrderItemModel._intFromValue(data['bundleQuantity']),
-      bundleOriginalPrice:
-          StoreOrderItemModel._intFromValue(data['bundleOriginalPrice']),
-      bundleFinalPrice:
-          StoreOrderItemModel._intFromValue(data['bundleFinalPrice']),
+      bundleOriginalPrice: StoreOrderItemModel._intFromValue(
+        data['bundleOriginalPrice'],
+      ),
+      bundleFinalPrice: StoreOrderItemModel._intFromValue(
+        data['bundleFinalPrice'],
+      ),
     );
   }
 }
@@ -364,11 +367,13 @@ class StoreOrderModel {
       subtotal: StoreOrderItemModel._intFromValue(data['subtotal']),
       shippingFee: StoreOrderItemModel._intFromValue(data['shippingFee']),
       totalAmount: StoreOrderItemModel._intFromValue(data['totalAmount']),
-      fulfillmentType: (data['fulfillmentType'] ?? StoreConstants.fulfillmentPickup)
+      fulfillmentType:
+          (data['fulfillmentType'] ?? StoreConstants.fulfillmentPickup)
+              .toString(),
+      status: (data['status'] ?? StoreConstants.statusPendingPayment)
           .toString(),
-      status: (data['status'] ?? StoreConstants.statusPendingPayment).toString(),
-      paymentStatus:
-          (data['paymentStatus'] ?? StoreConstants.paymentUnpaid).toString(),
+      paymentStatus: (data['paymentStatus'] ?? StoreConstants.paymentUnpaid)
+          .toString(),
       customerName: (data['customerName'] ?? '').toString(),
       customerPhone: (data['customerPhone'] ?? '').toString(),
       pickupNote: (data['pickupNote'] ?? '').toString(),
@@ -386,21 +391,23 @@ class StoreOrderModel {
       originalSubtotal: data['originalSubtotal'] == null
           ? null
           : StoreOrderItemModel._intFromValue(data['originalSubtotal']),
-      promotionDiscount:
-          StoreOrderItemModel._intFromValue(data['promotionDiscount']),
+      promotionDiscount: StoreOrderItemModel._intFromValue(
+        data['promotionDiscount'],
+      ),
       finalSubtotal: data['finalSubtotal'] == null
           ? null
           : StoreOrderItemModel._intFromValue(data['finalSubtotal']),
-      itemPromotionDiscount:
-          StoreOrderItemModel._intFromValue(data['itemPromotionDiscount']),
-      campaignDiscount:
-          StoreOrderItemModel._intFromValue(data['campaignDiscount']),
-      quantityDiscount:
-          StoreOrderItemModel._intFromValue(data['quantityDiscount']),
-      amountDiscount:
-          StoreOrderItemModel._intFromValue(data['amountDiscount']),
-      bundleDiscount:
-          StoreOrderItemModel._intFromValue(data['bundleDiscount']),
+      itemPromotionDiscount: StoreOrderItemModel._intFromValue(
+        data['itemPromotionDiscount'],
+      ),
+      campaignDiscount: StoreOrderItemModel._intFromValue(
+        data['campaignDiscount'],
+      ),
+      quantityDiscount: StoreOrderItemModel._intFromValue(
+        data['quantityDiscount'],
+      ),
+      amountDiscount: StoreOrderItemModel._intFromValue(data['amountDiscount']),
+      bundleDiscount: StoreOrderItemModel._intFromValue(data['bundleDiscount']),
       bundles: _bundlesFromValue(data['bundles']),
     );
   }
@@ -412,9 +419,8 @@ class StoreOrderModel {
     return raw
         .whereType<Map>()
         .map(
-          (Map<dynamic, dynamic> item) => StoreOrderBundleModel.fromMap(
-            Map<String, dynamic>.from(item),
-          ),
+          (Map<dynamic, dynamic> item) =>
+              StoreOrderBundleModel.fromMap(Map<String, dynamic>.from(item)),
         )
         .toList();
   }

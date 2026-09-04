@@ -58,80 +58,77 @@ class _StoreSettingsBasicPageState extends State<StoreSettingsBasicPage> {
     );
     await StoreSettingsService.instance.saveStoreAppearance(
       shopId: widget.shopId,
-      storeAppearance: home.storeAppearance.copyWith(
-        storeTitle: name,
-        storeSubtitle: subtitle,
-      ).toMap(),
+      storeAppearance: home.storeAppearance
+          .copyWith(storeTitle: name, storeSubtitle: subtitle)
+          .toMap(),
     );
     if (!mounted) {
       return;
     }
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('已儲存商城基本設定')),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('已儲存商城基本設定')));
   }
 
   @override
   Widget build(BuildContext context) {
     return StreamBuilder<Map<String, dynamic>>(
       stream: StoreSettingsService.instance.streamSettings(widget.shopId),
-      builder: (
-        BuildContext context,
-        AsyncSnapshot<Map<String, dynamic>> snapshot,
-      ) {
-        if (!_loaded && snapshot.hasData) {
-          final StoreHomeDisplaySettings home =
-              StoreHomeDisplaySettings.fromMap(snapshot.data!);
-          _storefrontEnabled = snapshot.data!['storefrontEnabled'] != false;
-          _storeName.text = home.storeName.isNotEmpty
-              ? home.storeName
-              : home.storeAppearance.storeTitle;
-          _storeSubtitle.text = home.hasStorefrontSubtitle
-              ? home.resolvedStorefrontSubtitle
-              : '';
-          _loaded = true;
-        }
-        return Scaffold(
-          appBar: AppBar(title: const Text('商城基本設定')),
-          body: ListView(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
-            children: <Widget>[
-              SwitchListTile(
-                contentPadding: EdgeInsets.zero,
-                title: const Text('商城啟用'),
-                subtitle: const Text('關閉後前台不顯示賣場入口'),
-                value: _storefrontEnabled,
-                onChanged: widget.canManage
-                    ? (bool value) =>
-                        setState(() => _storefrontEnabled = value)
-                    : null,
+      builder:
+          (BuildContext context, AsyncSnapshot<Map<String, dynamic>> snapshot) {
+            if (!_loaded && snapshot.hasData) {
+              final StoreHomeDisplaySettings home =
+                  StoreHomeDisplaySettings.fromMap(snapshot.data!);
+              _storefrontEnabled = snapshot.data!['storefrontEnabled'] != false;
+              _storeName.text = home.storeName.isNotEmpty
+                  ? home.storeName
+                  : home.storeAppearance.storeTitle;
+              _storeSubtitle.text = home.hasStorefrontSubtitle
+                  ? home.resolvedStorefrontSubtitle
+                  : '';
+              _loaded = true;
+            }
+            return Scaffold(
+              appBar: AppBar(title: const Text('商城基本設定')),
+              body: ListView(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
+                children: <Widget>[
+                  SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text('商城啟用'),
+                    subtitle: const Text('關閉後前台不顯示賣場入口'),
+                    value: _storefrontEnabled,
+                    onChanged: widget.canManage
+                        ? (bool value) =>
+                              setState(() => _storefrontEnabled = value)
+                        : null,
+                  ),
+                  TextField(
+                    controller: _storeName,
+                    enabled: widget.canManage,
+                    decoration: const InputDecoration(
+                      labelText: '商城名稱',
+                      hintText: 'PetNest 寵物商城',
+                      helperText: '留空則顯示「寵物賣場」',
+                    ),
+                  ),
+                  TextField(
+                    controller: _storeSubtitle,
+                    enabled: widget.canManage,
+                    maxLines: 2,
+                    decoration: const InputDecoration(
+                      labelText: '商城副標',
+                      hintText: '安心選購毛孩用品',
+                      helperText: '同時作為商城簡介，留空則不顯示',
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  if (widget.canManage)
+                    FilledButton(onPressed: _save, child: const Text('儲存')),
+                ],
               ),
-              TextField(
-                controller: _storeName,
-                enabled: widget.canManage,
-                decoration: const InputDecoration(
-                  labelText: '商城名稱',
-                  hintText: 'PetNest 寵物商城',
-                  helperText: '留空則顯示「寵物賣場」',
-                ),
-              ),
-              TextField(
-                controller: _storeSubtitle,
-                enabled: widget.canManage,
-                maxLines: 2,
-                decoration: const InputDecoration(
-                  labelText: '商城副標',
-                  hintText: '安心選購毛孩用品',
-                  helperText: '同時作為商城簡介，留空則不顯示',
-                ),
-              ),
-              const SizedBox(height: 20),
-              if (widget.canManage)
-                FilledButton(onPressed: _save, child: const Text('儲存')),
-            ],
-          ),
-        );
-      },
+            );
+          },
     );
   }
 }
@@ -192,146 +189,147 @@ class _StoreSettingsHomePageState extends State<StoreSettingsHomePage> {
     );
     await StoreSettingsService.instance.saveStoreAppearance(
       shopId: widget.shopId,
-      storeAppearance: home.storeAppearance.copyWith(
-        featuredTitle: _featuredTitle.text.trim(),
-        promoTitle: _promoTitle.text.trim(),
-        allProductsTitle: _allTitle.text.trim(),
-        latestTitle: _latestTitle.text.trim(),
-      ).toMap(),
+      storeAppearance: home.storeAppearance
+          .copyWith(
+            featuredTitle: _featuredTitle.text.trim(),
+            promoTitle: _promoTitle.text.trim(),
+            allProductsTitle: _allTitle.text.trim(),
+            latestTitle: _latestTitle.text.trim(),
+          )
+          .toMap(),
     );
     if (!mounted) {
       return;
     }
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('已儲存商城首頁設定')),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('已儲存商城首頁設定')));
   }
 
   @override
   Widget build(BuildContext context) {
     return StreamBuilder<Map<String, dynamic>>(
       stream: StoreSettingsService.instance.streamSettings(widget.shopId),
-      builder: (
-        BuildContext context,
-        AsyncSnapshot<Map<String, dynamic>> snapshot,
-      ) {
-        if (!_loaded && snapshot.hasData) {
-          final StoreHomeDisplaySettings home =
-              StoreHomeDisplaySettings.fromMap(snapshot.data!);
-          _announcement.text = home.announcement;
-          _showAnnouncement = home.showAnnouncement;
-          _showCategories = home.showCategories;
-          _showFeatured = home.showFeaturedProducts;
-          _showPromo = home.showPromoProducts;
-          _showLatest = snapshot.data!['showLatestProducts'] == true;
-          _featuredTitle.text = home.storeAppearance.featuredTitle;
-          _promoTitle.text = home.storeAppearance.promoTitle;
-          _allTitle.text = home.storeAppearance.allProductsTitle;
-          _latestTitle.text = home.storeAppearance.latestTitle;
-          _loaded = true;
-        }
-        return Scaffold(
-          appBar: AppBar(title: const Text('商城首頁')),
-          body: ListView(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
-            children: <Widget>[
-              TextField(
-                controller: _announcement,
-                enabled: widget.canManage,
-                maxLines: 2,
-                decoration: const InputDecoration(
-                  labelText: '商城公告',
-                  hintText: '例如：滿 NT\$1,800 送寵物浴巾',
-                ),
+      builder:
+          (BuildContext context, AsyncSnapshot<Map<String, dynamic>> snapshot) {
+            if (!_loaded && snapshot.hasData) {
+              final StoreHomeDisplaySettings home =
+                  StoreHomeDisplaySettings.fromMap(snapshot.data!);
+              _announcement.text = home.announcement;
+              _showAnnouncement = home.showAnnouncement;
+              _showCategories = home.showCategories;
+              _showFeatured = home.showFeaturedProducts;
+              _showPromo = home.showPromoProducts;
+              _showLatest = snapshot.data!['showLatestProducts'] == true;
+              _featuredTitle.text = home.storeAppearance.featuredTitle;
+              _promoTitle.text = home.storeAppearance.promoTitle;
+              _allTitle.text = home.storeAppearance.allProductsTitle;
+              _latestTitle.text = home.storeAppearance.latestTitle;
+              _loaded = true;
+            }
+            return Scaffold(
+              appBar: AppBar(title: const Text('商城首頁')),
+              body: ListView(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
+                children: <Widget>[
+                  TextField(
+                    controller: _announcement,
+                    enabled: widget.canManage,
+                    maxLines: 2,
+                    decoration: const InputDecoration(
+                      labelText: '商城公告',
+                      hintText: '例如：滿 NT\$1,800 送寵物浴巾',
+                    ),
+                  ),
+                  SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text('顯示商城公告'),
+                    value: _showAnnouncement,
+                    onChanged: widget.canManage
+                        ? (bool value) =>
+                              setState(() => _showAnnouncement = value)
+                        : null,
+                  ),
+                  SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text('顯示商品分類'),
+                    value: _showCategories,
+                    onChanged: widget.canManage
+                        ? (bool value) =>
+                              setState(() => _showCategories = value)
+                        : null,
+                  ),
+                  SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text('顯示精選商品'),
+                    value: _showFeatured,
+                    onChanged: widget.canManage
+                        ? (bool value) => setState(() => _showFeatured = value)
+                        : null,
+                  ),
+                  SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text('顯示優惠商品'),
+                    value: _showPromo,
+                    onChanged: widget.canManage
+                        ? (bool value) => setState(() => _showPromo = value)
+                        : null,
+                  ),
+                  SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text('顯示最新商品'),
+                    subtitle: const Text('前台區塊預留，可先設定'),
+                    value: _showLatest,
+                    onChanged: widget.canManage
+                        ? (bool value) => setState(() => _showLatest = value)
+                        : null,
+                  ),
+                  const SizedBox(height: 12),
+                  const Text(
+                    '區塊名稱',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
+                  ),
+                  const SizedBox(height: 4),
+                  const Text('留空使用系統預設。活動海報開關在「活動海報」。'),
+                  TextField(
+                    controller: _featuredTitle,
+                    enabled: widget.canManage,
+                    decoration: const InputDecoration(
+                      labelText: '精選商品標題',
+                      hintText: '精選商品',
+                    ),
+                  ),
+                  TextField(
+                    controller: _promoTitle,
+                    enabled: widget.canManage,
+                    decoration: const InputDecoration(
+                      labelText: '優惠商品標題',
+                      hintText: '優惠商品',
+                    ),
+                  ),
+                  TextField(
+                    controller: _allTitle,
+                    enabled: widget.canManage,
+                    decoration: const InputDecoration(
+                      labelText: '全部商品標題',
+                      hintText: '全部商品',
+                    ),
+                  ),
+                  TextField(
+                    controller: _latestTitle,
+                    enabled: widget.canManage,
+                    decoration: const InputDecoration(
+                      labelText: '最新商品標題',
+                      hintText: '最新商品',
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  if (widget.canManage)
+                    FilledButton(onPressed: _save, child: const Text('儲存')),
+                ],
               ),
-              SwitchListTile(
-                contentPadding: EdgeInsets.zero,
-                title: const Text('顯示商城公告'),
-                value: _showAnnouncement,
-                onChanged: widget.canManage
-                    ? (bool value) =>
-                        setState(() => _showAnnouncement = value)
-                    : null,
-              ),
-              SwitchListTile(
-                contentPadding: EdgeInsets.zero,
-                title: const Text('顯示商品分類'),
-                value: _showCategories,
-                onChanged: widget.canManage
-                    ? (bool value) => setState(() => _showCategories = value)
-                    : null,
-              ),
-              SwitchListTile(
-                contentPadding: EdgeInsets.zero,
-                title: const Text('顯示精選商品'),
-                value: _showFeatured,
-                onChanged: widget.canManage
-                    ? (bool value) => setState(() => _showFeatured = value)
-                    : null,
-              ),
-              SwitchListTile(
-                contentPadding: EdgeInsets.zero,
-                title: const Text('顯示優惠商品'),
-                value: _showPromo,
-                onChanged: widget.canManage
-                    ? (bool value) => setState(() => _showPromo = value)
-                    : null,
-              ),
-              SwitchListTile(
-                contentPadding: EdgeInsets.zero,
-                title: const Text('顯示最新商品'),
-                subtitle: const Text('前台區塊預留，可先設定'),
-                value: _showLatest,
-                onChanged: widget.canManage
-                    ? (bool value) => setState(() => _showLatest = value)
-                    : null,
-              ),
-              const SizedBox(height: 12),
-              const Text(
-                '區塊名稱',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
-              ),
-              const SizedBox(height: 4),
-              const Text('留空使用系統預設。活動海報開關在「活動海報」。'),
-              TextField(
-                controller: _featuredTitle,
-                enabled: widget.canManage,
-                decoration: const InputDecoration(
-                  labelText: '精選商品標題',
-                  hintText: '精選商品',
-                ),
-              ),
-              TextField(
-                controller: _promoTitle,
-                enabled: widget.canManage,
-                decoration: const InputDecoration(
-                  labelText: '優惠商品標題',
-                  hintText: '優惠商品',
-                ),
-              ),
-              TextField(
-                controller: _allTitle,
-                enabled: widget.canManage,
-                decoration: const InputDecoration(
-                  labelText: '全部商品標題',
-                  hintText: '全部商品',
-                ),
-              ),
-              TextField(
-                controller: _latestTitle,
-                enabled: widget.canManage,
-                decoration: const InputDecoration(
-                  labelText: '最新商品標題',
-                  hintText: '最新商品',
-                ),
-              ),
-              const SizedBox(height: 20),
-              if (widget.canManage)
-                FilledButton(onPressed: _save, child: const Text('儲存')),
-            ],
-          ),
-        );
-      },
+            );
+          },
     );
   }
 }
@@ -362,37 +360,35 @@ class _StoreSettingsBannersPageState extends State<StoreSettingsBannersPage> {
   Widget build(BuildContext context) {
     return StreamBuilder<Map<String, dynamic>>(
       stream: StoreSettingsService.instance.streamSettings(widget.shopId),
-      builder: (
-        BuildContext context,
-        AsyncSnapshot<Map<String, dynamic>> snapshot,
-      ) {
-        if (!_loaded && snapshot.hasData) {
-          final StoreHomeDisplaySettings home =
-              StoreHomeDisplaySettings.fromMap(snapshot.data!);
-          _draft = StoreHomeSettingsDraft(
-            showBanners: home.showBanners,
-            banners: List<StoreBannerModel>.from(home.banners),
-            bannerAutoPlay: home.bannerAutoPlay,
-            bannerAutoPlaySeconds: home.bannerAutoPlaySeconds,
-          );
-          _loaded = true;
-        }
-        return Scaffold(
-          appBar: AppBar(title: const Text('活動海報')),
-          body: ListView(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
-            children: <Widget>[
-              if (_loaded)
-                StoreHomeSettingsSection(
-                  shopId: widget.shopId,
-                  canManage: widget.canManage,
-                  draft: _draft,
-                  onChanged: () => setState(() {}),
-                ),
-            ],
-          ),
-        );
-      },
+      builder:
+          (BuildContext context, AsyncSnapshot<Map<String, dynamic>> snapshot) {
+            if (!_loaded && snapshot.hasData) {
+              final StoreHomeDisplaySettings home =
+                  StoreHomeDisplaySettings.fromMap(snapshot.data!);
+              _draft = StoreHomeSettingsDraft(
+                showBanners: home.showBanners,
+                banners: List<StoreBannerModel>.from(home.banners),
+                bannerAutoPlay: home.bannerAutoPlay,
+                bannerAutoPlaySeconds: home.bannerAutoPlaySeconds,
+              );
+              _loaded = true;
+            }
+            return Scaffold(
+              appBar: AppBar(title: const Text('活動海報')),
+              body: ListView(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
+                children: <Widget>[
+                  if (_loaded)
+                    StoreHomeSettingsSection(
+                      shopId: widget.shopId,
+                      canManage: widget.canManage,
+                      draft: _draft,
+                      onChanged: () => setState(() {}),
+                    ),
+                ],
+              ),
+            );
+          },
     );
   }
 }
@@ -430,72 +426,70 @@ class _StoreSettingsProductsPageState extends State<StoreSettingsProductsPage> {
     if (!mounted) {
       return;
     }
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('已儲存商品顯示設定')),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('已儲存商品顯示設定')));
   }
 
   @override
   Widget build(BuildContext context) {
     return StreamBuilder<Map<String, dynamic>>(
       stream: StoreSettingsService.instance.streamSettings(widget.shopId),
-      builder: (
-        BuildContext context,
-        AsyncSnapshot<Map<String, dynamic>> snapshot,
-      ) {
-        if (!_loaded && snapshot.hasData) {
-          final StoreHomeDisplaySettings home =
-              StoreHomeDisplaySettings.fromMap(snapshot.data!);
-          _hideOutOfStock = home.hideOutOfStock;
-          _showStockToCustomer = home.showStockToCustomer;
-          _featuredCount = home.featuredCount;
-          _loaded = true;
-        }
-        return Scaffold(
-          appBar: AppBar(title: const Text('商品顯示')),
-          body: ListView(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
-            children: <Widget>[
-              const Text('缺貨與庫存文案會套用到商城前台商品卡。'),
-              SwitchListTile(
-                contentPadding: EdgeInsets.zero,
-                title: const Text('缺貨商品仍顯示給客戶'),
-                value: !_hideOutOfStock,
-                onChanged: widget.canManage
-                    ? (bool value) =>
-                        setState(() => _hideOutOfStock = !value)
-                    : null,
-              ),
-              SwitchListTile(
-                contentPadding: EdgeInsets.zero,
-                title: const Text('庫存剩餘量顯示給客戶'),
-                value: _showStockToCustomer,
-                onChanged: widget.canManage
-                    ? (bool value) =>
-                        setState(() => _showStockToCustomer = value)
-                    : null,
-              ),
-              const SizedBox(height: 8),
-              const Text('首頁精選商品數量'),
-              Wrap(
-                spacing: 8,
-                children: <int>[4, 6, 8].map((int count) {
-                  return ChoiceChip(
-                    label: Text('$count'),
-                    selected: _featuredCount == count,
-                    onSelected: widget.canManage
-                        ? (_) => setState(() => _featuredCount = count)
+      builder:
+          (BuildContext context, AsyncSnapshot<Map<String, dynamic>> snapshot) {
+            if (!_loaded && snapshot.hasData) {
+              final StoreHomeDisplaySettings home =
+                  StoreHomeDisplaySettings.fromMap(snapshot.data!);
+              _hideOutOfStock = home.hideOutOfStock;
+              _showStockToCustomer = home.showStockToCustomer;
+              _featuredCount = home.featuredCount;
+              _loaded = true;
+            }
+            return Scaffold(
+              appBar: AppBar(title: const Text('商品顯示')),
+              body: ListView(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
+                children: <Widget>[
+                  const Text('缺貨與庫存文案會套用到商城前台商品卡。'),
+                  SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text('缺貨商品仍顯示給客戶'),
+                    value: !_hideOutOfStock,
+                    onChanged: widget.canManage
+                        ? (bool value) =>
+                              setState(() => _hideOutOfStock = !value)
                         : null,
-                  );
-                }).toList(),
+                  ),
+                  SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text('庫存剩餘量顯示給客戶'),
+                    value: _showStockToCustomer,
+                    onChanged: widget.canManage
+                        ? (bool value) =>
+                              setState(() => _showStockToCustomer = value)
+                        : null,
+                  ),
+                  const SizedBox(height: 8),
+                  const Text('首頁精選商品數量'),
+                  Wrap(
+                    spacing: 8,
+                    children: <int>[4, 6, 8].map((int count) {
+                      return ChoiceChip(
+                        label: Text('$count'),
+                        selected: _featuredCount == count,
+                        onSelected: widget.canManage
+                            ? (_) => setState(() => _featuredCount = count)
+                            : null,
+                      );
+                    }).toList(),
+                  ),
+                  const SizedBox(height: 20),
+                  if (widget.canManage)
+                    FilledButton(onPressed: _save, child: const Text('儲存')),
+                ],
               ),
-              const SizedBox(height: 20),
-              if (widget.canManage)
-                FilledButton(onPressed: _save, child: const Text('儲存')),
-            ],
-          ),
-        );
-      },
+            );
+          },
     );
   }
 }
@@ -578,9 +572,9 @@ class _StoreSettingsAppearancePageState
       if (!mounted) {
         return;
       }
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('$error')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('$error')));
     } finally {
       if (mounted) {
         setState(() => _uploading = false);
@@ -633,7 +627,8 @@ class _StoreSettingsAppearancePageState
       storeAppearance: toSave.toMap(),
     );
     if (_removeImage || _pendingPath.isNotEmpty) {
-      final bool replacedOfficial = _committedPath.isNotEmpty &&
+      final bool replacedOfficial =
+          _committedPath.isNotEmpty &&
           _committedPath != toSave.cardBackgroundImageStoragePath;
       if (replacedOfficial || _removeImage) {
         await InventoryImageService.instance.tryDeleteImage(
@@ -651,9 +646,9 @@ class _StoreSettingsAppearancePageState
     if (!mounted) {
       return;
     }
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('已儲存商城外觀')),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('已儲存商城外觀')));
     setState(() {});
   }
 
@@ -661,42 +656,40 @@ class _StoreSettingsAppearancePageState
   Widget build(BuildContext context) {
     return StreamBuilder<Map<String, dynamic>>(
       stream: StoreSettingsService.instance.streamSettings(widget.shopId),
-      builder: (
-        BuildContext context,
-        AsyncSnapshot<Map<String, dynamic>> snapshot,
-      ) {
-        if (!_loaded && snapshot.hasData) {
-          final StoreHomeDisplaySettings home =
-              StoreHomeDisplaySettings.fromMap(snapshot.data!);
-          _value = home.storeAppearance;
-          _committedUrl = _value.cardBackgroundImageUrl;
-          _committedPath = _value.cardBackgroundImageStoragePath;
-          _loaded = true;
-        }
-        return Scaffold(
-          appBar: AppBar(title: const Text('商城外觀')),
-          body: ListView(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
-            children: <Widget>[
-              if (_loaded)
-                StoreAppearanceEditor(
-                  shopId: widget.shopId,
-                  value: _value,
-                  shopTheme: HomeThemeModel.modernDefault,
-                  uploading: _uploading,
-                  onChanged: (StoreAppearanceSetting next) {
-                    setState(() => _value = next);
-                  },
-                  onPickCardImage: _pickImage,
-                  onRemoveCardImage: _markRemove,
-                ),
-              const SizedBox(height: 20),
-              if (widget.canManage)
-                FilledButton(onPressed: _save, child: const Text('儲存')),
-            ],
-          ),
-        );
-      },
+      builder:
+          (BuildContext context, AsyncSnapshot<Map<String, dynamic>> snapshot) {
+            if (!_loaded && snapshot.hasData) {
+              final StoreHomeDisplaySettings home =
+                  StoreHomeDisplaySettings.fromMap(snapshot.data!);
+              _value = home.storeAppearance;
+              _committedUrl = _value.cardBackgroundImageUrl;
+              _committedPath = _value.cardBackgroundImageStoragePath;
+              _loaded = true;
+            }
+            return Scaffold(
+              appBar: AppBar(title: const Text('商城外觀')),
+              body: ListView(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
+                children: <Widget>[
+                  if (_loaded)
+                    StoreAppearanceEditor(
+                      shopId: widget.shopId,
+                      value: _value,
+                      shopTheme: HomeThemeModel.modernDefault,
+                      uploading: _uploading,
+                      onChanged: (StoreAppearanceSetting next) {
+                        setState(() => _value = next);
+                      },
+                      onPickCardImage: _pickImage,
+                      onRemoveCardImage: _markRemove,
+                    ),
+                  const SizedBox(height: 20),
+                  if (widget.canManage)
+                    FilledButton(onPressed: _save, child: const Text('儲存')),
+                ],
+              ),
+            );
+          },
     );
   }
 }
@@ -741,68 +734,63 @@ class _StoreSettingsOrdersPageState extends State<StoreSettingsOrdersPage> {
     if (!mounted) {
       return;
     }
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('已儲存訂單設定')),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('已儲存訂單設定')));
   }
 
   @override
   Widget build(BuildContext context) {
     return StreamBuilder<Map<String, dynamic>>(
       stream: StoreSettingsService.instance.streamSettings(widget.shopId),
-      builder: (
-        BuildContext context,
-        AsyncSnapshot<Map<String, dynamic>> snapshot,
-      ) {
-        if (!_loaded && snapshot.hasData) {
-          _acceptNewOrders = snapshot.data!['acceptNewOrders'] != false;
-          _orderNote.text = (snapshot.data!['orderNote'] ?? '').toString();
-          _cancelRuleNote.text =
-              (snapshot.data!['cancelRuleNote'] ?? '').toString();
-          _loaded = true;
-        }
-        return Scaffold(
-          appBar: AppBar(title: const Text('訂單設定')),
-          body: ListView(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
-            children: <Widget>[
-              SwitchListTile(
-                contentPadding: EdgeInsets.zero,
-                title: const Text('接受新訂單'),
-                value: _acceptNewOrders,
-                onChanged: widget.canManage
-                    ? (bool value) =>
-                        setState(() => _acceptNewOrders = value)
-                    : null,
+      builder:
+          (BuildContext context, AsyncSnapshot<Map<String, dynamic>> snapshot) {
+            if (!_loaded && snapshot.hasData) {
+              _acceptNewOrders = snapshot.data!['acceptNewOrders'] != false;
+              _orderNote.text = (snapshot.data!['orderNote'] ?? '').toString();
+              _cancelRuleNote.text = (snapshot.data!['cancelRuleNote'] ?? '')
+                  .toString();
+              _loaded = true;
+            }
+            return Scaffold(
+              appBar: AppBar(title: const Text('訂單設定')),
+              body: ListView(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
+                children: <Widget>[
+                  SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text('接受新訂單'),
+                    value: _acceptNewOrders,
+                    onChanged: widget.canManage
+                        ? (bool value) =>
+                              setState(() => _acceptNewOrders = value)
+                        : null,
+                  ),
+                  TextField(
+                    controller: _orderNote,
+                    enabled: widget.canManage,
+                    maxLines: 2,
+                    decoration: const InputDecoration(labelText: '訂單備註'),
+                  ),
+                  TextField(
+                    controller: _cancelRuleNote,
+                    enabled: widget.canManage,
+                    maxLines: 2,
+                    decoration: const InputDecoration(labelText: '取消規則說明'),
+                  ),
+                  const SizedBox(height: 20),
+                  if (widget.canManage)
+                    FilledButton(onPressed: _save, child: const Text('儲存')),
+                ],
               ),
-              TextField(
-                controller: _orderNote,
-                enabled: widget.canManage,
-                maxLines: 2,
-                decoration: const InputDecoration(labelText: '訂單備註'),
-              ),
-              TextField(
-                controller: _cancelRuleNote,
-                enabled: widget.canManage,
-                maxLines: 2,
-                decoration: const InputDecoration(labelText: '取消規則說明'),
-              ),
-              const SizedBox(height: 20),
-              if (widget.canManage)
-                FilledButton(onPressed: _save, child: const Text('儲存')),
-            ],
-          ),
-        );
-      },
+            );
+          },
     );
   }
 }
 
 class StoreSettingsPaymentPage extends StatefulWidget {
-  const StoreSettingsPaymentPage({
-    super.key,
-    required this.shopId,
-  });
+  const StoreSettingsPaymentPage({super.key, required this.shopId});
 
   final String shopId;
 
@@ -846,39 +834,39 @@ class _StoreSettingsPaymentPageState extends State<StoreSettingsPaymentPage> {
           const Text('沿用店家金流設定，商城不會另外建立一組收款帳號。'),
           StreamBuilder<List<String>>(
             stream: _availablePaymentMethods,
-            builder: (
-              BuildContext context,
-              AsyncSnapshot<List<String>> methodsSnap,
-            ) {
-              if (methodsSnap.hasError) {
-                return Padding(
-                  padding: const EdgeInsets.only(top: 8),
-                  child: Text('無法讀取付款方式：${methodsSnap.error}'),
-                );
-              }
-              final List<String> methods =
-                  methodsSnap.data ?? const <String>[];
-              if (methods.isEmpty) {
-                return const Padding(
-                  padding: EdgeInsets.only(top: 8),
-                  child: Text('目前顯示：到店付款（固定）／線上付款請至店家金流設定'),
-                );
-              }
-              return Padding(
-                padding: const EdgeInsets.only(top: 8),
-                child: Text(
-                  '目前可用：到店付款、${methods.map(_methodLabel).join('、')}',
-                ),
-              );
-            },
+            builder:
+                (
+                  BuildContext context,
+                  AsyncSnapshot<List<String>> methodsSnap,
+                ) {
+                  if (methodsSnap.hasError) {
+                    return Padding(
+                      padding: const EdgeInsets.only(top: 8),
+                      child: Text('無法讀取付款方式：${methodsSnap.error}'),
+                    );
+                  }
+                  final List<String> methods =
+                      methodsSnap.data ?? const <String>[];
+                  if (methods.isEmpty) {
+                    return const Padding(
+                      padding: EdgeInsets.only(top: 8),
+                      child: Text('目前顯示：到店付款（固定）／線上付款請至店家金流設定'),
+                    );
+                  }
+                  return Padding(
+                    padding: const EdgeInsets.only(top: 8),
+                    child: Text(
+                      '目前可用：到店付款、${methods.map(_methodLabel).join('、')}',
+                    ),
+                  );
+                },
           ),
           TextButton(
             onPressed: () {
               Navigator.push(
                 context,
                 MaterialPageRoute<void>(
-                  builder: (_) =>
-                      ShopPayoutSettingPage(shopId: widget.shopId),
+                  builder: (_) => ShopPayoutSettingPage(shopId: widget.shopId),
                 ),
               );
             },
@@ -923,54 +911,53 @@ class _StoreSettingsPickupPageState extends State<StoreSettingsPickupPage> {
     if (!mounted) {
       return;
     }
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('已儲存取貨設定')),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('已儲存取貨設定')));
   }
 
   @override
   Widget build(BuildContext context) {
     return StreamBuilder<Map<String, dynamic>>(
       stream: StoreSettingsService.instance.streamSettings(widget.shopId),
-      builder: (
-        BuildContext context,
-        AsyncSnapshot<Map<String, dynamic>> snapshot,
-      ) {
-        if (!_loaded && snapshot.hasData) {
-          _pickupNote.text = (snapshot.data!['pickupNote'] ?? '').toString();
-          _loaded = true;
-        }
-        return Scaffold(
-          appBar: AppBar(title: const Text('取貨 / 配送')),
-          body: ListView(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
-            children: <Widget>[
-              const ListTile(
-                contentPadding: EdgeInsets.zero,
-                title: Text('店內取貨'),
-                subtitle: Text('第一版僅開放店內自取'),
+      builder:
+          (BuildContext context, AsyncSnapshot<Map<String, dynamic>> snapshot) {
+            if (!_loaded && snapshot.hasData) {
+              _pickupNote.text = (snapshot.data!['pickupNote'] ?? '')
+                  .toString();
+              _loaded = true;
+            }
+            return Scaffold(
+              appBar: AppBar(title: const Text('取貨 / 配送')),
+              body: ListView(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
+                children: <Widget>[
+                  const ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: Text('店內取貨'),
+                    subtitle: Text('第一版僅開放店內自取'),
+                  ),
+                  TextField(
+                    controller: _pickupNote,
+                    enabled: widget.canManage,
+                    maxLines: 3,
+                    decoration: const InputDecoration(
+                      labelText: '取貨說明',
+                      hintText: '例如：請於營業時間至櫃台取貨',
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    '宅配、超商取貨與運費將在之後開放，這裡先預留位置。',
+                    style: TextStyle(color: Colors.grey.shade700, fontSize: 12),
+                  ),
+                  const SizedBox(height: 20),
+                  if (widget.canManage)
+                    FilledButton(onPressed: _save, child: const Text('儲存')),
+                ],
               ),
-              TextField(
-                controller: _pickupNote,
-                enabled: widget.canManage,
-                maxLines: 3,
-                decoration: const InputDecoration(
-                  labelText: '取貨說明',
-                  hintText: '例如：請於營業時間至櫃台取貨',
-                ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                '宅配、超商取貨與運費將在之後開放，這裡先預留位置。',
-                style: TextStyle(color: Colors.grey.shade700, fontSize: 12),
-              ),
-              const SizedBox(height: 20),
-              if (widget.canManage)
-                FilledButton(onPressed: _save, child: const Text('儲存')),
-            ],
-          ),
-        );
-      },
+            );
+          },
     );
   }
 }

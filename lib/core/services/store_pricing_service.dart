@@ -209,7 +209,10 @@ class StorePricingService {
       (int sum, StorePricedLine line) => sum + line.campaignDiscount,
     );
 
-    final _MixMatchResult mix = _quoteMixMatch(lines: lines, promotions: active);
+    final _MixMatchResult mix = _quoteMixMatch(
+      lines: lines,
+      promotions: active,
+    );
 
     int stackableAmount = 0;
     int lockedAmount = 0;
@@ -261,8 +264,9 @@ class StorePricingService {
     }
 
     final int productFinal =
-        lockedAmount + cartLayer.finalStackable - (mix.promotion != null &&
-                !mix.promotion!.allowStack
+        lockedAmount +
+        cartLayer.finalStackable -
+        (mix.promotion != null && !mix.promotion!.allowStack
             ? mix.discount
             : 0);
     final int finalSubtotal = productFinal + bundleFinal;
@@ -588,7 +592,8 @@ class StorePricingService {
           _matchesProduct(promotion, product);
     }).toList();
 
-    final bool lockItemBogo = itemActive &&
+    final bool lockItemBogo =
+        itemActive &&
         !product.itemPromotionAllowStack &&
         product.itemPromotionType == StoreItemPromotionTypes.buyXGetY;
 
@@ -711,7 +716,9 @@ class StorePricingService {
       if (!promo.isMixMatch || promo.minimumQuantity <= 0) {
         continue;
       }
-      final List<StorePricedLine> eligible = lines.where((StorePricedLine line) {
+      final List<StorePricedLine> eligible = lines.where((
+        StorePricedLine line,
+      ) {
         return line.canStackFurther &&
             promo.productIds.contains(line.product.id);
       }).toList();
@@ -780,26 +787,27 @@ class StorePricingService {
       return const _CartLayerResult();
     }
 
-    final List<StorePromotionModel> qtyPromos = promotions
-        .where((StorePromotionModel item) {
-          return item.type == StorePromotionTypes.quantity &&
-              item.minimumQuantity > 0 &&
-              stackableQty >= item.minimumQuantity;
-        })
-        .toList();
-    final List<StorePromotionModel> amountPromos = promotions
-        .where((StorePromotionModel item) {
-          return item.type == StorePromotionTypes.amount &&
-              item.minimumAmount > 0;
-        })
-        .toList();
+    final List<StorePromotionModel> qtyPromos = promotions.where((
+      StorePromotionModel item,
+    ) {
+      return item.type == StorePromotionTypes.quantity &&
+          item.minimumQuantity > 0 &&
+          stackableQty >= item.minimumQuantity;
+    }).toList();
+    final List<StorePromotionModel> amountPromos = promotions.where((
+      StorePromotionModel item,
+    ) {
+      return item.type == StorePromotionTypes.amount && item.minimumAmount > 0;
+    }).toList();
 
     final _CartDiscount? qtyOnly = _bestCartDiscount(
       promotions: qtyPromos,
       currentSubtotal: stackableAmount,
     );
     final List<StorePromotionModel> amountOnBase = amountPromos
-        .where((StorePromotionModel item) => stackableAmount >= item.minimumAmount)
+        .where(
+          (StorePromotionModel item) => stackableAmount >= item.minimumAmount,
+        )
         .toList();
     final _CartDiscount? amountOnly = _bestCartDiscount(
       promotions: amountOnBase,
@@ -808,12 +816,11 @@ class StorePricingService {
 
     _CartDiscount? stackedAmount;
     if (qtyOnly != null && qtyOnly.promotion.allowStack) {
-      final List<StorePromotionModel> amountAfterQty = amountPromos
-          .where((StorePromotionModel item) {
-            return item.allowStack &&
-                qtyOnly.finalAmount >= item.minimumAmount;
-          })
-          .toList();
+      final List<StorePromotionModel> amountAfterQty = amountPromos.where((
+        StorePromotionModel item,
+      ) {
+        return item.allowStack && qtyOnly.finalAmount >= item.minimumAmount;
+      }).toList();
       stackedAmount = _bestCartDiscount(
         promotions: amountAfterQty,
         currentSubtotal: qtyOnly.finalAmount,

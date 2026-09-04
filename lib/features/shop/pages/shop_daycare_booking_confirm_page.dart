@@ -6,7 +6,6 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/models/booking_fee_line_item.dart';
 import 'package:petnest_saas/core/models/create_payment_request_model.dart';
-import 'package:petnest_saas/core/models/home_theme_model.dart';
 import 'package:petnest_saas/core/models/policy_applicable_service.dart';
 import 'package:petnest_saas/core/models/terms_consent_snapshot.dart';
 import 'package:petnest_saas/core/models/daycare_plan_model.dart';
@@ -25,6 +24,7 @@ import 'package:petnest_saas/core/services/daycare_time_helper.dart';
 import 'package:petnest_saas/core/services/member_coupon_service.dart';
 import 'package:petnest_saas/core/services/payment_function_service.dart';
 import 'package:petnest_saas/core/services/point_setting_service.dart';
+import 'package:petnest_saas/core/services/home_banner_service.dart';
 import 'package:petnest_saas/core/services/shop_service.dart';
 import 'package:petnest_saas/features/booking/pages/booking_form_page.dart';
 import 'package:petnest_saas/features/booking/pages/booking_success_page.dart';
@@ -66,7 +66,6 @@ class ShopDaycareBookingConfirmPage extends StatefulWidget {
 
 class _ShopDaycareBookingConfirmPageState
     extends State<ShopDaycareBookingConfirmPage> {
-  final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
   final TextEditingController _name = TextEditingController();
   final TextEditingController _phone = TextEditingController();
   final TextEditingController _note = TextEditingController();
@@ -265,7 +264,7 @@ class _ShopDaycareBookingConfirmPageState
           discountCampaignName: _selectedCoupon?.name ?? '',
           roomPrice: quote.baseAmount + quote.extraPetAmount,
           addons: _addonLines,
-          formKey: _formKey,
+          formKey: GlobalKey<FormState>(),
           customerNameController: _name,
           customerPhoneController: _phone,
           noteController: _note,
@@ -278,10 +277,7 @@ class _ShopDaycareBookingConfirmPageState
           isBlacklisted: false,
           submitLabel: '確認訂單',
           feeSummaryTitle: '安親費用摘要',
-          allowCashOverride: widget.settings.allowCash,
-          daycareDepositType: widget.settings.depositType,
-          daycareDepositValue: widget.settings.depositValue,
-          theme: HomeThemeModel.classicDefault,
+          theme: HomeBannerService.instance.themeFromShop(widget.shop),
           termsServiceType: PolicyApplicableService.daycare,
           feeLineItems: feeLines,
           onSubmitWithData: _submit,
@@ -298,6 +294,7 @@ class _ShopDaycareBookingConfirmPageState
                 ? '安親房型・起步價格'
                 : '${widget.requestedRoomTypeName}・起步價格')
           : widget.plan.name,
+      depositType: widget.settings.depositType,
       addonLines: _addonLines
           .map(
             (Map<String, dynamic> addon) => BookingFeeLineItem(
@@ -444,20 +441,35 @@ class _ShopDaycareBookingConfirmPageState
             'assignedRoomId': null,
             'assignedRoomName': null,
             'priceQuoteSnapshot': <String, dynamic>{
-              'durationMinutes': quote.durationMinutes,
-              'baseAmount': quote.baseAmount,
-              'timeCharge': quote.timeCharge,
-              'extraTimeAmount': quote.extraTimeAmount,
-              'extraMinutes': quote.extraMinutes,
-              'extraUnits': quote.extraUnits,
-              'extraPetAmount': quote.extraPetAmount,
-              'extraPetCount': quote.extraPetCount,
-              'addonAmount': quote.addonAmount,
-              'discountAmount': quote.discountAmount,
-              'couponAmount': quote.couponAmount,
-              'totalAmount': quote.totalAmount,
-              'depositAmount': quote.depositAmount,
+              ...quote.toPriceSnapshot(),
+              'planId': widget.settings.isRoomBased ? '' : widget.plan.id,
+              'planName': widget.settings.isRoomBased
+                  ? widget.requestedRoomTypeName
+                  : widget.plan.name,
+              'includedMinutes': widget.settings.isRoomBased
+                  ? (widget.settings
+                            .roomTypeSetting(widget.requestedRoomTypeId)
+                            ?.includedMinutes ??
+                        quote.includedMinutes)
+                  : widget.plan.includedMinutes,
+              'basePrice': quote.baseAmount,
+              'extraBillingMinutes': quote.extraBillingMinutes,
+              'extraBillingPrice': widget.settings.isRoomBased
+                  ? (widget.settings
+                            .roomTypeSetting(widget.requestedRoomTypeId)
+                            ?.extraBillingPrice ??
+                        0)
+                  : widget.plan.extraBillingPrice,
+              'extraPetPrice': widget.settings.isRoomBased
+                  ? (widget.settings
+                            .roomTypeSetting(widget.requestedRoomTypeId)
+                            ?.extraPetPrice ??
+                        0)
+                  : widget.plan.extraPetPrice,
               'maxBaseCharge': quote.maxBaseCharge,
+              'petCount': widget.selectedPetIds.length,
+              'scheduledStartAt': widget.startAt.toIso8601String(),
+              'scheduledEndAt': widget.endAt.toIso8601String(),
             },
             'addons': _addonLines,
             'customerName': _name.text.trim(),
