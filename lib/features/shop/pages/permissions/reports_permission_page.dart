@@ -1,6 +1,5 @@
-// lib/features/shop/pages/permissions/reports_permission_page.dart
-// 📊 表格統計權限設定頁
-//
+// 檔案名稱：lib/features/shop/pages/permissions/reports_permission_page.dart
+// 功能說明：表格統計權限設定頁
 // 用途：
 // - 管理報表與動作紀錄相關權限
 // - 開關切換後立即刷新 UI

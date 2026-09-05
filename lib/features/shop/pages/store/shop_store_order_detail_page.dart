@@ -1,5 +1,5 @@
-// lib/features/shop/pages/store/shop_store_order_detail_page.dart
-// 🛒 後台商城訂單詳情
+// 檔案名稱：lib/features/shop/pages/store/shop_store_order_detail_page.dart
+// 功能說明：後台商城訂單詳情
 
 import 'dart:async';
 

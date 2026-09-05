@@ -1,21 +1,6 @@
-// 檔案名稱 lib/features/shop/pages/shop_booking_page.dart
-//
-// 前台預約頁（共用月曆版）
-//
-// 功能：
-// - 第一眼先顯示月曆
-// - 顯示每日價格 / 剩餘房數 / 不可預約狀態
-// - 先選入住與退房
-// - 再填預約資料
-// - 送出前再次驗證區間
-//
-// 規則：
-// - 第一次點：入住日
-// - 第二次點：退房日
-// - 若第二次點的日期 <= 入住日，則重新選入住日
-// - 顯示區間晚數 / 總價 / 最少剩餘房數
+// 檔案名稱：lib/features/shop/pages/shop_booking_page.dart
+// 功能說明：前台住宿預約主頁，負責日期、寵物、房型、加值服務、優惠與送單流程。
 
-// 💳 綠界線上付款
 import 'package:petnest_saas/core/exceptions/inventory_exception.dart';
 import 'package:petnest_saas/core/models/create_payment_request_model.dart';
 import 'package:petnest_saas/core/services/payment_function_service.dart';
@@ -39,6 +24,8 @@ import 'package:petnest_saas/features/shop/widgets/booking/booking_step_widgets.
 import 'package:petnest_saas/features/shop/widgets/booking/front_calendar_payload.dart';
 import 'package:petnest_saas/features/shop/widgets/booking/booking_addons_helper.dart';
 import 'package:petnest_saas/features/shop/widgets/booking/booking_calendar_dialog.dart';
+import 'package:petnest_saas/features/shop/widgets/booking/booking_campaign_ui.dart';
+import 'package:petnest_saas/features/shop/widgets/booking/booking_member_coupon_ui.dart';
 import 'package:petnest_saas/features/shop/widgets/booking/front_calendar_helper.dart';
 import 'package:petnest_saas/features/shop/widgets/booking/booking_submit_helper.dart';
 import 'package:petnest_saas/core/models/discount_campaign_model.dart';
@@ -124,7 +111,7 @@ class _ShopBookingPageState extends State<ShopBookingPage> {
   /// 🔒 記錄產生 requestId 時的預約內容
   String? _bookingRequestSignature;
 
-  bool _checkingRange = false;
+  final bool _checkingRange = false;
   bool _isBlacklisted = false;
 
   DateTime? _startDate;
@@ -134,8 +121,8 @@ class _ShopBookingPageState extends State<ShopBookingPage> {
   String? _selectedServiceType;
   Map<String, dynamic>? _selectedRoomType;
   bool _showAddons = true;
-  List<Map<String, dynamic>> _selectedValueServices = [];
-  Map<String, List<String>> _selectedCustomServices = {};
+  final List<Map<String, dynamic>> _selectedValueServices = [];
+  final Map<String, List<String>> _selectedCustomServices = {};
 
   /// 🕐 每日分時段服務選擇結果
   ///
@@ -156,7 +143,7 @@ class _ShopBookingPageState extends State<ShopBookingPage> {
   /// 1 日期與貓咪、2 房型與服務、3 費用與確認
   int _currentStep = 1;
 
-  List<String> _selectedPetIds = [];
+  final List<String> _selectedPetIds = [];
   List<Map<String, dynamic>> _pets = [];
 
   Future<void> _loadMemberData() async {
@@ -1054,417 +1041,45 @@ class _ShopBookingPageState extends State<ShopBookingPage> {
 
   Widget _buildMemberCouponSection() {
     final MemberCouponModel? selectedCoupon = _selectedMemberCoupon;
-
     final Map<String, dynamic> discountInfo = _calculateDiscountInfo(
       _currentShopData,
     );
-
     final bool couponBlockedBySpecialDate =
         (discountInfo['couponBlockedBySpecialDate'] ?? false) == true;
+    final String? unavailableReason = selectedCoupon == null
+        ? null
+        : _memberCouponUnavailableReason(selectedCoupon);
+    final int couponDiscountAmount = selectedCoupon == null
+        ? 0
+        : (_calculateMemberCouponInfo(
+                    _currentShopData,
+                  )['couponDiscountAmount'] ??
+                  0)
+              .toInt();
 
-    if (couponBlockedBySpecialDate) {
-      return Card(
-        margin: EdgeInsets.zero,
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Row(
-                children: [
-                  Icon(Icons.confirmation_number_outlined),
-                  SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      '使用優惠券',
-                      style: TextStyle(
-                        fontSize: 17,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(
-                  color: Colors.orange.shade50,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Colors.orange.shade300),
-                ),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Icon(
-                      Icons.info_outline,
-                      color: Colors.orange.shade800,
-                      size: 20,
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        '目前住宿日期包含特殊日期加價，本次不可使用優惠券。',
-                        style: TextStyle(
-                          color: Colors.orange.shade900,
-                          fontSize: 13.5,
-                          height: 1.5,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-      );
-    }
-
-    return Card(
-      margin: EdgeInsets.zero,
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                const Icon(Icons.confirmation_number_outlined),
-                const SizedBox(width: 8),
-                const Expanded(
-                  child: Text(
-                    '使用優惠券',
-                    style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
-                  ),
-                ),
-                if (selectedCoupon != null)
-                  TextButton(
-                    onPressed: () {
-                      setState(() {
-                        _selectedMemberCoupon = null;
-                      });
-                    },
-                    child: const Text('不使用'),
-                  ),
-              ],
-            ),
-            const SizedBox(height: 12),
-
-            if (_memberCouponsLoading)
-              const Center(
-                child: Padding(
-                  padding: EdgeInsets.symmetric(vertical: 12),
-                  child: CircularProgressIndicator(),
-                ),
-              )
-            else if (_availableMemberCoupons.isEmpty)
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(
-                  color: Colors.grey.shade100,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Text(
-                  '目前沒有可使用的優惠券',
-                  style: TextStyle(color: Colors.grey.shade700),
-                ),
-              )
-            else
-              InkWell(
-                borderRadius: BorderRadius.circular(12),
-                onTap: _showMemberCouponPicker,
-                child: Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(14),
-                  decoration: BoxDecoration(
-                    border: Border.all(
-                      color: selectedCoupon == null
-                          ? widget.theme.cardBorderColor
-                          : widget.theme.primaryColor,
-                    ),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: selectedCoupon == null
-                            ? const Text('點擊選擇優惠券')
-                            : Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    selectedCoupon.name,
-                                    style: const TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 4),
-                                  Text(
-                                    _memberCouponBenefitText(selectedCoupon),
-                                    style: TextStyle(
-                                      color: widget.theme.textColor.withValues(
-                                        alpha: 0.7,
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                      ),
-                      const SizedBox(width: 8),
-                      const Icon(Icons.chevron_right),
-                    ],
-                  ),
-                ),
-              ),
-
-            if (selectedCoupon != null) ...[
-              const SizedBox(height: 10),
-              Builder(
-                builder: (BuildContext context) {
-                  final String? unavailableReason =
-                      _memberCouponUnavailableReason(selectedCoupon);
-
-                  if (unavailableReason != null) {
-                    return Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: Colors.orange.shade50,
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: Colors.orange.shade300),
-                      ),
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Icon(
-                            Icons.info_outline,
-                            size: 19,
-                            color: Colors.orange.shade800,
-                          ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              '此優惠券目前未套用\n$unavailableReason',
-                              style: TextStyle(
-                                fontSize: 13,
-                                height: 1.5,
-                                color: Colors.orange.shade900,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    );
-                  }
-
-                  final Map<String, dynamic> couponInfo =
-                      _calculateMemberCouponInfo(_currentShopData);
-
-                  final int couponDiscountAmount =
-                      (couponInfo['couponDiscountAmount'] ?? 0).toInt();
-
-                  if (selectedCoupon.type == MemberCouponType.freeService &&
-                      couponDiscountAmount <= 0) {
-                    return Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: Colors.orange.shade50,
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Text(
-                        '請先在加值服務中選擇此優惠券指定的服務，系統才會計算折抵金額。',
-                        style: TextStyle(
-                          fontSize: 13,
-                          height: 1.5,
-                          color: Colors.orange.shade800,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    );
-                  }
-
-                  return Row(
-                    children: [
-                      Icon(
-                        Icons.check_circle_outline,
-                        size: 19,
-                        color: Colors.green.shade700,
-                      ),
-                      const SizedBox(width: 7),
-                      Text(
-                        '本次預估折抵：NT\$ $couponDiscountAmount',
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: Colors.green.shade700,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ],
-                  );
-                },
-              ),
-            ],
-
-            if (selectedCoupon != null &&
-                selectedCoupon.description.trim().isNotEmpty) ...[
-              const SizedBox(height: 10),
-              Text(
-                selectedCoupon.description.trim(),
-                style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
-              ),
-            ],
-          ],
-        ),
-      ),
+    return BookingMemberCouponSection(
+      theme: widget.theme,
+      selectedCoupon: selectedCoupon,
+      availableCoupons: _availableMemberCoupons,
+      loading: _memberCouponsLoading,
+      couponBlockedBySpecialDate: couponBlockedBySpecialDate,
+      unavailableReason: unavailableReason,
+      couponDiscountAmount: couponDiscountAmount,
+      onClear: () {
+        setState(() {
+          _selectedMemberCoupon = null;
+        });
+      },
+      onPick: _showMemberCouponPicker,
     );
   }
 
   Future<void> _showMemberCouponPicker() async {
-    final MemberCouponModel?
-    result = await showModalBottomSheet<MemberCouponModel>(
+    final MemberCouponModel? result = await showBookingMemberCouponPicker(
       context: context,
-      isScrollControlled: true,
-      builder: (BuildContext bottomSheetContext) {
-        return SafeArea(
-          child: ConstrainedBox(
-            constraints: BoxConstraints(
-              maxHeight: MediaQuery.of(bottomSheetContext).size.height * 0.75,
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 18, 12, 12),
-                  child: Row(
-                    children: [
-                      const Expanded(
-                        child: Text(
-                          '選擇優惠券',
-                          style: TextStyle(
-                            fontSize: 20,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                      IconButton(
-                        onPressed: () {
-                          Navigator.pop(bottomSheetContext);
-                        },
-                        icon: const Icon(Icons.close),
-                      ),
-                    ],
-                  ),
-                ),
-                const Divider(height: 1),
-                Flexible(
-                  child: ListView.separated(
-                    padding: const EdgeInsets.all(16),
-                    itemCount: _availableMemberCoupons.length,
-                    separatorBuilder: (_, _) => const SizedBox(height: 10),
-                    itemBuilder: (BuildContext context, int index) {
-                      final MemberCouponModel coupon =
-                          _availableMemberCoupons[index];
-
-                      final bool isSelected =
-                          coupon.id == _selectedMemberCoupon?.id;
-
-                      return Card(
-                        margin: EdgeInsets.zero,
-                        shape: RoundedRectangleBorder(
-                          side: BorderSide(
-                            color: isSelected
-                                ? widget.theme.primaryColor
-                                : Colors.grey.shade300,
-                          ),
-                          borderRadius: BorderRadius.circular(14),
-                        ),
-                        child: InkWell(
-                          borderRadius: BorderRadius.circular(14),
-                          onTap: () {
-                            Navigator.pop(bottomSheetContext, coupon);
-                          },
-                          child: Padding(
-                            padding: const EdgeInsets.all(14),
-                            child: Row(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                CircleAvatar(
-                                  backgroundColor: widget.theme.primaryColor
-                                      .withValues(alpha: 0.12),
-                                  child: Icon(
-                                    Icons.confirmation_number_outlined,
-                                    color: widget.theme.primaryColor,
-                                  ),
-                                ),
-                                const SizedBox(width: 12),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        coupon.name,
-                                        style: const TextStyle(
-                                          fontWeight: FontWeight.bold,
-                                        ),
-                                      ),
-                                      const SizedBox(height: 5),
-                                      Text(
-                                        _memberCouponBenefitText(coupon),
-                                        style: TextStyle(
-                                          color: widget.theme.textColor
-                                              .withValues(alpha: 0.7),
-                                        ),
-                                      ),
-                                      if (coupon.minimumAmount > 0) ...[
-                                        const SizedBox(height: 4),
-                                        Text(
-                                          '最低消費 NT\$ ${coupon.minimumAmount}',
-                                          style: TextStyle(
-                                            fontSize: 12,
-                                            color: Colors.orange.shade800,
-                                          ),
-                                        ),
-                                      ],
-                                      if (coupon.expireAt != null) ...[
-                                        const SizedBox(height: 4),
-                                        Text(
-                                          '有效期限：${_formatCouponDate(coupon.expireAt!)}',
-                                          style: TextStyle(
-                                            fontSize: 12,
-                                            color: Colors.grey.shade600,
-                                          ),
-                                        ),
-                                      ],
-                                    ],
-                                  ),
-                                ),
-                                if (isSelected)
-                                  Icon(
-                                    Icons.check_circle,
-                                    color: Theme.of(
-                                      context,
-                                    ).colorScheme.primary,
-                                  ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      );
-                    },
-                  ),
-                ),
-              ],
-            ),
-          ),
-        );
-      },
+      theme: widget.theme,
+      coupons: _availableMemberCoupons,
+      selectedCoupon: _selectedMemberCoupon,
     );
 
     if (result == null || !mounted) {
@@ -1531,41 +1146,6 @@ class _ShopBookingPageState extends State<ShopBookingPage> {
     }
 
     return null;
-  }
-
-  String _memberCouponBenefitText(MemberCouponModel coupon) {
-    switch (coupon.type) {
-      case MemberCouponType.fixedAmount:
-        return '折抵 NT\$ ${coupon.discountValue.toInt()}';
-
-      case MemberCouponType.percent:
-        return '折抵 ${_couponNumberText(coupon.discountValue)}%';
-
-      case MemberCouponType.freeStay:
-        return '免費住宿 ${coupon.freeStayNights} 晚';
-
-      case MemberCouponType.freeService:
-        if (coupon.serviceName.trim().isEmpty) {
-          return '免費指定服務';
-        }
-
-        return '免費 ${coupon.serviceName.trim()}';
-    }
-  }
-
-  String _couponNumberText(num value) {
-    if (value == value.toInt()) {
-      return value.toInt().toString();
-    }
-
-    return value.toString();
-  }
-
-  String _formatCouponDate(DateTime date) {
-    final String month = date.month.toString().padLeft(2, '0');
-    final String day = date.day.toString().padLeft(2, '0');
-
-    return '${date.year}/$month/$day';
   }
 
   Future<FrontCalendarPayload> _buildFrontCalendarPayload({
@@ -1874,11 +1454,9 @@ class _ShopBookingPageState extends State<ShopBookingPage> {
     });
 
     String? createdBookingId;
-    Map<String, dynamic>? submittedDiscountInfo;
 
     try {
       final discountInfo = _calculateMemberCouponInfo(shop);
-      submittedDiscountInfo = discountInfo;
 
       createdBookingId = await BookingSubmitHelper.submitBooking(
         shopId: widget.shopId,
@@ -2189,14 +1767,6 @@ class _ShopBookingPageState extends State<ShopBookingPage> {
     );
   }
 
-  String _formatDiscountNumber(num value) {
-    if (value % 1 == 0) {
-      return value.toInt().toString();
-    }
-
-    return value.toStringAsFixed(1);
-  }
-
   DiscountCampaignModel? _findCampaignById(String campaignId) {
     for (final DiscountCampaignModel campaign in _enabledCampaigns) {
       if (campaign.id == campaignId) {
@@ -2205,236 +1775,6 @@ class _ShopBookingPageState extends State<ShopBookingPage> {
     }
 
     return null;
-  }
-
-  Future<void> _showCampaignDetail(
-    BuildContext context,
-    DiscountCampaignModel campaign,
-  ) async {
-    String applyTargetText;
-
-    switch (campaign.applyTarget) {
-      case DiscountApplyTarget.room:
-        applyTargetText = '只折房價';
-
-      case DiscountApplyTarget.roomAndPet:
-        applyTargetText = '折房價＋寵物費';
-
-      case DiscountApplyTarget.total:
-        applyTargetText = '折訂單總金額';
-    }
-
-    final String discountValueText;
-
-    if (campaign.valueType == DiscountValueType.percent) {
-      discountValueText =
-          '${_formatDiscountNumber(campaign.discountValue)}% 折抵';
-    } else {
-      discountValueText =
-          '固定折抵 NT\$${_formatDiscountNumber(campaign.discountValue)}';
-    }
-
-    final String campaignPeriodText;
-
-    if (campaign.startAt == null && campaign.endAt == null) {
-      campaignPeriodText = '未限制活動期間';
-    } else {
-      final String startText = campaign.startAt == null
-          ? '未設定開始日'
-          : _formatDate(campaign.startAt!);
-
-      final String endText = campaign.endAt == null
-          ? '未設定結束日'
-          : _formatDate(campaign.endAt!);
-
-      campaignPeriodText = '$startText ～ $endText';
-    }
-
-    Widget detailRow({required String title, required String value}) {
-      return Padding(
-        padding: const EdgeInsets.only(bottom: 14),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            SizedBox(
-              width: 92,
-              child: Text(
-                title,
-                style: TextStyle(
-                  color: Colors.grey.shade600,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Text(
-                value,
-                style: const TextStyle(
-                  fontWeight: FontWeight.w500,
-                  height: 1.45,
-                ),
-              ),
-            ),
-          ],
-        ),
-      );
-    }
-
-    await showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      showDragHandle: true,
-      builder: (BuildContext bottomSheetContext) {
-        return SafeArea(
-          child: FractionallySizedBox(
-            heightFactor: 0.78,
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      const Icon(
-                        Icons.card_giftcard_outlined,
-                        color: Color(0xFF2E8B47),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Text(
-                          campaign.name,
-                          style: Theme.of(bottomSheetContext)
-                              .textTheme
-                              .titleLarge
-                              ?.copyWith(fontWeight: FontWeight.bold),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 18),
-                  Expanded(
-                    child: SingleChildScrollView(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Container(
-                            width: double.infinity,
-                            padding: const EdgeInsets.all(15),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFEAF8EE),
-                              borderRadius: BorderRadius.circular(14),
-                              border: Border.all(
-                                color: const Color(0xFF43A85B),
-                              ),
-                            ),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                const Text(
-                                  '活動說明',
-                                  style: TextStyle(
-                                    color: Color(0xFF2E8B47),
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                                const SizedBox(height: 8),
-                                SelectableText(
-                                  campaign.description.trim().isEmpty
-                                      ? '店家目前沒有填寫其他活動說明。'
-                                      : campaign.description.trim(),
-                                  style: const TextStyle(height: 1.6),
-                                ),
-                              ],
-                            ),
-                          ),
-                          const SizedBox(height: 20),
-                          detailRow(title: '活動期間', value: campaignPeriodText),
-                          detailRow(title: '折扣範圍', value: applyTargetText),
-                          detailRow(title: '折扣內容', value: discountValueText),
-                          detailRow(
-                            title: '最高折抵',
-                            value: campaign.maximumDiscountAmount > 0
-                                ? 'NT\$${campaign.maximumDiscountAmount}'
-                                : '未限制最高折抵金額',
-                          ),
-                          detailRow(
-                            title: '最低晚數',
-                            value: campaign.minimumNights > 0
-                                ? '${campaign.minimumNights} 晚'
-                                : '不限住宿晚數',
-                          ),
-                          detailRow(
-                            title: '最低消費',
-                            value: campaign.minimumAmount > 0
-                                ? 'NT\$${campaign.minimumAmount}'
-                                : '無最低消費限制',
-                          ),
-                          detailRow(
-                            title: '適用房型',
-                            value: campaign.roomTypeIds.isEmpty
-                                ? '所有房型'
-                                : '限指定房型，共 ${campaign.roomTypeIds.length} 種',
-                          ),
-                          detailRow(
-                            title: '會員限制',
-                            value:
-                                campaign.type == DiscountCampaignType.newMember
-                                ? campaign.newMemberEligibilityMode ==
-                                          NewMemberEligibilityMode
-                                              .createdAfterCampaign
-                                      ? '活動建立後加入的新會員'
-                                      : '本店尚未有有效訂單的會員'
-                                : '依活動設定判斷',
-                          ),
-                          detailRow(
-                            title: '優惠券',
-                            value: campaign.allowCouponTogether
-                                ? '可與會員優惠券一起使用'
-                                : '不可與會員優惠券一起使用',
-                          ),
-                          if (campaign.type == DiscountCampaignType.newMember)
-                            detailRow(
-                              title: '優惠額度',
-                              value: campaign.newMemberDiscountNights > 0
-                                  ? '共 ${campaign.newMemberDiscountNights} 晚，可分次使用'
-                                  : '依活動設定',
-                            )
-                          else if (campaign.memberUsageLimit > 0)
-                            detailRow(
-                              title: '使用次數',
-                              value: '每位會員最多使用 ${campaign.memberUsageLimit} 次',
-                            ),
-                          const SizedBox(height: 6),
-                          Text(
-                            '實際折扣仍會依最終日期、房型、加值服務、會員資格及訂單金額重新計算。',
-                            style: TextStyle(
-                              color: Colors.grey.shade600,
-                              fontSize: 12.5,
-                              height: 1.5,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  SizedBox(
-                    width: double.infinity,
-                    child: FilledButton(
-                      onPressed: () {
-                        Navigator.pop(bottomSheetContext);
-                      },
-                      child: const Text('關閉'),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        );
-      },
-    );
   }
 
   Widget _buildCurrentCampaignCard(Map<String, dynamic> shop) {
@@ -2447,139 +1787,20 @@ class _ShopBookingPageState extends State<ShopBookingPage> {
     }
 
     final Map<String, dynamic> discountInfo = _calculateDiscountInfo(shop);
-
-    final bool campaignBlockedBySpecialDate =
-        (discountInfo['campaignBlockedBySpecialDate'] ?? false) == true;
-
-    if (campaignBlockedBySpecialDate) {
-      return Container(
-        width: double.infinity,
-        margin: const EdgeInsets.only(top: 14, bottom: 4),
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          color: Colors.orange.shade50,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: Colors.orange.shade300),
-        ),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Icon(Icons.info_outline, color: Colors.orange.shade800, size: 21),
-            const SizedBox(width: 9),
-            Expanded(
-              child: Text(
-                '目前住宿日期包含特殊日期加價，本次不適用自動優惠活動。',
-                style: TextStyle(
-                  color: Colors.orange.shade900,
-                  fontSize: 13.5,
-                  height: 1.5,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
-          ],
-        ),
-      );
-    }
-
     final String campaignId = (discountInfo['discountCampaignId'] ?? '')
         .toString()
         .trim();
+    final DiscountCampaignModel? campaign = campaignId.isEmpty
+        ? null
+        : _findCampaignById(campaignId);
 
-    final String campaignName = (discountInfo['discountCampaignName'] ?? '')
-        .toString()
-        .trim();
-
-    final int discountAmount = ((discountInfo['discountAmount'] ?? 0) as num)
-        .toInt();
-
-    if (campaignId.isEmpty || campaignName.isEmpty || discountAmount <= 0) {
-      return const SizedBox.shrink();
-    }
-
-    final DiscountCampaignModel? campaign = _findCampaignById(campaignId);
-
-    return Container(
-      width: double.infinity,
-      margin: const EdgeInsets.only(top: 14, bottom: 4),
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: const Color(0xFFEAF8EE),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFF43A85B)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              const Icon(
-                Icons.card_giftcard_outlined,
-                color: Color(0xFF2E8B47),
-                size: 21,
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  '目前符合優惠',
-                  style: TextStyle(
-                    color: widget.theme.textColor,
-                    fontSize: 15,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-              ),
-              Text(
-                '預估 -NT\$ $discountAmount',
-                style: const TextStyle(
-                  color: Color(0xFF2E8B47),
-                  fontSize: 14,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          Row(
-            children: [
-              const Icon(
-                Icons.check_circle,
-                color: Color(0xFF2E8B47),
-                size: 19,
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  campaignName,
-                  style: TextStyle(
-                    color: widget.theme.textColor,
-                    fontSize: 14,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-              ),
-              if (campaign != null)
-                IconButton(
-                  tooltip: '查看活動詳情',
-                  visualDensity: VisualDensity.compact,
-                  padding: const EdgeInsets.all(4),
-                  constraints: const BoxConstraints(
-                    minWidth: 34,
-                    minHeight: 34,
-                  ),
-                  onPressed: () {
-                    _showCampaignDetail(context, campaign);
-                  },
-                  icon: const Icon(
-                    Icons.info_outline,
-                    color: Color(0xFF2E8B47),
-                    size: 21,
-                  ),
-                ),
-            ],
-          ),
-        ],
-      ),
+    return BookingCurrentCampaignCard(
+      theme: widget.theme,
+      discountInfo: discountInfo,
+      campaign: campaign,
+      onShowDetail: (DiscountCampaignModel selected) {
+        showBookingCampaignDetailSheet(context: context, campaign: selected);
+      },
     );
   }
 
@@ -3032,12 +2253,6 @@ class _ShopBookingPageState extends State<ShopBookingPage> {
       'couponDiscountAmount': couponDiscountAmount,
       'finalTotalAfterCoupon': finalTotalAfterCoupon,
     };
-  }
-
-  int _calculateTotalPrice({Map<String, dynamic>? shop}) {
-    final discountInfo = _calculateDiscountInfo(shop);
-
-    return discountInfo['finalTotal'] ?? 0;
   }
 
   Widget _buildBookingSummary(Map<String, dynamic> shop) {

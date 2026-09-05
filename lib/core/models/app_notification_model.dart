@@ -1,6 +1,6 @@
-// lib/core/models/app_notification_model.dart
+// 檔案名稱：lib/core/models/app_notification_model.dart
+// 功能說明：將 Firestore notifications 文件轉換成 Flutter 可使用的通知物件
 // 🔔 App 通知資料模型
-// 功能：將 Firestore notifications 文件轉換成 Flutter 可使用的通知物件
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 

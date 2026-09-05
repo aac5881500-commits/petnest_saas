@@ -1,5 +1,5 @@
-// lib/features/shop/widgets/chat/shop_chat_image_viewer.dart
-// 💬 聊天圖片全螢幕檢視
+// 檔案名稱：lib/features/shop/widgets/chat/shop_chat_image_viewer.dart
+// 功能說明：聊天圖片全螢幕檢視
 
 import 'package:flutter/material.dart';
 

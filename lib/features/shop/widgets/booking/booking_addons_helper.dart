@@ -1,5 +1,5 @@
-// lib/features/shop/widgets/booking/booking_addons_helper.dart
-// 🔥 前台預約加值服務 helper：整理送出訂單用的 addons 資料
+// 檔案名稱：lib/features/shop/widgets/booking/booking_addons_helper.dart
+// 功能說明：前台預約加值服務 helper：整理送出訂單用的 addons 資料
 
 class BookingAddonsHelper {
   /// 相容 Firestore 把開關存成 bool / 0 / 1 / 字串的讀法。

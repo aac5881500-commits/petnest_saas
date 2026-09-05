@@ -1,7 +1,5 @@
-// 檔案名稱 lib/shared/widgets/booking_calendar.dart
-//
-// 共用預約月曆元件
-//
+// 檔案名稱：lib/shared/widgets/booking_calendar.dart
+// 功能說明：共用預約月曆元件
 // 用途：
 // - 前台 / 後台共用同一套月曆視覺
 // - 可顯示：

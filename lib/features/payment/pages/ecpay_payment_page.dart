@@ -1,6 +1,6 @@
-// lib/features/payment/pages/ecpay_payment_page.dart
+// 檔案名稱：lib/features/payment/pages/ecpay_payment_page.dart
+// 功能說明：依執行平台自動使用 Android／iOS WebView 或 Web iframe
 // 🌐 綠界付款頁
-// 功能：依執行平台自動使用 Android／iOS WebView 或 Web iframe，
 // 載入 Cloud Function 回傳的綠界付款 HTML，
 // 並即時監聽目前 Payment 的付款狀態。
 // 當付款成功、失敗、取消或逾期時，自動導回對應的訂單詳情。

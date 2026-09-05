@@ -1,5 +1,5 @@
-// lib/features/booking/pages/booking_detail_page.dart
-// 客戶端住宿／安親訂單詳細頁（暖色系、共用元件編排）
+// 檔案名稱：lib/features/booking/pages/booking_detail_page.dart
+// 功能說明：客戶端住宿／安親訂單詳細頁（暖色系、共用元件編排）
 
 import 'dart:async';
 

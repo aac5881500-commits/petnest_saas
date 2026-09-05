@@ -1,6 +1,6 @@
-// lib/features/shop/widgets/inventory/inventory_ui_format.dart
+// 檔案名稱：lib/features/shop/widgets/inventory/inventory_ui_format.dart
+// 功能說明：詳情頁各分頁共用日期時間顯示，不影響庫存計算。
 // 📦 庫存畫面日期格式
-// 功能：詳情頁各分頁共用日期時間顯示，不影響庫存計算。
 
 class InventoryUiFormat {
   InventoryUiFormat._();

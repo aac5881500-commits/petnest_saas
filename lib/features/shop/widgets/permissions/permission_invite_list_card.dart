@@ -1,5 +1,5 @@
-// lib/features/shop/widgets/permissions/permission_invite_list_card.dart
-// ✉️ 權限設定 - 待綁定邀請列表卡片
+// 檔案名稱：lib/features/shop/widgets/permissions/permission_invite_list_card.dart
+// 功能說明：權限設定 - 待綁定邀請列表卡片
 
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';

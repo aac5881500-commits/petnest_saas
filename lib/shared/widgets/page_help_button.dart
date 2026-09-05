@@ -1,6 +1,6 @@
-// lib/shared/widgets/page_help_button.dart
+// 檔案名稱：lib/shared/widgets/page_help_button.dart
+// 功能說明：在頁面顯示小型問號按鈕，點擊後開啟底部說明視窗
 // 💡 共用頁面使用說明按鈕
-// 功能：在頁面顯示小型問號按鈕，點擊後開啟底部說明視窗，
 // 顯示頁面用途、使用方式、模擬案例與注意事項。
 
 import 'package:flutter/material.dart';

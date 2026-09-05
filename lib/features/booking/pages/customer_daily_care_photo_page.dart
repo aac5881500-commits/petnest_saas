@@ -1,6 +1,6 @@
-// lib/features/booking/pages/customer_daily_care_photo_page.dart
+// 檔案名稱：lib/features/booking/pages/customer_daily_care_photo_page.dart
+// 功能說明：讓會員在入住期間查看店家回報的照護照片。
 // 📷 客戶端每日照護照片頁
-// 功能：讓會員在入住期間查看店家回報的照護照片。
 // 平常只載入 previewUrl 小圖，不提供原始下載版。
 // 退房後的照片下載功能會由另一個流程處理。
 

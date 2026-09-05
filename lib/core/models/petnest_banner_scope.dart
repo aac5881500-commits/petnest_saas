@@ -1,5 +1,5 @@
-// lib/core/models/petnest_banner_scope.dart
-// 首頁 / 商城海報共用 Editor、Renderer；資料與連結選項依 scope 分開。
+// 檔案名稱：lib/core/models/petnest_banner_scope.dart
+// 功能說明：首頁 / 商城海報共用 Editor、Renderer；資料與連結選項依 scope 分開。
 
 enum PetNestBannerScope { home, store }
 

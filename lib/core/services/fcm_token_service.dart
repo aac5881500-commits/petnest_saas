@@ -1,6 +1,6 @@
-// lib/core/services/fcm_token_service.dart
+// 檔案名稱：lib/core/services/fcm_token_service.dart
+// 功能說明：取得推播權限與 FCM Token，寫入 Firestore，供 Cloud Functions 發送通知使用
 // 🔔 FCM 推播 Token 服務
-// 功能：取得推播權限與 FCM Token，寫入 Firestore，供 Cloud Functions 發送通知使用
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';

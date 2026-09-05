@@ -1,6 +1,6 @@
-// lib/features/admin/pages/admin_payment_center_page.dart
+// 檔案名稱：lib/features/admin/pages/admin_payment_center_page.dart
+// 功能說明：提供店主查看店家的付款交易紀錄
 // 💳 金流中心
-// 功能：提供店主查看店家的付款交易紀錄，
 // 支援單一訂單交易模式、關鍵字搜尋、付款狀態篩選與付款詳情。
 
 import 'package:flutter/material.dart';

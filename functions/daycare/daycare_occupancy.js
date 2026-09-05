@@ -1,5 +1,5 @@
-// functions/daycare/daycare_occupancy.js
-// 🐾 住宿日期占用 + 臨托時段占用，同一套檢查
+// 檔案名稱：functions/daycare/daycare_occupancy.js
+// 功能說明：住宿日期占用 + 臨托時段占用，同一套檢查
 
 const admin = require("firebase-admin");
 const {

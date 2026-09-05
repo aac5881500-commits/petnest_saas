@@ -1,5 +1,5 @@
-// lib/core/services/fixed_aspect_crop_math.dart
-// 固定比例裁切：cover 縮放、拖曳夾限與輸出裁切框。不含 UI。
+// 檔案名稱：lib/core/services/fixed_aspect_crop_math.dart
+// 功能說明：固定比例裁切：cover 縮放、拖曳夾限與輸出裁切框。不含 UI。
 
 import 'dart:math' as math;
 import 'dart:ui';

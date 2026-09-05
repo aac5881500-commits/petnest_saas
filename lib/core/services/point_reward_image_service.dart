@@ -1,6 +1,6 @@
-// lib/core/services/point_reward_image_service.dart
+// 檔案名稱：lib/core/services/point_reward_image_service.dart
+// 功能說明：驗證並上傳實體商品圖片至 Firebase Storage
 // 🖼️ 點數兌換商品圖片 Service
-// 功能：驗證並上傳實體商品圖片至 Firebase Storage，
 // 限制圖片格式與檔案大小，並提供舊圖片刪除功能。
 
 import 'dart:typed_data';

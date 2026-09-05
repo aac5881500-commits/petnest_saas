@@ -1,6 +1,6 @@
-// lib/features/shop/widgets/inventory/inventory_movements_tab.dart
+// 檔案名稱：lib/features/shop/widgets/inventory/inventory_movements_tab.dart
+// 功能說明：顯示有上限的異動歷史，避免一次載入無限資料。
 // 📦 庫存詳情「異動流水」分頁
-// 功能：顯示有上限的異動歷史，避免一次載入無限資料。
 
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/constants/inventory_constants.dart';

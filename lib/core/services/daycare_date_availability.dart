@@ -1,5 +1,5 @@
-// lib/core/services/daycare_date_availability.dart
-// 🐾 安親可預約日期：預設開放，僅明確關閉／店休例外不可預約
+// 檔案名稱：lib/core/services/daycare_date_availability.dart
+// 功能說明：安親可預約日期：預設開放，僅明確關閉／店休例外不可預約
 
 import 'package:petnest_saas/core/models/daycare_date_override_model.dart';
 import 'package:petnest_saas/core/models/daycare_settings_model.dart';

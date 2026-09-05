@@ -1,5 +1,5 @@
-// lib/features/booking/widgets/booking_detail/booking_detail_after_checkout_section.dart
-// 🧾 客戶端訂單詳細頁：退房結算、訂單狀態、備註區塊
+// 檔案名稱：lib/features/booking/widgets/booking_detail/booking_detail_after_checkout_section.dart
+// 功能說明：客戶端訂單詳細頁：退房結算、訂單狀態、備註區塊
 
 import 'package:flutter/material.dart';
 
@@ -279,7 +279,7 @@ class BookingDetailAfterCheckoutSection extends StatelessWidget {
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.06),
+            color: Colors.black.withValues(alpha: 0.06),
             blurRadius: 12,
             offset: const Offset(0, 4),
           ),

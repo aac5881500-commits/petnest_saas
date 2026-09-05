@@ -1,6 +1,6 @@
-// lib/core/models/payment_gateway_request_model.dart
+// 檔案名稱：lib/core/models/payment_gateway_request_model.dart
+// 功能說明：記錄首次設定、修改金流資料、重新啟用，以及平台審核結果。
 // 💳 店家金流申請資料模型
-// 功能：記錄首次設定、修改金流資料、重新啟用，以及平台審核結果。
 // 注意：不得保存 HashKey、HashIV、密碼或完整敏感憑證。
 
 import 'package:cloud_firestore/cloud_firestore.dart';

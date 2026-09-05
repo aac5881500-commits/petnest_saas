@@ -1,6 +1,6 @@
-// lib/core/services/platform_policy_manage_service.dart
+// 檔案名稱：lib/core/services/platform_policy_manage_service.dart
+// 功能說明：管理平台條款內容、版本與更新時間
 // 📜 平台條款管理 Service
-// 功能：管理平台條款內容、版本與更新時間
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 

@@ -1,6 +1,6 @@
-// lib/core/models/inventory_movement_model.dart
+// 檔案名稱：lib/core/models/inventory_movement_model.dart
+// 功能說明：記錄每一次庫存增減的不可刪除流水，包含異動前後數量、來源與成本。
 // 📦 庫存異動流水 Model
-// 功能：記錄每一次庫存增減的不可刪除流水，包含異動前後數量、來源與成本。
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:petnest_saas/core/constants/inventory_constants.dart';

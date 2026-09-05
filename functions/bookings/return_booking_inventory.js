@@ -1,6 +1,6 @@
-// functions/bookings/return_booking_inventory.js
+// 檔案名稱：functions/bookings/return_booking_inventory.js
+// 功能說明：僅在 ba_{bookingId}_deduct / bs_{bookingId}_deduct 真實存在時返還。
 // 🏨 取消住宿訂單時返還庫存
-// 功能：僅在 ba_{bookingId}_deduct / bs_{bookingId}_deduct 真實存在時返還。
 // 不依 booking snapshot 加庫存。同一 booking 返還幂等。
 
 const admin = require("firebase-admin");

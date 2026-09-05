@@ -1,6 +1,6 @@
-// lib/features/booking/widgets/review_rating_stars.dart
+// 檔案名稱：lib/features/booking/widgets/review_rating_stars.dart
+// 功能說明：顯示或選擇 1~5 顆星，可用於評價表單與評價列表
 // ⭐ 評價星星元件
-// 功能：顯示或選擇 1~5 顆星，可用於評價表單與評價列表
 
 import 'package:flutter/material.dart';
 

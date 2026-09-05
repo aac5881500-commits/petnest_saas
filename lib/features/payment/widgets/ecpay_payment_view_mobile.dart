@@ -1,6 +1,6 @@
-// lib/features/payment/widgets/ecpay_payment_view_mobile.dart
+// 檔案名稱：lib/features/payment/widgets/ecpay_payment_view_mobile.dart
+// 功能說明：使用原生 WebView 載入綠界付款 HTML。
 // 📱 綠界付款內容（Android / iOS）
-// 功能：使用原生 WebView 載入綠界付款 HTML。
 
 import 'package:flutter/material.dart';
 import 'package:webview_flutter/webview_flutter.dart';

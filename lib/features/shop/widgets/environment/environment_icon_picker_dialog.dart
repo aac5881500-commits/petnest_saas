@@ -1,5 +1,5 @@
-// lib/features/shop/widgets/environment/environment_icon_picker_dialog.dart
-// 🐾 環境特色 Icon 選擇 Dialog
+// 檔案名稱：lib/features/shop/widgets/environment/environment_icon_picker_dialog.dart
+// 功能說明：環境特色 Icon 選擇 Dialog
 
 import 'package:flutter/material.dart';
 

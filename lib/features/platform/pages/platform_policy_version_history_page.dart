@@ -1,6 +1,6 @@
-// lib/features/platform/pages/platform_policy_version_history_page.dart
+// 檔案名稱：lib/features/platform/pages/platform_policy_version_history_page.dart
+// 功能說明：查看平台會員條款或創店主條款的歷史版本紀錄
 // 📚 平台條款歷史版本頁
-// 功能：查看平台會員條款或創店主條款的歷史版本紀錄
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';

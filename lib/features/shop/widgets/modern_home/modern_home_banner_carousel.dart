@@ -1,5 +1,5 @@
-// lib/features/shop/widgets/modern_home/modern_home_banner_carousel.dart
-// 新版 Beta 首頁活動海報輪播。
+// 檔案名稱：lib/features/shop/widgets/modern_home/modern_home_banner_carousel.dart
+// 功能說明：新版 Beta 首頁活動海報輪播。
 // 外框尺寸由前台外觀的 homeBannerDisplaySize 統一決定，內容由每張 Banner 自己 render。
 
 import 'package:flutter/foundation.dart';

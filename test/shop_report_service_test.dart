@@ -1,3 +1,6 @@
+// 檔案名稱：test/shop_report_service_test.dart
+// 功能說明：店家報表服務的單元測試
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:petnest_saas/core/constants/store_constants.dart';
 import 'package:petnest_saas/core/services/shop_report_format.dart';

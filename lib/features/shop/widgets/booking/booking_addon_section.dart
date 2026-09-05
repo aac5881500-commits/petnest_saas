@@ -1,6 +1,6 @@
-// lib/features/shop/widgets/booking/booking_addon_section.dart
+// 檔案名稱：lib/features/shop/widgets/booking/booking_addon_section.dart
+// 功能說明：顯示營業時間外入住、一般加值服務、客製化服務、每日分時段服務
 // 🔥 前台預約加值服務區塊
-// 功能：顯示營業時間外入住、一般加值服務、客製化服務、每日分時段服務
 // ✅ 防呆版：避免 addonData 缺少欄位時出現 Unexpected null value
 
 import 'package:flutter/material.dart';

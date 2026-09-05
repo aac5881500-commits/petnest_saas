@@ -1,6 +1,6 @@
-// lib/features/shop/pages/shop_announcement_detail_page.dart
+// 檔案名稱：lib/features/shop/pages/shop_announcement_detail_page.dart
+// 功能說明：顯示單篇公告完整標題、類型、置頂狀態、內容與發布時間
 // 📢 前台公告詳細頁
-// 功能：顯示單篇公告完整標題、類型、置頂狀態、內容與發布時間
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
@@ -48,7 +48,7 @@ class ShopAnnouncementDetailPage extends StatelessWidget {
               _TagChip(
                 icon: typeIcon,
                 label: typeName,
-                backgroundColor: theme.primaryColor.withOpacity(0.12),
+                backgroundColor: theme.primaryColor.withValues(alpha: 0.12),
                 foregroundColor: theme.primaryColor,
               ),
 
@@ -80,14 +80,14 @@ class ShopAnnouncementDetailPage extends StatelessWidget {
               Icon(
                 Icons.access_time,
                 size: 16,
-                color: theme.textColor.withOpacity(0.55),
+                color: theme.textColor.withValues(alpha: 0.55),
               ),
               const SizedBox(width: 6),
               Text(
                 _formatTime(createdAt),
                 style: TextStyle(
                   fontSize: 13,
-                  color: theme.textColor.withOpacity(0.55),
+                  color: theme.textColor.withValues(alpha: 0.55),
                 ),
               ),
             ],
@@ -104,7 +104,7 @@ class ShopAnnouncementDetailPage extends StatelessWidget {
               border: Border.all(color: theme.cardBorderColor),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.03),
+                  color: Colors.black.withValues(alpha: 0.03),
                   blurRadius: 8,
                   offset: const Offset(0, 3),
                 ),

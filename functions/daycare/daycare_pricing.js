@@ -1,5 +1,5 @@
-// functions/daycare/daycare_pricing.js
-// 🐾 臨托計價：與 Flutter DaycarePricingService 同一公式
+// 檔案名稱：functions/daycare/daycare_pricing.js
+// 功能說明：臨托計價：與 Flutter DaycarePricingService 同一公式
 
 const {roundMoney, toInt, normalizeString, parseBool} = require("./daycare_utils");
 

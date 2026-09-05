@@ -1,6 +1,6 @@
-// lib/features/admin/widgets/admin_selected_member_card.dart
+// 檔案名稱：lib/features/admin/widgets/admin_selected_member_card.dart
+// 功能說明：手動新增訂單時顯示目前選中的會員資料
 // ✅ 後台已選會員卡片
-// 功能：手動新增訂單時顯示目前選中的會員資料
 
 import 'package:flutter/material.dart';
 

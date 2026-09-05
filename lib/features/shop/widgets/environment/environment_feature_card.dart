@@ -1,5 +1,5 @@
-// lib/features/shop/widgets/environment/environment_feature_card.dart
-// 🐾 環境介紹特色卡：橫向圖卡 / 上圖下文 / 重點文字卡
+// 檔案名稱：lib/features/shop/widgets/environment/environment_feature_card.dart
+// 功能說明：環境介紹特色卡：橫向圖卡 / 上圖下文 / 重點文字卡
 
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/models/environment_intro_style.dart';

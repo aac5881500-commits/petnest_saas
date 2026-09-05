@@ -1,3 +1,6 @@
+// 檔案名稱：test/store_banner_cross_platform_layout_test.dart
+// 功能說明：商城橫幅跨平台排版的單元測試（商城與首頁畫布比例不同且與寬度連動）
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:petnest_saas/core/models/home_theme_model.dart';

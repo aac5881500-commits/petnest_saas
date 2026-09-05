@@ -1,4 +1,5 @@
-//lib/main.dart 入口
+// 檔案名稱：lib/main.dart
+// 功能說明：Flutter 應用程式入口，初始化 Firebase、路由與全域錯誤處理
 
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
@@ -11,7 +12,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:petnest_saas/core/services/shop_service.dart';
 import 'package:petnest_saas/features/shop/pages/shop_public_page.dart';
 import 'package:petnest_saas/firebase_options.dart';
-import 'package:petnest_saas/features/member/pages/member_page.dart';
 import 'package:petnest_saas/features/shop/pages/shop_code_redirect_page.dart';
 import 'package:flutter/foundation.dart';
 import 'package:petnest_saas/core/debug/chat_error_probe.dart';

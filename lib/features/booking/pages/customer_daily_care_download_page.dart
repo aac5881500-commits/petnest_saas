@@ -1,6 +1,6 @@
-// lib/features/booking/pages/customer_daily_care_download_page.dart
+// 檔案名稱：lib/features/booking/pages/customer_daily_care_download_page.dart
+// 功能說明：會員完成退房後，在下載期限內下載每日照護紀錄與高清照護照片。
 // 📦 退房照護資料下載頁
-// 功能：會員完成退房後，在下載期限內下載每日照護紀錄與高清照護照片。
 // 注意：入住期間不可使用此頁取得高清照片。
 
 import 'package:cloud_firestore/cloud_firestore.dart';

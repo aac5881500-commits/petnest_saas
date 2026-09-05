@@ -1,5 +1,5 @@
-// lib/features/member/widgets/member_list_helpers.dart
-// 會員列表純函式：優惠券分類、點數流水篩選、訂單進行中判斷。
+// 檔案名稱：lib/features/member/widgets/member_list_helpers.dart
+// 功能說明：會員列表純函式：優惠券分類、點數流水篩選、訂單進行中判斷。
 
 import 'package:petnest_saas/core/models/member_coupon_model.dart';
 import 'package:petnest_saas/core/models/member_point_log_model.dart';

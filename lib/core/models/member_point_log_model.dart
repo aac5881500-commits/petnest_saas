@@ -1,6 +1,6 @@
-// lib/core/models/member_point_log_model.dart
+// 檔案名稱：lib/core/models/member_point_log_model.dart
+// 功能說明：記錄會員每一次點數增加、扣除、兌換、退回與過期紀錄
 // 🪙 會員點數流水模型
-// 功能：記錄會員每一次點數增加、扣除、兌換、退回與過期紀錄
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 

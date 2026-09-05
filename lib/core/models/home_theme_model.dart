@@ -1,6 +1,6 @@
-// lib/core/models/home_theme_model.dart
+// 檔案名稱：lib/core/models/home_theme_model.dart
+// 功能說明：統一管理 Classic、Modern 首頁的背景、卡片、外框、主色與文字顏色
 // 🎨 首頁共用主題 Model
-// 功能：統一管理 Classic、Modern 首頁的背景、卡片、外框、主色與文字顏色
 
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/models/home/modern_drawer_setting_model.dart';

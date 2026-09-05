@@ -1,6 +1,6 @@
-// lib/core/models/inventory_batch_model.dart
+// 檔案名稱：lib/core/models/inventory_batch_model.dart
+// 功能說明：保存同一品項的多批進貨紀錄，包含數量、單價、總成本、有效期限與供應商。
 // 📦 庫存進貨批次 Model
-// 功能：保存同一品項的多批進貨紀錄，包含數量、單價、總成本、有效期限與供應商。
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 

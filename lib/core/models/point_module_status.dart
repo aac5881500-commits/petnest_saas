@@ -1,5 +1,5 @@
-// lib/core/models/point_module_status.dart
-// 🪙 點數模組狀態
+// 檔案名稱：lib/core/models/point_module_status.dart
+// 功能說明：點數模組狀態
 
 enum PointModuleStatus {
   /// 從未啟用

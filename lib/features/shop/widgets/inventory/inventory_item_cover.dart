@@ -1,6 +1,6 @@
-// lib/features/shop/widgets/inventory/inventory_item_cover.dart
+// 檔案名稱：lib/features/shop/widgets/inventory/inventory_item_cover.dart
+// 功能說明：有 imageUrl 時顯示縮圖；沒有圖片時顯示 placeholder。舊資料沒有圖片欄位仍可正常顯示。
 // 📦 庫存品項代表圖
-// 功能：有 imageUrl 時顯示縮圖；沒有圖片時顯示 placeholder。舊資料沒有圖片欄位仍可正常顯示。
 
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/models/inventory_item_model.dart';

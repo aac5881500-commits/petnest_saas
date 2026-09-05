@@ -1,5 +1,5 @@
-// lib/features/shop/pages/shop_public_page.dart
-// 👤 前台店家家頁（完整版🔥 + Drawer版 + 修正錯誤）
+// 檔案名稱：lib/features/shop/pages/shop_public_page.dart
+// 功能說明：前台店家家頁（完整版 + Drawer版 + 修正錯誤）
 
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/debug/chat_error_probe.dart';
@@ -70,12 +70,6 @@ class _ShopPublicPageState extends State<ShopPublicPage> {
     );
 
     await launchUrl(uri, mode: LaunchMode.externalApplication);
-  }
-
-  void _showFreeModeSnackBar() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('此店家目前為免費版，完整前台功能尚未開放，請直接聯絡店家洽詢')),
-    );
   }
 
   @override
@@ -204,26 +198,6 @@ class _ShopPublicPageState extends State<ShopPublicPage> {
         }
 
         final isFreeMode = plan == 'free' || !isPaidActive;
-
-        /// 🔥 店家已開啟的模組 / 服務類型
-        final List enabledModules = shop['enabledModules'] ?? [];
-        final List serviceTypes = shop['serviceTypes'] ?? [];
-
-        /// 🔥 模板判斷：之後首頁功能卡會依照這些顯示
-        final bool hasBooking = enabledModules.contains('booking');
-        final bool hasCatHotel = serviceTypes.contains('cat_hotel');
-        final bool hasDogHotel = serviceTypes.contains('dog_hotel');
-        final bool hasGrooming = serviceTypes.contains('grooming');
-        final bool hasHospital = serviceTypes.contains('hospital');
-        final bool hasShop = serviceTypes.contains('shop');
-
-        /// 🔥 目前主模板：先固定貓咪旅館
-        /// 未來可改成從店家設定讀取 primaryService
-        final String primaryService = 'cat_hotel';
-
-        /// 🔥 未來多模板入口判斷
-        /// 目前先保留，不顯示其他模板
-        final bool showServiceEntrance = serviceTypes.length > 1;
 
         /// 🔥 Banner（與商城共用 StoreBannerView）
         final List<StoreBannerModel> banners = HomeBannerService.instance
@@ -821,7 +795,7 @@ class _ShopPublicPageState extends State<ShopPublicPage> {
           border: Border.all(color: theme.cardBorderColor),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.04),
+              color: Colors.black.withValues(alpha: 0.04),
               blurRadius: 8,
               offset: const Offset(0, 3),
             ),
@@ -995,7 +969,7 @@ class _ShopPublicPageState extends State<ShopPublicPage> {
           border: Border.all(color: theme.cardBorderColor),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.06),
+              color: Colors.black.withValues(alpha: 0.06),
               blurRadius: 12,
               offset: const Offset(0, 4),
             ),

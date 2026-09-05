@@ -1,6 +1,6 @@
-// lib/features/shop/pages/shop_point_setting_page.dart
+// 檔案名稱：lib/features/shop/pages/shop_point_setting_page.dart
+// 功能說明：設定點數開關、發點計算方式、有效期限與兌換權限
 // 🪙 店家點數設定頁
-// 功能：設定點數開關、發點計算方式、有效期限與兌換權限
 
 import 'package:flutter/material.dart';
 import '../../../core/models/daycare_settings_model.dart';

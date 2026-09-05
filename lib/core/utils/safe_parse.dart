@@ -1,5 +1,5 @@
-// lib/core/utils/safe_parse.dart
-// 共用安全解析：相容 Firestore Map／List／Timestamp／金額／bool。
+// 檔案名稱：lib/core/utils/safe_parse.dart
+// 功能說明：共用安全解析：相容 Firestore Map／List／Timestamp／金額／bool。
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 

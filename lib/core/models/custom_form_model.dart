@@ -1,5 +1,5 @@
-// lib/core/models/custom_form_model.dart
-// 📝 店家自訂表單資料模型
+// 檔案名稱：lib/core/models/custom_form_model.dart
+// 功能說明：店家自訂表單資料模型
 // 用途：新增寵物表單、送出訂單表單的結構定義與 Firestore 解析。
 
 import 'package:cloud_firestore/cloud_firestore.dart';

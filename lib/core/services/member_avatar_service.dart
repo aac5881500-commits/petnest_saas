@@ -1,5 +1,5 @@
-// lib/core/services/member_avatar_service.dart
-// 會員自訂大頭貼。
+// 檔案名稱：lib/core/services/member_avatar_service.dart
+// 功能說明：會員自訂大頭貼。
 // Storage 使用現有已允許路徑：pets/{uid}/avatar_{timestamp}.jpg
 // （與寵物照片同一規則：本人 JPEG 寫入）
 // Firestore：user_profiles/{uid}.avatarUrl / avatarStoragePath

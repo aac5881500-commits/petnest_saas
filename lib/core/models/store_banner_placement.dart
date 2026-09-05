@@ -1,5 +1,5 @@
-// lib/core/models/store_banner_placement.dart
-// 🛒 海報文字 / CTA 共用位置換算。Preview 與前台必須走同一套。
+// 檔案名稱：lib/core/models/store_banner_placement.dart
+// 功能說明：海報文字 / CTA 共用位置換算。Preview 與前台必須走同一套。
 
 import 'package:flutter/material.dart';
 

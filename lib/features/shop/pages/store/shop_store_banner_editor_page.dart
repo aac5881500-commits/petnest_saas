@@ -1,5 +1,5 @@
-// lib/features/shop/pages/store/shop_store_banner_editor_page.dart
-// 🛒 活動海報編輯器：首頁 / 商城共用 StoreBannerView。
+// 檔案名稱：lib/features/shop/pages/store/shop_store_banner_editor_page.dart
+// 功能說明：活動海報編輯器：首頁 / 商城共用 StoreBannerView。
 // scope 決定儲存位置與連結選項，不要複製第二套 Editor。
 
 import 'dart:math' as math;

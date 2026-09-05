@@ -1,6 +1,6 @@
-// lib/features/platform/pages/platform_member_manage_page.dart
+// 檔案名稱：lib/features/platform/pages/platform_member_manage_page.dart
+// 功能說明：平台後台查看平台帳號、帳號狀態、最後登入與平台備註
 // 👤 平台會員管理頁
-// 功能：平台後台查看平台帳號、帳號狀態、最後登入與平台備註
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
@@ -154,7 +154,9 @@ class PlatformMemberManagePage extends StatelessWidget {
                               vertical: 5,
                             ),
                             decoration: BoxDecoration(
-                              color: _statusColor(status).withOpacity(0.12),
+                              color: _statusColor(
+                                status,
+                              ).withValues(alpha: 0.12),
                               borderRadius: BorderRadius.circular(999),
                             ),
                             child: Text(

@@ -1,5 +1,5 @@
-// lib/core/models/store_banner_model.dart
-// 🛒 商城活動海報：存在 store_settings/main.banners[]
+// 檔案名稱：lib/core/models/store_banner_model.dart
+// 功能說明：商城活動海報：存在 store_settings/main.banners[]
 // 效果欄位都是前台 render 設定，不改原始圖片。
 
 import 'package:cloud_firestore/cloud_firestore.dart';

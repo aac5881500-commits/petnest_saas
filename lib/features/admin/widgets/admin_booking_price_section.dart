@@ -1,6 +1,6 @@
-// lib/features/admin/widgets/admin_booking_price_section.dart
+// 檔案名稱：lib/features/admin/widgets/admin_booking_price_section.dart
+// 功能說明：顯示房費、寵物加價、加值服務、總價、訂金、付款方式、轉帳後五碼與轉帳截圖
 // 💰 後台訂單詳細頁：價格與付款區塊
-// 功能：顯示房費、寵物加價、加值服務、總價、訂金、付款方式、轉帳後五碼與轉帳截圖
 
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/models/booking_kind.dart';
@@ -83,7 +83,7 @@ class AdminBookingPriceSection extends StatelessWidget {
             borderRadius: BorderRadius.circular(16),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.05),
+                color: Colors.black.withValues(alpha: 0.05),
                 blurRadius: 10,
                 offset: const Offset(0, 4),
               ),
@@ -393,7 +393,10 @@ class AdminBookingPriceSection extends StatelessWidget {
             color: Colors.white,
             borderRadius: BorderRadius.circular(16),
             boxShadow: [
-              BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10),
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.05),
+                blurRadius: 10,
+              ),
             ],
           ),
           child: Column(

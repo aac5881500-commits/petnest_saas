@@ -1,5 +1,5 @@
-// lib/core/models/daycare_settings_model.dart
-// 🐾 臨托店家設定：shops/{shopId}/daycare_settings/main
+// 檔案名稱：lib/core/models/daycare_settings_model.dart
+// 功能說明：臨托店家設定：shops/{shopId}/daycare_settings/main
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:petnest_saas/core/models/daycare_plan_model.dart';

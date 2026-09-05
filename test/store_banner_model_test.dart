@@ -1,3 +1,6 @@
+// 檔案名稱：test/store_banner_model_test.dart
+// 功能說明：商城橫幅資料模型的單元測試（舊 Banner 只有 imageUrl 仍可解析）
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:petnest_saas/core/models/store_banner_model.dart';

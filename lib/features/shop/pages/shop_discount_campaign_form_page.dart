@@ -1,6 +1,6 @@
-// lib/features/shop/pages/shop_discount_campaign_form_page.dart
+// 檔案名稱：lib/features/shop/pages/shop_discount_campaign_form_page.dart
+// 功能說明：依優惠類型顯示對應條件，完成設定後才建立優惠活動
 // 🏷️ 新增優惠活動設定頁
-// 功能：依優惠類型顯示對應條件，完成設定後才建立優惠活動
 
 import 'package:flutter/material.dart';
 

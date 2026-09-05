@@ -1,6 +1,6 @@
-// lib/features/shop/pages/inventory/shop_booking_supply_settings_page.dart
+// 檔案名稱：lib/features/shop/pages/inventory/shop_booking_supply_settings_page.dart
+// 功能說明：可手動記錄一般用品，或綁定中央庫存並設定每房／每寵物、每晚／每次入住的扣除方式。
 // 🧹 住宿耗材／必要用品設定頁
-// 功能：可手動記錄一般用品，或綁定中央庫存並設定每房／每寵物、每晚／每次入住的扣除方式。
 
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/constants/inventory_constants.dart';

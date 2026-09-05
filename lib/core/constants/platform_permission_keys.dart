@@ -1,6 +1,6 @@
-// lib/core/constants/platform_permission_keys.dart
+// 檔案名稱：lib/core/constants/platform_permission_keys.dart
+// 功能說明：集中定義平台最高管理員、開發帳號與平台員工可分配的權限。
 // 🔐 平台管理權限常數
-// 功能：集中定義平台最高管理員、開發帳號與平台員工可分配的權限。
 
 /// 平台管理員角色
 abstract final class PlatformAdminRoles {

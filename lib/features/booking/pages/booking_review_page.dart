@@ -1,6 +1,6 @@
-// lib/features/booking/pages/booking_review_page.dart
+// 檔案名稱：lib/features/booking/pages/booking_review_page.dart
+// 功能說明：讓會員針對已完成訂單新增評價
 // ⭐ 訂單評價頁
-// 功能：讓會員針對已完成訂單新增評價
 
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/services/review_service.dart';

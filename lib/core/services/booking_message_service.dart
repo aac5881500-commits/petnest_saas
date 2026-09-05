@@ -1,6 +1,6 @@
-// lib/core/services/booking_message_service.dart
+// 檔案名稱：lib/core/services/booking_message_service.dart
+// 功能說明：讀取訂單留言、送出訂單留言
 // 💬 訂單留言服務
-// 功能：讀取訂單留言、送出訂單留言
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';

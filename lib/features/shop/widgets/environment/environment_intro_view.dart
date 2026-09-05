@@ -1,5 +1,5 @@
-// lib/features/shop/widgets/environment/environment_intro_view.dart
-// 🐾 環境介紹前台 Renderer：預覽與正式頁共用，避免兩套排版。
+// 檔案名稱：lib/features/shop/widgets/environment/environment_intro_view.dart
+// 功能說明：環境介紹前台 Renderer：預覽與正式頁共用，避免兩套排版。
 
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/models/environment_image_frame_setting.dart';

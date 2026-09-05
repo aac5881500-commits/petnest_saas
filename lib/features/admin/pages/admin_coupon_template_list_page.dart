@@ -1,6 +1,6 @@
-// lib/features/admin/pages/admin_coupon_template_list_page.dart
+// 檔案名稱：lib/features/admin/pages/admin_coupon_template_list_page.dart
+// 功能說明：顯示店家建立的優惠券模板，並支援開啟、停用與刪除。
 // 🎟️ 後台優惠券模板列表頁
-// 功能：顯示店家建立的優惠券模板，並支援開啟、停用與刪除。
 
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/models/coupon_template_model.dart';

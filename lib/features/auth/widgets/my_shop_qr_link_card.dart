@@ -1,6 +1,6 @@
-// lib/features/auth/widgets/my_shop_qr_link_card.dart
+// 檔案名稱：lib/features/auth/widgets/my_shop_qr_link_card.dart
+// 功能說明：首頁顯示小按鈕，點擊後進入獨立 QR 分享頁
 // 🔗 店家前台 QR / 分享店家按鈕
-// 功能：首頁顯示小按鈕，點擊後進入獨立 QR 分享頁
 
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/features/auth/pages/my_shop_qr_page.dart';

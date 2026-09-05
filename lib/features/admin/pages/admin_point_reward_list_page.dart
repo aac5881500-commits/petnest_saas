@@ -1,6 +1,6 @@
-// lib/features/admin/pages/admin_point_reward_list_page.dart
+// 檔案名稱：lib/features/admin/pages/admin_point_reward_list_page.dart
+// 功能說明：顯示點數兌換商品，並支援上下架與刪除尚未兌換的商品。
 // 🎁 後台點數兌換商品管理頁
-// 功能：顯示點數兌換商品，並支援上下架與刪除尚未兌換的商品。
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';

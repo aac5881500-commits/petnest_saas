@@ -1,6 +1,6 @@
-// lib/core/models/point_reward_model.dart
+// 檔案名稱：lib/core/models/point_reward_model.dart
+// 功能說明：記錄店家提供的優惠券、住宿券、實體商品或現場服務
 // 🎁 點數兌換商品資料模型
-// 功能：記錄店家提供的優惠券、住宿券、實體商品或現場服務，
 // 讓會員使用點數兌換，並依商品類型決定直接發券或由店員現場核銷。
 
 import 'package:cloud_firestore/cloud_firestore.dart';

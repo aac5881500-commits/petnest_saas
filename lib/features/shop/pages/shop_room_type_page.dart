@@ -1,5 +1,5 @@
-// lib/features/shop/pages/shop_room_type_page.dart
-// 🐱 房型管理頁（升級：支援小卡片🔥）
+// 檔案名稱：lib/features/shop/pages/shop_room_type_page.dart
+// 功能說明：房型管理頁（升級：支援小卡片）
 
 import 'package:image_picker/image_picker.dart';
 import 'package:flutter/material.dart';
@@ -80,7 +80,7 @@ class _ShopRoomTypePageState extends State<ShopRoomTypePage> {
     {'key': 'bed', 'name': '🛏️ 舒眠睡窩', 'icon': Icons.bed},
   ];
 
-  List<String> _selectedFeatures = [];
+  final List<String> _selectedFeatures = [];
   final List<Map<String, String>> _customFeatures = [];
   final _customFeatureNameController = TextEditingController();
 
@@ -138,7 +138,7 @@ class _ShopRoomTypePageState extends State<ShopRoomTypePage> {
         .doc(widget.shopId)
         .get();
 
-    final shop = shopDoc.data() as Map<String, dynamic>? ?? {};
+    final shop = shopDoc.data() ?? <String, dynamic>{};
 
     final limit = ShopPlanService.roomTypeLimit(shop);
 
@@ -504,7 +504,7 @@ class _ShopRoomTypePageState extends State<ShopRoomTypePage> {
                     color: selected
                         ? Theme.of(
                             context,
-                          ).colorScheme.primary.withOpacity(0.12)
+                          ).colorScheme.primary.withValues(alpha: 0.12)
                         : Colors.grey.shade100,
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(

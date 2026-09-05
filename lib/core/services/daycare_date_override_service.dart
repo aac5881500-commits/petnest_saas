@@ -1,5 +1,5 @@
-// lib/core/services/daycare_date_override_service.dart
-// 🐾 臨托單日例外：shops/{shopId}/daycare_date_overrides/{yyyyMMdd}
+// 檔案名稱：lib/core/services/daycare_date_override_service.dart
+// 功能說明：臨托單日例外：shops/{shopId}/daycare_date_overrides/{yyyyMMdd}
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:petnest_saas/core/models/daycare_date_override_model.dart';

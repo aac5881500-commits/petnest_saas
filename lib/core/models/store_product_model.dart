@@ -1,6 +1,6 @@
-// lib/core/models/store_product_model.dart
+// 檔案名稱：lib/core/models/store_product_model.dart
+// 功能說明：店家賣場呈現主檔。新商品必須綁定一個中央庫存品項；舊的未連庫存資料仍可解析。
 // 🛒 商城商品 Model
-// 功能：店家賣場呈現主檔。新商品必須綁定一個中央庫存品項；舊的未連庫存資料仍可解析。
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:petnest_saas/core/constants/store_constants.dart';

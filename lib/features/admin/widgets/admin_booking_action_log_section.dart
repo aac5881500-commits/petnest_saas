@@ -1,6 +1,6 @@
-// lib/features/admin/widgets/admin_booking_action_log_section.dart
+// 檔案名稱：lib/features/admin/widgets/admin_booking_action_log_section.dart
+// 功能說明：讀取 action_logs 並顯示此訂單的操作紀錄列表
 // 📝 後台訂單詳細頁：操作紀錄區塊
-// 功能：讀取 action_logs 並顯示此訂單的操作紀錄列表
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
@@ -26,7 +26,10 @@ class AdminBookingActionLogSection extends StatelessWidget {
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
-          BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10),
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 10,
+          ),
         ],
       ),
       child: StreamBuilder<QuerySnapshot>(

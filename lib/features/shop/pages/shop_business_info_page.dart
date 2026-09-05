@@ -1,5 +1,5 @@
 // 檔案名稱：lib/features/shop/pages/shop_business_info_page.dart
-// 說明：店家營業資訊設定頁（含時間選擇 + 服務類型）
+// 功能說明：店家營業資訊設定頁（含時間選擇 + 服務類型）
 
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/services/shop_service.dart';

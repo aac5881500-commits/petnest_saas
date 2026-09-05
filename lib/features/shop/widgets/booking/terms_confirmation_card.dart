@@ -1,5 +1,5 @@
-// lib/features/shop/widgets/booking/terms_confirmation_card.dart
-// 📜 填寫資料頁：條款確認卡片
+// 檔案名稱：lib/features/shop/widgets/booking/terms_confirmation_card.dart
+// 功能說明：填寫資料頁：條款確認卡片
 
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';

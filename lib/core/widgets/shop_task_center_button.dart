@@ -1,5 +1,5 @@
-// lib/core/widgets/shop_task_center_button.dart
-// 🐾 後台共用待辦中心入口
+// 檔案名稱：lib/core/widgets/shop_task_center_button.dart
+// 功能說明：後台共用待辦中心入口
 // 放到各店家後台 AppBar actions，不要每頁複製查詢邏輯。
 
 import 'package:firebase_auth/firebase_auth.dart';

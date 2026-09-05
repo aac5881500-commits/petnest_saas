@@ -1,6 +1,6 @@
-// lib/features/shop/pages/inventory/shop_inventory_item_picker_page.dart
+// 檔案名稱：lib/features/shop/pages/inventory/shop_inventory_item_picker_page.dart
+// 功能說明：加購、點數商品與住宿耗材綁定庫存時，只顯示已啟用品項。
 // 📦 中央庫存品項選擇頁
-// 功能：加購、點數商品與住宿耗材綁定庫存時，只顯示已啟用品項。
 // 已綁定的品項可標示「已加入」並禁止再選，避免同一服務重複綁定。
 
 import 'package:flutter/material.dart';

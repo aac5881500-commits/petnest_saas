@@ -1,5 +1,5 @@
-// lib/features/shop/widgets/store/store_promotion_badge.dart
-// 🛒 商城促銷 Badge 共用元件
+// 檔案名稱：lib/features/shop/widgets/store/store_promotion_badge.dart
+// 功能說明：商城促銷 Badge 共用元件
 
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/models/store_promotion_model.dart';

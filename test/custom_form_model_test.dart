@@ -1,3 +1,6 @@
+// 檔案名稱：test/custom_form_model_test.dart
+// 功能說明：自訂表單資料模型的單元測試（bool 維持原值）
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:petnest_saas/core/models/custom_form_model.dart';
 

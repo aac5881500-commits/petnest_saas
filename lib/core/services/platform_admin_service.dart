@@ -1,6 +1,6 @@
-// lib/core/services/platform_admin_service.dart
+// 檔案名稱：lib/core/services/platform_admin_service.dart
+// 功能說明：讀取平台管理員資料、判斷最高權限與個別權限
 // 👑 平台管理員與權限 Service
-// 功能：讀取平台管理員資料、判斷最高權限與個別權限，
 // 並提供平台員工清單及權限更新功能。
 
 import 'package:cloud_firestore/cloud_firestore.dart';

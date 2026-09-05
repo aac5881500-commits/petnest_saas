@@ -1,6 +1,5 @@
-// lib/features/admin/widgets/booking_sort_bar.dart
-// ↕️ 後台訂單排序列
-//
+// 檔案名稱：lib/features/admin/widgets/booking_sort_bar.dart
+// 功能說明：後台訂單排序列
 // 功能：
 // - 顯示目前訂單筆數
 // - 顯示排序方式
@@ -61,7 +60,7 @@ class BookingSortBar extends StatelessWidget {
                 border: Border.all(color: Colors.grey.shade200),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.035),
+                    color: Colors.black.withValues(alpha: 0.035),
                     blurRadius: 10,
                     offset: const Offset(0, 3),
                   ),

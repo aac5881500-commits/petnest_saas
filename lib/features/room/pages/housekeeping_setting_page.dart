@@ -1,6 +1,6 @@
-// lib/features/room/pages/housekeeping_setting_page.dart
+// 檔案名稱：lib/features/room/pages/housekeeping_setting_page.dart
+// 功能說明：設定退房後是否自動將退房當日設為清潔中
 // 🧹 房務設定
-// 功能：設定退房後是否自動將退房當日設為清潔中
 
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/models/housekeeping_setting_model.dart';

@@ -1,5 +1,5 @@
-// lib/core/services/shop_chat_service.dart
-// 💬 店家聊天：一個會員 × 一間店家一個 thread。文字與圖片都走這裡。
+// 檔案名稱：lib/core/services/shop_chat_service.dart
+// 功能說明：店家聊天：一個會員 × 一間店家一個 thread。文字與圖片都走這裡。
 
 import 'dart:async';
 

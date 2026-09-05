@@ -1,6 +1,6 @@
-// lib/core/models/booking_supply_setting_model.dart
+// 檔案名稱：lib/core/models/booking_supply_setting_model.dart
+// 功能說明：店家可手動記錄一般用品，或綁定中央庫存並依每房／每寵物、每晚／每次入住扣除。
 // 🧹 住宿耗材／必要用品設定 Model
-// 功能：店家可手動記錄一般用品，或綁定中央庫存並依每房／每寵物、每晚／每次入住扣除。
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:petnest_saas/core/constants/inventory_constants.dart';

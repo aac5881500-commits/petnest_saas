@@ -1,5 +1,5 @@
-// lib/core/constants/shop_plan_keys.dart
-// 💳 店家方案代碼
+// 檔案名稱：lib/core/constants/shop_plan_keys.dart
+// 功能說明：店家方案代碼
 
 class ShopPlanKeys {
   static const free = 'free';

@@ -1,5 +1,5 @@
-// functions/daycare/manage_daycare_booking.js
-// 🐾 臨托狀態、延長、超時、改價、取消、No-show
+// 檔案名稱：functions/daycare/manage_daycare_booking.js
+// 功能說明：臨托狀態、延長、超時、改價、取消、No-show
 
 const admin = require("firebase-admin");
 const {onCall, HttpsError} = require("firebase-functions/v2/https");

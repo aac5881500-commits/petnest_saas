@@ -1,5 +1,5 @@
-// lib/features/shop/pages/shop_booking_entry_page.dart
-// 🐾 前台預約入口：貓咪旅店＋臨托同時開啟時，先選兩張大型服務卡片
+// 檔案名稱：lib/features/shop/pages/shop_booking_entry_page.dart
+// 功能說明：前台預約入口：貓咪旅店＋臨托同時開啟時，先選兩張大型服務卡片
 
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';

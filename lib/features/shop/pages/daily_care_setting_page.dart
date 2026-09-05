@@ -1,6 +1,6 @@
-// lib/features/shop/pages/daily_care_setting_page.dart
+// 檔案名稱：lib/features/shop/pages/daily_care_setting_page.dart
+// 功能說明：讓店主設定是否啟用每日照護紀錄、每天填寫次數
 // 🐾 每日照護紀錄設定頁
-// 功能：讓店主設定是否啟用每日照護紀錄、每天填寫次數、
 // 要填寫的照護欄位、照片功能與退房後下載期限。
 
 import 'package:flutter/foundation.dart';

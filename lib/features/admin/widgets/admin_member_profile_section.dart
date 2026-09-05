@@ -1,6 +1,6 @@
-// lib/features/admin/widgets/admin_member_profile_section.dart
+// 檔案名稱：lib/features/admin/widgets/admin_member_profile_section.dart
+// 功能說明：顯示會員基本資料、緊急聯絡人、會員綁定、備註、標籤、封存操作
 // 👤 後台會員詳細頁：會員資料區塊
-// 功能：顯示會員基本資料、緊急聯絡人、會員綁定、備註、標籤、封存操作
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -83,7 +83,7 @@ class AdminMemberProfileSection extends StatelessWidget {
                 borderRadius: BorderRadius.circular(12),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.05),
+                    color: Colors.black.withValues(alpha: 0.05),
                     blurRadius: 10,
                   ),
                 ],

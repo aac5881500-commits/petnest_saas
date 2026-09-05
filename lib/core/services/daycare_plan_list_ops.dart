@@ -1,5 +1,5 @@
-// lib/core/services/daycare_plan_list_ops.dart
-// 🐾 安親獨立方案清單：刪除與重新整理排序（不碰 Firestore 舊訂單）
+// 檔案名稱：lib/core/services/daycare_plan_list_ops.dart
+// 功能說明：安親獨立方案清單：刪除與重新整理排序（不碰 Firestore 舊訂單）
 
 import 'package:petnest_saas/core/models/daycare_plan_model.dart';
 

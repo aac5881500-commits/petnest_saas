@@ -1,6 +1,6 @@
-// lib/core/services/store_cart_service.dart
+// 檔案名稱：lib/core/services/store_cart_service.dart
+// 功能說明：只保存商品與套裝組數，不扣除 currentStock。
 // 🛒 每店獨立購物車
-// 功能：只保存商品與套裝組數，不扣除 currentStock。
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';

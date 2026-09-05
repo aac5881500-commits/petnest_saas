@@ -1,6 +1,6 @@
-// lib/features/platform/pages/platform_activation_code_manage_page.dart
+// 檔案名稱：lib/features/platform/pages/platform_activation_code_manage_page.dart
+// 功能說明：建立激活碼、查看使用次數、查看啟用狀態
 // 🎟️ 平台激活碼管理頁
-// 功能：建立激活碼、查看使用次數、查看啟用狀態
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
@@ -343,10 +343,10 @@ class _PlatformActivationCodeManagePageState
                                   ),
                                   decoration: BoxDecoration(
                                     color: isUsedUp
-                                        ? Colors.orange.withOpacity(0.1)
+                                        ? Colors.orange.withValues(alpha: 0.1)
                                         : enabled
-                                        ? Colors.green.withOpacity(0.1)
-                                        : Colors.red.withOpacity(0.1),
+                                        ? Colors.green.withValues(alpha: 0.1)
+                                        : Colors.red.withValues(alpha: 0.1),
                                     borderRadius: BorderRadius.circular(30),
                                   ),
                                   child: Text(

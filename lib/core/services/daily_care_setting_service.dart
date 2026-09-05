@@ -1,6 +1,6 @@
-// lib/core/services/daily_care_setting_service.dart
+// 檔案名稱：lib/core/services/daily_care_setting_service.dart
+// 功能說明：讀取、監聽與儲存店家的每日照護紀錄設定。
 // 🐾 每日照護紀錄設定 Service
-// 功能：讀取、監聽與儲存店家的每日照護紀錄設定。
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 

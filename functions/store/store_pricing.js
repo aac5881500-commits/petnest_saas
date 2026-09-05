@@ -1,5 +1,5 @@
-// functions/store/store_pricing.js
-// 🛒 商城促銷計價（與 Flutter StorePricingService 對齊）
+// 檔案名稱：functions/store/store_pricing.js
+// 功能說明：商城促銷計價（與 Flutter StorePricingService 對齊）
 // 不改商品原價；同一層級取最優惠，不疊成連乘。
 // 買 X 送 Y：付款數量與出貨數量分開。
 

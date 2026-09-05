@@ -1,6 +1,6 @@
-// lib/features/platform/pages/platform_policy_version_detail_page.dart
+// 檔案名稱：lib/features/platform/pages/platform_policy_version_detail_page.dart
+// 功能說明：查看某一版平台條款的完整內容
 // 📖 平台條款歷史版本詳細頁
-// 功能：查看某一版平台條款的完整內容
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';

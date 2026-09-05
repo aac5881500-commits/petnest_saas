@@ -1,5 +1,5 @@
-// lib/features/shop/pages/store/shop_store_promotion_type_page.dart
-// 🛒 先選活動類型，再進該類型專用表單
+// 檔案名稱：lib/features/shop/pages/store/shop_store_promotion_type_page.dart
+// 功能說明：先選活動類型，再進該類型專用表單
 
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/models/store_promotion_model.dart';

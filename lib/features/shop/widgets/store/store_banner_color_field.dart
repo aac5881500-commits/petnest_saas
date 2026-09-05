@@ -1,5 +1,5 @@
-// lib/features/shop/widgets/store/store_banner_color_field.dart
-// 🛒 海報常用色 + 自訂 HSV 色盤，保存 ARGB int。
+// 檔案名稱：lib/features/shop/widgets/store/store_banner_color_field.dart
+// 功能說明：海報常用色 + 自訂 HSV 色盤，保存 ARGB int。
 
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/models/store_banner_text_element.dart';

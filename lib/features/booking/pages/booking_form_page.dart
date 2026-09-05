@@ -1,5 +1,5 @@
-// lib/features/booking/pages/booking_form_page.dart
-// 📄 預約資料填寫頁（條款確認＋暖色卡片版）
+// 檔案名稱：lib/features/booking/pages/booking_form_page.dart
+// 功能說明：預約資料填寫頁（條款確認＋暖色卡片版）
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';

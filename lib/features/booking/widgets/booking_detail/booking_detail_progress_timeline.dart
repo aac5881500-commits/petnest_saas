@@ -1,5 +1,5 @@
-// lib/features/booking/widgets/booking_detail/booking_detail_progress_timeline.dart
-// 訂單完整進度時間軸（預設收合後展開）
+// 檔案名稱：lib/features/booking/widgets/booking_detail/booking_detail_progress_timeline.dart
+// 功能說明：訂單完整進度時間軸（預設收合後展開）
 
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/features/booking/widgets/booking_detail/booking_detail_ui.dart';

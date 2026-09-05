@@ -1,6 +1,6 @@
-// lib/core/services/report_downloader_web.dart
+// 檔案名稱：lib/core/services/report_downloader_web.dart
+// 功能說明：使用瀏覽器下載 Excel 檔案
 // 📥 Web 報表下載
-// 功能：使用瀏覽器下載 Excel 檔案
 
 import 'dart:html' as html;
 import 'dart:typed_data';

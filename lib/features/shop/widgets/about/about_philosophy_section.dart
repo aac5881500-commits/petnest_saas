@@ -1,6 +1,6 @@
-// lib/features/shop/widgets/about/about_philosophy_section.dart
+// 檔案名稱：lib/features/shop/widgets/about/about_philosophy_section.dart
+// 功能說明：顯示店家的品牌理念，並依照首頁版本套用共用主題顏色
 // 🐾 關於我們頁 品牌理念區塊
-// 功能：顯示店家的品牌理念，並依照首頁版本套用共用主題顏色
 
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/models/home_theme_model.dart';
@@ -31,7 +31,7 @@ class AboutPhilosophySection extends StatelessWidget {
               border: Border.all(color: theme.cardBorderColor),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.05),
+                  color: Colors.black.withValues(alpha: 0.05),
                   blurRadius: 18,
                   offset: const Offset(0, 10),
                 ),
@@ -92,7 +92,7 @@ class _PhilosophyItem extends StatelessWidget {
       children: [
         CircleAvatar(
           radius: 24,
-          backgroundColor: theme.primaryColor.withOpacity(0.14),
+          backgroundColor: theme.primaryColor.withValues(alpha: 0.14),
           child: Icon(icon, size: 24, color: theme.primaryColor),
         ),
 
@@ -118,7 +118,7 @@ class _PhilosophyItem extends StatelessWidget {
                 style: TextStyle(
                   fontSize: 14,
                   height: 1.6,
-                  color: theme.textColor.withOpacity(0.72),
+                  color: theme.textColor.withValues(alpha: 0.72),
                 ),
               ),
             ],

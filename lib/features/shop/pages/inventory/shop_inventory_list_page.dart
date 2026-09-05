@@ -1,6 +1,6 @@
-// lib/features/shop/pages/inventory/shop_inventory_list_page.dart
+// 檔案名稱：lib/features/shop/pages/inventory/shop_inventory_list_page.dart
+// 功能說明：顯示品項總數、低庫存、缺貨，並支援搜尋與狀態篩選。手機優先，卡片保持精簡。
 // 📦 庫存管理首頁
-// 功能：顯示品項總數、低庫存、缺貨，並支援搜尋與狀態篩選。手機優先，卡片保持精簡。
 
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/constants/inventory_constants.dart';

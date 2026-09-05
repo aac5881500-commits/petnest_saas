@@ -1,6 +1,6 @@
-// lib/features/member/pages/point_exchange_history_page.dart
+// 檔案名稱：lib/features/member/pages/point_exchange_history_page.dart
+// 功能說明：顯示會員在目前店家使用點數兌換商品的歷史紀錄
 // 🎁 會員點數兌換紀錄頁
-// 功能：顯示會員在目前店家使用點數兌換商品的歷史紀錄
 
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';

@@ -1,6 +1,6 @@
-// lib/core/services/member_point_service.dart
+// 檔案名稱：lib/core/services/member_point_service.dart
+// 功能說明：讀取、監聽與安全調整會員在指定店家的點數餘額
 // 🪙 會員點數 Service
-// 功能：讀取、監聽與安全調整會員在指定店家的點數餘額，
 // 並支援手動加扣點與訂單完成自動發點
 
 import 'package:cloud_firestore/cloud_firestore.dart';

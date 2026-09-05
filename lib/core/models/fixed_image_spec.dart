@@ -1,5 +1,5 @@
-// lib/core/models/fixed_image_spec.dart
-// 固定版型圖片：比例、輸出尺寸與上傳提示集中定義。
+// 檔案名稱：lib/core/models/fixed_image_spec.dart
+// 功能說明：固定版型圖片：比例、輸出尺寸與上傳提示集中定義。
 
 class FixedImageSpec {
   const FixedImageSpec({

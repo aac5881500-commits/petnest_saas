@@ -1,6 +1,6 @@
-// lib/core/models/daily_care_photo_download_model.dart
+// 檔案名稱：lib/core/models/daily_care_photo_download_model.dart
+// 功能說明：保存退房後才可使用的高清照護照片資料。
 // 📥 每日照護高清照片下載 Model
-// 功能：保存退房後才可使用的高清照護照片資料。
 // 此資料不可在入住期間提供給一般會員讀取。
 
 import 'package:cloud_firestore/cloud_firestore.dart';

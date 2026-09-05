@@ -1,6 +1,6 @@
-// lib/features/admin/widgets/admin_booking_note_section.dart
+// 檔案名稱：lib/features/admin/widgets/admin_booking_note_section.dart
+// 功能說明：顯示訂單備註，沒有備註時顯示無備註
 // 📝 後台訂單詳細頁：訂單備註區塊
-// 功能：顯示訂單備註，沒有備註時顯示無備註
 
 import 'package:flutter/material.dart';
 

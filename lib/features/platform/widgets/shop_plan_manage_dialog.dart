@@ -1,6 +1,6 @@
-// lib/features/platform/widgets/shop_plan_manage_dialog.dart
+// 檔案名稱：lib/features/platform/widgets/shop_plan_manage_dialog.dart
+// 功能說明：調整店家到期日、限制模式與方案權限
 // 🧾 平台店家方案與權限管理彈窗
-// 功能：調整店家到期日、限制模式與方案權限
 
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -274,9 +274,9 @@ class ShopPlanManageDialog extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
         decoration: BoxDecoration(
-          color: color.withOpacity(0.08),
+          color: color.withValues(alpha: 0.08),
           borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: color.withOpacity(0.25)),
+          border: Border.all(color: color.withValues(alpha: 0.25)),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,

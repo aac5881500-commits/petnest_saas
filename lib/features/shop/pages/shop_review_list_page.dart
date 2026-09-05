@@ -1,6 +1,6 @@
-// lib/features/shop/pages/shop_review_list_page.dart
+// 檔案名稱：lib/features/shop/pages/shop_review_list_page.dart
+// 功能說明：顯示單一店家的 visible 評價、平均星數、星數分布、星數篩選與評價列表
 // ⭐ 店家前台：完整評價列表頁
-// 功能：顯示單一店家的 visible 評價、平均星數、星數分布、星數篩選與評價列表
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
@@ -205,7 +205,9 @@ class _ShopReviewListPageState extends State<ShopReviewListPage> {
                             '${reviews.length} 則評價',
                             style: TextStyle(
                               fontSize: 12,
-                              color: widget.theme.textColor.withOpacity(0.65),
+                              color: widget.theme.textColor.withValues(
+                                alpha: 0.65,
+                              ),
                               fontWeight: FontWeight.w700,
                             ),
                           ),
@@ -259,7 +261,9 @@ class _ShopReviewListPageState extends State<ShopReviewListPage> {
                       '全部',
                       style: TextStyle(color: widget.theme.textColor),
                     ),
-                    selectedColor: widget.theme.primaryColor.withOpacity(0.18),
+                    selectedColor: widget.theme.primaryColor.withValues(
+                      alpha: 0.18,
+                    ),
                     backgroundColor: widget.theme.cardColor,
                     side: BorderSide(color: widget.theme.cardBorderColor),
                     selected: _ratingFilter == null,
@@ -276,8 +280,8 @@ class _ShopReviewListPageState extends State<ShopReviewListPage> {
                         style: TextStyle(color: widget.theme.textColor),
                       ),
                       selected: _ratingFilter == rating,
-                      selectedColor: widget.theme.primaryColor.withOpacity(
-                        0.18,
+                      selectedColor: widget.theme.primaryColor.withValues(
+                        alpha: 0.18,
                       ),
                       backgroundColor: widget.theme.cardColor,
                       side: BorderSide(color: widget.theme.cardBorderColor),
@@ -300,7 +304,9 @@ class _ShopReviewListPageState extends State<ShopReviewListPage> {
                       '最新優先',
                       style: TextStyle(color: widget.theme.textColor),
                     ),
-                    selectedColor: widget.theme.primaryColor.withOpacity(0.18),
+                    selectedColor: widget.theme.primaryColor.withValues(
+                      alpha: 0.18,
+                    ),
                     backgroundColor: widget.theme.cardColor,
                     side: BorderSide(color: widget.theme.cardBorderColor),
                     selected: _sortNewestFirst,
@@ -316,7 +322,9 @@ class _ShopReviewListPageState extends State<ShopReviewListPage> {
                       style: TextStyle(color: widget.theme.textColor),
                     ),
                     selected: !_sortNewestFirst,
-                    selectedColor: widget.theme.primaryColor.withOpacity(0.18),
+                    selectedColor: widget.theme.primaryColor.withValues(
+                      alpha: 0.18,
+                    ),
                     backgroundColor: widget.theme.cardColor,
                     side: BorderSide(color: widget.theme.cardBorderColor),
                     onSelected: (_) {
@@ -339,7 +347,9 @@ class _ShopReviewListPageState extends State<ShopReviewListPage> {
                       '有圖片',
                       style: TextStyle(color: widget.theme.textColor),
                     ),
-                    selectedColor: widget.theme.primaryColor.withOpacity(0.18),
+                    selectedColor: widget.theme.primaryColor.withValues(
+                      alpha: 0.18,
+                    ),
                     backgroundColor: widget.theme.cardColor,
                     side: BorderSide(color: widget.theme.cardBorderColor),
                     selected: _onlyWithImages,
@@ -354,7 +364,9 @@ class _ShopReviewListPageState extends State<ShopReviewListPage> {
                       '有店家回覆',
                       style: TextStyle(color: widget.theme.textColor),
                     ),
-                    selectedColor: widget.theme.primaryColor.withOpacity(0.18),
+                    selectedColor: widget.theme.primaryColor.withValues(
+                      alpha: 0.18,
+                    ),
                     backgroundColor: widget.theme.cardColor,
                     side: BorderSide(color: widget.theme.cardBorderColor),
                     selected: _onlyWithReply,
@@ -418,7 +430,9 @@ class _ShopReviewListPageState extends State<ShopReviewListPage> {
               minHeight: 7,
               borderRadius: BorderRadius.circular(999),
               color: widget.theme.primaryColor,
-              backgroundColor: widget.theme.primaryColor.withOpacity(0.12),
+              backgroundColor: widget.theme.primaryColor.withValues(
+                alpha: 0.12,
+              ),
             ),
           ),
           const SizedBox(width: 8),
@@ -429,7 +443,7 @@ class _ShopReviewListPageState extends State<ShopReviewListPage> {
               textAlign: TextAlign.right,
               style: TextStyle(
                 fontSize: 12,
-                color: widget.theme.textColor.withOpacity(0.65),
+                color: widget.theme.textColor.withValues(alpha: 0.65),
                 fontWeight: FontWeight.w700,
               ),
             ),

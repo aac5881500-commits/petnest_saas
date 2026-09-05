@@ -1,3 +1,6 @@
+// 檔案名稱：functions/.eslintrc.js
+// 功能說明：Cloud Functions 的 ESLint 規則設定
+
 module.exports = {
   env: {
     es6: true,

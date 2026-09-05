@@ -1,6 +1,6 @@
-// lib/core/constants/inventory_constants.dart
+// 檔案名稱：lib/core/constants/inventory_constants.dart
+// 功能說明：統一庫存異動類型、來源、出庫原因、住宿耗材扣除方式與 Firestore 路徑
 // 📦 中央庫存常數與列舉
-// 功能：統一庫存異動類型、來源、出庫原因、住宿耗材扣除方式與 Firestore 路徑，
 // 避免各功能散落 magic string，並預留未來商城使用同一套中央庫存。
 
 import 'package:intl/intl.dart';

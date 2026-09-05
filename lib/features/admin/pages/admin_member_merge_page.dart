@@ -1,6 +1,6 @@
-// lib/features/admin/pages/admin_member_merge_page.dart
+// 檔案名稱：lib/features/admin/pages/admin_member_merge_page.dart
+// 功能說明：掃描同電話的手動會員與店家會員，後續提供合併訂單功能
 // 🔀 後台會員合併管理頁
-// 功能：掃描同電話的手動會員與店家會員，後續提供合併訂單功能
 
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/services/member_merge_service.dart';
@@ -233,9 +233,9 @@ class _AdminMemberMergePageState extends State<AdminMemberMergePage> {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.08),
+        color: color.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: color.withOpacity(0.2)),
+        border: Border.all(color: color.withValues(alpha: 0.2)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,

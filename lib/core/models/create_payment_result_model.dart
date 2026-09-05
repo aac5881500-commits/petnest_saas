@@ -1,6 +1,6 @@
-// lib/core/models/create_payment_result_model.dart
+// 檔案名稱：lib/core/models/create_payment_result_model.dart
+// 功能說明：解析 Cloud Functions 建立付款後回傳的付款網址
 // 💳 建立付款結果模型
-// 功能：解析 Cloud Functions 建立付款後回傳的付款網址、
 // ATM 虛擬帳號、超商代碼與付款期限等資料。
 
 class CreatePaymentResultModel {

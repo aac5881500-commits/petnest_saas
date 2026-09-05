@@ -1,6 +1,6 @@
-// lib/core/services/daily_care_record_service.dart
+// 檔案名稱：lib/core/services/daily_care_record_service.dart
+// 功能說明：管理一房一天一場的每日照護紀錄
 // 🐾 每日照護紀錄 Service
-// 功能：管理一房一天一場的每日照護紀錄，
 // 使用訂單 ID、日期與場次產生固定紀錄 ID，避免重複建立。
 
 import 'dart:async';
@@ -82,12 +82,6 @@ class DailyCareRecordService {
     required DateTime recordDate,
     required int sessionIndex,
   }) async {
-    final String recordId = buildRecordId(
-      bookingId: bookingId,
-      recordDate: recordDate,
-      sessionIndex: sessionIndex,
-    );
-
     final String normalizedShopId = shopId.trim();
     final String normalizedBookingId = bookingId.trim();
 

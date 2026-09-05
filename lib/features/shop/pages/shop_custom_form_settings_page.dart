@@ -1,5 +1,5 @@
-// lib/features/shop/pages/shop_custom_form_settings_page.dart
-// 📝 店家自訂表單設定入口：選擇新增寵物或送出訂單表單。
+// 檔案名稱：lib/features/shop/pages/shop_custom_form_settings_page.dart
+// 功能說明：店家自訂表單設定入口：選擇新增寵物或送出訂單表單。
 
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/models/custom_form_model.dart';

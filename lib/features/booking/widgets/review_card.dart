@@ -1,6 +1,6 @@
-// lib/features/booking/widgets/review_card.dart
+// 檔案名稱：lib/features/booking/widgets/review_card.dart
+// 功能說明：顯示評價星等、留言、照片、店家回覆
 // ⭐ 共用評價卡片
-// 功能：顯示評價星等、留言、照片、店家回覆
 
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/models/home_theme_model.dart';
@@ -51,13 +51,13 @@ class ReviewCard extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 14, color: theme.textColor.withOpacity(0.7)),
+          Icon(icon, size: 14, color: theme.textColor.withValues(alpha: 0.7)),
           const SizedBox(width: 4),
           Text(
             text,
             style: TextStyle(
               fontSize: 12,
-              color: theme.textColor.withOpacity(0.7),
+              color: theme.textColor.withValues(alpha: 0.7),
             ),
           ),
         ],
@@ -95,7 +95,7 @@ class ReviewCard extends StatelessWidget {
                 _formatTimestamp(review.createdAt),
                 style: TextStyle(
                   fontSize: 12,
-                  color: theme.textColor.withOpacity(0.6),
+                  color: theme.textColor.withValues(alpha: 0.6),
                 ),
               ),
             ],
@@ -161,9 +161,11 @@ class ReviewCard extends StatelessWidget {
               width: double.infinity,
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: theme.primaryColor.withOpacity(0.08),
+                color: theme.primaryColor.withValues(alpha: 0.08),
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: theme.primaryColor.withOpacity(0.18)),
+                border: Border.all(
+                  color: theme.primaryColor.withValues(alpha: 0.18),
+                ),
               ),
               child: Text(
                 '店家回覆${review.replyAt == null ? '' : '｜${_formatTimestamp(review.replyAt)}'}：\n${review.reply}',

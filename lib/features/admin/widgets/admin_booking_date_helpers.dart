@@ -1,6 +1,6 @@
-// lib/features/admin/widgets/admin_booking_date_helpers.dart
+// 檔案名稱：lib/features/admin/widgets/admin_booking_date_helpers.dart
+// 功能說明：把 DateTime / Timestamp 轉成畫面顯示文字
 // 🕒 後台訂單詳細頁：日期時間格式工具
-// 功能：把 DateTime / Timestamp 轉成畫面顯示文字
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 

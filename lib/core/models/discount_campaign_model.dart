@@ -1,6 +1,6 @@
-// lib/core/models/discount_campaign_model.dart
+// 檔案名稱：lib/core/models/discount_campaign_model.dart
+// 功能說明：定義店家建立自動折扣時可選擇的類型、條件、範圍與限制
 // 🏷️ 優惠活動資料模型
-// 功能：定義店家建立自動折扣時可選擇的類型、條件、範圍與限制
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 

@@ -1,6 +1,6 @@
-// lib/core/models/special_date_surcharge_model.dart
+// 檔案名稱：lib/core/models/special_date_surcharge_model.dart
+// 功能說明：定義店家在春節、連假、跨年等指定住宿日期的每晚固定加價設定。
 // 📅 特殊日期加價資料模型
-// 功能：定義店家在春節、連假、跨年等指定住宿日期的每晚固定加價設定。
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 

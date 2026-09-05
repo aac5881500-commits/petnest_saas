@@ -1,5 +1,5 @@
-// lib/core/services/daycare_coupon_helper.dart
-// 🐾 臨托優惠券：是否適用與折扣金額，前後端同一套規則
+// 檔案名稱：lib/core/services/daycare_coupon_helper.dart
+// 功能說明：臨托優惠券：是否適用與折扣金額，前後端同一套規則
 
 import 'package:petnest_saas/core/models/member_coupon_model.dart';
 

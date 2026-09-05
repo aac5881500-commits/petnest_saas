@@ -1,6 +1,6 @@
-// lib/core/services/point_setting_service.dart
+// 檔案名稱：lib/core/services/point_setting_service.dart
+// 功能說明：讀取、監聽與儲存每間店家的點數制度設定
 // 🪙 店家點數設定 Service
-// 功能：讀取、監聽與儲存每間店家的點數制度設定，
 // 並支援依消費金額或住宿晚數計算點數
 
 import 'package:cloud_firestore/cloud_firestore.dart';

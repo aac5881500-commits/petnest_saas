@@ -1,6 +1,6 @@
-// lib/features/auth/widgets/my_shop_stat_row.dart
+// 檔案名稱：lib/features/auth/widgets/my_shop_stat_row.dart
+// 功能說明：顯示店家首頁卡片底部統計：待確認、已轉帳回傳、會員數
 // 📊 我的店家統計列
-// 功能：顯示店家首頁卡片底部統計：待確認、已轉帳回傳、會員數
 
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/services/shop_home_stats_service.dart';

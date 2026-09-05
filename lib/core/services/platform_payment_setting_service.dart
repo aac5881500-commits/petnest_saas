@@ -1,6 +1,6 @@
-// lib/core/services/platform_payment_setting_service.dart
+// 檔案名稱：lib/core/services/platform_payment_setting_service.dart
+// 功能說明：讀取並監聽平台金流總開關、綠界狀態與維護狀態。
 // 💳 PetNest 全平台金流設定 Service
-// 功能：讀取並監聽平台金流總開關、綠界狀態與維護狀態。
 // 注意：目前僅提供讀取功能，平台設定寫入之後由平台管理權限處理。
 
 import 'package:cloud_firestore/cloud_firestore.dart';

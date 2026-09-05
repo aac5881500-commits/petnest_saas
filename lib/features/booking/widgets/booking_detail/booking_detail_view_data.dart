@@ -1,5 +1,5 @@
-// lib/features/booking/widgets/booking_detail/booking_detail_view_data.dart
-// 客戶端訂單詳細頁顯示資料：只做讀取與文案，不寫入 Firestore、不重算計價。
+// 檔案名稱：lib/features/booking/widgets/booking_detail/booking_detail_view_data.dart
+// 功能說明：客戶端訂單詳細頁顯示資料：只做讀取與文案，不寫入 Firestore、不重算計價。
 
 import 'package:petnest_saas/core/models/booking_kind.dart';
 import 'package:petnest_saas/core/models/daycare_settings_model.dart';

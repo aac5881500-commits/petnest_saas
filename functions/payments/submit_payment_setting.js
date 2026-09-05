@@ -1,6 +1,6 @@
-// functions/payments/submit_payment_setting.js
+// 檔案名稱：functions/payments/submit_payment_setting.js
+// 功能說明：驗證店主權限後，安全儲存綠界密鑰與店家金流設定
 // 📝 店家綠界金流設定送審
-// 功能：驗證店主權限後，安全儲存綠界密鑰與店家金流設定，
 // 並將店家金流狀態更新為等待平台審核。
 
 const admin = require("firebase-admin");

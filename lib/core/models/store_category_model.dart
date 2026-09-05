@@ -1,5 +1,5 @@
-// lib/core/models/store_category_model.dart
-// 🛒 商城分類 Model
+// 檔案名稱：lib/core/models/store_category_model.dart
+// 功能說明：商城分類 Model
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 

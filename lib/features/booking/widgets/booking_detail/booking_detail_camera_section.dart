@@ -1,6 +1,6 @@
-// lib/features/booking/widgets/booking_detail/booking_detail_camera_section.dart
+// 檔案名稱：lib/features/booking/widgets/booking_detail/booking_detail_camera_section.dart
+// 功能說明：入住中訂單顯示房間攝影機入口
 // 📹 客戶端訂單詳情：攝影機觀看區塊
-// 功能：入住中訂單顯示房間攝影機入口
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';

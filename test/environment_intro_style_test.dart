@@ -1,3 +1,6 @@
+// 檔案名稱：test/environment_intro_style_test.dart
+// 功能說明：環境介紹樣式的單元測試
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:petnest_saas/core/models/environment_intro_style.dart';
 

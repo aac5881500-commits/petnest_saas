@@ -1,6 +1,6 @@
-// lib/features/admin/widgets/admin_quick_create_member_dialog.dart
+// 檔案名稱：lib/features/admin/widgets/admin_quick_create_member_dialog.dart
+// 功能說明：手動新增訂單時，讓店家快速建立會員基本資料，地址改為縣市/區域下拉
 // 👤 後台快速建立會員彈窗
-// 功能：手動新增訂單時，讓店家快速建立會員基本資料，地址改為縣市/區域下拉
 
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/constants/taiwan_city_data.dart';

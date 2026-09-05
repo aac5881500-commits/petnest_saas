@@ -1,5 +1,5 @@
-// lib/core/models/store_banner_templates.dart
-// 🛒 海報快速版型：只改漸層、文字與 CTA 排版，不覆蓋圖片與連結。
+// 檔案名稱：lib/core/models/store_banner_templates.dart
+// 功能說明：海報快速版型：只改漸層、文字與 CTA 排版，不覆蓋圖片與連結。
 
 import 'package:petnest_saas/core/models/store_banner_model.dart';
 

@@ -1,5 +1,5 @@
-// lib/core/services/store_function_service.dart
-// 🛒 商城 Cloud Functions 呼叫
+// 檔案名稱：lib/core/services/store_function_service.dart
+// 功能說明：商城 Cloud Functions 呼叫
 
 import 'package:cloud_functions/cloud_functions.dart';
 

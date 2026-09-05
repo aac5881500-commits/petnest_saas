@@ -1,4 +1,6 @@
-// test/daycare_legacy_parse_test.dart
+// 檔案名稱：test/daycare_legacy_parse_test.dart
+// 功能說明：安親舊資料解析的單元測試（舊方案 requiresRoomType 仍可讀取，但新 toMap 不再寫入）
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:petnest_saas/core/models/daycare_plan_model.dart';
 import 'package:petnest_saas/core/models/daycare_settings_model.dart';

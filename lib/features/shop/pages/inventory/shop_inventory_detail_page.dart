@@ -1,6 +1,6 @@
-// lib/features/shop/pages/inventory/shop_inventory_detail_page.dart
+// 檔案名稱：lib/features/shop/pages/inventory/shop_inventory_detail_page.dart
+// 功能說明：手機優先的分頁式詳情。總覽、進貨紀錄、異動流水、設定分開，不改庫存計算邏輯。
 // 📦 庫存品項詳情頁
-// 功能：手機優先的分頁式詳情。總覽、進貨紀錄、異動流水、設定分開，不改庫存計算邏輯。
 
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/constants/shop_permission_keys.dart';

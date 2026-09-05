@@ -1,6 +1,6 @@
-// lib/core/services/booking_supply_setting_service.dart
+// 檔案名稱：lib/core/services/booking_supply_setting_service.dart
+// 功能說明：讀取與儲存店家的住宿必要用品。可純手動記錄，或綁定中央庫存於入住時扣除。
 // 🧹 住宿耗材設定 Service
-// 功能：讀取與儲存店家的住宿必要用品。可純手動記錄，或綁定中央庫存於入住時扣除。
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';

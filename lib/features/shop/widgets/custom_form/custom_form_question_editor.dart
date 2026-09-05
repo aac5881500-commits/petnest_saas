@@ -1,5 +1,5 @@
-// lib/features/shop/widgets/custom_form/custom_form_question_editor.dart
-// 📝 自訂表單問題編輯底部彈窗
+// 檔案名稱：lib/features/shop/widgets/custom_form/custom_form_question_editor.dart
+// 功能說明：自訂表單問題編輯底部彈窗
 
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/models/custom_form_model.dart';

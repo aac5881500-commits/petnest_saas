@@ -1,6 +1,6 @@
-// lib/core/services/inventory_service.dart
+// 檔案名稱：lib/core/services/inventory_service.dart
+// 功能說明：提供庫存品項新增、編輯（不含直接改 currentStock）、停用、查詢與監聽。
 // 📦 中央庫存主檔 Service
-// 功能：提供庫存品項新增、編輯（不含直接改 currentStock）、停用、查詢與監聽。
 // 實際庫存增減請走 InventoryStockService，以保證流水與數量同一 Transaction。
 
 import 'package:cloud_firestore/cloud_firestore.dart';

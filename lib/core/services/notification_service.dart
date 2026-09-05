@@ -1,5 +1,5 @@
-// lib/core/services/notification_service.dart
-// 🔔 App 通知中心 Service
+// 檔案名稱：lib/core/services/notification_service.dart
+// 功能說明：App 通知中心 Service
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';

@@ -1,5 +1,5 @@
-// lib/features/shop/widgets/store/store_product_card.dart
-// 🛒 商城商品卡：compact 橫滑 / grid 兩欄共用視覺
+// 檔案名稱：lib/features/shop/widgets/store/store_product_card.dart
+// 功能說明：商城商品卡：compact 橫滑 / grid 兩欄共用視覺
 
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/models/home_theme_model.dart';

@@ -1,7 +1,6 @@
-// lib/features/shop/widgets/modern_home/modern_review_section.dart
-
+// 檔案名稱：lib/features/shop/widgets/modern_home/modern_review_section.dart
+// 功能說明：讀取店家公開評價，顯示緊湊型橫向評價卡片與全部評價入口
 // ⭐ 新版首頁顧客評價區塊
-// 功能：讀取店家公開評價，顯示緊湊型橫向評價卡片與全部評價入口
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
@@ -225,7 +224,7 @@ class ModernReviewSection extends StatelessWidget {
                 height: 22,
                 alignment: Alignment.center,
                 decoration: BoxDecoration(
-                  color: primaryColor.withOpacity(0.12),
+                  color: primaryColor.withValues(alpha: 0.12),
                   shape: BoxShape.circle,
                 ),
                 child: Text(

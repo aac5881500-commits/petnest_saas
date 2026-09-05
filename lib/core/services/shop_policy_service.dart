@@ -1,6 +1,6 @@
-// lib/core/services/shop_policy_service.dart
+// 檔案名稱：lib/core/services/shop_policy_service.dart
+// 功能說明：管理入住條款版本、會員同意紀錄、條款歷史版本
 // 📜 店家入住條款 Service
-// 功能：管理入住條款版本、會員同意紀錄、條款歷史版本
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';

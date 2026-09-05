@@ -1,6 +1,6 @@
-// lib/features/shop/widgets/inventory/inventory_settings_tab.dart
+// 檔案名稱：lib/features/shop/widgets/inventory/inventory_settings_tab.dart
+// 功能說明：集中顯示品項主檔。不可在此修改 currentStock。
 // 📦 庫存詳情「設定」分頁
-// 功能：集中顯示品項主檔。不可在此修改 currentStock。
 
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/constants/inventory_constants.dart';

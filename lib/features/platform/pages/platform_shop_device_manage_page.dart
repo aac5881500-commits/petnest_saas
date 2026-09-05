@@ -1,6 +1,6 @@
-// lib/features/platform/pages/platform_shop_device_manage_page.dart
+// 檔案名稱：lib/features/platform/pages/platform_shop_device_manage_page.dart
+// 功能說明：平台查看與鎖定單一店家的攝影機 / 設備
 // 📡 平台後台：單店設備管理頁
-// 功能：平台查看與鎖定單一店家的攝影機 / 設備
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';

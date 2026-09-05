@@ -1,6 +1,6 @@
-// lib/core/models/inventory_binding_model.dart
+// 檔案名稱：lib/core/models/inventory_binding_model.dart
+// 功能說明：加購服務、每日分時段服務與未來商城都可選綁多個庫存品項。
 // 📦 功能綁定中央庫存 Model
-// 功能：加購服務、每日分時段服務與未來商城都可選綁多個庫存品項。
 // 未設定時視為不使用庫存，舊資料可完全向下相容。
 
 class InventoryBindingModel {

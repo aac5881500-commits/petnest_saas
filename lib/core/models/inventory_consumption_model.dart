@@ -1,6 +1,6 @@
-// lib/core/models/inventory_consumption_model.dart
+// 檔案名稱：lib/core/models/inventory_consumption_model.dart
+// 功能說明：以確定性 document ID 記錄加購、點數兌換、住宿耗材是否已扣庫存或已返還
 // 📦 庫存消耗／返還幂等紀錄 Model
-// 功能：以確定性 document ID 記錄加購、點數兌換、住宿耗材是否已扣庫存或已返還，
 // 防止連點、重送、callback 重複造成超賣或重複補庫存。
 
 import 'package:cloud_firestore/cloud_firestore.dart';

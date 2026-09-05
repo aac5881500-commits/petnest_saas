@@ -1,4 +1,6 @@
-// test/daycare_booking_validator_test.dart
+// 檔案名稱：test/daycare_booking_validator_test.dart
+// 功能說明：安親預約驗證的單元測試（安親開關相容 bool／0／1，且任一來源為開即開放）
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:petnest_saas/core/models/daycare_plan_model.dart';
 import 'package:petnest_saas/core/models/daycare_settings_model.dart';

@@ -1,3 +1,6 @@
+// 檔案名稱：lib/core/models/modern_banner_frame_setting.dart
+// 功能說明：新版首頁 Banner 外框、圖片縮放與對齊設定
+
 import 'package:flutter/material.dart';
 
 enum HomeBannerDisplaySize { small, standard, large }

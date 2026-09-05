@@ -1,6 +1,5 @@
-// lib/features/booking/pages/my_bookings_page.dart
-// 📄 我的訂單頁
-//
+// 檔案名稱：lib/features/booking/pages/my_bookings_page.dart
+// 功能說明：我的訂單頁
 // 功能：
 // - 顯示目前登入會員的所有訂單
 // - 訂單卡片顯示房號 / 日期 / 寵物數 / 中文狀態 / 總金額

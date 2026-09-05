@@ -1,5 +1,5 @@
-// lib/core/services/daycare_booking_validator.dart
-// 🐾 臨托送出前驗證：時間、名額、寵物限制（後端仍會再驗一次）
+// 檔案名稱：lib/core/services/daycare_booking_validator.dart
+// 功能說明：臨托送出前驗證：時間、名額、寵物限制（後端仍會再驗一次）
 
 import 'package:petnest_saas/core/models/daycare_date_override_model.dart';
 import 'package:petnest_saas/core/models/daycare_plan_model.dart';

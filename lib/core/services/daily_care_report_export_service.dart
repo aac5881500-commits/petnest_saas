@@ -1,5 +1,5 @@
-// lib/core/services/daily_care_report_export_service.dart
-// 🐾 每日照護報告 PNG 產圖與下載
+// 檔案名稱：lib/core/services/daily_care_report_export_service.dart
+// 功能說明：每日照護報告 PNG 產圖與下載
 // 使用獨立 Report Widget + RepaintBoundary，不截 App 畫面。
 
 import 'dart:async';

@@ -1,5 +1,5 @@
-// lib/core/models/pre_arrival_guide_model.dart
-// 入住前準備：店家公告圖文，不是法律條款。
+// 檔案名稱：lib/core/models/pre_arrival_guide_model.dart
+// 功能說明：入住前準備：店家公告圖文，不是法律條款。
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:petnest_saas/core/utils/safe_parse.dart';

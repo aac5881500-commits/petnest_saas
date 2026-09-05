@@ -1,5 +1,5 @@
-// lib/features/shop/widgets/booking/daycare_offer_card.dart
-// 🐾 安親房型／獨立方案小卡：多行計價說明
+// 檔案名稱：lib/features/shop/widgets/booking/daycare_offer_card.dart
+// 功能說明：安親房型／獨立方案小卡：多行計價說明
 
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/models/daycare_plan_model.dart';

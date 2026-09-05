@@ -1,4 +1,5 @@
-// 💬 聊天訊息列表：前後台共用
+// 檔案名稱：lib/features/shop/widgets/chat/shop_chat_message_list.dart
+// 功能說明：聊天訊息列表：前後台共用
 
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';

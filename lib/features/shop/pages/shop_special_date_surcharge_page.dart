@@ -1,6 +1,6 @@
-// lib/features/shop/pages/shop_special_date_surcharge_page.dart
+// 檔案名稱：lib/features/shop/pages/shop_special_date_surcharge_page.dart
+// 功能說明：讓店主管理春節、連假、跨年等指定住宿日期的每晚固定加價。
 // 📅 特殊日期加價管理頁
-// 功能：讓店主管理春節、連假、跨年等指定住宿日期的每晚固定加價。
 
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';

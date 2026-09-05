@@ -1,5 +1,5 @@
-// lib/features/admin/pages/admin_create_daycare_booking_page.dart
-// 🐾 後台手動新增臨托訂單：沿用住宿日期表、寵物、房型、加值與條款簽署方式
+// 檔案名稱：lib/features/admin/pages/admin_create_daycare_booking_page.dart
+// 功能說明：後台手動新增臨托訂單：沿用住宿日期表、寵物、房型、加值與條款簽署方式
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
@@ -7,7 +7,6 @@ import 'package:petnest_saas/core/models/daycare_plan_model.dart';
 import 'package:petnest_saas/core/models/daycare_settings_model.dart';
 import 'package:petnest_saas/core/models/policy_applicable_service.dart';
 import 'package:petnest_saas/core/services/daycare_addon_catalog.dart';
-import 'package:petnest_saas/core/services/daycare_booking_validator.dart';
 import 'package:petnest_saas/core/services/daycare_calendar_helper.dart';
 import 'package:petnest_saas/core/services/daycare_function_service.dart';
 import 'package:petnest_saas/core/services/daycare_pricing_service.dart';
@@ -51,7 +50,7 @@ class _AdminCreateDaycareBookingPageState
   List<Map<String, dynamic>> _addons = <Map<String, dynamic>>[];
   final Set<String> _selectedAddonIds = <String>{};
   bool _submitting = false;
-  int _manualAdjust = 0;
+  final int _manualAdjust = 0;
   bool _policyRequired = false;
   int _policyVersion = 0;
   String? _policySignMethod;

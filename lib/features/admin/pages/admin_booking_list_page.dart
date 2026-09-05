@@ -1,5 +1,5 @@
-// lib/features/admin/pages/admin_booking_list_page.dart
-// 📦 店家訂單列表頁（完整版🔥 + 已修正取消訂單）
+// 檔案名稱：lib/features/admin/pages/admin_booking_list_page.dart
+// 功能說明：店家訂單列表頁（完整版 + 已修正取消訂單）
 
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';

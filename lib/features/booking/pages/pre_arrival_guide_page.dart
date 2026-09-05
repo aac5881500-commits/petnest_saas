@@ -1,5 +1,5 @@
-// lib/features/booking/pages/pre_arrival_guide_page.dart
-// 客戶端入住前準備完整內容（標題／文字／圖片），不需勾選確認。
+// 檔案名稱：lib/features/booking/pages/pre_arrival_guide_page.dart
+// 功能說明：客戶端入住前準備完整內容（標題／文字／圖片），不需勾選確認。
 
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/models/pre_arrival_guide_model.dart';

@@ -1,5 +1,5 @@
-// lib/features/booking/pages/booking_stay_arrangement_page.dart
-// 查看訂單已儲存的入住／送達與接回時間，不另建表單。
+// 檔案名稱：lib/features/booking/pages/booking_stay_arrangement_page.dart
+// 功能說明：查看訂單已儲存的入住／送達與接回時間，不另建表單。
 
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/widgets/shop_frontend_theme_scope.dart';

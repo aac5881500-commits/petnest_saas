@@ -1,5 +1,5 @@
-// lib/features/shop/pages/store/shop_store_category_page.dart
-// 🛒 商品分類管理
+// 檔案名稱：lib/features/shop/pages/store/shop_store_category_page.dart
+// 功能說明：商品分類管理
 
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/models/store_category_model.dart';

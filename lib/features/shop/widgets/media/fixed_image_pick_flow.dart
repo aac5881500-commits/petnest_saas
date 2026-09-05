@@ -1,5 +1,5 @@
-// lib/features/shop/widgets/media/fixed_image_pick_flow.dart
-// 選圖 → 驗證 → 固定比例裁切。取消裁切時回傳 null，不上傳。
+// 檔案名稱：lib/features/shop/widgets/media/fixed_image_pick_flow.dart
+// 功能說明：選圖 → 驗證 → 固定比例裁切。取消裁切時回傳 null，不上傳。
 
 import 'dart:typed_data';
 

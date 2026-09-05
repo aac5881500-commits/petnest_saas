@@ -1,6 +1,6 @@
-// lib/features/shop/pages/shop_discount_setting_page.dart
+// 檔案名稱：lib/features/shop/pages/shop_discount_setting_page.dart
+// 功能說明：集中管理自動優惠活動與優惠券模板
 // 🎯 店家優惠設定入口頁
-// 功能：集中管理自動優惠活動與優惠券模板，
 // 作為「收款與優惠設定」中的優惠設定首頁。
 
 import 'package:flutter/material.dart';

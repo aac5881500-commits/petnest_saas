@@ -1,5 +1,5 @@
-// lib/features/shop/widgets/store/store_banner_carousel.dart
-// 🛒 商城活動海報輪播（店家 Banner，不是旅館首頁 Banner）
+// 檔案名稱：lib/features/shop/widgets/store/store_banner_carousel.dart
+// 功能說明：商城活動海報輪播（店家 Banner，不是旅館首頁 Banner）
 
 import 'dart:async';
 

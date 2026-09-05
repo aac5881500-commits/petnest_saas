@@ -1,6 +1,6 @@
-// lib/core/services/shop_permission_service.dart
+// 檔案名稱：lib/core/services/shop_permission_service.dart
+// 功能說明：判斷店家是否限制模式或停權
 // 🔐 店家權限狀態服務
-// 功能：判斷店家是否限制模式或停權
 
 class ShopPermissionService {
   static String accountStatus(Map<String, dynamic> shop) {

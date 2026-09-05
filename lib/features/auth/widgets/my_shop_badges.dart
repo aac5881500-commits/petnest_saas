@@ -1,6 +1,6 @@
-// lib/features/auth/widgets/my_shop_badges.dart
+// 檔案名稱：lib/features/auth/widgets/my_shop_badges.dart
+// 功能說明：顯示店家角色、平台公開狀態等膠囊標籤
 // 🏷️ 我的店家標籤列
-// 功能：顯示店家角色、平台公開狀態等膠囊標籤
 
 import 'package:flutter/material.dart';
 

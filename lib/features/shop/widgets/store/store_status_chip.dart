@@ -1,5 +1,5 @@
-// lib/features/shop/widgets/store/store_status_chip.dart
-// 🛒 商城後台狀態 Chip
+// 檔案名稱：lib/features/shop/widgets/store/store_status_chip.dart
+// 功能說明：商城後台狀態 Chip
 
 import 'package:flutter/material.dart';
 

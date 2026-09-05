@@ -1,6 +1,6 @@
-// lib/core/navigation/app_navigator.dart
+// 檔案名稱：lib/core/navigation/app_navigator.dart
+// 功能說明：提供全域 NavigatorKey，讓推播通知可在沒有 BuildContext 時導向頁面
 // 🧭 App 全域導航管理
-// 功能：提供全域 NavigatorKey，讓推播通知可在沒有 BuildContext 時導向頁面
 
 import 'package:flutter/material.dart';
 

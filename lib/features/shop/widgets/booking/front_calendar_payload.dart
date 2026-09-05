@@ -1,5 +1,5 @@
-// lib/features/shop/widgets/booking/front_calendar_payload.dart
-// 🔥 前台預約月曆資料：關閉日、滿房日、價格與剩餘房數
+// 檔案名稱：lib/features/shop/widgets/booking/front_calendar_payload.dart
+// 功能說明：前台預約月曆資料：關閉日、滿房日、價格與剩餘房數
 
 class FrontCalendarPayload {
   const FrontCalendarPayload({

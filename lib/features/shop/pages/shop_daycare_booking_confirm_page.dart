@@ -1,5 +1,5 @@
-// lib/features/shop/pages/shop_daycare_booking_confirm_page.dart
-// 🐾 安親預約確認 → 填寫資料／付款 → 確認訂單
+// 檔案名稱：lib/features/shop/pages/shop_daycare_booking_confirm_page.dart
+// 功能說明：安親預約確認 → 填寫資料／付款 → 確認訂單
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';

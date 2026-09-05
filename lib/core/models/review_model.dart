@@ -1,6 +1,6 @@
-// lib/core/models/review_model.dart
+// 檔案名稱：lib/core/models/review_model.dart
+// 功能說明：統一 reviews 文件資料格式，供前台、店家後台、平台後台共用
 // ⭐ 評價資料模型
-// 功能：統一 reviews 文件資料格式，供前台、店家後台、平台後台共用
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:petnest_saas/core/utils/safe_parse.dart';

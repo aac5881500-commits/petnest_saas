@@ -1,5 +1,5 @@
-// lib/features/shop/widgets/store/store_empty_state.dart
-// 🛒 商城後台空狀態
+// 檔案名稱：lib/features/shop/widgets/store/store_empty_state.dart
+// 功能說明：商城後台空狀態
 
 import 'package:flutter/material.dart';
 

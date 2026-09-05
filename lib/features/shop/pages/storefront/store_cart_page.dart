@@ -1,5 +1,5 @@
-// lib/features/shop/pages/storefront/store_cart_page.dart
-// 🛒 每店獨立購物車。不扣除 currentStock。
+// 檔案名稱：lib/features/shop/pages/storefront/store_cart_page.dart
+// 功能說明：每店獨立購物車。不扣除 currentStock。
 
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/models/home_theme_model.dart';

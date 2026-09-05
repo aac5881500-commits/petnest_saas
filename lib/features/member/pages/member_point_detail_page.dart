@@ -1,5 +1,5 @@
-// lib/features/member/pages/member_point_detail_page.dart
-// 🪙 會員店家點數詳細頁
+// 檔案名稱：lib/features/member/pages/member_point_detail_page.dart
+// 功能說明：會員店家點數詳細頁
 
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';

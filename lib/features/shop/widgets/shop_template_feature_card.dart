@@ -1,5 +1,5 @@
-// lib/features/shop/widgets/shop_template_feature_card.dart
-// 🐾 店家首頁模板功能小卡
+// 檔案名稱：lib/features/shop/widgets/shop_template_feature_card.dart
+// 功能說明：店家首頁模板功能小卡
 // 用於前台首頁的模板區塊，例如：環境介紹、房間介紹、入住須知
 
 import 'package:flutter/material.dart';
@@ -33,7 +33,7 @@ class ShopTemplateFeatureCard extends StatelessWidget {
           border: Border.all(color: theme.cardBorderColor),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.045),
+              color: Colors.black.withValues(alpha: 0.045),
               blurRadius: 10,
               offset: const Offset(0, 3),
             ),

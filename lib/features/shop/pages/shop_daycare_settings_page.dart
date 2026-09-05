@@ -1,5 +1,5 @@
-// lib/features/shop/pages/shop_daycare_settings_page.dart
-// 🐾 安親後台設定（分頁：基本／時間名額／方案／加購／付款／條款）
+// 檔案名稱：lib/features/shop/pages/shop_daycare_settings_page.dart
+// 功能說明：安親後台設定（分頁：基本／時間名額／方案／加購／付款／條款）
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';

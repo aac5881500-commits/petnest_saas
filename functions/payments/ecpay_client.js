@@ -1,6 +1,6 @@
-// functions/payments/ecpay_client.js
+// 檔案名稱：functions/payments/ecpay_client.js
+// 功能說明：使用綠界官方 Node.js SDK 建立信用卡、ATM
 // 🟢 綠界付款 Client
-// 功能：使用綠界官方 Node.js SDK 建立信用卡、ATM、
 // 超商代碼付款表單 HTML，供前端導向綠界付款頁。
 // 除錯期間會將 SDK 最終產生的付款表單輸出到 Functions Log。
 

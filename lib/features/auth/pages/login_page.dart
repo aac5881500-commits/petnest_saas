@@ -1,6 +1,5 @@
-// 🔐 登入頁 LoginPage
-
-// 檔案名稱 lib/features/auth/pages/login_page.dart
+// 檔案名稱：lib/features/auth/pages/login_page.dart
+// 功能說明：登入頁 LoginPage
 // 功能：
 // - 登入
 // - 記住 Email
@@ -283,7 +282,7 @@ class _LoginPageState extends State<LoginPage> {
                           color: Theme.of(context)
                               .colorScheme
                               .surfaceContainerHighest
-                              .withOpacity(0.55),
+                              .withValues(alpha: 0.55),
                           border: Border.all(
                             color: Theme.of(context).dividerColor,
                           ),

@@ -1,4 +1,5 @@
-// 💬 聊天輸入列：文字與選圖
+// 檔案名稱：lib/features/shop/widgets/chat/shop_chat_composer.dart
+// 功能說明：聊天輸入列：文字與選圖
 
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/models/shop_frontend_theme.dart';

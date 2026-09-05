@@ -1,5 +1,5 @@
-// lib/core/services/shop_report_service.dart
-// 📊 營運報表：唯讀統計。金額公式集中在此，各頁面不要各算一套。
+// 檔案名稱：lib/core/services/shop_report_service.dart
+// 功能說明：營運報表：唯讀統計。金額公式集中在此，各頁面不要各算一套。
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:petnest_saas/core/constants/store_constants.dart';

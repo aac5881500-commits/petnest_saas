@@ -1,6 +1,6 @@
-// lib/core/models/housekeeping_setting_model.dart
+// 檔案名稱：lib/core/models/housekeeping_setting_model.dart
+// 功能說明：保存店家的房務、自動清潔與每日照護紀錄設定。
 // 🧹 房務設定 Model
-// 功能：保存店家的房務、自動清潔與每日照護紀錄設定。
 
 class HousekeepingSettingModel {
   const HousekeepingSettingModel({

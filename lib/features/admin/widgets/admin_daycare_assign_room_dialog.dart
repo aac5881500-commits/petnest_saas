@@ -1,5 +1,5 @@
-// lib/features/admin/widgets/admin_daycare_assign_room_dialog.dart
-// 🐾 臨托確認後分房：先選房型，再選此時段無衝突的實際房間
+// 檔案名稱：lib/features/admin/widgets/admin_daycare_assign_room_dialog.dart
+// 功能說明：臨托確認後分房：先選房型，再選此時段無衝突的實際房間
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';

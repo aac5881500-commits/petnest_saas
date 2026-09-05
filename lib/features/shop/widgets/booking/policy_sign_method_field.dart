@@ -1,5 +1,5 @@
-// lib/features/shop/widgets/booking/policy_sign_method_field.dart
-// 📜 店員代客／轉住宿時記錄條款簽署方式，不可只存 agreed: true
+// 檔案名稱：lib/features/shop/widgets/booking/policy_sign_method_field.dart
+// 功能說明：店員代客／轉住宿時記錄條款簽署方式，不可只存 agreed: true
 
 import 'package:flutter/material.dart';
 

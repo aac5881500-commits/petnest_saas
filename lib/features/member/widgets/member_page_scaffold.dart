@@ -1,5 +1,5 @@
-// lib/features/member/widgets/member_page_scaffold.dart
-// 會員子頁共用 Scaffold：暖色背景、置中寬度、返回箭頭。
+// 檔案名稱：lib/features/member/widgets/member_page_scaffold.dart
+// 功能說明：會員子頁共用 Scaffold：暖色背景、置中寬度、返回箭頭。
 
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/models/shop_frontend_theme.dart';

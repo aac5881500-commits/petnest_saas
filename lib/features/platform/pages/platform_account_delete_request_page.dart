@@ -1,6 +1,6 @@
-// lib/features/platform/pages/platform_account_delete_request_page.dart
+// 檔案名稱：lib/features/platform/pages/platform_account_delete_request_page.dart
+// 功能說明：查看會員刪除帳號申請，並更新處理狀態
 // 🗑️ 平台帳號刪除申請管理
-// 功能：查看會員刪除帳號申請，並更新處理狀態
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
@@ -173,7 +173,9 @@ class PlatformAccountDeleteRequestPage extends StatelessWidget {
                               vertical: 5,
                             ),
                             decoration: BoxDecoration(
-                              color: _statusColor(status).withOpacity(0.12),
+                              color: _statusColor(
+                                status,
+                              ).withValues(alpha: 0.12),
                               borderRadius: BorderRadius.circular(20),
                             ),
                             child: Text(

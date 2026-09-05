@@ -1,6 +1,6 @@
-// lib/core/constants/platform_root_admin.dart
+// 檔案名稱：lib/core/constants/platform_root_admin.dart
+// 功能說明：定義永久最高管理員 UID。
 // 👑 PetNest 根管理員設定
-// 功能：定義永久最高管理員 UID。
 // 即使 platform_users 被誤刪，根管理員仍可恢復平台。
 
 abstract final class PlatformRootAdmin {

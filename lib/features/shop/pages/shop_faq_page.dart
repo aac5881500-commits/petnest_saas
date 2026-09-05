@@ -1,6 +1,6 @@
-// lib/features/shop/pages/shop_faq_page.dart
+// 檔案名稱：lib/features/shop/pages/shop_faq_page.dart
+// 功能說明：顯示店家已上架的常見問題，並依 showFaqSection 控制是否開放
 // ❓ 前台常見問題頁
-// 功能：顯示店家已上架的常見問題，並依 showFaqSection 控制是否開放
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
@@ -50,7 +50,9 @@ class ShopFaqPage extends StatelessWidget {
             return Center(
               child: Text(
                 '此功能尚未開放',
-                style: TextStyle(color: theme.textColor.withOpacity(0.65)),
+                style: TextStyle(
+                  color: theme.textColor.withValues(alpha: 0.65),
+                ),
               ),
             );
           }
@@ -85,7 +87,9 @@ class ShopFaqPage extends StatelessWidget {
                 return Center(
                   child: Text(
                     '目前尚無常見問題',
-                    style: TextStyle(color: theme.textColor.withOpacity(0.65)),
+                    style: TextStyle(
+                      color: theme.textColor.withValues(alpha: 0.65),
+                    ),
                   ),
                 );
               }
@@ -108,7 +112,7 @@ class ShopFaqPage extends StatelessWidget {
                       border: Border.all(color: theme.cardBorderColor),
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.black.withOpacity(0.04),
+                          color: Colors.black.withValues(alpha: 0.04),
                           blurRadius: 8,
                           offset: const Offset(0, 3),
                         ),
@@ -150,7 +154,7 @@ class ShopFaqPage extends StatelessWidget {
                           style: TextStyle(
                             fontSize: 14,
                             height: 1.7,
-                            color: theme.textColor.withOpacity(0.75),
+                            color: theme.textColor.withValues(alpha: 0.75),
                           ),
                         ),
                       ],

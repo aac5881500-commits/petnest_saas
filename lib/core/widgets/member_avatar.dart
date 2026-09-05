@@ -1,4 +1,5 @@
-// lib/core/widgets/member_avatar.dart
+// 檔案名稱：lib/core/widgets/member_avatar.dart
+// 功能說明：會員頭像顯示與來源優先順序
 // 會員頭像顯示與來源優先順序：
 // 1. PetNest 自訂大頭貼（user_profiles.avatarUrl）
 // 2. Firebase Auth / Google photoURL

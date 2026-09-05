@@ -1,5 +1,5 @@
-// lib/features/admin/pages/admin_daycare_detail_page.dart
-// 🐾 安親訂單詳情與操作
+// 檔案名稱：lib/features/admin/pages/admin_daycare_detail_page.dart
+// 功能說明：安親訂單詳情與操作
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';

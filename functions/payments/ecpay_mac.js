@@ -1,6 +1,6 @@
-// functions/payments/ecpay_mac.js
+// 檔案名稱：functions/payments/ecpay_mac.js
+// 功能說明：依綠界規格產生與驗證 CheckMacValue
 // 🔐 綠界 CheckMacValue 工具
-// 功能：依綠界規格產生與驗證 CheckMacValue，
 // 防止建立付款與付款通知資料遭到竄改。
 
 const crypto = require("crypto");

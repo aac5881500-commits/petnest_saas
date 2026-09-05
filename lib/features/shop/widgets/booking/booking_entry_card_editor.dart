@@ -1,5 +1,5 @@
-// lib/features/shop/widgets/booking/booking_entry_card_editor.dart
-// 🖼️ 後台設定預約入口卡片照片
+// 檔案名稱：lib/features/shop/widgets/booking/booking_entry_card_editor.dart
+// 功能說明：後台設定預約入口卡片照片
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';

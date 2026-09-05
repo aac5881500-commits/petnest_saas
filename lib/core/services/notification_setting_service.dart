@@ -1,6 +1,6 @@
-// lib/core/services/notification_setting_service.dart
+// 檔案名稱：lib/core/services/notification_setting_service.dart
+// 功能說明：讀取與更新會員的全域通知開關
 // 🔔 通知設定 Service
-// 功能：讀取與更新會員的全域通知開關
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';

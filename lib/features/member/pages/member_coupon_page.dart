@@ -1,6 +1,6 @@
-// lib/features/member/pages/member_coupon_page.dart
+// 檔案名稱：lib/features/member/pages/member_coupon_page.dart
+// 功能說明：顯示會員在目前店家持有的優惠券與使用狀態
 // 🎟️ 會員中心：我的優惠券
-// 功能：顯示會員在目前店家持有的優惠券與使用狀態
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';

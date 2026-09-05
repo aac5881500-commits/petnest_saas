@@ -1,4 +1,5 @@
-// 客戶訂單詳細頁顯示資料與入住前準備解析測試
+// 檔案名稱：test/booking_detail_view_data_test.dart
+// 功能說明：客戶訂單詳細頁顯示資料與入住前準備解析測試
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:petnest_saas/core/models/pre_arrival_guide_model.dart';

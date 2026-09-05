@@ -1,6 +1,6 @@
-// lib/features/booking/pages/customer_daily_care_page.dart
+// 檔案名稱：lib/features/booking/pages/customer_daily_care_page.dart
+// 功能說明：讓會員在入住期間，以日誌方式查看店家每日照護紀錄。
 // 🐾 客戶端每日照護紀錄頁
-// 功能：讓會員在入住期間，以日誌方式查看店家每日照護紀錄。
 // 使用「日期切換 + 照護紀錄切換」，一次只顯示一筆。
 // 日期規則：入住日包含、退房日不包含。
 // 本頁為唯讀，不改照護資料與下載邏輯。

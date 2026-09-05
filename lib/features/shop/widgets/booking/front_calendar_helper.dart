@@ -1,5 +1,5 @@
-// lib/features/shop/widgets/booking/front_calendar_helper.dart
-// 🔥 前台預約月曆 helper：查詢月曆價格、關閉日、滿房日與剩餘房數
+// 檔案名稱：lib/features/shop/widgets/booking/front_calendar_helper.dart
+// 功能說明：前台預約月曆 helper：查詢月曆價格、關閉日、滿房日與剩餘房數
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';

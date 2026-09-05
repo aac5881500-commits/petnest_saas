@@ -1,6 +1,6 @@
-// lib/features/shop/widgets/about/about_hero_section.dart
+// 檔案名稱：lib/features/shop/widgets/about/about_hero_section.dart
+// 功能說明：從 Firestore 讀取關於我們主標題、介紹文字與圖片
 // 🐾 關於我們頁 Hero 大圖區塊
-// 功能：從 Firestore 讀取關於我們主標題、介紹文字與圖片，
 // 並依照首頁版本套用共用主題顏色
 
 import 'package:flutter/material.dart';

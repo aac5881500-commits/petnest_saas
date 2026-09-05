@@ -1,5 +1,5 @@
-// lib/features/shop/pages/shop_basic_info_page.dart
-// 👤 店家基本資料（完整版🔥）
+// 檔案名稱：lib/features/shop/pages/shop_basic_info_page.dart
+// 功能說明：店家基本資料（完整版）
 // ✅ 縣市區域下拉
 // ✅ IG / FB
 // ✅ LINE 移動

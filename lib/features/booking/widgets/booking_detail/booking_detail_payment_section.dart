@@ -1,6 +1,6 @@
-// lib/features/booking/widgets/booking_detail/booking_detail_payment_section.dart
+// 檔案名稱：lib/features/booking/widgets/booking_detail/booking_detail_payment_section.dart
+// 功能說明：顯示付款方式、轉帳資訊、後五碼、轉帳截圖、送出付款資料
 // 💳 客戶端訂單詳細頁：付款方式區塊
-// 功能：顯示付款方式、轉帳資訊、後五碼、轉帳截圖、送出付款資料
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -253,7 +253,7 @@ class BookingDetailPaymentSection extends StatelessWidget {
                         child: Container(
                           padding: const EdgeInsets.all(6),
                           decoration: BoxDecoration(
-                            color: Colors.black.withOpacity(0.65),
+                            color: Colors.black.withValues(alpha: 0.65),
                             shape: BoxShape.circle,
                           ),
                           child: const Icon(
@@ -364,7 +364,7 @@ class BookingDetailPaymentSection extends StatelessWidget {
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 8,
             offset: const Offset(0, 4),
           ),
@@ -404,7 +404,7 @@ class BookingDetailPaymentSection extends StatelessWidget {
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.06),
+            color: Colors.black.withValues(alpha: 0.06),
             blurRadius: 12,
             offset: const Offset(0, 4),
           ),

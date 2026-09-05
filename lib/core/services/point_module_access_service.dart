@@ -1,6 +1,6 @@
-// lib/core/services/point_module_access_service.dart
+// 檔案名稱：lib/core/services/point_module_access_service.dart
+// 功能說明：集中管理點數模組的顯示與操作權限。
 // 🪙 點數模組存取判斷
-// 功能：集中管理點數模組的顯示與操作權限。
 
 import '../models/point_module_status.dart';
 import '../models/point_setting_model.dart';

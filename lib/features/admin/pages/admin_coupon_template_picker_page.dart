@@ -1,6 +1,6 @@
-// lib/features/admin/pages/admin_coupon_template_picker_page.dart
+// 檔案名稱：lib/features/admin/pages/admin_coupon_template_picker_page.dart
+// 功能說明：顯示店家目前已啟用的優惠券模板
 // 🎟️ 優惠券模板選擇頁
-// 功能：顯示店家目前已啟用的優惠券模板，
 // 供點數兌換商品建立或編輯時選擇並回傳完整模板資料。
 
 import 'package:flutter/material.dart';

@@ -1,5 +1,5 @@
-// lib/features/shop/pages/shop_custom_form_editor_page.dart
-// 📝 店家自訂表單編輯頁：寵物表單與訂單表單共用。
+// 檔案名稱：lib/features/shop/pages/shop_custom_form_editor_page.dart
+// 功能說明：店家自訂表單編輯頁：寵物表單與訂單表單共用。
 
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/models/custom_form_model.dart';

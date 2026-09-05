@@ -1,6 +1,6 @@
-// lib/core/services/daily_care_photo_download_service.dart
+// 檔案名稱：lib/core/services/daily_care_photo_download_service.dart
+// 功能說明：讀取退房後可使用的高清照片下載資料
 // 📥 每日照護高清照片下載 Service
-// 功能：讀取退房後可使用的高清照片下載資料，
 // 並透過受保護的 downloadStoragePath 直接下載 Firebase Storage 高清照片。
 // 一般入住期間的 Preview 頁不可使用此 Service。
 

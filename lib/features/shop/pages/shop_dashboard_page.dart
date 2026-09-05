@@ -1,6 +1,5 @@
 // 檔案名稱：lib/features/shop/pages/shop_dashboard_page.dart
-// 說明：店家後台首頁（模組分頁骨架版）
-//
+// 功能說明：店家後台首頁（模組分頁骨架版）
 // 目前目標：
 // - 後台首頁改成上方模組分頁
 // - 依 enabledModules / role 顯示可見模組
@@ -1414,7 +1413,7 @@ class _ShopPlanStatusCard extends StatelessWidget {
         return Card(
           child: ListTile(
             leading: CircleAvatar(
-              backgroundColor: color.withOpacity(0.12),
+              backgroundColor: color.withValues(alpha: 0.12),
               child: Icon(Icons.workspace_premium, color: color),
             ),
             title: Text(

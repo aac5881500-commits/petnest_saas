@@ -1,5 +1,5 @@
-// lib/features/member/widgets/member_status_chip.dart
-// 會員頁狀態膠囊。
+// 檔案名稱：lib/features/member/widgets/member_status_chip.dart
+// 功能說明：會員頁狀態膠囊。
 
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/models/shop_frontend_theme.dart';

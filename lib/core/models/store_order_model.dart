@@ -1,6 +1,6 @@
-// lib/core/models/store_order_model.dart
+// 檔案名稱：lib/core/models/store_order_model.dart
+// 功能說明：與住宿 bookings 完全分開。商品明細使用購買當下 snapshot。
 // 🛒 商城訂單 Model
-// 功能：與住宿 bookings 完全分開。商品明細使用購買當下 snapshot。
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:petnest_saas/core/constants/store_constants.dart';

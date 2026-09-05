@@ -1,5 +1,5 @@
-// lib/features/shop/pages/storefront/store_checkout_page.dart
-// 🛒 結帳：店內自取 + 共用綠界付款
+// 檔案名稱：lib/features/shop/pages/storefront/store_checkout_page.dart
+// 功能說明：結帳：店內自取 + 共用綠界付款
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';

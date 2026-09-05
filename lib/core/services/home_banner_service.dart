@@ -1,5 +1,5 @@
-// lib/core/services/home_banner_service.dart
-// 首頁活動海報：存在 shops/{shopId}.banners[]，與商城 store_settings 分開。
+// 檔案名稱：lib/core/services/home_banner_service.dart
+// 功能說明：首頁活動海報：存在 shops/{shopId}.banners[]，與商城 store_settings 分開。
 
 import 'package:petnest_saas/core/models/home_theme_model.dart';
 import 'package:petnest_saas/core/models/store_banner_model.dart';

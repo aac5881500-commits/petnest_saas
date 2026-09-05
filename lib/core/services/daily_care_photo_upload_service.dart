@@ -1,10 +1,8 @@
-// lib/core/services/daily_care_photo_upload_service.dart
+// 檔案名稱：lib/core/services/daily_care_photo_upload_service.dart
+// 功能說明：將員工選擇的照片壓縮成預覽版與下載版
 // 📷 每日照護照片上傳 Service
-// 功能：將員工選擇的照片壓縮成預覽版與下載版，
 // 上傳 Firebase Storage，並建立 Firestore 照片紀錄。
 // 不保存手機原始超大照片。
-
-import 'dart:typed_data';
 
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';

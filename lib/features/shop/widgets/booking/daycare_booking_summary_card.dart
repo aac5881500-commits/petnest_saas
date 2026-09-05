@@ -1,5 +1,5 @@
-// lib/features/shop/widgets/booking/daycare_booking_summary_card.dart
-// 🐾 臨托預約確認卡片：沿用住宿確認卡視覺
+// 檔案名稱：lib/features/shop/widgets/booking/daycare_booking_summary_card.dart
+// 功能說明：臨托預約確認卡片：沿用住宿確認卡視覺
 
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/services/daycare_addon_catalog.dart';

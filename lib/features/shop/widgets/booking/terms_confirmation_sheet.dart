@@ -1,5 +1,5 @@
-// lib/features/shop/widgets/booking/terms_confirmation_sheet.dart
-// 📜 條款確認 Bottom Sheet（閱讀到底才可完成確認）
+// 檔案名稱：lib/features/shop/widgets/booking/terms_confirmation_sheet.dart
+// 功能說明：條款確認 Bottom Sheet（閱讀到底才可完成確認）
 
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';

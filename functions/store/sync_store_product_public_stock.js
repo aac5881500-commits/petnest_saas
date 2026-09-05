@@ -1,5 +1,5 @@
-// functions/store/sync_store_product_public_stock.js
-// 🛒 庫存主檔異動後，同步商城商品公開庫存狀態（不含成本）。
+// 檔案名稱：functions/store/sync_store_product_public_stock.js
+// 功能說明：庫存主檔異動後，同步商城商品公開庫存狀態（不含成本）。
 // 同時對相關品項做 lazy expiration，避免進貨後仍被過期 reservation 鎖住。
 
 const admin = require("firebase-admin");

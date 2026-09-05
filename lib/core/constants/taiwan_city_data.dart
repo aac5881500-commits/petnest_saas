@@ -1,5 +1,5 @@
-// lib/core/constants/taiwan_city_data.dart
-// 台灣縣市與行政區資料
+// 檔案名稱：lib/core/constants/taiwan_city_data.dart
+// 功能說明：台灣縣市與行政區資料
 
 final Map<String, List<String>> cityData = {
   '台北市': [

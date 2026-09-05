@@ -1,3 +1,6 @@
+// 檔案名稱：test/modern_store_home_setting_test.dart
+// 功能說明：新版商城首頁設定的單元測試（舊店家沒有新欄位 → fallback 預設文案）
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:petnest_saas/core/models/home_theme_model.dart';
 import 'package:petnest_saas/core/models/modern_store_home_setting.dart';

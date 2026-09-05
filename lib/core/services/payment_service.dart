@@ -1,6 +1,6 @@
-// lib/core/services/payment_service.dart
+// 檔案名稱：lib/core/services/payment_service.dart
+// 功能說明：讀取店家金流公開設定、平台全域金流設定與付款交易紀錄
 // 💳 PetNest 共用付款 Service
-// 功能：讀取店家金流公開設定、平台全域金流設定與付款交易紀錄，
 // 並提供 Classic、Modern 與未來模板共用的付款方式解析入口。
 // 注意：Flutter 不得透過此 Service 直接更新付款成功、退款或敏感金流資料。
 

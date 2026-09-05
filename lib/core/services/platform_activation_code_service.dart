@@ -1,6 +1,6 @@
-// lib/core/services/platform_activation_code_service.dart
+// 檔案名稱：lib/core/services/platform_activation_code_service.dart
+// 功能說明：建立激活碼、驗證激活碼、查詢激活碼
 // 🎟️ 平台激活碼服務
-// 功能：建立激活碼、驗證激活碼、查詢激活碼
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';

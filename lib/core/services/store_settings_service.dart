@@ -1,5 +1,5 @@
-// lib/core/services/store_settings_service.dart
-// 🛒 賣場設定
+// 檔案名稱：lib/core/services/store_settings_service.dart
+// 功能說明：賣場設定
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:petnest_saas/core/constants/store_constants.dart';

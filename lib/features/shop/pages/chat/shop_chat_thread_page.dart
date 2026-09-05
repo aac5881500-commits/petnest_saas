@@ -1,5 +1,5 @@
-// lib/features/shop/pages/chat/shop_chat_thread_page.dart
-// 💬 店家後台與會員的對話頁
+// 檔案名稱：lib/features/shop/pages/chat/shop_chat_thread_page.dart
+// 功能說明：店家後台與會員的對話頁
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';

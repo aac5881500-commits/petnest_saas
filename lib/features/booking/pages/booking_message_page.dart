@@ -1,5 +1,5 @@
-// lib/features/booking/pages/booking_message_page.dart
-// 訂單留言完整頁：沿用 BookingMessageService，完成／取消後只可查看。
+// 檔案名稱：lib/features/booking/pages/booking_message_page.dart
+// 功能說明：訂單留言完整頁：沿用 BookingMessageService，完成／取消後只可查看。
 
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/services/booking_message_service.dart';

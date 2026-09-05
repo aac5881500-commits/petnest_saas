@@ -1,6 +1,5 @@
-// lib/core/constants/shop_permission_keys.dart
-// 🔐 店家後台權限 Key 定義
-//
+// 檔案名稱：lib/core/constants/shop_permission_keys.dart
+// 功能說明：店家後台權限 Key 定義
 // 用途：
 // - 控制店家員工可使用哪些功能
 // - owner 預設全權限

@@ -1,5 +1,5 @@
-// lib/features/shop/pages/storefront/store_home_page.dart
-// 🛒 商城前台首頁
+// 檔案名稱：lib/features/shop/pages/storefront/store_home_page.dart
+// 功能說明：商城前台首頁
 
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';

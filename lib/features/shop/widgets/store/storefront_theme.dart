@@ -1,5 +1,5 @@
-// lib/features/shop/widgets/store/storefront_theme.dart
-// 🛒 商城前台外觀：只影響賣場，不改旅館主題
+// 檔案名稱：lib/features/shop/widgets/store/storefront_theme.dart
+// 功能說明：商城前台外觀：只影響賣場，不改旅館主題
 
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/models/home_theme_model.dart';

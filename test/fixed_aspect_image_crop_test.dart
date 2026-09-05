@@ -1,3 +1,6 @@
+// 檔案名稱：test/fixed_aspect_image_crop_test.dart
+// 功能說明：固定比例圖片裁切的單元測試（各固定比例 viewport 可由橫圖與直圖 cover）
+
 import 'dart:io';
 import 'dart:typed_data';
 

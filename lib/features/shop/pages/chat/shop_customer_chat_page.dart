@@ -1,5 +1,5 @@
-// lib/features/shop/pages/chat/shop_customer_chat_page.dart
-// 💬 會員端店家聊天室
+// 檔案名稱：lib/features/shop/pages/chat/shop_customer_chat_page.dart
+// 功能說明：會員端店家聊天室
 
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';

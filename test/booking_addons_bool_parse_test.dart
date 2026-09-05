@@ -1,3 +1,6 @@
+// 檔案名稱：test/booking_addons_bool_parse_test.dart
+// 功能說明：預約加值服務布林解析的單元測試（bool 維持原值）
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:petnest_saas/features/shop/widgets/booking/booking_addons_helper.dart';
 

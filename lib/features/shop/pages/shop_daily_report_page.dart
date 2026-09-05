@@ -1,5 +1,5 @@
-// lib/features/shop/pages/shop_daily_report_page.dart
-// 📅 日期統計報表：每天訂單、入住退房、住宿晚數與訂單金額。
+// 檔案名稱：lib/features/shop/pages/shop_daily_report_page.dart
+// 功能說明：日期統計報表：每天訂單、入住退房、住宿晚數與訂單金額。
 
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/models/shop_report_models.dart';

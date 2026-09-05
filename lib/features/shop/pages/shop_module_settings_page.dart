@@ -1,5 +1,5 @@
-//lib/features/shop/pages/shop_module_settings_page.dart
-//模組開關頁
+// 檔案名稱：lib/features/shop/pages/shop_module_settings_page.dart
+// 功能說明：模組開關頁
 
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/constants/shop_modules.dart';

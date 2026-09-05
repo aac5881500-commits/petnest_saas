@@ -1,5 +1,5 @@
-// lib/features/member/pages/member_page.dart
-// 👤 會員中心頁（完整版：含電話輸入）
+// 檔案名稱：lib/features/member/pages/member_page.dart
+// 功能說明：會員中心頁（完整版：含電話輸入）
 
 import 'dart:ui';
 
@@ -153,76 +153,6 @@ class _MemberPageState extends State<_MemberPageBody> {
           'linkedAuthUid': user.uid,
           'updatedAt': FieldValue.serverTimestamp(),
         }, SetOptions(merge: true));
-  }
-
-  Future<void> _createMemberLinkRequest({
-    required User user,
-    required String phone,
-  }) async {
-    final samePhoneResult = await FirebaseFirestore.instance
-        .collection('user_profiles')
-        .where('phone', isEqualTo: phone)
-        .limit(10)
-        .get();
-
-    final oldDocs = samePhoneResult.docs.where((doc) {
-      final data = doc.data();
-      final linkedAuthUid = data['linkedAuthUid']?.toString() ?? '';
-
-      return doc.id != user.uid && linkedAuthUid.isEmpty;
-    }).toList();
-
-    if (oldDocs.isEmpty) return;
-
-    final oldDoc = oldDocs.first;
-
-    final oldData = oldDoc.data();
-
-    final linkedAuthUid = oldData['linkedAuthUid']?.toString() ?? '';
-    if (linkedAuthUid.isNotEmpty) return;
-
-    final exists = await FirebaseFirestore.instance
-        .collection('member_link_requests')
-        .where('authUid', isEqualTo: user.uid)
-        .where('targetUserId', isEqualTo: oldDoc.id)
-        .limit(1)
-        .get();
-
-    if (exists.docs.isNotEmpty) {
-      final requestDoc = exists.docs.first;
-      final requestData = requestDoc.data();
-
-      final status = requestData['status']?.toString() ?? '';
-
-      if (status == 'pending' || status == 'approved') {
-        return;
-      }
-
-      if (status == 'rejected') {
-        await requestDoc.reference.update({
-          'status': 'pending',
-          'resentAt': FieldValue.serverTimestamp(),
-          'updatedAt': FieldValue.serverTimestamp(),
-        });
-
-        return;
-      }
-    }
-    await FirebaseFirestore.instance.collection('member_link_requests').add({
-      'shopId':
-          oldData['shopId'] ??
-          ((oldData['shopIds'] is List && oldData['shopIds'].isNotEmpty)
-              ? oldData['shopIds'].first
-              : ''),
-      'authUid': user.uid,
-      'authEmail': user.email ?? '',
-      'targetUserId': oldDoc.id,
-      'targetName': oldData['name'] ?? '',
-      'targetPhone': phone,
-      'status': 'pending',
-      'createdAt': FieldValue.serverTimestamp(),
-      'updatedAt': FieldValue.serverTimestamp(),
-    });
   }
 
   Future<void> _showDeleteAccountDialog(User user) async {

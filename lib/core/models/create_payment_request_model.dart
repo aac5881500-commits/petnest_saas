@@ -1,6 +1,6 @@
-// lib/core/models/create_payment_request_model.dart
+// 檔案名稱：lib/core/models/create_payment_request_model.dart
+// 功能說明：統一 Flutter 呼叫 Cloud Functions 建立綠界付款時的參數格式。
 // 💳 建立付款請求模型
-// 功能：統一 Flutter 呼叫 Cloud Functions 建立綠界付款時的參數格式。
 // 注意：此模型不得包含 MerchantID、HashKey、HashIV 或 CheckMacValue。
 
 import 'payment_gateway_status.dart';

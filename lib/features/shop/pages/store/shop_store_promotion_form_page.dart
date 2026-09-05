@@ -1,5 +1,5 @@
-// lib/features/shop/pages/store/shop_store_promotion_form_page.dart
-// 🛒 各活動類型專用表單（區塊式 Card，不是 5 步 wizard）
+// 檔案名稱：lib/features/shop/pages/store/shop_store_promotion_form_page.dart
+// 功能說明：各活動類型專用表單（區塊式 Card，不是 5 步 wizard）
 
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/models/store_category_model.dart';

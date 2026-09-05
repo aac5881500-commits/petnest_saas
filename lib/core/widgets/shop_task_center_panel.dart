@@ -1,5 +1,5 @@
-// lib/core/widgets/shop_task_center_panel.dart
-// 🐾 今日待辦列表（Panel / BottomSheet / 全頁共用）
+// 檔案名稱：lib/core/widgets/shop_task_center_panel.dart
+// 功能說明：今日待辦列表（Panel / BottomSheet / 全頁共用）
 
 import 'package:flutter/material.dart';
 

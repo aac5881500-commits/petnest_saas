@@ -1,5 +1,5 @@
-// lib/core/models/store_promotion_model.dart
-// 🛒 商城專用促銷活動
+// 檔案名稱：lib/core/models/store_promotion_model.dart
+// 功能說明：商城專用促銷活動
 // 與住宿優惠 / 優惠券 / 特殊日期加價完全分開。
 
 import 'package:cloud_firestore/cloud_firestore.dart';

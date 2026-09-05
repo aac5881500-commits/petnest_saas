@@ -1,6 +1,6 @@
-// lib/core/services/shop_card_media_service.dart
+// 檔案名稱：lib/core/services/shop_card_media_service.dart
+// 功能說明：上傳平台首頁「我的店家卡片」專用大圖與 Logo
 // 🖼️ 我的店家卡片圖片 Service
-// 功能：上傳平台首頁「我的店家卡片」專用大圖與 Logo
 // 規則：限制 5MB、新圖覆蓋 Firestore 欄位、刪除 Storage 舊圖
 
 import 'dart:typed_data';

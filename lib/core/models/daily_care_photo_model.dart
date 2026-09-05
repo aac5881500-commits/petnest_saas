@@ -1,6 +1,6 @@
-// lib/core/models/daily_care_photo_model.dart
+// 檔案名稱：lib/core/models/daily_care_photo_model.dart
+// 功能說明：保存每日照護照片的預覽圖與一般顯示資料。
 // 📷 每日照護照片 Model
-// 功能：保存每日照護照片的預覽圖與一般顯示資料。
 // 前台入住期間主要使用 previewUrl 瀏覽。
 // 高清下載資料另外存放於 daily_care_photo_downloads。
 // 不保存手機原始超大照片。

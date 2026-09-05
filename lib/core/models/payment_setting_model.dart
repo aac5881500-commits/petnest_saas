@@ -1,6 +1,6 @@
-// lib/core/models/payment_setting_model.dart
+// 檔案名稱：lib/core/models/payment_setting_model.dart
+// 功能說明：記錄 Flutter 可以安全讀取的付款方式、審核狀態與平台控制狀態。
 // 💳 店家共用金流公開設定模型
-// 功能：記錄 Flutter 可以安全讀取的付款方式、審核狀態與平台控制狀態。
 // 注意：此模型不得保存 MerchantID、HashKey、HashIV 或綠界登入資料。
 
 import 'package:cloud_firestore/cloud_firestore.dart';

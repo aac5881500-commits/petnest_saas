@@ -1,6 +1,6 @@
-// lib/features/shop/widgets/inventory/addon_inventory_binding_editor.dart
+// 檔案名稱：lib/features/shop/widgets/inventory/addon_inventory_binding_editor.dart
+// 功能說明：卡片上只顯示庫存連動摘要；實際綁定在 BottomSheet 管理。
 // 📦 加購服務庫存連動
-// 功能：卡片上只顯示庫存連動摘要；實際綁定在 BottomSheet 管理。
 // 不改 inventoryBindings schema，也不改扣庫存計算。
 
 import 'package:flutter/material.dart';

@@ -1,6 +1,6 @@
-// lib/models/home/modern_drawer_setting_model.dart
+// 檔案名稱：lib/models/home/modern_drawer_setting_model.dart
+// 功能說明：控制新版首頁 Drawer 各區塊是否顯示
 // 🎨 新版 Drawer 設定 Model
-// 功能：控制新版首頁 Drawer 各區塊是否顯示
 
 class ModernDrawerSettingModel {
   const ModernDrawerSettingModel({

@@ -1,6 +1,6 @@
-// functions/payments/review_payment_setting.js
+// 檔案名稱：functions/payments/review_payment_setting.js
+// 功能說明：驗證平台管理權限後，核准店家的綠界金流申請
 // ✅ 平台綠界金流審核 Function
-// 功能：驗證平台管理權限後，核准店家的綠界金流申請，
 // 並記錄審核人、審核時間與操作紀錄。
 
 const admin = require("firebase-admin");

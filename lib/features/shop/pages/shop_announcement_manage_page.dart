@@ -1,6 +1,6 @@
-// lib/features/shop/pages/shop_announcement_manage_page.dart
+// 檔案名稱：lib/features/shop/pages/shop_announcement_manage_page.dart
+// 功能說明：新增、編輯、上架/下架、置頂/取消置頂、刪除店家公告，並支援公告類型與前台公告欄開關
 // 📢 店家公告管理頁
-// 功能：新增、編輯、上架/下架、置頂/取消置頂、刪除店家公告，並支援公告類型與前台公告欄開關
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';

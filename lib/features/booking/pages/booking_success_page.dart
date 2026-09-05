@@ -1,6 +1,6 @@
-// lib/features/booking/pages/booking_success_page.dart
+// 檔案名稱：lib/features/booking/pages/booking_success_page.dart
+// 功能說明：顯示預約成功結果，並提供回到店家首頁、查看我的訂單
 // 🎉 訂單成功頁
-// 功能：顯示預約成功結果，並提供回到店家首頁、查看我的訂單
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';

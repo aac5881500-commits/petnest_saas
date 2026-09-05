@@ -1,5 +1,5 @@
-// lib/features/shop/widgets/modern_home/shop_modern_logo.dart
-// 新版 Beta 共用店家 Logo：固定正方形、cover、失敗顯示圖示。
+// 檔案名稱：lib/features/shop/widgets/modern_home/shop_modern_logo.dart
+// 功能說明：新版 Beta 共用店家 Logo：固定正方形、cover、失敗顯示圖示。
 
 import 'package:flutter/material.dart';
 

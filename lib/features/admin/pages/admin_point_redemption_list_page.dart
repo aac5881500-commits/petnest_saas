@@ -1,6 +1,6 @@
-// lib/features/admin/pages/admin_point_redemption_list_page.dart
+// 檔案名稱：lib/features/admin/pages/admin_point_redemption_list_page.dart
+// 功能說明：顯示店家實體商品兌換紀錄、依狀態分類
 // 🎁 後台實體商品領取核銷頁
-// 功能：顯示店家實體商品兌換紀錄、依狀態分類、
 // 使用領取碼搜尋，並讓店員確認完成商品交付。
 
 import 'package:firebase_auth/firebase_auth.dart';

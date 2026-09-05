@@ -1,5 +1,5 @@
-// lib/core/models/policy_applicable_service.dart
-// 📜 條款適用服務：住宿 / 臨托 / 共用
+// 檔案名稱：lib/core/models/policy_applicable_service.dart
+// 功能說明：條款適用服務：住宿 / 臨托 / 共用
 // 舊條款沒有適用類型時，一律視為僅住宿，不可自動套用臨托。
 
 class PolicyApplicableService {

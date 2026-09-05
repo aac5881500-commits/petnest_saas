@@ -1,6 +1,6 @@
-// lib/core/services/daily_care_background_service.dart
+// 檔案名稱：lib/core/services/daily_care_background_service.dart
+// 功能說明：上傳／刪除店家日誌背景，路徑固定在
 // 🖼️ 每日照護日誌背景圖片
-// 功能：上傳／刪除店家日誌背景，路徑固定在
 // shops/{shopId}/daily_care/settings/background/
 // 新圖上傳並寫入 Firestore 成功後，才刪舊檔。
 

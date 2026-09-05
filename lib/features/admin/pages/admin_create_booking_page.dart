@@ -1,6 +1,6 @@
-// lib/features/admin/pages/admin_create_booking_page.dart
+// 檔案名稱：lib/features/admin/pages/admin_create_booking_page.dart
+// 功能說明：店家可搜尋會員，後續會接快速建立會員、建立寵物與建立訂單
 // 🧾 後台手動新增訂單頁
-// 功能：店家可搜尋會員，後續會接快速建立會員、建立寵物與建立訂單
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
@@ -92,14 +92,14 @@ class _AdminCreateBookingPageState extends State<AdminCreateBookingPage> {
   bool _isFirstBooking = false;
   bool _firstBookingLoading = false;
   Map<String, dynamic>? _selectedTimeAddon;
-  List<Map<String, dynamic>> _selectedValueServices = [];
+  final List<Map<String, dynamic>> _selectedValueServices = [];
   final Set<String> _selectedAddonNames = <String>{};
-  Map<String, List<String>> _selectedCustomServices = {};
+  final Map<String, List<String>> _selectedCustomServices = {};
 
-  Map<String, Map<String, Map<String, List<String>>>>
+  final Map<String, Map<String, Map<String, List<String>>>>
   _selectedDailyTimedServices = {};
 
-  List<Map<String, dynamic>> _pets = [];
+  final List<Map<String, dynamic>> _pets = [];
 
   @override
   void initState() {
@@ -435,7 +435,7 @@ class _AdminCreateBookingPageState extends State<AdminCreateBookingPage> {
         .doc(widget.shopId)
         .get();
 
-    final shop = shopDoc.data() as Map<String, dynamic>? ?? {};
+    final shop = shopDoc.data() ?? <String, dynamic>{};
 
     if (!ShopPermissionService.canCreateMember(shop)) {
       if (!mounted) return;
@@ -1488,7 +1488,7 @@ class _AdminCreateBookingPageState extends State<AdminCreateBookingPage> {
           .doc(widget.shopId)
           .get();
 
-      final shop = shopDoc.data() as Map<String, dynamic>? ?? {};
+      final shop = shopDoc.data() ?? <String, dynamic>{};
       if (!ShopPermissionService.canCreateOrder(shop)) {
         if (!mounted) return;
 
@@ -1807,8 +1807,6 @@ class _AdminCreateBookingPageState extends State<AdminCreateBookingPage> {
     return StreamBuilder<Map<String, dynamic>?>(
       stream: ShopService.instance.streamShop(widget.shopId),
       builder: (context, snapshot) {
-        final shop = snapshot.data ?? {};
-
         final discountInfo = _selectedRoomType != null && nights > 0
             ? _calculateAdminDiscountInfo(
                 roomType: _selectedRoomType!,

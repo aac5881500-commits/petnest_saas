@@ -1,5 +1,5 @@
-// lib/features/shop/pages/shop_policy_logs_page.dart
-// 📊 條款同意紀錄（後台 + 搜尋 + 排序 + 美化時間）
+// 檔案名稱：lib/features/shop/pages/shop_policy_logs_page.dart
+// 功能說明：條款同意紀錄（後台 + 搜尋 + 排序 + 美化時間）
 
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/services/shop_service.dart';

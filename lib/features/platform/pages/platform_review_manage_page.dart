@@ -1,6 +1,6 @@
-// lib/features/platform/pages/platform_review_manage_page.dart
+// 檔案名稱：lib/features/platform/pages/platform_review_manage_page.dart
+// 功能說明：查看所有店家的會員評價與店家回覆
 // ⭐ 平台後台：全平台評價管理
-// 功能：查看所有店家的會員評價與店家回覆
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';

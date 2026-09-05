@@ -1,6 +1,6 @@
-// functions/bookings/finalize_booking_addon_inventory.js
+// 檔案名稱：functions/bookings/finalize_booking_addon_inventory.js
+// 功能說明：Customer / 店家建立 booking 後，依店家加購設定驗證並扣除中央庫存。
 // 🏨 住宿加購庫存後端扣除
-// 功能：Customer / 店家建立 booking 後，依店家加購設定驗證並扣除中央庫存。
 // 不信任 Client 傳入的品名、現有庫存、最終扣除量。
 // 同一 booking 使用 ba_{bookingId}_deduct，重複呼叫安全 skip。
 

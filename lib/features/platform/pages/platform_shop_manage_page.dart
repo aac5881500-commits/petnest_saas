@@ -1,6 +1,6 @@
-// lib/features/platform/pages/platform_shop_manage_page.dart
+// 檔案名稱：lib/features/platform/pages/platform_shop_manage_page.dart
+// 功能說明：平台後台查看所有店家，管理公開狀態、方案、付款期限與店家狀態
 // 🏪 平台店家管理頁
-// 功能：平台後台查看所有店家，管理公開狀態、方案、付款期限與店家狀態
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
@@ -94,31 +94,6 @@ class PlatformShopManagePage extends StatelessWidget {
       default:
         return '未知';
     }
-  }
-
-  List<String> _normalizeModulesByPlan({
-    required String plan,
-    required List<String> currentModules,
-  }) {
-    final baseModules = <String>['basic_info'];
-
-    final mainModules = currentModules
-        .where((item) => item != 'basic_info' && item != 'reports')
-        .toList();
-
-    if (plan == 'free') {
-      return baseModules;
-    }
-
-    if (plan == 'basic') {
-      if (mainModules.isEmpty) {
-        return baseModules;
-      }
-
-      return [...baseModules, mainModules.first];
-    }
-
-    return currentModules.isEmpty ? baseModules : currentModules;
   }
 
   @override
@@ -257,9 +232,6 @@ class PlatformShopManagePage extends StatelessWidget {
                     final externalLinksEnabled =
                         data['externalLinksEnabled'] != false;
                     final plan = data['plan']?.toString() ?? 'free';
-                    final enabledModules = List<String>.from(
-                      data['enabledModules'] ?? [],
-                    );
                     final status = data['status']?.toString() ?? 'active';
                     final accountStatus =
                         data['accountStatus']?.toString() ?? 'normal';
@@ -519,7 +491,7 @@ class PlatformShopManagePage extends StatelessWidget {
                                     width: 36,
                                     height: 36,
                                     decoration: BoxDecoration(
-                                      color: Colors.blue.withOpacity(0.1),
+                                      color: Colors.blue.withValues(alpha: 0.1),
                                       borderRadius: BorderRadius.circular(12),
                                     ),
                                     child: const Icon(

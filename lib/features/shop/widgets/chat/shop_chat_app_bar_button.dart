@@ -1,5 +1,5 @@
-// lib/features/shop/widgets/chat/shop_chat_app_bar_button.dart
-// 💬 店家後台頂層聊天入口
+// 檔案名稱：lib/features/shop/widgets/chat/shop_chat_app_bar_button.dart
+// 功能說明：店家後台頂層聊天入口
 
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/services/shop_chat_service.dart';

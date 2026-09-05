@@ -1,5 +1,5 @@
-// lib/features/shop/pages/shop_about_manage_page.dart
-// 🐾 後台關於我們管理頁
+// 檔案名稱：lib/features/shop/pages/shop_about_manage_page.dart
+// 功能說明：後台關於我們管理頁
 // 店家可編輯前台關於我們的標題、簡介與品牌文字，並設定封面圖顯示範圍
 
 import 'dart:typed_data';

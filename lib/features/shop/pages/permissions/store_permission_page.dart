@@ -1,5 +1,5 @@
-// lib/features/shop/pages/permissions/store_permission_page.dart
-// 🛒 賣場權限設定頁
+// 檔案名稱：lib/features/shop/pages/permissions/store_permission_page.dart
+// 功能說明：賣場權限設定頁
 
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/constants/shop_permission_keys.dart';

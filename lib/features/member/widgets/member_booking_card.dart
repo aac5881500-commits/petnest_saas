@@ -1,4 +1,5 @@
-// 會員訂單列表卡：沿用 BookingDetailViewData 顯示，不重算價格。
+// 檔案名稱：lib/features/member/widgets/member_booking_card.dart
+// 功能說明：會員訂單列表卡：沿用 BookingDetailViewData 顯示，不重算價格。
 
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/features/booking/pages/booking_detail_page.dart';

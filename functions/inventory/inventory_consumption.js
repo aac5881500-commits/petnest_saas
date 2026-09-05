@@ -1,5 +1,5 @@
-// functions/inventory/inventory_consumption.js
-// 📦 對應 Dart InventoryStockService 的確定性 consumption
+// 檔案名稱：functions/inventory/inventory_consumption.js
+// 功能說明：對應 Dart InventoryStockService 的確定性 consumption
 // 點數：pr_{id}_deduct / pr_{id}_return
 // 住宿加購：ba_{id}_deduct / ba_{id}_return
 // 住宿耗材返還：bs_{id}_deduct 存在才可 bs_{id}_return

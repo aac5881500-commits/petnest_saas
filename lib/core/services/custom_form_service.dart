@@ -1,5 +1,5 @@
-// lib/core/services/custom_form_service.dart
-// 📝 店家自訂表單 Firestore Service
+// 檔案名稱：lib/core/services/custom_form_service.dart
+// 功能說明：店家自訂表單 Firestore Service
 // 路徑：shops/{shopId}/custom_forms/{pet_profile|booking_submit}
 
 import 'dart:convert';

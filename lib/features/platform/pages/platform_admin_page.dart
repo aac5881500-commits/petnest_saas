@@ -1,6 +1,6 @@
-// lib/features/platform/pages/platform_admin_page.dart
+// 檔案名稱：lib/features/platform/pages/platform_admin_page.dart
+// 功能說明：平台管理入口，包含店家管理、方案付款、平台操作紀錄。
 // 🛠️ 平台後台主頁
-// 功能：平台管理入口，包含店家管理、方案付款、平台操作紀錄。
 // 進入頁面前會透過 PlatformAdminService 驗證平台人員身分與啟用狀態。
 
 import 'package:cloud_firestore/cloud_firestore.dart';

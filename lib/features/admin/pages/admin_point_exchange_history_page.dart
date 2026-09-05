@@ -1,6 +1,6 @@
-// lib/features/admin/pages/admin_point_exchange_history_page.dart
+// 檔案名稱：lib/features/admin/pages/admin_point_exchange_history_page.dart
+// 功能說明：顯示店家全部會員的點數商品兌換紀錄
 // 🎁 後台點數兌換紀錄頁
-// 功能：顯示店家全部會員的點數商品兌換紀錄，
 // 包含會員 UID、商品名稱、扣除點數、兌換後餘額與優惠券發放狀態。
 
 import 'package:flutter/material.dart';

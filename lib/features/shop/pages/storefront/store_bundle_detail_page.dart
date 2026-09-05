@@ -1,5 +1,5 @@
-// lib/features/shop/pages/storefront/store_bundle_detail_page.dart
-// 🛒 套裝優惠內容與加入購物車
+// 檔案名稱：lib/features/shop/pages/storefront/store_bundle_detail_page.dart
+// 功能說明：套裝優惠內容與加入購物車
 
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';

@@ -1,5 +1,5 @@
-// lib/features/shop/pages/shop_daycare_date_override_page.dart
-// 🐾 安親可預約日期：預設開放，僅逐日關閉／恢復
+// 檔案名稱：lib/features/shop/pages/shop_daycare_date_override_page.dart
+// 功能說明：安親可預約日期：預設開放，僅逐日關閉／恢復
 
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/models/daycare_date_override_model.dart';

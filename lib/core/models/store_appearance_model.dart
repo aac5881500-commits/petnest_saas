@@ -1,5 +1,5 @@
-// lib/core/models/store_appearance_model.dart
-// 🛒 商城獨立外觀與首頁 Banner（存在 store_settings/main）
+// 檔案名稱：lib/core/models/store_appearance_model.dart
+// 功能說明：商城獨立外觀與首頁 Banner（存在 store_settings/main）
 
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/models/home_theme_model.dart';

@@ -1,6 +1,5 @@
-// lib/features/shop/widgets/permissions/permission_switch_tile.dart
-// 🔐 權限開關共用卡片
-//
+// 檔案名稱：lib/features/shop/widgets/permissions/permission_switch_tile.dart
+// 功能說明：權限開關共用卡片
 // 用途：
 // - 給各個權限分類頁共用
 // - 統一權限開關樣式

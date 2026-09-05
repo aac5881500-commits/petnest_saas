@@ -1,3 +1,6 @@
+// 檔案名稱：test/store_stock_helper_test.dart
+// 功能說明：商城庫存輔助的單元測試（售罄標籤）
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:petnest_saas/core/constants/store_constants.dart';
 import 'package:petnest_saas/core/models/store_product_model.dart';

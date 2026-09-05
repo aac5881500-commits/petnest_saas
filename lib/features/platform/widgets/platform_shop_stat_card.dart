@@ -1,6 +1,6 @@
-// lib/features/platform/widgets/platform_shop_stat_card.dart
+// 檔案名稱：lib/features/platform/widgets/platform_shop_stat_card.dart
+// 功能說明：顯示店家總數、正常營運、試用中、已停權等統計資訊
 // 📊 平台店家管理統計卡
-// 功能：顯示店家總數、正常營運、試用中、已停權等統計資訊
 
 import 'package:flutter/material.dart';
 
@@ -36,7 +36,7 @@ class PlatformShopStatCard extends StatelessWidget {
             width: 42,
             height: 42,
             decoration: BoxDecoration(
-              color: color.withOpacity(0.12),
+              color: color.withValues(alpha: 0.12),
               borderRadius: BorderRadius.circular(14),
             ),
             child: Icon(icon, color: color, size: 22),

@@ -1,6 +1,6 @@
-// lib/features/admin/widgets/admin_booking_timeline.dart
+// 檔案名稱：lib/features/admin/widgets/admin_booking_timeline.dart
+// 功能說明：顯示預約送出、付款期限、確認、入住、退房完成、取消/完成狀態
 // 🕒 後台訂單詳細頁：訂單時間軸
-// 功能：顯示預約送出、付款期限、確認、入住、退房完成、取消/完成狀態
 
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/features/admin/widgets/admin_booking_date_helpers.dart';
@@ -33,7 +33,10 @@ class AdminBookingTimeline extends StatelessWidget {
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
-          BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10),
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 10,
+          ),
         ],
       ),
       child: Column(

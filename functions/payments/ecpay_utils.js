@@ -1,6 +1,6 @@
-// functions/payments/ecpay_utils.js
+// 檔案名稱：functions/payments/ecpay_utils.js
+// 功能說明：產生符合綠界格式的 MerchantTradeNo
 // 🟢 綠界金流共用工具
-// 功能：產生符合綠界格式的 MerchantTradeNo，
 // 確保交易編號僅包含英數字、長度不超過 20 碼。
 
 const crypto = require("crypto");

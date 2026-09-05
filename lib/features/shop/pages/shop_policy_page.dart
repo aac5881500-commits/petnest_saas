@@ -1,5 +1,5 @@
-// lib/features/shop/pages/shop_policy_page.dart
-// 📜 入住條款編輯頁（後台｜模板版🔥＋一鍵套用）
+// 檔案名稱：lib/features/shop/pages/shop_policy_page.dart
+// 功能說明：入住條款編輯頁（後台｜模板版＋一鍵套用）
 
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/models/policy_applicable_service.dart';

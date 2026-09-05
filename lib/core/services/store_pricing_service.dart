@@ -1,5 +1,5 @@
-// lib/core/services/store_pricing_service.dart
-// 🛒 商城共用計價引擎
+// 檔案名稱：lib/core/services/store_pricing_service.dart
+// 功能說明：商城共用計價引擎
 // 單品優惠 + 跨商品活動同一套計算。不改 StoreProduct.price。
 // 同一層級取最優惠，不疊成連乘。買 X 送 Y 的付款數量與出貨數量分開。
 

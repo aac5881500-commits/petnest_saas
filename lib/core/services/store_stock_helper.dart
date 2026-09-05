@@ -1,6 +1,6 @@
-// lib/core/services/store_stock_helper.dart
+// 檔案名稱：lib/core/services/store_stock_helper.dart
+// 功能說明：只使用 StoreProduct 上的公開庫存狀態，不讀 inventory_items。
 // 🛒 商城前台庫存呈現
-// 功能：只使用 StoreProduct 上的公開庫存狀態，不讀 inventory_items。
 
 import 'package:petnest_saas/core/constants/store_constants.dart';
 import 'package:petnest_saas/core/models/inventory_item_model.dart';

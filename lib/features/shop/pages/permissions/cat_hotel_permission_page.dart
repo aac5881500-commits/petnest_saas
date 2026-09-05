@@ -1,6 +1,5 @@
-// lib/features/shop/pages/permissions/cat_hotel_permission_page.dart
-// 🐱 貓咪旅店權限設定頁
-//
+// 檔案名稱：lib/features/shop/pages/permissions/cat_hotel_permission_page.dart
+// 功能說明：貓咪旅店權限設定頁
 // 用途：
 // - 管理貓咪旅店相關功能權限
 // - 開關切換後立即刷新 UI

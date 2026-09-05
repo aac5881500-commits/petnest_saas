@@ -1,5 +1,5 @@
-// lib/core/models/booking_fee_line_item.dart
-// 💰 填寫資料頁費用明細列
+// 檔案名稱：lib/core/models/booking_fee_line_item.dart
+// 功能說明：填寫資料頁費用明細列
 
 enum BookingFeeLineKind { normal, discount, total, payable }
 

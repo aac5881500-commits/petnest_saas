@@ -1,5 +1,5 @@
-// lib/features/shop/pages/store/shop_store_product_form_page.dart
-// 🛒 商品新增 / 編輯
+// 檔案名稱：lib/features/shop/pages/store/shop_store_product_form_page.dart
+// 功能說明：商品新增 / 編輯
 
 import 'dart:async';
 import 'dart:typed_data';

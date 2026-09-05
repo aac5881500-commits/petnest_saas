@@ -1,3 +1,6 @@
+// 檔案名稱：test/shop_policy_terms_test.dart
+// 功能說明：店家條款的單元測試
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:petnest_saas/core/models/policy_applicable_service.dart';
 import 'package:petnest_saas/core/services/shop_policy_service.dart';

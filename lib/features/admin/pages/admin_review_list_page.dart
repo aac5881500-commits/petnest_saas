@@ -1,6 +1,6 @@
-// lib/features/admin/pages/admin_review_list_page.dart
+// 檔案名稱：lib/features/admin/pages/admin_review_list_page.dart
+// 功能說明：查看本店所有客戶評價，之後可延伸店家回覆
 // ⭐ 店家後台評價管理頁
-// 功能：查看本店所有客戶評價，之後可延伸店家回覆
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';

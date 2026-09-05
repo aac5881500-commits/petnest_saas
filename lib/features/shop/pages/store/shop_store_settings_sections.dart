@@ -1,5 +1,5 @@
-// lib/features/shop/pages/store/shop_store_settings_sections.dart
-// 🛒 賣場設定分區頁：各區獨立儲存，避免一頁過長與付款 Stream 重複 listen。
+// 檔案名稱：lib/features/shop/pages/store/shop_store_settings_sections.dart
+// 功能說明：賣場設定分區頁：各區獨立儲存，避免一頁過長與付款 Stream 重複 listen。
 
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/constants/store_constants.dart';

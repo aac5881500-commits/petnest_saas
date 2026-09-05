@@ -1,6 +1,6 @@
-// lib/core/models/daily_care_setting_model.dart
+// 檔案名稱：lib/core/models/daily_care_setting_model.dart
+// 功能說明：保存店家每日照護紀錄的啟用狀態、填寫次數
 // 🐾 每日照護紀錄設定 Model
-// 功能：保存店家每日照護紀錄的啟用狀態、填寫次數、
 // 顯示欄位、自訂欄位、照片功能、日誌外觀與退房後下載期限。
 
 import 'package:flutter/material.dart';

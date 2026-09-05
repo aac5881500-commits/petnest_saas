@@ -1,5 +1,5 @@
-// lib/core/debug/chat_error_probe.dart
-// 開發用：聊天 converted Future 定位。不要在 production 依賴這些開關。
+// 檔案名稱：lib/core/debug/chat_error_probe.dart
+// 功能說明：開發用：聊天 converted Future 定位。不要在 production 依賴這些開關。
 
 class ChatErrorProbe {
   ChatErrorProbe._();

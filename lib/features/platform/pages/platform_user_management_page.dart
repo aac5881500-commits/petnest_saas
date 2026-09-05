@@ -1,6 +1,6 @@
-// lib/features/platform/pages/platform_user_management_page.dart
+// 檔案名稱：lib/features/platform/pages/platform_user_management_page.dart
+// 功能說明：顯示平台最高管理員、開發管理員與平台員工清單
 // 👥 平台人員管理頁
-// 功能：顯示平台最高管理員、開發管理員與平台員工清單，
 // 並標示帳號狀態、角色及已分配權限數量。
 // 只有擁有管理平台人員權限者可以進入此頁。
 

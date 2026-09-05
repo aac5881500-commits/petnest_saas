@@ -1,5 +1,5 @@
-// lib/features/member/widgets/member_summary_card.dart
-// 小型統計摘要卡，供點數／評價頁使用。
+// 檔案名稱：lib/features/member/widgets/member_summary_card.dart
+// 功能說明：小型統計摘要卡，供點數／評價頁使用。
 
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/features/member/widgets/member_ui_tokens.dart';

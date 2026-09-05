@@ -1,6 +1,5 @@
-// lib/features/shop/pages/permissions/member_permission_detail_page.dart
-// 👤 成員權限編輯頁
-//
+// 檔案名稱：lib/features/shop/pages/permissions/member_permission_detail_page.dart
+// 功能說明：成員權限編輯頁
 // 用途：
 // - 從權限設定頁的「目前成員」點進來
 // - 查看指定成員角色與已開啟權限

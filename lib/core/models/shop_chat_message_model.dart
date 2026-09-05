@@ -1,5 +1,5 @@
-// lib/core/models/shop_chat_message_model.dart
-// 💬 店家聊天訊息
+// 檔案名稱：lib/core/models/shop_chat_message_model.dart
+// 功能說明：店家聊天訊息
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 

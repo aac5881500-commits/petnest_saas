@@ -1,3 +1,6 @@
+// 檔案名稱：test/daycare_pricing_service_test.dart
+// 功能說明：安親計價服務的單元測試（舊訂單沒有 bookingKind 視為住宿）
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:petnest_saas/core/models/booking_fee_line_item.dart';
 import 'package:petnest_saas/core/models/booking_kind.dart';

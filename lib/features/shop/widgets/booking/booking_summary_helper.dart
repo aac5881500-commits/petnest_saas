@@ -1,6 +1,6 @@
-// lib/features/shop/widgets/booking/booking_summary_helper.dart
+// 檔案名稱：lib/features/shop/widgets/booking/booking_summary_helper.dart
+// 功能說明：計算房價、寵物加價、一般加購、客製化服務、每日分時段服務
 // 🔥 前台預約確認 helper
-// 功能：計算房價、寵物加價、一般加購、客製化服務、每日分時段服務，
 // 並建立預約金額 Summary Card。
 
 import 'package:flutter/material.dart';

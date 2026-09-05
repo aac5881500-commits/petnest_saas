@@ -1,6 +1,6 @@
-// lib/core/services/store_order_service.dart
+// 檔案名稱：lib/core/services/store_order_service.dart
+// 功能說明：前台與後台查詢訂單。建立、付款與狀態變更走 Cloud Functions。
 // 🛒 商城訂單讀取 Service
-// 功能：前台與後台查詢訂單。建立、付款與狀態變更走 Cloud Functions。
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';

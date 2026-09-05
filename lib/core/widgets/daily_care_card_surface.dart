@@ -1,6 +1,6 @@
-// lib/core/widgets/daily_care_card_surface.dart
+// 檔案名稱：lib/core/widgets/daily_care_card_surface.dart
+// 功能說明：每張卡片各自依自己的 bounds 鋪同一張 card background
 // 🐾 每日照護內容卡片共用外觀
-// 功能：每張卡片各自依自己的 bounds 鋪同一張 card background，
 // 使用 DecorationImage，避免 Web 上 Image 只顯示中間一條。
 
 import 'package:flutter/material.dart';

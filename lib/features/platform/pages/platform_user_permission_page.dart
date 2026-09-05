@@ -1,6 +1,6 @@
-// lib/features/platform/pages/platform_user_permission_page.dart
+// 檔案名稱：lib/features/platform/pages/platform_user_permission_page.dart
+// 功能說明：調整開發管理員與平台員工的姓名、Email、角色
 // 🔐 平台人員角色與權限編輯頁
-// 功能：調整開發管理員與平台員工的姓名、Email、角色、
 // 啟用狀態及個別權限。
 // 進入頁面前會檢查 managePlatformAdmins 權限。
 // 根管理員為永久最高權限，不允許透過此頁修改。

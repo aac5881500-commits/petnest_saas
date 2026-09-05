@@ -1,5 +1,5 @@
-// lib/core/services/daycare_addon_catalog.dart
-// 🐾 安親可用加購：只讀既有 shops/{shopId}/addons/main，允許清單為 allowedAddonIds。
+// 檔案名稱：lib/core/services/daycare_addon_catalog.dart
+// 功能說明：安親可用加購：只讀既有 shops/{shopId}/addons/main，允許清單為 allowedAddonIds。
 
 import 'package:petnest_saas/core/models/daycare_settings_model.dart';
 

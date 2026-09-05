@@ -1,5 +1,5 @@
-// lib/core/services/shop_home_stats_service.dart
-// 🏠 首頁店家統計 Service
+// 檔案名稱：lib/core/services/shop_home_stats_service.dart
+// 功能說明：首頁店家統計 Service
 // 功能：
 // 1. 今日訂單
 // 2. 待確認訂單

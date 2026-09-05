@@ -1,6 +1,6 @@
-// lib/features/platform/pages/platform_policy_editor_page.dart
+// 檔案名稱：lib/features/platform/pages/platform_policy_editor_page.dart
+// 功能說明：編輯平台條款內容、儲存草稿與發布新版
 // 📝 平台條款編輯頁
-// 功能：編輯平台條款內容、儲存草稿與發布新版
 
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/services/platform_policy_manage_service.dart';

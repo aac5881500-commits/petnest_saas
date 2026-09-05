@@ -1,5 +1,5 @@
-// lib/core/models/modern_store_home_setting.dart
-// 🛒 新版 Beta 首頁「寵物賣場入口卡片」外觀
+// 檔案名稱：lib/core/models/modern_store_home_setting.dart
+// 功能說明：新版 Beta 首頁「寵物賣場入口卡片」外觀
 // 掛在 shops/{shopId}.homeAppearance.modern，不進 store_settings。
 
 import 'package:flutter/material.dart';

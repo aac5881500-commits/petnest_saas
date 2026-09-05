@@ -1,5 +1,5 @@
-// lib/core/services/home_banner_navigation.dart
-// 首頁海報點擊：沿用現有前台頁面，不另開 routing。
+// 檔案名稱：lib/core/services/home_banner_navigation.dart
+// 功能說明：首頁海報點擊：沿用現有前台頁面，不另開 routing。
 
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
@@ -7,7 +7,6 @@ import 'package:petnest_saas/core/models/home_theme_model.dart';
 import 'package:petnest_saas/core/models/store_banner_model.dart';
 import 'package:petnest_saas/core/models/store_product_model.dart';
 import 'package:petnest_saas/core/services/home_banner_service.dart';
-import 'package:petnest_saas/core/services/shop_service.dart';
 import 'package:petnest_saas/core/services/store_product_service.dart';
 import 'package:petnest_saas/core/services/storefront_access.dart';
 import 'package:petnest_saas/features/shop/pages/shop_about_page.dart';

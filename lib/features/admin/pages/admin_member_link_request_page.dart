@@ -1,6 +1,6 @@
-// lib/features/admin/pages/admin_member_link_request_page.dart
+// 檔案名稱：lib/features/admin/pages/admin_member_link_request_page.dart
+// 功能說明：集中查看待處理的會員合併申請，並可跳到會員詳細頁處理
 // 🔗 後台會員合併管理頁
-// 功能：集中查看待處理的會員合併申請，並可跳到會員詳細頁處理
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';

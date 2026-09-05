@@ -1,5 +1,5 @@
-// lib/features/shop/widgets/environment/environment_gallery_grid.dart
-// 🐾 環境介紹照片牆：手機 2 欄、平板 3 欄，固定比例 cover。
+// 檔案名稱：lib/features/shop/widgets/environment/environment_gallery_grid.dart
+// 功能說明：環境介紹照片牆：手機 2 欄、平板 3 欄，固定比例 cover。
 
 import 'package:flutter/material.dart';
 

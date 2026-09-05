@@ -1,5 +1,5 @@
-// lib/core/services/shop_task_center_service.dart
-// 🐾 後台共用待辦中心
+// 檔案名稱：lib/core/services/shop_task_center_service.dart
+// 功能說明：後台共用待辦中心
 // 依 checked_in / pending 訂單與固定 Daily Care record ID 即時計算。
 // 不掃全店 daily care、不寫 notification document。
 

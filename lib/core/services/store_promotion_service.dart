@@ -1,5 +1,5 @@
-// lib/core/services/store_promotion_service.dart
-// 🛒 商城促銷活動 CRUD
+// 檔案名稱：lib/core/services/store_promotion_service.dart
+// 功能說明：商城促銷活動 CRUD
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';

@@ -1,6 +1,6 @@
-// lib/features/shop/widgets/booking/booking_submit_helper.dart
+// 檔案名稱：lib/features/shop/widgets/booking/booking_submit_helper.dart
+// 功能說明：建立店家會員、防重複預約、防刷訂單、回寫會員資料、建立 booking
 // 🧾 前台預約送出 Helper
-// 功能：建立店家會員、防重複預約、防刷訂單、回寫會員資料、建立 booking
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -191,7 +191,6 @@ class BookingSubmitHelper {
     final extraPetTotal = (extraPetCount * extraPrice * nights).toInt();
     final int roomSubtotal =
         (basePrice * nights) + extraPetTotal + specialDateSurchargeAmount;
-    final pricePerNight = nights > 0 ? (totalPrice ~/ nights) : 0;
 
     final bookingId = await BookingService.instance.createBooking(
       shopId: shopId,

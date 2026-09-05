@@ -1,5 +1,5 @@
-// lib/core/models/environment_intro_style.dart
-// 環境介紹全域顯示：尺寸、字體、特色卡版型與高度。
+// 檔案名稱：lib/core/models/environment_intro_style.dart
+// 功能說明：環境介紹全域顯示：尺寸、字體、特色卡版型與高度。
 // 掛在 shops/{shopId}.environmentIntro；舊資料沒有欄位時全部用標準／橫向圖卡。
 
 class EnvironmentIntroStyle {

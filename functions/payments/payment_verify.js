@@ -1,6 +1,6 @@
-// functions/payments/payment_verify.js
+// 檔案名稱：functions/payments/payment_verify.js
+// 功能說明：驗證訂單存在、會員身分、訂單狀態與付款狀態
 // 🔐 金流付款驗證工具
-// 功能：驗證訂單存在、會員身分、訂單狀態與付款狀態，
 // 並由後端重新計算訂金或全額付款金額，避免前端竄改金額。
 
 const {HttpsError} = require("firebase-functions/v2/https");

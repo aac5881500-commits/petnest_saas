@@ -1,5 +1,5 @@
-// lib/core/services/daycare_policy_service.dart
-// 📜 臨托條款：shops/{shopId}/policies/daycare_policy 與版本紀錄
+// 檔案名稱：lib/core/services/daycare_policy_service.dart
+// 功能說明：臨托條款：shops/{shopId}/policies/daycare_policy 與版本紀錄
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';

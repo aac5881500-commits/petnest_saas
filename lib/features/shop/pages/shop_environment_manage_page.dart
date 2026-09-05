@@ -1,5 +1,5 @@
-// lib/features/shop/pages/shop_environment_manage_page.dart
-// 🐾 後台環境介紹管理頁
+// 檔案名稱：lib/features/shop/pages/shop_environment_manage_page.dart
+// 功能說明：後台環境介紹管理頁
 
 import 'dart:typed_data';
 

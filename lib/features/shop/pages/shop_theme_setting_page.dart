@@ -1,6 +1,6 @@
-// lib/features/shop/pages/shop_theme_setting_page.dart
+// 檔案名稱：lib/features/shop/pages/shop_theme_setting_page.dart
+// 功能說明：設定首頁版型、主題顏色、卡片與圖示樣式
 // 🎨 店家前台外觀設定頁
-// 功能：設定首頁版型、主題顏色、卡片與圖示樣式
 
 import 'dart:typed_data';
 
@@ -107,14 +107,6 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage> {
   ModernBannerFrameSetting _modernBannerFrame =
       const ModernBannerFrameSetting();
   String _modernBannerPreviewImageUrl = '';
-
-  HomeTextStyleModel _modernBannerShopNameStyle = const HomeTextStyleModel(
-    fontSize: 16,
-    colorValue: 0xFFFFFFFF,
-    isBold: true,
-    hasShadow: true,
-    alignment: 'left',
-  );
   final Map<String, Map<String, String>> _layoutSettings = {
     'classic': {
       'theme': 'warmOrange',
@@ -467,16 +459,6 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage> {
 
         _modernRightHeaderIcon = (modernAppearance['rightHeaderIcon'] ?? 'paw')
             .toString();
-        _modernBannerShopNameStyle = HomeTextStyleModel.fromMap(
-          modernAppearance['bannerShopNameStyle'],
-          fallback: const HomeTextStyleModel(
-            fontSize: 16,
-            colorValue: 0xFFFFFFFF,
-            isBold: true,
-            hasShadow: true,
-            alignment: 'left',
-          ),
-        );
 
         final storeHomeSetting = ModernStoreHomeSetting.fromMap(
           modernAppearance,
@@ -2423,48 +2405,6 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage> {
       }).toList(),
     );
   }
-
-  Widget _buildChoiceCard({
-    required String value,
-    required List<_SettingOption> options,
-    required ValueChanged<String> onChanged,
-  }) {
-    return Card(
-      margin: EdgeInsets.zero,
-      child: Column(
-        children: options.map((option) {
-          final selected = value == option.value;
-
-          return RadioListTile<String>(
-            value: option.value,
-            groupValue: value,
-            onChanged: (newValue) {
-              if (newValue == null) return;
-              onChanged(newValue);
-            },
-            secondary: Icon(option.icon),
-            title: Text(option.title),
-            subtitle: Text(option.subtitle),
-            selected: selected,
-          );
-        }).toList(),
-      ),
-    );
-  }
-}
-
-class _SettingOption {
-  const _SettingOption({
-    required this.value,
-    required this.title,
-    required this.subtitle,
-    required this.icon,
-  });
-
-  final String value;
-  final String title;
-  final String subtitle;
-  final IconData icon;
 }
 
 class _ColorOption {

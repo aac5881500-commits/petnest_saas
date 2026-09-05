@@ -1,6 +1,6 @@
-// lib/core/models/daily_care_stay_info.dart
+// 檔案名稱：lib/core/models/daily_care_stay_info.dart
+// 功能說明：從既有 booking / shop 快照讀出房間、寵物、住宿日期與店家 Logo。
 // 🐾 每日照護日誌用的住宿摘要
-// 功能：從既有 booking / shop 快照讀出房間、寵物、住宿日期與店家 Logo。
 // 不新增 Firestore 欄位，也不改 booking schema。
 
 import 'package:cloud_firestore/cloud_firestore.dart';

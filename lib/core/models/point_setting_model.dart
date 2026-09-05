@@ -1,6 +1,6 @@
-// lib/core/models/point_setting_model.dart
+// 檔案名稱：lib/core/models/point_setting_model.dart
+// 功能說明：記錄點數功能、發點模式、換點比例、有效期限與發放規則
 // 🪙 店家點數制度設定模型
-// 功能：記錄點數功能、發點模式、換點比例、有效期限與發放規則
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 

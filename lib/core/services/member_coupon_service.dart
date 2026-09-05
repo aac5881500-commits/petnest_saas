@@ -1,6 +1,6 @@
-// lib/core/services/member_coupon_service.dart
+// 檔案名稱：lib/core/services/member_coupon_service.dart
+// 功能說明：管理會員優惠券的發放、查詢、核銷、退回與撤銷
 // 🎟️ 會員優惠券 Service
-// 功能：管理會員優惠券的發放、查詢、核銷、退回與撤銷
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';

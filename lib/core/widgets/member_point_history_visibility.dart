@@ -1,6 +1,6 @@
-// lib/core/widgets/member_point_history_visibility.dart
+// 檔案名稱：lib/core/widgets/member_point_history_visibility.dart
+// 功能說明：依店家點數總開關及指定會員是否有點數、流水或兌換紀錄
 // 🪙 會員點數歷史顯示判斷元件
-// 功能：依店家點數總開關及指定會員是否有點數、流水或兌換紀錄，
 // 決定顯示完整功能、唯讀內容或完全隱藏。
 // 關閉點數制度不會刪除任何 Firestore 資料。
 

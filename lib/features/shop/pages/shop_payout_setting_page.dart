@@ -1,6 +1,6 @@
-// lib/features/shop/pages/shop_payout_setting_page.dart
+// 檔案名稱：lib/features/shop/pages/shop_payout_setting_page.dart
+// 功能說明：管理店家的銀行轉帳收款資料，並提供綠界金流資料填寫
 // 🏦 收款帳戶 / 金流設定頁
-// 功能：管理店家的銀行轉帳收款資料，並提供綠界金流資料填寫、
 // 付款方式選擇、送交平台審核與審核狀態顯示。
 
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -39,7 +39,6 @@ class _ShopPayoutSettingPageState extends State<ShopPayoutSettingPage> {
   bool _cvsCodeEnabled = false;
 
   // 🏪 收款方式營運設定
-  bool _cashPaymentEnabled = true;
   bool _bankTransferEnabled = true;
 
   bool _ecpayEnabled = false;
@@ -152,8 +151,6 @@ class _ShopPayoutSettingPageState extends State<ShopPayoutSettingPage> {
       final Map<String, dynamic> operationSettings = rawOperationSettings is Map
           ? Map<String, dynamic>.from(rawOperationSettings)
           : <String, dynamic>{};
-
-      _cashPaymentEnabled = true;
 
       _bankTransferEnabled = operationSettings['bankTransferEnabled'] ?? true;
 

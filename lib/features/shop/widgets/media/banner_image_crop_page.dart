@@ -1,5 +1,5 @@
-// lib/features/shop/widgets/media/banner_image_crop_page.dart
-// 相容包裝：既有呼叫改走共用固定比例裁切器。
+// 檔案名稱：lib/features/shop/widgets/media/banner_image_crop_page.dart
+// 功能說明：相容包裝：既有呼叫改走共用固定比例裁切器。
 
 import 'dart:typed_data';
 

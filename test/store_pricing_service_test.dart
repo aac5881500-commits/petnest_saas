@@ -1,3 +1,6 @@
+// 檔案名稱：test/store_pricing_service_test.dart
+// 功能說明：商城計價服務的單元測試（A 無優惠 → 原價）
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:petnest_saas/core/models/store_product_model.dart';
 import 'package:petnest_saas/core/models/store_promotion_model.dart';

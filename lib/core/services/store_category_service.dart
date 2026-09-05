@@ -1,5 +1,5 @@
-// lib/core/services/store_category_service.dart
-// 🛒 商城分類 Service
+// 檔案名稱：lib/core/services/store_category_service.dart
+// 功能說明：商城分類 Service
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';

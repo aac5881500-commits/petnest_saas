@@ -1,5 +1,5 @@
-// lib/features/shop/widgets/about/about_cover_image_box.dart
-// 🖼️ 後台關於我們封面：即時預覽 + 高度 / 顯示方式 + 上傳 / 更換 / 移除
+// 檔案名稱：lib/features/shop/widgets/about/about_cover_image_box.dart
+// 功能說明：後台關於我們封面：即時預覽 + 高度 / 顯示方式 + 上傳 / 更換 / 移除
 
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/models/about_cover_frame_setting.dart';

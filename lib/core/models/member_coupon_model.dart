@@ -1,6 +1,6 @@
-// lib/core/models/member_coupon_model.dart
+// 檔案名稱：lib/core/models/member_coupon_model.dart
+// 功能說明：記錄會員實際持有的折價券、折扣券、住宿券或服務券
 // 🎟️ 會員優惠券資料模型
-// 功能：記錄會員實際持有的折價券、折扣券、住宿券或服務券
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'coupon_template_model.dart';

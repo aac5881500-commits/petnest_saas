@@ -1,5 +1,5 @@
-// lib/features/booking/widgets/booking_detail/booking_detail_summary_card.dart
-// 訂單狀態摘要：目前狀態、下一步、日期、寵物、房間；可展開完整進度。
+// 檔案名稱：lib/features/booking/widgets/booking_detail/booking_detail_summary_card.dart
+// 功能說明：訂單狀態摘要：目前狀態、下一步、日期、寵物、房間；可展開完整進度。
 
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/features/booking/widgets/booking_detail/booking_detail_progress_timeline.dart';

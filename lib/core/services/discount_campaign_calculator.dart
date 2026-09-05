@@ -1,6 +1,6 @@
-// lib/core/services/discount_campaign_calculator.dart
+// 檔案名稱：lib/core/services/discount_campaign_calculator.dart
+// 功能說明：判斷訂單符合哪些自動優惠，計算折抵金額，並選出最高優惠
 // 🧮 優惠活動計算器
-// 功能：判斷訂單符合哪些自動優惠，計算折抵金額，並選出最高優惠
 
 import '../models/discount_campaign_model.dart';
 

@@ -1,5 +1,5 @@
-// lib/core/services/pre_arrival_guide_service.dart
-// 入住前準備 Firestore／Storage。路徑：shops/{shopId}/pre_arrival_guides/{serviceType}
+// 檔案名稱：lib/core/services/pre_arrival_guide_service.dart
+// 功能說明：入住前準備 Firestore／Storage。路徑：shops/{shopId}/pre_arrival_guides/{serviceType}
 
 import 'dart:typed_data';
 

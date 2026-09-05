@@ -1,5 +1,5 @@
-// lib/features/shop/pages/store/shop_store_product_list_page.dart
-// 🛒 後台商品列表
+// 檔案名稱：lib/features/shop/pages/store/shop_store_product_list_page.dart
+// 功能說明：後台商品列表
 
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/models/inventory_item_model.dart';

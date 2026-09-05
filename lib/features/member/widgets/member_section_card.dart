@@ -1,5 +1,5 @@
-// lib/features/member/widgets/member_section_card.dart
-// 會員頁白底卡片。
+// 檔案名稱：lib/features/member/widgets/member_section_card.dart
+// 功能說明：會員頁白底卡片。
 
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/features/member/widgets/member_ui_tokens.dart';

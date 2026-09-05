@@ -1,6 +1,6 @@
-// lib/features/shop/pages/shop_qr_scan_page.dart
+// 檔案名稱：lib/features/shop/pages/shop_qr_scan_page.dart
+// 功能說明：掃描店家代碼或手動輸入店家代碼後，直接進入店家前台
 // 📷 掃描店家 QRCode
-// 功能：掃描店家代碼或手動輸入店家代碼後，直接進入店家前台
 
 import 'package:flutter/material.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';

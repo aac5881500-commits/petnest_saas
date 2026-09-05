@@ -1,5 +1,5 @@
-// lib/core/services/daycare_calendar_helper.dart
-// 🐾 前台／後台安親月曆：預設開放、關閉例外與當日名額
+// 檔案名稱：lib/core/services/daycare_calendar_helper.dart
+// 功能說明：前台／後台安親月曆：預設開放、關閉例外與當日名額
 
 import 'package:petnest_saas/core/models/daycare_date_override_model.dart';
 import 'package:petnest_saas/core/models/daycare_settings_model.dart';

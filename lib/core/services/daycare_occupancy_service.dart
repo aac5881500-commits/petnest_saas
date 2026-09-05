@@ -1,5 +1,5 @@
-// lib/core/services/daycare_occupancy_service.dart
-// 🐾 前台剩餘名額預覽：同時看住宿日期占用與臨托時段
+// 檔案名稱：lib/core/services/daycare_occupancy_service.dart
+// 功能說明：前台剩餘名額預覽：同時看住宿日期占用與臨托時段
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:petnest_saas/core/models/booking_kind.dart';

@@ -1,6 +1,6 @@
-// lib/features/shop/widgets/about/about_message_section.dart
+// 檔案名稱：lib/features/shop/widgets/about/about_message_section.dart
+// 功能說明：從 Firestore 讀取店家自訂介紹文字，並套用首頁共用主題
 // 🐾 關於我們頁 給毛爸媽的話區塊
-// 功能：從 Firestore 讀取店家自訂介紹文字，並套用首頁共用主題
 
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/models/home_theme_model.dart';

@@ -1,5 +1,5 @@
-// lib/features/shop/pages/store/shop_store_promotion_list_page.dart
-// 🛒 商城促銷活動列表
+// 檔案名稱：lib/features/shop/pages/store/shop_store_promotion_list_page.dart
+// 功能說明：商城促銷活動列表
 
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/models/store_product_model.dart';

@@ -1,5 +1,5 @@
-// lib/core/services/daycare_time_helper.dart
-// 🐾 臨托時間工具：台灣時區顯示、時段重疊、營業時間檢查。
+// 檔案名稱：lib/core/services/daycare_time_helper.dart
+// 功能說明：臨托時間工具：台灣時區顯示、時段重疊、營業時間檢查。
 
 class DaycareTimeHelper {
   DaycareTimeHelper._();

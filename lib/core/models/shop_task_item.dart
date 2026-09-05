@@ -1,5 +1,5 @@
-// lib/core/models/shop_task_item.dart
-// 🐾 後台共用待辦中心 V1
+// 檔案名稱：lib/core/models/shop_task_item.dart
+// 功能說明：後台共用待辦中心 V1
 // 依現有業務資料即時計算，不是通知歷史。
 // V1 正式接入 dailyCare / booking；其餘 type 僅預留擴充。
 

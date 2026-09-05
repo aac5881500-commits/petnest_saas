@@ -1,5 +1,5 @@
-// lib/features/shop/widgets/media/fixed_aspect_image_crop_page.dart
-// 固定比例圖片裁切：拖曳、縮放、輸出指定像素。App／Web 共用，不依賴 image_cropper。
+// 檔案名稱：lib/features/shop/widgets/media/fixed_aspect_image_crop_page.dart
+// 功能說明：固定比例圖片裁切：拖曳、縮放、輸出指定像素。App／Web 共用，不依賴 image_cropper。
 
 import 'dart:typed_data';
 

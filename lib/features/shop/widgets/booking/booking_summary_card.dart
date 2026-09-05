@@ -1,5 +1,5 @@
-// lib/features/shop/widgets/booking/booking_summary_card.dart
-// 🔥 前台預約確認卡片：顯示入住日、退房日、晚數、寵物數量、房型、加值服務與總價
+// 檔案名稱：lib/features/shop/widgets/booking/booking_summary_card.dart
+// 功能說明：前台預約確認卡片：顯示入住日、退房日、晚數、寵物數量、房型、加值服務與總價
 
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/models/home_theme_model.dart';

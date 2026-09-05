@@ -1,6 +1,6 @@
-// lib/core/services/daily_care_photo_service.dart
+// 檔案名稱：lib/core/services/daily_care_photo_service.dart
+// 功能說明：管理每日照護照片資料、每日照片數量限制
 // 📷 每日照護照片 Service
-// 功能：管理每日照護照片資料、每日照片數量限制，
 // 並負責刪除 Firestore 紀錄與 Firebase Storage 圖片。
 
 import 'package:cloud_firestore/cloud_firestore.dart';

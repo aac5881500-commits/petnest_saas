@@ -1,6 +1,6 @@
-// lib/core/models/inventory_item_model.dart
+// 檔案名稱：lib/core/models/inventory_item_model.dart
+// 功能說明：保存每個店家獨立的庫存品項主檔。數量使用 num，可支援 0.5 包貓砂這類小數耗材。
 // 📦 中央庫存品項 Model
-// 功能：保存每個店家獨立的庫存品項主檔。數量使用 num，可支援 0.5 包貓砂這類小數耗材。
 // currentStock 不可在一般編輯頁直接覆蓋，只能透過進貨、出庫、盤點與自動扣庫存異動。
 // estimatedStockCost 是獨立累計的庫存總成本，不可用四捨五入後的 weightedAverageCost × 數量回推。
 

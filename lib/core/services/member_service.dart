@@ -1,6 +1,6 @@
-// lib/core/services/member_service.dart
+// 檔案名稱：lib/core/services/member_service.dart
+// 功能說明：建立 / 更新店家會員快取，並同步會員寵物到店家會員資料
 // 👤 會員服務（跨店會員系統）
-// 功能：建立 / 更新店家會員快取，並同步會員寵物到店家會員資料
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';

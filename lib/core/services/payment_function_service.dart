@@ -1,6 +1,6 @@
-// lib/core/services/payment_function_service.dart
+// 檔案名稱：lib/core/services/payment_function_service.dart
+// 功能說明：呼叫 Firebase Callable Function 建立綠界付款
 // 💳 PetNest 金流 Cloud Functions Service
-// 功能：呼叫 Firebase Callable Function 建立綠界付款，
 // 並統一解析付款網址、ATM 虛擬帳號與超商代碼。
 // 注意：Flutter 不得傳送或保存 MerchantID、HashKey、HashIV。
 

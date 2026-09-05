@@ -1,8 +1,7 @@
-// lib/features/auth/pages/my_shop_qr_page.dart
+// 檔案名稱：lib/features/auth/pages/my_shop_qr_page.dart
+// 功能說明：顯示店家代碼 QRCode、複製店家代碼、分享 QRCode 圖片、下載 QRCode 預留
 // 🔗 店家 QRCode / 分享頁
-// 功能：顯示店家代碼 QRCode、複製店家代碼、分享 QRCode 圖片、下載 QRCode 預留
 
-import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
@@ -83,7 +82,7 @@ class MyShopQrPage extends StatelessWidget {
                 borderRadius: BorderRadius.circular(18),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.08),
+                    color: Colors.black.withValues(alpha: 0.08),
                     blurRadius: 18,
                   ),
                 ],

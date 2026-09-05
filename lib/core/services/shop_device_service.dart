@@ -1,6 +1,6 @@
-// lib/core/services/shop_device_service.dart
+// 檔案名稱：lib/core/services/shop_device_service.dart
+// 功能說明：管理攝影機、溫度監控、濕度監控等設備
 // 📡 店家設備管理 Service
-// 功能：管理攝影機、溫度監控、濕度監控等設備
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:petnest_saas/core/services/shop_room_service.dart';

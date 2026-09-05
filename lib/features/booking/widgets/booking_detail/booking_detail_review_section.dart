@@ -1,6 +1,6 @@
-// lib/features/booking/widgets/booking_detail/booking_detail_review_section.dart
+// 檔案名稱：lib/features/booking/widgets/booking_detail/booking_detail_review_section.dart
+// 功能說明：完成訂單後顯示撰寫評價按鈕，已評論則顯示完成提示
 // ⭐ 客戶端訂單詳細頁：評價區塊
-// 功能：完成訂單後顯示撰寫評價按鈕，已評論則顯示完成提示
 
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/features/booking/pages/booking_review_page.dart';
@@ -42,7 +42,7 @@ class BookingDetailReviewSection extends StatelessWidget {
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.06),
+            color: Colors.black.withValues(alpha: 0.06),
             blurRadius: 12,
             offset: const Offset(0, 4),
           ),

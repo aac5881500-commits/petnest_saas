@@ -1,6 +1,6 @@
-// lib/features/platform/widgets/platform_shop_info_pill.dart
+// 檔案名稱：lib/features/platform/widgets/platform_shop_info_pill.dart
+// 功能說明：顯示店家卡片的小資訊，例如公開狀態、方案、到期日、建立時間
 // 🏷️ 平台店家資訊膠囊
-// 功能：顯示店家卡片的小資訊，例如公開狀態、方案、到期日、建立時間
 
 import 'package:flutter/material.dart';
 

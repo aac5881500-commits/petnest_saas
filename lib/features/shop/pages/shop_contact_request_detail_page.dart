@@ -1,6 +1,6 @@
-// lib/features/shop/pages/shop_contact_request_detail_page.dart
+// 檔案名稱：lib/features/shop/pages/shop_contact_request_detail_page.dart
+// 功能說明：店主查看平台回覆，並可回覆平台，保留完整對話紀錄
 // 📮 店主聯絡平台案件詳情頁
-// 功能：店主查看平台回覆，並可回覆平台，保留完整對話紀錄
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -165,7 +165,9 @@ class _ShopContactRequestDetailPageState
               Card(
                 child: ListTile(
                   leading: CircleAvatar(
-                    backgroundColor: _statusColor(status).withOpacity(0.12),
+                    backgroundColor: _statusColor(
+                      status,
+                    ).withValues(alpha: 0.12),
                     child: Icon(
                       Icons.support_agent,
                       color: _statusColor(status),

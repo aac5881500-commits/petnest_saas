@@ -1,4 +1,5 @@
-// 會員中心排版規格；品牌色一律從 ShopFrontendTheme 讀取。
+// 檔案名稱：lib/features/member/widgets/member_ui_tokens.dart
+// 功能說明：會員中心排版規格；品牌色一律從 ShopFrontendTheme 讀取。
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';

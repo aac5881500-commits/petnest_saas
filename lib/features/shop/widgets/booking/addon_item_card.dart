@@ -1,5 +1,5 @@
-// lib/features/shop/widgets/booking/addon_item_card.dart
-// 🔥 前台預約加值服務小卡：顯示加值服務名稱、說明、價格與選取狀態
+// 檔案名稱：lib/features/shop/widgets/booking/addon_item_card.dart
+// 功能說明：前台預約加值服務小卡：顯示加值服務名稱、說明、價格與選取狀態
 
 import 'package:flutter/material.dart';
 

@@ -1,6 +1,6 @@
-// lib/core/services/shop_profile_service.dart
+// 檔案名稱：lib/core/services/shop_profile_service.dart
+// 功能說明：管理店家資料、營業資訊、Logo / Cover 圖片
 // 🏪 店家基本資料 Service
-// 功能：管理店家資料、營業資訊、Logo / Cover 圖片
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';

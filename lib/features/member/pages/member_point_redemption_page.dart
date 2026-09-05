@@ -1,6 +1,6 @@
-// lib/features/member/pages/member_point_redemption_page.dart
+// 檔案名稱：lib/features/member/pages/member_point_redemption_page.dart
+// 功能說明：顯示會員使用點數兌換的實體商品、領取碼、領取期限與領取狀態。
 // 🎁 會員實體商品頁面
-// 功能：顯示會員使用點數兌換的實體商品、領取碼、領取期限與領取狀態。
 
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/models/point_redemption_model.dart';

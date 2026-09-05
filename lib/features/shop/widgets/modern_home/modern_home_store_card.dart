@@ -1,5 +1,5 @@
-// lib/features/shop/widgets/modern_home/modern_home_store_card.dart
-// 🛒 新版首頁「寵物賣場入口卡片」共用 renderer（Preview 與真正首頁同一套）
+// 檔案名稱：lib/features/shop/widgets/modern_home/modern_home_store_card.dart
+// 功能說明：新版首頁「寵物賣場入口卡片」共用 renderer（Preview 與真正首頁同一套）
 
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/models/home_theme_model.dart';

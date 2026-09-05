@@ -1,5 +1,5 @@
-// lib/features/booking/widgets/booking_detail/booking_detail_customer_pet_section.dart
-// 入住資料：寵物摘要＋顧客／緊急聯絡人；可展開完整資料。
+// 檔案名稱：lib/features/booking/widgets/booking_detail/booking_detail_customer_pet_section.dart
+// 功能說明：入住資料：寵物摘要＋顧客／緊急聯絡人；可展開完整資料。
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';

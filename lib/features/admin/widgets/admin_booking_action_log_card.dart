@@ -1,6 +1,6 @@
-// lib/features/admin/widgets/admin_booking_action_log_card.dart
+// 檔案名稱：lib/features/admin/widgets/admin_booking_action_log_card.dart
+// 功能說明：顯示訂單操作紀錄、操作者、操作時間與狀態變更內容
 // 📝 後台訂單詳細頁：操作紀錄卡片
-// 功能：顯示訂單操作紀錄、操作者、操作時間與狀態變更內容
 
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/features/admin/widgets/admin_booking_date_helpers.dart';

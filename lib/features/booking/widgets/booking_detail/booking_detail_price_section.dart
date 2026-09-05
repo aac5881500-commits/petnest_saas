@@ -1,6 +1,6 @@
-// lib/features/booking/widgets/booking_detail/booking_detail_price_section.dart
+// 檔案名稱：lib/features/booking/widgets/booking_detail/booking_detail_price_section.dart
+// 功能說明：顯示房費、寵物加價、加值服務、總金額與訂金
 // 💰 客戶端訂單詳細頁：價格與加值服務區塊
-// 功能：顯示房費、寵物加價、加值服務、總金額與訂金
 
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/models/booking_kind.dart';
@@ -682,7 +682,7 @@ class BookingDetailPriceSection extends StatelessWidget {
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.06),
+            color: Colors.black.withValues(alpha: 0.06),
             blurRadius: 12,
             offset: const Offset(0, 4),
           ),

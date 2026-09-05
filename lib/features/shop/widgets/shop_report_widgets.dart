@@ -1,5 +1,5 @@
-// lib/features/shop/widgets/shop_report_widgets.dart
-// 📊 報表共用：KPI、Loading / Error / 空資料、手機卡與寬版表格。
+// 檔案名稱：lib/features/shop/widgets/shop_report_widgets.dart
+// 功能說明：報表共用：KPI、Loading / Error / 空資料、手機卡與寬版表格。
 
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/services/shop_report_format.dart';

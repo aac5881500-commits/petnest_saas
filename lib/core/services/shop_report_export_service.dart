@@ -1,5 +1,5 @@
-// lib/core/services/shop_report_export_service.dart
-// 📥 依 ShopReportBundle 產生 Excel（可多工作表）。
+// 檔案名稱：lib/core/services/shop_report_export_service.dart
+// 功能說明：依 ShopReportBundle 產生 Excel（可多工作表）。
 
 import 'dart:typed_data';
 

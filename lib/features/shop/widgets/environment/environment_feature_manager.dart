@@ -1,5 +1,5 @@
-// lib/features/shop/widgets/environment/environment_feature_manager.dart
-// 🐾 後台環境特色卡片管理區塊
+// 檔案名稱：lib/features/shop/widgets/environment/environment_feature_manager.dart
+// 功能說明：後台環境特色卡片管理區塊
 
 import 'package:flutter/material.dart';
 

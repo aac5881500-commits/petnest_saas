@@ -1,6 +1,5 @@
-// lib/features/shop/widgets/permissions/permission_category_tile.dart
-// 🔐 權限設定分類入口卡片
-//
+// 檔案名稱：lib/features/shop/widgets/permissions/permission_category_tile.dart
+// 功能說明：權限設定分類入口卡片
 // 用途：
 // - 用在權限設定首頁
 // - 將不同模組權限分成一頁一頁管理

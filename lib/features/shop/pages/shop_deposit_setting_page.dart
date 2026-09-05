@@ -1,6 +1,6 @@
-// lib/features/shop/pages/shop_deposit_setting_page.dart
+// 檔案名稱：lib/features/shop/pages/shop_deposit_setting_page.dart
+// 功能說明：設定訂金規則、付款期限與付款方式
 // 💰 店家訂金與收款設定頁
-// 功能：設定訂金規則、付款期限與付款方式
 // 備註：目前舊長住折扣暫時保留，之後確認新版優惠正常後再移除
 
 import 'package:flutter/material.dart';
@@ -237,7 +237,7 @@ class _ShopDepositSettingPageState extends State<ShopDepositSettingPage> {
         border: Border.all(color: Colors.grey.shade200),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.04),
+            color: Colors.black.withValues(alpha: 0.04),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),

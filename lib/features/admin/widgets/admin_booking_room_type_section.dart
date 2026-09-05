@@ -1,6 +1,6 @@
-// lib/features/admin/widgets/admin_booking_room_type_section.dart
+// 檔案名稱：lib/features/admin/widgets/admin_booking_room_type_section.dart
+// 功能說明：包裝前台共用房型選擇元件，提供後台手動新增訂單使用
 // 🛏️ 後台手動新增訂單：房型選擇區塊
-// 功能：包裝前台共用房型選擇元件，提供後台手動新增訂單使用
 
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/features/shop/widgets/booking/booking_room_type_section.dart';

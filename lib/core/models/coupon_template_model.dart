@@ -1,6 +1,6 @@
-// lib/core/models/coupon_template_model.dart
+// 檔案名稱：lib/core/models/coupon_template_model.dart
+// 功能說明：記錄店家建立的優惠券母版，供手動發券、點數兌換與自動贈券共用。
 // 🎟️ 優惠券模板資料模型
-// 功能：記錄店家建立的優惠券母版，供手動發券、點數兌換與自動贈券共用。
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 

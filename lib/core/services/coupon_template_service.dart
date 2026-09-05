@@ -1,6 +1,6 @@
-// lib/core/services/coupon_template_service.dart
+// 檔案名稱：lib/core/services/coupon_template_service.dart
+// 功能說明：管理店家建立的優惠券模板，供手動發券、點數兌換與自動贈券共用。
 // 🎟️ 優惠券模板 Service
-// 功能：管理店家建立的優惠券模板，供手動發券、點數兌換與自動贈券共用。
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';

@@ -1,5 +1,5 @@
-// lib/features/shop/widgets/store/store_banner_view.dart
-// 🛒 商城海報 renderer：後台 Preview 與前台共用，效果只 overlay、不改原圖。
+// 檔案名稱：lib/features/shop/widgets/store/store_banner_view.dart
+// 功能說明：商城海報 renderer：後台 Preview 與前台共用，效果只 overlay、不改原圖。
 
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';

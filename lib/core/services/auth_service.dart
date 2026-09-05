@@ -1,6 +1,5 @@
-// lib/core/services/auth_service.dart
-
-// 🔐 AuthService
+// 檔案名稱：lib/core/services/auth_service.dart
+// 功能說明：登入認證服務：Email／Google 登入與使用者資料建立
 // 功能：
 // - Email 註冊 / 登入
 // - Google 登入

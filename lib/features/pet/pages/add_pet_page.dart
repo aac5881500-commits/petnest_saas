@@ -1,5 +1,5 @@
-// lib/features/pet/pages/add_pet_page.dart
-// 🐱 新增寵物（與編輯寵物共用表單視覺）
+// 檔案名稱：lib/features/pet/pages/add_pet_page.dart
+// 功能說明：新增寵物（與編輯寵物共用表單視覺）
 
 import 'dart:typed_data';
 

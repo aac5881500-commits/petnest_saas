@@ -1,5 +1,5 @@
-// lib/features/booking/pages/booking_pet_care_info_page.dart
-// 查看訂單寵物快照中的餵食／用藥／健康資料（不含店家內部備註）。
+// 檔案名稱：lib/features/booking/pages/booking_pet_care_info_page.dart
+// 功能說明：查看訂單寵物快照中的餵食／用藥／健康資料（不含店家內部備註）。
 
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/widgets/shop_frontend_theme_scope.dart';

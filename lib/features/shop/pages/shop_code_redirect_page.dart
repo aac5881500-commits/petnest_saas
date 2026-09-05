@@ -1,6 +1,5 @@
-// lib/features/shop/pages/shop_code_redirect_page.dart
-// 🔗 店家短網址轉址頁
-// 功能：SHOP0001 → ShopPublicPage
+// 檔案名稱：lib/features/shop/pages/shop_code_redirect_page.dart
+// 功能說明：店家短網址轉址頁
 
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';

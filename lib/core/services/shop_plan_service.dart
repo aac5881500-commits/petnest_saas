@@ -1,6 +1,6 @@
-// lib/core/services/shop_plan_service.dart
+// 檔案名稱：lib/core/services/shop_plan_service.dart
+// 功能說明：集中判斷免費版 / 999 方案可用功能與限制
 // 💳 店家方案規則服務
-// 功能：集中判斷免費版 / 999 方案可用功能與限制
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:petnest_saas/core/constants/shop_plan_keys.dart';

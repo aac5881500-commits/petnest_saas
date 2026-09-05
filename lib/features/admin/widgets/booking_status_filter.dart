@@ -1,6 +1,5 @@
-// lib/features/admin/widgets/booking_status_filter.dart
-// 🏷️ 後台訂單狀態篩選膠囊
-//
+// 檔案名稱：lib/features/admin/widgets/booking_status_filter.dart
+// 功能說明：後台訂單狀態篩選膠囊
 // 功能：
 // - 顯示訂單狀態篩選按鈕
 // - 顯示各狀態數量
@@ -49,7 +48,9 @@ class BookingStatusFilter extends StatelessWidget {
               duration: const Duration(milliseconds: 180),
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
               decoration: BoxDecoration(
-                color: selected ? item.color : item.color.withOpacity(0.10),
+                color: selected
+                    ? item.color
+                    : item.color.withValues(alpha: 0.10),
                 borderRadius: BorderRadius.circular(22),
               ),
               child: Row(
@@ -70,8 +71,8 @@ class BookingStatusFilter extends StatelessWidget {
                     ),
                     decoration: BoxDecoration(
                       color: selected
-                          ? Colors.white.withOpacity(0.25)
-                          : Colors.white.withOpacity(0.85),
+                          ? Colors.white.withValues(alpha: 0.25)
+                          : Colors.white.withValues(alpha: 0.85),
                       borderRadius: BorderRadius.circular(20),
                     ),
                     child: Text(

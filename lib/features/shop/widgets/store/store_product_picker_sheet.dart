@@ -1,5 +1,5 @@
-// lib/features/shop/widgets/store/store_product_picker_sheet.dart
-// 🛒 促銷用商品多選 picker
+// 檔案名稱：lib/features/shop/widgets/store/store_product_picker_sheet.dart
+// 功能說明：促銷用商品多選 picker
 
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/models/store_product_model.dart';

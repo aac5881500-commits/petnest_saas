@@ -1,5 +1,5 @@
-// lib/features/shop/pages/shop_addon_report_page.dart
-// 🛒 加購服務統計：依訂單 snapshot 統計，封存後舊單仍可看。
+// 檔案名稱：lib/features/shop/pages/shop_addon_report_page.dart
+// 功能說明：加購服務統計：依訂單 snapshot 統計，封存後舊單仍可看。
 
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/models/shop_report_models.dart';

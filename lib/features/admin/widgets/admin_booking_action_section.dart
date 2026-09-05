@@ -1,6 +1,6 @@
-// lib/features/admin/widgets/admin_booking_action_section.dart
+// 檔案名稱：lib/features/admin/widgets/admin_booking_action_section.dart
+// 功能說明：統一訂單流程為「先確認訂單 → 再分房 → 才能入住」
 // 🧩 後台訂單詳細頁：操作按鈕區塊
-// 功能：統一訂單流程為「先確認訂單 → 再分房 → 才能入住」，
 // 並集中管理訂金確認、取消、選房、更換房間與退房完成按鈕。
 
 import 'package:flutter/material.dart';

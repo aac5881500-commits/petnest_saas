@@ -1,5 +1,5 @@
-// lib/features/shop/pages/shop_task_center_page.dart
-// 🐾 全部待辦頁（由待辦中心「查看全部待辦」進入）
+// 檔案名稱：lib/features/shop/pages/shop_task_center_page.dart
+// 功能說明：全部待辦頁（由待辦中心「查看全部待辦」進入）
 
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';

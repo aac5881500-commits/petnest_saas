@@ -1,5 +1,5 @@
-// lib/features/booking/widgets/booking_detail/booking_detail_ui.dart
-// 客戶端訂單詳細頁共用暖色系樣式，對齊 PetNest 現代首頁。
+// 檔案名稱：lib/features/booking/widgets/booking_detail/booking_detail_ui.dart
+// 功能說明：客戶端訂單詳細頁共用暖色系樣式，對齊 PetNest 現代首頁。
 
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/models/shop_frontend_theme.dart';

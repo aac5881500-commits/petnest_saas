@@ -1,5 +1,5 @@
-// lib/core/services/daycare_settings_service.dart
-// 🐾 安親設定：shops/{shopId}/daycare_settings/main
+// 檔案名稱：lib/core/services/daycare_settings_service.dart
+// 功能說明：安親設定：shops/{shopId}/daycare_settings/main
 // 總開關正式欄位：shops/{shopId}.daycareEnabled（與 settings.enabled 同步寫入）
 
 import 'package:cloud_firestore/cloud_firestore.dart';

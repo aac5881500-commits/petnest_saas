@@ -1,6 +1,6 @@
-// lib/features/admin/widgets/admin_booking_pet_card.dart
+// 檔案名稱：lib/features/admin/widgets/admin_booking_pet_card.dart
+// 功能說明：顯示寵物頭像、名字、種類、性別、年齡、品種、醫療狀態、貓砂、客戶備註、員工備註、結紮狀態
 // 🐱 後台訂單詳細頁：寵物資訊卡片
-// 功能：顯示寵物頭像、名字、種類、性別、年齡、品種、醫療狀態、貓砂、客戶備註、員工備註、結紮狀態
 
 import 'package:flutter/material.dart';
 
@@ -32,7 +32,7 @@ class AdminBookingPetCard extends StatelessWidget {
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
-          BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 8),
+          BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 8),
         ],
       ),
       child: Column(

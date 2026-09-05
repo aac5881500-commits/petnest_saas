@@ -1,6 +1,6 @@
-// lib/features/platform/pages/platform_shop_owner_policy_page.dart
+// 檔案名稱：lib/features/platform/pages/platform_shop_owner_policy_page.dart
+// 功能說明：店家建立前需閱讀並同意平台創店條款，內容由平台後台管理
 // 📜 平台創店條款頁
-// 功能：店家建立前需閱讀並同意平台創店條款，內容由平台後台管理
 
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/services/platform_policy_manage_service.dart';

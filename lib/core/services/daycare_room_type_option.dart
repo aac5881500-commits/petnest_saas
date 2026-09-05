@@ -1,5 +1,5 @@
-// lib/core/services/daycare_room_type_option.dart
-// 🐾 前台安親房型／計價方案：以 room_types document id 對應 roomTypeId
+// 檔案名稱：lib/core/services/daycare_room_type_option.dart
+// 功能說明：前台安親房型／計價方案：以 room_types document id 對應 roomTypeId
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:petnest_saas/core/models/daycare_settings_model.dart';

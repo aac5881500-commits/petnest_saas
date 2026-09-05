@@ -1,6 +1,5 @@
-// lib/core/services/pet_service.dart
-// 🐱 PetService（會員寵物完整版🔥）
-//
+// 檔案名稱：lib/core/services/pet_service.dart
+// 功能說明：PetService（會員寵物完整版）
 // 功能：
 // - 新增寵物（含完整欄位）
 // - 上傳寵物照片（覆蓋 + Web支援🔥）
@@ -9,7 +8,6 @@
 // 📦 結構：
 // user_profiles/{uid}/pets/{petId}
 
-import 'dart:typed_data';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
@@ -75,9 +73,15 @@ class PetService {
   // 🐱 取得寵物列表
   // ===============================
   Stream<List<Map<String, dynamic>>> streamMyPets() {
+    final User? user = _auth.currentUser;
+    if (user == null) {
+      return Stream<List<Map<String, dynamic>>>.value(
+        const <Map<String, dynamic>>[],
+      ).asBroadcastStream();
+    }
     return _firestore
         .collection('user_profiles')
-        .doc(_uid)
+        .doc(user.uid)
         .collection('pets')
         .orderBy('createdAt', descending: true)
         .snapshots()

@@ -1,6 +1,6 @@
-// lib/features/booking/widgets/booking_detail/booking_detail_message_section.dart
+// 檔案名稱：lib/features/booking/widgets/booking_detail/booking_detail_message_section.dart
+// 功能說明：顯示留言列表、送出留言
 // 💬 訂單留言區塊
-// 功能：顯示留言列表、送出留言
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';

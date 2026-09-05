@@ -1,5 +1,5 @@
-// lib/features/shop/widgets/booking/booking_room_type_section.dart
-// 🔥 前台預約房型選擇區：顯示可預約房型、剩餘房數、價格與選取狀態
+// 檔案名稱：lib/features/shop/widgets/booking/booking_room_type_section.dart
+// 功能說明：前台預約房型選擇區：顯示可預約房型、剩餘房數、價格與選取狀態
 
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/services/shop_service.dart';

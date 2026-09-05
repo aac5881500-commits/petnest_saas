@@ -1,3 +1,6 @@
+// 檔案名稱：test/pet_frontend_layout_test.dart
+// 功能說明：寵物前台排版的單元測試
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:petnest_saas/core/models/home_theme_model.dart';

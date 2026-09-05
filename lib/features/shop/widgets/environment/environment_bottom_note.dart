@@ -1,5 +1,5 @@
-// lib/features/shop/widgets/environment/environment_bottom_note.dart
-// 🐾 環境介紹底部提醒卡
+// 檔案名稱：lib/features/shop/widgets/environment/environment_bottom_note.dart
+// 功能說明：環境介紹底部提醒卡
 // 顯示住宿安排提醒文字
 
 import 'package:flutter/material.dart';

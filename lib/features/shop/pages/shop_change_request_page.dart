@@ -1,6 +1,6 @@
-// lib/features/shop/pages/shop_change_request_page.dart
+// 檔案名稱：lib/features/shop/pages/shop_change_request_page.dart
+// 功能說明：店家送出店名、電話、地址與社群連結修改申請
 // 📨 重要資料修改申請
-// 功能：店家送出店名、電話、地址與社群連結修改申請
 
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';

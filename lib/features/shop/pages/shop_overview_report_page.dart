@@ -1,5 +1,5 @@
-// lib/features/shop/pages/shop_overview_report_page.dart
-// 📊 營運總覽：快速看期間數字、熱門房型 / 加購、近 6 個月。
+// 檔案名稱：lib/features/shop/pages/shop_overview_report_page.dart
+// 功能說明：營運總覽：快速看期間數字、熱門房型 / 加購、近 6 個月。
 
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/models/shop_report_models.dart';

@@ -1,5 +1,5 @@
-// lib/core/models/about_cover_frame_setting.dart
-// 關於我們封面圖的高度、填滿方式與位置。
+// 檔案名稱：lib/core/models/about_cover_frame_setting.dart
+// 功能說明：關於我們封面圖的高度、填滿方式與位置。
 // 掛在 shops/{shopId} 根欄位；舊資料沒有欄位時使用標準／填滿／置中。
 
 import 'package:flutter/material.dart';

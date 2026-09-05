@@ -1,6 +1,6 @@
-// lib/features/admin/pages/admin_member_review_list_page.dart
+// 檔案名稱：lib/features/admin/pages/admin_member_review_list_page.dart
+// 功能說明：查看單一會員在本店留下的所有評價
 // ⭐ 後台會員評價列表頁
-// 功能：查看單一會員在本店留下的所有評價
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';

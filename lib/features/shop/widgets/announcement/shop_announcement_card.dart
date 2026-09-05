@@ -1,6 +1,6 @@
-// lib/features/shop/widgets/announcement/shop_announcement_card.dart
+// 檔案名稱：lib/features/shop/widgets/announcement/shop_announcement_card.dart
+// 功能說明：顯示前台公告標題、摘要、類型圖示、置頂狀態與時間
 // 📢 店家公告卡片
-// 功能：顯示前台公告標題、摘要、類型圖示、置頂狀態與時間
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
@@ -36,7 +36,7 @@ class ShopAnnouncementCard extends StatelessWidget {
         border: Border.all(color: theme.cardBorderColor),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.04),
+            color: Colors.black.withValues(alpha: 0.04),
             blurRadius: 8,
             offset: const Offset(0, 3),
           ),
@@ -49,7 +49,7 @@ class ShopAnnouncementCard extends StatelessWidget {
             width: 38,
             height: 38,
             decoration: BoxDecoration(
-              color: theme.primaryColor.withOpacity(0.12),
+              color: theme.primaryColor.withValues(alpha: 0.12),
               shape: BoxShape.circle,
             ),
             child: Icon(typeIcon, size: 22, color: theme.primaryColor),
@@ -121,7 +121,7 @@ class ShopAnnouncementCard extends StatelessWidget {
                   style: TextStyle(
                     fontSize: 14,
                     height: 1.4,
-                    color: theme.textColor.withOpacity(0.75),
+                    color: theme.textColor.withValues(alpha: 0.75),
                   ),
                 ),
 
@@ -131,7 +131,7 @@ class ShopAnnouncementCard extends StatelessWidget {
                   _formatTime(createdAt),
                   style: TextStyle(
                     fontSize: 12,
-                    color: theme.textColor.withOpacity(0.55),
+                    color: theme.textColor.withValues(alpha: 0.55),
                   ),
                 ),
               ],

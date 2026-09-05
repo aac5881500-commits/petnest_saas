@@ -1,6 +1,6 @@
-// lib/features/admin/widgets/admin_member_search_section.dart
+// 檔案名稱：lib/features/admin/widgets/admin_member_search_section.dart
+// 功能說明：搜尋店家會員，支援姓名與電話部分比對
 // 🔍 後台會員搜尋區塊
-// 功能：搜尋店家會員，支援姓名與電話部分比對，
 // 並排除已合併會員，供手動新增訂單選擇會員使用。
 
 import 'package:cloud_firestore/cloud_firestore.dart';

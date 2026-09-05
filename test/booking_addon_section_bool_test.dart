@@ -1,3 +1,6 @@
+// 檔案名稱：test/booking_addon_section_bool_test.dart
+// 功能說明：預約加值服務區塊布林的單元測試（int 0 搭配 ?? true 會 TypeError（舊 allowMultiplePetsPerSlot 寫法））
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:petnest_saas/core/services/shop_report_format.dart';

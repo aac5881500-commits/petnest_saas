@@ -1,5 +1,5 @@
-// lib/features/booking/widgets/booking_detail/booking_detail_finance_section.dart
-// 費用與付款：摘要、付款操作、明細展開、轉帳、付款紀錄、退房追加費用。
+// 檔案名稱：lib/features/booking/widgets/booking_detail/booking_detail_finance_section.dart
+// 功能說明：費用與付款：摘要、付款操作、明細展開、轉帳、付款紀錄、退房追加費用。
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';

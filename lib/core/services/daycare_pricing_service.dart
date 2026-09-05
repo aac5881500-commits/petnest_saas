@@ -1,5 +1,5 @@
-// lib/core/services/daycare_pricing_service.dart
-// 🐾 臨托計價：前台、手動訂單與測試共用同一套公式。
+// 檔案名稱：lib/core/services/daycare_pricing_service.dart
+// 功能說明：臨托計價：前台、手動訂單與測試共用同一套公式。
 // 金額一律四捨五入為整數新台幣。
 
 import 'package:petnest_saas/core/models/booking_fee_line_item.dart';

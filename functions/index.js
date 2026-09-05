@@ -1,6 +1,6 @@
-// functions/index.js
+// 檔案名稱：functions/index.js
+// 功能說明：Cloud Functions 入口：監聽訂單狀態、發送 FCM 推播並清除失效 Token
 // 🔔 PetNest Cloud Functions
-// 功能：監聽訂單狀態變更、發送 FCM 推播、自動清除失效 Token
 
 const {setGlobalOptions} = require("firebase-functions");
 const {

@@ -1,5 +1,5 @@
-// lib/features/booking/widgets/booking_detail/booking_detail_message_preview.dart
-// 訂單留言精簡卡：最新摘要、未讀數，點擊進入完整留言頁。
+// 檔案名稱：lib/features/booking/widgets/booking_detail/booking_detail_message_preview.dart
+// 功能說明：訂單留言精簡卡：最新摘要、未讀數，點擊進入完整留言頁。
 
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/features/booking/pages/booking_message_page.dart';

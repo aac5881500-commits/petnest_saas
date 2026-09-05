@@ -1,6 +1,6 @@
-// lib/core/services/housekeeping_setting_service.dart
+// 檔案名稱：lib/core/services/housekeeping_setting_service.dart
+// 功能說明：讀取、監聽與儲存店家的房務設定
 // 🧹 房務設定 Service
-// 功能：讀取、監聽與儲存店家的房務設定
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 

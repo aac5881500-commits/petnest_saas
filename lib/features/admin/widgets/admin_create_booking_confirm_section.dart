@@ -1,6 +1,6 @@
-// lib/features/admin/widgets/admin_create_booking_confirm_section.dart
+// 檔案名稱：lib/features/admin/widgets/admin_create_booking_confirm_section.dart
+// 功能說明：顯示會員、寵物、日期、房型、加值服務與總金額確認
 // ✅ 後台手動新增訂單：確認資料區塊
-// 功能：顯示會員、寵物、日期、房型、加值服務與總金額確認
 
 import 'package:flutter/material.dart';
 

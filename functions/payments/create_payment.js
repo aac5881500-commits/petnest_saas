@@ -1,6 +1,6 @@
-// functions/payments/create_payment.js
+// 檔案名稱：functions/payments/create_payment.js
+// 功能說明：驗證登入會員、訂單付款資格與付款金額
 // 💳 建立綠界付款
-// 功能：驗證登入會員、訂單付款資格與付款金額，
 // 建立防重複付款紀錄，並產生綠界付款表單 HTML。
 
 const admin = require("firebase-admin");

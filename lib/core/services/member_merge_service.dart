@@ -1,6 +1,6 @@
-// lib/core/services/member_merge_service.dart
+// 檔案名稱：lib/core/services/member_merge_service.dart
+// 功能說明：掃描同電話的手動會員與店家會員，並執行訂單合併
 // 🔀 會員合併 Service
-// 功能：掃描同電話的手動會員與店家會員，並執行訂單合併
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 

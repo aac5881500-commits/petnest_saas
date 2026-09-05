@@ -1,5 +1,5 @@
-// lib/core/widgets/daily_care_summary_report_view.dart
-// 🐾 住宿照護統計報告（精簡版）
+// 檔案名稱：lib/core/widgets/daily_care_summary_report_view.dart
+// 功能說明：住宿照護統計報告（精簡版）
 // 把整筆住宿濃縮成一張紙本風格統計圖，不逐場全文列出。
 
 import 'package:flutter/material.dart';

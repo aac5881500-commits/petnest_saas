@@ -1,5 +1,5 @@
-// lib/features/member/widgets/member_empty_state.dart
-// 會員頁共用空狀態：柔和 icon、標題、說明、選擇性按鈕。
+// 檔案名稱：lib/features/member/widgets/member_empty_state.dart
+// 功能說明：會員頁共用空狀態：柔和 icon、標題、說明、選擇性按鈕。
 
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/features/member/widgets/member_ui_tokens.dart';

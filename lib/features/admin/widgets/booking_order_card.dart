@@ -1,6 +1,5 @@
-// lib/features/admin/widgets/booking_order_card.dart
-// 🧾 後台訂單卡片（展開式升級版）
-//
+// 檔案名稱：lib/features/admin/widgets/booking_order_card.dart
+// 功能說明：後台訂單卡片（展開式升級版）
 // 功能：
 // - 預設顯示精簡訂單資訊
 // - 點擊卡片展開顧客 / 寵物 / 付款 / 訂金資訊
@@ -100,7 +99,7 @@ class _BookingOrderCardState extends State<BookingOrderCard> {
         border: Border.all(color: Colors.grey.shade200),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.055),
+            color: Colors.black.withValues(alpha: 0.055),
             blurRadius: 14,
             offset: const Offset(0, 5),
           ),
@@ -484,7 +483,7 @@ class _BookingOrderCardState extends State<BookingOrderCard> {
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.12),
+            color: Colors.black.withValues(alpha: 0.12),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -693,7 +692,7 @@ class _BookingOrderCardState extends State<BookingOrderCard> {
     return Container(
       padding: const EdgeInsets.all(11),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.08),
+        color: color.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(14),
       ),
       child: Column(
@@ -734,7 +733,7 @@ class _BookingOrderCardState extends State<BookingOrderCard> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
       decoration: BoxDecoration(
-        color: info.color.withOpacity(0.12),
+        color: info.color.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(18),
       ),
       child: Text(

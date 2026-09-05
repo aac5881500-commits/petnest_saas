@@ -1,5 +1,5 @@
-// lib/features/shop/widgets/store/store_product_price_view.dart
-// 🛒 商城原價 / 優惠價共用顯示
+// 檔案名稱：lib/features/shop/widgets/store/store_product_price_view.dart
+// 功能說明：商城原價 / 優惠價共用顯示
 
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/models/store_promotion_model.dart';

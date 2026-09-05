@@ -1,6 +1,6 @@
-// lib/features/shop/widgets/modern_home/modern_app_drawer.dart
+// 檔案名稱：lib/features/shop/widgets/modern_home/modern_app_drawer.dart
+// 功能說明：保留原本完整選單功能，後續可獨立重新設計，不影響 Classic
 // 🐾 新版首頁專用 Drawer
-// 功能：保留原本完整選單功能，後續可獨立重新設計，不影響 Classic
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:petnest_saas/core/models/home_theme_model.dart';
@@ -20,7 +20,6 @@ import 'package:petnest_saas/features/member/pages/member_point_detail_page.dart
 import 'package:petnest_saas/core/widgets/drawer_point_balance_card.dart';
 import 'package:petnest_saas/core/services/shop_chat_service.dart';
 import 'package:petnest_saas/features/shop/pages/chat/shop_customer_chat_page.dart';
-import 'package:petnest_saas/core/constants/shop_permission_keys.dart';
 import 'package:petnest_saas/features/booking/pages/booking_detail_page.dart';
 import 'package:petnest_saas/features/platform/pages/platform_shop_manage_page.dart';
 import 'package:petnest_saas/features/shop/pages/shop_faq_page.dart';
@@ -270,7 +269,9 @@ class ModernAppDrawer extends StatelessWidget {
                               tilePadding: EdgeInsets.zero,
                               childrenPadding: EdgeInsets.zero,
                               iconColor: _primaryColor,
-                              collapsedIconColor: _textColor.withOpacity(0.45),
+                              collapsedIconColor: _textColor.withValues(
+                                alpha: 0.45,
+                              ),
                               textColor: _textColor,
                               collapsedTextColor: _textColor,
                               backgroundColor: Colors.transparent,
@@ -437,18 +438,6 @@ class ModernAppDrawer extends StatelessWidget {
                           builder: (context, snapshot) {
                             final memberData = snapshot.data;
 
-                            bool hasAnyPermission = false;
-
-                            for (final key in ShopPermissionKeys.all) {
-                              if (ShopService.instance.hasPermission(
-                                memberData,
-                                key,
-                              )) {
-                                hasAnyPermission = true;
-                                break;
-                              }
-                            }
-
                             if (memberData == null) {
                               return const SizedBox();
                             }
@@ -527,7 +516,7 @@ class ModernAppDrawer extends StatelessWidget {
           border: Border.all(color: _borderColor),
           boxShadow: [
             BoxShadow(
-              color: _textColor.withOpacity(0.06),
+              color: _textColor.withValues(alpha: 0.06),
               blurRadius: 18,
               offset: const Offset(0, 6),
             ),
@@ -543,7 +532,7 @@ class ModernAppDrawer extends StatelessWidget {
                         width: 54,
                         height: 54,
                         decoration: BoxDecoration(
-                          color: _primaryColor.withOpacity(0.12),
+                          color: _primaryColor.withValues(alpha: 0.12),
                           borderRadius: BorderRadius.circular(18),
                         ),
                         child: Icon(
@@ -570,7 +559,7 @@ class ModernAppDrawer extends StatelessWidget {
                               '登入後可查看訂單與寵物資料',
                               style: TextStyle(
                                 fontSize: 13,
-                                color: _textColor.withOpacity(0.65),
+                                color: _textColor.withValues(alpha: 0.65),
                               ),
                             ),
                           ],
@@ -652,7 +641,7 @@ class ModernAppDrawer extends StatelessWidget {
                                 overflow: TextOverflow.ellipsis,
                                 style: TextStyle(
                                   fontSize: 11,
-                                  color: _textColor.withOpacity(0.85),
+                                  color: _textColor.withValues(alpha: 0.85),
                                 ),
                               ),
                             ],
@@ -664,7 +653,7 @@ class ModernAppDrawer extends StatelessWidget {
                                 overflow: TextOverflow.ellipsis,
                                 style: TextStyle(
                                   fontSize: 10,
-                                  color: _textColor.withOpacity(0.65),
+                                  color: _textColor.withValues(alpha: 0.65),
                                 ),
                               ),
                             ],
@@ -690,7 +679,9 @@ class ModernAppDrawer extends StatelessWidget {
                           );
                         },
                         style: IconButton.styleFrom(
-                          backgroundColor: _primaryColor.withOpacity(0.12),
+                          backgroundColor: _primaryColor.withValues(
+                            alpha: 0.12,
+                          ),
                           foregroundColor: _primaryColor,
                         ),
                         icon: const Icon(Icons.home_rounded, size: 18),
@@ -738,13 +729,13 @@ class ModernAppDrawer extends StatelessWidget {
       contentPadding: EdgeInsets.zero,
       leading: Icon(
         icon,
-        color: iconColor ?? _textColor.withOpacity(0.68),
+        color: iconColor ?? _textColor.withValues(alpha: 0.68),
         size: 18,
       ),
       title: Text(
         title,
         style: TextStyle(
-          color: textColor ?? _textColor.withOpacity(0.92),
+          color: textColor ?? _textColor.withValues(alpha: 0.92),
           fontSize: 13,
           fontWeight: FontWeight.w600,
         ),
@@ -753,7 +744,7 @@ class ModernAppDrawer extends StatelessWidget {
           ? Icon(
               Icons.chevron_right,
               size: 18,
-              color: _textColor.withOpacity(0.42),
+              color: _textColor.withValues(alpha: 0.42),
             )
           : null,
       onTap: onTap,
@@ -783,7 +774,7 @@ class ModernAppDrawer extends StatelessWidget {
               '目前沒有最新訂單',
               style: TextStyle(
                 fontSize: 13,
-                color: _textColor.withOpacity(0.65),
+                color: _textColor.withValues(alpha: 0.65),
               ),
             ),
           );
@@ -894,7 +885,7 @@ class ModernAppDrawer extends StatelessWidget {
               border: Border.all(color: _borderColor),
               boxShadow: [
                 BoxShadow(
-                  color: _textColor.withOpacity(0.06),
+                  color: _textColor.withValues(alpha: 0.06),
                   blurRadius: 10,
                   offset: const Offset(0, 4),
                 ),
@@ -922,7 +913,7 @@ class ModernAppDrawer extends StatelessWidget {
                         vertical: 3,
                       ),
                       decoration: BoxDecoration(
-                        color: statusColor.withOpacity(0.12),
+                        color: statusColor.withValues(alpha: 0.12),
                         borderRadius: BorderRadius.circular(30),
                       ),
                       child: Text(
@@ -945,7 +936,7 @@ class ModernAppDrawer extends StatelessWidget {
                       width: 54,
                       height: 54,
                       decoration: BoxDecoration(
-                        color: _primaryColor.withOpacity(0.08),
+                        color: _primaryColor.withValues(alpha: 0.08),
                         borderRadius: BorderRadius.circular(10),
                         image: roomImage != null
                             ? DecorationImage(
@@ -957,7 +948,7 @@ class ModernAppDrawer extends StatelessWidget {
                       child: roomImage == null
                           ? Icon(
                               Icons.home_work_rounded,
-                              color: _textColor.withOpacity(0.28),
+                              color: _textColor.withValues(alpha: 0.28),
                               size: 24,
                             )
                           : null,
@@ -1017,7 +1008,7 @@ class ModernAppDrawer extends StatelessWidget {
                               Icon(
                                 Icons.calendar_month,
                                 size: 14,
-                                color: _textColor.withOpacity(0.55),
+                                color: _textColor.withValues(alpha: 0.55),
                               ),
                               const SizedBox(width: 4),
                               Expanded(
@@ -1025,7 +1016,7 @@ class ModernAppDrawer extends StatelessWidget {
                                   '$startDate - $endDate ($nights晚)',
                                   style: TextStyle(
                                     fontSize: 11,
-                                    color: _textColor.withOpacity(0.85),
+                                    color: _textColor.withValues(alpha: 0.85),
                                   ),
                                 ),
                               ),
@@ -1039,7 +1030,7 @@ class ModernAppDrawer extends StatelessWidget {
                               Icon(
                                 Icons.payments_outlined,
                                 size: 14,
-                                color: _textColor.withOpacity(0.55),
+                                color: _textColor.withValues(alpha: 0.55),
                               ),
                               const SizedBox(width: 4),
 
@@ -1294,7 +1285,7 @@ class ModernAppDrawer extends StatelessWidget {
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
-                          color: _textColor.withOpacity(0.62),
+                          color: _textColor.withValues(alpha: 0.62),
                           fontSize: 12.5,
                         ),
                       ),

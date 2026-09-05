@@ -1,5 +1,5 @@
-// lib/features/platform/pages/create_shop_page.dart
-// 🏪 平台建立店家頁
+// 檔案名稱：lib/features/platform/pages/create_shop_page.dart
+// 功能說明：平台建立店家頁
 
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';

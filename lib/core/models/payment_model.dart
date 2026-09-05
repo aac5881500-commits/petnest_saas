@@ -1,6 +1,6 @@
-// lib/core/models/payment_model.dart
+// 檔案名稱：lib/core/models/payment_model.dart
+// 功能說明：記錄店家向會員收款的每一筆付款交易。
 // 💳 共用付款交易資料模型
-// 功能：記錄店家向會員收款的每一筆付款交易。
 // 注意：此模型不得保存 MerchantID、HashKey、HashIV 等敏感金流資料。
 
 import 'package:cloud_firestore/cloud_firestore.dart';

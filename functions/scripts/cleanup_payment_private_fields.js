@@ -1,6 +1,6 @@
-// functions/scripts/cleanup_payment_private_fields.js
+// 檔案名稱：functions/scripts/cleanup_payment_private_fields.js
+// 功能說明：掃描 payments，移除舊資料中的 callbackData / customerPhone。
 // 🧹 Payment 隱私欄位清理工具
-// 功能：掃描 payments，移除舊資料中的 callbackData / customerPhone。
 // ⚠️ 只刪除這兩個欄位，不會刪除整筆 Payment。
 
 const admin = require("firebase-admin");

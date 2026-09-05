@@ -1,6 +1,6 @@
-// functions/store/update_store_order_status.js
+// 檔案名稱：functions/store/update_store_order_status.js
+// 功能說明：合法狀態流轉；未付款取消釋放 reservation；已扣庫存取消才 idempotent 返還。
 // 🛒 商城訂單狀態變更
-// 功能：合法狀態流轉；未付款取消釋放 reservation；已扣庫存取消才 idempotent 返還。
 
 const admin = require("firebase-admin");
 const {onCall, HttpsError} = require("firebase-functions/v2/https");

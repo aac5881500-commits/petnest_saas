@@ -1,6 +1,6 @@
-// lib/core/services/special_date_surcharge_calculator.dart
+// 檔案名稱：lib/core/services/special_date_surcharge_calculator.dart
+// 功能說明：依實際住宿夜逐晚計算特殊日期固定加價
 // 📅 特殊日期加價計算器
-// 功能：依實際住宿夜逐晚計算特殊日期固定加價，
 // 並提供每晚加價明細與整筆訂單的特殊日期加價總額。
 
 import '../models/special_date_surcharge_model.dart';

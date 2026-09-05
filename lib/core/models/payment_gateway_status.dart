@@ -1,6 +1,6 @@
-// lib/core/models/payment_gateway_status.dart
+// 檔案名稱：lib/core/models/payment_gateway_status.dart
+// 功能說明：集中管理金流服務商、店家審核狀態、付款狀態與付款方式常數。
 // 💳 共用金流狀態定義
-// 功能：集中管理金流服務商、店家審核狀態、付款狀態與付款方式常數。
 
 /// 金流服務商
 abstract final class PaymentGateway {

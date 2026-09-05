@@ -1,6 +1,6 @@
-// lib/features/platform/pages/platform_contact_request_list_page.dart
+// 檔案名稱：lib/features/platform/pages/platform_contact_request_list_page.dart
+// 功能說明：平台後台查看店主與會員送出的聯絡平台案件
 // 📮 平台聯絡案件列表頁
-// 功能：平台後台查看店主與會員送出的聯絡平台案件
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
@@ -165,7 +165,7 @@ class _ContactRequestList extends StatelessWidget {
               child: ListTile(
                 contentPadding: const EdgeInsets.all(16),
                 leading: CircleAvatar(
-                  backgroundColor: _statusColor(status).withOpacity(0.12),
+                  backgroundColor: _statusColor(status).withValues(alpha: 0.12),
                   child: Icon(
                     source == 'shop_owner'
                         ? Icons.storefront
@@ -190,7 +190,7 @@ class _ContactRequestList extends StatelessWidget {
                         vertical: 4,
                       ),
                       decoration: BoxDecoration(
-                        color: _statusColor(status).withOpacity(0.12),
+                        color: _statusColor(status).withValues(alpha: 0.12),
                         borderRadius: BorderRadius.circular(999),
                       ),
                       child: Text(

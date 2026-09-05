@@ -1,6 +1,6 @@
-// lib/features/admin/widgets/admin_quick_create_pet_dialog.dart
+// 檔案名稱：lib/features/admin/widgets/admin_quick_create_pet_dialog.dart
+// 功能說明：手動新增訂單時，讓店家快速建立會員寵物資料
 // 🐾 後台快速建立寵物彈窗
-// 功能：手動新增訂單時，讓店家快速建立會員寵物資料
 
 import 'package:flutter/material.dart';
 
@@ -17,7 +17,7 @@ class _AdminQuickCreatePetDialogState extends State<AdminQuickCreatePetDialog> {
   final TextEditingController _breedController = TextEditingController();
   final TextEditingController _noteController = TextEditingController();
 
-  String _type = 'cat';
+  final String _type = 'cat';
   String _gender = '母貓';
   String _age = '未填';
   String _neuterStatus = '未結紮';

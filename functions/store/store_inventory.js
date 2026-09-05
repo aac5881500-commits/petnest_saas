@@ -1,6 +1,6 @@
-// functions/store/store_inventory.js
+// 檔案名稱：functions/store/store_inventory.js
+// 功能說明：使用 reservedQuantity 做有期限保留，不在未付款時永久扣除 currentStock。
 // 🛒 商城庫存保留 / 轉正式扣除 / 釋放 / 返還
-// 功能：使用 reservedQuantity 做有期限保留，不在未付款時永久扣除 currentStock。
 // 正式扣庫存與返還寫入既有 inventory_consumptions + movements。
 // 成本算法共用 functions/inventory/inventory_cost.js
 // （money 2 位、weighted average 8 位、quantity 4 位）。

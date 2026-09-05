@@ -1,5 +1,5 @@
-// lib/core/models/terms_consent_snapshot.dart
-// 📜 條款確認快照：送單時寫入訂單
+// 檔案名稱：lib/core/models/terms_consent_snapshot.dart
+// 功能說明：條款確認快照：送單時寫入訂單
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 

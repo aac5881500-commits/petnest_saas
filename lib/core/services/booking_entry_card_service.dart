@@ -1,5 +1,5 @@
-// lib/core/services/booking_entry_card_service.dart
-// 🖼️ 預約入口卡片照片：住宿 / 臨托分別上傳、預覽、更換與刪除
+// 檔案名稱：lib/core/services/booking_entry_card_service.dart
+// 功能說明：預約入口卡片照片：住宿 / 臨托分別上傳、預覽、更換與刪除
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:image_picker/image_picker.dart';

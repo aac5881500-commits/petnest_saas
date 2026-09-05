@@ -1,6 +1,6 @@
-// lib/features/auth/widgets/my_shop_info.dart
+// 檔案名稱：lib/features/auth/widgets/my_shop_info.dart
+// 功能說明：顯示店名、店家類型、地區、店家 ID
 // 🏪 我的店家資訊區塊
-// 功能：顯示店名、店家類型、地區、店家 ID
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';

@@ -1,3 +1,6 @@
+// 檔案名稱：test/payment_available_methods_stream_test.dart
+// 功能說明：可用付款方式串流的單元測試（Stream.multi 可以被 listen 兩次）
+
 import 'dart:async';
 
 import 'package:flutter_test/flutter_test.dart';

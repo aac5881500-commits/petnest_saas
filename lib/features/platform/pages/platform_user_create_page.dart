@@ -1,6 +1,6 @@
-// lib/features/platform/pages/platform_user_create_page.dart
+// 檔案名稱：lib/features/platform/pages/platform_user_create_page.dart
+// 功能說明：由具備平台人員管理權限的管理員，新增開發管理員或平台員工
 // ➕ 新增平台人員頁
-// 功能：由具備平台人員管理權限的管理員，新增開發管理員或平台員工，
 // 並設定帳號啟用狀態與初始平台權限。
 // 即使直接開啟此頁，也會先驗證 managePlatformAdmins 權限。
 

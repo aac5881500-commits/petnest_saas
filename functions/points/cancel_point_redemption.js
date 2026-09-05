@@ -1,6 +1,6 @@
-// functions/points/cancel_point_redemption.js
+// 檔案名稱：functions/points/cancel_point_redemption.js
+// 功能說明：驗證資格、可選退點、idempotent 返還庫存，同一 Transaction。
 // 🎁 取消中央庫存點數實體商品兌換
-// 功能：驗證資格、可選退點、idempotent 返還庫存，同一 Transaction。
 
 const admin = require("firebase-admin");
 const {onCall, HttpsError} = require("firebase-functions/v2/https");

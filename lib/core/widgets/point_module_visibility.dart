@@ -1,6 +1,6 @@
-// lib/core/widgets/point_module_visibility.dart
+// 檔案名稱：lib/core/widgets/point_module_visibility.dart
+// 功能說明：監聽店家的點數設定，依照目前啟用、曾經啟用但已關閉
 // 🪙 點數模組狀態共用元件
-// 功能：監聽店家的點數設定，依照目前啟用、曾經啟用但已關閉、
 // 從未啟用三種狀態，顯示不同內容。
 // 關閉點數制度不會刪除任何 Firestore 點數資料。
 

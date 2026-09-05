@@ -1,6 +1,6 @@
-// lib/core/constants/store_constants.dart
+// 檔案名稱：lib/core/constants/store_constants.dart
+// 功能說明：統一商城訂單狀態、履約方式、Firestore 路徑與庫存保留期限。
 // 🛒 賣場 / 商城常數
-// 功能：統一商城訂單狀態、履約方式、Firestore 路徑與庫存保留期限。
 
 class StoreConstants {
   StoreConstants._();

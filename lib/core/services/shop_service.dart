@@ -1,5 +1,5 @@
 // 檔案名稱：lib/core/services/shop_service.dart
-// 說明：店家服務層（含營業資訊 / Logo / 封面 / 預約設定）
+// 功能說明：店家服務層（含營業資訊 / Logo / 封面 / 預約設定）
 
 import 'dart:typed_data';
 import 'package:cloud_firestore/cloud_firestore.dart';

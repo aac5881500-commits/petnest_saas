@@ -1,6 +1,6 @@
-// lib/core/services/platform_policy_service.dart
+// 檔案名稱：lib/core/services/platform_policy_service.dart
+// 功能說明：處理平台會員條款同意紀錄與 Firestore 版本檢查
 // 📜 平台條款服務
-// 功能：處理平台會員條款同意紀錄與 Firestore 版本檢查
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';

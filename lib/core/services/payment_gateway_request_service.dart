@@ -1,6 +1,6 @@
-// lib/core/services/payment_gateway_request_service.dart
+// 檔案名稱：lib/core/services/payment_gateway_request_service.dart
+// 功能說明：讀取店家金流首次設定、修改申請與重新啟用申請紀錄。
 // 💳 店家金流申請 Service
-// 功能：讀取店家金流首次設定、修改申請與重新啟用申請紀錄。
 // 注意：目前僅提供安全的讀取與查詢功能，
 // 送審、核准、退回及敏感資料處理之後交由 Cloud Functions。
 

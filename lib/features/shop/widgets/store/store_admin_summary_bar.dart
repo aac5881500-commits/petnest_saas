@@ -1,5 +1,5 @@
-// lib/features/shop/widgets/store/store_admin_summary_bar.dart
-// 🛒 賣場後台 compact 概況
+// 檔案名稱：lib/features/shop/widgets/store/store_admin_summary_bar.dart
+// 功能說明：賣場後台 compact 概況
 
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/constants/store_constants.dart';

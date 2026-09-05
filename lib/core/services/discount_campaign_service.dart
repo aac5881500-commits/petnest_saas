@@ -1,6 +1,6 @@
-// lib/core/services/discount_campaign_service.dart
+// 檔案名稱：lib/core/services/discount_campaign_service.dart
+// 功能說明：管理店家的自動優惠活動，包含新增、修改、啟用、停用、刪除與查詢
 // 🏷️ 優惠活動 Service
-// 功能：管理店家的自動優惠活動，包含新增、修改、啟用、停用、刪除與查詢
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';

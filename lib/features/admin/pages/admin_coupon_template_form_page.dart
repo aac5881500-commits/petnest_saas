@@ -1,6 +1,6 @@
-// lib/features/admin/pages/admin_coupon_template_form_page.dart
+// 檔案名稱：lib/features/admin/pages/admin_coupon_template_form_page.dart
+// 功能說明：建立與修改固定金額券、百分比券、免費住宿券及免費服務券
 // 🎟️ 後台優惠券模板新增／編輯頁
-// 功能：建立與修改固定金額券、百分比券、免費住宿券及免費服務券，
 // 並可指定房型、加購服務、有效天數、使用次數與優惠併用設定。
 
 import 'package:cloud_firestore/cloud_firestore.dart';

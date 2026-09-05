@@ -1,5 +1,5 @@
-// lib/features/shop/widgets/store/store_home_settings_section.dart
-// 🛒 後台：商城活動海報清單與輪播
+// 檔案名稱：lib/features/shop/widgets/store/store_home_settings_section.dart
+// 功能說明：後台：商城活動海報清單與輪播
 
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/constants/store_constants.dart';

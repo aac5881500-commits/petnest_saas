@@ -1,6 +1,6 @@
-// lib/features/shop/pages/shop_public_modern_page.dart
+// 檔案名稱：lib/features/shop/pages/shop_public_modern_page.dart
+// 功能說明：讀取店家資料，顯示適合手機的緊湊型頂部與 Banner
 // ✨ 店家新版前台首頁 Beta
-// 功能：讀取店家資料，顯示適合手機的緊湊型頂部與 Banner
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
@@ -189,7 +189,9 @@ class _ShopPublicModernPageState extends State<ShopPublicModernPage> {
                   shopName: shopName,
                   primaryColor: modernTheme.primaryColor,
                   darkTextColor: modernTheme.textColor,
-                  secondaryTextColor: modernTheme.textColor.withOpacity(0.65),
+                  secondaryTextColor: modernTheme.textColor.withValues(
+                    alpha: 0.65,
+                  ),
                   cardColor: modernTheme.cardColor,
                   borderColor: modernTheme.cardBorderColor,
                 ).showShopInfoSheet(context);
@@ -204,7 +206,9 @@ class _ShopPublicModernPageState extends State<ShopPublicModernPage> {
                     shopName: shopName,
                     primaryColor: modernTheme.primaryColor,
                     darkTextColor: modernTheme.textColor,
-                    secondaryTextColor: modernTheme.textColor.withOpacity(0.65),
+                    secondaryTextColor: modernTheme.textColor.withValues(
+                      alpha: 0.65,
+                    ),
                     cardColor: modernTheme.cardColor,
                     borderColor: modernTheme.cardBorderColor,
                   ).showShopInfoSheet(context);
@@ -217,7 +221,7 @@ class _ShopPublicModernPageState extends State<ShopPublicModernPage> {
                   color: modernTheme.backgroundColor,
                   border: Border(
                     top: BorderSide(
-                      color: modernTheme.cardBorderColor.withOpacity(0.7),
+                      color: modernTheme.cardBorderColor.withValues(alpha: 0.7),
                     ),
                   ),
                 ),
@@ -236,7 +240,7 @@ class _ShopPublicModernPageState extends State<ShopPublicModernPage> {
                         fontSize: 9,
                         height: 1,
                         fontWeight: FontWeight.w700,
-                        color: modernTheme.textColor.withOpacity(0.7),
+                        color: modernTheme.textColor.withValues(alpha: 0.7),
                       ),
                     ),
                   ],
@@ -315,8 +319,8 @@ class _ShopPublicModernPageState extends State<ShopPublicModernPage> {
                           shopId: widget.shopId,
                           primaryColor: modernTheme.primaryColor,
                           darkTextColor: modernTheme.textColor,
-                          secondaryTextColor: modernTheme.textColor.withOpacity(
-                            0.65,
+                          secondaryTextColor: modernTheme.textColor.withValues(
+                            alpha: 0.65,
                           ),
                           cardColor: modernTheme.cardColor,
                           borderColor: modernTheme.cardBorderColor,
@@ -483,7 +487,7 @@ class _ShopPublicModernPageState extends State<ShopPublicModernPage> {
                         height: 28,
                         alignment: Alignment.center,
                         decoration: BoxDecoration(
-                          color: theme.primaryColor.withOpacity(0.12),
+                          color: theme.primaryColor.withValues(alpha: 0.12),
                           borderRadius: BorderRadius.circular(9),
                         ),
                         child: Icon(
@@ -561,7 +565,7 @@ class _ShopPublicModernPageState extends State<ShopPublicModernPage> {
                   '房型資料讀取失敗',
                   style: TextStyle(
                     fontSize: 12,
-                    color: theme.textColor.withOpacity(0.65),
+                    color: theme.textColor.withValues(alpha: 0.65),
                   ),
                 ),
               );
@@ -583,7 +587,7 @@ class _ShopPublicModernPageState extends State<ShopPublicModernPage> {
                   '目前尚未建立房型',
                   style: TextStyle(
                     fontSize: 12,
-                    color: theme.textColor.withOpacity(0.65),
+                    color: theme.textColor.withValues(alpha: 0.65),
                   ),
                 ),
               );
@@ -672,7 +676,7 @@ class _ShopPublicModernPageState extends State<ShopPublicModernPage> {
                 width: double.infinity,
                 child: imageUrl.isEmpty
                     ? Container(
-                        color: theme.primaryColor.withOpacity(0.12),
+                        color: theme.primaryColor.withValues(alpha: 0.12),
                         alignment: Alignment.center,
                         child: Icon(
                           Icons.bedroom_parent_outlined,
@@ -685,7 +689,7 @@ class _ShopPublicModernPageState extends State<ShopPublicModernPage> {
                         fit: BoxFit.cover,
                         errorBuilder: (_, __, ___) {
                           return Container(
-                            color: theme.primaryColor.withOpacity(0.12),
+                            color: theme.primaryColor.withValues(alpha: 0.12),
                             alignment: Alignment.center,
                             child: Icon(
                               Icons.broken_image_outlined,
@@ -885,7 +889,7 @@ class _ShopPublicModernPageState extends State<ShopPublicModernPage> {
                 height: 1.1,
                 letterSpacing: 0.3,
                 fontWeight: FontWeight.w400,
-                color: textColor.withOpacity(0.68),
+                color: textColor.withValues(alpha: 0.68),
               ),
             ),
           ],
@@ -951,11 +955,11 @@ class _ShopPublicModernPageState extends State<ShopPublicModernPage> {
             vertical: compact ? 2 : 3,
           ),
           decoration: BoxDecoration(
-            color: theme.cardColor.withOpacity(0.94),
+            color: theme.cardColor.withValues(alpha: 0.94),
             borderRadius: BorderRadius.circular(999),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.08),
+                color: Colors.black.withValues(alpha: 0.08),
                 blurRadius: 5,
                 offset: const Offset(0, 2),
               ),
@@ -986,7 +990,7 @@ class _ShopPublicModernPageState extends State<ShopPublicModernPage> {
                   style: TextStyle(
                     fontSize: 8,
                     height: 1,
-                    color: theme.textColor.withOpacity(0.6),
+                    color: theme.textColor.withValues(alpha: 0.6),
                   ),
                 ),
               ],
@@ -1078,7 +1082,7 @@ class _ShopPublicModernPageState extends State<ShopPublicModernPage> {
                   border: Border.all(color: theme.cardBorderColor),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withOpacity(0.025),
+                      color: Colors.black.withValues(alpha: 0.025),
                       blurRadius: 7,
                       offset: const Offset(0, 2),
                     ),
@@ -1129,7 +1133,7 @@ class _ShopPublicModernPageState extends State<ShopPublicModernPage> {
                 border: Border.all(color: theme.cardBorderColor),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.025),
+                    color: Colors.black.withValues(alpha: 0.025),
                     blurRadius: 7,
                     offset: const Offset(0, 2),
                   ),
@@ -1142,7 +1146,7 @@ class _ShopPublicModernPageState extends State<ShopPublicModernPage> {
                     width: 31,
                     height: 31,
                     decoration: BoxDecoration(
-                      color: theme.primaryColor.withOpacity(0.12),
+                      color: theme.primaryColor.withValues(alpha: 0.12),
                       shape: BoxShape.circle,
                     ),
                     child: Icon(icon, size: 16, color: theme.primaryColor),
@@ -1236,7 +1240,7 @@ class _ShopPublicModernPageState extends State<ShopPublicModernPage> {
               border: Border.all(color: theme.cardBorderColor),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.025),
+                  color: Colors.black.withValues(alpha: 0.025),
                   blurRadius: 7,
                   offset: const Offset(0, 2),
                 ),
@@ -1248,7 +1252,7 @@ class _ShopPublicModernPageState extends State<ShopPublicModernPage> {
                   width: 34,
                   height: 34,
                   decoration: BoxDecoration(
-                    color: theme.primaryColor.withOpacity(0.12),
+                    color: theme.primaryColor.withValues(alpha: 0.12),
                     shape: BoxShape.circle,
                   ),
                   child: Icon(
@@ -1284,8 +1288,8 @@ class _ShopPublicModernPageState extends State<ShopPublicModernPage> {
                           fontSize: 10.5,
                           height: 1.2,
                           color: hasAnnouncement
-                              ? theme.textColor.withOpacity(0.65)
-                              : theme.textColor.withOpacity(0.45),
+                              ? theme.textColor.withValues(alpha: 0.65)
+                              : theme.textColor.withValues(alpha: 0.45),
                         ),
                       ),
                     ],

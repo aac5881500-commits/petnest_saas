@@ -1,5 +1,5 @@
-// lib/core/models/shop_chat_thread_model.dart
-// 💬 店家聊天室：一個會員 × 一間店家 = 一個 thread
+// 檔案名稱：lib/core/models/shop_chat_thread_model.dart
+// 功能說明：店家聊天室：一個會員 × 一間店家 = 一個 thread
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 

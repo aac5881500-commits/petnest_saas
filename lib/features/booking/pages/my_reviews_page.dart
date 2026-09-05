@@ -1,6 +1,6 @@
-// lib/features/booking/pages/my_reviews_page.dart
+// 檔案名稱：lib/features/booking/pages/my_reviews_page.dart
+// 功能說明：顯示會員跨店所有評價，並可修改自己的評價內容與照片
 // ⭐ 會員中心：我的評價
-// 功能：顯示會員跨店所有評價，並可修改自己的評價內容與照片
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';

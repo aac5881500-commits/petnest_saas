@@ -1,5 +1,5 @@
-// lib/features/shop/widgets/environment/environment_section_title.dart
-// 🐾 環境介紹區塊標題
+// 檔案名稱：lib/features/shop/widgets/environment/environment_section_title.dart
+// 功能說明：環境介紹區塊標題
 // 顯示 icon + 標題
 
 import 'package:flutter/material.dart';

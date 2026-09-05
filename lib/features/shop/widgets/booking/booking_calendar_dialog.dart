@@ -1,5 +1,5 @@
-// lib/features/shop/widgets/booking/booking_calendar_dialog.dart
-// 🔥 前台預約月曆 Dialog：選擇入住日與退房日
+// 檔案名稱：lib/features/shop/widgets/booking/booking_calendar_dialog.dart
+// 功能說明：前台預約月曆 Dialog：選擇入住日與退房日
 
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/shared/widgets/booking_calendar.dart';

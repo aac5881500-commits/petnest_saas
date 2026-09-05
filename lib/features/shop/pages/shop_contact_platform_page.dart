@@ -1,6 +1,6 @@
-// lib/features/shop/pages/shop_contact_platform_page.dart
+// 檔案名稱：lib/features/shop/pages/shop_contact_platform_page.dart
+// 功能說明：店主從後台送出問題，寫入 Firestore 給平台後台處理，可附最多 3 張照片
 // 📮 店主聯絡平台頁
-// 功能：店主從後台送出問題，寫入 Firestore 給平台後台處理，可附最多 3 張照片
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -403,7 +403,7 @@ class _ShopContactPlatformPageState extends State<ShopContactPlatformPage> {
             return Card(
               child: ListTile(
                 leading: CircleAvatar(
-                  backgroundColor: _statusColor(status).withOpacity(0.12),
+                  backgroundColor: _statusColor(status).withValues(alpha: 0.12),
                   child: Icon(Icons.support_agent, color: _statusColor(status)),
                 ),
                 title: Text(

@@ -1,5 +1,5 @@
-// lib/features/member/widgets/member_filter_chips.dart
-// 水平篩選膠囊。
+// 檔案名稱：lib/features/member/widgets/member_filter_chips.dart
+// 功能說明：水平篩選膠囊。
 
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/features/member/widgets/member_ui_tokens.dart';

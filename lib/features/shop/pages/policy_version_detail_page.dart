@@ -1,6 +1,5 @@
-// lib/features/shop/pages/policy_version_detail_page.dart
-// 📜 入住條款歷史版本詳細頁
-//
+// 檔案名稱：lib/features/shop/pages/policy_version_detail_page.dart
+// 功能說明：入住條款歷史版本詳細頁
 // 用途：
 // - 查看某一版入住條款完整內容
 // - 爭議時可回查客戶當時同意的條款版本

@@ -1,6 +1,6 @@
-// lib/features/notifications/pages/notification_setting_page.dart
+// 檔案名稱：lib/features/notifications/pages/notification_setting_page.dart
+// 功能說明：讓會員管理全部通知、訂單、聊天、評價與入住提醒開關
 // 🔔 會員通知設定頁
-// 功能：讓會員管理全部通知、訂單、聊天、評價與入住提醒開關
 
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/services/notification_setting_service.dart';

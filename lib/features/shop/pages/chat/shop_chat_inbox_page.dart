@@ -1,5 +1,5 @@
-// lib/features/shop/pages/chat/shop_chat_inbox_page.dart
-// 💬 店家聊天收件匣
+// 檔案名稱：lib/features/shop/pages/chat/shop_chat_inbox_page.dart
+// 功能說明：店家聊天收件匣
 
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';

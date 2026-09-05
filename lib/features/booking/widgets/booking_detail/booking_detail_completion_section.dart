@@ -1,5 +1,5 @@
-// lib/features/booking/widgets/booking_detail/booking_detail_completion_section.dart
-// 完成後：點數、評價、客戶備註。取消原因已在狀態摘要。
+// 檔案名稱：lib/features/booking/widgets/booking_detail/booking_detail_completion_section.dart
+// 功能說明：完成後：點數、評價、客戶備註。取消原因已在狀態摘要。
 
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/features/booking/widgets/booking_detail/booking_detail_review_section.dart';

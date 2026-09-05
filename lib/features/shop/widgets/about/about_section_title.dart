@@ -1,5 +1,5 @@
-// lib/features/shop/widgets/about/about_section_title.dart
-// 🐾 關於我們頁 共用區塊標題
+// 檔案名稱：lib/features/shop/widgets/about/about_section_title.dart
+// 功能說明：關於我們頁 共用區塊標題
 
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/models/home_theme_model.dart';

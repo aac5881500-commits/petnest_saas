@@ -1,5 +1,5 @@
-// lib/core/models/store_banner_text_element.dart
-// 🛒 商城海報自由文字元件。位置用 0~1，不存 pixel。
+// 檔案名稱：lib/core/models/store_banner_text_element.dart
+// 功能說明：商城海報自由文字元件。位置用 0~1，不存 pixel。
 
 import 'dart:math' as math;
 

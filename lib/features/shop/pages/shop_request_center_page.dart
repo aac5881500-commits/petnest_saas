@@ -1,6 +1,6 @@
-// lib/features/shop/pages/shop_request_center_page.dart
+// 檔案名稱：lib/features/shop/pages/shop_request_center_page.dart
+// 功能說明：店家查看重要資料修改申請、審核狀態與拒絕原因
 // 📨 店家-店家端 申請中心
-// 功能：店家查看重要資料修改申請、審核狀態與拒絕原因
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';

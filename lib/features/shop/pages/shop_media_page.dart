@@ -1,5 +1,5 @@
-// lib/features/shop/pages/shop_media_page.dart
-// 店家活動海報管理：清單 + 共用 ShopStoreBannerEditorPage。
+// 檔案名稱：lib/features/shop/pages/shop_media_page.dart
+// 功能說明：店家活動海報管理：清單 + 共用 ShopStoreBannerEditorPage。
 
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/models/home_theme_model.dart';

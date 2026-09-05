@@ -1,6 +1,6 @@
-// lib/features/admin/pages/admin_point_reward_form_page.dart
+// 檔案名稱：lib/features/admin/pages/admin_point_reward_form_page.dart
+// 功能說明：建立優惠券型點數兌換商品
 // 🎁 後台點數兌換商品新增／編輯頁
-// 功能：建立優惠券型點數兌換商品，
 // 並綁定既有優惠券模板、設定點數、兌換限制與上架狀態。
 
 import 'dart:typed_data';

@@ -1,5 +1,5 @@
-// lib/features/booking/widgets/booking_detail/booking_detail_stay_services_section.dart
-// 入住期間服務：每日照護、照片、攝影機；依入住狀態與下載期限顯示。
+// 檔案名稱：lib/features/booking/widgets/booking_detail/booking_detail_stay_services_section.dart
+// 功能說明：入住期間服務：每日照護、照片、攝影機；依入住狀態與下載期限顯示。
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';

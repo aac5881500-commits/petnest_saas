@@ -1,5 +1,5 @@
-// lib/features/shop/widgets/environment/environment_image_upload_box.dart
-// 🖼️ 後台環境介紹單張圖片：即時預覽 + 上傳 / 更換 / 移除
+// 檔案名稱：lib/features/shop/widgets/environment/environment_image_upload_box.dart
+// 功能說明：後台環境介紹單張圖片：即時預覽 + 上傳 / 更換 / 移除
 
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/models/environment_image_frame_setting.dart';

@@ -1,6 +1,6 @@
-// lib/core/exceptions/inventory_exception.dart
+// 檔案名稱：lib/core/exceptions/inventory_exception.dart
+// 功能說明：把庫存不足、停用、重複執行等狀況轉成可直接顯示的中文訊息
 // 📦 中央庫存錯誤
-// 功能：把庫存不足、停用、重複執行等狀況轉成可直接顯示的中文訊息，
 // 避免把 Firebase exception stack 丟給使用者。
 
 import 'package:cloud_firestore/cloud_firestore.dart';

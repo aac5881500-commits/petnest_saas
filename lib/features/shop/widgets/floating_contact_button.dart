@@ -1,6 +1,6 @@
-// lib/features/shop/widgets/floating_contact_button.dart
+// 檔案名稱：lib/features/shop/widgets/floating_contact_button.dart
+// 功能說明：讀取店家的浮動聯絡設定，自動顯示電話、LINE、Facebook
 // 📞 前台共用浮動聯絡按鈕
-// 功能：讀取店家的浮動聯絡設定，自動顯示電話、LINE、Facebook
 // 或 Instagram，支援三種按鈕尺寸、拖曳、邊界限制與左右吸附動畫，
 // 並避免拖曳完成後誤觸聯絡方式，供 Classic、Modern
 // 與未來模板共同使用。

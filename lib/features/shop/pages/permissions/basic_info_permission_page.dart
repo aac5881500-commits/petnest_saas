@@ -1,6 +1,5 @@
-// lib/features/shop/pages/permissions/basic_info_permission_page.dart
-// 🔐 基本資訊權限設定頁
-//
+// 檔案名稱：lib/features/shop/pages/permissions/basic_info_permission_page.dart
+// 功能說明：基本資訊權限設定頁
 // 用途：
 // - 管理基本資訊分頁相關權限
 // - 避免所有權限全部擠在同一頁

@@ -1,5 +1,5 @@
-// lib/features/shop/widgets/environment/environment_image_banner.dart
-// 🐾 環境介紹中間橫幅圖
+// 檔案名稱：lib/features/shop/widgets/environment/environment_image_banner.dart
+// 功能說明：環境介紹中間橫幅圖
 // 顯示一張大圖 + 覆蓋文字
 
 import 'package:flutter/material.dart';

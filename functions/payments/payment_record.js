@@ -1,6 +1,6 @@
-// functions/payments/payment_record.js
+// 檔案名稱：functions/payments/payment_record.js
+// 功能說明：使用 requestId 建立固定付款紀錄
 // 🧾 金流付款紀錄工具
-// 功能：使用 requestId 建立固定付款紀錄，
 // 並透過 Firestore Transaction 防止重複付款請求。
 
 const crypto = require("crypto");

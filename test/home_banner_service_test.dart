@@ -1,3 +1,6 @@
+// 檔案名稱：test/home_banner_service_test.dart
+// 功能說明：首頁橫幅服務的單元測試（前台只顯示 enabled / isActive 海報並依 sortOrder）
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:petnest_saas/core/models/store_banner_model.dart';
 import 'package:petnest_saas/core/services/home_banner_navigation.dart';

@@ -1,5 +1,5 @@
-// lib/features/shop/pages/shop_revenue_report_page.dart
-// 💰 營收統計：住宿 / 加購 / 商城分開，訂單應收與實際已付款分開。
+// 檔案名稱：lib/features/shop/pages/shop_revenue_report_page.dart
+// 功能說明：營收統計：住宿 / 加購 / 商城分開，訂單應收與實際已付款分開。
 
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/models/shop_report_models.dart';

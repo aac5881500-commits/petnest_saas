@@ -1,6 +1,6 @@
-// functions/points/exchange_point_reward.js
+// 檔案名稱：functions/points/exchange_point_reward.js
+// 功能說明：Auth、Reward、點數、中央庫存在同一 Transaction 完成。
 // 🎁 中央庫存點數商品兌換
-// 功能：Auth、Reward、點數、中央庫存在同一 Transaction 完成。
 // 僅處理 useCentralInventory == true 的實體商品。
 
 const admin = require("firebase-admin");

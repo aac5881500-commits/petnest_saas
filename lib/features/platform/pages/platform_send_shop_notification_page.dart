@@ -1,6 +1,6 @@
-// lib/features/platform/pages/platform_send_shop_notification_page.dart
+// 檔案名稱：lib/features/platform/pages/platform_send_shop_notification_page.dart
+// 功能說明：平台後台直接發送通知給指定店家
 // 🔔 平台發送店家通知
-// 功能：平台後台直接發送通知給指定店家
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';

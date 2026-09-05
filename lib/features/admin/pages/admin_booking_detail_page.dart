@@ -1,9 +1,7 @@
-// lib/features/admin/pages/admin_booking_detail_page.dart
-
-// 📄 訂單詳細頁（後台版）
-//
+// 檔案名稱：lib/features/admin/pages/admin_booking_detail_page.dart
+// 功能說明：訂單詳細頁（後台版）
 //  店主自己的後台店家詳細頁
-
+//
 // 功能：
 // - 即時讀取 booking（Firestore）
 // - 顯示完整訂單資料

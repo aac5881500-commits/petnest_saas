@@ -1,6 +1,6 @@
-// lib/features/booking/widgets/booking_detail/booking_detail_header_section.dart
+// 檔案名稱：lib/features/booking/widgets/booking_detail/booking_detail_header_section.dart
+// 功能說明：顯示房號、房型、入住退房日期、晚數、下訂時間、房間異動時間
 // 🏠 客戶端訂單詳細頁：房型與日期資訊區塊
-// 功能：顯示房號、房型、入住退房日期、晚數、下訂時間、房間異動時間
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';

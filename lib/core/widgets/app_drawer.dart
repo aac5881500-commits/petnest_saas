@@ -1,5 +1,5 @@
-// lib/core/widgets/app_drawer.dart
-// 🔥 店家前台共用左側選單 Drawer：會員資訊、前台功能、後台入口、系統功能
+// 檔案名稱：lib/core/widgets/app_drawer.dart
+// 功能說明：店家前台共用左側選單 Drawer：會員資訊、前台功能、後台入口、系統功能
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -13,7 +13,6 @@ import 'package:petnest_saas/features/shop/pages/shop_public_page.dart';
 import 'package:petnest_saas/features/booking/pages/my_bookings_page.dart';
 import 'package:petnest_saas/features/booking/pages/my_reviews_page.dart';
 import 'package:petnest_saas/features/auth/pages/login_page.dart';
-import 'package:petnest_saas/core/constants/shop_permission_keys.dart';
 import 'package:petnest_saas/features/booking/pages/booking_detail_page.dart';
 import 'package:petnest_saas/features/platform/pages/platform_shop_manage_page.dart';
 import 'package:petnest_saas/features/shop/pages/shop_faq_page.dart';
@@ -431,18 +430,6 @@ class AppDrawer extends StatelessWidget {
                       ),
                       builder: (context, snapshot) {
                         final memberData = snapshot.data;
-
-                        bool hasAnyPermission = false;
-
-                        for (final key in ShopPermissionKeys.all) {
-                          if (ShopService.instance.hasPermission(
-                            memberData,
-                            key,
-                          )) {
-                            hasAnyPermission = true;
-                            break;
-                          }
-                        }
 
                         if (memberData == null) {
                           return const SizedBox();
@@ -870,7 +857,7 @@ class AppDrawer extends StatelessWidget {
                         vertical: 4,
                       ),
                       decoration: BoxDecoration(
-                        color: statusColor.withOpacity(0.12),
+                        color: statusColor.withValues(alpha: 0.12),
                         borderRadius: BorderRadius.circular(30),
                       ),
                       child: Text(

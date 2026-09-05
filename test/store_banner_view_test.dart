@@ -1,3 +1,6 @@
+// 檔案名稱：test/store_banner_view_test.dart
+// 功能說明：商城橫幅檢視的單元測試（392px 有字幕不 overflow，無字幕不渲染文字）
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:petnest_saas/core/models/home_theme_model.dart';

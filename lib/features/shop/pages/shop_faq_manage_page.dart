@@ -1,6 +1,6 @@
-// lib/features/shop/pages/shop_faq_manage_page.dart
+// 檔案名稱：lib/features/shop/pages/shop_faq_manage_page.dart
+// 功能說明：新增、編輯、刪除、上架/下架、上移/下移排序店家常見問題
 // ❓ 店家常見問題管理頁
-// 功能：新增、編輯、刪除、上架/下架、上移/下移排序店家常見問題
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';

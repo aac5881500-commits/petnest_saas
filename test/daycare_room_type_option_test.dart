@@ -1,4 +1,6 @@
-// test/daycare_room_type_option_test.dart
+// 檔案名稱：test/daycare_room_type_option_test.dart
+// 功能說明：安親房型選項的單元測試（maxPets=1 選 2 隻不可選）
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:petnest_saas/core/models/daycare_settings_model.dart';
 import 'package:petnest_saas/core/services/daycare_room_type_option.dart';

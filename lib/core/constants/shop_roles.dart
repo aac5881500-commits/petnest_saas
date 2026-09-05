@@ -1,5 +1,5 @@
-// lib/core/constants/shop_roles.dart
-// 👤 店家角色定義
+// 檔案名稱：lib/core/constants/shop_roles.dart
+// 功能說明：店家角色定義
 
 class ShopRoles {
   /// 老闆（最高權限）

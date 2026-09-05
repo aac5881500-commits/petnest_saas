@@ -1,6 +1,6 @@
-// lib/features/shop/widgets/inventory/inventory_status_chip.dart
+// 檔案名稱：lib/features/shop/widgets/inventory/inventory_status_chip.dart
+// 功能說明：用醒目顏色顯示正常、低庫存、缺貨、停用與即將到期。
 // 📦 庫存狀態標籤
-// 功能：用醒目顏色顯示正常、低庫存、缺貨、停用與即將到期。
 
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/constants/inventory_constants.dart';

@@ -1,3 +1,6 @@
+// 檔案名稱：test/store_appearance_setting_test.dart
+// 功能說明：商城外觀設定的單元測試（商城名稱以 storeName 為準，storeTitle 只當舊資料 fallback）
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:petnest_saas/core/models/home_theme_model.dart';

@@ -1,6 +1,6 @@
-// lib/core/services/point_redemption_service.dart
+// 檔案名稱：lib/core/services/point_redemption_service.dart
+// 功能說明：提供會員實體商品紀錄、後台待領取清單
 // 🎁 點數實體商品兌換 Service
-// 功能：提供會員實體商品紀錄、後台待領取清單、
 // 領取碼查詢、店員完成商品交付、取消兌換、退回點數與標記過期。
 
 import 'package:cloud_firestore/cloud_firestore.dart';

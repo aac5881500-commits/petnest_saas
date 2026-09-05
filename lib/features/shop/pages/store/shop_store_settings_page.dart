@@ -1,5 +1,5 @@
-// lib/features/shop/pages/store/shop_store_settings_page.dart
-// 🛒 賣場設定首頁：分區進入，不再一頁滑到底。
+// 檔案名稱：lib/features/shop/pages/store/shop_store_settings_page.dart
+// 功能說明：賣場設定首頁：分區進入，不再一頁滑到底。
 
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/features/shop/pages/store/shop_store_settings_sections.dart';

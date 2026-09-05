@@ -1,5 +1,5 @@
-//lib/features/shop/pages/shop_permission_settings_page.dart
-//實際操作權限的畫面
+// 檔案名稱：lib/features/shop/pages/shop_permission_settings_page.dart
+// 功能說明：實際操作權限的畫面
 
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
@@ -351,18 +351,6 @@ class _ShopPermissionSettingsPageState
                 if (logs.isEmpty) const ListTile(title: Text('目前沒有動作記錄')),
                 ...logs.map((log) {
                   final action = log['action']?.toString() ?? '-';
-                  final targetType = log['targetType']?.toString() ?? '-';
-                  final operatorRole = log['operatorRole']?.toString() ?? '-';
-                  final operatorEmail = log['operatorEmail']?.toString() ?? '-';
-
-                  final currentUserEmail =
-                      FirebaseAuth.instance.currentUser?.email?.toLowerCase() ??
-                      '';
-
-                  final displayRole =
-                      operatorEmail.toLowerCase() == currentUserEmail
-                      ? (widget.currentUserRole ?? operatorRole)
-                      : operatorRole;
                   return ListTile(
                     dense: true,
                     leading: const Icon(Icons.history),

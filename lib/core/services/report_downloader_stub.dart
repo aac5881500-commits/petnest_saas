@@ -1,6 +1,6 @@
-// lib/core/services/report_downloader_stub.dart
+// 檔案名稱：lib/core/services/report_downloader_stub.dart
+// 功能說明：非 Web 平台不執行下載，避免 Android 編譯 dart:html 錯誤
 // 📥 報表下載 Stub
-// 功能：非 Web 平台不執行下載，避免 Android 編譯 dart:html 錯誤
 
 import 'dart:typed_data';
 

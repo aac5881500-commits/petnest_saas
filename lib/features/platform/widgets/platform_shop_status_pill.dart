@@ -1,6 +1,6 @@
-// lib/features/platform/widgets/platform_shop_status_pill.dart
+// 檔案名稱：lib/features/platform/widgets/platform_shop_status_pill.dart
+// 功能說明：顯示店家目前狀態（正常 / 停權 / 待審核）
 // 🟢 平台店家狀態膠囊
-// 功能：顯示店家目前狀態（正常 / 停權 / 待審核）
 
 import 'package:flutter/material.dart';
 
@@ -19,7 +19,7 @@ class PlatformShopStatusPill extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.12),
+        color: color.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(999),
       ),
       child: Text(

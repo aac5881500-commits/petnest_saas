@@ -1,6 +1,6 @@
-// lib/features/shop/widgets/inventory/inventory_movement_tile.dart
+// 檔案名稱：lib/features/shop/widgets/inventory/inventory_movement_tile.dart
+// 功能說明：以顏色區分進貨／出庫／盤點，不顯示 Firebase technical ID。
 // 📦 庫存異動列
-// 功能：以顏色區分進貨／出庫／盤點，不顯示 Firebase technical ID。
 
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/constants/inventory_constants.dart';

@@ -1,5 +1,5 @@
-// lib/core/models/daily_care_date_helper.dart
-// 🐾 每日照護有效日期
+// 檔案名稱：lib/core/models/daily_care_date_helper.dart
+// 功能說明：每日照護有效日期
 // 規則：入住日包含、退房日不包含。
 // checkInDate <= careDate < checkOutDate
 // 不改 booking checkIn / checkOut、房價 nights 或庫存。

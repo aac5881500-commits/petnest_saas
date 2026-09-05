@@ -1,6 +1,6 @@
+// 檔案名稱：lib/features/auth/pages/home_page.dart
+// 功能說明：登入後首頁、建立店家、我的店家列表、登出
 // 🏠 HomePage（登入後首頁）
-// lib/features/auth/pages/home_page.dart
-// 功能：登入後首頁、建立店家、我的店家列表、登出
 
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -487,7 +487,9 @@ class _HomePageState extends State<HomePage> {
                                                 boxShadow: [
                                                   BoxShadow(
                                                     color: Colors.black
-                                                        .withOpacity(0.06),
+                                                        .withValues(
+                                                          alpha: 0.06,
+                                                        ),
                                                     blurRadius: 10,
                                                     offset: const Offset(0, 4),
                                                   ),

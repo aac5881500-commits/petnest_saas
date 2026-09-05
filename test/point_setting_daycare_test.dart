@@ -1,4 +1,6 @@
-// test/point_setting_daycare_test.dart
+// 檔案名稱：test/point_setting_daycare_test.dart
+// 功能說明：點數設定安親的單元測試（臨托依消費金額發點且手動會員不發）
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:petnest_saas/core/models/point_setting_model.dart';
 

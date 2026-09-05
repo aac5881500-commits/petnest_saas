@@ -1,5 +1,5 @@
-// lib/features/shop/pages/shop_member_report_page.dart
-// 👤 會員統計：店家後台可見的姓名 / 電話與消費摘要。
+// 檔案名稱：lib/features/shop/pages/shop_member_report_page.dart
+// 功能說明：會員統計：店家後台可見的姓名 / 電話與消費摘要。
 
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/models/shop_report_models.dart';

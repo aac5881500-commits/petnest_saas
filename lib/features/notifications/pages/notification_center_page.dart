@@ -1,6 +1,6 @@
-// lib/features/notifications/pages/notification_center_page.dart
+// 檔案名稱：lib/features/notifications/pages/notification_center_page.dart
+// 功能說明：顯示目前登入使用者的通知、單筆已讀與全部已讀
 // 🔔 App 通知中心頁面
-// 功能：顯示目前登入使用者的通知、單筆已讀與全部已讀
 
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/services/fcm_message_service.dart';
@@ -52,10 +52,9 @@ class NotificationCenterPage extends StatelessWidget {
         case 'booking_status':
         case 'booking_message':
         case 'check_in':
-          if (notification.bookingId != null &&
-              notification.bookingId!.isNotEmpty) {
+          if (notification.bookingId.isNotEmpty) {
             await FcmMessageService.instance.openBookingDetail(
-              notification.bookingId!,
+              notification.bookingId,
             );
           }
           break;

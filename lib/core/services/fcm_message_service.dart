@@ -1,6 +1,6 @@
-// lib/core/services/fcm_message_service.dart
+// 檔案名稱：lib/core/services/fcm_message_service.dart
+// 功能說明：監聽前景通知、背景通知點擊、App 關閉後通知點擊
 // 🔔 FCM 訊息接收服務
-// 功能：監聽前景通知、背景通知點擊、App 關閉後通知點擊，
 // 並依照通知類型導向訂單詳細頁或我的評價頁
 
 import 'dart:async';

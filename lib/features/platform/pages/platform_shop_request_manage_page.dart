@@ -1,6 +1,6 @@
-// lib/features/platform/pages/platform_shop_request_manage_page.dart
+// 檔案名稱：lib/features/platform/pages/platform_shop_request_manage_page.dart
+// 功能說明：平台審核店家資料修改、認證、前台公開等申請
 // 📨 店家申請中心
-// 功能：平台審核店家資料修改、認證、前台公開等申請
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
@@ -82,7 +82,6 @@ class PlatformShopRequestManagePage extends StatelessWidget {
     final shopId = data['shopId']?.toString() ?? '';
     final requestType = data['requestType']?.toString() ?? '';
     final newValue = data['newValue']?.toString() ?? '';
-    final currentValue = data['currentValue']?.toString() ?? '';
 
     final newCity = data['newCity']?.toString() ?? '';
     final newDistrict = data['newDistrict']?.toString() ?? '';

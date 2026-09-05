@@ -1,10 +1,11 @@
-// test/daycare_date_override_test.dart
+// 檔案名稱：test/daycare_date_override_test.dart
+// 功能說明：安親日期覆寫的單元測試（沒有例外設定時所有日期預設可預約，不再依星期關閉）
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:petnest_saas/core/models/daycare_date_override_model.dart';
 import 'package:petnest_saas/core/models/daycare_settings_model.dart';
 import 'package:petnest_saas/core/services/daycare_booking_validator.dart';
 import 'package:petnest_saas/core/services/daycare_date_availability.dart';
-import 'package:petnest_saas/core/services/daycare_time_helper.dart';
 
 void main() {
   const DaycareSettingsModel weekdayOnly = DaycareSettingsModel(

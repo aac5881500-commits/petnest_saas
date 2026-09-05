@@ -1,6 +1,5 @@
-// lib/core/services/action_log_service.dart
-// 📝 店家操作紀錄 Service
-//
+// 檔案名稱：lib/core/services/action_log_service.dart
+// 功能說明：店家操作紀錄 Service
 // 功能：
 // - 統一寫入 action_logs
 // - 監聽店家操作紀錄

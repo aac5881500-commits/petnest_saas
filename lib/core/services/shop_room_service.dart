@@ -1,6 +1,6 @@
-// lib/core/services/shop_room_service.dart
+// 檔案名稱：lib/core/services/shop_room_service.dart
+// 功能說明：集中管理房型、房間、房務日曆相關 Firestore 讀取
 // 🏠 房型 / 房間 / 房務日曆 Service
-// 功能：集中管理房型、房間、房務日曆相關 Firestore 讀取
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'dart:typed_data';

@@ -1,3 +1,6 @@
+// 檔案名稱：test/member_center_ui_test.dart
+// 功能說明：會員中心介面的單元測試（reserved 在使用中，revoked 與 expired 在其他）
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:petnest_saas/core/models/member_coupon_model.dart';
 import 'package:petnest_saas/core/models/member_point_log_model.dart';

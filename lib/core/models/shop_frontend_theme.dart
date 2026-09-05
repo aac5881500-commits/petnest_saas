@@ -1,4 +1,5 @@
-// 客戶前台主題：沿用 shops/{shopId}.homeAppearance，與首頁同一份資料。
+// 檔案名稱：lib/core/models/shop_frontend_theme.dart
+// 功能說明：客戶前台主題：沿用 shops/{shopId}.homeAppearance，與首頁同一份資料。
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';

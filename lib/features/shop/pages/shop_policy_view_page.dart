@@ -1,5 +1,5 @@
-// lib/features/shop/pages/shop_policy_view_page.dart
-// 📜 前台條款頁（兩頁完整版🔥）
+// 檔案名稱：lib/features/shop/pages/shop_policy_view_page.dart
+// 功能說明：前台條款頁（兩頁完整版）
 
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/models/home_theme_model.dart';

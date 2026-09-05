@@ -1,6 +1,6 @@
-// lib/core/services/shop_member_permission_service.dart
+// 檔案名稱：lib/core/services/shop_member_permission_service.dart
+// 功能說明：處理店家成員、邀請、權限設定、成員移除
 // 🔐 店家成員與權限服務
-// 功能：處理店家成員、邀請、權限設定、成員移除
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';

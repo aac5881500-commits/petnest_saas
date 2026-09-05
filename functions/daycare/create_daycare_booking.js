@@ -1,5 +1,5 @@
-// functions/daycare/create_daycare_booking.js
-// 🐾 建立臨托訂單：後端重算價格、名額與占用，不信任前端金額
+// 檔案名稱：functions/daycare/create_daycare_booking.js
+// 功能說明：建立臨托訂單：後端重算價格、名額與占用，不信任前端金額
 
 const admin = require("firebase-admin");
 const {onCall, HttpsError} = require("firebase-functions/v2/https");

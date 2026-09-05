@@ -1,6 +1,6 @@
-// lib/core/models/platform_admin_model.dart
+// 檔案名稱：lib/core/models/platform_admin_model.dart
+// 功能說明：平台最高管理員、開發管理員、平台員工共用資料模型。
 // 👑 平台管理員 Model
-// 功能：平台最高管理員、開發管理員、平台員工共用資料模型。
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 

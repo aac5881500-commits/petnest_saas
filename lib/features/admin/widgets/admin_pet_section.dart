@@ -1,6 +1,6 @@
-// lib/features/admin/widgets/admin_pet_section.dart
+// 檔案名稱：lib/features/admin/widgets/admin_pet_section.dart
+// 功能說明：顯示會員寵物、勾選寵物、新增寵物（支援暫存會員）
 // 🐾 後台新增訂單：寵物選擇區塊
-// 功能：顯示會員寵物、勾選寵物、新增寵物（支援暫存會員）
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';

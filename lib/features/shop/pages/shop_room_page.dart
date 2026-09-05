@@ -1,5 +1,5 @@
-// 檔案名稱 lib/features/shop/pages/shop_room_page.dart
-// 🏠 房間管理（完整升級版🔥）
+// 檔案名稱：lib/features/shop/pages/shop_room_page.dart
+// 功能說明：房間管理（完整升級版）
 
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/services/shop_service.dart';

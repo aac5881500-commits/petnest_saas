@@ -1,5 +1,5 @@
-// functions/inventory/inventory_cost.js
-// 📦 與 Dart InventoryConstants 等價的成本算法
+// 檔案名稱：functions/inventory/inventory_cost.js
+// 功能說明：與 Dart InventoryConstants 等價的成本算法
 // remainingStockCost / weightedAverageFromCost / round 精度必須與
 // lib/core/constants/inventory_constants.dart 一致，
 // 供商城、點數兌換、住宿加購 Functions 共用，避免各功能另寫一套算法。

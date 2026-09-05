@@ -1,6 +1,6 @@
-// lib/features/shop/pages/shop_platform_notification_page.dart
+// 檔案名稱：lib/features/shop/pages/shop_platform_notification_page.dart
+// 功能說明：查看平台主動發給店家的通知，例如方案到期、停權、審核、系統維護
 // 🔔 店主平台通知頁
-// 功能：查看平台主動發給店家的通知，例如方案到期、停權、審核、系統維護
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
@@ -122,14 +122,14 @@ class ShopPlatformNotificationPage extends StatelessWidget {
                   borderRadius: BorderRadius.circular(18),
                   side: BorderSide(
                     color: isUnread
-                        ? _typeColor(type).withOpacity(0.25)
+                        ? _typeColor(type).withValues(alpha: 0.25)
                         : Colors.grey.shade300,
                   ),
                 ),
                 child: ListTile(
                   contentPadding: const EdgeInsets.all(16),
                   leading: CircleAvatar(
-                    backgroundColor: _typeColor(type).withOpacity(0.12),
+                    backgroundColor: _typeColor(type).withValues(alpha: 0.12),
                     child: Icon(_typeIcon(type), color: _typeColor(type)),
                   ),
                   title: Row(

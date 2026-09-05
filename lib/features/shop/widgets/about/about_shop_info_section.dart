@@ -1,6 +1,6 @@
-// lib/features/shop/widgets/about/about_shop_info_section.dart
+// 檔案名稱：lib/features/shop/widgets/about/about_shop_info_section.dart
+// 功能說明：從 Firestore 讀取店家營業時間、電話、地址、字號與社群連結
 // 🐾 關於我們頁 店家資訊區塊
-// 功能：從 Firestore 讀取店家營業時間、電話、地址、字號與社群連結，
 // 並依照首頁版本套用共用主題顏色
 
 import 'package:flutter/material.dart';
@@ -89,7 +89,7 @@ class AboutShopInfoSection extends StatelessWidget {
               border: Border.all(color: theme.cardBorderColor),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.05),
+                  color: Colors.black.withValues(alpha: 0.05),
                   blurRadius: 18,
                   offset: const Offset(0, 10),
                 ),
@@ -202,7 +202,7 @@ class _InfoRow extends StatelessWidget {
               style: TextStyle(
                 fontSize: 15,
                 height: 1.5,
-                color: theme.textColor.withOpacity(0.82),
+                color: theme.textColor.withValues(alpha: 0.82),
                 fontWeight: FontWeight.w500,
               ),
             ),
@@ -237,14 +237,14 @@ class _SocialButton extends StatelessWidget {
           CircleAvatar(
             radius: 26,
             backgroundColor: isActive
-                ? theme.primaryColor.withOpacity(0.14)
-                : theme.textColor.withOpacity(0.08),
+                ? theme.primaryColor.withValues(alpha: 0.14)
+                : theme.textColor.withValues(alpha: 0.08),
             child: Icon(
               icon,
               size: 24,
               color: isActive
                   ? theme.primaryColor
-                  : theme.textColor.withOpacity(0.35),
+                  : theme.textColor.withValues(alpha: 0.35),
             ),
           ),
 
@@ -255,8 +255,8 @@ class _SocialButton extends StatelessWidget {
             style: TextStyle(
               fontSize: 12,
               color: isActive
-                  ? theme.textColor.withOpacity(0.82)
-                  : theme.textColor.withOpacity(0.35),
+                  ? theme.textColor.withValues(alpha: 0.82)
+                  : theme.textColor.withValues(alpha: 0.35),
               fontWeight: FontWeight.w700,
             ),
           ),

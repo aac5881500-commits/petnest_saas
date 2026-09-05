@@ -1,5 +1,5 @@
-// lib/features/shop/pages/permissions/daycare_permission_page.dart
-// 🐾 臨托權限設定
+// 檔案名稱：lib/features/shop/pages/permissions/daycare_permission_page.dart
+// 功能說明：臨托權限設定
 
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/constants/shop_permission_keys.dart';

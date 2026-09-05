@@ -1,6 +1,6 @@
-// lib/features/admin/widgets/admin_booking_date_section.dart
+// 檔案名稱：lib/features/admin/widgets/admin_booking_date_section.dart
+// 功能說明：顯示入住 / 退房日期，呼叫月曆選擇彈窗
 // 📅 後台手動新增訂單：日期選擇區塊
-// 功能：顯示入住 / 退房日期，呼叫月曆選擇彈窗
 
 import 'package:flutter/material.dart';
 

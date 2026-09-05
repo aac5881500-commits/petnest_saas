@@ -1,6 +1,6 @@
-// lib/core/models/point_redemption_model.dart
+// 檔案名稱：lib/core/models/point_redemption_model.dart
+// 功能說明：記錄會員使用點數兌換實體商品後的領取憑證
 // 🎁 點數實體商品兌換紀錄 Model
-// 功能：記錄會員使用點數兌換實體商品後的領取憑證、
 // 商品快照、領取狀態、店員核銷、取消與退點資料。
 
 import 'package:cloud_firestore/cloud_firestore.dart';

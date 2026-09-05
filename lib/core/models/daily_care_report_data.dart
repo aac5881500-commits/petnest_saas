@@ -1,5 +1,5 @@
-// lib/core/models/daily_care_report_data.dart
-// 🐾 每日照護報告產圖用資料
+// 檔案名稱：lib/core/models/daily_care_report_data.dart
+// 功能說明：每日照護報告產圖用資料
 // 只給報告排版與統計，不寫回 Firestore。
 
 import 'package:flutter/material.dart';

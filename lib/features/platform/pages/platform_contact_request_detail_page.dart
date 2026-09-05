@@ -1,6 +1,6 @@
-// lib/features/platform/pages/platform_contact_request_detail_page.dart
+// 檔案名稱：lib/features/platform/pages/platform_contact_request_detail_page.dart
+// 功能說明：查看案件內容、照片、狀態，並支援平台與店主雙向留言紀錄
 // 📮 平台聯絡案件詳情頁
-// 功能：查看案件內容、照片、狀態，並支援平台與店主雙向留言紀錄
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -203,7 +203,9 @@ class _PlatformContactRequestDetailPageState
                   child: Row(
                     children: [
                       CircleAvatar(
-                        backgroundColor: _statusColor(status).withOpacity(0.12),
+                        backgroundColor: _statusColor(
+                          status,
+                        ).withValues(alpha: 0.12),
                         child: Icon(
                           Icons.support_agent,
                           color: _statusColor(status),

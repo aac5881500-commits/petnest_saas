@@ -1,6 +1,6 @@
-// functions/payments/update_operation_settings.js
+// 檔案名稱：functions/payments/update_operation_settings.js
+// 功能說明：由店主安全更新銀行轉帳與綠界付款營運開關
 // ⚙️ 店家收款方式營運設定
-// 功能：由店主安全更新銀行轉帳與綠界付款營運開關，
 // 到店付款固定啟用，綠界未核准時不得啟用線上付款。
 
 const admin = require("firebase-admin");

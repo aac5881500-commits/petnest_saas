@@ -1,6 +1,6 @@
-// lib/features/admin/pages/admin_payment_detail_page.dart
+// 檔案名稱：lib/features/admin/pages/admin_payment_detail_page.dart
+// 功能說明：顯示單筆付款交易的必要紀錄
 // 💳 付款詳情
-// 功能：顯示單筆付款交易的必要紀錄，
 // 讓店主確認付款結果，並可使用交易編號到綠界後台進行對帳。
 
 import 'package:flutter/material.dart';

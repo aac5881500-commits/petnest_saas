@@ -1,4 +1,6 @@
-// test/daycare_coupon_helper_test.dart
+// 檔案名稱：test/daycare_coupon_helper_test.dart
+// 功能說明：安親優惠券輔助的單元測試（allowCoupon 預設為關閉）
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:petnest_saas/core/models/daycare_settings_model.dart';
 import 'package:petnest_saas/core/models/member_coupon_model.dart';

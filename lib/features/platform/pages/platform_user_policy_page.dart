@@ -1,6 +1,6 @@
-// lib/features/platform/pages/platform_user_policy_page.dart
+// 檔案名稱：lib/features/platform/pages/platform_user_policy_page.dart
+// 功能說明：平台會員需閱讀並同意平台使用條款，內容由平台後台管理
 // 📜 平台會員條款頁
-// 功能：平台會員需閱讀並同意平台使用條款，內容由平台後台管理
 
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/services/platform_policy_manage_service.dart';

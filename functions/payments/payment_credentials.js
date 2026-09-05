@@ -1,6 +1,6 @@
-// functions/payments/payment_credentials.js
+// 檔案名稱：functions/payments/payment_credentials.js
+// 功能說明：從 payment_credentials/{shopId} 讀取綠界 MerchantID
 // 🔐 綠界後端密鑰讀取工具
-// 功能：從 payment_credentials/{shopId} 讀取綠界 MerchantID、
 // HashKey、HashIV 與環境設定，避免敏感資料放在公開店家文件中。
 
 const {HttpsError} = require("firebase-functions/v2/https");

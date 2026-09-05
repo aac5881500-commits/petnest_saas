@@ -1,6 +1,6 @@
-// lib/features/shop/pages/shop_device_page.dart
+// 檔案名稱：lib/features/shop/pages/shop_device_page.dart
+// 功能說明：管理房間攝影機網址、啟用狀態、前台顯示開關與攝影機相容性說明
 // 📡 店家設備管理頁
-// 功能：管理房間攝影機網址、啟用狀態、前台顯示開關與攝影機相容性說明
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';

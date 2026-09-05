@@ -1,6 +1,6 @@
-// lib/core/models/platform_payment_setting_model.dart
+// 檔案名稱：lib/core/models/platform_payment_setting_model.dart
+// 功能說明：管理全平台線上付款、綠界維護與緊急暫停狀態。
 // 💳 PetNest 全平台金流控制模型
-// 功能：管理全平台線上付款、綠界維護與緊急暫停狀態。
 // 注意：此模型不保存任何店家的 MerchantID、HashKey 或 HashIV。
 
 import 'package:cloud_firestore/cloud_firestore.dart';

@@ -1,5 +1,5 @@
-// lib/core/widgets/daily_care_report_view.dart
-// 🐾 每日照護報告獨立排版
+// 檔案名稱：lib/core/widgets/daily_care_report_view.dart
+// 功能說明：每日照護報告獨立排版
 // 專門給 PNG 產圖，不是 App 畫面截圖。
 
 import 'package:flutter/material.dart';

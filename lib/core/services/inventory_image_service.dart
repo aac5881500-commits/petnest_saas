@@ -1,6 +1,6 @@
-// lib/core/services/inventory_image_service.dart
+// 檔案名稱：lib/core/services/inventory_image_service.dart
+// 功能說明：沿用專案既有 image_picker + flutter_image_compress + Firebase Storage。
 // 🖼️ 庫存品項代表圖 Service
-// 功能：沿用專案既有 image_picker + flutter_image_compress + Firebase Storage。
 // 原始檔超過 5MB 不上傳；上傳前壓縮為最長邊約 1400px 的 JPEG。
 
 import 'dart:typed_data';

@@ -1,6 +1,6 @@
-// functions/store/create_store_order.js
+// 檔案名稱：functions/store/create_store_order.js
+// 功能說明：後端依商品原價 + 有效促銷重算金額，原子保留多品項庫存，不信任前端金額。
 // 🛒 建立商城訂單並保留庫存
-// 功能：後端依商品原價 + 有效促銷重算金額，原子保留多品項庫存，不信任前端金額。
 
 const admin = require("firebase-admin");
 const {onCall, HttpsError} = require("firebase-functions/v2/https");

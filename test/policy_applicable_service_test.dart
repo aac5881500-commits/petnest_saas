@@ -1,4 +1,6 @@
-// test/policy_applicable_service_test.dart
+// 檔案名稱：test/policy_applicable_service_test.dart
+// 功能說明：條款適用範圍的單元測試（舊條款沒有適用類型時視為僅住宿）
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:petnest_saas/core/models/policy_applicable_service.dart';
 

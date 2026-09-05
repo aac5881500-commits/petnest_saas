@@ -1,4 +1,5 @@
-// 會員評價卡：單層卡片，不嵌套 ReviewCard。
+// 檔案名稱：lib/features/member/widgets/member_review_card.dart
+// 功能說明：會員評價卡：單層卡片，不嵌套 ReviewCard。
 
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/models/booking_kind.dart';

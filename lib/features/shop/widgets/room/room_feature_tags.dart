@@ -1,5 +1,5 @@
-// lib/features/shop/widgets/room/room_feature_tags.dart
-// 🔥 共用房型特色小卡：顯示房型設備與特色，例如獨立包廂、每日整理、全日監控
+// 檔案名稱：lib/features/shop/widgets/room/room_feature_tags.dart
+// 功能說明：共用房型特色小卡：顯示房型設備與特色，例如獨立包廂、每日整理、全日監控
 
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/models/home_theme_model.dart';
@@ -100,7 +100,7 @@ class RoomFeatureCard extends StatelessWidget {
         border: Border.all(color: borderColor),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.035),
+            color: Colors.black.withValues(alpha: 0.035),
             blurRadius: 8,
             offset: const Offset(0, 3),
           ),

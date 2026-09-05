@@ -1,6 +1,6 @@
-// lib/features/shop/widgets/modern_home/modern_shop_footer.dart
+// 檔案名稱：lib/features/shop/widgets/modern_home/modern_shop_footer.dart
+// 功能說明：顯示店名、營業時間、電話、地址、社群連結與關於我們入口
 // 🏪 新版首頁店家資訊 Footer
-// 功能：顯示店名、營業時間、電話、地址、社群連結與關於我們入口
 
 import 'package:flutter/material.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
@@ -96,7 +96,7 @@ class ModernShopFooter extends StatelessWidget {
                 padding: const EdgeInsets.all(3),
                 alignment: Alignment.center,
                 decoration: BoxDecoration(
-                  color: primaryColor.withOpacity(0.12),
+                  color: primaryColor.withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: ClipRRect(
@@ -447,10 +447,10 @@ class ModernShopFooter extends StatelessWidget {
 
     final iconColor = isEnabled
         ? enabledColor
-        : secondaryTextColor.withOpacity(0.35);
+        : secondaryTextColor.withValues(alpha: 0.35);
 
     final backgroundColor = isEnabled
-        ? primaryColor.withOpacity(0.10)
+        ? primaryColor.withValues(alpha: 0.10)
         : cardColor;
 
     return Tooltip(
@@ -466,7 +466,9 @@ class ModernShopFooter extends StatelessWidget {
             color: backgroundColor,
             borderRadius: BorderRadius.circular(9),
             border: Border.all(
-              color: isEnabled ? borderColor : Colors.black.withOpacity(0.06),
+              color: isEnabled
+                  ? borderColor
+                  : Colors.black.withValues(alpha: 0.06),
             ),
           ),
           child: FaIcon(icon, size: 14, color: iconColor),

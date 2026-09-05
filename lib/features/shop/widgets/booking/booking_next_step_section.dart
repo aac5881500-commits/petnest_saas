@@ -1,5 +1,5 @@
-// lib/features/shop/widgets/booking/booking_next_step_section.dart
-// 🔥 前台預約下一步按鈕：進入填寫資料頁
+// 檔案名稱：lib/features/shop/widgets/booking/booking_next_step_section.dart
+// 功能說明：前台預約下一步按鈕：進入填寫資料頁
 
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/models/booking_fee_line_item.dart';

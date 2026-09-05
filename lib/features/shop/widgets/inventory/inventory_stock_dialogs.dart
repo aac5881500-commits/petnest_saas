@@ -1,6 +1,6 @@
-// lib/features/shop/widgets/inventory/inventory_stock_dialogs.dart
+// 檔案名稱：lib/features/shop/widgets/inventory/inventory_stock_dialogs.dart
+// 功能說明：高風險庫存操作需確認後才寫入，並同時建立批次或異動流水。
 // 📦 進貨、手動出庫與盤點確認對話框
-// 功能：高風險庫存操作需確認後才寫入，並同時建立批次或異動流水。
 
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/constants/inventory_constants.dart';

@@ -1,5 +1,5 @@
-// lib/features/admin/pages/admin_member_detail_page.dart
-// 👤 後台會員詳細頁（改為 shops/{shopId}/members 為主資料來源）
+// 檔案名稱：lib/features/admin/pages/admin_member_detail_page.dart
+// 功能說明：後台會員詳細頁（改為 shops/{shopId}/members 為主資料來源）
 
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -969,7 +969,7 @@ class AdminMemberDetailPage extends StatelessWidget {
                 border: Border.all(color: Colors.orange.shade100),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.04),
+                    color: Colors.black.withValues(alpha: 0.04),
                     blurRadius: 10,
                     offset: const Offset(0, 4),
                   ),
@@ -3043,7 +3043,7 @@ class AdminMemberDetailPage extends StatelessWidget {
           Container(
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: color.withOpacity(0.12),
+              color: color.withValues(alpha: 0.12),
               borderRadius: BorderRadius.circular(10),
             ),
             child: Icon(icon, color: color),
@@ -3286,9 +3286,9 @@ class AdminMemberDetailPage extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.08),
+        color: color.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: color.withOpacity(0.18)),
+        border: Border.all(color: color.withValues(alpha: 0.18)),
       ),
       child: Column(
         children: [

@@ -1,6 +1,6 @@
-// lib/features/auth/widgets/my_shop_open_status_helper.dart
+// 檔案名稱：lib/features/auth/widgets/my_shop_open_status_helper.dart
+// 功能說明：依照 isOpen、openTime、closeTime 判斷目前是否營業中
 // 🕒 我的店家營業狀態判斷工具
-// 功能：依照 isOpen、openTime、closeTime 判斷目前是否營業中
 
 bool isShopOpenNow({
   required bool isOpen,

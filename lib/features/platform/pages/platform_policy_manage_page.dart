@@ -1,6 +1,6 @@
-// lib/features/platform/pages/platform_policy_manage_page.dart
+// 檔案名稱：lib/features/platform/pages/platform_policy_manage_page.dart
+// 功能說明：平台後台管理「平台會員條款」與「創店主條款」
 // 📜 平台條款管理頁
-// 功能：平台後台管理「平台會員條款」與「創店主條款」
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';

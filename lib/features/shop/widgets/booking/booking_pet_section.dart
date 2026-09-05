@@ -1,6 +1,7 @@
-// lib/features/shop/widgets/booking/booking_pet_section.dart
-// 🔥 前台預約寵物選擇區塊：顯示我的寵物、新增寵物、選擇入住寵物
+// 檔案名稱：lib/features/shop/widgets/booking/booking_pet_section.dart
+// 功能說明：前台預約寵物選擇區塊：顯示我的寵物、新增寵物、選擇入住寵物
 
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/models/home_theme_model.dart';
 import 'package:petnest_saas/core/services/pet_service.dart';
@@ -28,12 +29,47 @@ class BookingPetSection extends StatefulWidget {
 }
 
 class _BookingPetSectionState extends State<BookingPetSection> {
-  late final Stream<List<Map<String, dynamic>>> _petsStream;
+  late Stream<List<Map<String, dynamic>>> _petsStream;
+  int _streamEpoch = 0;
+  List<String> _lastNotifiedPetIds = const <String>[];
 
   @override
   void initState() {
     super.initState();
     _petsStream = PetService.instance.streamMyPets();
+  }
+
+  void _reloadPets() {
+    setState(() {
+      _streamEpoch += 1;
+      _lastNotifiedPetIds = const <String>[];
+      _petsStream = PetService.instance.streamMyPets();
+    });
+  }
+
+  void _notifyPetsLoaded(List<Map<String, dynamic>> pets) {
+    final List<String> ids = pets
+        .map((Map<String, dynamic> pet) => (pet['petId'] ?? '').toString())
+        .toList();
+    if (ids.length == _lastNotifiedPetIds.length) {
+      var same = true;
+      for (int i = 0; i < ids.length; i++) {
+        if (ids[i] != _lastNotifiedPetIds[i]) {
+          same = false;
+          break;
+        }
+      }
+      if (same) {
+        return;
+      }
+    }
+    _lastNotifiedPetIds = ids;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) {
+        return;
+      }
+      widget.onPetsLoaded(pets);
+    });
   }
 
   @override
@@ -62,57 +98,47 @@ class _BookingPetSectionState extends State<BookingPetSection> {
             ),
           ),
           StreamBuilder<List<Map<String, dynamic>>>(
+            key: ValueKey<int>(_streamEpoch),
             stream: _petsStream,
             builder:
                 (
                   BuildContext context,
                   AsyncSnapshot<List<Map<String, dynamic>>> snapshot,
                 ) {
-                  final List<Map<String, dynamic>> allPets =
-                      snapshot.data ?? <Map<String, dynamic>>[];
-                  final bool isLimitReached = allPets.length >= 10;
-
-                  return Align(
-                    alignment: Alignment.centerRight,
-                    child: TextButton(
-                      onPressed: isLimitReached
-                          ? null
-                          : () async {
-                              await Navigator.push(
-                                context,
-                                MaterialPageRoute<void>(
-                                  builder: (_) => const AddPetPage(),
-                                ),
-                              );
-                            },
-                      child: Text(
-                        isLimitReached ? '已達上限（10隻）' : '+ 新增寵物',
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: isLimitReached
-                              ? theme.textColor.withValues(alpha: 0.4)
-                              : theme.primaryColor,
-                        ),
+                  final bool loggedOut =
+                      FirebaseAuth.instance.currentUser == null;
+                  if (snapshot.hasError) {
+                    return Padding(
+                      padding: const EdgeInsets.only(top: 12),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: <Widget>[
+                          Text(
+                            '寵物列表載入失敗，請再試一次。',
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: theme.textColor.withValues(alpha: 0.7),
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          OutlinedButton(
+                            onPressed: _reloadPets,
+                            child: const Text('重新載入寵物'),
+                          ),
+                        ],
                       ),
-                    ),
-                  );
-                },
-          ),
-          StreamBuilder<List<Map<String, dynamic>>>(
-            stream: _petsStream,
-            builder:
-                (
-                  BuildContext context,
-                  AsyncSnapshot<List<Map<String, dynamic>>> snapshot,
-                ) {
-                  if (!snapshot.hasData) {
+                    );
+                  }
+                  if (snapshot.connectionState == ConnectionState.waiting &&
+                      !snapshot.hasData) {
                     return const Padding(
-                      padding: EdgeInsets.symmetric(vertical: 12),
+                      padding: EdgeInsets.symmetric(vertical: 16),
                       child: Center(child: CircularProgressIndicator()),
                     );
                   }
 
-                  final List<Map<String, dynamic>> allPets = snapshot.data!;
+                  final List<Map<String, dynamic>> allPets =
+                      snapshot.data ?? <Map<String, dynamic>>[];
                   final List<Map<String, dynamic>> pets = allPets.where((
                     Map<String, dynamic> pet,
                   ) {
@@ -120,74 +146,120 @@ class _BookingPetSectionState extends State<BookingPetSection> {
                     final String species = (pet['species'] ?? '').toString();
                     return type == 'cat' || species == 'cat';
                   }).toList();
+                  _notifyPetsLoaded(pets);
 
-                  widget.onPetsLoaded(pets);
-                  if (pets.isEmpty) {
-                    return Text(
-                      '尚未新增寵物',
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: theme.textColor.withValues(alpha: 0.7),
+                  final bool isLimitReached = allPets.length >= 10;
+
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: <Widget>[
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: TextButton(
+                          onPressed: isLimitReached || loggedOut
+                              ? null
+                              : () async {
+                                  await Navigator.push(
+                                    context,
+                                    MaterialPageRoute<void>(
+                                      builder: (_) => const AddPetPage(),
+                                    ),
+                                  );
+                                  if (mounted) {
+                                    _reloadPets();
+                                  }
+                                },
+                          child: Text(
+                            loggedOut
+                                ? '登入後可新增寵物'
+                                : (isLimitReached ? '已達上限（10隻）' : '+ 新增寵物'),
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: isLimitReached || loggedOut
+                                  ? theme.textColor.withValues(alpha: 0.4)
+                                  : theme.primaryColor,
+                            ),
+                          ),
+                        ),
                       ),
-                    );
-                  }
+                      if (loggedOut)
+                        Text(
+                          '目前尚未登入。請先選擇安親日期與時段；登入後即可選擇寵物並繼續預約。',
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: theme.textColor.withValues(alpha: 0.7),
+                          ),
+                        )
+                      else if (pets.isEmpty)
+                        Text(
+                          '尚未新增寵物',
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: theme.textColor.withValues(alpha: 0.7),
+                          ),
+                        )
+                      else
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: pets.map((Map<String, dynamic> pet) {
+                            final String petId = (pet['petId'] ?? '')
+                                .toString();
+                            final bool selected = widget.selectedPetIds
+                                .contains(petId);
 
-                  return Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: pets.map((Map<String, dynamic> pet) {
-                      final petId = pet['petId'];
-                      final bool selected = widget.selectedPetIds.contains(
-                        petId,
-                      );
-
-                      return FilterChip(
-                        avatar: CircleAvatar(
-                          backgroundColor: Colors.grey.shade200,
-                          backgroundImage:
-                              (pet['photoUrl'] != null &&
-                                  pet['photoUrl'].toString().isNotEmpty)
-                              ? NetworkImage(pet['photoUrl'])
-                              : null,
-                          child:
-                              (pet['photoUrl'] == null ||
-                                  pet['photoUrl'].toString().isEmpty)
-                              ? const Icon(Icons.pets, size: 16)
-                              : null,
-                        ),
-                        label: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: <Widget>[
-                            Text(
-                              pet['name'] ?? '未命名',
-                              style: TextStyle(
-                                fontWeight: FontWeight.w700,
-                                fontSize: 14,
-                                color: theme.textColor,
+                            return FilterChip(
+                              avatar: CircleAvatar(
+                                backgroundColor: Colors.grey.shade200,
+                                backgroundImage:
+                                    (pet['photoUrl'] != null &&
+                                        pet['photoUrl'].toString().isNotEmpty)
+                                    ? NetworkImage(pet['photoUrl'])
+                                    : null,
+                                child:
+                                    (pet['photoUrl'] == null ||
+                                        pet['photoUrl'].toString().isEmpty)
+                                    ? const Icon(Icons.pets, size: 16)
+                                    : null,
                               ),
-                            ),
-                            Text(
-                              '性別：${pet['gender'] ?? '-'} ｜ 貓砂：${pet['litterType'] ?? '-'}',
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: theme.textColor.withValues(alpha: 0.7),
+                              label: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                mainAxisSize: MainAxisSize.min,
+                                children: <Widget>[
+                                  Text(
+                                    pet['name'] ?? '未命名',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.w700,
+                                      fontSize: 14,
+                                      color: theme.textColor,
+                                    ),
+                                  ),
+                                  Text(
+                                    '性別：${pet['gender'] ?? '-'} ｜ 貓砂：${pet['litterType'] ?? '-'}',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: theme.textColor.withValues(
+                                        alpha: 0.7,
+                                      ),
+                                    ),
+                                  ),
+                                ],
                               ),
-                            ),
-                          ],
+                              selected: selected,
+                              selectedColor: const Color(0xFFEAF8EE),
+                              checkmarkColor: const Color(0xFF2E8B47),
+                              side: BorderSide(
+                                color: selected
+                                    ? const Color(0xFF2E8B47)
+                                    : theme.cardBorderColor,
+                              ),
+                              onSelected: (bool value) {
+                                widget.onTogglePet(petId, value);
+                              },
+                            );
+                          }).toList(),
                         ),
-                        selected: selected,
-                        selectedColor: const Color(0xFFEAF8EE),
-                        checkmarkColor: const Color(0xFF2E8B47),
-                        side: BorderSide(
-                          color: selected
-                              ? const Color(0xFF2E8B47)
-                              : theme.cardBorderColor,
-                        ),
-                        onSelected: (bool value) {
-                          widget.onTogglePet(petId, value);
-                        },
-                      );
-                    }).toList(),
+                    ],
                   );
                 },
           ),

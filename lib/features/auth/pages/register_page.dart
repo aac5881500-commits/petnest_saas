@@ -1,4 +1,5 @@
-//🟢 註冊頁 RegisterPage
+// 檔案名稱：lib/features/auth/pages/register_page.dart
+// 功能說明：註冊頁 RegisterPage
 // 功能：
 // - 建立 Firebase 帳號
 // - 建立 Firestore users 資料

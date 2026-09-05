@@ -1,6 +1,6 @@
-// lib/features/shop/widgets/inventory/inventory_batches_tab.dart
+// 檔案名稱：lib/features/shop/widgets/inventory/inventory_batches_tab.dart
+// 功能說明：顯示進貨歷史。批次是進貨紀錄，不追蹤 FIFO 剩餘量。
 // 📦 庫存詳情「進貨紀錄」分頁
-// 功能：顯示進貨歷史。批次是進貨紀錄，不追蹤 FIFO 剩餘量。
 
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/constants/inventory_constants.dart';

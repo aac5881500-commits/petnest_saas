@@ -1,5 +1,5 @@
-// lib/features/platform/pages/platform_shop_list_page.dart
-// 🏪 平台店家列表頁
+// 檔案名稱：lib/features/platform/pages/platform_shop_list_page.dart
+// 功能說明：平台店家列表頁
 // 功能：
 // 1. 顯示所有公開店家
 // 2. 點擊進入店家前台
@@ -243,7 +243,7 @@ class PlatformShopListPage extends StatelessWidget {
                           border: Border.all(color: Colors.grey.shade200),
                           boxShadow: [
                             BoxShadow(
-                              color: Colors.black.withOpacity(0.03),
+                              color: Colors.black.withValues(alpha: 0.03),
                               blurRadius: 8,
                               offset: const Offset(0, 2),
                             ),
@@ -325,7 +325,9 @@ class PlatformShopListPage extends StatelessWidget {
                                       ),
                                       boxShadow: [
                                         BoxShadow(
-                                          color: Colors.black.withOpacity(0.08),
+                                          color: Colors.black.withValues(
+                                            alpha: 0.08,
+                                          ),
                                           blurRadius: 8,
                                         ),
                                       ],

@@ -1,6 +1,6 @@
-// lib/features/admin/widgets/admin_booking_customer_section.dart
+// 檔案名稱：lib/features/admin/widgets/admin_booking_customer_section.dart
+// 功能說明：顯示顧客資料與緊急聯絡人資料
 // 👤 後台訂單詳細頁：顧客資訊區塊
-// 功能：顯示顧客資料與緊急聯絡人資料
 
 import 'package:flutter/material.dart';
 
@@ -22,7 +22,10 @@ class AdminBookingCustomerSection extends StatelessWidget {
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
-          BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10),
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 10,
+          ),
         ],
       ),
       child: Column(

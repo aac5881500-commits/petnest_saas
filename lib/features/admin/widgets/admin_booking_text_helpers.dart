@@ -1,6 +1,6 @@
-// lib/features/admin/widgets/admin_booking_text_helpers.dart
+// 檔案名稱：lib/features/admin/widgets/admin_booking_text_helpers.dart
+// 功能說明：把 status、付款方式、取消來源、操作者角色轉成中文
 // 🔤 後台訂單詳細頁：文字轉換工具
-// 功能：把 status、付款方式、取消來源、操作者角色轉成中文
 
 String adminBookingOperatorRoleText(dynamic value) {
   switch (value) {

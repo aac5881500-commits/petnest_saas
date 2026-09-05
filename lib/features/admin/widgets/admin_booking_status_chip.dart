@@ -1,6 +1,6 @@
-// lib/features/admin/widgets/admin_booking_status_chip.dart
+// 檔案名稱：lib/features/admin/widgets/admin_booking_status_chip.dart
+// 功能說明：依照訂單 status 顯示不同顏色與中文狀態
 // 🏷️ 後台訂單詳細頁：訂單狀態標籤
-// 功能：依照訂單 status 顯示不同顏色與中文狀態
 
 import 'package:flutter/material.dart';
 
@@ -39,7 +39,7 @@ class AdminBookingStatusChip extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
+        color: color.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(20),
       ),
       child: Text(

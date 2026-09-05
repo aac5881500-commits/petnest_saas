@@ -1,6 +1,6 @@
-// functions/payments/payment_settings.js
+// 檔案名稱：functions/payments/payment_settings.js
+// 功能說明：驗證平台金流總開關、店家資格、金流審核狀態
 // ⚙️ 金流設定驗證工具
-// 功能：驗證平台金流總開關、店家資格、金流審核狀態，
 // 以及信用卡、ATM、超商代碼等付款方式是否可以使用。
 
 const {HttpsError} = require("firebase-functions/v2/https");

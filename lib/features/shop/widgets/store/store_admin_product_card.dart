@@ -1,5 +1,5 @@
-// lib/features/shop/widgets/store/store_admin_product_card.dart
-// 🛒 後台商品卡
+// 檔案名稱：lib/features/shop/widgets/store/store_admin_product_card.dart
+// 功能說明：後台商品卡
 
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/constants/inventory_constants.dart';

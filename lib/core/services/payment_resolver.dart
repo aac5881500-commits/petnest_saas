@@ -1,6 +1,6 @@
-// lib/core/services/payment_resolver.dart
+// 檔案名稱：lib/core/services/payment_resolver.dart
+// 功能說明：依店家金流設定、平台狀態與本次收款類型
 // 💳 共用付款方式解析器
-// 功能：依店家金流設定、平台狀態與本次收款類型，
 // 統一判斷會員目前可以使用哪些付款方式。
 
 import '../models/payment_gateway_status.dart';

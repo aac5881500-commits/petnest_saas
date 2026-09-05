@@ -1,5 +1,5 @@
-// lib/features/shop/pages/store/shop_store_hub_page.dart
-// 🛒 店家賣場後台
+// 檔案名稱：lib/features/shop/pages/store/shop_store_hub_page.dart
+// 功能說明：店家賣場後台
 
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/constants/shop_permission_keys.dart';

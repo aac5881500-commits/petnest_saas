@@ -1,3 +1,6 @@
+// 檔案名稱：test/daycare_plan_list_ops_test.dart
+// 功能說明：安親方案列表操作的單元測試（最後一個方案不可刪除）
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:petnest_saas/core/models/daycare_plan_model.dart';
 import 'package:petnest_saas/core/services/daycare_plan_list_ops.dart';

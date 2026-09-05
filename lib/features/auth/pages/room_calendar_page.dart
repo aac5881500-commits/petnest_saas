@@ -1,5 +1,5 @@
-// lib/features/auth/pages/room_calendar_page.dart
-// 🗓 房間日曆（最終完整版🔥 訂單自動上色）
+// 檔案名稱：lib/features/auth/pages/room_calendar_page.dart
+// 功能說明：房間日曆（最終完整版 訂單自動上色）
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -107,7 +107,7 @@ class _RoomCalendarPageState extends State<RoomCalendarPage> {
           final map = Map<String, String>.from(_calendarStatusCache);
 
           for (var doc in docs) {
-            final data = doc.data() as Map<String, dynamic>;
+            final data = doc.data();
 
             final dateKey = data['date']?.toString() ?? '';
             final status = data['status']?.toString() ?? 'available';
@@ -183,7 +183,7 @@ class _RoomCalendarPageState extends State<RoomCalendarPage> {
                           child: Container(
                             width: 72,
                             height: 72,
-                            color: Colors.orange.withOpacity(0.12),
+                            color: Colors.orange.withValues(alpha: 0.12),
                             child: widget.roomImageUrl.isNotEmpty
                                 ? Image.network(
                                     widget.roomImageUrl,
@@ -304,7 +304,7 @@ class _RoomCalendarPageState extends State<RoomCalendarPage> {
                       border: Border.all(color: Colors.grey.shade200),
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.black.withOpacity(0.03),
+                          color: Colors.black.withValues(alpha: 0.03),
                           blurRadius: 10,
                           offset: const Offset(0, 4),
                         ),
@@ -460,11 +460,11 @@ class _RoomCalendarPageState extends State<RoomCalendarPage> {
                                 color: isDisabled
                                     ? Colors.grey.shade100
                                     : status == 'booked'
-                                    ? Colors.deepOrange.withOpacity(0.05)
+                                    ? Colors.deepOrange.withValues(alpha: 0.05)
                                     : status == 'occupied'
-                                    ? Colors.blue.withOpacity(0.06)
+                                    ? Colors.blue.withValues(alpha: 0.06)
                                     : _isBlockedStatus(status)
-                                    ? Colors.black.withOpacity(0.04)
+                                    ? Colors.black.withValues(alpha: 0.04)
                                     : Colors.white,
                                 borderRadius: BorderRadius.circular(12),
                                 border: Border.all(
@@ -472,14 +472,16 @@ class _RoomCalendarPageState extends State<RoomCalendarPage> {
                                       ? Colors.blue
                                       : isDisabled
                                       ? Colors.grey.shade300
-                                      : color.withOpacity(0.35),
+                                      : color.withValues(alpha: 0.35),
                                   width: isSelected ? 2 : 1,
                                 ),
                                 boxShadow: isDisabled
                                     ? []
                                     : [
                                         BoxShadow(
-                                          color: Colors.black.withOpacity(0.04),
+                                          color: Colors.black.withValues(
+                                            alpha: 0.04,
+                                          ),
                                           blurRadius: 6,
                                           offset: const Offset(0, 2),
                                         ),
@@ -1502,7 +1504,7 @@ class _RoomCalendarPageState extends State<RoomCalendarPage> {
     return OutlinedButton(
       style: OutlinedButton.styleFrom(
         foregroundColor: color,
-        side: BorderSide(color: color.withOpacity(0.35)),
+        side: BorderSide(color: color.withValues(alpha: 0.35)),
         padding: const EdgeInsets.symmetric(vertical: 12),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       ),

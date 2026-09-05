@@ -1,6 +1,6 @@
-// lib/features/shop/pages/permissions/inventory_permission_page.dart
+// 檔案名稱：lib/features/shop/pages/permissions/inventory_permission_page.dart
+// 功能說明：依現有店家成員權限架構開關庫存查看、管理、進貨、盤點與成本權限。
 // 📦 庫存管理權限設定頁
-// 功能：依現有店家成員權限架構開關庫存查看、管理、進貨、盤點與成本權限。
 
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/constants/shop_permission_keys.dart';

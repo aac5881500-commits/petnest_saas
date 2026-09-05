@@ -1,5 +1,5 @@
-// lib/core/services/shop_report_format.dart
-// 📊 報表數字格式：金額 NT$ + 千分位、百分比。
+// 檔案名稱：lib/core/services/shop_report_format.dart
+// 功能說明：報表數字格式：金額 NT$ + 千分位、百分比。
 
 import 'package:intl/intl.dart';
 

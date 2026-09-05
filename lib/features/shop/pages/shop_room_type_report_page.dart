@@ -1,5 +1,5 @@
-// lib/features/shop/pages/shop_room_type_report_page.dart
-// 🏠 房型統計：以訂單 snapshot 的房型名稱統計，避免改名失真。
+// 檔案名稱：lib/features/shop/pages/shop_room_type_report_page.dart
+// 功能說明：房型統計：以訂單 snapshot 的房型名稱統計，避免改名失真。
 
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/models/shop_report_models.dart';

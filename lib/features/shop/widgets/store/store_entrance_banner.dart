@@ -1,5 +1,5 @@
-// lib/features/shop/widgets/store/store_entrance_banner.dart
-// 🛒 新版 Beta 首頁賣場入口：是否顯示走賣場模組；外觀走 homeAppearance。
+// 檔案名稱：lib/features/shop/widgets/store/store_entrance_banner.dart
+// 功能說明：新版 Beta 首頁賣場入口：是否顯示走賣場模組；外觀走 homeAppearance。
 
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/models/home_theme_model.dart';

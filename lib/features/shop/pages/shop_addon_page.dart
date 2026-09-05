@@ -1,5 +1,5 @@
-// lib/features/shop/pages/shop_addon_page.dart
-// 🧩 加購服務管理頁（完整版🔥🔥🔥）
+// 檔案名稱：lib/features/shop/pages/shop_addon_page.dart
+// 功能說明：加購服務管理頁（完整版）
 // 👉 已升級：
 // - 預設時間自動建立
 // - 每項都有介紹 desc

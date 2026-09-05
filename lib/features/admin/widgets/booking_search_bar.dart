@@ -1,6 +1,5 @@
-// lib/features/admin/widgets/booking_search_bar.dart
-// 🔍 後台訂單搜尋框
-//
+// 檔案名稱：lib/features/admin/widgets/booking_search_bar.dart
+// 功能說明：後台訂單搜尋框
 // 功能：
 // - 搜尋訂單編號
 // - 搜尋顧客姓名
@@ -31,7 +30,7 @@ class BookingSearchBar extends StatelessWidget {
         border: Border.all(color: Colors.grey.shade200),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.04),
+            color: Colors.black.withValues(alpha: 0.04),
             blurRadius: 12,
             offset: const Offset(0, 4),
           ),

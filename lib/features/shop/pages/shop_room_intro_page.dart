@@ -1,5 +1,5 @@
-// lib/features/shop/pages/shop_room_intro_page.dart
-// 🛏️ 前台房間介紹頁
+// 檔案名稱：lib/features/shop/pages/shop_room_intro_page.dart
+// 功能說明：前台房間介紹頁
 // 顯示店家的房型介紹，讀取 Firestore 房型資料，點擊可進房型詳細頁
 
 import 'package:flutter/material.dart';

@@ -1,6 +1,6 @@
-// lib/features/shop/pages/inventory/shop_inventory_form_page.dart
+// 檔案名稱：lib/features/shop/pages/inventory/shop_inventory_form_page.dart
+// 功能說明：維護品項主檔與代表圖。currentStock 不可在此直接覆蓋，需透過進貨、出庫或盤點。
 // 📦 庫存品項新增／編輯頁
-// 功能：維護品項主檔與代表圖。currentStock 不可在此直接覆蓋，需透過進貨、出庫或盤點。
 
 import 'dart:typed_data';
 

@@ -1,5 +1,5 @@
-// lib/features/shop/widgets/report_range_selector.dart
-// 📅 報表期間選擇器
+// 檔案名稱：lib/features/shop/widgets/report_range_selector.dart
+// 功能說明：報表期間選擇器
 
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';

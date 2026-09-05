@@ -1,6 +1,6 @@
-// lib/core/utils/natural_sort.dart
+// 檔案名稱：lib/core/utils/natural_sort.dart
+// 功能說明：將 A1、A2、A10 等文字依照人類閱讀順序排序
 // 🔢 自然排序工具
-// 功能：將 A1、A2、A10 等文字依照人類閱讀順序排序
 
 int naturalCompare(String first, String second) {
   final firstParts = _splitNaturalParts(first);

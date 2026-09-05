@@ -1,5 +1,5 @@
-// lib/features/shop/widgets/store/store_bundle_card.dart
-// 🛒 前台套裝優惠卡
+// 檔案名稱：lib/features/shop/widgets/store/store_bundle_card.dart
+// 功能說明：前台套裝優惠卡
 
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/models/home_theme_model.dart';

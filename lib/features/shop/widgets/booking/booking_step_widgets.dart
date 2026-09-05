@@ -1,5 +1,5 @@
-// lib/features/shop/widgets/booking/booking_step_widgets.dart
-// 🐾 住宿預約三步驟共用：步驟指示、主題卡片、底部固定欄
+// 檔案名稱：lib/features/shop/widgets/booking/booking_step_widgets.dart
+// 功能說明：住宿預約三步驟共用：步驟指示、主題卡片、底部固定欄
 
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/models/home_theme_model.dart';

@@ -1,3 +1,6 @@
+// 檔案名稱：test/shop_frontend_theme_test.dart
+// 功能說明：店家前台主題的單元測試（int、hex、#、無效值與空值）
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:petnest_saas/core/models/home_theme_model.dart';

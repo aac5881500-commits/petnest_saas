@@ -1,5 +1,5 @@
-// lib/features/pet/pages/pet_detail_page.dart
-// 🐱 前台寵物詳細頁
+// 檔案名稱：lib/features/pet/pages/pet_detail_page.dart
+// 功能說明：前台寵物詳細頁
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';

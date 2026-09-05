@@ -1,5 +1,5 @@
-// lib/features/shop/pages/storefront/my_store_orders_page.dart
-// 🛒 會員商城訂單（與住宿訂單分開）
+// 檔案名稱：lib/features/shop/pages/storefront/my_store_orders_page.dart
+// 功能說明：會員商城訂單（與住宿訂單分開）
 
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/constants/store_constants.dart';

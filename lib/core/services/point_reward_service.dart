@@ -1,6 +1,6 @@
-// lib/core/services/point_reward_service.dart
+// 檔案名稱：lib/core/services/point_reward_service.dart
+// 功能說明：管理店家的點數兌換商品新增、修改、查詢、開關與刪除
 // 🎁 點數兌換商品 Service
-// 功能：管理店家的點數兌換商品新增、修改、查詢、開關與刪除
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';

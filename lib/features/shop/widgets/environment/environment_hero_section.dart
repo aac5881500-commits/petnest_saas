@@ -1,5 +1,5 @@
-// lib/features/shop/widgets/environment/environment_hero_section.dart
-// 🐾 環境介紹 Hero 區塊
+// 檔案名稱：lib/features/shop/widgets/environment/environment_hero_section.dart
+// 功能說明：環境介紹 Hero 區塊
 // 顯示大圖 Banner + 主標題 + 副標題
 
 import 'package:flutter/material.dart';

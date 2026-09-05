@@ -1,6 +1,6 @@
-// lib/features/auth/pages/my_shop_card_media_page.dart
+// 檔案名稱：lib/features/auth/pages/my_shop_card_media_page.dart
+// 功能說明：上傳平台首頁「我的店家卡片」專用大圖與 Logo
 // 🖼️ 我的店家卡片圖片設定頁
-// 功能：上傳平台首頁「我的店家卡片」專用大圖與 Logo
 // 注意：這裡不影響店家前台 coverUrl / logoUrl
 
 import 'package:flutter/material.dart';

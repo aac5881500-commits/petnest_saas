@@ -1,5 +1,5 @@
-// lib/features/shop/widgets/booking/booking_date_section.dart
-// 🔥 前台預約日期區塊：顯示店名、預約狀態提示、已選日期與選擇日期按鈕
+// 檔案名稱：lib/features/shop/widgets/booking/booking_date_section.dart
+// 功能說明：前台預約日期區塊：顯示店名、預約狀態提示、已選日期與選擇日期按鈕
 
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/models/home_theme_model.dart';

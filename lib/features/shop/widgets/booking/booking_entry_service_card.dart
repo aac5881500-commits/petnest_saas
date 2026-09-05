@@ -1,5 +1,5 @@
-// lib/features/shop/widgets/booking/booking_entry_service_card.dart
-// 🐾 前台預約入口大型服務卡片：大照片、圓角、漸層遮罩
+// 檔案名稱：lib/features/shop/widgets/booking/booking_entry_service_card.dart
+// 功能說明：前台預約入口大型服務卡片：大照片、圓角、漸層遮罩
 
 import 'package:flutter/material.dart';
 

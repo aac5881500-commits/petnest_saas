@@ -1,5 +1,5 @@
-// lib/features/booking/widgets/booking_detail/booking_detail_preparation_section.dart
-// 下一步／入住前事項：準備公告、接回、餵食、條款、付款。
+// 檔案名稱：lib/features/booking/widgets/booking_detail/booking_detail_preparation_section.dart
+// 功能說明：下一步／入住前事項：準備公告、接回、餵食、條款、付款。
 
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/models/pre_arrival_guide_model.dart';

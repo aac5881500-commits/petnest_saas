@@ -1,6 +1,6 @@
-// lib/features/shop/pages/shop_verify_request_page.dart
+// 檔案名稱：lib/features/shop/pages/shop_verify_request_page.dart
+// 功能說明：送出特寵字號認證、統編認證、平台公開申請，並上傳審核用照片
 // ✅ 店家認證／平台公開申請頁
-// 功能：送出特寵字號認證、統編認證、平台公開申請，並上傳審核用照片
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';

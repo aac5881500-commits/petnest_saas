@@ -1,6 +1,6 @@
-// functions/platform/create_platform_user.js
+// 檔案名稱：functions/platform/create_platform_user.js
+// 功能說明：由具備平台人員管理權限的管理員輸入 Email
 // ➕ 使用 Email 新增平台人員
-// 功能：由具備平台人員管理權限的管理員輸入 Email，
 // 後端透過 Firebase Authentication 查找 UID，
 // 再建立 platform_users/{uid} 權限資料。
 

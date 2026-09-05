@@ -1,5 +1,5 @@
-// lib/features/shop/pages/shop_report_page.dart
-// 📊 營運報表中心
+// 檔案名稱：lib/features/shop/pages/shop_report_page.dart
+// 功能說明：營運報表中心
 
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/widgets/shop_task_center_button.dart';

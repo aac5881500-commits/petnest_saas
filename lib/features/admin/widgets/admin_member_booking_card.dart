@@ -1,6 +1,5 @@
-// lib/features/admin/widgets/admin_member_booking_card.dart
-// 📦 後台會員詳細頁：會員訂單紀錄卡
-//
+// 檔案名稱：lib/features/admin/widgets/admin_member_booking_card.dart
+// 功能說明：後台會員詳細頁：會員訂單紀錄卡
 // 用途：
 // - 顯示會員的單筆訂單
 // - 從會員詳細頁進入訂單詳細時固定唯讀，避免繞過訂單管理權限
@@ -124,9 +123,9 @@ class AdminMemberBookingCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.12),
+        color: color.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: color.withOpacity(0.35)),
+        border: Border.all(color: color.withValues(alpha: 0.35)),
       ),
       child: Text(
         text,

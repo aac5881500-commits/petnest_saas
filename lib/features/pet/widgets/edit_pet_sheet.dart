@@ -1,5 +1,5 @@
-// lib/features/pet/widgets/edit_pet_sheet.dart
-// 🐾 編輯寵物：接近全螢幕的 Modal Bottom Sheet，與新增寵物共用表單。
+// 檔案名稱：lib/features/pet/widgets/edit_pet_sheet.dart
+// 功能說明：編輯寵物：接近全螢幕的 Modal Bottom Sheet，與新增寵物共用表單。
 
 import 'dart:typed_data';
 

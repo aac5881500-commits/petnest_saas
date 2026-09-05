@@ -1,5 +1,5 @@
-// lib/core/services/report_range.dart
-// 📅 報表期間：今天 / 昨天 / 週 / 月 / 近 7、30 天 / 自訂
+// 檔案名稱：lib/core/services/report_range.dart
+// 功能說明：報表期間：今天 / 昨天 / 週 / 月 / 近 7、30 天 / 自訂
 
 enum ReportRangeType {
   today,

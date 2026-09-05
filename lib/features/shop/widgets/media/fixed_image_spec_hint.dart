@@ -1,5 +1,5 @@
-// lib/features/shop/widgets/media/fixed_image_spec_hint.dart
-// 固定版型圖片上傳區說明文字。
+// 檔案名稱：lib/features/shop/widgets/media/fixed_image_spec_hint.dart
+// 功能說明：固定版型圖片上傳區說明文字。
 
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/models/fixed_image_spec.dart';

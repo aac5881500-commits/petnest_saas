@@ -1,6 +1,6 @@
-// lib/features/shop/widgets/inventory/inventory_overview_tab.dart
+// 檔案名稱：lib/features/shop/widgets/inventory/inventory_overview_tab.dart
+// 功能說明：顯示品項資訊、庫存概況、快速操作與最近異動。沿用既有進貨／出庫／盤點 Dialog。
 // 📦 庫存詳情「總覽」分頁
-// 功能：顯示品項資訊、庫存概況、快速操作與最近異動。沿用既有進貨／出庫／盤點 Dialog。
 
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/constants/inventory_constants.dart';

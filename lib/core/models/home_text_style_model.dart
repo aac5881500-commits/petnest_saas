@@ -1,6 +1,6 @@
-// lib/core/models/home_text_style_model.dart
+// 檔案名稱：lib/core/models/home_text_style_model.dart
+// 功能說明：統一管理 Classic、Modern 首頁可自訂文字的大小、顏色、粗體、陰影與對齊方式
 // 🎨 首頁共用文字樣式 Model
-// 功能：統一管理 Classic、Modern 首頁可自訂文字的大小、顏色、粗體、陰影與對齊方式
 
 import 'package:flutter/material.dart';
 

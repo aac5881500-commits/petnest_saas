@@ -1,6 +1,6 @@
-// lib/features/platform/pages/platform_payment_review_page.dart
+// 檔案名稱：lib/features/platform/pages/platform_payment_review_page.dart
+// 功能說明：平台最高權限查看所有店家的綠界金流申請
 // 💳 平台綠界金流審核列表頁
-// 功能：平台最高權限查看所有店家的綠界金流申請、
 // 審核狀態、付款方式與公開的 MerchantID。
 // 注意：HashKey 與 HashIV 不會在此頁面直接讀取或顯示。
 

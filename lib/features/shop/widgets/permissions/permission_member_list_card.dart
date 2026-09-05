@@ -1,5 +1,5 @@
-// lib/features/shop/widgets/permissions/permission_member_list_card.dart
-// 👥 權限設定 - 目前成員列表卡片
+// 檔案名稱：lib/features/shop/widgets/permissions/permission_member_list_card.dart
+// 功能說明：權限設定 - 目前成員列表卡片
 
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/services/shop_service.dart';

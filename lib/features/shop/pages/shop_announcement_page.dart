@@ -1,6 +1,6 @@
-// lib/features/shop/pages/shop_announcement_page.dart
+// 檔案名稱：lib/features/shop/pages/shop_announcement_page.dart
+// 功能說明：顯示店家已上架公告列表，並依 showAnnouncementSection 控制是否開放
 // 📢 前台店家公告頁
-// 功能：顯示店家已上架公告列表，並依 showAnnouncementSection 控制是否開放
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
@@ -53,7 +53,9 @@ class ShopAnnouncementPage extends StatelessWidget {
             return Center(
               child: Text(
                 '此功能尚未開放',
-                style: TextStyle(color: theme.textColor.withOpacity(0.65)),
+                style: TextStyle(
+                  color: theme.textColor.withValues(alpha: 0.65),
+                ),
               ),
             );
           }
@@ -92,7 +94,7 @@ class ShopAnnouncementPage extends StatelessWidget {
                     '目前尚無公告',
                     style: TextStyle(
                       fontSize: 16,
-                      color: theme.textColor.withOpacity(0.65),
+                      color: theme.textColor.withValues(alpha: 0.65),
                     ),
                   ),
                 );

@@ -1,6 +1,6 @@
-// lib/core/widgets/drawer_point_balance_card.dart
+// 檔案名稱：lib/core/widgets/drawer_point_balance_card.dart
+// 功能說明：點數制度啟用時，顯示會員在目前店家的點數餘額。
 // 🪙 左側選單會員點數卡片
-// 功能：點數制度啟用時，顯示會員在目前店家的點數餘額。
 // 點數制度關閉或會員未登入時完全隱藏，不刪除任何點數資料。
 
 import 'package:firebase_auth/firebase_auth.dart';
@@ -86,7 +86,7 @@ class DrawerPointBalanceCard extends StatelessWidget {
                             width: 34,
                             height: 34,
                             decoration: BoxDecoration(
-                              color: primaryColor.withOpacity(0.12),
+                              color: primaryColor.withValues(alpha: 0.12),
                               shape: BoxShape.circle,
                             ),
                             child: Icon(
@@ -104,7 +104,7 @@ class DrawerPointBalanceCard extends StatelessWidget {
                                 Text(
                                   '目前點數',
                                   style: TextStyle(
-                                    color: textColor.withOpacity(0.72),
+                                    color: textColor.withValues(alpha: 0.72),
                                     fontSize: 11,
                                     fontWeight: FontWeight.w600,
                                   ),
@@ -134,7 +134,7 @@ class DrawerPointBalanceCard extends StatelessWidget {
                           Icon(
                             Icons.chevron_right_rounded,
                             size: 20,
-                            color: textColor.withOpacity(0.55),
+                            color: textColor.withValues(alpha: 0.55),
                           ),
                         ],
                       ),

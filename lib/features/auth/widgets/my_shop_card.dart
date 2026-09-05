@@ -1,6 +1,6 @@
-// lib/features/auth/widgets/my_shop_card.dart
+// 檔案名稱：lib/features/auth/widgets/my_shop_card.dart
+// 功能說明：顯示登入者可管理的店家卡片，包含店家資訊與首頁統計資料
 // 🏪 我的店家卡片
-// 功能：顯示登入者可管理的店家卡片，包含店家資訊與首頁統計資料
 
 import 'package:flutter/material.dart';
 
@@ -28,7 +28,7 @@ class MyShopCard extends StatelessWidget {
           borderRadius: BorderRadius.circular(22),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.05),
+              color: Colors.black.withValues(alpha: 0.05),
               blurRadius: 12,
               offset: const Offset(0, 5),
             ),

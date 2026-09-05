@@ -1,5 +1,5 @@
-// lib/features/shop/pages/shop_export_report_page.dart
-// 📥 依日期範圍匯出選定報表或全部營運資料。
+// 檔案名稱：lib/features/shop/pages/shop_export_report_page.dart
+// 功能說明：依日期範圍匯出選定報表或全部營運資料。
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';

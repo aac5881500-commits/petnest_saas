@@ -1,5 +1,5 @@
-// lib/core/models/booking_kind.dart
-// 🏨 訂單服務種類：住宿 / 臨托
+// 檔案名稱：lib/core/models/booking_kind.dart
+// 功能說明：訂單服務種類：住宿 / 臨托
 // 舊訂單沒有 bookingKind 時一律視為住宿，不可讀取錯誤。
 
 class BookingKind {

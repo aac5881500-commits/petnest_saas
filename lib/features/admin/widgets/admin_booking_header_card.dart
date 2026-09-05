@@ -1,6 +1,6 @@
-// lib/features/admin/widgets/admin_booking_header_card.dart
+// 檔案名稱：lib/features/admin/widgets/admin_booking_header_card.dart
+// 功能說明：顯示訂單編號、房號、房型、晚數、入住日、退房日、下訂時間
 // 🏠 後台訂單詳細頁：房間主卡
-// 功能：顯示訂單編號、房號、房型、晚數、入住日、退房日、下訂時間
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';

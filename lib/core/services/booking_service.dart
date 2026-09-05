@@ -1,6 +1,5 @@
 // 檔案名稱：lib/core/services/booking_service.dart
-// 說明：預約服務層（區間預約版）
-//
+// 功能說明：預約服務層（區間預約版）
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -160,7 +159,6 @@ class BookingService {
     final accountName = shopData['accountName'] ?? '';
     final accountNumber = shopData['accountNumber'] ?? '';
     final depositExpireHours = shopData['depositExpireHours'] ?? 1;
-    final shopName = (shopData['name'] ?? '').toString();
 
     // 🔥 取得寵物資料（快照）
     if (user == null) throw Exception('未登入');
@@ -411,7 +409,6 @@ class BookingService {
     final accountName = shopData['accountName'] ?? '';
     final accountNumber = shopData['accountNumber'] ?? '';
     final depositExpireHours = shopData['depositExpireHours'] ?? 1;
-    final shopName = (shopData['name'] ?? '').toString();
 
     // 🔥 取得寵物資料（快照）
     if (operator == null) throw Exception('未登入');
@@ -1029,24 +1026,6 @@ class BookingService {
     await _bookings.doc(bookingId).update(data);
   }
 
-  bool _isOccupyingBooking(Map<String, dynamic> booking) {
-    final status = booking['status']?.toString() ?? '';
-    return status != 'cancelled';
-  }
-
-  bool _containsStayDate({
-    required DateTime targetDate,
-    required DateTime startDate,
-    required DateTime endDate,
-  }) {
-    final target = _dateOnly(targetDate);
-    final start = _dateOnly(startDate);
-    final end = _dateOnly(endDate);
-
-    return (target.isAtSameMomentAs(start) || target.isAfter(start)) &&
-        target.isBefore(end);
-  }
-
   DateTime? _timestampToDate(dynamic value) {
     if (value is Timestamp) return _dateOnly(value.toDate());
     if (value is DateTime) return _dateOnly(value);
@@ -1242,13 +1221,6 @@ class BookingService {
     final pricePerNight = _toInt(roomType['price']);
 
     return stayDates.length * pricePerNight;
-  }
-
-  String _formatDate(DateTime date) {
-    final y = date.year.toString().padLeft(4, '0');
-    final m = date.month.toString().padLeft(2, '0');
-    final d = date.day.toString().padLeft(2, '0');
-    return '$y-$m-$d';
   }
 
   /// ===============================

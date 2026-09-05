@@ -1,5 +1,5 @@
-// lib/features/shop/pages/shop_pre_arrival_guide_setting_page.dart
-// 店家後台：入住前準備圖文設定（住宿／安親），不是條款。
+// 檔案名稱：lib/features/shop/pages/shop_pre_arrival_guide_setting_page.dart
+// 功能說明：店家後台：入住前準備圖文設定（住宿／安親），不是條款。
 
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/models/pre_arrival_guide_model.dart';

@@ -1,6 +1,6 @@
-// lib/features/shop/widgets/modern_home/modern_staying_daily_care_section.dart
+// 檔案名稱：lib/features/shop/widgets/modern_home/modern_staying_daily_care_section.dart
+// 功能說明：僅在會員於本店 checked_in，且店家啟用每日照護時顯示。
 // 🐾 新版首頁「住宿中的寶貝」入口
-// 功能：僅在會員於本店 checked_in，且店家啟用每日照護時顯示。
 // 不掃整間店訂單，只用 shopId + userId 既有查詢。
 
 import 'package:cloud_firestore/cloud_firestore.dart';

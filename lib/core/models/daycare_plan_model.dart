@@ -1,5 +1,5 @@
-// lib/core/models/daycare_plan_model.dart
-// 🐾 臨托收費方案快照
+// 檔案名稱：lib/core/models/daycare_plan_model.dart
+// 功能說明：臨托收費方案快照
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 

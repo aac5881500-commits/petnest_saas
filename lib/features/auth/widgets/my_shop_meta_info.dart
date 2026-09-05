@@ -1,6 +1,6 @@
-// lib/features/auth/widgets/my_shop_meta_info.dart
+// 檔案名稱：lib/features/auth/widgets/my_shop_meta_info.dart
+// 功能說明：顯示服務類型、營業時間、公開狀態、店家字號、統一編號、最後更新時間
 // 🧾 我的店家營運資訊區
-// 功能：顯示服務類型、營業時間、公開狀態、店家字號、統一編號、最後更新時間
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';

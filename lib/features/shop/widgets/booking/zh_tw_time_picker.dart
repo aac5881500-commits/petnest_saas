@@ -1,5 +1,5 @@
-// lib/features/shop/widgets/booking/zh_tw_time_picker.dart
-// 🐾 24 小時制、繁體中文時間選擇器
+// 檔案名稱：lib/features/shop/widgets/booking/zh_tw_time_picker.dart
+// 功能說明：24 小時制、繁體中文時間選擇器
 
 import 'package:flutter/material.dart';
 

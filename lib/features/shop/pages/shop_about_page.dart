@@ -1,6 +1,6 @@
-// lib/features/shop/pages/shop_about_page.dart
+// 檔案名稱：lib/features/shop/pages/shop_about_page.dart
+// 功能說明：顯示店家品牌介紹、理念、店家訊息與聯絡資訊
 // 🐾 前台關於我們頁
-// 功能：顯示店家品牌介紹、理念、店家訊息與聯絡資訊，
 // 並依照 Classic / Modern 首頁套用共用主題
 
 import 'package:flutter/material.dart';

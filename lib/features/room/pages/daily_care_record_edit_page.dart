@@ -1,6 +1,6 @@
-// lib/features/room/pages/daily_care_record_edit_page.dart
+// 檔案名稱：lib/features/room/pages/daily_care_record_edit_page.dart
+// 功能說明：讓店員填寫一房一天一場的共同照護紀錄。
 // 🐾 每日照護紀錄填寫頁
-// 功能：讓店員填寫一房一天一場的共同照護紀錄。
 // 室內溫度、室內濕度為固定必填欄位，
 // 其他照護項目依店主「每日照護紀錄設定」決定是否顯示。
 

@@ -1,6 +1,6 @@
-// lib/core/models/daily_care_record_model.dart
+// 檔案名稱：lib/core/models/daily_care_record_model.dart
+// 功能說明：保存入住期間「一房 × 一天 × 一場」的照護紀錄。
 // 🐾 每日照護紀錄 Model
-// 功能：保存入住期間「一房 × 一天 × 一場」的照護紀錄。
 // 共用照護項目整房只填一次；個別寵物概況則依 petId 分開保存。
 
 import 'package:cloud_firestore/cloud_firestore.dart';

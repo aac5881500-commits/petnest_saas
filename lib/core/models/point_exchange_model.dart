@@ -1,6 +1,6 @@
-// lib/core/models/point_exchange_model.dart
+// 檔案名稱：lib/core/models/point_exchange_model.dart
+// 功能說明：店主設定會員可使用點數兌換的商品
 // 🪙 點數兌換商品 Model
-// 功能：店主設定會員可使用點數兌換的商品
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 

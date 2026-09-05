@@ -1,6 +1,6 @@
-// lib/features/admin/widgets/admin_booking_extra_charge_section.dart
+// 檔案名稱：lib/features/admin/widgets/admin_booking_extra_charge_section.dart
+// 功能說明：顯示退房額外費用、備註與照片預覽
 // 💸 後台訂單詳細頁：退房額外費用區塊
-// 功能：顯示退房額外費用、備註與照片預覽
 
 import 'package:flutter/material.dart';
 
@@ -21,7 +21,10 @@ class AdminBookingExtraChargeSection extends StatelessWidget {
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
-          BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10),
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 10,
+          ),
         ],
       ),
       child: (extraCharges ?? []).isEmpty

@@ -1,5 +1,5 @@
-// lib/features/room/pages/room_dashboard_page.dart
-// 🏨 房務管理（最終穩定版🔥 小日曆 + 防呆）
+// 檔案名稱：lib/features/room/pages/room_dashboard_page.dart
+// 功能說明：房務管理（最終穩定版 小日曆 + 防呆）
 
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
@@ -157,7 +157,7 @@ class _RoomDashboardPageState extends State<RoomDashboardPage> {
                               ),
                               decoration: BoxDecoration(
                                 color: isSelected
-                                    ? Colors.blue.withOpacity(0.08)
+                                    ? Colors.blue.withValues(alpha: 0.08)
                                     : Colors.transparent,
                                 borderRadius: BorderRadius.circular(12),
                                 border: Border.all(
@@ -1234,9 +1234,9 @@ class _RoomDashboardPageState extends State<RoomDashboardPage> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.15),
+        color: color.withValues(alpha: 0.15),
         borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: color.withOpacity(0.4)),
+        border: Border.all(color: color.withValues(alpha: 0.4)),
       ),
       child: Text(
         text,
@@ -1255,9 +1255,9 @@ class _RoomDashboardPageState extends State<RoomDashboardPage> {
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 10),
         decoration: BoxDecoration(
-          color: color.withOpacity(0.12),
+          color: color.withValues(alpha: 0.12),
           borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: color.withOpacity(0.25)),
+          border: Border.all(color: color.withValues(alpha: 0.25)),
         ),
         child: Column(
           children: [

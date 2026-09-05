@@ -1,5 +1,5 @@
-// lib/core/models/environment_image_frame_setting.dart
-// 環境介紹首頁大圖 / 中間橫幅的高度、填滿方式與位置。
+// 檔案名稱：lib/core/models/environment_image_frame_setting.dart
+// 功能說明：環境介紹首頁大圖 / 中間橫幅的高度、填滿方式與位置。
 // 掛在 shops/{shopId}.environmentIntro，舊資料沒有欄位時使用標準／填滿／置中。
 
 import 'package:flutter/material.dart';

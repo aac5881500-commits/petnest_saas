@@ -1,5 +1,5 @@
-// lib/features/pet/widgets/pet_profile_form.dart
-// 🐾 新增／編輯寵物共用表單視覺與欄位。
+// 檔案名稱：lib/features/pet/widgets/pet_profile_form.dart
+// 功能說明：新增／編輯寵物共用表單視覺與欄位。
 
 import 'dart:typed_data';
 

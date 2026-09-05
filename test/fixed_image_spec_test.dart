@@ -1,3 +1,6 @@
+// 檔案名稱：test/fixed_image_spec_test.dart
+// 功能說明：固定比例圖片規格的單元測試（固定版型規格比例與輸出尺寸）
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:petnest_saas/core/models/about_cover_frame_setting.dart';
 import 'package:petnest_saas/core/models/fixed_image_spec.dart';

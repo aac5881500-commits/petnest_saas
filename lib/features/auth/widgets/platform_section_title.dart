@@ -1,6 +1,6 @@
-// lib/features/auth/widgets/platform_section_title.dart
+// 檔案名稱：lib/features/auth/widgets/platform_section_title.dart
+// 功能說明：顯示首頁各區塊標題
 // 🧩 平台首頁區塊標題
-// 功能：顯示首頁各區塊標題
 
 import 'package:flutter/material.dart';
 

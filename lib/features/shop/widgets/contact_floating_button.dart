@@ -1,5 +1,5 @@
-// lib/features/shop/widgets/contact_floating_button.dart
-// 💬 前台共用聯絡店家懸浮按鈕
+// 檔案名稱：lib/features/shop/widgets/contact_floating_button.dart
+// 功能說明：前台共用聯絡店家懸浮按鈕
 // 功能：
 // - Classic / Modern 首頁共用
 // - 支援拖曳與左右邊緣吸附

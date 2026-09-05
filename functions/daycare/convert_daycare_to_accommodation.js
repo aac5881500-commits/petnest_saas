@@ -1,5 +1,5 @@
-// functions/daycare/convert_daycare_to_accommodation.js
-// 🐾 臨托轉住宿：新開住宿單並互相連結，不覆蓋原臨托服務種類
+// 檔案名稱：functions/daycare/convert_daycare_to_accommodation.js
+// 功能說明：臨托轉住宿：新開住宿單並互相連結，不覆蓋原臨托服務種類
 
 const admin = require("firebase-admin");
 const {onCall, HttpsError} = require("firebase-functions/v2/https");

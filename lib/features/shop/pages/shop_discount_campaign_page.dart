@@ -1,6 +1,6 @@
-// lib/features/shop/pages/shop_discount_campaign_page.dart
+// 檔案名稱：lib/features/shop/pages/shop_discount_campaign_page.dart
+// 功能說明：顯示自動優惠活動、切換啟用狀態、刪除活動
 // 🏷️ 店家優惠活動管理頁
-// 功能：顯示自動優惠活動、切換啟用狀態、刪除活動，
 //      並在新增優惠前先選擇優惠類型
 
 import 'package:flutter/material.dart';

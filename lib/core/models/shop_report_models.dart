@@ -1,5 +1,5 @@
-// lib/core/models/shop_report_models.dart
-// 📊 營運報表唯讀資料列。金額單位為整數新台幣。
+// 檔案名稱：lib/core/models/shop_report_models.dart
+// 功能說明：營運報表唯讀資料列。金額單位為整數新台幣。
 
 import 'package:petnest_saas/core/services/report_range.dart';
 

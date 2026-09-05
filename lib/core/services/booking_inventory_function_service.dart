@@ -1,6 +1,6 @@
-// lib/core/services/booking_inventory_function_service.dart
+// 檔案名稱：lib/core/services/booking_inventory_function_service.dart
+// 功能說明：一般會員不得直接讀寫 inventory_items
 // 🏨 住宿加購／耗材返還 Cloud Functions 呼叫
-// 功能：一般會員不得直接讀寫 inventory_items，
 // 建立訂單扣加購庫存與取消返還改由後端處理。
 
 import 'package:cloud_functions/cloud_functions.dart';

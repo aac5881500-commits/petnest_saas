@@ -1,6 +1,6 @@
-// lib/features/booking/widgets/booking_detail/booking_detail_status_card.dart
+// 檔案名稱：lib/features/booking/widgets/booking_detail/booking_detail_status_card.dart
+// 功能說明：依照訂單狀態、訂金狀態、付款方式顯示目前訂單狀態
 // 📌 客戶端訂單詳細頁：訂單狀態提示卡
-// 功能：依照訂單狀態、訂金狀態、付款方式顯示目前訂單狀態
 
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/models/booking_kind.dart';

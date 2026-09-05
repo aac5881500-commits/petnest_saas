@@ -1,7 +1,5 @@
-// 檔案名稱 lib/features/shop/pages/shop_booking_settings_page.dart
-//
-// 預約管理頁（店家後台）
-//
+// 檔案名稱：lib/features/shop/pages/shop_booking_settings_page.dart
+// 功能說明：預約管理頁（店家後台）
 // 功能：
 // - 預約設定區
 // - 共用月曆顯示

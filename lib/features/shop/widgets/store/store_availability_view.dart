@@ -1,5 +1,5 @@
-// lib/features/shop/widgets/store/store_availability_view.dart
-// 🛒 商城庫存狀態（首頁 / 搜尋 / 分類 / 詳情 / 活動 picker 共用）
+// 檔案名稱：lib/features/shop/widgets/store/store_availability_view.dart
+// 功能說明：商城庫存狀態（首頁 / 搜尋 / 分類 / 詳情 / 活動 picker 共用）
 
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/models/store_product_model.dart';

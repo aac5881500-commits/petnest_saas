@@ -1,6 +1,6 @@
-// lib/features/payment/widgets/ecpay_payment_view_web.dart
+// 檔案名稱：lib/features/payment/widgets/ecpay_payment_view_web.dart
+// 功能說明：將 Cloud Function 回傳的綠界付款 HTML 轉成暫存網址
 // 🌐 綠界付款內容（Web）
-// 功能：將 Cloud Function 回傳的綠界付款 HTML 轉成暫存網址，
 // 並透過瀏覽器新分頁開啟，避免綠界阻擋 iframe 載入。
 
 import 'dart:async';

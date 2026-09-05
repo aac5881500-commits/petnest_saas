@@ -1,6 +1,6 @@
-// functions/payments/payment_callback.js
+// 檔案名稱：functions/payments/payment_callback.js
+// 功能說明：接收綠界付款通知、驗證交易資料與 CheckMacValue
 // 🟢 綠界付款完成 Callback
-// 功能：接收綠界付款通知、驗證交易資料與 CheckMacValue，
 // 並在付款成功後同步更新 payments 與 bookings 的付款狀態。
 // 注意：僅使用 Callback 做驗證與必要欄位同步，
 // 不永久保存完整 Callback 原始資料。

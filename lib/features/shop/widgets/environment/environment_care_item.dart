@@ -1,5 +1,5 @@
-// lib/features/shop/widgets/environment/environment_care_item.dart
-// 🐾 環境介紹安心照護小卡
+// 檔案名稱：lib/features/shop/widgets/environment/environment_care_item.dart
+// 功能說明：環境介紹安心照護小卡
 // 顯示照護設備：Icon、標題、簡短說明
 
 import 'package:flutter/material.dart';

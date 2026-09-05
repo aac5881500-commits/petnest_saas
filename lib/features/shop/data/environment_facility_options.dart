@@ -1,5 +1,5 @@
-// lib/features/shop/data/environment_facility_options.dart
-// 🐾 環境設備固定選項資料庫
+// 檔案名稱：lib/features/shop/data/environment_facility_options.dart
+// 功能說明：環境設備固定選項資料庫
 
 import 'package:flutter/material.dart';
 

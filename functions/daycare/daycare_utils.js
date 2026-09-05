@@ -1,5 +1,5 @@
-// functions/daycare/daycare_utils.js
-// 🐾 臨托共用工具：登入、店家、權限、金額、時間、操作紀錄
+// 檔案名稱：functions/daycare/daycare_utils.js
+// 功能說明：臨托共用工具：登入、店家、權限、金額、時間、操作紀錄
 
 const admin = require("firebase-admin");
 

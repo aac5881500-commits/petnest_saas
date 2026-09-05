@@ -1,4 +1,5 @@
-// 單一上層監聽 shops/{shopId}，解析前台外觀後往下傳。
+// 檔案名稱：lib/core/widgets/shop_frontend_theme_scope.dart
+// 功能說明：單一上層監聽 shops/{shopId}，解析前台外觀後往下傳。
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';

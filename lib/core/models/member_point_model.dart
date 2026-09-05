@@ -1,6 +1,6 @@
-// lib/core/models/member_point_model.dart
+// 檔案名稱：lib/core/models/member_point_model.dart
+// 功能說明：記錄會員在指定店家的目前點數、累積獲得、使用與過期點數
 // 🪙 會員點數資料模型
-// 功能：記錄會員在指定店家的目前點數、累積獲得、使用與過期點數
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 

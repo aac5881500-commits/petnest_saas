@@ -1,6 +1,6 @@
-// lib/core/services/inventory_stock_service.dart
+// 檔案名稱：lib/core/services/inventory_stock_service.dart
+// 功能說明：所有 currentStock 變動都在 Firestore Transaction 中同時寫入異動流水。
 // 📦 中央庫存異動 Service
-// 功能：所有 currentStock 變動都在 Firestore Transaction 中同時寫入異動流水。
 // 自動扣庫存與返還使用確定性 consumption ID，防止重複扣除或重複補庫存。
 
 import 'package:cloud_firestore/cloud_firestore.dart';

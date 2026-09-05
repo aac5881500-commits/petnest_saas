@@ -1,6 +1,6 @@
-// lib/features/shop/pages/shop_payment_setting_page.dart
+// 檔案名稱：lib/features/shop/pages/shop_payment_setting_page.dart
+// 功能說明：使用 Tab 切換訂金設定、優惠設定與點數設定
 // 💳 收款與優惠設定頁
-// 功能：使用 Tab 切換訂金設定、優惠設定與點數設定
 
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/widgets/shop_task_center_button.dart';

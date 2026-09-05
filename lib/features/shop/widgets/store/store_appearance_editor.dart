@@ -1,5 +1,5 @@
-// lib/features/shop/widgets/store/store_appearance_editor.dart
-// 🛒 商城外觀編輯器（賣場功能 → 設定 → 商城外觀）
+// 檔案名稱：lib/features/shop/widgets/store/store_appearance_editor.dart
+// 功能說明：商城外觀編輯器（賣場功能 → 設定 → 商城外觀）
 
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/constants/store_constants.dart';

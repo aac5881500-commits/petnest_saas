@@ -1,6 +1,6 @@
-// lib/core/services/point_exchange_service.dart
+// 檔案名稱：lib/core/services/point_exchange_service.dart
+// 功能說明：使用 Firestore Transaction 完成會員扣點、建立點數流水
 // 🎁 點數兌換 Service
-// 功能：使用 Firestore Transaction 完成會員扣點、建立點數流水、
 // 建立會員優惠券或實體商品兌換紀錄，並同步更新商品與會員兌換次數。
 
 import 'package:cloud_firestore/cloud_firestore.dart';

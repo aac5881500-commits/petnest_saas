@@ -1,6 +1,6 @@
-// lib/features/admin/widgets/admin_booking_dialogs.dart
+// 檔案名稱：lib/features/admin/widgets/admin_booking_dialogs.dart
+// 功能說明：選擇房間、更換房間、取消訂單原因
 // 🪟 後台訂單詳細頁：Dialog 整包
-// 功能：選擇房間、更換房間、取消訂單原因
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';

@@ -1,6 +1,6 @@
-// lib/features/shop/widgets/store/featured_store_products_section.dart
+// 檔案名稱：lib/features/shop/widgets/store/featured_store_products_section.dart
+// 功能說明：熱門房型之後顯示少量 featured 商品。模組未開、前台關閉或沒有商品時整區隱藏。
 // 🛒 新版 Beta 首頁精選商品
-// 功能：熱門房型之後顯示少量 featured 商品。模組未開、前台關閉或沒有商品時整區隱藏。
 
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/models/home_theme_model.dart';

@@ -1,5 +1,5 @@
-// lib/features/admin/pages/admin_member_list_page.dart
-// 👤 會員管理（穩定完整版🔥）
+// 檔案名稱：lib/features/admin/pages/admin_member_list_page.dart
+// 功能說明：會員管理（穩定完整版）
 
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -163,7 +163,6 @@ class _AdminMemberListPageState extends State<AdminMemberListPage> {
                         String adminNote1 =
                             data['adminNote1']?.toString() ?? '';
 
-                        int petCount = (data['petCount'] ?? 0).toInt();
                         List<String> tags = List<String>.from(
                           data['tags'] ?? [],
                         );
@@ -424,7 +423,7 @@ class _AdminMemberListPageState extends State<AdminMemberListPage> {
       margin: const EdgeInsets.only(right: 6, top: 6),
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.12),
+        color: color.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(999),
       ),
       child: Text(
@@ -448,9 +447,9 @@ class _AdminMemberListPageState extends State<AdminMemberListPage> {
       height: 58,
       padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 8),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.08),
+        color: color.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: color.withOpacity(0.18)),
+        border: Border.all(color: color.withValues(alpha: 0.18)),
       ),
       child: Row(
         children: [

@@ -1,5 +1,5 @@
-// lib/features/shop/pages/shop_environment_page.dart
-// 🐾 前台環境介紹頁
+// 檔案名稱：lib/features/shop/pages/shop_environment_page.dart
+// 功能說明：前台環境介紹頁
 // 顯示店家環境介紹、安心設備、環境照片牆
 
 import 'package:cloud_firestore/cloud_firestore.dart';

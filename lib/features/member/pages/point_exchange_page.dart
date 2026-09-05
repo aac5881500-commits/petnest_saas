@@ -1,6 +1,6 @@
-// lib/features/member/pages/point_exchange_page.dart
+// 檔案名稱：lib/features/member/pages/point_exchange_page.dart
+// 功能說明：顯示目前店家的點數兌換商品，並使用 Transaction 完成兌換
 // 🎁 會員點數商城
-// 功能：顯示目前店家的點數兌換商品，並使用 Transaction 完成兌換
 
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';

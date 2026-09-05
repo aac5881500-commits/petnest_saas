@@ -1,5 +1,5 @@
-// lib/features/shop/pages/shop_daycare_booking_page.dart
-// 🐾 前台安親預約：沿用住宿日期表、寵物卡、加值與價格摘要
+// 檔案名稱：lib/features/shop/pages/shop_daycare_booking_page.dart
+// 功能說明：前台安親預約頁，負責日期、時段、寵物、方案與費用確認流程。
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -342,8 +342,56 @@ class _ShopDaycareBookingPageState extends State<ShopDaycareBookingPage> {
                     BuildContext context,
                     AsyncSnapshot<FrontCalendarPayload> snapshot,
                   ) {
-                    if (!snapshot.hasData) {
+                    if (snapshot.connectionState == ConnectionState.waiting) {
                       return const Center(child: CircularProgressIndicator());
+                    }
+                    if (snapshot.hasError) {
+                      return Dialog(
+                        child: Padding(
+                          padding: const EdgeInsets.all(24),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: <Widget>[
+                              const Text('可預約日期載入失敗，請再試一次。'),
+                              const SizedBox(height: 16),
+                              FilledButton(
+                                onPressed: () {
+                                  setState(() {
+                                    _calendarFuture =
+                                        DaycareCalendarHelper.buildPayload(
+                                          shopId: widget.shopId,
+                                          shop: widget.shop,
+                                          settings: widget.settings,
+                                          firstDate: monthStart,
+                                          lastDate: monthEnd,
+                                        );
+                                  });
+                                  setInnerState(() {});
+                                },
+                                child: const Text('重新載入'),
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    }
+                    if (!snapshot.hasData) {
+                      return Dialog(
+                        child: Padding(
+                          padding: const EdgeInsets.all(24),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: <Widget>[
+                              const Text('目前沒有可顯示的安親日期。'),
+                              const SizedBox(height: 16),
+                              TextButton(
+                                onPressed: () => Navigator.pop(context),
+                                child: const Text('關閉'),
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
                     }
                     return BookingCalendarDialog(
                       payload: snapshot.data!,
@@ -677,13 +725,21 @@ class _ShopDaycareBookingPageState extends State<ShopDaycareBookingPage> {
                   labels: const <String>['日期與寵物', '方案與服務', '費用與確認'],
                 ),
                 Expanded(
-                  child: ListView(
+                  child: SingleChildScrollView(
                     padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
-                    children: <Widget>[
-                      if (_step == 1) ..._stepDatePets(theme, slots),
-                      if (_step == 2) ..._stepPlanAddons(theme),
-                      if (_step == 3) ..._stepFees(theme, quote),
-                    ],
+                    child: Center(
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 760),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: <Widget>[
+                            if (_step == 1) ..._stepDatePets(theme, slots),
+                            if (_step == 2) ..._stepPlanAddons(theme),
+                            if (_step == 3) ..._stepFees(theme, quote),
+                          ],
+                        ),
+                      ),
+                    ),
                   ),
                 ),
               ],
@@ -780,6 +836,32 @@ class _ShopDaycareBookingPageState extends State<ShopDaycareBookingPage> {
 
   List<Widget> _stepDatePets(HomeThemeModel theme, List<String> slots) {
     return <Widget>[
+      ..._dateAndTimeCards(theme, slots),
+      const SizedBox(height: 16),
+      BookingPetSection(
+        theme: theme,
+        title: '選擇安親寵物（已選 ${_selectedPetIds.length} 隻）',
+        selectedPetIds: _selectedPetIds,
+        onPetsLoaded: (List<Map<String, dynamic>> pets) {
+          _pets = pets;
+        },
+        onTogglePet: (String petId, bool selected) {
+          setState(() {
+            if (selected) {
+              _selectedPetIds.add(petId);
+            } else {
+              _selectedPetIds.remove(petId);
+            }
+          });
+          _refreshRoomOptions();
+          _loadExtras();
+        },
+      ),
+    ];
+  }
+
+  List<Widget> _dateAndTimeCards(HomeThemeModel theme, List<String> slots) {
+    return <Widget>[
       Text(
         (widget.shop['name'] ?? '').toString(),
         style: TextStyle(
@@ -825,72 +907,57 @@ class _ShopDaycareBookingPageState extends State<ShopDaycareBookingPage> {
               style: TextStyle(color: theme.textColor, fontSize: 13),
             ),
             const SizedBox(height: 12),
-            DropdownButtonFormField<String>(
-              initialValue: _dropOff,
-              decoration: InputDecoration(
-                labelText: '送達時間',
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(14),
+            if (slots.isEmpty)
+              Text(
+                '目前沒有可選時段。請確認店家安親送達／接回時間設定。',
+                style: TextStyle(color: theme.textColor),
+              )
+            else ...<Widget>[
+              DropdownButtonFormField<String>(
+                initialValue: slots.contains(_dropOff) ? _dropOff : null,
+                decoration: InputDecoration(
+                  labelText: '送達時間',
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
                 ),
+                items: slots
+                    .map(
+                      (String item) => DropdownMenuItem<String>(
+                        value: item,
+                        child: Text(item),
+                      ),
+                    )
+                    .toList(),
+                onChanged: (String? value) {
+                  setState(() => _dropOff = value);
+                  _refreshRoomOptions();
+                },
               ),
-              items: slots
-                  .map(
-                    (String item) => DropdownMenuItem<String>(
-                      value: item,
-                      child: Text(item),
-                    ),
-                  )
-                  .toList(),
-              onChanged: (String? value) {
-                setState(() => _dropOff = value);
-                _refreshRoomOptions();
-              },
-            ),
-            const SizedBox(height: 12),
-            DropdownButtonFormField<String>(
-              initialValue: _pickUp,
-              decoration: InputDecoration(
-                labelText: '接回時間',
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(14),
+              const SizedBox(height: 12),
+              DropdownButtonFormField<String>(
+                initialValue: slots.contains(_pickUp) ? _pickUp : null,
+                decoration: InputDecoration(
+                  labelText: '接回時間',
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
                 ),
+                items: slots
+                    .map(
+                      (String item) => DropdownMenuItem<String>(
+                        value: item,
+                        child: Text(item),
+                      ),
+                    )
+                    .toList(),
+                onChanged: (String? value) {
+                  setState(() => _pickUp = value);
+                  _refreshRoomOptions();
+                },
               ),
-              items: slots
-                  .map(
-                    (String item) => DropdownMenuItem<String>(
-                      value: item,
-                      child: Text(item),
-                    ),
-                  )
-                  .toList(),
-              onChanged: (String? value) {
-                setState(() => _pickUp = value);
-                _refreshRoomOptions();
-              },
-            ),
+            ],
           ],
-        ),
-      ),
-      const SizedBox(height: 16),
-      BookingThemedCard(
-        theme: theme,
-        child: BookingPetSection(
-          title: '選擇安親寵物（已選 ${_selectedPetIds.length} 隻）',
-          selectedPetIds: _selectedPetIds,
-          onPetsLoaded: (List<Map<String, dynamic>> pets) {
-            _pets = pets;
-          },
-          onTogglePet: (String petId, bool selected) {
-            setState(() {
-              if (selected) {
-                _selectedPetIds.add(petId);
-              } else {
-                _selectedPetIds.remove(petId);
-              }
-            });
-            _refreshRoomOptions();
-            _loadExtras();
-          },
         ),
       ),
     ];

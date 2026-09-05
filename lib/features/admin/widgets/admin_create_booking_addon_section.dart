@@ -1,6 +1,6 @@
-// lib/features/admin/widgets/admin_create_booking_addon_section.dart
+// 檔案名稱：lib/features/admin/widgets/admin_create_booking_addon_section.dart
+// 功能說明：顯示時間加購、一般加值服務、客製化服務
 // 🎁 後台手動新增訂單：加值服務選擇區塊
-// 功能：顯示時間加購、一般加值服務、客製化服務
 
 import 'package:flutter/material.dart';
 
