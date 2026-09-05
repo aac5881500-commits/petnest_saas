@@ -53,6 +53,49 @@ function isRoomBased(settingsOrBooking) {
   return mode === PRICING_MODES.roomBased;
 }
 
+/**
+ * 與 Flutter DaycarePricingService.quoteTimeCharge 相同：
+ * maxBaseCharge 只限制起步費＋超時加收，不含多寵費。
+ * @param {Object} params
+ * @return {Object}
+ */
+function quoteTimeCharge(params) {
+  const durationMinutes = Math.max(0, toInt(params.durationMinutes, 0));
+  const includedMinutes = Math.max(1, toInt(params.includedMinutes, 1));
+  const extraBillingMinutes = toInt(params.extraBillingMinutes, 60) === 30 ?
+    30 : 60;
+  const extraBillingPrice = toInt(params.extraBillingPrice, 0);
+  const extraPetPrice = toInt(
+      params.extraPetPrice != null ? params.extraPetPrice :
+        params.extraPetSurcharge,
+      0,
+  );
+  const maxBaseCharge = Math.max(0, toInt(params.maxBaseCharge, 0));
+  const petCount = Math.max(1, toInt(params.petCount, 1));
+  const extraMinutes = Math.max(0, Math.min(durationMinutes - includedMinutes,
+      24 * 60));
+  const extraUnits = extraMinutes > 0 ?
+    Math.ceil(extraMinutes / extraBillingMinutes) : 0;
+  const uncappedTimeCharge = toInt(params.basePrice, 0) +
+    extraUnits * extraBillingPrice;
+  const timeCharge = maxBaseCharge > 0 ?
+    Math.min(uncappedTimeCharge, maxBaseCharge) : uncappedTimeCharge;
+  const extraPetCount = Math.max(0, petCount - 1);
+  const extraPetCharge = extraPetCount * extraPetPrice;
+  return {
+    durationMinutes,
+    includedMinutes,
+    extraMinutes,
+    extraUnits,
+    extraBillingMinutes,
+    uncappedTimeCharge,
+    timeCharge,
+    extraPetCount,
+    extraPetCharge,
+    maxBaseCharge,
+  };
+}
+
 function extraTimeAmount(extraMinutes, unitMinutes, unitPrice, roundingMode) {
   if (extraMinutes <= 0 || unitPrice <= 0) {
     return 0;
@@ -101,32 +144,42 @@ function quoteRoom(params) {
   const endAt = params.endAt;
   const minutes = Math.max(0, Math.round((endAt - startAt) / 60000));
   const setting = params.roomSetting || {};
-  const petCount = Math.max(1, toInt(params.petCount, 1));
-  const extraPets = Math.max(0, petCount - 1);
-  const extraTime = extraTimeAmount(
-      Math.max(0, minutes - toInt(setting.baseMinutes, 240)),
-      toInt(setting.extraTimeUnitMinutes, 60),
-      toInt(setting.extraTimePrice, 0),
-      setting.roundingMode,
+  const extraBillingPrice = toInt(
+      setting.extraBillingPrice != null ? setting.extraBillingPrice :
+        setting.extraTimePrice,
+      0,
   );
-  const extraPetAmount = extraPets * toInt(setting.extraPetPrice, 0);
-  const baseAmount = toInt(setting.basePrice, 0);
-  const uncapped = baseAmount + extraPetAmount + extraTime;
-  const capMode = normalizeString(setting.capMode) || CAP_MODES.overnightRate;
-  const cap = capMode === CAP_MODES.fixedAmount ?
-    toInt(setting.fixedCapAmount, 0) : toInt(params.overnightCapAmount, 0);
-  const capped = applyCap(uncapped, capMode, cap);
-  return {
+  const charge = quoteTimeCharge({
+    includedMinutes: setting.includedMinutes != null ?
+      setting.includedMinutes : setting.baseMinutes,
+    basePrice: setting.basePrice,
+    extraBillingMinutes: setting.extraBillingMinutes != null ?
+      setting.extraBillingMinutes : setting.extraTimeUnitMinutes,
+    extraBillingPrice,
+    extraPetPrice: setting.extraPetPrice,
+    maxBaseCharge: setting.maxBaseCharge,
     durationMinutes: minutes,
-    baseAmount,
-    extraPetAmount,
-    extraTimeAmount: extraTime,
-    uncappedRoomAmount: uncapped,
-    capAmount: capMode === CAP_MODES.none ? 0 : cap,
-    cappedRoomAmount: capped,
+    petCount: params.petCount,
+  });
+  return {
+    durationMinutes: charge.durationMinutes,
+    baseAmount: toInt(setting.basePrice, 0),
+    extraPetAmount: charge.extraPetCharge,
+    extraTimeAmount: charge.extraUnits * extraBillingPrice,
+    uncappedRoomAmount: charge.uncappedTimeCharge + charge.extraPetCharge,
+    capAmount: charge.maxBaseCharge,
+    cappedRoomAmount: charge.timeCharge + charge.extraPetCharge,
     roundingMode: normalizeString(setting.roundingMode) ||
       ROUNDING_MODES.ceilHour,
-    capMode,
+    capMode: normalizeString(setting.capMode) || CAP_MODES.none,
+    extraMinutes: charge.extraMinutes,
+    extraUnits: charge.extraUnits,
+    includedMinutes: charge.includedMinutes,
+    extraBillingMinutes: charge.extraBillingMinutes,
+    extraPetCount: charge.extraPetCount,
+    timeCharge: charge.timeCharge,
+    maxBaseCharge: charge.maxBaseCharge,
+    uncappedTimeCharge: charge.uncappedTimeCharge,
   };
 }
 
@@ -239,10 +292,19 @@ function quote(params) {
   const startAt = params.startAt;
   const endAt = params.endAt;
   const minutes = Math.max(0, Math.round((endAt - startAt) / 60000));
-  const petCount = Math.max(1, toInt(params.petCount, 1));
-  const extraPets = Math.max(0, petCount - 1);
-  const extraPetAmount = extraPets * toInt(params.plan.extraPetSurcharge, 0);
-  const computedBase = baseAmount(params.plan, minutes);
+  const plan = params.plan || {};
+  const charge = quoteTimeCharge({
+    includedMinutes: plan.includedMinutes,
+    basePrice: plan.basePrice,
+    extraBillingMinutes: plan.extraBillingMinutes,
+    extraBillingPrice: plan.extraBillingPrice,
+    extraPetPrice: plan.extraPetPrice != null ?
+      plan.extraPetPrice : plan.extraPetSurcharge,
+    maxBaseCharge: plan.maxBaseCharge,
+    durationMinutes: minutes,
+    petCount: params.petCount,
+  });
+  const extraPetAmount = charge.extraPetCharge;
   const roomTypeExtra = toInt(params.roomTypeExtra, 0);
   const addonAmount = toInt(params.addonAmount, 0);
   const surchargeAmount = toInt(params.surchargeAmount, 0);
@@ -251,7 +313,7 @@ function quote(params) {
   const pointAmount = toInt(params.pointAmount, 0);
   const overtimeAmt = toInt(params.overtimeAmount, 0);
   const manualAdjust = toInt(params.manualAdjust, 0);
-  let total = computedBase + extraPetAmount + roomTypeExtra + addonAmount +
+  let total = charge.timeCharge + extraPetAmount + roomTypeExtra + addonAmount +
     surchargeAmount + overtimeAmt + manualAdjust -
     discountAmount - couponAmount - pointAmount;
   if (total < 0) {
@@ -259,8 +321,8 @@ function quote(params) {
   }
   const deposit = depositAmount(params.settings || {}, total);
   return {
-    durationMinutes: minutes,
-    baseAmount: computedBase,
+    durationMinutes: charge.durationMinutes,
+    baseAmount: toInt(plan.basePrice, 0),
     extraPetAmount,
     roomTypeExtra,
     addonAmount,
@@ -273,6 +335,15 @@ function quote(params) {
     totalAmount: total,
     depositAmount: deposit,
     remainingAmount: Math.max(0, total - deposit),
+    extraTimeAmount: charge.extraUnits * toInt(plan.extraBillingPrice, 0),
+    extraMinutes: charge.extraMinutes,
+    extraUnits: charge.extraUnits,
+    includedMinutes: charge.includedMinutes,
+    extraBillingMinutes: charge.extraBillingMinutes,
+    extraPetCount: charge.extraPetCount,
+    timeCharge: charge.timeCharge,
+    maxBaseCharge: charge.maxBaseCharge,
+    uncappedTimeCharge: charge.uncappedTimeCharge,
   };
 }
 
@@ -334,6 +405,7 @@ module.exports = {
   ROUNDING_MODES,
   CAP_MODES,
   baseAmount,
+  quoteTimeCharge,
   depositAmount,
   quote,
   overtimeFee,

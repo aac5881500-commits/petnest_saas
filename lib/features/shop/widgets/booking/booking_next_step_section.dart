@@ -223,6 +223,7 @@ class BookingNextStepSection extends StatelessWidget {
                         theme: theme,
                         termsServiceType: PolicyApplicableService.accommodation,
                         feeLineItems: feeLines,
+                        showSubmitError: false,
                       ),
                     ),
                   );

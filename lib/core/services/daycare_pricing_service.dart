@@ -271,30 +271,41 @@ class DaycarePricingService {
     required String primaryLabel,
     List<BookingFeeLineItem> addonLines = const <BookingFeeLineItem>[],
     String depositType = DaycareDepositTypes.none,
+    bool isRoomBased = false,
+    bool includePayable = true,
   }) {
+    final String overtimeLabel = isRoomBased ? '超時加收' : '超時計費';
+    final String uncappedLabel = isRoomBased ? '房型原計' : '計費原計';
+    final String capDiscountLabel = isRoomBased ? '房型上限折抵' : '計費上限折抵';
+    final String cappedLabel = isRoomBased ? '房型計費' : '方案計費';
     final List<BookingFeeLineItem> lines = <BookingFeeLineItem>[
-      BookingFeeLineItem(label: '起步價格', amount: quote.baseAmount),
+      BookingFeeLineItem(label: '$primaryLabel・起步價格', amount: quote.baseAmount),
     ];
     final int extraTime = quote.extraUnits > 0
         ? (quote.uncappedTimeCharge - quote.baseAmount).clamp(0, 1 << 30)
         : 0;
     if (quote.extraUnits > 0 && extraTime > 0) {
-      lines.add(BookingFeeLineItem(label: '超時計費', amount: extraTime));
+      lines.add(BookingFeeLineItem(label: overtimeLabel, amount: extraTime));
     }
     final bool capHit =
         quote.maxBaseCharge > 0 && quote.timeChargeCapDiscount > 0;
     if (capHit) {
       lines.add(
-        BookingFeeLineItem(label: '時間費原計', amount: quote.uncappedTimeCharge),
+        BookingFeeLineItem(
+          label: uncappedLabel,
+          amount: quote.uncappedTimeCharge,
+        ),
       );
       lines.add(
         BookingFeeLineItem(
-          label: '時間費上限折抵',
+          label: capDiscountLabel,
           amount: -quote.timeChargeCapDiscount,
           kind: BookingFeeLineKind.discount,
         ),
       );
-      lines.add(BookingFeeLineItem(label: '計費後時間費', amount: quote.timeCharge));
+      lines.add(
+        BookingFeeLineItem(label: cappedLabel, amount: quote.timeCharge),
+      );
     }
     if (quote.extraPetCount > 0 && quote.extraPetAmount > 0) {
       lines.add(
@@ -310,15 +321,23 @@ class DaycarePricingService {
       for (final BookingFeeLineItem line in addonLines) {
         addonTotal += line.amount;
       }
-      lines.add(BookingFeeLineItem(label: '加值服務', amount: addonTotal));
+      lines.add(BookingFeeLineItem(label: '加值服務小計', amount: addonTotal));
     }
-    final int discount =
-        quote.discountAmount + quote.couponAmount + quote.pointAmount;
-    if (discount > 0) {
+    if (quote.couponAmount > 0) {
+      lines.add(
+        BookingFeeLineItem(
+          label: '優惠券折抵',
+          amount: -quote.couponAmount,
+          kind: BookingFeeLineKind.discount,
+        ),
+      );
+    }
+    final int otherDiscount = quote.discountAmount + quote.pointAmount;
+    if (otherDiscount > 0) {
       lines.add(
         BookingFeeLineItem(
           label: '優惠折抵',
-          amount: -discount,
+          amount: -otherDiscount,
           kind: BookingFeeLineKind.discount,
         ),
       );
@@ -330,13 +349,15 @@ class DaycarePricingService {
         kind: BookingFeeLineKind.total,
       ),
     );
-    lines.add(
-      BookingFeeLineItem(
-        label: payableLabel(depositType),
-        amount: payableAmount(quote: quote, depositType: depositType),
-        kind: BookingFeeLineKind.payable,
-      ),
-    );
+    if (includePayable) {
+      lines.add(
+        BookingFeeLineItem(
+          label: payableLabel(depositType),
+          amount: payableAmount(quote: quote, depositType: depositType),
+          kind: BookingFeeLineKind.payable,
+        ),
+      );
+    }
     return lines;
   }
 

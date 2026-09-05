@@ -553,7 +553,7 @@ void main() {
       expect(quote.cappedRoomAmount <= 2600, isTrue);
     });
 
-    test('費用明細顯示多寵費與時間費上限折抵，且總額與 quote 相同', () {
+    test('費用明細顯示多寵費與計費上限折抵，且總額與 quote 相同', () {
       final DaycarePricingService pricing = DaycarePricingService.instance;
       const DaycarePlanModel plan = DaycarePlanModel(
         id: 'cap',
@@ -588,7 +588,44 @@ void main() {
         lines.any((BookingFeeLineItem e) => e.label.contains('多寵費')),
         isTrue,
       );
-      expect(lines.any((BookingFeeLineItem e) => e.label == '時間費上限折抵'), isTrue);
+      expect(lines.any((BookingFeeLineItem e) => e.label == '計費上限折抵'), isTrue);
+      final List<BookingFeeLineItem> roomLines = pricing.customerFeeLines(
+        quote: quote,
+        primaryLabel: 'VIP尊爵房',
+        depositType: DaycareDepositTypes.percent,
+        isRoomBased: true,
+      );
+      expect(
+        roomLines.any((BookingFeeLineItem e) => e.label == '房型上限折抵'),
+        isTrue,
+      );
+      expect(
+        DaycarePlanModel.offerDetailLines(
+          includedMinutes: 300,
+          basePrice: 880,
+          extraBillingMinutes: 60,
+          extraBillingPrice: 200,
+          maxBaseCharge: 1500,
+          extraPetPrice: 100,
+          maxPets: 3,
+          enabled: true,
+          roomBased: true,
+        ).contains('此房型最高　NT\$1500'),
+        isTrue,
+      );
+      expect(
+        DaycarePlanModel.offerDetailLines(
+          includedMinutes: 120,
+          basePrice: 200,
+          extraBillingMinutes: 30,
+          extraBillingPrice: 100,
+          maxBaseCharge: 1000,
+          extraPetPrice: 100,
+          maxPets: 3,
+          enabled: true,
+        ).contains('當次最高計費　NT\$1000'),
+        isTrue,
+      );
       expect(
         lines
             .firstWhere(

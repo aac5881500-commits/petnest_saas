@@ -158,7 +158,9 @@ class BookingStickyBar extends StatelessWidget {
           top: false,
           child: Padding(
             padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
-            child: Center(
+            child: Align(
+              alignment: Alignment.center,
+              heightFactor: 1,
               child: ConstrainedBox(
                 constraints: const BoxConstraints(maxWidth: 760),
                 child: child,
@@ -177,27 +179,42 @@ class BookingPrimaryButton extends StatelessWidget {
     required this.theme,
     required this.label,
     required this.onPressed,
+    this.enabled = true,
   });
 
   final HomeThemeModel theme;
   final String label;
   final VoidCallback? onPressed;
+  final bool enabled;
 
   @override
   Widget build(BuildContext context) {
+    final bool canTap = onPressed != null;
+    final bool visuallyEnabled = canTap && enabled;
     return SizedBox(
       width: double.infinity,
       height: 48,
       child: ElevatedButton(
-        onPressed: onPressed,
-        style: ElevatedButton.styleFrom(
-          backgroundColor: theme.primaryColor,
-          foregroundColor: Colors.white,
-          disabledBackgroundColor: theme.cardBorderColor,
-          disabledForegroundColor: theme.textColor.withValues(alpha: 0.4),
-          elevation: 0,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(14),
+        onPressed: canTap
+            ? () {
+                debugPrint(
+                  '[BookingSubmit] 01 button tapped label=$label enabled=$visuallyEnabled',
+                );
+                onPressed!.call();
+              }
+            : null,
+        style: ButtonStyle(
+          elevation: const WidgetStatePropertyAll<double>(0),
+          backgroundColor: WidgetStatePropertyAll<Color>(
+            visuallyEnabled ? theme.primaryColor : theme.cardBorderColor,
+          ),
+          foregroundColor: WidgetStatePropertyAll<Color>(
+            visuallyEnabled
+                ? Colors.white
+                : theme.textColor.withValues(alpha: 0.38),
+          ),
+          shape: WidgetStatePropertyAll<RoundedRectangleBorder>(
+            RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
           ),
         ),
         child: Text(

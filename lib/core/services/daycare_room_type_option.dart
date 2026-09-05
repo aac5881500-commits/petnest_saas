@@ -3,6 +3,7 @@
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:petnest_saas/core/models/daycare_settings_model.dart';
+import 'package:petnest_saas/core/services/daycare_occupancy_service.dart';
 import 'package:petnest_saas/core/services/daycare_pricing_service.dart';
 
 class DaycareRoomTypeOption {
@@ -13,6 +14,7 @@ class DaycareRoomTypeOption {
     required this.capacity,
     required this.selectable,
     this.blockedReason,
+    this.remainingRooms,
     this.estimateAmount = 0,
     this.overtimeSummary = '',
     this.isRoomBased = true,
@@ -24,6 +26,7 @@ class DaycareRoomTypeOption {
   final int capacity;
   final bool selectable;
   final String? blockedReason;
+  final int? remainingRooms;
   final int estimateAmount;
   final String overtimeSummary;
   final bool isRoomBased;
@@ -54,6 +57,7 @@ class DaycareRoomTypeCatalog {
     required String name,
     required int petCount,
     int? dailyRemaining,
+    int? remainingRooms,
     int estimateAmount = 0,
     String overtimeSummary = '',
     bool typeExists = true,
@@ -71,6 +75,8 @@ class DaycareRoomTypeCatalog {
         petCount > 0 &&
         dailyRemaining < petCount) {
       reason = '當日名額已滿';
+    } else if (remainingRooms != null && remainingRooms <= 0) {
+      reason = '此房型目前沒有空房';
     }
     return DaycareRoomTypeOption(
       roomTypeId: setting.roomTypeId,
@@ -79,6 +85,7 @@ class DaycareRoomTypeCatalog {
       capacity: setting.maxPets,
       selectable: reason == null,
       blockedReason: reason,
+      remainingRooms: remainingRooms,
       estimateAmount: estimateAmount,
       overtimeSummary: overtimeSummary,
       isRoomBased: isRoomBased,
@@ -109,6 +116,31 @@ class DaycareRoomTypeCatalog {
             doc.id: doc.data(),
         };
 
+    final QuerySnapshot<Map<String, dynamic>> roomSnap = await FirebaseFirestore
+        .instance
+        .collection('shops')
+        .doc(shopId)
+        .collection('rooms')
+        .get();
+    final QuerySnapshot<Map<String, dynamic>> bookingSnap =
+        await FirebaseFirestore.instance
+            .collection('bookings')
+            .where('shopId', isEqualTo: shopId)
+            .where('status', whereIn: DaycareOccupancyService.activeStatuses)
+            .get();
+    final List<Map<String, dynamic>> rooms = roomSnap.docs
+        .map(
+          (QueryDocumentSnapshot<Map<String, dynamic>> doc) =>
+              <String, dynamic>{'id': doc.id, ...doc.data()},
+        )
+        .toList();
+    final List<Map<String, dynamic>> bookings = bookingSnap.docs
+        .map(
+          (QueryDocumentSnapshot<Map<String, dynamic>> doc) =>
+              <String, dynamic>{'id': doc.id, ...doc.data()},
+        )
+        .toList();
+
     final List<DaycareRoomTypeOption> out = <DaycareRoomTypeOption>[];
     for (final DaycareRoomTypeSetting setting in settings.roomTypes) {
       final String id = setting.roomTypeId.trim();
@@ -132,12 +164,23 @@ class DaycareRoomTypeCatalog {
           roomSetting: setting,
         );
       }
+      int? remainingRooms;
+      if (startAt != null && endAt != null) {
+        remainingRooms = DaycareOccupancyService.remainingRoomsFromData(
+          rooms: rooms,
+          bookings: bookings,
+          roomTypeId: id,
+          startAt: startAt,
+          endAt: endAt,
+        );
+      }
       out.add(
         evaluate(
           setting: setting,
           name: (type?['name'] ?? id).toString(),
           petCount: petCount,
           dailyRemaining: dailyRemaining,
+          remainingRooms: remainingRooms,
           estimateAmount: estimate,
           overtimeSummary: overtimeSummary,
           typeExists: type != null,

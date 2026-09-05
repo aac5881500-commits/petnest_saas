@@ -38,4 +38,23 @@ class TermsConsentSnapshot {
       'policyAcceptedFrom': 'customer',
     };
   }
+
+  /// Cloud Functions Web callable 不可傳 Firestore Timestamp。
+  Map<String, dynamic> toCallableFields() {
+    final String? accepted = termsAcceptedAt?.toUtc().toIso8601String();
+    return <String, dynamic>{
+      'termsType': termsType,
+      'termsVersion': termsVersion,
+      'termsTitle': termsTitle,
+      if (accepted != null) 'termsAcceptedAt': accepted,
+      if (consentRecordId.isNotEmpty) 'consentRecordId': consentRecordId,
+      if (termsVersionDocumentId.isNotEmpty)
+        'termsVersionDocumentId': termsVersionDocumentId,
+      'policyVersion': termsVersion,
+      'policyTitle': termsTitle,
+      if (accepted != null) 'policyAcceptedAt': accepted,
+      'policyAccepted': termsVersion > 0,
+      'policyAcceptedFrom': 'customer',
+    };
+  }
 }

@@ -1366,10 +1366,18 @@ class _ShopBookingPageState extends State<ShopBookingPage> {
     String payAmountType = '',
     TermsConsentSnapshot? termsConsent,
   }) async {
-    /// 🔒 防止卡頓、連點或其他事件重複進入建單流程
-    if (_submitting) return;
+    debugPrint('[BookingSubmit] 11 parent submit entered');
+    if (_submitting) {
+      debugPrint('[BookingSubmit] 03 local submitting locked');
+      return;
+    }
 
-    if (!_formKey.currentState!.validate()) return;
+    final FormState? formState = _formKey.currentState;
+    if (formState != null && !formState.validate()) {
+      debugPrint('[BookingSubmit] 09 local Form validation failed');
+      _showSnackBar('請完整填寫預約資料');
+      return;
+    }
 
     if (_startDate == null || _endDate == null) {
       _showSnackBar('請先選擇入住與退房日期');
@@ -1458,6 +1466,14 @@ class _ShopBookingPageState extends State<ShopBookingPage> {
     try {
       final discountInfo = _calculateMemberCouponInfo(shop);
 
+      debugPrint(
+        '[BookingSubmit] 12 creating booking requestId=$_bookingRequestId coupon=${selectedCoupon?.id ?? ''}',
+      );
+      if (selectedCoupon != null) {
+        debugPrint(
+          '[BookingSubmit] start handling coupon ${selectedCoupon.id}',
+        );
+      }
       createdBookingId = await BookingSubmitHelper.submitBooking(
         shopId: widget.shopId,
         customerName: _customerNameController.text,
@@ -1525,17 +1541,18 @@ class _ShopBookingPageState extends State<ShopBookingPage> {
         requestId: _bookingRequestId!,
         termsConsent: termsConsent,
       );
+      debugPrint('[BookingSubmit] 13 booking created: $createdBookingId');
       if (!mounted) return;
 
       /// 💳 判斷是否為綠界線上付款
       /// 功能：信用卡、ATM、超商代碼會建立綠界付款，
       /// 到店付款與銀行轉帳則維持原本預約完成頁。
-      final bool isEcpayPayment =
-          paymentMethod == 'credit_card' ||
-          paymentMethod == 'atm' ||
-          paymentMethod == 'cvs_code';
+      final bool isEcpayPayment = BookingSubmitHelper.isEcpayPayment(
+        paymentMethod,
+      );
 
       if (isEcpayPayment) {
+        debugPrint('[BookingSubmit] 14 processing payment');
         final int finalTotal = (discountInfo['finalTotalAfterCoupon'] ?? 0)
             .toInt();
 
@@ -1593,7 +1610,8 @@ class _ShopBookingPageState extends State<ShopBookingPage> {
         return;
       }
 
-      /// 💵 到店付款與銀行轉帳維持原本完成頁
+      debugPrint('[BookingSubmit] skip ecpay paymentMethod=$paymentMethod');
+      debugPrint('[BookingSubmit] 15 opening success page');
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(
@@ -1639,9 +1657,14 @@ class _ShopBookingPageState extends State<ShopBookingPage> {
       _rangeMessage = text;
     });
 
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text(text), backgroundColor: Colors.red));
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(text),
+        backgroundColor: Colors.red,
+        behavior: SnackBarBehavior.floating,
+        margin: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+      ),
+    );
   }
 
   DateTime _dateOnly(DateTime date) {

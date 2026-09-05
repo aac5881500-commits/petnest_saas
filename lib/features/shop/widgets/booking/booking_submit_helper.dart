@@ -4,6 +4,7 @@
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart';
 import 'package:petnest_saas/core/models/policy_applicable_service.dart';
 import 'package:petnest_saas/core/models/terms_consent_snapshot.dart';
 import 'package:petnest_saas/core/services/booking_service.dart';
@@ -13,6 +14,12 @@ import 'package:petnest_saas/core/services/shop_policy_service.dart';
 
 class BookingSubmitHelper {
   BookingSubmitHelper._();
+
+  static bool isEcpayPayment(String paymentMethod) {
+    return paymentMethod == 'credit_card' ||
+        paymentMethod == 'atm' ||
+        paymentMethod == 'cvs_code';
+  }
 
   static Future<void> checkDuplicatePetBooking({
     required String shopId,
@@ -269,6 +276,7 @@ class BookingSubmitHelper {
     final String normalizedCouponId = couponId.trim();
 
     if (normalizedCouponId.isNotEmpty) {
+      debugPrint('[BookingSubmit] start reserve coupon $normalizedCouponId');
       try {
         await MemberCouponService.instance.reserveCoupon(
           shopId: shopId,

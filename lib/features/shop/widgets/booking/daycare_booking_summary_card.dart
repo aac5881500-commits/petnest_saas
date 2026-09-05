@@ -1,10 +1,10 @@
 // 檔案名稱：lib/features/shop/widgets/booking/daycare_booking_summary_card.dart
-// 功能說明：臨托預約確認卡片：沿用住宿確認卡視覺
+// 功能說明：安親第三步預約摘要：沿用住宿確認卡視覺，金額改由費用明細顯示
 
 import 'package:flutter/material.dart';
-import 'package:petnest_saas/core/services/daycare_addon_catalog.dart';
-import 'package:petnest_saas/core/services/daycare_pricing_service.dart';
+import 'package:petnest_saas/core/models/home_theme_model.dart';
 import 'package:petnest_saas/core/services/daycare_time_helper.dart';
+import 'package:petnest_saas/features/shop/widgets/booking/booking_step_widgets.dart';
 
 class DaycareBookingSummaryCard extends StatelessWidget {
   const DaycareBookingSummaryCard({
@@ -17,12 +17,10 @@ class DaycareBookingSummaryCard extends StatelessWidget {
     required this.petNames,
     required this.planName,
     required this.roomTypeName,
-    required this.addons,
-    required this.quote,
-    this.couponName = '',
-    this.campaignName = '',
+    this.theme = HomeThemeModel.classicDefault,
   });
 
+  final HomeThemeModel theme;
   final String dateText;
   final String dropOffText;
   final String pickUpText;
@@ -31,105 +29,42 @@ class DaycareBookingSummaryCard extends StatelessWidget {
   final List<String> petNames;
   final String planName;
   final String roomTypeName;
-  final List<Map<String, dynamic>> addons;
-  final DaycareQuote quote;
-  final String couponName;
-  final String campaignName;
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      color: Colors.grey.shade100,
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: <Widget>[
-            const Text(
-              '預約確認',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+    return BookingThemedCard(
+      theme: theme,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Text(
+            '預約摘要',
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w800,
+              color: theme.textColor,
             ),
-            const SizedBox(height: 12),
-            _infoRow('安親日期', dateText),
-            const SizedBox(height: 6),
-            _infoRow('送達時間', dropOffText),
-            const SizedBox(height: 6),
-            _infoRow('接回時間', pickUpText),
-            const SizedBox(height: 6),
-            _infoRow(
-              '預計安親時數',
-              DaycareTimeHelper.durationLabel(durationMinutes),
-            ),
-            const SizedBox(height: 6),
-            _infoRow(
-              '寵物資料與數量',
-              petNames.isEmpty
-                  ? '$petCount 隻'
-                  : '${petNames.join('、')}（$petCount 隻）',
-            ),
-            const SizedBox(height: 6),
-            _infoRow('安親房型／方案', planName),
-            const SizedBox(height: 6),
-            _infoRow('房間', roomTypeName.isEmpty ? '房間將由店家安排' : roomTypeName),
-            if (addons.isNotEmpty) ...<Widget>[
-              const SizedBox(height: 10),
-              const Text(
-                '加值服務',
-                style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 6),
-              ...addons.map((Map<String, dynamic> addon) {
-                return Padding(
-                  padding: const EdgeInsets.only(bottom: 4),
-                  child: _infoRow(
-                    DaycareAddonCatalog.displayName(addon),
-                    '+NT\$ ${addon['amount'] ?? addon['price'] ?? 0}',
-                  ),
-                );
-              }),
-            ],
-            const Divider(),
-            if (quote.surchargeAmount > 0) ...<Widget>[
-              _infoRow('特殊日期加價', '+NT\$ ${quote.surchargeAmount}'),
-              const SizedBox(height: 6),
-            ],
-            if (quote.discountAmount > 0 || quote.couponAmount > 0) ...<Widget>[
-              _infoRow(
-                '原價',
-                'NT\$ ${quote.baseAmount + quote.extraPetAmount + quote.addonAmount + quote.surchargeAmount}',
-              ),
-              const SizedBox(height: 6),
-            ],
-            if (quote.discountAmount > 0) ...<Widget>[
-              _infoRow(
-                campaignName.trim().isEmpty ? '優惠活動折扣' : campaignName,
-                '-NT\$ ${quote.discountAmount}',
-              ),
-              const SizedBox(height: 6),
-            ],
-            if (quote.couponAmount > 0) ...<Widget>[
-              _infoRow(
-                couponName.trim().isEmpty ? '優惠券折扣' : couponName,
-                '-NT\$ ${quote.couponAmount}',
-              ),
-              const SizedBox(height: 6),
-            ],
-            if (quote.pointAmount > 0) ...<Widget>[
-              _infoRow('點數折抵', '-NT\$ ${quote.pointAmount}'),
-              const SizedBox(height: 6),
-            ],
-            _infoRow(
-              (quote.discountAmount > 0 || quote.couponAmount > 0)
-                  ? '折後總價'
-                  : '總金額',
-              'NT\$ ${quote.totalAmount}',
-            ),
-            if (quote.depositAmount > 0) ...<Widget>[
-              const SizedBox(height: 6),
-              _infoRow('本次應付訂金', 'NT\$ ${quote.depositAmount}'),
-            ],
-          ],
-        ),
+          ),
+          const SizedBox(height: 12),
+          _infoRow('安親日期', dateText),
+          const SizedBox(height: 6),
+          _infoRow('送達時間', dropOffText),
+          const SizedBox(height: 6),
+          _infoRow('接回時間', pickUpText),
+          const SizedBox(height: 6),
+          _infoRow('預計安親時數', DaycareTimeHelper.durationLabel(durationMinutes)),
+          const SizedBox(height: 6),
+          _infoRow(
+            '寵物資料與數量',
+            petNames.isEmpty
+                ? '$petCount 隻'
+                : '${petNames.join('、')}（$petCount 隻）',
+          ),
+          const SizedBox(height: 6),
+          _infoRow('安親房型／方案', planName),
+          const SizedBox(height: 6),
+          _infoRow('房間', roomTypeName.isEmpty ? '房間將由店家安排' : roomTypeName),
+        ],
       ),
     );
   }
@@ -142,10 +77,15 @@ class DaycareBookingSummaryCard extends StatelessWidget {
           width: 120,
           child: Text(
             label,
-            style: const TextStyle(fontWeight: FontWeight.bold),
+            style: TextStyle(
+              fontWeight: FontWeight.w700,
+              color: theme.textColor,
+            ),
           ),
         ),
-        Expanded(child: Text(value)),
+        Expanded(
+          child: Text(value, style: TextStyle(color: theme.textColor)),
+        ),
       ],
     );
   }

@@ -2,6 +2,8 @@
 // 功能說明：臨托 Cloud Functions 呼叫
 
 import 'package:cloud_functions/cloud_functions.dart';
+import 'package:flutter/foundation.dart';
+import 'package:petnest_saas/core/utils/callable_payload.dart';
 
 class DaycareFunctionException implements Exception {
   const DaycareFunctionException(this.message);
@@ -51,6 +53,12 @@ class DaycareFunctionService {
   }
 
   Future<Map<String, dynamic>> createBooking(Map<String, dynamic> data) {
+    try {
+      CallablePayload.assertValid(data);
+    } on CallablePayloadException catch (error) {
+      debugPrint(error.debugMessage);
+      throw const DaycareFunctionException(CallablePayload.userMessage);
+    }
     return _call('createDaycareBooking', data);
   }
 

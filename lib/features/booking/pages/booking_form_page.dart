@@ -4,14 +4,20 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:petnest_saas/core/constants/emergency_relation_options.dart';
 import 'package:petnest_saas/core/models/booking_fee_line_item.dart';
+import 'package:petnest_saas/core/models/daycare_settings_model.dart';
 import 'package:petnest_saas/core/models/home_theme_model.dart';
 import 'package:petnest_saas/core/models/policy_applicable_service.dart';
 import 'package:petnest_saas/core/models/terms_consent_snapshot.dart';
 import 'package:petnest_saas/core/services/shop_policy_service.dart';
+import 'package:petnest_saas/core/utils/dropdown_value.dart';
+import 'package:petnest_saas/core/utils/safe_parse.dart';
 import 'package:petnest_saas/features/shop/widgets/booking/booking_step_widgets.dart';
 import 'package:petnest_saas/features/shop/widgets/booking/terms_confirmation_card.dart';
 import 'package:petnest_saas/features/shop/widgets/booking/terms_confirmation_sheet.dart';
+
+enum BookingFormPaymentTestState { loading, error, empty, ready }
 
 class BookingFormPage extends StatefulWidget {
   const BookingFormPage({
@@ -43,6 +49,11 @@ class BookingFormPage extends StatefulWidget {
     this.theme = HomeThemeModel.classicDefault,
     this.termsServiceType = PolicyApplicableService.accommodation,
     this.feeLineItems = const <BookingFeeLineItem>[],
+    this.skipRemoteLoads = false,
+    this.seedMemberData,
+    this.paymentTestState,
+    this.depositOverrideAmount,
+    this.showSubmitError = true,
   });
 
   final GlobalKey<FormState> formKey;
@@ -82,6 +93,22 @@ class BookingFormPage extends StatefulWidget {
   final String termsServiceType;
   final List<BookingFeeLineItem> feeLineItems;
 
+  /// 測試用：略過 Firestore，改用 seed 資料。
+  @visibleForTesting
+  final bool skipRemoteLoads;
+
+  @visibleForTesting
+  final Map<String, dynamic>? seedMemberData;
+
+  @visibleForTesting
+  final BookingFormPaymentTestState? paymentTestState;
+
+  /// 安親等已算好的訂金，避免再被住宿訂金比例覆蓋。
+  final int? depositOverrideAmount;
+
+  /// 若父層已顯示錯誤，避免重複 Snackbar。
+  final bool showSubmitError;
+
   final String shopId;
 
   final Future<void> Function(
@@ -103,7 +130,6 @@ class BookingFormPage extends StatefulWidget {
 }
 
 class _BookingFormPageState extends State<BookingFormPage> {
-  final GlobalKey<FormState> _localFormKey = GlobalKey<FormState>();
   bool _isSubmitting = false;
   bool _depositEnabled = false;
   int _depositAmount = 0;
@@ -132,6 +158,7 @@ class _BookingFormPageState extends State<BookingFormPage> {
 
   final _emergencyNameController = TextEditingController();
   final _emergencyPhoneController = TextEditingController();
+  final _customEmergencyRelationController = TextEditingController();
   String? _emergencyRelation;
   final _emergencyAddressController = TextEditingController();
   final _phone2Controller = TextEditingController();
@@ -525,9 +552,66 @@ class _BookingFormPageState extends State<BookingFormPage> {
   @override
   void initState() {
     super.initState();
+    if (widget.seedMemberData != null) {
+      _applyMemberData(widget.seedMemberData!);
+    }
+    if (widget.skipRemoteLoads) {
+      _applyPaymentTestState(
+        widget.paymentTestState ?? BookingFormPaymentTestState.ready,
+      );
+      _loadingTerms = false;
+      return;
+    }
     _loadMemberData();
     _loadShopPaymentSettings();
     _loadTermsStatus();
+  }
+
+  void _applyPaymentTestState(BookingFormPaymentTestState state) {
+    _cashEnabled = false;
+    _transferEnabled = false;
+    _creditCardEnabled = false;
+    _atmEnabled = false;
+    _cvsCodeEnabled = false;
+    _paymentMethod = null;
+    switch (state) {
+      case BookingFormPaymentTestState.loading:
+        _paymentSettingsLoaded = false;
+        _paymentLoadError = null;
+        break;
+      case BookingFormPaymentTestState.error:
+        _paymentSettingsLoaded = true;
+        _paymentLoadError = '付款方式載入失敗';
+        break;
+      case BookingFormPaymentTestState.empty:
+        _paymentSettingsLoaded = true;
+        _paymentLoadError = null;
+        break;
+      case BookingFormPaymentTestState.ready:
+        _paymentSettingsLoaded = true;
+        _paymentLoadError = null;
+        _cashEnabled = true;
+        _transferEnabled = true;
+        break;
+    }
+    final String? daycareType = widget.daycareDepositType;
+    if (widget.depositOverrideAmount != null ||
+        daycareType == DaycareDepositTypes.fixed ||
+        daycareType == DaycareDepositTypes.percent ||
+        daycareType == DaycareDepositTypes.full) {
+      _depositEnabled = daycareType != DaycareDepositTypes.none;
+      if (daycareType == DaycareDepositTypes.percent) {
+        _depositRate = widget.daycareDepositValue / 100.0;
+        _depositAmount = 0;
+      } else if (daycareType == DaycareDepositTypes.full) {
+        _depositAmount = widget.totalPrice;
+        _depositRate = 0;
+      } else {
+        _depositAmount =
+            widget.depositOverrideAmount ?? widget.daycareDepositValue;
+        _depositRate = 0;
+      }
+    }
   }
 
   Future<void> _loadTermsStatus() async {
@@ -742,9 +826,11 @@ class _BookingFormPageState extends State<BookingFormPage> {
           accepted: true,
           versionUpdated: false,
           version: 0,
-          title: ShopPolicyService.instance.termsTitleForService(
-            widget.termsServiceType,
-          ),
+          title: widget.skipRemoteLoads
+              ? '服務條款'
+              : ShopPolicyService.instance.termsTitleForService(
+                  widget.termsServiceType,
+                ),
         );
     final User? user = _currentAuthUser();
     return TermsConsentSnapshot(
@@ -767,6 +853,7 @@ class _BookingFormPageState extends State<BookingFormPage> {
     _detailAddressController.dispose();
     _emergencyNameController.dispose();
     _emergencyPhoneController.dispose();
+    _customEmergencyRelationController.dispose();
     _emergencyAddressController.dispose();
     _phone2Controller.dispose();
 
@@ -782,6 +869,17 @@ class _BookingFormPageState extends State<BookingFormPage> {
   /// 3. 店家已開啟綠界總開關
   /// 4. 對應的付款方式已核准且已開啟
   Future<void> _loadShopPaymentSettings() async {
+    if (widget.skipRemoteLoads) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _applyPaymentTestState(
+          widget.paymentTestState ?? BookingFormPaymentTestState.ready,
+        );
+      });
+      return;
+    }
     try {
       final DocumentSnapshot<Map<String, dynamic>> document =
           await FirebaseFirestore.instance
@@ -797,7 +895,7 @@ class _BookingFormPageState extends State<BookingFormPage> {
       if (data == null) {
         setState(() {
           _paymentSettingsLoaded = true;
-          _paymentLoadError = '無法載入店家付款設定';
+          _paymentLoadError = '付款方式載入失敗';
           _cashEnabled = false;
           _transferEnabled = false;
         });
@@ -805,7 +903,10 @@ class _BookingFormPageState extends State<BookingFormPage> {
       }
 
       // 💰 訂金設定
-      bool depositEnabled = data['depositEnabled'] == true;
+      bool depositEnabled = SafeParse.parseBool(
+        data['depositEnabled'],
+        fallback: false,
+      );
       String depositType = (data['depositType'] ?? 'fixed').toString();
       String depositBase = (data['depositBase'] ?? 'room').toString();
 
@@ -838,10 +939,13 @@ class _BookingFormPageState extends State<BookingFormPage> {
           .trim()
           .toLowerCase();
 
-      final bool platformSuspended =
-          paymentSetting['platformSuspended'] == true;
+      final bool platformSuspended = SafeParse.parseBool(
+        paymentSetting['platformSuspended'],
+      );
 
-      final bool shopDisabled = paymentSetting['shopDisabled'] == true;
+      final bool shopDisabled = SafeParse.parseBool(
+        paymentSetting['shopDisabled'],
+      );
 
       // 🏪 店家的實際營運開關
       final dynamic rawOperationSettings = paymentSetting['operationSettings'];
@@ -850,12 +954,19 @@ class _BookingFormPageState extends State<BookingFormPage> {
           ? Map<String, dynamic>.from(rawOperationSettings)
           : <String, dynamic>{};
 
-      final bool cashEnabled = operationSettings['cashPaymentEnabled'] ?? true;
+      final bool cashEnabled = SafeParse.parseBool(
+        operationSettings['cashPaymentEnabled'],
+        fallback: true,
+      );
 
-      final bool transferEnabled =
-          operationSettings['bankTransferEnabled'] ?? true;
+      final bool transferEnabled = SafeParse.parseBool(
+        operationSettings['bankTransferEnabled'],
+        fallback: true,
+      );
 
-      final bool ecpayEnabled = operationSettings['ecpayEnabled'] == true;
+      final bool ecpayEnabled = SafeParse.parseBool(
+        operationSettings['ecpayEnabled'],
+      );
 
       // ✅ 平台核准的綠界付款方式
       final dynamic rawApprovedMethods = paymentSetting['enabledMethods'];
@@ -865,17 +976,17 @@ class _BookingFormPageState extends State<BookingFormPage> {
           : <String, dynamic>{};
 
       final bool approvedCreditCard =
-          approvedMethods['creditCard'] == true ||
-          paymentSetting['creditCardEnabled'] == true;
+          SafeParse.parseBool(approvedMethods['creditCard']) ||
+          SafeParse.parseBool(paymentSetting['creditCardEnabled']);
 
       final bool approvedAtm =
-          approvedMethods['atm'] == true ||
-          paymentSetting['atmEnabled'] == true;
+          SafeParse.parseBool(approvedMethods['atm']) ||
+          SafeParse.parseBool(paymentSetting['atmEnabled']);
 
       final bool approvedCvsCode =
-          approvedMethods['cvsCode'] == true ||
-          paymentSetting['cvsCodeEnabled'] == true ||
-          paymentSetting['convenienceStoreCodeEnabled'] == true;
+          SafeParse.parseBool(approvedMethods['cvsCode']) ||
+          SafeParse.parseBool(paymentSetting['cvsCodeEnabled']) ||
+          SafeParse.parseBool(paymentSetting['convenienceStoreCodeEnabled']);
 
       // 🔐 綠界總資格
       final bool canUseEcpay =
@@ -888,15 +999,17 @@ class _BookingFormPageState extends State<BookingFormPage> {
       final bool creditCardEnabled =
           canUseEcpay &&
           approvedCreditCard &&
-          operationSettings['creditCardEnabled'] == true;
+          SafeParse.parseBool(operationSettings['creditCardEnabled']);
 
       final bool atmEnabled =
-          canUseEcpay && approvedAtm && operationSettings['atmEnabled'] == true;
+          canUseEcpay &&
+          approvedAtm &&
+          SafeParse.parseBool(operationSettings['atmEnabled']);
 
       final bool cvsCodeEnabled =
           canUseEcpay &&
           approvedCvsCode &&
-          operationSettings['cvsCodeEnabled'] == true;
+          SafeParse.parseBool(operationSettings['cvsCodeEnabled']);
 
       setState(() {
         _depositEnabled = depositEnabled;
@@ -943,7 +1056,7 @@ class _BookingFormPageState extends State<BookingFormPage> {
       }
       setState(() {
         _paymentSettingsLoaded = true;
-        _paymentLoadError = '無法載入付款設定';
+        _paymentLoadError = '付款方式載入失敗';
         _cashEnabled = false;
         _transferEnabled = false;
       });
@@ -964,106 +1077,140 @@ class _BookingFormPageState extends State<BookingFormPage> {
       final data = doc.data();
       if (data == null) return;
 
-      if (!mounted) return;
+      if (!mounted) {
+        return;
+      }
 
       setState(() {
-        /// 👤 基本資料
-        widget.customerNameController.text = data['name'] ?? '';
-        widget.customerPhoneController.text = data['phone'] ?? '';
-
-        /// 📍 地址（目前先塞詳細地址）
-        final address = data['address'] ?? '';
-
-        /// 🔥 嘗試拆縣市 & 區
-        for (final city in cityData.keys) {
-          if (address.startsWith(city)) {
-            _city = city;
-
-            final districts = cityData[city]!;
-
-            for (final d in districts) {
-              if (address.contains(d)) {
-                _district = d;
-                break;
-              }
-            }
-
-            break;
-          }
-        }
-
-        /// 剩下當詳細地址
-        /// 🔥 去掉縣市 + 區，只留詳細地址
-        String detail = address;
-
-        if (_city != null && detail.startsWith(_city!)) {
-          detail = detail.substring(_city!.length);
-        }
-
-        if (_district != null && detail.startsWith(_district!)) {
-          detail = detail.substring(_district!.length);
-        }
-
-        _detailAddressController.text = detail;
-
-        /// 🚨 緊急聯絡人
-        final emergency = data['emergencyContact'];
-
-        if (emergency != null) {
-          _emergencyNameController.text = emergency['name'] ?? '';
-          _emergencyPhoneController.text = emergency['phone'] ?? '';
-          _emergencyRelation = (emergency['relation'] ?? '').toString().isEmpty
-              ? null
-              : emergency['relation'].toString();
-
-          _emergencyAddressController.text = emergency['address'] ?? '';
-          _phone2Controller.text = emergency['phone2'] ?? '';
-        }
+        _applyMemberData(data);
       });
     } catch (_) {}
   }
 
+  void _applyMemberData(Map<String, dynamic> data) {
+    widget.customerNameController.text = (data['name'] ?? '').toString();
+    widget.customerPhoneController.text = (data['phone'] ?? '').toString();
+
+    final String address = (data['address'] ?? '').toString();
+    _city = null;
+    _district = null;
+    for (final String city in cityData.keys) {
+      if (address.startsWith(city)) {
+        _city = dropdownValueIfAllowed(city, cityData.keys);
+        final List<String> districts = cityData[city] ?? const <String>[];
+        for (final String district in districts) {
+          if (address.contains(district)) {
+            _district = dropdownValueIfAllowed(district, districts);
+            break;
+          }
+        }
+        break;
+      }
+    }
+    _city = dropdownValueIfAllowed(_city, cityData.keys);
+    final List<String> selectedDistricts = _city == null
+        ? const <String>[]
+        : (cityData[_city] ?? const <String>[]);
+    _district = dropdownValueIfAllowed(_district, selectedDistricts);
+
+    String detail = address;
+    if (_city != null && detail.startsWith(_city!)) {
+      detail = detail.substring(_city!.length);
+    }
+    if (_district != null && detail.startsWith(_district!)) {
+      detail = detail.substring(_district!.length);
+    }
+    _detailAddressController.text = detail;
+
+    final dynamic emergency = data['emergencyContact'];
+    if (emergency is Map) {
+      final Map<String, dynamic> map = Map<String, dynamic>.from(emergency);
+      _emergencyNameController.text = (map['name'] ?? '').toString();
+      _emergencyPhoneController.text = (map['phone'] ?? '').toString();
+      _applyEmergencyRelation((map['relation'] ?? '').toString());
+      _emergencyAddressController.text = (map['address'] ?? '').toString();
+      _phone2Controller.text = (map['phone2'] ?? '').toString();
+    }
+  }
+
+  void _applyEmergencyRelation(String raw) {
+    final String relation = raw.trim();
+    if (relation.isEmpty) {
+      _emergencyRelation = null;
+      return;
+    }
+    if (EmergencyRelationOptions.isFixedPreset(relation)) {
+      _emergencyRelation = relation;
+      return;
+    }
+    _emergencyRelation = EmergencyRelationOptions.other;
+    if (relation != EmergencyRelationOptions.other) {
+      _customEmergencyRelationController.text = relation;
+    }
+  }
+
+  String _emergencyRelationForSubmit() {
+    if (_emergencyRelation == EmergencyRelationOptions.other) {
+      return _customEmergencyRelationController.text.trim();
+    }
+    return (_emergencyRelation ?? '').trim();
+  }
+
   Future<void> _handleSubmit(int calculatedDeposit) async {
+    debugPrint('[BookingSubmit] 02 handleSubmit entered');
     if (_isSubmitting) {
+      debugPrint('[BookingSubmit] 03 local submitting locked');
+      return;
+    }
+    final bool valid = widget.formKey.currentState?.validate() ?? false;
+    if (!valid) {
+      debugPrint('[BookingSubmit] 09 local Form validation failed');
+      _showSubmitMessage('請完整填寫預約資料');
       return;
     }
     if (widget.customerNameController.text.trim().isEmpty ||
-        widget.customerPhoneController.text.trim().isEmpty ||
-        _city == null ||
+        widget.customerPhoneController.text.trim().isEmpty) {
+      debugPrint('[BookingSubmit] 04 contact data invalid');
+      _showSubmitMessage('請完整填寫聯絡人姓名與電話');
+      return;
+    }
+    if (_city == null ||
         _district == null ||
-        _detailAddressController.text.trim().isEmpty ||
-        _emergencyNameController.text.trim().isEmpty ||
+        _detailAddressController.text.trim().isEmpty) {
+      debugPrint('[BookingSubmit] 05 address invalid');
+      _showSubmitMessage('請完整填寫地址');
+      return;
+    }
+    if (_emergencyNameController.text.trim().isEmpty ||
         _emergencyPhoneController.text.trim().isEmpty ||
-        (_emergencyRelation ?? '').trim().isEmpty ||
+        _emergencyRelationForSubmit().isEmpty ||
         _emergencyAddressController.text.trim().isEmpty) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('送出預約前，請完整填寫會員資料')));
+      debugPrint('[BookingSubmit] 06 emergency contact invalid');
+      _showSubmitMessage('請完整填寫緊急聯絡人資料');
       return;
     }
     if (_paymentMethod == null) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('請選擇付款方式')));
+      debugPrint('[BookingSubmit] 07 payment method missing');
+      _showSubmitMessage('請選擇付款方式');
       return;
     }
     if (_termsStatus != null &&
         _termsStatus!.required &&
         !_termsStatus!.accepted) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('請確認最新條款')));
+      debugPrint('[BookingSubmit] 08 terms missing');
+      _showSubmitMessage('請確認最新條款');
       return;
     }
     final String fullAddress =
         '${_city ?? ''}${_district ?? ''}${_detailAddressController.text}';
+    debugPrint('[BookingSubmit] 10 calling parent submit');
     setState(() => _isSubmitting = true);
     try {
       await widget.onSubmitWithData(
         fullAddress,
         _emergencyNameController.text,
         _emergencyPhoneController.text,
-        _emergencyRelation ?? '',
+        _emergencyRelationForSubmit(),
         _emergencyAddressController.text,
         _phone2Controller.text,
         calculatedDeposit,
@@ -1074,12 +1221,24 @@ class _BookingFormPageState extends State<BookingFormPage> {
     } catch (error, stackTrace) {
       debugPrint('[BookingSubmit] form submit failed: $error');
       debugPrintStack(stackTrace: stackTrace);
-      rethrow;
+      if (widget.showSubmitError && mounted) {
+        _showSubmitMessage(error.toString());
+      }
     } finally {
       if (mounted) {
         setState(() => _isSubmitting = false);
       }
     }
+  }
+
+  void _showSubmitMessage(String text) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(text),
+        behavior: SnackBarBehavior.floating,
+        margin: const EdgeInsets.fromLTRB(16, 0, 16, 88),
+      ),
+    );
   }
 
   Widget _feeLinesSection(int payableAmount) {
@@ -1151,11 +1310,16 @@ class _BookingFormPageState extends State<BookingFormPage> {
     final int depositBasePrice = _depositBase == 'room'
         ? widget.roomPrice
         : widget.totalPrice;
-    final int rawCalculatedDeposit = _depositEnabled
-        ? (_depositRate > 0
-              ? (depositBasePrice * _depositRate).round()
-              : _depositAmount)
-        : 0;
+    final int rawCalculatedDeposit;
+    if (widget.depositOverrideAmount != null) {
+      rawCalculatedDeposit = widget.depositOverrideAmount!;
+    } else {
+      rawCalculatedDeposit = _depositEnabled
+          ? (_depositRate > 0
+                ? (depositBasePrice * _depositRate).round()
+                : _depositAmount)
+          : 0;
+    }
     final int calculatedDeposit = rawCalculatedDeposit > widget.totalPrice
         ? widget.totalPrice
         : rawCalculatedDeposit;
@@ -1187,301 +1351,356 @@ class _BookingFormPageState extends State<BookingFormPage> {
         ),
       ),
       body: Form(
-        key: _localFormKey,
-        child: ListView(
+        key: widget.formKey,
+        child: SingleChildScrollView(
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 120),
-          children: <Widget>[
-            _sectionCard(
-              title: '聯絡資料',
-              children: <Widget>[
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 14,
-                    vertical: 12,
-                  ),
-                  decoration: BoxDecoration(
-                    color: widget.theme.backgroundColor,
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                  child: Text(
-                    'Email：${user?.email ?? ''}',
-                    style: TextStyle(
-                      fontSize: 13,
-                      color: widget.theme.textColor.withValues(alpha: 0.62),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              _sectionCard(
+                title: '聯絡資料',
+                children: <Widget>[
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 12,
+                    ),
+                    decoration: BoxDecoration(
+                      color: widget.theme.backgroundColor,
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: Text(
+                      'Email：${user?.email ?? ''}',
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: widget.theme.textColor.withValues(alpha: 0.62),
+                      ),
                     ),
                   ),
-                ),
-                const SizedBox(height: 12),
-                TextFormField(
-                  controller: widget.customerNameController,
-                  decoration: _filledDecoration('聯絡人姓名 *'),
-                ),
-                const SizedBox(height: 12),
-                TextFormField(
-                  controller: widget.customerPhoneController,
-                  keyboardType: TextInputType.phone,
-                  onChanged: (_) => setState(() {}),
-                  decoration: _filledDecoration('聯絡電話 *'),
-                ),
-              ],
-            ),
-            _sectionCard(
-              title: '地址',
-              children: <Widget>[
-                DropdownButtonFormField<String>(
-                  value: _city,
-                  decoration: _filledDecoration('縣市 *'),
-                  hint: const Text('選擇縣市'),
-                  items: cityData.keys
-                      .map<DropdownMenuItem<String>>(
-                        (String city) => DropdownMenuItem<String>(
-                          value: city,
-                          child: Text(city),
-                        ),
-                      )
-                      .toList(),
-                  onChanged: (String? value) {
-                    setState(() {
-                      _city = value;
-                      _district = null;
-                    });
-                  },
-                ),
-                const SizedBox(height: 12),
-                DropdownButtonFormField<String>(
-                  value: _district,
-                  decoration: _filledDecoration('鄉鎮 *'),
-                  hint: const Text('選擇區域'),
-                  items: (_city == null ? <String>[] : cityData[_city]!)
-                      .map<DropdownMenuItem<String>>(
-                        (String d) =>
-                            DropdownMenuItem<String>(value: d, child: Text(d)),
-                      )
-                      .toList(),
-                  onChanged: (String? value) {
-                    setState(() => _district = value);
-                  },
-                ),
-                const SizedBox(height: 12),
-                TextFormField(
-                  controller: _detailAddressController,
-                  decoration: _filledDecoration('詳細地址 *'),
-                ),
-              ],
-            ),
-            _sectionCard(
-              title: '緊急聯絡人',
-              children: <Widget>[
-                TextFormField(
-                  controller: _emergencyNameController,
-                  decoration: _filledDecoration('姓名 *'),
-                ),
-                const SizedBox(height: 12),
-                TextFormField(
-                  controller: _emergencyPhoneController,
-                  decoration: _filledDecoration('電話 *'),
-                ),
-                const SizedBox(height: 12),
-                DropdownButtonFormField<String>(
-                  value: _emergencyRelation,
-                  decoration: _filledDecoration('與飼主關係 *'),
-                  items: const <DropdownMenuItem<String>>[
-                    DropdownMenuItem(value: '父母', child: Text('父母')),
-                    DropdownMenuItem(value: '夫妻', child: Text('夫妻')),
-                    DropdownMenuItem(value: '配偶', child: Text('配偶')),
-                    DropdownMenuItem(value: '兄弟姊妹', child: Text('兄弟姊妹')),
-                    DropdownMenuItem(value: '情侶', child: Text('情侶')),
-                    DropdownMenuItem(value: '朋友', child: Text('朋友')),
-                    DropdownMenuItem(value: '其他', child: Text('其他')),
-                  ],
-                  onChanged: (String? value) {
-                    setState(() => _emergencyRelation = value);
-                  },
-                ),
-                const SizedBox(height: 12),
-                SwitchListTile(
-                  contentPadding: EdgeInsets.zero,
-                  title: const Text('同聯絡地址'),
-                  value: _sameAddress,
-                  activeColor: widget.theme.primaryColor,
-                  onChanged: (bool? value) {
-                    setState(() {
-                      _sameAddress = value ?? false;
-                      if (_sameAddress) {
-                        _emergencyAddressController.text =
-                            '${_city ?? ''}${_district ?? ''}${_detailAddressController.text}';
-                      }
-                    });
-                  },
-                ),
-                if (!_sameAddress)
-                  TextFormField(
-                    controller: _emergencyAddressController,
-                    decoration: _filledDecoration('緊急聯絡地址 *'),
-                  ),
-              ],
-            ),
-            _sectionCard(
-              title: '訂單備註',
-              subtitle: '選填',
-              children: <Widget>[
-                TextFormField(
-                  controller: widget.noteController,
-                  maxLines: 3,
-                  decoration: _filledDecoration(
-                    '備註',
-                    hint: '例如：貓咪比較怕生、希望安排安靜一點的位置',
-                  ),
-                ),
-              ],
-            ),
-            _sectionCard(
-              title: '費用與付款',
-              children: <Widget>[
-                _feeLinesSection(payableAmount),
-                if (!_paymentSettingsLoaded)
-                  const Padding(
-                    padding: EdgeInsets.symmetric(vertical: 16),
-                    child: Center(child: CircularProgressIndicator()),
-                  )
-                else if (_paymentLoadError != null)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 8),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: <Widget>[
-                        Text(
-                          _paymentLoadError!,
-                          style: TextStyle(color: widget.theme.primaryColor),
-                        ),
-                        TextButton(
-                          onPressed: () {
-                            setState(() {
-                              _paymentSettingsLoaded = false;
-                              _paymentLoadError = null;
-                            });
-                            _loadShopPaymentSettings();
-                          },
-                          child: const Text('重試'),
-                        ),
-                      ],
-                    ),
-                  )
-                else if (!_cashEnabled &&
-                    !_transferEnabled &&
-                    !_creditCardEnabled &&
-                    !_atmEnabled &&
-                    !_cvsCodeEnabled)
-                  const Padding(
-                    padding: EdgeInsets.only(top: 8),
-                    child: Text('店家目前尚未設定可用的付款方式，請聯絡店家。'),
-                  ),
-                if (_depositEnabled) ...<Widget>[
                   const SizedBox(height: 12),
+                  TextFormField(
+                    controller: widget.customerNameController,
+                    decoration: _filledDecoration('聯絡人姓名 *'),
+                  ),
+                  const SizedBox(height: 12),
+                  TextFormField(
+                    controller: widget.customerPhoneController,
+                    keyboardType: TextInputType.phone,
+                    onChanged: (_) => setState(() {}),
+                    decoration: _filledDecoration('聯絡電話 *'),
+                  ),
+                ],
+              ),
+              _sectionCard(
+                title: '地址',
+                children: <Widget>[
+                  DropdownButtonFormField<String>(
+                    value: dropdownValueIfAllowed(_city, cityData.keys),
+                    decoration: _filledDecoration('縣市 *'),
+                    hint: const Text('選擇縣市'),
+                    items: cityData.keys
+                        .map<DropdownMenuItem<String>>(
+                          (String city) => DropdownMenuItem<String>(
+                            value: city,
+                            child: Text(city),
+                          ),
+                        )
+                        .toList(),
+                    onChanged: (String? value) {
+                      setState(() {
+                        _city = dropdownValueIfAllowed(value, cityData.keys);
+                        _district = null;
+                      });
+                    },
+                  ),
+                  const SizedBox(height: 12),
+                  DropdownButtonFormField<String>(
+                    value: dropdownValueIfAllowed(
+                      _district,
+                      _city == null
+                          ? const <String>[]
+                          : (cityData[_city] ?? const <String>[]),
+                    ),
+                    decoration: _filledDecoration('鄉鎮 *'),
+                    hint: const Text('選擇區域'),
+                    items:
+                        (_city == null
+                                ? const <String>[]
+                                : (cityData[_city] ?? const <String>[]))
+                            .map<DropdownMenuItem<String>>(
+                              (String d) => DropdownMenuItem<String>(
+                                value: d,
+                                child: Text(d),
+                              ),
+                            )
+                            .toList(),
+                    onChanged: (String? value) {
+                      setState(() {
+                        _district = dropdownValueIfAllowed(
+                          value,
+                          _city == null
+                              ? const <String>[]
+                              : (cityData[_city] ?? const <String>[]),
+                        );
+                      });
+                    },
+                  ),
+                  const SizedBox(height: 12),
+                  TextFormField(
+                    controller: _detailAddressController,
+                    decoration: _filledDecoration('詳細地址 *'),
+                  ),
+                ],
+              ),
+              _sectionCard(
+                title: '緊急聯絡人',
+                children: <Widget>[
+                  TextFormField(
+                    controller: _emergencyNameController,
+                    decoration: _filledDecoration('姓名 *'),
+                  ),
+                  const SizedBox(height: 12),
+                  TextFormField(
+                    controller: _emergencyPhoneController,
+                    decoration: _filledDecoration('電話 *'),
+                  ),
+                  const SizedBox(height: 12),
+                  DropdownButtonFormField<String>(
+                    value: dropdownValueIfAllowed(
+                      _emergencyRelation,
+                      EmergencyRelationOptions.presets,
+                    ),
+                    decoration: _filledDecoration('與飼主關係 *'),
+                    items: EmergencyRelationOptions.presets
+                        .map(
+                          (String item) => DropdownMenuItem<String>(
+                            value: item,
+                            child: Text(item),
+                          ),
+                        )
+                        .toList(),
+                    onChanged: (String? value) {
+                      setState(() {
+                        _emergencyRelation = dropdownValueIfAllowed(
+                          value,
+                          EmergencyRelationOptions.presets,
+                        );
+                      });
+                    },
+                  ),
+                  if (_emergencyRelation ==
+                      EmergencyRelationOptions.other) ...<Widget>[
+                    const SizedBox(height: 12),
+                    TextFormField(
+                      controller: _customEmergencyRelationController,
+                      decoration: _filledDecoration('請填寫與飼主關係 *'),
+                      onChanged: (_) => setState(() {}),
+                    ),
+                  ],
+                  const SizedBox(height: 12),
+                  SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text('同聯絡地址'),
+                    value: _sameAddress,
+                    activeColor: widget.theme.primaryColor,
+                    onChanged: (bool? value) {
+                      setState(() {
+                        _sameAddress = value ?? false;
+                        if (_sameAddress) {
+                          _emergencyAddressController.text =
+                              '${_city ?? ''}${_district ?? ''}${_detailAddressController.text}';
+                        }
+                      });
+                    },
+                  ),
+                  if (!_sameAddress)
+                    TextFormField(
+                      controller: _emergencyAddressController,
+                      decoration: _filledDecoration('緊急聯絡地址 *'),
+                    ),
+                ],
+              ),
+              _sectionCard(
+                title: '訂單備註',
+                subtitle: '選填',
+                children: <Widget>[
+                  TextFormField(
+                    controller: widget.noteController,
+                    maxLines: 3,
+                    decoration: _filledDecoration(
+                      '備註',
+                      hint: '例如：貓咪比較怕生、希望安排安靜一點的位置',
+                    ),
+                  ),
+                ],
+              ),
+              _sectionCard(
+                title: '費用與付款',
+                children: <Widget>[
+                  _feeLinesSection(payableAmount),
+                  if (!_paymentSettingsLoaded)
+                    const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 16),
+                      child: Center(child: CircularProgressIndicator()),
+                    )
+                  else if (_paymentLoadError != null)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 8),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: <Widget>[
+                          Text(
+                            '付款方式載入失敗',
+                            style: TextStyle(color: widget.theme.primaryColor),
+                          ),
+                          TextButton(
+                            onPressed: () {
+                              setState(() {
+                                _paymentSettingsLoaded = false;
+                                _paymentLoadError = null;
+                              });
+                              _loadShopPaymentSettings();
+                            },
+                            child: const Text('重新載入'),
+                          ),
+                        ],
+                      ),
+                    )
+                  else if (!_cashEnabled &&
+                      !_transferEnabled &&
+                      !_creditCardEnabled &&
+                      !_atmEnabled &&
+                      !_cvsCodeEnabled)
+                    const Padding(
+                      padding: EdgeInsets.only(top: 8),
+                      child: Text('店家目前尚未設定可用的付款方式，請聯絡店家。'),
+                    ),
+                  if (_depositEnabled) ...<Widget>[
+                    const SizedBox(height: 12),
+                    Text(
+                      '付款金額',
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
+                        color: widget.theme.textColor,
+                      ),
+                    ),
+                    _choiceCard(
+                      title: '先付訂金 NT\$ $calculatedDeposit',
+                      subtitle: '剩餘 NT\$ $remainingAmount 於現場結清',
+                      selected: _payAmountType == 'deposit',
+                      onTap: () => setState(() => _payAmountType = 'deposit'),
+                    ),
+                    _choiceCard(
+                      title: '一次付清 NT\$ ${widget.totalPrice}',
+                      selected: _payAmountType == 'full',
+                      onTap: () => setState(() => _payAmountType = 'full'),
+                    ),
+                  ],
+                  const SizedBox(height: 8),
                   Text(
-                    '付款金額',
+                    '付款方式',
                     style: TextStyle(
                       fontSize: 15,
                       fontWeight: FontWeight.w700,
                       color: widget.theme.textColor,
                     ),
                   ),
-                  _choiceCard(
-                    title: '先付訂金 NT\$ $calculatedDeposit',
-                    subtitle: '剩餘 NT\$ $remainingAmount 於現場結清',
-                    selected: _payAmountType == 'deposit',
-                    onTap: () => setState(() => _payAmountType = 'deposit'),
-                  ),
-                  _choiceCard(
-                    title: '一次付清 NT\$ ${widget.totalPrice}',
-                    selected: _payAmountType == 'full',
-                    onTap: () => setState(() => _payAmountType = 'full'),
-                  ),
-                ],
-                const SizedBox(height: 8),
-                Text(
-                  '付款方式',
-                  style: TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w700,
-                    color: widget.theme.textColor,
-                  ),
-                ),
-                if (_paymentSettingsLoaded &&
-                    _paymentLoadError == null) ...<Widget>[
-                  if (_cashEnabled)
-                    _choiceCard(
-                      title: '到店付款',
-                      selected: _paymentMethod == 'cash',
-                      onTap: () => setState(() => _paymentMethod = 'cash'),
-                    ),
-                  if (_transferEnabled)
-                    _choiceCard(
-                      title: '銀行轉帳',
-                      selected: _paymentMethod == 'transfer',
-                      onTap: () => setState(() => _paymentMethod = 'transfer'),
-                    ),
-                  if (_creditCardEnabled)
-                    _choiceCard(
-                      title: '信用卡',
-                      subtitle: '透過綠界線上付款',
-                      selected: _paymentMethod == 'credit_card',
-                      onTap: () =>
-                          setState(() => _paymentMethod = 'credit_card'),
-                    ),
-                  if (_atmEnabled)
-                    _choiceCard(
-                      title: 'ATM 虛擬帳號',
-                      subtitle: '透過綠界取得轉帳帳號',
-                      selected: _paymentMethod == 'atm',
-                      onTap: () => setState(() => _paymentMethod = 'atm'),
-                    ),
-                  if (_cvsCodeEnabled)
-                    _choiceCard(
-                      title: '超商代碼',
-                      subtitle: '透過綠界取得繳費代碼',
-                      selected: _paymentMethod == 'cvs_code',
-                      onTap: () => setState(() => _paymentMethod = 'cvs_code'),
-                    ),
-                ],
-              ],
-            ),
-            if (_loadingTerms)
-              const Padding(
-                padding: EdgeInsets.symmetric(vertical: 12),
-                child: Center(child: CircularProgressIndicator()),
-              )
-            else if (_termsLoadError)
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: 12),
-                child: Column(
-                  children: <Widget>[
-                    Text(
-                      '條款載入失敗',
-                      style: TextStyle(color: widget.theme.textColor),
-                    ),
-                    TextButton(
-                      onPressed: () {
-                        setState(() {
-                          _loadingTerms = true;
-                          _termsLoadError = false;
-                        });
-                        _loadTermsStatus();
-                      },
-                      child: const Text('重試'),
-                    ),
+                  if (_paymentSettingsLoaded &&
+                      _paymentLoadError == null) ...<Widget>[
+                    if (_cashEnabled)
+                      _choiceCard(
+                        title: '到店付款',
+                        selected: _paymentMethod == 'cash',
+                        onTap: () => setState(() => _paymentMethod = 'cash'),
+                      ),
+                    if (_transferEnabled)
+                      _choiceCard(
+                        title: '銀行轉帳',
+                        selected: _paymentMethod == 'transfer',
+                        onTap: () =>
+                            setState(() => _paymentMethod = 'transfer'),
+                      ),
+                    if (_creditCardEnabled)
+                      _choiceCard(
+                        title: '信用卡',
+                        subtitle: '透過綠界線上付款',
+                        selected: _paymentMethod == 'credit_card',
+                        onTap: () =>
+                            setState(() => _paymentMethod = 'credit_card'),
+                      ),
+                    if (_atmEnabled)
+                      _choiceCard(
+                        title: 'ATM 虛擬帳號',
+                        subtitle: '透過綠界取得轉帳帳號',
+                        selected: _paymentMethod == 'atm',
+                        onTap: () => setState(() => _paymentMethod = 'atm'),
+                      ),
+                    if (_cvsCodeEnabled)
+                      _choiceCard(
+                        title: '超商代碼',
+                        subtitle: '透過綠界取得繳費代碼',
+                        selected: _paymentMethod == 'cvs_code',
+                        onTap: () =>
+                            setState(() => _paymentMethod = 'cvs_code'),
+                      ),
                   ],
-                ),
-              )
-            else if (_termsStatus != null)
-              TermsConfirmationCard(
-                theme: widget.theme,
-                serviceType: widget.termsServiceType,
-                status: _termsStatus!,
-                onTap: _openTermsSheet,
+                ],
               ),
-          ],
+              if (_loadingTerms)
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 12),
+                  child: Center(child: CircularProgressIndicator()),
+                )
+              else if (_termsLoadError)
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  child: Column(
+                    children: <Widget>[
+                      Text(
+                        '條款載入失敗',
+                        style: TextStyle(color: widget.theme.textColor),
+                      ),
+                      TextButton(
+                        onPressed: () {
+                          setState(() {
+                            _loadingTerms = true;
+                            _termsLoadError = false;
+                          });
+                          _loadTermsStatus();
+                        },
+                        child: const Text('重試'),
+                      ),
+                    ],
+                  ),
+                )
+              else if (_termsStatus != null)
+                TermsConfirmationCard(
+                  theme: widget.theme,
+                  serviceType: widget.termsServiceType,
+                  status: _termsStatus!,
+                  onTap: _openTermsSheet,
+                ),
+              const SizedBox(height: 16),
+              BookingPrimaryButton(
+                theme: widget.theme,
+                label: widget.submitLabel,
+                enabled: canPressSubmit,
+                onPressed: () {
+                  if (!canPressSubmit) {
+                    final String reason = submitHint.isNotEmpty
+                        ? submitHint
+                        : '請先完成付款方式與條款確認';
+                    debugPrint('[BookingSubmit] 01 ignored: $reason');
+                    _showSubmitMessage(reason);
+                    return;
+                  }
+                  _handleSubmit(calculatedDeposit);
+                },
+              ),
+            ],
+          ),
         ),
       ),
       bottomNavigationBar: BookingStickyBar(
@@ -1494,8 +1713,8 @@ class _BookingFormPageState extends State<BookingFormPage> {
                 padding: const EdgeInsets.only(bottom: 8),
                 child: Text(
                   submitHint,
-                  style: const TextStyle(
-                    color: Color(0xFFC45C26),
+                  style: TextStyle(
+                    color: widget.theme.primaryColor,
                     fontWeight: FontWeight.w600,
                   ),
                 ),
@@ -1503,9 +1722,24 @@ class _BookingFormPageState extends State<BookingFormPage> {
             BookingPrimaryButton(
               theme: widget.theme,
               label: widget.submitLabel,
-              onPressed: canPressSubmit
-                  ? () => _handleSubmit(calculatedDeposit)
-                  : null,
+              enabled: canPressSubmit,
+              onPressed: () {
+                if (!canPressSubmit) {
+                  final String reason = submitHint.isNotEmpty
+                      ? submitHint
+                      : widget.isBlacklisted
+                      ? '目前無法使用預約功能'
+                      : !widget.canSubmit
+                      ? '預約條件尚未完成'
+                      : _isSubmitting || widget.isSubmitting
+                      ? '正在送出，請稍候'
+                      : '請先完成付款方式與條款確認';
+                  debugPrint('[BookingSubmit] 01 ignored: $reason');
+                  _showSubmitMessage(reason);
+                  return;
+                }
+                _handleSubmit(calculatedDeposit);
+              },
             ),
           ],
         ),

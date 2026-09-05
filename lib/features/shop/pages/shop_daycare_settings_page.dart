@@ -852,7 +852,7 @@ class _PlanEditorState extends State<_PlanEditor> {
                 controller: _maxCharge,
                 keyboardType: TextInputType.number,
                 decoration: const InputDecoration(
-                  labelText: '當次最高時間費用',
+                  labelText: '當次最高計費',
                   helperText: '僅限制起步價與超時計費，不包含多寵費及加值服務；填寫 0 代表不限制。',
                 ),
               ),
@@ -1149,7 +1149,7 @@ class _RoomPricingEditor extends StatelessWidget {
                       _numTile('每多 1 隻寵物加收', current.extraPetPrice, (int v) {
                         _upsert(current.copyWith(extraPetPrice: v));
                       }),
-                      _numTile('當次最高時間費用（0 不限制）', current.maxBaseCharge, (
+                      _numTile('此房型最高收費上限（0 不限制）', current.maxBaseCharge, (
                         int v,
                       ) {
                         _upsert(current.copyWith(maxBaseCharge: v));

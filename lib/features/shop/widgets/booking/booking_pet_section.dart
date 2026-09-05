@@ -16,6 +16,8 @@ class BookingPetSection extends StatefulWidget {
     required this.onTogglePet,
     this.theme = HomeThemeModel.classicDefault,
     this.title,
+    this.petsStream,
+    this.isLoggedIn,
   });
 
   final List<String> selectedPetIds;
@@ -23,6 +25,8 @@ class BookingPetSection extends StatefulWidget {
   final void Function(String petId, bool selected) onTogglePet;
   final HomeThemeModel theme;
   final String? title;
+  final Stream<List<Map<String, dynamic>>>? petsStream;
+  final bool? isLoggedIn;
 
   @override
   State<BookingPetSection> createState() => _BookingPetSectionState();
@@ -36,15 +40,31 @@ class _BookingPetSectionState extends State<BookingPetSection> {
   @override
   void initState() {
     super.initState();
-    _petsStream = PetService.instance.streamMyPets();
+    try {
+      _petsStream = widget.petsStream ?? PetService.instance.streamMyPets();
+    } catch (error) {
+      _petsStream = Stream<List<Map<String, dynamic>>>.error(error);
+    }
   }
 
   void _reloadPets() {
     setState(() {
       _streamEpoch += 1;
       _lastNotifiedPetIds = const <String>[];
-      _petsStream = PetService.instance.streamMyPets();
+      try {
+        _petsStream = widget.petsStream ?? PetService.instance.streamMyPets();
+      } catch (error) {
+        _petsStream = Stream<List<Map<String, dynamic>>>.error(error);
+      }
     });
+  }
+
+  bool _readLoggedIn() {
+    try {
+      return FirebaseAuth.instance.currentUser != null;
+    } catch (_) {
+      return false;
+    }
   }
 
   void _notifyPetsLoaded(List<Map<String, dynamic>> pets) {
@@ -106,7 +126,7 @@ class _BookingPetSectionState extends State<BookingPetSection> {
                   AsyncSnapshot<List<Map<String, dynamic>>> snapshot,
                 ) {
                   final bool loggedOut =
-                      FirebaseAuth.instance.currentUser == null;
+                      !(widget.isLoggedIn ?? _readLoggedIn());
                   if (snapshot.hasError) {
                     return Padding(
                       padding: const EdgeInsets.only(top: 12),
@@ -222,28 +242,13 @@ class _BookingPetSectionState extends State<BookingPetSection> {
                                     ? const Icon(Icons.pets, size: 16)
                                     : null,
                               ),
-                              label: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                mainAxisSize: MainAxisSize.min,
-                                children: <Widget>[
-                                  Text(
-                                    pet['name'] ?? '未命名',
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.w700,
-                                      fontSize: 14,
-                                      color: theme.textColor,
-                                    ),
-                                  ),
-                                  Text(
-                                    '性別：${pet['gender'] ?? '-'} ｜ 貓砂：${pet['litterType'] ?? '-'}',
-                                    style: TextStyle(
-                                      fontSize: 12,
-                                      color: theme.textColor.withValues(
-                                        alpha: 0.7,
-                                      ),
-                                    ),
-                                  ),
-                                ],
+                              label: Text(
+                                pet['name'] ?? '未命名',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w700,
+                                  fontSize: 14,
+                                  color: theme.textColor,
+                                ),
                               ),
                               selected: selected,
                               selectedColor: const Color(0xFFEAF8EE),

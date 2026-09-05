@@ -61,7 +61,14 @@ class DaycareOfferCard extends StatelessWidget {
                       ),
                     ),
                     if (selected)
-                      Icon(Icons.check_circle, color: theme.primaryColor),
+                      Text(
+                        '已選取',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                          color: theme.primaryColor,
+                        ),
+                      ),
                   ],
                 ),
                 const SizedBox(height: 8),

@@ -588,9 +588,6 @@ class _ShopDaycareBookingConfirmPageState
             roomTypeName: widget.settings.isRoomBased
                 ? '實際房間將由店家安排'
                 : '房間將由店家安排',
-            addons: _addonLines,
-            quote: quote,
-            couponName: _selectedCoupon?.name ?? '',
           ),
           if (_pointsSpendEnabled && quote.pointAmount == 0) ...<Widget>[
             const SizedBox(height: 12),

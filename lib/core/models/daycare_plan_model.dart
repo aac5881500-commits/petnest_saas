@@ -192,6 +192,23 @@ class DaycarePlanModel {
     };
   }
 
+  Map<String, dynamic> toCallableSnapshot() {
+    return <String, dynamic>{
+      'id': id,
+      'name': name,
+      'description': description,
+      'enabled': enabled,
+      'includedMinutes': includedMinutes,
+      'basePrice': basePrice,
+      'extraBillingMinutes': extraBillingMinutes,
+      'extraBillingPrice': extraBillingPrice,
+      'extraPetPrice': extraPetPrice,
+      'maxBaseCharge': maxBaseCharge,
+      'maxPets': maxPets,
+      'sortOrder': sortOrder,
+    };
+  }
+
   DaycarePlanModel copyWith({
     String? name,
     String? description,
@@ -283,24 +300,33 @@ class DaycarePlanModel {
     required int extraPetPrice,
     required int maxPets,
     required bool enabled,
+    bool roomBased = false,
+    int? remainingRooms,
   }) {
     final List<String> lines = <String>[
-      '基本 ${includedTimeText(includedMinutes)}｜${moneyLabel(basePrice)}',
-      '超過後${extraUnitText(extraBillingMinutes)} ${moneyLabel(extraBillingPrice)}',
+      '基本 ${includedTimeText(includedMinutes)}　${moneyLabel(basePrice)}',
+      '超過後${extraUnitText(extraBillingMinutes)}　${moneyLabel(extraBillingPrice)}',
     ];
     if (maxBaseCharge > 0) {
-      lines.add('時間費上限 ${moneyLabel(maxBaseCharge)}');
+      lines.add(
+        roomBased
+            ? '此房型最高　${moneyLabel(maxBaseCharge)}'
+            : '當次最高計費　${moneyLabel(maxBaseCharge)}',
+      );
     }
     if (extraPetPrice > 0) {
-      lines.add('每增加 1 隻 +${moneyLabel(extraPetPrice)}');
+      lines.add('每增加 1 隻　+${moneyLabel(extraPetPrice)}');
     }
     if (maxPets > 0) {
       lines.add('最多 $maxPets 隻');
     } else {
       lines.add('寵物數量不限');
     }
+    if (remainingRooms != null && remainingRooms >= 0) {
+      lines.add('剩餘 $remainingRooms 間');
+    }
     if (!enabled) {
-      lines.add('方案未啟用');
+      lines.add(roomBased ? '房型未啟用' : '方案未啟用');
     }
     return lines;
   }

@@ -5,14 +5,22 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/models/booking_fee_line_item.dart';
+import 'package:petnest_saas/core/models/create_payment_request_model.dart';
 import 'package:petnest_saas/core/models/daycare_date_override_model.dart';
 import 'package:petnest_saas/core/models/daycare_plan_model.dart';
 import 'package:petnest_saas/core/models/daycare_settings_model.dart';
+import 'package:petnest_saas/core/models/member_coupon_model.dart';
+import 'package:petnest_saas/core/models/payment_gateway_status.dart';
+import 'package:petnest_saas/core/models/policy_applicable_service.dart';
+import 'package:petnest_saas/core/models/terms_consent_snapshot.dart';
 import 'package:petnest_saas/core/services/daycare_addon_catalog.dart';
 import 'package:petnest_saas/core/services/daycare_booking_validator.dart';
 import 'package:petnest_saas/core/services/daycare_calendar_helper.dart';
+import 'package:petnest_saas/core/services/daycare_callable_payload.dart';
+import 'package:petnest_saas/core/services/daycare_coupon_helper.dart';
 import 'package:petnest_saas/core/services/daycare_date_availability.dart';
 import 'package:petnest_saas/core/services/daycare_date_override_service.dart';
+import 'package:petnest_saas/core/services/daycare_function_service.dart';
 import 'package:petnest_saas/core/services/daycare_occupancy_service.dart';
 import 'package:petnest_saas/core/services/daycare_pricing_service.dart';
 import 'package:petnest_saas/core/services/daycare_room_type_option.dart';
@@ -20,12 +28,20 @@ import 'package:petnest_saas/core/services/daycare_settings_service.dart';
 import 'package:petnest_saas/core/services/daycare_time_helper.dart';
 import 'package:petnest_saas/core/models/home_theme_model.dart';
 import 'package:petnest_saas/core/services/home_banner_service.dart';
+import 'package:petnest_saas/core/services/member_coupon_service.dart';
+import 'package:petnest_saas/core/services/payment_function_service.dart';
 import 'package:petnest_saas/core/services/shop_service.dart';
+import 'package:petnest_saas/core/utils/callable_payload.dart';
+import 'package:petnest_saas/core/utils/dropdown_value.dart';
 import 'package:petnest_saas/features/auth/pages/login_page.dart';
-import 'package:petnest_saas/features/shop/pages/shop_daycare_booking_confirm_page.dart';
+import 'package:petnest_saas/features/booking/pages/booking_form_page.dart';
+import 'package:petnest_saas/features/booking/pages/booking_success_page.dart';
+import 'package:petnest_saas/features/payment/pages/ecpay_payment_page.dart';
 import 'package:petnest_saas/features/shop/widgets/booking/booking_calendar_dialog.dart';
+import 'package:petnest_saas/features/shop/widgets/booking/booking_member_coupon_ui.dart';
 import 'package:petnest_saas/features/shop/widgets/booking/booking_pet_section.dart';
 import 'package:petnest_saas/features/shop/widgets/booking/booking_step_widgets.dart';
+import 'package:petnest_saas/features/shop/widgets/booking/daycare_booking_summary_card.dart';
 import 'package:petnest_saas/features/shop/widgets/booking/daycare_date_card.dart';
 import 'package:petnest_saas/features/shop/widgets/booking/daycare_offer_card.dart';
 import 'package:petnest_saas/features/shop/widgets/booking/front_calendar_payload.dart';
@@ -36,11 +52,38 @@ class ShopDaycareBookingPage extends StatefulWidget {
     required this.shopId,
     required this.settings,
     required this.shop,
+    this.debugPetsStream,
+    this.debugLoggedIn,
+    this.skipRemoteLoads = false,
+    this.debugInitialStep = 1,
+    this.debugDate,
+    this.debugDropOff,
+    this.debugPickUp,
+    this.debugSelectedPetIds,
+    this.debugPlan,
   });
 
   final String shopId;
   final DaycareSettingsModel settings;
   final Map<String, dynamic> shop;
+  final Stream<List<Map<String, dynamic>>>? debugPetsStream;
+  final bool? debugLoggedIn;
+
+  /// 測試用：略過 Firestore 黑名單與加購載入。
+  @visibleForTesting
+  final bool skipRemoteLoads;
+  @visibleForTesting
+  final int debugInitialStep;
+  @visibleForTesting
+  final DateTime? debugDate;
+  @visibleForTesting
+  final String? debugDropOff;
+  @visibleForTesting
+  final String? debugPickUp;
+  @visibleForTesting
+  final List<String>? debugSelectedPetIds;
+  @visibleForTesting
+  final DaycarePlanModel? debugPlan;
 
   @override
   State<ShopDaycareBookingPage> createState() => _ShopDaycareBookingPageState();
@@ -64,14 +107,44 @@ class _ShopDaycareBookingPageState extends State<ShopDaycareBookingPage> {
   bool _isBlacklisted = false;
   DaycareDateOverrideModel? _dateOverride;
   int _step = 1;
+  final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
+  final TextEditingController _name = TextEditingController();
+  final TextEditingController _phone = TextEditingController();
+  final TextEditingController _note = TextEditingController();
+  List<MemberCouponModel> _coupons = const <MemberCouponModel>[];
+  MemberCouponModel? _selectedCoupon;
+  bool _loadingCoupons = false;
+  String? _bookingRequestId;
+  String? _bookingRequestSignature;
 
   @override
   void initState() {
     super.initState();
-    _loadExtras();
-    _loadBlacklist();
+    if (!widget.skipRemoteLoads) {
+      _loadExtras();
+      _loadBlacklist();
+      _loadMember();
+      _loadCoupons();
+    }
     _refreshRoomOptions();
-    if (!widget.settings.isRoomBased &&
+    if (widget.debugDate != null) {
+      _date = widget.debugDate;
+    }
+    if (widget.debugDropOff != null) {
+      _dropOff = widget.debugDropOff;
+    }
+    if (widget.debugPickUp != null) {
+      _pickUp = widget.debugPickUp;
+    }
+    if (widget.debugSelectedPetIds != null) {
+      _selectedPetIds
+        ..clear()
+        ..addAll(widget.debugSelectedPetIds!);
+    }
+    _step = widget.debugInitialStep;
+    if (widget.debugPlan != null) {
+      _plan = widget.debugPlan;
+    } else if (!widget.settings.isRoomBased &&
         widget.settings.customerPlans.length == 1) {
       _plan = widget.settings.customerPlans.first;
     }
@@ -89,51 +162,142 @@ class _ShopDaycareBookingPageState extends State<ShopDaycareBookingPage> {
     }
   }
 
-  Future<void> _loadBlacklist() async {
+  @override
+  void dispose() {
+    _name.dispose();
+    _phone.dispose();
+    _note.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadMember() async {
+    try {
+      final User? user = FirebaseAuth.instance.currentUser;
+      if (user == null) {
+        return;
+      }
+      final DocumentSnapshot<Map<String, dynamic>> doc = await FirebaseFirestore
+          .instance
+          .collection('user_profiles')
+          .doc(user.uid)
+          .get();
+      final Map<String, dynamic>? data = doc.data();
+      if (!mounted || data == null) {
+        return;
+      }
+      _name.text = (data['name'] ?? user.displayName ?? '').toString();
+      _phone.text = (data['phone'] ?? '').toString();
+    } catch (_) {}
+  }
+
+  Future<void> _loadCoupons() async {
+    if (widget.skipRemoteLoads || !widget.settings.allowCoupon) {
+      if (mounted) {
+        setState(() => _loadingCoupons = false);
+      }
+      return;
+    }
     final User? user = FirebaseAuth.instance.currentUser;
     if (user == null) {
+      if (mounted) {
+        setState(() {
+          _coupons = const <MemberCouponModel>[];
+          _loadingCoupons = false;
+        });
+      }
       return;
     }
-    final DocumentSnapshot<Map<String, dynamic>> member =
-        await FirebaseFirestore.instance
-            .collection('shops')
-            .doc(widget.shopId)
-            .collection('members')
-            .doc(user.uid)
-            .get();
-    if (!mounted) {
-      return;
+    setState(() => _loadingCoupons = true);
+    try {
+      final List<MemberCouponModel> all = await MemberCouponService.instance
+          .getMemberCoupons(shopId: widget.shopId, userId: user.uid);
+      final String roomTypeId = _selectedRoomTypeId ?? '';
+      final List<MemberCouponModel> usable = all.where((
+        MemberCouponModel coupon,
+      ) {
+        if (!DaycareCouponHelper.appliesToDaycare(coupon)) {
+          return false;
+        }
+        if (coupon.roomTypeIds.isEmpty) {
+          return true;
+        }
+        if (!widget.settings.isRoomBased || roomTypeId.isEmpty) {
+          return false;
+        }
+        return DaycareCouponHelper.matchesRoomType(
+          coupon: coupon,
+          roomTypeId: roomTypeId,
+        );
+      }).toList();
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _coupons = usable;
+        _loadingCoupons = false;
+        if (_selectedCoupon != null &&
+            usable.every(
+              (MemberCouponModel e) => e.id != _selectedCoupon!.id,
+            )) {
+          _selectedCoupon = null;
+        }
+      });
+    } catch (_) {
+      if (mounted) {
+        setState(() => _loadingCoupons = false);
+      }
     }
-    setState(() {
-      _isBlacklisted = member.data()?['blacklisted'] == true;
-    });
+  }
+
+  Future<void> _loadBlacklist() async {
+    try {
+      final User? user = FirebaseAuth.instance.currentUser;
+      if (user == null) {
+        return;
+      }
+      final DocumentSnapshot<Map<String, dynamic>> member =
+          await FirebaseFirestore.instance
+              .collection('shops')
+              .doc(widget.shopId)
+              .collection('members')
+              .doc(user.uid)
+              .get();
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _isBlacklisted = member.data()?['blacklisted'] == true;
+      });
+    } catch (_) {}
   }
 
   Future<void> _loadExtras() async {
-    final DocumentSnapshot<Map<String, dynamic>> addonSnap =
-        await FirebaseFirestore.instance
-            .collection('shops')
-            .doc(widget.shopId)
-            .collection('addons')
-            .doc('main')
-            .get();
-    final List<Map<String, dynamic>> addons =
-        DaycareAddonCatalog.allowedForDaycare(
-          doc: addonSnap.data(),
-          allowedAddonIds: widget.settings.allowedAddonIds,
-          serviceDate: _date,
-          petCount: _selectedPetIds.isEmpty ? 1 : _selectedPetIds.length,
+    try {
+      final DocumentSnapshot<Map<String, dynamic>> addonSnap =
+          await FirebaseFirestore.instance
+              .collection('shops')
+              .doc(widget.shopId)
+              .collection('addons')
+              .doc('main')
+              .get();
+      final List<Map<String, dynamic>> addons =
+          DaycareAddonCatalog.allowedForDaycare(
+            doc: addonSnap.data(),
+            allowedAddonIds: widget.settings.allowedAddonIds,
+            serviceDate: _date,
+            petCount: _selectedPetIds.isEmpty ? 1 : _selectedPetIds.length,
+          );
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _addons = addons;
+        _selectedAddonIds.removeWhere(
+          (String id) =>
+              !addons.any((Map<String, dynamic> e) => e['id'].toString() == id),
         );
-    if (!mounted) {
-      return;
-    }
-    setState(() {
-      _addons = addons;
-      _selectedAddonIds.removeWhere(
-        (String id) =>
-            !addons.any((Map<String, dynamic> e) => e['id'].toString() == id),
-      );
-    });
+      });
+    } catch (_) {}
   }
 
   Future<void> _refreshRoomOptions() async {
@@ -146,36 +310,43 @@ class _ShopDaycareBookingPageState extends State<ShopDaycareBookingPage> {
       }
       return;
     }
-    final int dailyMax = DaycareDateAvailability.dailyMaxPets(
-      settings: widget.settings,
-      override: _dateOverride,
-    );
-    final List<DaycareRoomTypeOption> options =
-        await DaycareRoomTypeCatalog.load(
-          shopId: widget.shopId,
-          settings: widget.settings,
-          petCount: _selectedPetIds.length,
-          dailyRemaining: dailyMax <= 0 ? null : _remaining,
-          startAt: _startAt,
-          endAt: _endAt,
-        );
-    if (!mounted) {
+    if (widget.skipRemoteLoads) {
       return;
     }
-    final List<DaycareRoomTypeOption> selectable = options
-        .where((DaycareRoomTypeOption e) => e.selectable)
-        .toList();
-    String? nextId = _selectedRoomTypeId;
-    if (selectable.length == 1) {
-      nextId = selectable.first.roomTypeId;
-    } else if (nextId != null &&
-        selectable.every((DaycareRoomTypeOption e) => e.roomTypeId != nextId)) {
-      nextId = null;
-    }
-    setState(() {
-      _roomOptions = options;
-      _selectedRoomTypeId = nextId;
-    });
+    try {
+      final int dailyMax = DaycareDateAvailability.dailyMaxPets(
+        settings: widget.settings,
+        override: _dateOverride,
+      );
+      final List<DaycareRoomTypeOption> options =
+          await DaycareRoomTypeCatalog.load(
+            shopId: widget.shopId,
+            settings: widget.settings,
+            petCount: _selectedPetIds.length,
+            dailyRemaining: dailyMax <= 0 ? null : _remaining,
+            startAt: _startAt,
+            endAt: _endAt,
+          );
+      if (!mounted) {
+        return;
+      }
+      final List<DaycareRoomTypeOption> selectable = options
+          .where((DaycareRoomTypeOption e) => e.selectable)
+          .toList();
+      String? nextId = _selectedRoomTypeId;
+      if (selectable.length == 1) {
+        nextId = selectable.first.roomTypeId;
+      } else if (nextId != null &&
+          selectable.every(
+            (DaycareRoomTypeOption e) => e.roomTypeId != nextId,
+          )) {
+        nextId = null;
+      }
+      setState(() {
+        _roomOptions = options;
+        _selectedRoomTypeId = nextId;
+      });
+    } catch (_) {}
   }
 
   Future<void> _refreshRemaining() async {
@@ -267,8 +438,21 @@ class _ShopDaycareBookingPageState extends State<ShopDaycareBookingPage> {
         settings: widget.settings,
         room: roomQuote,
         addonAmount: addonAmount,
+        couponAmount: _resolvedCouponAmount(
+          planAmount: roomQuote.timeCharge,
+          extraPetAmount: roomQuote.extraPetAmount,
+          addonAmount: addonAmount,
+        ),
       );
     }
+    final DaycareQuote draft = DaycarePricingService.instance.quote(
+      settings: widget.settings,
+      plan: _plan!,
+      startAt: _startAt!,
+      endAt: _endAt!,
+      petCount: petCount,
+      addonAmount: addonAmount,
+    );
     return DaycarePricingService.instance.quote(
       settings: widget.settings,
       plan: _plan!,
@@ -276,6 +460,102 @@ class _ShopDaycareBookingPageState extends State<ShopDaycareBookingPage> {
       endAt: _endAt!,
       petCount: petCount,
       addonAmount: addonAmount,
+      couponAmount: _resolvedCouponAmount(
+        planAmount: draft.timeCharge,
+        extraPetAmount: draft.extraPetAmount,
+        addonAmount: addonAmount,
+      ),
+    );
+  }
+
+  int _resolvedCouponAmount({
+    required int planAmount,
+    required int extraPetAmount,
+    required int addonAmount,
+  }) {
+    if (_selectedCoupon == null) {
+      return 0;
+    }
+    return DaycareCouponHelper.discountAmount(
+      coupon: _selectedCoupon!,
+      planAmount: planAmount,
+      extraPetAmount: extraPetAmount,
+      addonAmount: addonAmount,
+      surchargeAmount: 0,
+      campaignDiscountAmount: 0,
+      selectedAddons: _selectedAddonMaps,
+      specialDateAllowsCoupon: true,
+    );
+  }
+
+  List<Map<String, dynamic>> get _selectedAddonMaps {
+    return _addons
+        .where(
+          (Map<String, dynamic> e) =>
+              _selectedAddonIds.contains((e['id'] ?? '').toString()),
+        )
+        .toList();
+  }
+
+  List<Map<String, dynamic>> get _addonLines {
+    if (_startAt == null || _endAt == null) {
+      return const <Map<String, dynamic>>[];
+    }
+    final int minutes = _endAt!.difference(_startAt!).inMinutes;
+    final int petCount = _selectedPetIds.isEmpty ? 1 : _selectedPetIds.length;
+    return _selectedAddonMaps.map((Map<String, dynamic> addon) {
+      final int amount = DaycarePricingService.instance.addonLineAmount(
+        addon: addon,
+        minutes: minutes,
+        petCount: petCount,
+      );
+      return DaycareCallablePayload.addonSnapshot(addon, amount: amount);
+    }).toList();
+  }
+
+  String get _primaryFeeLabel {
+    if (widget.settings.isRoomBased) {
+      final String name = _roomOptions
+          .where(
+            (DaycareRoomTypeOption e) => e.roomTypeId == _selectedRoomTypeId,
+          )
+          .map((DaycareRoomTypeOption e) => e.name)
+          .fold<String>('', (String prev, String name) => name);
+      return name.isEmpty ? '安親房型' : name;
+    }
+    return _plan?.name ?? '安親方案';
+  }
+
+  List<String> get _petNames {
+    return _pets
+        .where(
+          (Map<String, dynamic> pet) => _selectedPetIds.contains(
+            (pet['petId'] ?? pet['id'] ?? '').toString(),
+          ),
+        )
+        .map((Map<String, dynamic> pet) => (pet['name'] ?? '').toString())
+        .where((String name) => name.isNotEmpty)
+        .toList();
+  }
+
+  List<BookingFeeLineItem> _feeLines(
+    DaycareQuote quote, {
+    bool includePayable = true,
+  }) {
+    return DaycarePricingService.instance.customerFeeLines(
+      quote: quote,
+      primaryLabel: _primaryFeeLabel,
+      depositType: widget.settings.depositType,
+      isRoomBased: widget.settings.isRoomBased,
+      includePayable: includePayable,
+      addonLines: _addonLines
+          .map(
+            (Map<String, dynamic> addon) => BookingFeeLineItem(
+              label: DaycareAddonCatalog.displayName(addon),
+              amount: (addon['amount'] as num?)?.toInt() ?? 0,
+            ),
+          )
+          .toList(),
     );
   }
 
@@ -284,6 +564,17 @@ class _ShopDaycareBookingPageState extends State<ShopDaycareBookingPage> {
       settings: widget.settings,
       override: _dateOverride,
     );
+  }
+
+  String get _shopTitle {
+    final String name = (widget.shop['name'] ?? '').toString().trim();
+    if (name.isNotEmpty) {
+      return name;
+    }
+    if (widget.settings.serviceName.trim().isNotEmpty) {
+      return widget.settings.serviceName.trim();
+    }
+    return '安親預約';
   }
 
   Future<void> _loadDateOverride() async {
@@ -451,15 +742,25 @@ class _ShopDaycareBookingPageState extends State<ShopDaycareBookingPage> {
   }
 
   Future<void> _submit() async {
-    final User? user = FirebaseAuth.instance.currentUser;
-    if (user == null) {
-      await Navigator.push(
-        context,
-        MaterialPageRoute<void>(
-          builder: (_) => LoginPage(redirectShopId: widget.shopId),
-        ),
-      );
-      return;
+    if (!widget.skipRemoteLoads) {
+      User? user = FirebaseAuth.instance.currentUser;
+      if (user == null) {
+        await Navigator.push(
+          context,
+          MaterialPageRoute<void>(
+            builder: (_) => LoginPage(redirectShopId: widget.shopId),
+          ),
+        );
+        if (!mounted) {
+          return;
+        }
+        user = FirebaseAuth.instance.currentUser;
+        if (user == null) {
+          return;
+        }
+        await _loadMember();
+        await _loadCoupons();
+      }
     }
     if (_isBlacklisted) {
       ScaffoldMessenger.of(
@@ -490,6 +791,10 @@ class _ShopDaycareBookingPageState extends State<ShopDaycareBookingPage> {
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(const SnackBar(content: Text('請選擇安親方案')));
+      return;
+    }
+    if (widget.skipRemoteLoads) {
+      await _openForm();
       return;
     }
     final Map<String, dynamic>? liveShop = await ShopService.instance.getShop(
@@ -602,41 +907,267 @@ class _ShopDaycareBookingPageState extends State<ShopDaycareBookingPage> {
       ).showSnackBar(const SnackBar(content: Text('此寵物在相同時段已有預約')));
       return;
     }
-    setState(() => _submitting = true);
-    try {
-      final List<Map<String, dynamic>> selectedAddons = _addons
-          .where(
-            (Map<String, dynamic> e) =>
-                _selectedAddonIds.contains((e['id'] ?? '').toString()),
-          )
-          .toList();
+    await _openForm();
+  }
+
+  Future<void> _openForm() async {
+    final DaycareQuote? quote = _quote;
+    if (quote == null) {
+      return;
+    }
+    if (!widget.skipRemoteLoads) {
+      await _loadCoupons();
       if (!mounted) {
         return;
       }
-      final String roomName = _roomOptions
+    }
+    await Navigator.push<void>(
+      context,
+      MaterialPageRoute<void>(
+        builder: (_) => BookingFormPage(
+          shopId: widget.shopId,
+          totalPrice: quote.totalAmount,
+          originalTotal:
+              quote.baseAmount +
+              quote.extraPetAmount +
+              quote.addonAmount +
+              quote.surchargeAmount,
+          discountAmount: quote.discountAmount + quote.couponAmount,
+          discountCampaignName: _selectedCoupon?.name ?? '',
+          roomPrice: quote.timeCharge + quote.extraPetAmount,
+          addons: _addonLines,
+          formKey: _formKey,
+          customerNameController: _name,
+          customerPhoneController: _phone,
+          noteController: _note,
+          serviceTypes: const <String>['daycare'],
+          selectedServiceType: 'daycare',
+          onServiceChanged: (_) {},
+          onSubmit: () {},
+          isSubmitting: _submitting,
+          canSubmit: true,
+          isBlacklisted: false,
+          submitLabel: '確認訂單',
+          feeSummaryTitle: '安親費用摘要',
+          theme: HomeBannerService.instance.themeFromShop(widget.shop),
+          termsServiceType: PolicyApplicableService.daycare,
+          feeLineItems: _feeLines(quote, includePayable: false),
+          skipRemoteLoads: widget.skipRemoteLoads,
+          daycareDepositType: widget.settings.depositType,
+          daycareDepositValue: quote.depositAmount,
+          depositOverrideAmount:
+              widget.settings.depositType == DaycareDepositTypes.fixed ||
+                  widget.settings.depositType == DaycareDepositTypes.percent
+              ? quote.depositAmount
+              : null,
+          onSubmitWithData: _submitOrder,
+        ),
+      ),
+    );
+  }
+
+  Future<void> _submitOrder(
+    String address,
+    String emergencyName,
+    String emergencyPhone,
+    String relation,
+    String emergencyAddress,
+    String phone2,
+    int depositAmount,
+    String paymentMethod,
+    String payAmountType,
+    TermsConsentSnapshot termsConsent,
+  ) async {
+    final User? user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      throw Exception('請先登入後再送出預約');
+    }
+    final DaycareQuote? quote = _quote;
+    if (quote == null || _startAt == null || _endAt == null) {
+      throw Exception('請先完成安親日期與方案選擇');
+    }
+    final String signature = <String>[
+      _startAt!.toIso8601String(),
+      _endAt!.toIso8601String(),
+      _selectedPetIds.join(','),
+      _selectedRoomTypeId ?? '',
+      _plan?.id ?? '',
+      depositAmount.toString(),
+      paymentMethod,
+      payAmountType,
+      _selectedCoupon?.id ?? '',
+    ].join('||');
+    setState(() {
+      _submitting = true;
+      if (_bookingRequestSignature != signature) {
+        _bookingRequestId = FirebaseFirestore.instance
+            .collection('bookings')
+            .doc()
+            .id;
+        _bookingRequestSignature = signature;
+      }
+      _bookingRequestId ??= FirebaseFirestore.instance
+          .collection('bookings')
+          .doc()
+          .id;
+    });
+    try {
+      final String requestId = _bookingRequestId!;
+      final List<Map<String, dynamic>> petSnaps = _pets
           .where(
-            (DaycareRoomTypeOption e) => e.roomTypeId == _selectedRoomTypeId,
+            (Map<String, dynamic> pet) => _selectedPetIds.contains(
+              (pet['petId'] ?? pet['id'] ?? '').toString(),
+            ),
           )
-          .map((DaycareRoomTypeOption e) => e.name)
-          .fold<String>('', (String prev, String name) => name);
-      await Navigator.push<void>(
+          .map(DaycareCallablePayload.petSnapshot)
+          .toList();
+      final bool roomBased = widget.settings.isRoomBased;
+      final DaycareRoomTypeSetting? roomSetting = roomBased
+          ? widget.settings.roomTypeSetting(_selectedRoomTypeId ?? '')
+          : null;
+      final Map<String, dynamic> payload = <String, dynamic>{
+        'shopId': widget.shopId,
+        'requestId': requestId,
+        'scheduledStartAt': _startAt!.toUtc().toIso8601String(),
+        'scheduledEndAt': _endAt!.toUtc().toIso8601String(),
+        'petIds': List<String>.from(_selectedPetIds),
+        'pets': petSnaps,
+        'daycarePlanId': roomBased ? '' : (_plan?.id ?? ''),
+        'daycarePlanName': roomBased ? '' : (_plan?.name ?? ''),
+        'daycarePlanPriceSnapshot': roomBased
+            ? <String, dynamic>{}
+            : (_plan?.toCallableSnapshot() ?? <String, dynamic>{}),
+        'pricingMode': roomBased
+            ? DaycarePricingModes.roomType
+            : DaycarePricingModes.independentPlan,
+        'requestedRoomTypeId': roomBased ? (_selectedRoomTypeId ?? '') : '',
+        'requestedRoomTypeName': roomBased ? _primaryFeeLabel : '',
+        'requestedRoomTypePriceSnapshot': roomBased
+            ? (roomSetting?.toCallableSnapshot() ?? <String, dynamic>{})
+            : <String, dynamic>{},
+        'assignedRoomTypeId': null,
+        'assignedRoomId': null,
+        'assignedRoomName': null,
+        'priceQuoteSnapshot': <String, dynamic>{
+          ...quote.toPriceSnapshot(),
+          'planId': roomBased ? '' : (_plan?.id ?? ''),
+          'planName': _primaryFeeLabel,
+          'includedMinutes': quote.includedMinutes,
+          'basePrice': quote.baseAmount,
+          'extraBillingMinutes': quote.extraBillingMinutes,
+          'extraBillingPrice': roomBased
+              ? (roomSetting?.extraBillingPrice ?? 0)
+              : (_plan?.extraBillingPrice ?? 0),
+          'extraPetPrice': roomBased
+              ? (roomSetting?.extraPetPrice ?? 0)
+              : (_plan?.extraPetPrice ?? 0),
+          'maxBaseCharge': quote.maxBaseCharge,
+          'petCount': _selectedPetIds.length,
+          'scheduledStartAt': _startAt!.toUtc().toIso8601String(),
+          'scheduledEndAt': _endAt!.toUtc().toIso8601String(),
+        },
+        'addons': _addonLines,
+        'customerName': _name.text.trim(),
+        'customerPhone': _phone.text.trim(),
+        'address': address,
+        'emergencyName': emergencyName,
+        'emergencyPhone': emergencyPhone,
+        'relation': relation,
+        'emergencyAddress': emergencyAddress,
+        'phone2': phone2,
+        'note': _note.text.trim(),
+        ...termsConsent.toCallableFields(),
+        'policySignMethod': 'member_online',
+        'paymentMethod': paymentMethod,
+        'payAmountType': payAmountType,
+        'depositAmount': depositAmount,
+        if (_selectedCoupon != null) 'couponId': _selectedCoupon!.id,
+        if (_selectedCoupon != null) 'couponName': _selectedCoupon!.name,
+        'couponDiscountAmount': quote.couponAmount,
+      };
+      CallablePayload.assertValid(payload);
+      final Map<String, dynamic> created = await DaycareFunctionService.instance
+          .createBooking(payload);
+      final String bookingId = (created['bookingId'] ?? requestId).toString();
+      if (!mounted) {
+        return;
+      }
+      final bool isEcpay =
+          paymentMethod == 'credit_card' ||
+          paymentMethod == 'atm' ||
+          paymentMethod == 'cvs_code';
+      if (isEcpay) {
+        final int amount = payAmountType == 'deposit'
+            ? depositAmount
+            : quote.totalAmount;
+        final String paymentRequestId = FirebaseFirestore.instance
+            .collection('payments')
+            .doc()
+            .id;
+        final paymentResult = await PaymentFunctionService.instance
+            .createPayment(
+              request: CreatePaymentRequestModel(
+                shopId: widget.shopId,
+                bookingId: bookingId,
+                paymentMethod: paymentMethod,
+                amountType: payAmountType == 'deposit'
+                    ? PaymentAmountType.deposit
+                    : PaymentAmountType.full,
+                paymentPurpose: payAmountType == 'deposit'
+                    ? PaymentPurpose.deposit
+                    : PaymentPurpose.full,
+                amount: amount,
+                requestId: paymentRequestId,
+              ),
+            );
+        if (!mounted) {
+          return;
+        }
+        if (paymentResult.hasPaymentHtml) {
+          Navigator.pushAndRemoveUntil(
+            context,
+            MaterialPageRoute<void>(
+              builder: (_) => EcpayPaymentPage(
+                paymentHtml: paymentResult.paymentHtml,
+                paymentId: paymentResult.paymentId,
+                bookingId: bookingId,
+              ),
+            ),
+            (Route<dynamic> route) => false,
+          );
+          return;
+        }
+      }
+      Navigator.pushAndRemoveUntil(
         context,
         MaterialPageRoute<void>(
-          builder: (_) => ShopDaycareBookingConfirmPage(
+          builder: (_) => BookingSuccessPage(
+            shopName: (widget.shop['name'] ?? '').toString(),
             shopId: widget.shopId,
-            shop: liveShop ?? widget.shop,
-            settings: liveSettings,
-            startAt: _startAt!,
-            endAt: _endAt!,
-            plan: _plan ?? const DaycarePlanModel(id: '', name: '安親房型'),
-            requestedRoomTypeId: _selectedRoomTypeId ?? '',
-            requestedRoomTypeName: roomName,
-            selectedPetIds: List<String>.from(_selectedPetIds),
-            pets: _pets,
-            addons: selectedAddons,
+            bookingId: bookingId,
+            message: '訂單已送出，等待店家確認',
           ),
         ),
+        (Route<dynamic> route) => false,
       );
+    } on CallablePayloadException catch (error, stackTrace) {
+      debugPrint(error.debugMessage);
+      debugPrintStack(stackTrace: stackTrace);
+      throw Exception(CallablePayload.userMessage);
+    } on DaycareFunctionException catch (error, stackTrace) {
+      debugPrint('[DaycareSubmit] failed: $error');
+      debugPrintStack(stackTrace: stackTrace);
+      _bookingRequestId = null;
+      _bookingRequestSignature = null;
+      throw Exception(error.message);
+    } catch (error, stackTrace) {
+      debugPrint('[DaycareSubmit] failed: $error');
+      debugPrintStack(stackTrace: stackTrace);
+      if (error is! PaymentFunctionException) {
+        _bookingRequestId = null;
+        _bookingRequestSignature = null;
+      }
+      rethrow;
     } finally {
       if (mounted) {
         setState(() => _submitting = false);
@@ -665,14 +1196,23 @@ class _ShopDaycareBookingPageState extends State<ShopDaycareBookingPage> {
 
   @override
   Widget build(BuildContext context) {
-    final HomeThemeModel theme = HomeBannerService.instance.themeFromShop(
-      widget.shop,
-    );
-    final List<String> slots = DaycareTimeHelper.slots(
-      start: _dayHours.earliestDropOff,
-      end: _dayHours.latestPickUp,
-      stepMinutes: widget.settings.slotMinutes,
-    );
+    HomeThemeModel theme;
+    try {
+      theme = HomeBannerService.instance.themeFromShop(widget.shop);
+    } catch (_) {
+      theme = HomeThemeModel.classicDefault;
+    }
+    List<String> slots;
+    try {
+      slots = DaycareTimeHelper.slots(
+        start: _dayHours.earliestDropOff,
+        end: _dayHours.latestPickUp,
+        stepMinutes: widget.settings.slotMinutes,
+      );
+    } catch (_) {
+      slots = <String>[];
+    }
+    slots = slots.toSet().toList();
     final DaycareQuote? quote = _quote;
     final String stepHint = _stepHint;
     final bool canAdvance = stepHint.isEmpty && !_submitting && !_isBlacklisted;
@@ -791,6 +1331,9 @@ class _ShopDaycareBookingPageState extends State<ShopDaycareBookingPage> {
                               ? () {
                                   if (_step < 3) {
                                     setState(() => _step += 1);
+                                    if (_step == 3) {
+                                      _loadCoupons();
+                                    }
                                     return;
                                   }
                                   _submit();
@@ -842,6 +1385,8 @@ class _ShopDaycareBookingPageState extends State<ShopDaycareBookingPage> {
         theme: theme,
         title: '選擇安親寵物（已選 ${_selectedPetIds.length} 隻）',
         selectedPetIds: _selectedPetIds,
+        petsStream: widget.debugPetsStream,
+        isLoggedIn: widget.debugLoggedIn,
         onPetsLoaded: (List<Map<String, dynamic>> pets) {
           _pets = pets;
         },
@@ -863,7 +1408,7 @@ class _ShopDaycareBookingPageState extends State<ShopDaycareBookingPage> {
   List<Widget> _dateAndTimeCards(HomeThemeModel theme, List<String> slots) {
     return <Widget>[
       Text(
-        (widget.shop['name'] ?? '').toString(),
+        _shopTitle,
         style: TextStyle(
           fontSize: 22,
           fontWeight: FontWeight.bold,
@@ -914,7 +1459,7 @@ class _ShopDaycareBookingPageState extends State<ShopDaycareBookingPage> {
               )
             else ...<Widget>[
               DropdownButtonFormField<String>(
-                initialValue: slots.contains(_dropOff) ? _dropOff : null,
+                value: dropdownValueIfAllowed(_dropOff, slots),
                 decoration: InputDecoration(
                   labelText: '送達時間',
                   border: OutlineInputBorder(
@@ -936,7 +1481,7 @@ class _ShopDaycareBookingPageState extends State<ShopDaycareBookingPage> {
               ),
               const SizedBox(height: 12),
               DropdownButtonFormField<String>(
-                initialValue: slots.contains(_pickUp) ? _pickUp : null,
+                value: dropdownValueIfAllowed(_pickUp, slots),
                 decoration: InputDecoration(
                   labelText: '接回時間',
                   border: OutlineInputBorder(
@@ -1031,6 +1576,8 @@ class _ShopDaycareBookingPageState extends State<ShopDaycareBookingPage> {
               extraPetPrice: setting.extraPetPrice,
               maxPets: setting.maxPets,
               enabled: setting.enabled,
+              roomBased: true,
+              remainingRooms: option.remainingRooms,
             ),
             selected: selected,
             enabled: canPick,
@@ -1085,36 +1632,37 @@ class _ShopDaycareBookingPageState extends State<ShopDaycareBookingPage> {
   }
 
   List<Widget> _stepFees(HomeThemeModel theme, DaycareQuote? quote) {
-    if (quote == null) {
+    if (quote == null || _startAt == null || _endAt == null) {
       return <Widget>[
         Text('請先完成日期、時間、寵物與方案選擇。', style: TextStyle(color: theme.textColor)),
       ];
     }
-    final List<BookingFeeLineItem> lines = DaycarePricingService.instance
-        .customerFeeLines(
-          quote: quote,
-          primaryLabel: _plan?.name ?? '安親方案',
-          depositType: widget.settings.depositType,
-          addonLines: _addons
-              .where(
-                (Map<String, dynamic> e) =>
-                    _selectedAddonIds.contains((e['id'] ?? '').toString()),
-              )
-              .map(
-                (Map<String, dynamic> addon) => BookingFeeLineItem(
-                  label: DaycareAddonCatalog.displayName(addon),
-                  amount: DaycarePricingService.instance.addonLineAmount(
-                    addon: addon,
-                    minutes: quote.durationMinutes,
-                    petCount: _selectedPetIds.isEmpty
-                        ? 1
-                        : _selectedPetIds.length,
-                  ),
-                ),
-              )
-              .toList(),
-        );
+    final List<BookingFeeLineItem> lines = _feeLines(quote);
     return <Widget>[
+      DaycareBookingSummaryCard(
+        theme: theme,
+        dateText: DaycareTimeHelper.formatDate(_startAt!),
+        dropOffText: DaycareTimeHelper.formatHm(_startAt!),
+        pickUpText: DaycareTimeHelper.formatHm(_endAt!),
+        durationMinutes: quote.durationMinutes,
+        petCount: _selectedPetIds.length,
+        petNames: _petNames,
+        planName: _primaryFeeLabel,
+        roomTypeName: '實際房間將由店家安排',
+      ),
+      const SizedBox(height: 12),
+      BookingMemberCouponSection(
+        theme: theme,
+        selectedCoupon: _selectedCoupon,
+        availableCoupons: _coupons,
+        loading: _loadingCoupons,
+        couponBlockedBySpecialDate: false,
+        unavailableReason: widget.settings.allowCoupon ? null : '此店安親目前不可使用優惠券',
+        couponDiscountAmount: quote.couponAmount,
+        onClear: () => setState(() => _selectedCoupon = null),
+        onPick: _pickCoupon,
+      ),
+      const SizedBox(height: 12),
       BookingThemedCard(
         theme: theme,
         child: Column(
@@ -1176,5 +1724,18 @@ class _ShopDaycareBookingPageState extends State<ShopDaycareBookingPage> {
         ),
       ),
     ];
+  }
+
+  Future<void> _pickCoupon() async {
+    final MemberCouponModel? result = await showBookingMemberCouponPicker(
+      context: context,
+      theme: HomeBannerService.instance.themeFromShop(widget.shop),
+      coupons: _coupons,
+      selectedCoupon: _selectedCoupon,
+    );
+    if (!mounted || result == null) {
+      return;
+    }
+    setState(() => _selectedCoupon = result);
   }
 }

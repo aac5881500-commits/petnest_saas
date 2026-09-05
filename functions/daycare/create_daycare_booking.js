@@ -29,6 +29,7 @@ const {
   quote,
   quoteRoom,
   findRoomTypeSetting,
+  depositAmount,
   SELECTABLE_PLAN_TYPES,
   isRoomBased,
 } = require("./daycare_pricing");
@@ -206,6 +207,8 @@ exports.createDaycareBooking = onCall(
       const startAt = toDate(data.scheduledStartAt) ||
         toDate(data.startAt);
       const endAt = toDate(data.scheduledEndAt) || toDate(data.endAt);
+      const termsAcceptedAt = toDate(data.termsAcceptedAt) ||
+        toDate(data.policyAcceptedAt);
       if (!startAt || !endAt) {
         throw new HttpsError("invalid-argument", "請選擇正確的安親時間");
       }
@@ -305,7 +308,7 @@ exports.createDaycareBooking = onCall(
       let couponAmount = 0;
       let couponRef = null;
       const requestedCouponId = normalizeString(data.couponId);
-      if (!roomBased && settings.allowCoupon === true && requestedCouponId) {
+      if (settings.allowCoupon === true && requestedCouponId) {
         couponRef = firestore.collection("shops").doc(shopId)
             .collection("member_coupons").doc(requestedCouponId);
         const couponSnap = await couponRef.get();
@@ -337,8 +340,9 @@ exports.createDaycareBooking = onCall(
         }
         const roomTypeIds = Array.isArray(coupon.roomTypeIds) ?
           coupon.roomTypeIds.map((id) => normalizeString(id)) : [];
-        if (roomTypeIds.length > 0) {
-          throw new HttpsError("failed-precondition", "此優惠券限定房型，安親建立時尚未分房");
+        if (roomTypeIds.length > 0 &&
+            !roomTypeIds.includes(normalizeString(requestedRoomTypeId))) {
+          throw new HttpsError("failed-precondition", "此優惠券不適用所選安親房型");
         }
         const surchargeDetails =
           Array.isArray(data.specialDateSurchargeDetails) ?
@@ -349,11 +353,11 @@ exports.createDaycareBooking = onCall(
           throw new HttpsError("failed-precondition", "此特殊日期不可使用優惠券");
         }
         couponAmount = daycareCouponAmount(coupon, {
-          planAmount: draftQuote.baseAmount,
+          planAmount: toInt(draftQuote.timeCharge, draftQuote.baseAmount),
           extraPetAmount: draftQuote.extraPetAmount,
           addonAmount,
-          surchargeAmount: draftQuote.surchargeAmount,
-          campaignDiscountAmount: draftQuote.discountAmount,
+          surchargeAmount: toInt(draftQuote.surchargeAmount, 0),
+          campaignDiscountAmount: toInt(draftQuote.discountAmount, 0),
           addons: addonSnapshot,
         });
         if (toInt(coupon.minimumAmount, 0) > 0 &&
@@ -366,22 +370,45 @@ exports.createDaycareBooking = onCall(
           normalizeString(data.couponName);
       }
 
-      const computed = roomBased ? {
-        durationMinutes: minutes,
-        baseAmount: draftQuote.baseAmount,
-        extraPetAmount: draftQuote.extraPetAmount,
-        roomTypeExtra: draftQuote.extraTimeAmount || 0,
-        addonAmount,
-        surchargeAmount: 0,
-        discountAmount: 0,
-        couponAmount: 0,
-        pointAmount: 0,
-        overtimeAmount: 0,
-        manualAdjust: source === "admin" ? toInt(data.manualAdjust, 0) : 0,
-        totalAmount: (draftQuote.cappedRoomAmount || 0) + addonAmount,
-        depositAmount: 0,
-        remainingAmount: (draftQuote.cappedRoomAmount || 0) + addonAmount,
-      } : quote({
+      const computed = roomBased ? (() => {
+        const surchargeAmount = toInt(data.specialDateSurchargeAmount, 0);
+        const discountAmount = toInt(data.discountAmount, 0);
+        const pointAmount = toInt(data.pointAmount, 0);
+        const overtimeAmount = 0;
+        const manualAdjust = source === "admin" ? toInt(data.manualAdjust, 0) : 0;
+        let total = toInt(draftQuote.cappedRoomAmount, 0) + addonAmount +
+          surchargeAmount + overtimeAmount + manualAdjust -
+          discountAmount - couponAmount - pointAmount;
+        if (total < 0) {
+          total = 0;
+        }
+        const deposit = depositAmount(settings, total);
+        return {
+          durationMinutes: minutes,
+          baseAmount: draftQuote.baseAmount,
+          extraPetAmount: draftQuote.extraPetAmount,
+          roomTypeExtra: draftQuote.extraTimeAmount || 0,
+          addonAmount,
+          surchargeAmount,
+          discountAmount,
+          couponAmount,
+          pointAmount,
+          overtimeAmount,
+          manualAdjust,
+          totalAmount: total,
+          depositAmount: deposit,
+          remainingAmount: Math.max(0, total - deposit),
+          extraTimeAmount: draftQuote.extraTimeAmount || 0,
+          extraMinutes: draftQuote.extraMinutes || 0,
+          extraUnits: draftQuote.extraUnits || 0,
+          includedMinutes: draftQuote.includedMinutes || 0,
+          extraBillingMinutes: draftQuote.extraBillingMinutes || 60,
+          extraPetCount: draftQuote.extraPetCount || 0,
+          timeCharge: draftQuote.timeCharge || 0,
+          maxBaseCharge: draftQuote.maxBaseCharge || 0,
+          uncappedTimeCharge: draftQuote.uncappedTimeCharge || 0,
+        };
+      })() : quote({
         settings,
         plan,
         startAt,
@@ -532,10 +559,9 @@ exports.createDaycareBooking = onCall(
           daycarePricingSnapshot: computed,
           pricingMode: roomBased ? "room_based" : "time_based",
           estimateTotalPrice,
-          quotedTotalPrice: roomBased ? null : computed.totalAmount,
-          priceQuoteLocked: !roomBased,
-          priceConfirmedAt: roomBased ? null :
-            admin.firestore.FieldValue.serverTimestamp(),
+          quotedTotalPrice: computed.totalAmount,
+          priceQuoteLocked: true,
+          priceConfirmedAt: admin.firestore.FieldValue.serverTimestamp(),
           roomTypeId: "",
           roomTypeName: "",
           roomTypeNameSnapshot: "",
@@ -550,7 +576,7 @@ exports.createDaycareBooking = onCall(
           cleaningRequired: true,
           addons: addonSnapshot,
           note: normalizeString(data.note),
-          totalPrice: roomBased ? 0 : computed.totalAmount,
+          totalPrice: computed.totalAmount,
           originalTotal: computed.baseAmount + computed.extraPetAmount +
             computed.roomTypeExtra + computed.addonAmount +
             computed.surchargeAmount,
@@ -570,11 +596,11 @@ exports.createDaycareBooking = onCall(
           manualAdjust: computed.manualAdjust,
           depositAmount: computed.depositAmount,
           paymentMethod: normalizeString(data.paymentMethod),
-          payAmountType: roomBased ? "none" :
-            (normalizeString(data.payAmountType) ||
-            (computed.depositAmount > 0 ? "deposit" : "full")),
+          payAmountType: normalizeString(data.payAmountType) ||
+            (computed.depositAmount > 0 ? "deposit" : "full"),
           paidAmount: 0,
-          remainingAmount: roomBased ? 0 : computed.totalAmount,
+          remainingAmount: computed.remainingAmount != null ?
+            computed.remainingAmount : computed.totalAmount,
           paymentStatus: "unpaid",
           refundAmount: 0,
           refundStatus: "",
@@ -589,8 +615,12 @@ exports.createDaycareBooking = onCall(
           policyVersion,
           policyVersionId: policySummary.required ? `v${policyVersion}` : "",
           policyTitle,
-          policyAcceptedAt: policySummary.required ?
-            admin.firestore.FieldValue.serverTimestamp() : null,
+          termsAcceptedAt: termsAcceptedAt ?
+            admin.firestore.Timestamp.fromDate(termsAcceptedAt) : null,
+          policyAcceptedAt: termsAcceptedAt ?
+            admin.firestore.Timestamp.fromDate(termsAcceptedAt) :
+            (policySummary.required ?
+              admin.firestore.FieldValue.serverTimestamp() : null),
           policyKind: "daycare",
           policyServiceType: "daycare",
           policySignMethod: policySummary.required ? policySignMethod : "",
@@ -629,9 +659,9 @@ exports.createDaycareBooking = onCall(
 
       return {
         bookingId: bookingRef.id,
-        totalPrice: roomBased ? 0 : computed.totalAmount,
+        totalPrice: computed.totalAmount,
         estimateTotalPrice,
-        depositAmount: roomBased ? 0 : computed.depositAmount,
+        depositAmount: computed.depositAmount,
         status,
         pricingMode: roomBased ? "room_based" : "time_based",
       };

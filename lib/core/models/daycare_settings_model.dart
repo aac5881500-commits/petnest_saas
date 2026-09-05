@@ -322,6 +322,20 @@ class DaycareRoomTypeSetting {
     };
   }
 
+  Map<String, dynamic> toCallableSnapshot() {
+    return <String, dynamic>{
+      'roomTypeId': roomTypeId,
+      'enabled': enabled,
+      'includedMinutes': includedMinutes,
+      'basePrice': basePrice,
+      'extraBillingMinutes': extraBillingMinutes,
+      'extraBillingPrice': extraBillingPrice,
+      'extraPetPrice': extraPetPrice,
+      'maxBaseCharge': maxBaseCharge,
+      'maxPets': maxPets,
+    };
+  }
+
   static String _oneOf(dynamic raw, List<String> allowed, String fallback) {
     final String text = (raw ?? '').toString().trim();
     return allowed.contains(text) ? text : fallback;

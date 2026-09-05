@@ -170,8 +170,8 @@ class _AssignRoomDialogState extends State<_AssignRoomDialog> {
             : _rooms.isEmpty
             ? Text(
                 _roomTypeLocked
-                    ? '客戶選擇的房型目前無房可分，請聯絡客戶處理。'
-                    : '目前沒有可分配的房間，請改約其他時間或取消訂單。',
+                    ? '客戶選擇的房型目前沒有可分配房間，請聯絡客戶確認。'
+                    : '目前沒有可分配的房間。時計方案可先保持已確認未分房，完成分房後才能辦理入住。',
               )
             : Column(
                 mainAxisSize: MainAxisSize.min,
