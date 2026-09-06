@@ -43,6 +43,12 @@ function parseBool(value, fallback = false) {
   return fallback;
 }
 
+/**
+ * 將輸入值安全轉換為整數。
+ * @param {*} value 原始值
+ * @param {number} fallback 轉換失敗時的預設值
+ * @return {number} 整數結果
+ */
 function toInt(value, fallback = 0) {
   if (typeof value === "number" && Number.isFinite(value)) {
     return Math.round(value);
@@ -160,13 +166,19 @@ async function loadDateOverride(firestore, shopId, date) {
  * @return {boolean}
  */
 function isDateOpen(settings, override, date) {
-  if (override) {
+  if (!override) {
+    return true;
+  }
+
+  if (Object.prototype.hasOwnProperty.call(override, "isOpen")) {
     return override.isOpen === true;
   }
-  const weekdays = Array.isArray(settings.weekdays) ?
-    settings.weekdays.map((item) => toInt(item, 0)) :
-    [1, 2, 3, 4, 5, 6, 7];
-  return weekdays.includes(weekdayTaiwan(date));
+
+  if (override.closed === true || override.isClosed === true) {
+    return false;
+  }
+
+  return true;
 }
 
 /**
@@ -348,7 +360,8 @@ function shopHasCatHotel(shopData) {
  */
 function isDaycareEnabled(shopData, settings) {
   const shop = shopData || {};
-  return parseBool(shop.daycareEnabled) || parseBool(settings && settings.enabled);
+  return parseBool(shop.daycareEnabled) ||
+    parseBool(settings && settings.enabled);
 }
 
 /** @deprecated 請改用 isDaycareEnabled

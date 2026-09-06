@@ -68,8 +68,14 @@ function assertSchedule(settings, startAt, endAt, isAdmin, override) {
   }
   const hours = resolveDayHours(settings, override);
   if (settings.blockOutsideHours !== false) {
-    const startMin = startAt.getHours() * 60 + startAt.getMinutes();
-    const endMin = endAt.getHours() * 60 + endAt.getMinutes();
+    const taiwanOffsetMs = 8 * 60 * 60 * 1000;
+    const taiwanStart = new Date(startAt.getTime() + taiwanOffsetMs);
+    const taiwanEnd = new Date(endAt.getTime() + taiwanOffsetMs);
+
+    const startMin =
+    taiwanStart.getUTCHours() * 60 + taiwanStart.getUTCMinutes();
+    const endMin =
+    taiwanEnd.getUTCHours() * 60 + taiwanEnd.getUTCMinutes();
     if (startMin < minutesOf(hours.earliestDropOff) ||
         endMin > minutesOf(hours.latestPickUp)) {
       throw new HttpsError("failed-precondition", "已超出安親營業時間");
@@ -227,7 +233,7 @@ exports.createDaycareBooking = onCall(
       const roomBased = isRoomBased(settings);
       const plans = Array.isArray(settings.plans) ? settings.plans : [];
       const planId = normalizeString(data.daycarePlanId || data.planId);
-      let plan = plans.find((item) =>
+      const plan = plans.find((item) =>
         normalizeString(item && item.id) === planId) || {};
       if (!roomBased) {
         assertPlanWindow(plan, startAt);
@@ -375,7 +381,8 @@ exports.createDaycareBooking = onCall(
         const discountAmount = toInt(data.discountAmount, 0);
         const pointAmount = toInt(data.pointAmount, 0);
         const overtimeAmount = 0;
-        const manualAdjust = source === "admin" ? toInt(data.manualAdjust, 0) : 0;
+        const manualAdjust = source === "admin" ?
+  toInt(data.manualAdjust, 0) : 0;
         let total = toInt(draftQuote.cappedRoomAmount, 0) + addonAmount +
           surchargeAmount + overtimeAmount + manualAdjust -
           discountAmount - couponAmount - pointAmount;
@@ -652,7 +659,7 @@ exports.createDaycareBooking = onCall(
         operatorRole: source === "admin" ? "staff" : "member",
         payload: {
           totalPrice: computed.totalAmount,
-          planId: plan.id,
+          planId: normalizeString(plan.id),
           status,
         },
       });
