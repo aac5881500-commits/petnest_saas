@@ -310,7 +310,7 @@ class DaycarePlanModel {
     if (maxBaseCharge > 0) {
       lines.add(
         roomBased
-            ? '此房型最高　${moneyLabel(maxBaseCharge)}'
+            ? '當日房型收費最高上限 ${moneyLabel(maxBaseCharge)}'
             : '當次最高計費　${moneyLabel(maxBaseCharge)}',
       );
     }

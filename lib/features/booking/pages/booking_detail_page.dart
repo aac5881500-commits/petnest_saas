@@ -19,6 +19,7 @@ import 'package:petnest_saas/core/services/payment_function_service.dart';
 import 'package:petnest_saas/core/services/pre_arrival_guide_service.dart';
 import 'package:petnest_saas/core/models/shop_frontend_theme.dart';
 import 'package:petnest_saas/core/utils/safe_parse.dart';
+import 'package:petnest_saas/features/shop/pages/shop_public_page.dart';
 import 'package:petnest_saas/core/widgets/shop_frontend_theme_scope.dart';
 import 'package:petnest_saas/features/booking/widgets/booking_detail/booking_detail_completion_section.dart';
 import 'package:petnest_saas/features/booking/widgets/booking_detail/booking_detail_customer_pet_section.dart';
@@ -187,6 +188,18 @@ class _BookingDetailPageState extends State<_BookingDetailBody> {
               backgroundColor: BookingDetailUi.of(context).background,
               appBar: AppBar(
                 backgroundColor: BookingDetailUi.of(context).background,
+                leading: IconButton(
+                  icon: const Icon(Icons.home_rounded),
+                  tooltip: '回首頁',
+                  onPressed: () {
+                    Navigator.of(context).pushAndRemoveUntil(
+                      MaterialPageRoute(
+                        builder: (_) => ShopPublicPage(shopId: shopId),
+                      ),
+                      (Route<dynamic> route) => false,
+                    );
+                  },
+                ),
                 title: Text(view.pageTitle),
                 actions: <Widget>[
                   ConstrainedBox(

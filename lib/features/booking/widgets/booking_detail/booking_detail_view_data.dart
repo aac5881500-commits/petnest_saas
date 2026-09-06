@@ -420,10 +420,6 @@ class BookingDetailViewData {
   int get paidAmount => BookingDetailParse.parseMoney(raw['paidAmount']);
 
   int get remainingAmount {
-    final int stored = BookingDetailParse.parseMoney(raw['remainingAmount']);
-    if (raw.containsKey('remainingAmount')) {
-      return stored < 0 ? 0 : stored;
-    }
     final int remain = totalAmount - paidAmount;
     return remain < 0 ? 0 : remain;
   }
@@ -669,7 +665,7 @@ class BookingDetailViewData {
     return answers.isNotEmpty;
   }
 
-  bool get paymentTaskComplete => remainingAmount <= 0;
+  bool get paymentTaskComplete => isPaidInFull;
 
   bool get stayDataComplete =>
       stayArrangementComplete &&

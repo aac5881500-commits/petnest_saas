@@ -1683,22 +1683,6 @@ class _BookingFormPageState extends State<BookingFormPage> {
                   onTap: _openTermsSheet,
                 ),
               const SizedBox(height: 16),
-              BookingPrimaryButton(
-                theme: widget.theme,
-                label: widget.submitLabel,
-                enabled: canPressSubmit,
-                onPressed: () {
-                  if (!canPressSubmit) {
-                    final String reason = submitHint.isNotEmpty
-                        ? submitHint
-                        : '請先完成付款方式與條款確認';
-                    debugPrint('[BookingSubmit] 01 ignored: $reason');
-                    _showSubmitMessage(reason);
-                    return;
-                  }
-                  _handleSubmit(calculatedDeposit);
-                },
-              ),
             ],
           ),
         ),

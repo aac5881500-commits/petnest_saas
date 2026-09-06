@@ -274,21 +274,39 @@ class DaycarePricingService {
     bool isRoomBased = false,
     bool includePayable = true,
   }) {
-    final String overtimeLabel = isRoomBased ? '超時加收' : '超時計費';
-    final String uncappedLabel = isRoomBased ? '房型原計' : '計費原計';
-    final String capDiscountLabel = isRoomBased ? '房型上限折抵' : '計費上限折抵';
-    final String cappedLabel = isRoomBased ? '房型計費' : '方案計費';
+    final String includedLabel = minutesLabel(quote.includedMinutes);
+    final String uncappedLabel = isRoomBased ? '原計費金額' : '計費原計';
+    final String capDiscountLabel = isRoomBased ? '當日房型上限調整' : '計費上限調整';
+    final String cappedLabel = isRoomBased ? '當日房型費' : '方案計費';
+
     final List<BookingFeeLineItem> lines = <BookingFeeLineItem>[
-      BookingFeeLineItem(label: '$primaryLabel・起步價格', amount: quote.baseAmount),
+      BookingFeeLineItem(
+        label: '起步費（含 $includedLabel）',
+        amount: quote.baseAmount,
+      ),
     ];
+
     final int extraTime = quote.extraUnits > 0
         ? (quote.uncappedTimeCharge - quote.baseAmount).clamp(0, 1 << 30)
         : 0;
+
     if (quote.extraUnits > 0 && extraTime > 0) {
-      lines.add(BookingFeeLineItem(label: overtimeLabel, amount: extraTime));
+      final int unitPrice = extraTime ~/ quote.extraUnits;
+      final String unitText = quote.extraBillingMinutes == 30
+          ? '${quote.extraUnits} 個 30 分鐘'
+          : '${quote.extraUnits} 小時';
+
+      lines.add(
+        BookingFeeLineItem(
+          label: '超時費（$unitText × ${DaycarePlanModel.moneyLabel(unitPrice)}）',
+          amount: extraTime,
+        ),
+      );
     }
+
     final bool capHit =
         quote.maxBaseCharge > 0 && quote.timeChargeCapDiscount > 0;
+
     if (capHit) {
       lines.add(
         BookingFeeLineItem(

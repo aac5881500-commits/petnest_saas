@@ -189,8 +189,11 @@ class ShopBookingEntryPage extends StatelessWidget {
                               );
                               final Widget
                               daycareCard = BookingEntryServiceCard(
-                                title: settings.serviceName.isEmpty
-                                    ? '貓咪安親'
+                                title:
+                                    settings.serviceName.isEmpty ||
+                                        settings.serviceName == '寵物臨托' ||
+                                        settings.serviceName == '臨托'
+                                    ? '寵物安親'
                                     : settings.serviceName,
                                 subtitle: '選擇單日送達與接回時間',
                                 imageUrl:

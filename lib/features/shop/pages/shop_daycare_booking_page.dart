@@ -42,7 +42,6 @@ import 'package:petnest_saas/features/shop/widgets/booking/booking_member_coupon
 import 'package:petnest_saas/features/shop/widgets/booking/booking_pet_section.dart';
 import 'package:petnest_saas/features/shop/widgets/booking/booking_step_widgets.dart';
 import 'package:petnest_saas/features/shop/widgets/booking/daycare_booking_summary_card.dart';
-import 'package:petnest_saas/features/shop/widgets/booking/daycare_date_card.dart';
 import 'package:petnest_saas/features/shop/widgets/booking/daycare_offer_card.dart';
 import 'package:petnest_saas/features/shop/widgets/booking/front_calendar_payload.dart';
 
@@ -1223,11 +1222,9 @@ class _ShopDaycareBookingPageState extends State<ShopDaycareBookingPage> {
         foregroundColor: theme.textColor,
         surfaceTintColor: Colors.transparent,
         elevation: 0,
-        title: Text(
-          widget.settings.serviceName.isEmpty
-              ? '安親預約'
-              : widget.settings.serviceName,
-          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+        title: const Text(
+          '寵物安親',
+          style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
         ),
       ),
       body: _isBlacklisted
@@ -1405,26 +1402,106 @@ class _ShopDaycareBookingPageState extends State<ShopDaycareBookingPage> {
     ];
   }
 
+  String _formatDate(DateTime date) {
+    final String year = date.year.toString();
+    final String month = date.month.toString().padLeft(2, '0');
+    final String day = date.day.toString().padLeft(2, '0');
+
+    return '$year/$month/$day';
+  }
+
   List<Widget> _dateAndTimeCards(HomeThemeModel theme, List<String> slots) {
     return <Widget>[
-      Text(
-        _shopTitle,
-        style: TextStyle(
-          fontSize: 22,
-          fontWeight: FontWeight.bold,
-          color: theme.textColor,
-        ),
-      ),
-      const SizedBox(height: 8),
-      Text('請先選擇安親日期，再安排送達與接回時間', style: TextStyle(color: theme.textColor)),
-      if (widget.settings.intro.isNotEmpty) ...<Widget>[
-        const SizedBox(height: 8),
-        Text(widget.settings.intro, style: TextStyle(color: theme.textColor)),
-      ],
-      const SizedBox(height: 16),
       BookingThemedCard(
         theme: theme,
-        child: DaycareDateCard(date: _date, onTap: _openCalendar),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            Text(
+              _shopTitle,
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w700,
+                color: theme.textColor,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              '日期與寵物',
+              style: TextStyle(
+                fontSize: 17,
+                fontWeight: FontWeight.w700,
+                color: theme.textColor,
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              '請先選擇安親日期，再安排送達與接回時間',
+              style: TextStyle(
+                fontSize: 12,
+                color: theme.textColor.withValues(alpha: 0.7),
+              ),
+            ),
+            if (widget.settings.intro.isNotEmpty) ...<Widget>[
+              const SizedBox(height: 6),
+              Text(
+                widget.settings.intro,
+                style: TextStyle(
+                  fontSize: 12,
+                  color: theme.textColor.withValues(alpha: 0.7),
+                ),
+              ),
+            ],
+            const SizedBox(height: 12),
+            Row(
+              children: <Widget>[
+                SizedBox(
+                  width: 72,
+                  child: Text(
+                    '安親日期',
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: theme.textColor.withValues(alpha: 0.7),
+                    ),
+                  ),
+                ),
+                Expanded(
+                  child: Text(
+                    _date == null ? '尚未選擇' : _formatDate(_date!),
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                      color: theme.textColor,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 14),
+            SizedBox(
+              width: double.infinity,
+              height: 44,
+              child: OutlinedButton.icon(
+                onPressed: _openCalendar,
+                icon: const Icon(Icons.calendar_month, size: 18),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: theme.primaryColor,
+                  side: BorderSide(color: theme.cardBorderColor),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                label: Text(
+                  _date == null ? '選擇日期' : '重新選擇日期',
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
       if (widget.settings.showRemainingSlots && _date != null) ...<Widget>[
         const SizedBox(height: 8),
@@ -1639,18 +1716,6 @@ class _ShopDaycareBookingPageState extends State<ShopDaycareBookingPage> {
     }
     final List<BookingFeeLineItem> lines = _feeLines(quote);
     return <Widget>[
-      DaycareBookingSummaryCard(
-        theme: theme,
-        dateText: DaycareTimeHelper.formatDate(_startAt!),
-        dropOffText: DaycareTimeHelper.formatHm(_startAt!),
-        pickUpText: DaycareTimeHelper.formatHm(_endAt!),
-        durationMinutes: quote.durationMinutes,
-        petCount: _selectedPetIds.length,
-        petNames: _petNames,
-        planName: _primaryFeeLabel,
-        roomTypeName: '實際房間將由店家安排',
-      ),
-      const SizedBox(height: 12),
       BookingMemberCouponSection(
         theme: theme,
         selectedCoupon: _selectedCoupon,
@@ -1661,6 +1726,18 @@ class _ShopDaycareBookingPageState extends State<ShopDaycareBookingPage> {
         couponDiscountAmount: quote.couponAmount,
         onClear: () => setState(() => _selectedCoupon = null),
         onPick: _pickCoupon,
+      ),
+      const SizedBox(height: 12),
+      DaycareBookingSummaryCard(
+        theme: theme,
+        dateText: DaycareTimeHelper.formatDate(_startAt!),
+        dropOffText: DaycareTimeHelper.formatHm(_startAt!),
+        pickUpText: DaycareTimeHelper.formatHm(_endAt!),
+        durationMinutes: quote.durationMinutes,
+        petCount: _selectedPetIds.length,
+        petNames: _petNames,
+        planName: _primaryFeeLabel,
+        roomTypeName: '實際房間將由店家安排',
       ),
       const SizedBox(height: 12),
       BookingThemedCard(
