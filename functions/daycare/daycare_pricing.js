@@ -1,7 +1,9 @@
 // 檔案名稱：functions/daycare/daycare_pricing.js
 // 功能說明：臨托計價：與 Flutter DaycarePricingService 同一公式
 
-const {roundMoney, toInt, normalizeString, parseBool} = require("./daycare_utils");
+const {
+  roundMoney, toInt, normalizeString, parseBool,
+} = require("./daycare_utils");
 
 const PLAN_TYPES = {
   hourly: "hourly",
@@ -46,11 +48,28 @@ const CAP_MODES = {
   none: "none",
 };
 
+/**
+ * 房型計費相容 room_based／roomType／room_type。
+ * @param {Object} settingsOrBooking
+ * @return {boolean}
+ */
 function isRoomBased(settingsOrBooking) {
   const mode = normalizeString(
       (settingsOrBooking && settingsOrBooking.pricingMode) || "",
   );
-  return mode === PRICING_MODES.roomBased;
+  return mode === PRICING_MODES.roomBased ||
+    mode === "roomType" ||
+    mode === "room_type";
+}
+
+/**
+ * 訂金報價可預估尾款；真正入帳的尚需付款必須是總額減已付。
+ * @param {number} total
+ * @param {number} paid
+ * @return {number}
+ */
+function remainingFromPaid(total, paid) {
+  return Math.max(0, toInt(total, 0) - toInt(paid, 0));
 }
 
 /**
@@ -96,6 +115,13 @@ function quoteTimeCharge(params) {
   };
 }
 
+/**
+ * @param {number} extraMinutes
+ * @param {number} unitMinutes
+ * @param {number} unitPrice
+ * @param {string} roundingMode
+ * @return {number}
+ */
 function extraTimeAmount(extraMinutes, unitMinutes, unitPrice, roundingMode) {
   if (extraMinutes <= 0 || unitPrice <= 0) {
     return 0;
@@ -116,6 +142,13 @@ function extraTimeAmount(extraMinutes, unitMinutes, unitPrice, roundingMode) {
   return Math.ceil(extraMinutes / 60) * pricePerHour;
 }
 
+/**
+ * @param {number} roomNightPrice
+ * @param {number} extraPetNightPrice
+ * @param {number} petCount
+ * @param {number} surcharge
+ * @return {number}
+ */
 function overnightStayOriginal(roomNightPrice, extraPetNightPrice, petCount,
     surcharge) {
   const extraPets = Math.max(0, toInt(petCount, 1) - 1);
@@ -123,6 +156,12 @@ function overnightStayOriginal(roomNightPrice, extraPetNightPrice, petCount,
     toInt(surcharge, 0);
 }
 
+/**
+ * @param {number} amount
+ * @param {string} capMode
+ * @param {number} capAmount
+ * @return {number}
+ */
 function applyCap(amount, capMode, capAmount) {
   const mode = normalizeString(capMode) || CAP_MODES.overnightRate;
   if (mode === CAP_MODES.none || toInt(capAmount, 0) <= 0) {
@@ -131,6 +170,11 @@ function applyCap(amount, capMode, capAmount) {
   return Math.max(0, Math.min(amount, toInt(capAmount, 0)));
 }
 
+/**
+ * @param {Object} settings
+ * @param {string} roomTypeId
+ * @return {Object|null}
+ */
 function findRoomTypeSetting(settings, roomTypeId) {
   const list = Array.isArray(settings && settings.roomTypes) ?
     settings.roomTypes : [];
@@ -139,6 +183,10 @@ function findRoomTypeSetting(settings, roomTypeId) {
     null;
 }
 
+/**
+ * @param {Object} params
+ * @return {Object}
+ */
 function quoteRoom(params) {
   const startAt = params.startAt;
   const endAt = params.endAt;
@@ -183,6 +231,13 @@ function quoteRoom(params) {
   };
 }
 
+/**
+ * @param {Object} settings
+ * @param {Date} startAt
+ * @param {Date} endAt
+ * @param {number} petCount
+ * @return {number}
+ */
 function estimateFromPrice(settings, startAt, endAt, petCount) {
   const list = Array.isArray(settings && settings.roomTypes) ?
     settings.roomTypes.filter((item) => item && parseBool(item.enabled)) : [];
@@ -203,6 +258,10 @@ function estimateFromPrice(settings, startAt, endAt, petCount) {
   return min || 0;
 }
 
+/**
+ * @param {string} mode
+ * @return {string}
+ */
 function roundingLabel(mode) {
   if (mode === ROUNDING_MODES.ceilHalfHour) {
     return "不足半小時，以半小時計";
@@ -213,6 +272,11 @@ function roundingLabel(mode) {
   return "不足一小時，以整小時計";
 }
 
+/**
+ * @param {number} paid
+ * @param {number} total
+ * @return {string}
+ */
 function paymentStatusOf(paid, total) {
   const p = toInt(paid, 0);
   const t = toInt(total, 0);
@@ -269,16 +333,21 @@ function baseAmount(plan, minutes) {
  */
 function depositAmount(settings, total) {
   const type = normalizeString(settings.depositType) || DEPOSIT_TYPES.none;
+  const value = toInt(
+      settings.depositValue != null ?
+        settings.depositValue : settings.depositAmount,
+      0,
+  );
   if (type === DEPOSIT_TYPES.full) {
     return total;
   }
   if (type === DEPOSIT_TYPES.fixed) {
-    return Math.max(0, Math.min(total, toInt(settings.depositValue, 0)));
+    return Math.max(0, Math.min(total, value));
   }
   if (type === DEPOSIT_TYPES.percent) {
     return Math.max(0, Math.min(
         total,
-        roundMoney(total * toInt(settings.depositValue, 0) / 100),
+        roundMoney(total * value / 100),
     ));
   }
   return 0;
@@ -372,6 +441,58 @@ function overtimeFee(plan, settings, scheduledEndAt, actualEndAt) {
 }
 
 /**
+ * 結算用晚接回逾時：店家 latePickup 設定，與 quoteTimeCharge／方案 overtimeFee 分開。
+ * @param {Object} settings
+ * @param {Date|null} scheduledEndAt
+ * @param {Date} actualEndAt
+ * @return {Object}
+ */
+function shopLatePickupBreakdown(settings, scheduledEndAt, actualEndAt) {
+  const extra = (!scheduledEndAt || !actualEndAt) ? 0 : Math.max(0,
+      Math.floor((actualEndAt - scheduledEndAt) / 60000));
+  const grace = Math.max(0, toInt(settings.overtimeGraceMinutes, 0));
+  const unitPrice = toInt(settings.latePickupPrice, 0);
+  const enabled = parseBool(settings.latePickupEnabled) && unitPrice > 0;
+  const unitMinutes = toInt(settings.latePickupUnitMinutes, 60) === 30 ?
+    30 : 60;
+  const billableRaw = extra - grace;
+  const billable = billableRaw < 0 ? 0 : billableRaw;
+  let units = 0;
+  let amount = 0;
+  if (enabled && billable > 0) {
+    units = Math.ceil(billable / unitMinutes);
+    amount = units * unitPrice;
+  }
+  let formula = "未加收";
+  if (amount > 0) {
+    formula = unitMinutes === 30 ?
+      `${units} 個 30 分鐘 × NT$${unitPrice}` :
+      `${units} 小時 × NT$${unitPrice}`;
+  }
+  return {
+    extraMinutes: extra,
+    graceMinutes: grace,
+    billableMinutes: billable,
+    unitMinutes,
+    unitPrice,
+    units,
+    amount,
+    enabled,
+    formula,
+  };
+}
+
+/**
+ * @param {Object} settings
+ * @param {Date} scheduledEndAt
+ * @param {Date} actualEndAt
+ * @return {number}
+ */
+function shopLatePickupFee(settings, scheduledEndAt, actualEndAt) {
+  return shopLatePickupBreakdown(settings, scheduledEndAt, actualEndAt).amount;
+}
+
+/**
  * @param {Object} addon
  * @param {number} minutes
  * @param {number} petCount
@@ -409,8 +530,11 @@ module.exports = {
   depositAmount,
   quote,
   overtimeFee,
+  shopLatePickupBreakdown,
+  shopLatePickupFee,
   addonLineAmount,
   isRoomBased,
+  remainingFromPaid,
   extraTimeAmount,
   overnightStayOriginal,
   applyCap,

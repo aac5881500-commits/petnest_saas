@@ -65,6 +65,10 @@ class MemberService {
           'phone': phone ?? profilePhone.ifEmpty(user.phoneNumber ?? ''),
           'address': addressText,
           'emergencyContact': emergencyContact,
+          'avatarUrl': (profileData['avatarUrl'] ?? '').toString().trim(),
+          'avatarStoragePath': (profileData['avatarStoragePath'] ?? '')
+              .toString()
+              .trim(),
           'updatedAt': FieldValue.serverTimestamp(),
           'lastLoginAt': FieldValue.serverTimestamp(),
           'lastBookingAt': FieldValue.serverTimestamp(),
@@ -77,6 +81,10 @@ class MemberService {
           'phone': phone ?? profilePhone.ifEmpty(user.phoneNumber ?? ''),
           'address': addressText,
           'emergencyContact': emergencyContact,
+          'avatarUrl': (profileData['avatarUrl'] ?? '').toString().trim(),
+          'avatarStoragePath': (profileData['avatarStoragePath'] ?? '')
+              .toString()
+              .trim(),
           'petCount': 0,
           'bookingCount': 0,
           'tags': <String>[],
@@ -91,6 +99,10 @@ class MemberService {
       }
 
       await syncCurrentUserPetsToShopMember(shopId: shopId);
+      await _firestore.collection('user_profiles').doc(user.uid).set({
+        'shopIds': FieldValue.arrayUnion(<String>[shopId]),
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
     } catch (e) {
       print('🔥 ensureMember錯誤');
       print(e);

@@ -11,7 +11,7 @@ import 'package:petnest_saas/core/models/shop_chat_thread_model.dart';
 import 'package:petnest_saas/core/services/inventory_image_service.dart';
 import 'package:petnest_saas/core/services/shop_chat_service.dart';
 import 'package:petnest_saas/core/services/shop_service.dart';
-import 'package:petnest_saas/features/admin/pages/admin_booking_detail_page.dart';
+import 'package:petnest_saas/core/navigation/admin_booking_route.dart';
 import 'package:petnest_saas/features/shop/widgets/chat/shop_chat_composer.dart';
 import 'package:petnest_saas/features/shop/widgets/chat/shop_chat_message_list.dart';
 
@@ -367,8 +367,10 @@ class _BookingBanner extends StatelessWidget {
                 }
                 Navigator.of(context).push(
                   MaterialPageRoute<void>(
-                    builder: (_) =>
-                        AdminBookingDetailPage(bookingId: bookingId),
+                    builder: (_) => AdminBookingRoute.page(
+                      bookingId: bookingId,
+                      data: booking,
+                    ),
                   ),
                 );
               },

@@ -244,7 +244,7 @@ class _ShopPointSettingPageState extends State<ShopPointSettingPage> {
       children: <Widget>[
         const Divider(),
         const Text(
-          '臨托點數設定',
+          '安親點數設定',
           style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
         ),
         const SizedBox(height: 4),
@@ -254,14 +254,14 @@ class _ShopPointSettingPageState extends State<ShopPointSettingPage> {
         ),
         SwitchListTile(
           contentPadding: EdgeInsets.zero,
-          title: const Text('臨托完成後發放點數'),
+          title: const Text('安親完成後發放點數'),
           value: _daycareEarnEnabled,
           onChanged: (bool value) =>
               setState(() => _daycareEarnEnabled = value),
         ),
         SwitchListTile(
           contentPadding: EdgeInsets.zero,
-          title: const Text('臨托允許點數折抵'),
+          title: const Text('安親允許點數折抵'),
           value: _daycareSpendEnabled,
           onChanged: (bool value) =>
               setState(() => _daycareSpendEnabled = value),
@@ -306,7 +306,7 @@ class _ShopPointSettingPageState extends State<ShopPointSettingPage> {
             controller: _daycarePointsPerOrderController,
             keyboardType: TextInputType.number,
             decoration: const InputDecoration(
-              labelText: '每張完成臨托訂單獲得點數',
+              labelText: '每張完成安親訂單獲得點數',
               border: OutlineInputBorder(),
             ),
           ),
@@ -324,7 +324,7 @@ class _ShopPointSettingPageState extends State<ShopPointSettingPage> {
           controller: _daycareMaximumController,
           keyboardType: TextInputType.number,
           decoration: const InputDecoration(
-            labelText: '每張臨托訂單最多發放點數（0 為不限制）',
+            labelText: '每張安親訂單最多發放點數（0 為不限制）',
             border: OutlineInputBorder(),
           ),
         ),

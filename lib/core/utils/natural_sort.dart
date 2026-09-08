@@ -1,47 +1,46 @@
 // 檔案名稱：lib/core/utils/natural_sort.dart
-// 功能說明：將 A1、A2、A10 等文字依照人類閱讀順序排序
-// 🔢 自然排序工具
+// 功能說明：房號／房型自然排序，讓 A2 排在 A10 之前。
 
-int naturalCompare(String first, String second) {
-  final firstParts = _splitNaturalParts(first);
-  final secondParts = _splitNaturalParts(second);
+class NaturalSort {
+  NaturalSort._();
 
-  final compareLength = firstParts.length < secondParts.length
-      ? firstParts.length
-      : secondParts.length;
-
-  for (var index = 0; index < compareLength; index++) {
-    final firstPart = firstParts[index];
-    final secondPart = secondParts[index];
-
-    final firstNumber = int.tryParse(firstPart);
-    final secondNumber = int.tryParse(secondPart);
-
-    int result;
-
-    if (firstNumber != null && secondNumber != null) {
-      result = firstNumber.compareTo(secondNumber);
-
-      // 數字相同時，A01 排在 A001 前面，維持穩定順序
-      if (result == 0) {
-        result = firstPart.length.compareTo(secondPart.length);
+  static int compare(String a, String b) {
+    final List<Object> left = _parts(a);
+    final List<Object> right = _parts(b);
+    final int length = left.length < right.length ? left.length : right.length;
+    for (int i = 0; i < length; i++) {
+      final Object l = left[i];
+      final Object r = right[i];
+      if (l is int && r is int) {
+        final int n = l.compareTo(r);
+        if (n != 0) {
+          return n;
+        }
+      } else {
+        final int n = l.toString().toLowerCase().compareTo(
+          r.toString().toLowerCase(),
+        );
+        if (n != 0) {
+          return n;
+        }
       }
-    } else {
-      result = firstPart.toLowerCase().compareTo(secondPart.toLowerCase());
     }
-
-    if (result != 0) {
-      return result;
-    }
+    return left.length.compareTo(right.length);
   }
 
-  return firstParts.length.compareTo(secondParts.length);
+  static List<Object> _parts(String input) {
+    final List<Object> out = <Object>[];
+    final RegExp exp = RegExp(r'(\d+)|(\D+)');
+    for (final RegExpMatch match in exp.allMatches(input)) {
+      final String digits = match.group(1) ?? '';
+      if (digits.isNotEmpty) {
+        out.add(int.tryParse(digits) ?? 0);
+      } else {
+        out.add(match.group(2) ?? '');
+      }
+    }
+    return out;
+  }
 }
 
-List<String> _splitNaturalParts(String value) {
-  return RegExp(r'\d+|\D+')
-      .allMatches(value.trim())
-      .map((match) => match.group(0) ?? '')
-      .where((part) => part.isNotEmpty)
-      .toList();
-}
+int naturalCompare(String a, String b) => NaturalSort.compare(a, b);

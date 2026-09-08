@@ -35,10 +35,10 @@ class PolicyApplicableService {
     final bool stay = services.contains(accommodation);
     final bool daycareOn = services.contains(daycare);
     if (stay && daycareOn) {
-      return '住宿與臨托共用';
+      return '住宿與安親共用';
     }
     if (daycareOn) {
-      return '僅臨托';
+      return '僅安親';
     }
     return '僅住宿';
   }

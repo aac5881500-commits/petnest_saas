@@ -1716,8 +1716,8 @@ class _DailyCareSettingPageState extends State<DailyCareSettingPage> {
         children: <Widget>[
           SwitchListTile(
             contentPadding: EdgeInsets.zero,
-            title: const Text('臨托訂單也可填寫照護紀錄'),
-            subtitle: const Text('僅在臨托實際開始後允許填寫'),
+            title: const Text('安親訂單也可填寫照護紀錄'),
+            subtitle: const Text('僅在安親實際開始後允許填寫'),
             value: _daycareEnabled,
             onChanged: (bool value) {
               setState(() {

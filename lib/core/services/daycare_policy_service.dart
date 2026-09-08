@@ -45,7 +45,7 @@ class DaycarePolicyService {
     final int version =
         ((current.data()?['version'] as num?)?.toInt() ?? 0) + 1;
     final Map<String, dynamic> policy = <String, dynamic>{
-      'title': title.trim().isEmpty ? '臨托條款' : title.trim(),
+      'title': title.trim().isEmpty ? '安親條款' : title.trim(),
       'content': content.trim(),
       'enabled': enabled,
       'version': version,

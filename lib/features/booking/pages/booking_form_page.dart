@@ -6,13 +6,18 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/constants/emergency_relation_options.dart';
 import 'package:petnest_saas/core/models/booking_fee_line_item.dart';
+import 'package:petnest_saas/core/models/custom_form_answer_model.dart';
+import 'package:petnest_saas/core/models/custom_form_model.dart';
 import 'package:petnest_saas/core/models/daycare_settings_model.dart';
 import 'package:petnest_saas/core/models/home_theme_model.dart';
 import 'package:petnest_saas/core/models/policy_applicable_service.dart';
 import 'package:petnest_saas/core/models/terms_consent_snapshot.dart';
+import 'package:petnest_saas/core/services/custom_form_service.dart';
 import 'package:petnest_saas/core/services/shop_policy_service.dart';
 import 'package:petnest_saas/core/utils/dropdown_value.dart';
 import 'package:petnest_saas/core/utils/safe_parse.dart';
+import 'package:petnest_saas/features/booking/models/booking_form_submit_data.dart';
+import 'package:petnest_saas/features/custom_form/widgets/custom_form_response_fields.dart';
 import 'package:petnest_saas/features/shop/widgets/booking/booking_step_widgets.dart';
 import 'package:petnest_saas/features/shop/widgets/booking/terms_confirmation_card.dart';
 import 'package:petnest_saas/features/shop/widgets/booking/terms_confirmation_sheet.dart';
@@ -43,6 +48,7 @@ class BookingFormPage extends StatefulWidget {
     required this.roomPrice,
     this.submitLabel = '送出預約',
     this.feeSummaryTitle = '',
+    this.feeRuleText = '',
     this.allowCashOverride,
     this.daycareDepositType,
     this.daycareDepositValue = 0,
@@ -54,6 +60,7 @@ class BookingFormPage extends StatefulWidget {
     this.paymentTestState,
     this.depositOverrideAmount,
     this.showSubmitError = true,
+    this.seedCustomForm,
   });
 
   final GlobalKey<FormState> formKey;
@@ -83,6 +90,9 @@ class BookingFormPage extends StatefulWidget {
   /// 費用摘要標題。空白時不顯示額外標題。
   final String feeSummaryTitle;
 
+  /// 安親小時計費規則說明。空白時不顯示。
+  final String feeRuleText;
+
   /// 若為 false，即使店家有開到店付款也不顯示。
   final bool? allowCashOverride;
 
@@ -109,21 +119,13 @@ class BookingFormPage extends StatefulWidget {
   /// 若父層已顯示錯誤，避免重複 Snackbar。
   final bool showSubmitError;
 
+  /// 測試用：略過遠端讀取時注入送出訂單表單。
+  @visibleForTesting
+  final CustomFormModel? seedCustomForm;
+
   final String shopId;
 
-  final Future<void> Function(
-    String address,
-    String emergencyName,
-    String emergencyPhone,
-    String relation,
-    String emergencyAddress,
-    String phone2,
-    int depositAmount,
-    String paymentMethod,
-    String payAmountType,
-    TermsConsentSnapshot termsConsent,
-  )
-  onSubmitWithData;
+  final Future<void> Function(BookingFormSubmitData data) onSubmitWithData;
 
   @override
   State<BookingFormPage> createState() => _BookingFormPageState();
@@ -162,6 +164,14 @@ class _BookingFormPageState extends State<BookingFormPage> {
   String? _emergencyRelation;
   final _emergencyAddressController = TextEditingController();
   final _phone2Controller = TextEditingController();
+  final ScrollController _scrollController = ScrollController();
+  final GlobalKey _customFormSectionKey = GlobalKey();
+  final Map<String, GlobalKey> _customQuestionKeys = <String, GlobalKey>{};
+
+  CustomFormModel? _customForm;
+  Map<String, dynamic> _customAnswers = <String, dynamic>{};
+  bool _customFormLoading = false;
+  bool _customFormLoadFailed = false;
 
   final Map<String, List<String>> cityData = {
     '台北市': [
@@ -560,11 +570,33 @@ class _BookingFormPageState extends State<BookingFormPage> {
         widget.paymentTestState ?? BookingFormPaymentTestState.ready,
       );
       _loadingTerms = false;
+      _customForm = widget.seedCustomForm;
       return;
     }
     _loadMemberData();
     _loadShopPaymentSettings();
     _loadTermsStatus();
+    _loadCustomForm();
+  }
+
+  Future<void> _loadCustomForm() async {
+    setState(() {
+      _customFormLoading = true;
+      _customFormLoadFailed = false;
+    });
+    final CustomFormFrontLoadResult result = await CustomFormService.instance
+        .loadFormForCustomer(
+          shopId: widget.shopId,
+          formType: CustomFormType.bookingSubmit,
+        );
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _customFormLoading = false;
+      _customFormLoadFailed = result.failed;
+      _customForm = result.form;
+    });
   }
 
   void _applyPaymentTestState(BookingFormPaymentTestState state) {
@@ -682,6 +714,78 @@ class _BookingFormPageState extends State<BookingFormPage> {
         borderSide: BorderSide(color: widget.theme.primaryColor, width: 1.4),
       ),
       contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+    );
+  }
+
+  Widget _buildBookingCustomFormSection() {
+    if (_customFormLoading) {
+      return Padding(
+        key: _customFormSectionKey,
+        padding: const EdgeInsets.only(bottom: 16),
+        child: const Center(
+          child: SizedBox(
+            width: 22,
+            height: 22,
+            child: CircularProgressIndicator(strokeWidth: 2.2),
+          ),
+        ),
+      );
+    }
+    if (_customFormLoadFailed) {
+      return _sectionCard(
+        title: '送出訂單表單',
+        children: <Widget>[
+          KeyedSubtree(
+            key: _customFormSectionKey,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Text(
+                  '表單載入失敗，請重試',
+                  style: TextStyle(color: widget.theme.textColor),
+                ),
+                TextButton(onPressed: _loadCustomForm, child: const Text('重試')),
+              ],
+            ),
+          ),
+        ],
+      );
+    }
+    final CustomFormModel? form = _customForm;
+    if (form == null || !form.shouldCollectAnswers) {
+      return const SizedBox.shrink();
+    }
+    for (final (CustomFormSection _, CustomFormQuestion question)
+        in form.enabledQuestionEntries) {
+      _customQuestionKeys.putIfAbsent(question.id, GlobalKey.new);
+    }
+    return KeyedSubtree(
+      key: _customFormSectionKey,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: <Widget>[
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: Text(
+              '送出訂單表單',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w700,
+                color: widget.theme.textColor,
+              ),
+            ),
+          ),
+          CustomFormResponseFields(
+            form: form,
+            answers: _customAnswers,
+            theme: widget.theme,
+            fieldKeys: _customQuestionKeys,
+            onChanged: (Map<String, dynamic> next) {
+              setState(() => _customAnswers = next);
+            },
+          ),
+        ],
+      ),
     );
   }
 
@@ -815,6 +919,22 @@ class _BookingFormPageState extends State<BookingFormPage> {
         !_termsStatus!.accepted) {
       return '請確認最新條款';
     }
+    if (_customFormLoading) {
+      return '表單載入中';
+    }
+    if (_customFormLoadFailed) {
+      return '表單載入失敗，請重試';
+    }
+    if (_customForm?.shouldCollectAnswers == true) {
+      final CustomFormValidationResult check =
+          CustomFormAnswerSnapshot.validate(
+            form: _customForm!,
+            answersByQuestionId: _customAnswers,
+          );
+      if (!check.isValid) {
+        return '請完成送出訂單表單';
+      }
+    }
     return '';
   }
 
@@ -856,6 +976,7 @@ class _BookingFormPageState extends State<BookingFormPage> {
     _customEmergencyRelationController.dispose();
     _emergencyAddressController.dispose();
     _phone2Controller.dispose();
+    _scrollController.dispose();
 
     super.dispose();
   }
@@ -1201,22 +1322,52 @@ class _BookingFormPageState extends State<BookingFormPage> {
       _showSubmitMessage('請確認最新條款');
       return;
     }
+    if (_customFormLoading) {
+      _showSubmitMessage('表單載入中');
+      return;
+    }
+    if (_customFormLoadFailed) {
+      _showSubmitMessage('表單載入失敗，請重試');
+      _scrollToCustomForm();
+      return;
+    }
+    if (_customForm?.shouldCollectAnswers == true) {
+      final CustomFormValidationResult check =
+          CustomFormAnswerSnapshot.validate(
+            form: _customForm!,
+            answersByQuestionId: _customAnswers,
+          );
+      if (!check.isValid) {
+        debugPrint('[BookingSubmit] custom form incomplete');
+        _showSubmitMessage('請完成送出訂單表單');
+        _scrollToCustomForm(questionId: check.firstInvalidQuestionId);
+        return;
+      }
+    }
     final String fullAddress =
         '${_city ?? ''}${_district ?? ''}${_detailAddressController.text}';
     debugPrint('[BookingSubmit] 10 calling parent submit');
     setState(() => _isSubmitting = true);
     try {
       await widget.onSubmitWithData(
-        fullAddress,
-        _emergencyNameController.text,
-        _emergencyPhoneController.text,
-        _emergencyRelationForSubmit(),
-        _emergencyAddressController.text,
-        _phone2Controller.text,
-        calculatedDeposit,
-        _paymentMethod ?? '',
-        _payAmountType,
-        _buildTermsConsent(),
+        BookingFormSubmitData(
+          fullAddress: fullAddress,
+          emergencyName: _emergencyNameController.text,
+          emergencyPhone: _emergencyPhoneController.text,
+          emergencyRelation: _emergencyRelationForSubmit(),
+          emergencyAddress: _emergencyAddressController.text,
+          secondaryPhone: _phone2Controller.text,
+          calculatedDeposit: calculatedDeposit,
+          paymentMethod: _paymentMethod ?? '',
+          payAmountType: _payAmountType,
+          termsConsent: _buildTermsConsent(),
+          customFormAnswers: _customForm?.shouldCollectAnswers == true
+              ? CustomFormAnswerSnapshot.build(
+                  form: _customForm!,
+                  answersByQuestionId: _customAnswers,
+                )
+              : null,
+        ),
       );
     } catch (error, stackTrace) {
       debugPrint('[BookingSubmit] form submit failed: $error');
@@ -1228,6 +1379,20 @@ class _BookingFormPageState extends State<BookingFormPage> {
       if (mounted) {
         setState(() => _isSubmitting = false);
       }
+    }
+  }
+
+  void _scrollToCustomForm({String questionId = ''}) {
+    final BuildContext? questionContext =
+        _customQuestionKeys[questionId]?.currentContext;
+    final BuildContext? target =
+        questionContext ?? _customFormSectionKey.currentContext;
+    if (target != null) {
+      Scrollable.ensureVisible(
+        target,
+        duration: const Duration(milliseconds: 280),
+        alignment: 0.12,
+      );
     }
   }
 
@@ -1243,6 +1408,19 @@ class _BookingFormPageState extends State<BookingFormPage> {
 
   Widget _feeLinesSection(int payableAmount) {
     final List<BookingFeeLineItem> lines = widget.feeLineItems;
+    final Widget rule = widget.feeRuleText.trim().isEmpty
+        ? const SizedBox.shrink()
+        : Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: Text(
+              widget.feeRuleText,
+              style: TextStyle(
+                fontSize: 13,
+                height: 1.4,
+                color: widget.theme.textColor.withValues(alpha: 0.75),
+              ),
+            ),
+          );
     if (lines.isEmpty) {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1255,6 +1433,7 @@ class _BookingFormPageState extends State<BookingFormPage> {
                 color: widget.theme.textColor,
               ),
             ),
+          rule,
           if (widget.discountAmount > 0) ...<Widget>[
             _feeRow('優惠折抵', -widget.discountAmount, isDiscount: true),
           ],
@@ -1264,15 +1443,28 @@ class _BookingFormPageState extends State<BookingFormPage> {
       );
     }
     return Column(
-      children: lines.map((BookingFeeLineItem line) {
-        return _feeRow(
-          line.label,
-          line.amount,
-          isDiscount: line.kind == BookingFeeLineKind.discount,
-          isTotal: line.kind == BookingFeeLineKind.total,
-          isPayable: line.kind == BookingFeeLineKind.payable,
-        );
-      }).toList(),
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        if (widget.feeSummaryTitle.trim().isNotEmpty)
+          Text(
+            widget.feeSummaryTitle,
+            style: TextStyle(
+              fontWeight: FontWeight.w700,
+              color: widget.theme.textColor,
+            ),
+          ),
+        rule,
+        ...lines.map((BookingFeeLineItem line) {
+          return _feeRow(
+            line.label,
+            line.amount,
+            isDiscount: line.kind == BookingFeeLineKind.discount,
+            isTotal: line.kind == BookingFeeLineKind.total,
+            isPayable: line.kind == BookingFeeLineKind.payable,
+            subtitle: line.subtitle,
+          );
+        }),
+      ],
     );
   }
 
@@ -1282,6 +1474,7 @@ class _BookingFormPageState extends State<BookingFormPage> {
     bool isDiscount = false,
     bool isTotal = false,
     bool isPayable = false,
+    String subtitle = '',
   }) {
     final String prefix = amount < 0 ? '-NT\$ ${amount.abs()}' : 'NT\$ $amount';
     final TextStyle style = TextStyle(
@@ -1296,8 +1489,25 @@ class _BookingFormPageState extends State<BookingFormPage> {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          Expanded(child: Text(label, style: style)),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Text(label, style: style),
+                if (subtitle.isNotEmpty)
+                  Text(
+                    subtitle,
+                    style: style.copyWith(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w400,
+                      color: widget.theme.textColor.withValues(alpha: 0.65),
+                    ),
+                  ),
+              ],
+            ),
+          ),
           Text(prefix, style: style),
         ],
       ),
@@ -1353,6 +1563,7 @@ class _BookingFormPageState extends State<BookingFormPage> {
       body: Form(
         key: widget.formKey,
         child: SingleChildScrollView(
+          controller: _scrollController,
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 120),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -1648,6 +1859,7 @@ class _BookingFormPageState extends State<BookingFormPage> {
                   ],
                 ],
               ),
+              _buildBookingCustomFormSection(),
               if (_loadingTerms)
                 const Padding(
                   padding: EdgeInsets.symmetric(vertical: 12),
@@ -1719,6 +1931,9 @@ class _BookingFormPageState extends State<BookingFormPage> {
                       ? '正在送出，請稍候'
                       : '請先完成付款方式與條款確認';
                   debugPrint('[BookingSubmit] 01 ignored: $reason');
+                  if (reason == '請完成送出訂單表單' || reason == '表單載入失敗，請重試') {
+                    _scrollToCustomForm();
+                  }
                   _showSubmitMessage(reason);
                   return;
                 }

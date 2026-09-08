@@ -11,7 +11,7 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/navigation/app_navigator.dart';
-import 'package:petnest_saas/features/admin/pages/admin_booking_detail_page.dart';
+import 'package:petnest_saas/core/navigation/admin_booking_route.dart';
 import 'package:petnest_saas/features/booking/pages/booking_detail_page.dart';
 import 'package:petnest_saas/features/booking/pages/my_reviews_page.dart';
 import 'package:petnest_saas/features/shop/pages/chat/shop_chat_thread_page.dart';
@@ -297,7 +297,10 @@ class FcmMessageService {
         await navigator.push(
           MaterialPageRoute<void>(
             builder: (_) {
-              return AdminBookingDetailPage(bookingId: bookingId);
+              return AdminBookingRoute.page(
+                bookingId: bookingId,
+                data: bookingData,
+              );
             },
           ),
         );

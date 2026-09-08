@@ -5,6 +5,7 @@ import 'package:petnest_saas/core/models/daycare_date_override_model.dart';
 import 'package:petnest_saas/core/models/daycare_settings_model.dart';
 import 'package:petnest_saas/core/services/daycare_date_override_service.dart';
 import 'package:petnest_saas/core/services/daycare_occupancy_service.dart';
+import 'package:petnest_saas/core/services/daycare_time_helper.dart';
 import 'package:petnest_saas/core/services/daycare_settings_service.dart';
 import 'package:petnest_saas/core/services/shop_service.dart';
 
@@ -84,6 +85,16 @@ class DaycareDateAvailability {
     if (day.isBefore(today)) {
       return false;
     }
+    final DaycareDayHours dayHours = hours(
+      settings: liveSettings,
+      override: liveOverride,
+    );
+    if (DaycareTimeHelper.isTodayPastLatestPickUp(
+      date: day,
+      latestPickUp: dayHours.latestPickUp,
+    )) {
+      return false;
+    }
     final int maxDays = _toInt(liveShop['maxAdvanceBookingDays'], 30);
     if (maxDays > 0 && day.isAfter(today.add(Duration(days: maxDays)))) {
       return false;
@@ -115,12 +126,28 @@ class DaycareDateAvailability {
     required DaycareSettingsModel settings,
     DaycareDateOverrideModel? override,
   }) {
+    final String openTime = override != null && override.openTime.isNotEmpty
+        ? override.openTime
+        : settings.openTime;
+    final String closeTime = override != null && override.closeTime.isNotEmpty
+        ? override.closeTime
+        : settings.closeTime;
+    final String latestPickUp =
+        override != null && override.latestPickupTime.isNotEmpty
+        ? override.latestPickupTime
+        : (override != null && override.closeTime.isNotEmpty
+              ? override.closeTime
+              : settings.latestPickUp);
+    final String earliestDropOff =
+        override != null && override.openTime.isNotEmpty
+        ? override.openTime
+        : settings.earliestDropOff;
     return DaycareDayHours(
-      openTime: settings.openTime,
-      closeTime: settings.closeTime,
-      earliestDropOff: settings.earliestDropOff,
-      latestPickUp: settings.latestPickUp,
-      latestDropoffTime: '',
+      openTime: openTime,
+      closeTime: closeTime,
+      earliestDropOff: earliestDropOff,
+      latestPickUp: latestPickUp,
+      latestDropoffTime: override?.latestDropoffTime ?? '',
     );
   }
 

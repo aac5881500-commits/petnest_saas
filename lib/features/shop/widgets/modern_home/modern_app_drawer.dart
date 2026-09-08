@@ -6,6 +6,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:petnest_saas/core/models/home_theme_model.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:petnest_saas/core/services/booking_payment_status.dart';
 import 'package:petnest_saas/core/services/shop_service.dart';
 import 'package:petnest_saas/core/services/storefront_access.dart';
 import 'package:petnest_saas/features/shop/pages/shop_booking_entry_page.dart';
@@ -787,31 +788,7 @@ class ModernAppDrawer extends StatelessWidget {
         final customerUnreadMessageCount =
             (data['customerUnreadMessageCount'] ?? 0) as int;
 
-        String status = data['status'] ?? 'pending';
-
-        final rawPaymentMethod = (data['paymentMethod'] ?? '').toString();
-
-        final rawDepositAmount = (data['depositAmount'] ?? 0).toInt();
-
-        final rawDepositStatus = (data['depositStatus'] ?? '').toString();
-
-        if (status == 'cancelled') {
-          status = '已取消';
-        } else if (status == 'completed') {
-          status = '已完成';
-        } else if (status == 'checked_in') {
-          status = '已入住';
-        } else if (status == 'confirmed') {
-          status = '已確認';
-        } else if (rawDepositStatus == 'pending_review') {
-          status = '待店家確認付款';
-        } else if (rawDepositAmount > 0) {
-          status = '需支付訂金';
-        } else if (rawPaymentMethod == 'transfer') {
-          status = '尚未轉帳';
-        } else {
-          status = '待確認';
-        }
+        String status = BookingPaymentStatus.latestOrderStatusLabel(data);
 
         final roomTypeName = data['roomTypeName'] ?? '未指定房型';
 
@@ -844,6 +821,7 @@ class ModernAppDrawer extends StatelessWidget {
         final hasDeposit = depositAmount > 0;
 
         final canShowDepositExpire =
+            BookingPaymentStatus.showPaymentDeadline(data) &&
             hasDeposit &&
             depositExpireText.isNotEmpty &&
             status != '已確認' &&
@@ -1081,7 +1059,18 @@ class ModernAppDrawer extends StatelessWidget {
                                     borderRadius: BorderRadius.circular(30),
                                   ),
                                   child: Text(
-                                    '訂金 NT\$ $depositAmount',
+                                    BookingPaymentStatus.isDaycare(data) &&
+                                            BookingPaymentStatus.isDepositConfirmed(
+                                              data,
+                                            )
+                                        ? BookingPaymentStatus.depositPaidSummary(
+                                            data,
+                                          )
+                                        : BookingPaymentStatus.isDepositConfirmed(
+                                            data,
+                                          )
+                                        ? '訂金 NT\$ $depositAmount'
+                                        : '應付訂金 NT\$ $depositAmount',
                                     style: TextStyle(
                                       color: Colors.orange.shade800,
                                       fontWeight: FontWeight.bold,

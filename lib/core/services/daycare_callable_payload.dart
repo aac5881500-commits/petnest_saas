@@ -3,6 +3,7 @@
 
 import 'package:petnest_saas/core/models/daycare_plan_model.dart';
 import 'package:petnest_saas/core/models/daycare_settings_model.dart';
+import 'package:petnest_saas/core/models/pet_snapshot.dart';
 import 'package:petnest_saas/core/utils/safe_parse.dart';
 
 class DaycareCallablePayload {
@@ -43,17 +44,7 @@ class DaycareCallablePayload {
   }
 
   static Map<String, dynamic> petSnapshot(Map<String, dynamic> pet) {
-    final Object? rawNeutered = pet['isNeutered'];
-    return <String, dynamic>{
-      'petId': (pet['petId'] ?? pet['id'] ?? '').toString(),
-      'name': (pet['name'] ?? '').toString(),
-      'breed': (pet['breed'] ?? pet['type'] ?? '').toString(),
-      'gender': (pet['gender'] ?? '').toString(),
-      'isNeutered': rawNeutered == null
-          ? null
-          : SafeParse.parseBool(rawNeutered),
-      'photoUrl': (pet['photoUrl'] ?? '').toString(),
-    };
+    return PetSnapshot.fromPet(pet);
   }
 
   static Map<String, dynamic> addonSnapshot(

@@ -114,6 +114,7 @@ class MemberAvatarService {
     required String newStoragePath,
     String previousImageUrl = '',
     String previousStoragePath = '',
+    String extraShopId = '',
   }) async {
     final User user = _requireUser();
     final String profilePath = 'user_profiles/${user.uid}';
@@ -130,6 +131,12 @@ class MemberAvatarService {
         'updatedAt': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
       debugPrint('[Avatar] firestore update success path=$profilePath');
+      await syncAvatarToShopMembers(
+        uid: user.uid,
+        avatarUrl: newImageUrl,
+        avatarStoragePath: newStoragePath,
+        extraShopId: extraShopId,
+      );
     } catch (e, st) {
       logFailure('firestoreUpdate', e, st, 'path=$profilePath');
       debugPrint(
@@ -164,6 +171,7 @@ class MemberAvatarService {
   Future<void> removeProfileAvatar({
     String previousImageUrl = '',
     String previousStoragePath = '',
+    String extraShopId = '',
   }) async {
     final User user = _requireUser();
     final String profilePath = 'user_profiles/${user.uid}';
@@ -176,6 +184,12 @@ class MemberAvatarService {
         'avatarStoragePath': '',
         'updatedAt': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
+      await syncAvatarToShopMembers(
+        uid: user.uid,
+        avatarUrl: '',
+        avatarStoragePath: '',
+        extraShopId: extraShopId,
+      );
     } catch (e, st) {
       logFailure('firestoreClear', e, st, 'path=$profilePath');
       rethrow;
@@ -221,6 +235,53 @@ class MemberAvatarService {
     } catch (e, st) {
       logFailure('delete', e, st, 'path=$path');
       return false;
+    }
+  }
+
+  /// 把最新頭像寫入已加入的店家會員快取，讓後台不必讀 user_profiles。
+  Future<void> syncAvatarToShopMembers({
+    required String uid,
+    required String avatarUrl,
+    required String avatarStoragePath,
+    String extraShopId = '',
+  }) async {
+    final String userId = uid.trim();
+    if (userId.isEmpty) {
+      return;
+    }
+    final DocumentSnapshot<Map<String, dynamic>> profile = await _firestore
+        .collection('user_profiles')
+        .doc(userId)
+        .get();
+    final Set<String> shopIds = <String>{};
+    final dynamic rawIds = profile.data()?['shopIds'];
+    if (rawIds is List) {
+      for (final dynamic item in rawIds) {
+        final String id = item.toString().trim();
+        if (id.isNotEmpty) {
+          shopIds.add(id);
+        }
+      }
+    }
+    final String extra = extraShopId.trim();
+    if (extra.isNotEmpty) {
+      shopIds.add(extra);
+    }
+    for (final String shopId in shopIds) {
+      try {
+        await _firestore
+            .collection('shops')
+            .doc(shopId)
+            .collection('members')
+            .doc(userId)
+            .set({
+              'avatarUrl': avatarUrl,
+              'avatarStoragePath': avatarStoragePath,
+              'updatedAt': FieldValue.serverTimestamp(),
+            }, SetOptions(merge: true));
+      } catch (e, st) {
+        logFailure('syncShopMemberAvatar', e, st, 'shopId=$shopId');
+      }
     }
   }
 

@@ -9,6 +9,8 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/models/booking_kind.dart';
+import 'package:petnest_saas/core/services/booking_payment_status.dart';
+import 'package:petnest_saas/core/services/daycare_status_labels.dart';
 import 'package:petnest_saas/core/services/daycare_time_helper.dart';
 
 class BookingOrderCard extends StatefulWidget {
@@ -157,7 +159,7 @@ class _BookingOrderCardState extends State<BookingOrderCard> {
                                   ),
                                   child: Text(
                                     (data['bookingKind'] ?? '') == 'daycare'
-                                        ? '臨托'
+                                        ? '安親'
                                         : '住宿',
                                     style: const TextStyle(fontSize: 11),
                                   ),
@@ -193,7 +195,7 @@ class _BookingOrderCardState extends State<BookingOrderCard> {
                                     borderRadius: BorderRadius.circular(12),
                                   ),
                                   child: Text(
-                                    daycare ? '臨托' : '$nights 晚',
+                                    daycare ? '安親' : '$nights 晚',
                                     style: const TextStyle(
                                       fontSize: 12,
                                       fontWeight: FontWeight.bold,
@@ -631,7 +633,8 @@ class _BookingOrderCardState extends State<BookingOrderCard> {
           ),
 
           /// 第三排
-          if (depositAmount > 0 && depositExpireText != '-') ...[
+          if (BookingPaymentStatus.showPaymentDeadline(widget.data) &&
+              depositExpireText != '-') ...[
             const SizedBox(height: 14),
 
             Row(
@@ -791,13 +794,31 @@ class _BookingOrderCardState extends State<BookingOrderCard> {
 
   _StatusInfo _statusInfo(String status) {
     final bool daycare = BookingKind.isDaycare(widget.data);
+    if (daycare) {
+      final String text = DaycareStatusLabels.primary(widget.data);
+      switch (text) {
+        case '已確認':
+        case '已分房':
+          return _StatusInfo(text, Colors.blue);
+        case '安親中':
+          return _StatusInfo(text, Colors.green);
+        case '已完成':
+          return _StatusInfo(text, Colors.grey);
+        case '已取消':
+        case '未到店':
+        case 'No-show':
+          return _StatusInfo(text, Colors.red);
+        default:
+          return _StatusInfo(text, Colors.orange);
+      }
+    }
     switch (status) {
       case 'confirmed':
         return _StatusInfo('已確認', Colors.blue);
       case 'checked_in':
         return _StatusInfo('入住中', Colors.green);
       case 'completed':
-        return _StatusInfo(daycare ? '已完成臨托' : '已完成', Colors.grey);
+        return _StatusInfo('已完成', Colors.grey);
       case 'cancelled':
         return _StatusInfo('已取消', Colors.red);
       case 'unpaid':

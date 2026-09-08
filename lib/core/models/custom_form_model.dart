@@ -396,6 +396,29 @@ class CustomFormModel {
     return toFirestoreMap(version: 0);
   }
 
+  /// 前台只收集已啟用分類中的已啟用題目。
+  List<(CustomFormSection, CustomFormQuestion)> get enabledQuestionEntries {
+    final List<(CustomFormSection, CustomFormQuestion)> result =
+        <(CustomFormSection, CustomFormQuestion)>[];
+    for (final CustomFormSection section in sections) {
+      if (!section.enabled) {
+        continue;
+      }
+      for (final CustomFormQuestion question in section.questions) {
+        if (!question.enabled || question.id.trim().isEmpty) {
+          continue;
+        }
+        result.add((section, question));
+      }
+    }
+    return result;
+  }
+
+  bool get hasEnabledQuestions => enabledQuestionEntries.isNotEmpty;
+
+  /// 表單已開啟且至少有一題可填時，前台才顯示。
+  bool get shouldCollectAnswers => enabled && hasEnabledQuestions;
+
   CustomFormModel copyWith({
     String? id,
     String? shopId,
@@ -467,6 +490,9 @@ class CustomFormModel {
     }
     if (value is Timestamp) {
       return value.toDate();
+    }
+    if (value is String && value.trim().isNotEmpty) {
+      return DateTime.tryParse(value.trim());
     }
     return null;
   }

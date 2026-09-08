@@ -5,6 +5,8 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
+import 'package:petnest_saas/core/models/custom_form_answer_model.dart';
+import 'package:petnest_saas/core/models/pet_snapshot.dart';
 import 'package:petnest_saas/core/models/policy_applicable_service.dart';
 import 'package:petnest_saas/core/models/terms_consent_snapshot.dart';
 import 'package:petnest_saas/core/services/booking_service.dart';
@@ -136,6 +138,7 @@ class BookingSubmitHelper {
     /// 🔒 同一次前台送出請求的唯一識別碼
     required String requestId,
     TermsConsentSnapshot? termsConsent,
+    CustomFormAnswerSnapshot? customFormAnswers,
   }) async {
     await MemberService.instance.ensureMember(
       shopId: shopId,
@@ -212,19 +215,7 @@ class BookingSubmitHelper {
       roomImages: selectedRoomType['images'] ?? [],
       pets: pets
           .where((p) => selectedPetIds.contains(p['petId']))
-          .map(
-            (p) => {
-              'photoUrl': p['photoUrl'],
-              'name': p['name'],
-              'breed': p['breed'] ?? p['type'],
-              'age': p['age'],
-              'gender': p['gender'],
-              'isNeutered': p['isNeutered'],
-              'medicalStatus': p['medicalStatus'],
-              'litterType': p['litterType'],
-              'note': p['note'],
-            },
-          )
+          .map(PetSnapshot.fromPet)
           .toList(),
       serviceType: selectedServiceType,
       roomId: selectedRoomType['roomTypeId'],
@@ -271,6 +262,9 @@ class BookingSubmitHelper {
 
       /// 🔒 傳入固定訂單文件 ID，避免同一請求重送建立兩筆
       requestId: requestId,
+      customFormAnswers: customFormAnswers == null
+          ? null
+          : customFormAnswers.toFirestoreMap(),
     );
 
     final String normalizedCouponId = couponId.trim();

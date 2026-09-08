@@ -13,6 +13,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:image/image.dart' as img;
 import 'package:flutter/foundation.dart';
+import 'package:petnest_saas/core/services/pet_shop_form_answers.dart';
 
 class PetService {
   PetService._();
@@ -112,6 +113,8 @@ class PetService {
     bool isNeutered = false,
     bool canSocial = false,
     bool canMedicate = false,
+    String shopId = '',
+    Map<String, dynamic>? customFormAnswers,
   }) async {
     final user = _auth.currentUser;
     if (user == null) throw Exception('未登入');
@@ -128,7 +131,8 @@ class PetService {
     }
     final doc = petsRef.doc();
 
-    await doc.set({
+    final String normalizedShopId = shopId.trim();
+    final Map<String, dynamic> payload = <String, dynamic>{
       'petId': doc.id,
       'userId': user.uid,
 
@@ -155,7 +159,19 @@ class PetService {
 
       /// 系統
       'createdAt': FieldValue.serverTimestamp(),
-    });
+    };
+
+    await doc.set(payload);
+
+    if (PetShopFormAnswers.shouldWrite(customFormAnswers) &&
+        normalizedShopId.isNotEmpty) {
+      await saveShopFormAnswers(
+        userId: user.uid,
+        petId: doc.id,
+        shopId: normalizedShopId,
+        snapshot: customFormAnswers!,
+      );
+    }
 
     /// 🔥 更新數量
     await _firestore.collection('user_profiles').doc(user.uid).set({
@@ -164,5 +180,65 @@ class PetService {
     }, SetOptions(merge: true));
 
     return doc.id;
+  }
+
+  DocumentReference<Map<String, dynamic>> shopFormAnswersDoc({
+    required String userId,
+    required String petId,
+    required String shopId,
+  }) {
+    return _firestore
+        .collection('user_profiles')
+        .doc(userId.trim())
+        .collection('pets')
+        .doc(petId.trim())
+        .collection(PetShopFormAnswers.collectionName)
+        .doc(shopId.trim());
+  }
+
+  Future<void> saveShopFormAnswers({
+    required String userId,
+    required String petId,
+    required String shopId,
+    required Map<String, dynamic> snapshot,
+  }) async {
+    final String normalizedShopId = shopId.trim();
+    if (normalizedShopId.isEmpty || !PetShopFormAnswers.shouldWrite(snapshot)) {
+      return;
+    }
+    await shopFormAnswersDoc(
+      userId: userId,
+      petId: petId,
+      shopId: normalizedShopId,
+    ).set(
+      PetShopFormAnswers.documentData(
+        shopId: normalizedShopId,
+        snapshot: snapshot,
+      ),
+      SetOptions(merge: true),
+    );
+  }
+
+  Future<Map<String, dynamic>?> loadShopFormAnswers({
+    required String userId,
+    required String petId,
+    required String shopId,
+    Map<String, dynamic>? petData,
+  }) async {
+    final String normalizedShopId = shopId.trim();
+    if (normalizedShopId.isEmpty) {
+      return null;
+    }
+    final DocumentSnapshot<Map<String, dynamic>> snapshot =
+        await shopFormAnswersDoc(
+          userId: userId,
+          petId: petId,
+          shopId: normalizedShopId,
+        ).get();
+    return PetShopFormAnswers.resolve(
+      shopId: normalizedShopId,
+      subcollectionData: snapshot.data(),
+      petData: petData,
+    );
   }
 }

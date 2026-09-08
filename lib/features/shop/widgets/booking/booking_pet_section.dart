@@ -11,6 +11,7 @@ import 'package:petnest_saas/features/shop/widgets/booking/booking_step_widgets.
 class BookingPetSection extends StatefulWidget {
   const BookingPetSection({
     super.key,
+    required this.shopId,
     required this.selectedPetIds,
     required this.onPetsLoaded,
     required this.onTogglePet,
@@ -19,6 +20,8 @@ class BookingPetSection extends StatefulWidget {
     this.petsStream,
     this.isLoggedIn,
   });
+
+  final String shopId;
 
   final List<String> selectedPetIds;
   final ValueChanged<List<Map<String, dynamic>>> onPetsLoaded;
@@ -182,7 +185,10 @@ class _BookingPetSectionState extends State<BookingPetSection> {
                                   await Navigator.push(
                                     context,
                                     MaterialPageRoute<void>(
-                                      builder: (_) => const AddPetPage(),
+                                      builder: (_) => AddPetPage(
+                                        shopId: widget.shopId,
+                                        theme: theme,
+                                      ),
                                     ),
                                   );
                                   if (mounted) {

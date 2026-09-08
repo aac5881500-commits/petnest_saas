@@ -5,7 +5,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/services/shop_service.dart';
-import 'package:petnest_saas/features/admin/pages/admin_booking_detail_page.dart';
+import 'package:petnest_saas/core/navigation/admin_booking_route.dart';
+import 'package:petnest_saas/core/presentation/room_status_presentation.dart';
 import 'package:petnest_saas/core/models/daily_care_date_helper.dart';
 import 'package:petnest_saas/core/models/daily_care_setting_model.dart';
 import 'package:petnest_saas/core/models/daily_care_stay_info.dart';
@@ -399,43 +400,48 @@ class _RoomCalendarPageState extends State<RoomCalendarPage> {
 
                           /// 🎨 顏色
                           Color color;
-
                           switch (status) {
                             case 'booked':
-                              color =
-                                  (dayBooking?['bookingKind'] ?? '') ==
-                                      'daycare'
-                                  ? Colors.teal
-                                  : Colors.deepOrange;
+                              color = RoomStatusPresentation.calendarDot(
+                                (dayBooking?['bookingKind'] ?? '') == 'daycare'
+                                    ? 'booked_daycare'
+                                    : 'booked',
+                              ).color;
                               break;
                             case 'occupied':
-                              color =
-                                  (dayBooking?['bookingKind'] ?? '') ==
-                                      'daycare'
-                                  ? Colors.teal.shade700
-                                  : Colors.blue;
+                              color = RoomStatusPresentation.calendarDot(
+                                (dayBooking?['bookingKind'] ?? '') == 'daycare'
+                                    ? 'occupied_daycare'
+                                    : 'occupied',
+                              ).color;
                               break;
-
                             case 'completed':
-                              color = Colors.purple;
+                              color = RoomStatusPresentation.calendarDot(
+                                'completed',
+                              ).color;
                               break;
-
                             case 'cleaning':
-                              color = Colors.orange;
+                              color = RoomStatusPresentation.calendarDot(
+                                'cleaning',
+                              ).color;
                               break;
-
                             case 'closed':
-                              color = const Color(0xFF6D4C41);
+                              color = RoomStatusPresentation.calendarDot(
+                                'closed',
+                              ).color;
                               break;
 
                             case 'blocked':
                             case 'maintenance':
                             case 'unavailable':
-                              color = Colors.black;
+                              color = RoomStatusPresentation.calendarDot(
+                                'maintenance',
+                              ).color;
                               break;
-
                             default:
-                              color = Colors.green;
+                              color = RoomStatusPresentation.calendarDot(
+                                'available',
+                              ).color;
                           }
 
                           if (isDisabled) {
@@ -556,16 +562,12 @@ class _RoomCalendarPageState extends State<RoomCalendarPage> {
                     child: Wrap(
                       spacing: 16,
                       runSpacing: 8,
-                      children: [
-                        _legend(Colors.green, '空房'),
-                        _legend(Colors.deepOrange, '住宿'),
-                        _legend(Colors.teal, '臨托'),
-                        _legend(Colors.blue, '入住'),
-                        _legend(Colors.purple, '退房/完成'),
-                        _legend(Colors.orange, '清潔中'),
-                        _legend(const Color(0xFF6D4C41), '今日關閉'),
-                        _legend(Colors.black, '維修中'),
-                      ],
+                      children: RoomStatusPresentation.legendItems()
+                          .map(
+                            (RoomStatusPresentation item) =>
+                                _legend(item.color, item.label),
+                          )
+                          .toList(),
                     ),
                   ),
                 ],
@@ -707,14 +709,11 @@ class _RoomCalendarPageState extends State<RoomCalendarPage> {
                     width: double.infinity,
                     child: ElevatedButton.icon(
                       onPressed: () {
-                        Navigator.push(
+                        AdminBookingRoute.open(
                           context,
-                          MaterialPageRoute(
-                            builder: (_) => AdminBookingDetailPage(
-                              bookingId: _selectedBookingId!,
-                              canEdit: true,
-                            ),
-                          ),
+                          bookingId: _selectedBookingId!,
+                          data: _selectedBooking,
+                          canEdit: true,
                         );
                       },
                       icon: const Icon(Icons.receipt_long),

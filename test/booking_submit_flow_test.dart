@@ -4,24 +4,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:petnest_saas/core/models/daycare_settings_model.dart';
-import 'package:petnest_saas/core/models/terms_consent_snapshot.dart';
+import 'package:petnest_saas/features/booking/models/booking_form_submit_data.dart';
 import 'package:petnest_saas/features/booking/pages/booking_form_page.dart';
 import 'package:petnest_saas/features/shop/widgets/booking/booking_submit_helper.dart';
 
 Widget _form({
-  required Future<void> Function(
-    String address,
-    String emergencyName,
-    String emergencyPhone,
-    String relation,
-    String emergencyAddress,
-    String phone2,
-    int depositAmount,
-    String paymentMethod,
-    String payAmountType,
-    TermsConsentSnapshot termsConsent,
-  )
-  onSubmit,
+  required Future<void> Function(BookingFormSubmitData data) onSubmit,
   int total = 1000,
   String? daycareDepositType,
   int daycareDepositValue = 0,
@@ -97,21 +85,7 @@ void main() {
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
     await tester.pumpWidget(
-      _form(
-        onSubmit:
-            (
-              String address,
-              String emergencyName,
-              String emergencyPhone,
-              String relation,
-              String emergencyAddress,
-              String phone2,
-              int depositAmount,
-              String paymentMethod,
-              String payAmountType,
-              TermsConsentSnapshot termsConsent,
-            ) async {},
-      ),
+      _form(onSubmit: (BookingFormSubmitData data) async {}),
     );
     await tester.pump();
     await tester.ensureVisible(find.text('送出預約').last);
@@ -128,21 +102,9 @@ void main() {
 
     await tester.pumpWidget(
       _form(
-        onSubmit:
-            (
-              String address,
-              String emergencyName,
-              String emergencyPhone,
-              String relation,
-              String emergencyAddress,
-              String phone2,
-              int depositAmount,
-              String paymentMethod,
-              String payAmountType,
-              TermsConsentSnapshot termsConsent,
-            ) async {
-              throw Exception('庫存不足');
-            },
+        onSubmit: (BookingFormSubmitData data) async {
+          throw Exception('庫存不足');
+        },
       ),
     );
     await _selectTransferAndSubmit(tester);
@@ -164,21 +126,9 @@ void main() {
         daycareDepositType: DaycareDepositTypes.fixed,
         daycareDepositValue: 1000,
         depositOverrideAmount: 1000,
-        onSubmit:
-            (
-              String address,
-              String emergencyName,
-              String emergencyPhone,
-              String relation,
-              String emergencyAddress,
-              String phone2,
-              int depositAmount,
-              String paymentMethod,
-              String payAmountType,
-              TermsConsentSnapshot termsConsent,
-            ) async {
-              capturedDeposit = depositAmount;
-            },
+        onSubmit: (BookingFormSubmitData data) async {
+          capturedDeposit = data.calculatedDeposit;
+        },
       ),
     );
     await tester.pump();

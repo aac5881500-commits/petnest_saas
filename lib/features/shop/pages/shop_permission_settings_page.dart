@@ -413,8 +413,8 @@ class _ShopPermissionSettingsPageState
           ),
           const SizedBox(height: 12),
           PermissionCategoryTile(
-            title: '臨托權限',
-            subtitle: '臨托訂單、設定、方案、轉住宿與改價',
+            title: '安親權限',
+            subtitle: '安親訂單、設定、方案、轉住宿與改價',
             icon: Icons.wb_sunny_outlined,
             onTap: () {
               Navigator.push(

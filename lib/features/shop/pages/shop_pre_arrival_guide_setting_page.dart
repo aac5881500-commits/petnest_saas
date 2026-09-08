@@ -189,7 +189,7 @@ class _ShopPreArrivalGuideSettingPageState
           child: Scaffold(
             backgroundColor: BookingDetailUi.of(context).background,
             appBar: AppBar(
-              title: const Text('入住前準備'),
+              title: const Text('入住／安親前準備'),
               backgroundColor: BookingDetailUi.of(context).background,
               bottom: TabBar(
                 controller: _tabs,
@@ -227,7 +227,7 @@ class _ShopPreArrivalGuideSettingPageState
       padding: const EdgeInsets.all(16),
       children: <Widget>[
         SwitchListTile(
-          title: const Text('啟用入住前準備'),
+          title: Text(isDaycare ? '啟用安親前準備' : '啟用入住前準備'),
           value: guide.enabled,
           onChanged: (bool value) {
             setState(() {
@@ -242,7 +242,7 @@ class _ShopPreArrivalGuideSettingPageState
         if (isDaycare)
           SwitchListTile(
             title: const Text('沿用住宿內容'),
-            subtitle: const Text('開啟後，客戶安親訂單會顯示住宿的入住前準備'),
+            subtitle: const Text('開啟後，客戶安親訂單會顯示住宿的入住前準備內容'),
             value: guide.inheritAccommodation,
             onChanged: (bool value) {
               setState(() {
@@ -252,7 +252,10 @@ class _ShopPreArrivalGuideSettingPageState
           ),
         TextFormField(
           initialValue: guide.title,
-          decoration: const InputDecoration(labelText: '標題'),
+          decoration: InputDecoration(
+            labelText: '標題',
+            hintText: isDaycare ? '安親前準備' : '入住前準備',
+          ),
           enabled: !inherit,
           onChanged: (String value) {
             setState(() {

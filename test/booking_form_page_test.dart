@@ -3,7 +3,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:petnest_saas/core/models/terms_consent_snapshot.dart';
+import 'package:petnest_saas/features/booking/models/booking_form_submit_data.dart';
 import 'package:petnest_saas/features/booking/pages/booking_form_page.dart';
 
 Map<String, dynamic> _member({String? relation}) {
@@ -40,19 +40,7 @@ Future<void> _pumpForm(
         skipRemoteLoads: true,
         seedMemberData: seed,
         paymentTestState: payment,
-        onSubmitWithData:
-            (
-              String address,
-              String emergencyName,
-              String emergencyPhone,
-              String relation,
-              String emergencyAddress,
-              String phone2,
-              int depositAmount,
-              String paymentMethod,
-              String payAmountType,
-              TermsConsentSnapshot termsConsent,
-            ) async {},
+        onSubmitWithData: (BookingFormSubmitData data) async {},
         addons: const <Map<String, dynamic>>[],
         formKey: GlobalKey<FormState>(),
         customerNameController: name,

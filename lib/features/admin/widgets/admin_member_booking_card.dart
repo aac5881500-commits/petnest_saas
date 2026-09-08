@@ -6,7 +6,7 @@
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
-import 'package:petnest_saas/features/admin/pages/admin_booking_detail_page.dart';
+import 'package:petnest_saas/core/navigation/admin_booking_route.dart';
 
 class AdminMemberBookingCard extends StatelessWidget {
   const AdminMemberBookingCard({
@@ -20,8 +20,20 @@ class AdminMemberBookingCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final start = (data['startDate'] as Timestamp).toDate();
-    final end = (data['endDate'] as Timestamp).toDate();
+    DateTime? asDate(dynamic raw) {
+      if (raw is Timestamp) {
+        return raw.toDate();
+      }
+      if (raw is DateTime) {
+        return raw;
+      }
+      return null;
+    }
+
+    final DateTime? start =
+        asDate(data['scheduledStartAt']) ?? asDate(data['startDate']);
+    final DateTime? end =
+        asDate(data['scheduledEndAt']) ?? asDate(data['endDate']);
 
     final status = data['status']?.toString() ?? '';
     final depositPaid = data['depositPaid'] == true;
@@ -34,12 +46,11 @@ class AdminMemberBookingCard extends StatelessWidget {
       child: ListTile(
         contentPadding: const EdgeInsets.all(12),
         onTap: () {
-          Navigator.push(
+          AdminBookingRoute.open(
             context,
-            MaterialPageRoute(
-              builder: (_) =>
-                  AdminBookingDetailPage(bookingId: bookingId, canEdit: false),
-            ),
+            bookingId: bookingId,
+            data: data,
+            canEdit: false,
           );
         },
         leading: Container(
@@ -55,7 +66,9 @@ class AdminMemberBookingCard extends StatelessWidget {
           children: [
             Expanded(
               child: Text(
-                data['roomName'] ?? '房型',
+                data['requestedRoomTypeName'] ??
+                    data['roomName'] ??
+                    (AdminBookingRoute.isDaycareBooking(data) ? '安親' : '房型'),
                 style: const TextStyle(
                   fontSize: 17,
                   fontWeight: FontWeight.bold,
@@ -71,7 +84,9 @@ class AdminMemberBookingCard extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                '${start.year}-${start.month}-${start.day} ～ ${end.year}-${end.month}-${end.day}',
+                start == null || end == null
+                    ? '時間未填'
+                    : '${start.year}-${start.month}-${start.day} ～ ${end.year}-${end.month}-${end.day}',
               ),
               const SizedBox(height: 4),
               Text(

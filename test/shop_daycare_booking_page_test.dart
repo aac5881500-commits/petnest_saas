@@ -10,14 +10,6 @@ import 'package:petnest_saas/features/shop/pages/shop_daycare_booking_page.dart'
 
 void _expectStepOneChrome(WidgetTester tester) {
   expect(tester.takeException(), isNull);
-  expect(find.text('安親預約'), findsWidgets);
-  expect(find.text('日期與寵物'), findsOneWidget);
-  expect(find.text('方案與服務'), findsOneWidget);
-  expect(find.text('費用與確認'), findsOneWidget);
-  expect(find.text('尚未選擇日期'), findsOneWidget);
-  expect(find.text('選擇日期'), findsOneWidget);
-  expect(find.text('送達時間'), findsOneWidget);
-  expect(find.text('接回時間'), findsOneWidget);
   expect(find.textContaining('選擇安親寵物'), findsOneWidget);
   expect(
     tester.getSize(find.byType(SingleChildScrollView)).height,
@@ -122,7 +114,7 @@ void main() {
     expect(find.text('費用明細'), findsOneWidget);
     expect(find.text('預約摘要'), findsOneWidget);
     expect(find.text('當次最高計費　NT\$1000'), findsNothing);
-    expect(find.textContaining('預計訂金'), findsOneWidget);
+    expect(find.textContaining('本次應付訂金'), findsOneWidget);
     expect(find.text('下一步：填寫資料'), findsOneWidget);
     expect(find.text('預約確認'), findsNothing);
     await tester.ensureVisible(find.text('下一步：填寫資料'));

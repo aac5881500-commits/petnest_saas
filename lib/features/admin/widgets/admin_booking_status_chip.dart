@@ -1,53 +1,85 @@
 // 檔案名稱：lib/features/admin/widgets/admin_booking_status_chip.dart
-// 功能說明：依照訂單 status 顯示不同顏色與中文狀態
-// 🏷️ 後台訂單詳細頁：訂單狀態標籤
+// 功能說明：依照訂單 status／付款狀態顯示顏色標籤
 
 import 'package:flutter/material.dart';
+import 'package:petnest_saas/core/models/shop_frontend_theme.dart';
+import 'package:petnest_saas/core/services/daycare_status_labels.dart';
 
 class AdminBookingStatusChip extends StatelessWidget {
-  const AdminBookingStatusChip({super.key, required this.status});
+  const AdminBookingStatusChip({
+    super.key,
+    required this.status,
+    this.daycare = false,
+    this.paymentPending = false,
+    this.depositConfirmed = false,
+  });
 
   final String status;
+  final bool daycare;
+  final bool paymentPending;
+  final bool depositConfirmed;
 
   @override
   Widget build(BuildContext context) {
-    Color color;
-    String text;
-
-    switch (status) {
-      case 'confirmed':
-        color = Colors.green;
-        text = '已確認';
-        break;
-      case 'checked_in':
-        color = Colors.blue;
-        text = '入住中';
-        break;
-      case 'completed':
-        color = Colors.grey;
-        text = '已完成';
-        break;
-      case 'cancelled':
-        color = Colors.red;
-        text = '已取消';
-        break;
-      default:
-        color = Colors.orange;
-        text = '待確認';
-    }
-
+    final _ChipStyle style = _resolve();
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(20),
+        color: style.color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(999),
       ),
       child: Text(
-        text,
-        style: TextStyle(color: color, fontWeight: FontWeight.bold),
+        style.text,
+        style: TextStyle(
+          color: style.color,
+          fontWeight: FontWeight.w800,
+          fontSize: 12,
+        ),
       ),
     );
   }
+
+  _ChipStyle _resolve() {
+    if (status == 'cancelled') {
+      return const _ChipStyle('已取消', ShopFrontendTheme.errorColor);
+    }
+    if (status == 'completed') {
+      return const _ChipStyle('已完成', ShopFrontendTheme.successColor);
+    }
+    if (status == 'checked_in') {
+      return _ChipStyle(daycare ? '安親中' : '入住中', Colors.blue.shade700);
+    }
+    if (paymentPending) {
+      return const _ChipStyle('待付款', ShopFrontendTheme.errorColor);
+    }
+    if (daycare &&
+        depositConfirmed &&
+        (status == 'pending' ||
+            status == 'pending_confirmation' ||
+            status == 'confirmed')) {
+      return const _ChipStyle('訂金已確認', ShopFrontendTheme.successColor);
+    }
+    if (daycare) {
+      return _ChipStyle(
+        DaycareStatusLabels.primary(<String, dynamic>{'status': status}),
+        status == 'confirmed'
+            ? ShopFrontendTheme.successColor
+            : ShopFrontendTheme.warningColor,
+      );
+    }
+    switch (status) {
+      case 'confirmed':
+        return const _ChipStyle('已確認', ShopFrontendTheme.successColor);
+      default:
+        return const _ChipStyle('待確認', ShopFrontendTheme.warningColor);
+    }
+  }
+}
+
+class _ChipStyle {
+  const _ChipStyle(this.text, this.color);
+  final String text;
+  final Color color;
 }
 
 String adminBookingStatusText(dynamic value) {

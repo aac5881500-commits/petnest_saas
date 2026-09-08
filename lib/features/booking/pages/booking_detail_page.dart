@@ -1,8 +1,10 @@
 // 檔案名稱：lib/features/booking/pages/booking_detail_page.dart
-// 功能說明：客戶端住宿／安親訂單詳細頁（暖色系、共用元件編排）
+// 功能說明：客戶端住宿／安親訂單詳細頁（暖色系、共用元件編排）。
+// 安親費用明細由 BookingDetailViewData 依訂單快照組裝，本頁不重算歷史金額。
 
 import 'dart:async';
 
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -10,9 +12,11 @@ import 'package:image_picker/image_picker.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:petnest_saas/core/models/create_payment_request_model.dart';
 import 'package:petnest_saas/core/models/daily_care_setting_model.dart';
+import 'package:petnest_saas/core/models/booking_kind.dart';
 import 'package:petnest_saas/core/models/payment_gateway_status.dart';
 import 'package:petnest_saas/core/models/policy_applicable_service.dart';
 import 'package:petnest_saas/core/models/pre_arrival_guide_model.dart';
+import 'package:petnest_saas/core/services/booking_payment_status.dart';
 import 'package:petnest_saas/core/services/booking_service.dart';
 import 'package:petnest_saas/core/services/daily_care_setting_service.dart';
 import 'package:petnest_saas/core/services/payment_function_service.dart';
@@ -21,11 +25,11 @@ import 'package:petnest_saas/core/models/shop_frontend_theme.dart';
 import 'package:petnest_saas/core/utils/safe_parse.dart';
 import 'package:petnest_saas/features/shop/pages/shop_public_page.dart';
 import 'package:petnest_saas/core/widgets/shop_frontend_theme_scope.dart';
+import 'package:petnest_saas/features/custom_form/widgets/custom_form_answer_view.dart';
 import 'package:petnest_saas/features/booking/widgets/booking_detail/booking_detail_completion_section.dart';
 import 'package:petnest_saas/features/booking/widgets/booking_detail/booking_detail_customer_pet_section.dart';
 import 'package:petnest_saas/features/booking/widgets/booking_detail/booking_detail_finance_section.dart';
 import 'package:petnest_saas/features/booking/widgets/booking_detail/booking_detail_message_preview.dart';
-import 'package:petnest_saas/features/booking/widgets/booking_detail/booking_detail_policy_section.dart';
 import 'package:petnest_saas/features/booking/widgets/booking_detail/booking_detail_preparation_section.dart';
 import 'package:petnest_saas/features/booking/widgets/booking_detail/booking_detail_stay_services_section.dart';
 import 'package:petnest_saas/features/booking/widgets/booking_detail/booking_detail_summary_card.dart';
@@ -168,11 +172,13 @@ class _BookingDetailPageState extends State<_BookingDetailBody> {
               _last5Controller.text = transferLast5;
             }
             if (_isDepositExpired(data)) {
-              WidgetsBinding.instance.addPostFrameCallback((_) {
-                _autoCancelExpiredBooking(data);
-              });
+              if (!view.isDaycare) {
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  _autoCancelExpiredBooking(data);
+                });
+              }
             } else {
-              _scheduleDepositExpireCheck(data);
+              _scheduleDepositExpireCheck(data, isDaycare: view.isDaycare);
             }
             _dailyCareSettingFuture ??= _loadDailyCareSetting(shopId);
             final String guideKey = '$shopId:${view.kind}';
@@ -270,6 +276,14 @@ class _BookingDetailPageState extends State<_BookingDetailBody> {
                             );
                           },
                     ),
+                    CustomFormAnswerView(
+                      raw:
+                          view.raw['customFormAnswers'] ??
+                          view.raw['bookingFormAnswers'] ??
+                          view.raw['formAnswers'],
+                      title: '本次照護交代',
+                      theme: ShopFrontendTheme.of(context).home,
+                    ),
                     FutureBuilder<DailyCareSettingModel>(
                       future: _dailyCareSettingFuture,
                       builder:
@@ -325,6 +339,11 @@ class _BookingDetailPageState extends State<_BookingDetailBody> {
                             final bool cvsEnabled = SafeParse.parseBool(
                               operationSettings['cvsCodeEnabled'],
                             );
+                            final bool bankTransferEnabled =
+                                SafeParse.parseBool(
+                                  operationSettings['bankTransferEnabled'],
+                                  fallback: true,
+                                );
                             final bool canCreateOnlinePayment =
                                 reviewStatus == 'approved' &&
                                 ecpayEnabled &&
@@ -349,6 +368,7 @@ class _BookingDetailPageState extends State<_BookingDetailBody> {
                                   creditCardEnabled: creditCardEnabled,
                                   atmEnabled: atmEnabled,
                                   cvsEnabled: cvsEnabled,
+                                  bankTransferEnabled: bankTransferEnabled,
                                 ),
                                 last5Controller: _last5Controller,
                                 loading: _loading,
@@ -356,6 +376,17 @@ class _BookingDetailPageState extends State<_BookingDetailBody> {
                                 onUploadImage: _uploadImage,
                                 onSubmitDeposit: _submitDeposit,
                                 onDeleteTransferImage: _deleteTransferImage,
+                                onChangePayment: () => _showChangePaymentSheet(
+                                  booking: data,
+                                  flags: BookingDetailShopPaymentFlags(
+                                    canCreateOnlinePayment:
+                                        canCreateOnlinePayment,
+                                    creditCardEnabled: creditCardEnabled,
+                                    atmEnabled: atmEnabled,
+                                    cvsEnabled: cvsEnabled,
+                                    bankTransferEnabled: bankTransferEnabled,
+                                  ),
+                                ),
                                 onPayOnline: () =>
                                     _showOnlinePaymentMethodSheet(
                                       booking: data,
@@ -365,6 +396,8 @@ class _BookingDetailPageState extends State<_BookingDetailBody> {
                                         creditCardEnabled: creditCardEnabled,
                                         atmEnabled: atmEnabled,
                                         cvsEnabled: cvsEnabled,
+                                        bankTransferEnabled:
+                                            bankTransferEnabled,
                                       ),
                                     ),
                               ),
@@ -372,10 +405,6 @@ class _BookingDetailPageState extends State<_BookingDetailBody> {
                           },
                     ),
                     BookingDetailCustomerPetSection(data: data, view: view),
-                    BookingDetailPolicySection(
-                      view: view,
-                      onOpen: () => _openTerms(view),
-                    ),
                     BookingDetailMessagePreview(
                       view: view,
                       bookingId: widget.docId,
@@ -626,6 +655,310 @@ class _BookingDetailPageState extends State<_BookingDetailBody> {
     );
   }
 
+  Future<void> _showChangePaymentSheet({
+    required Map<String, dynamic> booking,
+    required BookingDetailShopPaymentFlags flags,
+  }) async {
+    if (!BookingPaymentStatus.canChangePaymentChoice(booking)) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('目前狀態不可變更付款')));
+      return;
+    }
+    final BookingDetailViewData view = BookingDetailViewData.fromBooking(
+      data: booking,
+      docId: widget.docId,
+    );
+    String amountType = view.payAmountType == 'full' ? 'full' : 'deposit';
+    if (view.depositAmount <= 0) {
+      amountType = 'full';
+    }
+    String method = view.paymentMethod;
+    if (method.isEmpty) {
+      method = flags.bankTransferEnabled
+          ? PaymentMethodType.bankTransfer
+          : (flags.creditCardEnabled
+                ? PaymentMethodType.creditCard
+                : (flags.atmEnabled
+                      ? PaymentMethodType.atm
+                      : PaymentMethodType.convenienceStoreCode));
+    }
+    final bool? saved = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (BuildContext sheetContext) {
+        return StatefulBuilder(
+          builder: (BuildContext context, StateSetter setSheet) {
+            Widget amountChip({required String value, required String title}) {
+              final bool selected = amountType == value;
+              return Expanded(
+                child: InkWell(
+                  onTap: () => setSheet(() => amountType = value),
+                  child: Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: selected
+                            ? Theme.of(context).colorScheme.primary
+                            : Theme.of(context).dividerColor,
+                        width: selected ? 1.6 : 1,
+                      ),
+                    ),
+                    child: Text(
+                      title,
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontWeight: selected
+                            ? FontWeight.w700
+                            : FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                ),
+              );
+            }
+
+            Widget methodTile({required String value, required String title}) {
+              final bool selected = method == value;
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: InkWell(
+                  onTap: () => setSheet(() => method = value),
+                  child: Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: selected
+                            ? Theme.of(context).colorScheme.primary
+                            : Theme.of(context).dividerColor,
+                        width: selected ? 1.6 : 1,
+                      ),
+                    ),
+                    child: Text(
+                      title,
+                      style: TextStyle(
+                        fontWeight: selected
+                            ? FontWeight.w700
+                            : FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                ),
+              );
+            }
+
+            final int remaining = view.remainingAmount;
+            final List<Widget> methods = <Widget>[];
+            if (flags.bankTransferEnabled) {
+              methods.add(
+                methodTile(
+                  value: PaymentMethodType.bankTransfer,
+                  title: '銀行轉帳',
+                ),
+              );
+            }
+            if (flags.canCreateOnlinePayment) {
+              if (flags.creditCardEnabled) {
+                methods.add(
+                  methodTile(
+                    value: PaymentMethodType.creditCard,
+                    title: '綠界線上付款（信用卡）',
+                  ),
+                );
+              }
+              if (flags.atmEnabled) {
+                methods.add(
+                  methodTile(
+                    value: PaymentMethodType.atm,
+                    title: '綠界線上付款（ATM）',
+                  ),
+                );
+              }
+              if (flags.cvsEnabled) {
+                methods.add(
+                  methodTile(
+                    value: PaymentMethodType.convenienceStoreCode,
+                    title: '綠界線上付款（超商代碼）',
+                  ),
+                );
+              }
+            }
+            return Padding(
+              padding: EdgeInsets.fromLTRB(
+                20,
+                8,
+                20,
+                20 + MediaQuery.of(sheetContext).viewInsets.bottom,
+              ),
+              child: SingleChildScrollView(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    const Text(
+                      '變更付款方式／付款金額',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    const Text('不會更改訂單總額、方案價格或既有付款期限。'),
+                    if (view.depositAmount > 0) ...<Widget>[
+                      const SizedBox(height: 12),
+                      const Text('付款金額'),
+                      const SizedBox(height: 8),
+                      Row(
+                        children: <Widget>[
+                          amountChip(
+                            value: 'deposit',
+                            title: '先付訂金 NT\$ ${view.depositAmount}',
+                          ),
+                          const SizedBox(width: 8),
+                          amountChip(
+                            value: 'full',
+                            title: '一次付清尚餘全額 NT\$ $remaining',
+                          ),
+                        ],
+                      ),
+                    ],
+                    const SizedBox(height: 12),
+                    const Text('付款方式'),
+                    const SizedBox(height: 8),
+                    if (methods.isEmpty)
+                      const Text('店家目前沒有可選的付款方式')
+                    else
+                      ...methods,
+                    const SizedBox(height: 16),
+                    SizedBox(
+                      width: double.infinity,
+                      child: FilledButton(
+                        onPressed: methods.isEmpty
+                            ? null
+                            : () => Navigator.pop(sheetContext, true),
+                        child: const Text('儲存變更'),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+    if (saved != true || !mounted) {
+      return;
+    }
+    await _applyPaymentChoice(
+      booking: booking,
+      payAmountType: amountType,
+      paymentMethod: method,
+    );
+  }
+
+  Future<void> _applyPaymentChoice({
+    required Map<String, dynamic> booking,
+    required String payAmountType,
+    required String paymentMethod,
+  }) async {
+    if (!BookingPaymentStatus.canChangePaymentChoice(booking)) {
+      return;
+    }
+    final String uid = FirebaseAuth.instance.currentUser?.uid ?? '';
+    final String shopId = SafeParse.parseString(booking['shopId']);
+    final String previousMethod = SafeParse.parseString(
+      booking['paymentMethod'],
+    );
+    final String previousAmountType = SafeParse.parseString(
+      booking['payAmountType'],
+    );
+    final bool hadPendingProof =
+        SafeParse.parseString(booking['depositStatus']) == 'pending_review' ||
+        SafeParse.parseString(booking['transferLast5']).isNotEmpty ||
+        SafeParse.parseString(booking['transferImageUrl']).isNotEmpty;
+    try {
+      setState(() {
+        _loading = true;
+      });
+      await FirebaseFirestore.instance
+          .collection('bookings')
+          .doc(widget.docId)
+          .update(<String, dynamic>{
+            'payAmountType': payAmountType,
+            'paymentMethod': paymentMethod,
+            'updatedAt': FieldValue.serverTimestamp(),
+            'paymentChoiceChangedAt': FieldValue.serverTimestamp(),
+            if (hadPendingProof) 'depositStatus': 'unpaid',
+            if (hadPendingProof) 'transferLast5': '',
+            if (hadPendingProof) 'transferImageUrl': '',
+            if (hadPendingProof) 'transferImagePath': '',
+            if (hadPendingProof) 'depositSubmittedAt': FieldValue.delete(),
+          });
+      if (uid.isNotEmpty && shopId.isNotEmpty) {
+        try {
+          await FirebaseFirestore.instance.collection('action_logs').add(
+            <String, dynamic>{
+              'shopId': shopId,
+              'targetType': 'booking',
+              'targetId': widget.docId,
+              'action': 'payment_choice_changed',
+              'type': 'payment_choice_changed',
+              'operatorUid': uid,
+              'operatorRole': 'customer',
+              'payload': <String, dynamic>{
+                'previousPaymentMethod': previousMethod,
+                'paymentMethod': paymentMethod,
+                'previousPayAmountType': previousAmountType,
+                'payAmountType': payAmountType,
+                'voidedPendingProof': hadPendingProof,
+              },
+              'createdAt': FieldValue.serverTimestamp(),
+            },
+          );
+        } catch (_) {}
+      }
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('已更新付款方式／付款金額')));
+      if (PaymentMethodType.isOnlinePayment(paymentMethod)) {
+        final Map<String, dynamic> next = Map<String, dynamic>.from(booking);
+        next['payAmountType'] = payAmountType;
+        next['paymentMethod'] = paymentMethod;
+        if (hadPendingProof) {
+          next['depositStatus'] = 'unpaid';
+        }
+        final BookingDetailViewData nextView =
+            BookingDetailViewData.fromBooking(data: next, docId: widget.docId);
+        if (nextView.dueNowAmount > 0) {
+          await _createRemainingPayment(
+            booking: next,
+            paymentMethod: paymentMethod,
+          );
+        }
+      }
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('變更付款失敗：$error')));
+    } finally {
+      if (mounted) {
+        setState(() {
+          _loading = false;
+        });
+      }
+    }
+  }
+
   Future<void> _createRemainingPayment({
     required Map<String, dynamic> booking,
     required String paymentMethod,
@@ -650,16 +983,22 @@ class _BookingDetailPageState extends State<_BookingDetailBody> {
       ).showSnackBar(const SnackBar(content: Text('請選擇有效的線上付款方式。')));
       return;
     }
-    if (view.totalAmount <= 0 || view.remainingAmount <= 0) {
+    if (view.dueNowAmount <= 0) {
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(const SnackBar(content: Text('這筆訂單目前沒有待支付金額。')));
       return;
     }
-    final String paymentPurpose = view.paidAmount > 0
-        ? PaymentPurpose.balance
-        : PaymentPurpose.full;
-    const String amountType = PaymentAmountType.full;
+    final bool payDeposit =
+        view.payAmountType != 'full' &&
+        view.depositAmount > 0 &&
+        !BookingPaymentStatus.isDepositConfirmed(view.raw);
+    final String amountType = payDeposit
+        ? PaymentAmountType.deposit
+        : PaymentAmountType.full;
+    final String paymentPurpose = payDeposit
+        ? PaymentPurpose.deposit
+        : (view.paidAmount > 0 ? PaymentPurpose.balance : PaymentPurpose.full);
     final String paymentRequestId = FirebaseFirestore.instance
         .collection('payments')
         .doc()
@@ -675,7 +1014,7 @@ class _BookingDetailPageState extends State<_BookingDetailBody> {
           paymentMethod: paymentMethod,
           amountType: amountType,
           paymentPurpose: paymentPurpose,
-          amount: view.remainingAmount,
+          amount: view.dueNowAmount,
           requestId: paymentRequestId,
         ),
       );
@@ -912,7 +1251,10 @@ class _BookingDetailPageState extends State<_BookingDetailBody> {
       await FirebaseFirestore.instance
           .collection('bookings')
           .doc(widget.docId)
-          .update(<String, dynamic>{'transferImageUrl': url});
+          .update(<String, dynamic>{
+            'transferImageUrl': url,
+            'transferImagePath': ref.fullPath,
+          });
       if (!mounted) {
         return;
       }
@@ -991,6 +1333,10 @@ class _BookingDetailPageState extends State<_BookingDetailBody> {
   }
 
   bool _needDepositPayment(Map<String, dynamic> data) {
+    if (!BookingPaymentStatus.showPaymentDeadline(data) &&
+        BookingKind.resolve(data) == BookingKind.daycare) {
+      return false;
+    }
     final int depositAmount = SafeParse.parseMoney(data['depositAmount']);
     final String paymentMethod = SafeParse.parseString(data['paymentMethod']);
     final String depositStatus = SafeParse.parseString(data['depositStatus']);
@@ -1034,7 +1380,13 @@ class _BookingDetailPageState extends State<_BookingDetailBody> {
     }
   }
 
-  void _scheduleDepositExpireCheck(Map<String, dynamic> data) {
+  void _scheduleDepositExpireCheck(
+    Map<String, dynamic> data, {
+    bool isDaycare = false,
+  }) {
+    if (isDaycare) {
+      return;
+    }
     if (!_needDepositPayment(data)) {
       return;
     }

@@ -343,13 +343,13 @@ class _ShopPolicyPageState extends State<ShopPolicyPage> {
       ),
       items: const <DropdownMenuItem<String>>[
         DropdownMenuItem<String>(value: '僅住宿', child: Text('僅住宿')),
-        DropdownMenuItem<String>(value: '僅臨托', child: Text('僅臨托')),
-        DropdownMenuItem<String>(value: '住宿與臨托共用', child: Text('住宿與臨托共用')),
+        DropdownMenuItem<String>(value: '僅安親', child: Text('僅安親')),
+        DropdownMenuItem<String>(value: '住宿與安親共用', child: Text('住宿與安親共用')),
       ],
       onChanged: (String? next) {
-        if (next == '僅臨托') {
+        if (next == '僅安親' || next == '僅臨托') {
           onChanged(List<String>.from(PolicyApplicableService.daycareOnly));
-        } else if (next == '住宿與臨托共用') {
+        } else if (next == '住宿與安親共用' || next == '住宿與臨托共用') {
           onChanged(List<String>.from(PolicyApplicableService.shared));
         } else {
           onChanged(

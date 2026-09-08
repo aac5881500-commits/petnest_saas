@@ -1,5 +1,5 @@
 // 檔案名稱：lib/features/admin/pages/admin_create_daycare_booking_page.dart
-// 功能說明：後台手動新增臨托訂單：沿用住宿日期表、寵物、房型、加值與條款簽署方式
+// 功能說明：後台手動新增安親訂單：沿用住宿日期表、寵物、房型、加值與條款簽署方式
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
@@ -280,7 +280,7 @@ class _AdminCreateDaycareBookingPageState
         _pickUp == null) {
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(const SnackBar(content: Text('請完整填寫臨托資料')));
+      ).showSnackBar(const SnackBar(content: Text('請完整填寫安親資料')));
       return;
     }
     if (_petIds.isEmpty) {
@@ -293,7 +293,7 @@ class _AdminCreateDaycareBookingPageState
         (_policySignMethod == null || _policySignMethod!.isEmpty)) {
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(const SnackBar(content: Text('請記錄臨托條款簽署方式')));
+      ).showSnackBar(const SnackBar(content: Text('請記錄安親條款簽署方式')));
       return;
     }
     final DateTime start = DaycareTimeHelper.combineDateAndTime(
@@ -339,7 +339,7 @@ class _AdminCreateDaycareBookingPageState
       Navigator.pop(context);
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(const SnackBar(content: Text('臨托訂單已建立')));
+      ).showSnackBar(const SnackBar(content: Text('安親訂單已建立')));
     } catch (error) {
       if (!mounted) {
         return;
@@ -367,7 +367,7 @@ class _AdminCreateDaycareBookingPageState
     );
     final DaycareQuote? quote = _quote;
     return Scaffold(
-      appBar: AppBar(title: const Text('新增臨托訂單')),
+      appBar: AppBar(title: const Text('新增安親訂單')),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: <Widget>[
@@ -398,10 +398,11 @@ class _AdminCreateDaycareBookingPageState
               _loadPets(userId);
             },
           ),
-          if (_member != null) AdminSelectedMemberCard(member: _member!),
+          if (_member != null)
+            AdminSelectedMemberCard(member: _member!, shopId: widget.shopId),
           const SizedBox(height: 16),
           const Text(
-            '臨托日期與時間',
+            '安親日期與時間',
             style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
           ),
           const SizedBox(height: 8),
@@ -472,7 +473,7 @@ class _AdminCreateDaycareBookingPageState
           }),
           const SizedBox(height: 8),
           const Text(
-            '臨托方案',
+            '安親方案',
             style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
           ),
           ...settings.enabledPlans.map((DaycarePlanModel plan) {
@@ -518,12 +519,12 @@ class _AdminCreateDaycareBookingPageState
           if (_policyRequired) ...<Widget>[
             const SizedBox(height: 12),
             const Text(
-              '臨托條款',
+              '安親條款',
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
             ),
             const SizedBox(height: 8),
             Text(
-              '目前臨托條款版本 v$_policyVersion。店員代客建立時必須記錄簽署方式，不可只勾選同意。',
+              '目前安親條款版本 v$_policyVersion。店員代客建立時必須記錄簽署方式，不可只勾選同意。',
               style: TextStyle(color: Colors.grey.shade700, fontSize: 13),
             ),
             const SizedBox(height: 8),
@@ -545,7 +546,7 @@ class _AdminCreateDaycareBookingPageState
                       '費用明細',
                       style: TextStyle(fontWeight: FontWeight.bold),
                     ),
-                    Text('臨托方案：\$${quote.baseAmount}'),
+                    Text('安親方案：\$${quote.baseAmount}'),
                     if (quote.extraPetAmount > 0)
                       Text('多寵物加價：\$${quote.extraPetAmount}'),
                     if (quote.addonAmount > 0)
@@ -570,7 +571,7 @@ class _AdminCreateDaycareBookingPageState
           const SizedBox(height: 12),
           FilledButton(
             onPressed: _submitting ? null : _submit,
-            child: Text(_submitting ? '建立中…' : '建立臨托訂單'),
+            child: Text(_submitting ? '建立中…' : '建立安親訂單'),
           ),
         ],
       ),

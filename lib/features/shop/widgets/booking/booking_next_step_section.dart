@@ -5,7 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/models/booking_fee_line_item.dart';
 import 'package:petnest_saas/core/models/home_theme_model.dart';
 import 'package:petnest_saas/core/models/policy_applicable_service.dart';
-import 'package:petnest_saas/core/models/terms_consent_snapshot.dart';
+import 'package:petnest_saas/features/booking/models/booking_form_submit_data.dart';
 import 'package:petnest_saas/features/booking/pages/booking_form_page.dart';
 import 'package:petnest_saas/features/shop/widgets/booking/booking_step_widgets.dart';
 import 'package:petnest_saas/features/shop/widgets/booking/booking_submit_helper.dart';
@@ -66,19 +66,7 @@ class BookingNextStepSection extends StatelessWidget {
 
   final ValueChanged<String?> onServiceChanged;
 
-  final Future<void> Function(
-    String address,
-    String emergencyName,
-    String emergencyPhone,
-    String relation,
-    String emergencyAddress,
-    String phone2,
-    int depositAmount,
-    String paymentMethod,
-    String payAmountType,
-    TermsConsentSnapshot termsConsent,
-  )
-  onSubmitWithData;
+  final Future<void> Function(BookingFormSubmitData data) onSubmitWithData;
 
   final HomeThemeModel theme;
   final bool compact;

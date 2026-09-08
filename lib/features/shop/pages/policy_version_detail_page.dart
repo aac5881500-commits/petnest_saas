@@ -55,9 +55,9 @@ class PolicyVersionDetailPage extends StatelessWidget {
         final bool stay = services.contains('accommodation');
         final bool daycare = services.contains('daycare');
         if (stay && daycare) {
-          scope = '（住宿與臨托共用）';
+          scope = '（住宿與安親共用）';
         } else if (daycare) {
-          scope = '（僅臨托）';
+          scope = '（僅安親）';
         } else {
           scope = '（僅住宿）';
         }

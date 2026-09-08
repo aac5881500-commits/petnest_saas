@@ -742,9 +742,15 @@ class ShopReportService {
     final int discount = _int(data['discountAmount']);
     final int coupon = _int(data['couponDiscountAmount']);
     final int extra = _int(data['extraFee']);
-    final int order =
-        _int(data['finalAmount'] ?? data['totalPrice'] ?? data['totalAmount']) +
-        (data['finalAmount'] == null ? extra : 0);
+    final bool hasSettled = data['finalSettlementAmount'] != null;
+    final int order = hasSettled
+        ? _int(data['finalSettlementAmount'])
+        : _int(
+                data['finalAmount'] ??
+                    data['totalPrice'] ??
+                    data['totalAmount'],
+              ) +
+              (data['finalAmount'] == null ? extra : 0);
     int room = _int(data['roomSubtotal'] ?? data['basePrice']);
     if (room <= 0) {
       room = (order - addon - extra - surcharge + discount + coupon).clamp(

@@ -102,15 +102,13 @@ class _BookingDetailSummaryCardState extends State<BookingDetailSummaryCard> {
           _meta(view.isDaycare ? '天數／時數' : '晚數', view.durationLabel),
           if (view.petNames.isNotEmpty) _meta('寵物', view.petNames),
           _meta('房間', view.roomAssignmentLabel),
-          if (view.isIndependentDaycare) ...<Widget>[
-            if (view.scheduledStartAt != null)
-              _meta('預約送達', view.formatDateTime(view.scheduledStartAt)),
-            if (view.scheduledEndAt != null)
-              _meta('預計接回', view.formatDateTime(view.scheduledEndAt)),
-            if (view.actualStartAt != null)
-              _meta('實際開始', view.formatDateTime(view.actualStartAt)),
-            if (view.actualEndAt != null)
-              _meta('實際結束', view.formatDateTime(view.actualEndAt)),
+          if (view.isDaycare && view.daycareBillingRuleText.isNotEmpty)
+            _meta('計費規則', view.daycareBillingRuleText),
+          if (view.isDaycare) ...<Widget>[
+            _meta('預約送達', view.formatDaycareDateTime(view.scheduledStartAt)),
+            _meta('預約接回', view.formatDaycareDateTime(view.scheduledEndAt)),
+            _meta('實際送達／實際開始', view.formatDaycareDateTime(view.actualStartAt)),
+            _meta('實際接回／結算完成', view.formatDaycareDateTime(view.actualEndAt)),
           ],
           if (view.isManualOrder) ...<Widget>[
             const SizedBox(height: 8),

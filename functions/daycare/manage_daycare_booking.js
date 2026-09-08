@@ -12,17 +12,12 @@ const {
   toDate,
   toInt,
   writeActionLog,
-  overnightCapForRoom,
 } = require("./daycare_utils");
 const {
-  overtimeFee,
   quote,
-  isRoomBased,
-  extraTimeAmount,
-  applyCap,
-  findRoomTypeSetting,
-  roundingLabel,
+  remainingFromPaid,
   paymentStatusOf,
+  shopLatePickupBreakdown,
 } = require("./daycare_pricing");
 const {
   assertAvailable,
@@ -36,10 +31,116 @@ const {
  * @param {string} key
  */
 async function requirePerm(uid, shopId, key) {
-  const ok = await hasShopPermission(shopId, uid, key);
+  const ok = await hasShopPermission(shopId, uid, key) ||
+    (key === "manage_daycare_bookings" &&
+      await hasShopPermission(shopId, uid, "manage_bookings"));
   if (!ok) {
     throw new HttpsError("permission-denied", "沒有執行此操作的權限");
   }
+}
+
+/**
+ * 銀行轉帳等人工確認訂金：寫入付款狀態、金額、payments 與操作紀錄。
+ * @param {Object} params
+ */
+async function applyManualDepositConfirm(params) {
+  const booking = params.booking || {};
+  const alreadyPaid = booking.depositPaid === true ||
+    normalizeString(booking.depositStatus) === "confirmed";
+  if (alreadyPaid) {
+    throw new HttpsError("failed-precondition", "訂金已確認，不可重複執行");
+  }
+  const deposit = toInt(booking.depositAmount, 0);
+  if (deposit <= 0) {
+    throw new HttpsError("failed-precondition", "此訂單無需確認訂金");
+  }
+  const total = toInt(booking.totalPayableAmount, 0) ||
+    toInt(booking.totalAmount, 0) ||
+    toInt(booking.totalPrice, 0);
+  const existingPaid = toInt(booking.paidAmount, 0);
+  const paid = Math.max(existingPaid, deposit);
+  const remaining = remainingFromPaid(total, paid);
+  const paymentStatus = paymentStatusOf(paid, total);
+  const now = admin.firestore.FieldValue.serverTimestamp();
+  const credited = Math.max(deposit, paid - existingPaid);
+  const paymentMethod = normalizeString(booking.paymentMethod) || "transfer";
+  const amountType = normalizeString(booking.payAmountType) === "full" ?
+    "full" : "deposit";
+  const firestore = admin.firestore();
+  const paymentRef = firestore.collection("payments").doc();
+  const currentStatus = normalizeString(booking.status);
+  const update = {
+    depositPaid: true,
+    depositStatus: "confirmed",
+    depositPaidAt: now,
+    paidAmount: paid,
+    remainingAmount: remaining,
+    paymentStatus,
+    paymentConfirmedAt: now,
+    paymentConfirmedBy: params.uid,
+    lastPaymentId: paymentRef.id,
+    lastPaymentAmount: credited,
+    lastPaymentMethod: paymentMethod,
+    lastPaymentPurpose: amountType === "full" ? "full" : "deposit",
+    paymentUpdatedAt: now,
+    updatedAt: now,
+  };
+  if (currentStatus === "pending" || currentStatus === "pending_confirmation") {
+    update.status = "confirmed";
+    update.confirmedAt = now;
+  }
+  const batch = firestore.batch();
+  batch.set(paymentRef, {
+    shopId: params.shopId,
+    bookingId: params.bookingRef.id,
+    bookingCode: booking.bookingCode || "",
+    userId: booking.userId || "",
+    customerName: booking.customerName || "",
+    sourceType: "booking",
+    sourceId: params.bookingRef.id,
+    gateway: "manual",
+    paymentMethod,
+    amountType,
+    paymentPurpose: amountType === "full" ? "full" : "deposit",
+    amount: credited,
+    currency: "TWD",
+    status: "paid",
+    requestId: `manual_deposit_${params.bookingRef.id}`,
+    merchantTradeNo: "",
+    description: "店家確認訂金",
+    paidAt: now,
+    createdBy: params.uid,
+    updatedBy: params.uid,
+    createdAt: now,
+    updatedAt: now,
+  });
+  batch.update(params.bookingRef, update);
+  await batch.commit();
+  await writeActionLog({
+    shopId: params.shopId,
+    targetId: params.bookingRef.id,
+    action: "deposit_confirmed",
+    operatorUid: params.uid,
+    operatorRole: "staff",
+    payload: {
+      depositAmount: deposit,
+      paidAmount: paid,
+      remainingAmount: remaining,
+      paymentStatus,
+      paymentId: paymentRef.id,
+    },
+  });
+  return {
+    ok: true,
+    action: "confirmDeposit",
+    depositPaid: true,
+    depositStatus: "confirmed",
+    paidAmount: paid,
+    remainingAmount: remaining,
+    paymentStatus,
+    paymentId: paymentRef.id,
+    status: update.status || currentStatus,
+  };
 }
 
 exports.manageDaycareBooking = onCall(
@@ -90,13 +191,30 @@ exports.manageDaycareBooking = onCall(
 
       if (action === "confirm") {
         await requirePerm(uid, shopId, "manage_daycare_bookings");
-        if (booking.status !== "pending") {
+        if (booking.status !== "pending" &&
+            booking.status !== "pending_confirmation") {
           throw new HttpsError("failed-precondition", "僅待確認訂單可確認");
         }
         await bookingRef.update({
           status: "confirmed",
           confirmedAt: now,
           updatedAt: now,
+        });
+        await writeActionLog({
+          shopId,
+          targetId: bookingRef.id,
+          action: "confirmed",
+          operatorUid: uid,
+          operatorRole: "staff",
+          payload: {status: "confirmed"},
+        });
+      } else if (action === "confirmDeposit") {
+        await requirePerm(uid, shopId, "manage_daycare_bookings");
+        result = await applyManualDepositConfirm({
+          bookingRef,
+          booking,
+          uid,
+          shopId,
         });
       } else if (action === "start") {
         await requirePerm(uid, shopId, "manage_daycare_bookings");
@@ -123,84 +241,69 @@ exports.manageDaycareBooking = onCall(
           throw new HttpsError("failed-precondition", "僅安親中訂單可結算");
         }
         const actualEnd = toDate(payload.actualEndAt) || new Date();
+        const scheduledStart = toDate(booking.scheduledStartAt);
         const scheduledEnd = toDate(booking.scheduledEndAt);
+        const actualStart = toDate(booking.actualStartAt);
         const quoted = toInt(
             booking.quotedTotalPrice != null ?
               booking.quotedTotalPrice : booking.totalPrice, 0,
         );
         const paid = toInt(booking.paidAmount, 0);
-        const overtimeMinutes = Math.max(0, Math.round(
-            (actualEnd - scheduledEnd) / 60000,
-        ));
-        const roomBased = isRoomBased({
-          pricingMode: booking.pricingMode || settings.pricingMode,
-        });
+        const pickup = shopLatePickupBreakdown(
+            settings, scheduledEnd, actualEnd,
+        );
         const waive = payload.waiveOvertime === true ||
           payload.completeMode === "waive";
-        const grace = toInt(settings.overtimeGraceMinutes, 15);
-        let overtimeAmt = 0;
-        let capAmount = 0;
-        let rule = "未超時";
-        if (!waive && overtimeMinutes > grace) {
-          if (roomBased) {
-            const roomSetting = findRoomTypeSetting(
-                settings, booking.roomTypeId,
-            ) || {};
-            overtimeAmt = extraTimeAmount(
-                overtimeMinutes - grace,
-                toInt(roomSetting.extraTimeUnitMinutes, 60),
-                toInt(roomSetting.extraTimePrice, 0),
-                roomSetting.roundingMode,
-            );
-            rule = roundingLabel(roomSetting.roundingMode);
-            const snap = booking.priceQuoteSnapshot || {};
-            capAmount = normalizeString(roomSetting.capMode) ===
-              "fixed_amount" ?
-              toInt(roomSetting.fixedCapAmount, 0) :
-              toInt(snap.overnightCapAmount, 0);
-            if (normalizeString(roomSetting.capMode) === "overnight_rate" &&
-                capAmount <= 0 && booking.roomTypeId) {
-              capAmount = await overnightCapForRoom(
-                  firestore, shopId, booking.roomTypeId,
-                  Array.isArray(booking.petIds) ? booking.petIds.length : 1,
-                  scheduledEnd || actualEnd,
-              );
-            }
-            const quotedRoom = toInt(
-                snap.cappedRoomAmount != null ? snap.cappedRoomAmount : quoted,
-                quoted,
-            );
-            const newRoom = applyCap(
-                quotedRoom + overtimeAmt,
-                roomSetting.capMode,
-                capAmount,
-            );
-            overtimeAmt = Math.max(0, newRoom - quotedRoom);
-          } else {
-            overtimeAmt = overtimeFee(
-                plan, settings, scheduledEnd, actualEnd,
-            );
-            rule = "不足一小時，以整小時計";
-          }
-        }
+        const overtimeAmt = waive ? 0 : pickup.amount;
+        const overtimeMinutes = pickup.extraMinutes;
+        let rule = pickup.formula;
         if (waive) {
-          overtimeAmt = 0;
           rule = "店家免收本次超時費";
         }
-        const finalTotal = quoted + overtimeAmt;
-        const remaining = Math.max(0, finalTotal - paid);
+        const manualAdjust = toInt(payload.manualAdjust, 0);
+        const manualReason = normalizeString(payload.manualAdjustReason);
+        if (manualAdjust !== 0 && !manualReason) {
+          throw new HttpsError("invalid-argument", "請填寫手動調整原因");
+        }
+        const originalSettlementAmount = quoted;
+        const finalSettlementAmount = Math.max(
+            0, quoted + overtimeAmt + manualAdjust,
+        );
+        const remaining = Math.max(0, finalSettlementAmount - paid);
+        const scheduledMinutes = (scheduledStart && scheduledEnd) ?
+          Math.max(0, Math.floor((scheduledEnd - scheduledStart) / 60000)) : 0;
+        const actualMinutes = (actualStart && actualEnd) ?
+          Math.max(0, Math.floor((actualEnd - actualStart) / 60000)) : 0;
         const settlement = {
           scheduledStartAt: booking.scheduledStartAt || null,
           scheduledEndAt: booking.scheduledEndAt || null,
+          actualStartAt: booking.actualStartAt || null,
           actualEndAt: actualEnd.toISOString(),
+          scheduledMinutes,
+          actualMinutes,
           quotedTotal: quoted,
+          originalSettlementAmount,
           overtimeMinutes,
+          overtimeGraceMinutes: pickup.graceMinutes,
+          billableMinutes: pickup.billableMinutes,
+          overtimeUnits: pickup.units,
+          overtimeUnitMinutes: pickup.unitMinutes,
+          overtimeUnitPrice: pickup.unitPrice,
+          overtimeFormula: pickup.formula,
           overtimeAmount: overtimeAmt,
+          overtimeCharge: overtimeAmt,
           roundingLabel: rule,
-          capAmount,
-          finalTotal,
+          capAmount: 0,
+          capAdjustment: 0,
+          manualAdjust,
+          manualAdjustmentAmount: manualAdjust,
+          manualAdjustmentReason: manualReason,
+          finalTotal: finalSettlementAmount,
+          finalSettlementAmount,
           paidAmount: paid,
+          finalPaidAmount: paid,
           remainingAmount: remaining,
+          finalRemainingAmount: remaining,
           waivedOvertime: waive,
         };
         if (action === "previewSettle") {
@@ -208,7 +311,7 @@ exports.manageDaycareBooking = onCall(
         } else {
           const completeMode = normalizeString(payload.completeMode) ||
             (waive ? "waive" : "cash");
-          let nextPaymentStatus = paymentStatusOf(paid, finalTotal);
+          let nextPaymentStatus = paymentStatusOf(paid, finalSettlementAmount);
           if (remaining > 0) {
             nextPaymentStatus = "awaiting_supplement";
           }
@@ -227,7 +330,16 @@ exports.manageDaycareBooking = onCall(
               completedAt: now,
               overtimeMinutes,
               overtimeAmount: overtimeAmt,
-              totalPrice: finalTotal,
+              originalSettlementAmount,
+              overtimeCharge: overtimeAmt,
+              manualAdjustmentAmount: manualAdjust,
+              manualAdjustmentReason: manualReason,
+              finalSettlementAmount,
+              finalPaidAmount: paid,
+              finalRemainingAmount: remaining,
+              settledAt: now,
+              settledBy: uid,
+              totalPrice: finalSettlementAmount,
               remainingAmount: remaining,
               paymentStatus: nextPaymentStatus,
               waivedOvertime: waive,
@@ -240,11 +352,16 @@ exports.manageDaycareBooking = onCall(
           await issueOrRevokeDaycarePoints(firestore, {
             shopId,
             bookingId,
-            booking: {...booking, totalPrice: finalTotal, source: booking.source,
-              userId: booking.userId, addons: booking.addons,
+            booking: {
+              ...booking,
+              totalPrice: finalSettlementAmount,
+              source: booking.source,
+              userId: booking.userId,
+              addons: booking.addons,
               overtimeAmount: overtimeAmt,
               specialDateSurchargeAmount: booking.specialDateSurchargeAmount,
-              status: "completed"},
+              status: "completed",
+            },
             mode: "issue",
           });
           if (normalizeString(booking.roomId)) {
@@ -456,9 +573,11 @@ exports.manageDaycareBooking = onCall(
             mode: "recalc",
           });
         }
+      } else {
+        throw new HttpsError("invalid-argument", `不支援的操作：${action}`);
       }
 
-      if (action !== "previewSettle") {
+      if (action !== "previewSettle" && action !== "confirmDeposit") {
         await writeActionLog({
           shopId,
           targetId: bookingId,
@@ -473,6 +592,14 @@ exports.manageDaycareBooking = onCall(
             completeMode: normalizeString(payload.completeMode),
             remainingAmount: result.remainingAmount || 0,
             overtimeAmount: result.overtimeAmount || 0,
+            originalSettlementAmount: result.originalSettlementAmount || 0,
+            manualAdjustmentAmount: result.manualAdjustmentAmount || 0,
+            manualAdjustmentReason: result.manualAdjustmentReason || "",
+            finalSettlementAmount: result.finalSettlementAmount ||
+              result.finalTotal || result.totalPrice || 0,
+            finalPaidAmount: result.finalPaidAmount || 0,
+            finalRemainingAmount: result.finalRemainingAmount ||
+              result.remainingAmount || 0,
             finalTotal: result.finalTotal || result.totalPrice || 0,
           },
         });

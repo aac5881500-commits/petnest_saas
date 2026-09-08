@@ -3,11 +3,17 @@
 // ✅ 後台已選會員卡片
 
 import 'package:flutter/material.dart';
+import 'package:petnest_saas/core/widgets/member_avatar.dart';
 
 class AdminSelectedMemberCard extends StatelessWidget {
-  const AdminSelectedMemberCard({super.key, required this.member});
+  const AdminSelectedMemberCard({
+    super.key,
+    required this.member,
+    this.shopId = '',
+  });
 
   final Map<String, dynamic> member;
+  final String shopId;
 
   @override
   Widget build(BuildContext context) {
@@ -20,7 +26,17 @@ class AdminSelectedMemberCard extends StatelessWidget {
       ),
       child: Row(
         children: [
-          const CircleAvatar(child: Icon(Icons.person)),
+          ShopMemberLiveAvatar(
+            shopId: shopId.isNotEmpty
+                ? shopId
+                : (member['shopId'] ?? '').toString(),
+            userId: (member['userId'] ?? '').toString(),
+            name: member['name']?.toString().isNotEmpty == true
+                ? member['name'].toString()
+                : '會員',
+            size: 44,
+            member: member,
+          ),
           const SizedBox(width: 12),
           Expanded(
             child: Column(

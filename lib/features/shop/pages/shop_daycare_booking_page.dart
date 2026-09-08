@@ -34,6 +34,7 @@ import 'package:petnest_saas/core/services/shop_service.dart';
 import 'package:petnest_saas/core/utils/callable_payload.dart';
 import 'package:petnest_saas/core/utils/dropdown_value.dart';
 import 'package:petnest_saas/features/auth/pages/login_page.dart';
+import 'package:petnest_saas/features/booking/models/booking_form_submit_data.dart';
 import 'package:petnest_saas/features/booking/pages/booking_form_page.dart';
 import 'package:petnest_saas/features/booking/pages/booking_success_page.dart';
 import 'package:petnest_saas/features/payment/pages/ecpay_payment_page.dart';
@@ -948,6 +949,15 @@ class _ShopDaycareBookingPageState extends State<ShopDaycareBookingPage> {
           isBlacklisted: false,
           submitLabel: '確認訂單',
           feeSummaryTitle: '安親費用摘要',
+          feeRuleText: DaycarePricingService.instance.hourlyRuleTextFromQuote(
+            quote,
+            extraBillingPrice: widget.settings.isRoomBased
+                ? (widget.settings
+                          .roomTypeSetting(_selectedRoomTypeId ?? '')
+                          ?.extraBillingPrice ??
+                      0)
+                : (_plan?.extraBillingPrice ?? 0),
+          ),
           theme: HomeBannerService.instance.themeFromShop(widget.shop),
           termsServiceType: PolicyApplicableService.daycare,
           feeLineItems: _feeLines(quote, includePayable: false),
@@ -965,18 +975,17 @@ class _ShopDaycareBookingPageState extends State<ShopDaycareBookingPage> {
     );
   }
 
-  Future<void> _submitOrder(
-    String address,
-    String emergencyName,
-    String emergencyPhone,
-    String relation,
-    String emergencyAddress,
-    String phone2,
-    int depositAmount,
-    String paymentMethod,
-    String payAmountType,
-    TermsConsentSnapshot termsConsent,
-  ) async {
+  Future<void> _submitOrder(BookingFormSubmitData data) async {
+    final String address = data.fullAddress;
+    final String emergencyName = data.emergencyName;
+    final String emergencyPhone = data.emergencyPhone;
+    final String relation = data.emergencyRelation;
+    final String emergencyAddress = data.emergencyAddress;
+    final String phone2 = data.secondaryPhone;
+    final int depositAmount = data.calculatedDeposit;
+    final String paymentMethod = data.paymentMethod;
+    final String payAmountType = data.payAmountType;
+    final TermsConsentSnapshot termsConsent = data.termsConsent;
     final User? user = FirebaseAuth.instance.currentUser;
     if (user == null) {
       throw Exception('請先登入後再送出預約');
@@ -1083,6 +1092,8 @@ class _ShopDaycareBookingPageState extends State<ShopDaycareBookingPage> {
         if (_selectedCoupon != null) 'couponId': _selectedCoupon!.id,
         if (_selectedCoupon != null) 'couponName': _selectedCoupon!.name,
         'couponDiscountAmount': quote.couponAmount,
+        if (data.customFormAnswers != null)
+          'customFormAnswers': data.customFormAnswers!.toCallableMap(),
       };
       CallablePayload.assertValid(payload);
       final Map<String, dynamic> created = await DaycareFunctionService.instance
@@ -1379,6 +1390,7 @@ class _ShopDaycareBookingPageState extends State<ShopDaycareBookingPage> {
       ..._dateAndTimeCards(theme, slots),
       const SizedBox(height: 16),
       BookingPetSection(
+        shopId: widget.shopId,
         theme: theme,
         title: '選擇安親寵物（已選 ${_selectedPetIds.length} 隻）',
         selectedPetIds: _selectedPetIds,
@@ -1400,6 +1412,47 @@ class _ShopDaycareBookingPageState extends State<ShopDaycareBookingPage> {
         },
       ),
     ];
+  }
+
+  bool _isDropOffOpen(String slot) {
+    if (_date == null) {
+      return true;
+    }
+    return DaycareTimeHelper.isSlotSelectable(
+      slot: slot,
+      date: _date!,
+      now: DateTime.now(),
+    );
+  }
+
+  bool _isPickUpOpen(String slot) {
+    if (_date == null) {
+      return true;
+    }
+    return DaycareTimeHelper.isSlotSelectable(
+      slot: slot,
+      date: _date!,
+      now: DateTime.now(),
+      afterSlot: _dropOff,
+    );
+  }
+
+  String? _selectableSlot(String? value, List<String> slots, {String? after}) {
+    if (value == null || !slots.contains(value)) {
+      return null;
+    }
+    if (_date == null) {
+      return value;
+    }
+    if (!DaycareTimeHelper.isSlotSelectable(
+      slot: value,
+      date: _date!,
+      now: DateTime.now(),
+      afterSlot: after,
+    )) {
+      return null;
+    }
+    return value;
   }
 
   String _formatDate(DateTime date) {
@@ -1534,9 +1587,24 @@ class _ShopDaycareBookingPageState extends State<ShopDaycareBookingPage> {
                 '目前沒有可選時段。請確認店家安親送達／接回時間設定。',
                 style: TextStyle(color: theme.textColor),
               )
+            else if (_date != null &&
+                DaycareTimeHelper.isTodayPastLatestPickUp(
+                  date: _date!,
+                  latestPickUp: _dayHours.latestPickUp,
+                ))
+              Text(
+                '今日已超過最晚接回時間（${_dayHours.latestPickUp}），請選擇其他日期',
+                style: TextStyle(
+                  color: theme.primaryColor,
+                  fontWeight: FontWeight.w700,
+                ),
+              )
             else ...<Widget>[
               DropdownButtonFormField<String>(
-                value: dropdownValueIfAllowed(_dropOff, slots),
+                value: dropdownValueIfAllowed(
+                  _selectableSlot(_dropOff, slots),
+                  slots,
+                ),
                 decoration: InputDecoration(
                   labelText: '送達時間',
                   border: OutlineInputBorder(
@@ -1547,7 +1615,13 @@ class _ShopDaycareBookingPageState extends State<ShopDaycareBookingPage> {
                     .map(
                       (String item) => DropdownMenuItem<String>(
                         value: item,
-                        child: Text(item),
+                        enabled: _isDropOffOpen(item),
+                        child: Text(
+                          item,
+                          style: TextStyle(
+                            color: _isDropOffOpen(item) ? null : Colors.grey,
+                          ),
+                        ),
                       ),
                     )
                     .toList(),
@@ -1558,7 +1632,10 @@ class _ShopDaycareBookingPageState extends State<ShopDaycareBookingPage> {
               ),
               const SizedBox(height: 12),
               DropdownButtonFormField<String>(
-                value: dropdownValueIfAllowed(_pickUp, slots),
+                value: dropdownValueIfAllowed(
+                  _selectableSlot(_pickUp, slots, after: _dropOff),
+                  slots,
+                ),
                 decoration: InputDecoration(
                   labelText: '接回時間',
                   border: OutlineInputBorder(
@@ -1569,7 +1646,13 @@ class _ShopDaycareBookingPageState extends State<ShopDaycareBookingPage> {
                     .map(
                       (String item) => DropdownMenuItem<String>(
                         value: item,
-                        child: Text(item),
+                        enabled: _isPickUpOpen(item),
+                        child: Text(
+                          item,
+                          style: TextStyle(
+                            color: _isPickUpOpen(item) ? null : Colors.grey,
+                          ),
+                        ),
                       ),
                     )
                     .toList(),
@@ -1662,6 +1745,9 @@ class _ShopDaycareBookingPageState extends State<ShopDaycareBookingPage> {
                 ? (option.blockedReason ?? '目前不可選')
                 : (setting.enabled ? null : '方案未啟用'),
             onTap: () {
+              if (!canPick) {
+                return;
+              }
               if (!petsReady) {
                 ScaffoldMessenger.of(
                   context,
@@ -1753,23 +1839,54 @@ class _ShopDaycareBookingPageState extends State<ShopDaycareBookingPage> {
                 color: theme.textColor,
               ),
             ),
+            const SizedBox(height: 8),
+            Text(
+              DaycarePricingService.instance.hourlyRuleTextFromQuote(
+                quote,
+                extraBillingPrice: widget.settings.isRoomBased
+                    ? (widget.settings
+                              .roomTypeSetting(_selectedRoomTypeId ?? '')
+                              ?.extraBillingPrice ??
+                          0)
+                    : (_plan?.extraBillingPrice ?? 0),
+              ),
+              style: TextStyle(
+                fontSize: 13,
+                height: 1.4,
+                color: theme.textColor.withValues(alpha: 0.7),
+              ),
+            ),
             const SizedBox(height: 12),
             ...lines.map(
               (BookingFeeLineItem line) => Padding(
                 padding: const EdgeInsets.only(bottom: 8),
                 child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: <Widget>[
                     Expanded(
-                      child: Text(
-                        line.label,
-                        style: TextStyle(
-                          color: theme.textColor,
-                          fontWeight:
-                              line.kind == BookingFeeLineKind.total ||
-                                  line.kind == BookingFeeLineKind.payable
-                              ? FontWeight.w800
-                              : FontWeight.w500,
-                        ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: <Widget>[
+                          Text(
+                            line.label,
+                            style: TextStyle(
+                              color: theme.textColor,
+                              fontWeight:
+                                  line.kind == BookingFeeLineKind.total ||
+                                      line.kind == BookingFeeLineKind.payable
+                                  ? FontWeight.w800
+                                  : FontWeight.w500,
+                            ),
+                          ),
+                          if (line.subtitle.isNotEmpty)
+                            Text(
+                              line.subtitle,
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: theme.textColor.withValues(alpha: 0.65),
+                              ),
+                            ),
+                        ],
                       ),
                     ),
                     Text(

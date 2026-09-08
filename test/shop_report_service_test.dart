@@ -79,6 +79,20 @@ void main() {
     expect(withTotal.orderAmount, 2300);
   });
 
+  test('settled daycare uses finalSettlementAmount', () {
+    final settled = ShopReportService.bookingMoneyForTest(<String, dynamic>{
+      'totalPrice': 1500,
+      'finalAmount': 1600,
+      'finalSettlementAmount': 1250,
+    });
+    expect(settled.orderAmount, 1250);
+
+    final legacy = ShopReportService.bookingMoneyForTest(<String, dynamic>{
+      'totalPrice': 1500,
+    });
+    expect(legacy.orderAmount, 1500);
+  });
+
   test('money and percent format', () {
     expect(ShopReportFormat.money(1234567), 'NT\$ 1,234,567');
     expect(ShopReportFormat.percent(0.25), '25.0%');

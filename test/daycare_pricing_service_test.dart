@@ -588,7 +588,12 @@ void main() {
         lines.any((BookingFeeLineItem e) => e.label.contains('多寵費')),
         isTrue,
       );
-      expect(lines.any((BookingFeeLineItem e) => e.label == '計費上限折抵'), isTrue);
+      expect(
+        lines.any(
+          (BookingFeeLineItem e) => e.label.startsWith('已套用當次最高費用 NT\$1100'),
+        ),
+        isTrue,
+      );
       final List<BookingFeeLineItem> roomLines = pricing.customerFeeLines(
         quote: quote,
         primaryLabel: 'VIP尊爵房',
@@ -596,7 +601,9 @@ void main() {
         isRoomBased: true,
       );
       expect(
-        roomLines.any((BookingFeeLineItem e) => e.label == '房型上限折抵'),
+        roomLines.any(
+          (BookingFeeLineItem e) => e.label.startsWith('已套用當次最高費用 NT\$1100'),
+        ),
         isTrue,
       );
       expect(
@@ -610,7 +617,7 @@ void main() {
           maxPets: 3,
           enabled: true,
           roomBased: true,
-        ).contains('此房型最高　NT\$1500'),
+        ).contains('當日房型收費最高上限 NT\$1500'),
         isTrue,
       );
       expect(
@@ -640,7 +647,7 @@ void main() {
               (BookingFeeLineItem e) => e.kind == BookingFeeLineKind.payable,
             )
             .label,
-        '預計訂金',
+        '本次應付訂金',
       );
     });
 
@@ -675,6 +682,309 @@ void main() {
       expect(charge.extraMinutes, 10);
       expect(charge.extraUnits, 1);
       expect(charge.timeCharge, 980);
+    });
+
+    test('10 小時、起步 2 小時 NT\$200、超過每小時 NT\$100：起步 200＋超時 800＝時間費 1000', () {
+      final DaycarePricingService pricing = DaycarePricingService.instance;
+      const DaycarePlanModel plan = DaycarePlanModel(
+        id: 'hourly',
+        name: '每小時計費',
+        includedMinutes: 120,
+        basePrice: 200,
+        extraBillingMinutes: 60,
+        extraBillingPrice: 100,
+      );
+      final DaycareQuote quote = pricing.quote(
+        settings: const DaycareSettingsModel(),
+        plan: plan,
+        startAt: DateTime(2026, 9, 1, 9),
+        endAt: DateTime(2026, 9, 1, 19),
+        petCount: 1,
+        addonAmount: 500,
+      );
+      expect(quote.durationMinutes, 600);
+      expect(quote.baseAmount, 200);
+      expect(quote.extraMinutes, 480);
+      expect(quote.extraUnits, 8);
+      expect(quote.extraTimeAmount, 800);
+      expect(quote.timeCharge, 1000);
+      expect(quote.totalAmount, 1500);
+      final List<BookingFeeLineItem> lines = pricing.customerFeeLines(
+        quote: quote,
+        primaryLabel: plan.name,
+        includePayable: false,
+        addonLines: const <BookingFeeLineItem>[
+          BookingFeeLineItem(label: '加值 A', amount: 300),
+          BookingFeeLineItem(label: '加值 B', amount: 200),
+        ],
+      );
+      expect(
+        lines.any((BookingFeeLineItem e) => e.label.contains('每小時計費')),
+        isFalse,
+      );
+      expect(
+        lines
+            .firstWhere((BookingFeeLineItem e) => e.label.startsWith('起步費'))
+            .amount,
+        200,
+      );
+      expect(
+        lines
+            .firstWhere((BookingFeeLineItem e) => e.label.startsWith('超過起步'))
+            .amount,
+        800,
+      );
+      expect(
+        lines.any((BookingFeeLineItem e) => e.label.contains('超時加收')),
+        isFalse,
+      );
+      int itemSum = 0;
+      for (final BookingFeeLineItem line in lines) {
+        if (line.kind == BookingFeeLineKind.total ||
+            line.kind == BookingFeeLineKind.payable) {
+          continue;
+        }
+        itemSum += line.amount;
+      }
+      expect(itemSum, 1500);
+      expect(
+        lines
+            .firstWhere(
+              (BookingFeeLineItem e) => e.kind == BookingFeeLineKind.total,
+            )
+            .amount,
+        1500,
+      );
+      expect(
+        pricing.hourlyRuleTextFromQuote(
+          quote,
+          extraBillingPrice: plan.extraBillingPrice,
+        ),
+        '起步 2 小時 NT\$200，超過後每小時 NT\$100；不足 1 小時以 1 小時計。',
+      );
+    });
+
+    test('超過 10 分鐘、每 30 分鐘 NT\$50：顯示 1 個 30 分鐘 × NT\$50', () {
+      final DaycarePricingService pricing = DaycarePricingService.instance;
+      const DaycarePlanModel plan = DaycarePlanModel(
+        id: 'half',
+        name: '每 30 分鐘',
+        includedMinutes: 120,
+        basePrice: 200,
+        extraBillingMinutes: 30,
+        extraBillingPrice: 50,
+      );
+      final DaycareQuote quote = pricing.quote(
+        settings: const DaycareSettingsModel(),
+        plan: plan,
+        startAt: DateTime(2026, 9, 1, 9, 0),
+        endAt: DateTime(2026, 9, 1, 11, 10),
+        petCount: 1,
+      );
+      expect(quote.extraMinutes, 10);
+      expect(quote.extraUnits, 1);
+      expect(quote.extraTimeAmount, 50);
+      final List<BookingFeeLineItem> lines = pricing.customerFeeLines(
+        quote: quote,
+        primaryLabel: '方案',
+        includePayable: false,
+      );
+      final BookingFeeLineItem extra = lines.firstWhere(
+        (BookingFeeLineItem e) => e.label.startsWith('超過起步'),
+      );
+      expect(extra.amount, 50);
+      expect(extra.label, contains('1 個 30 分鐘 × NT\$50'));
+      expect(extra.subtitle, '每 30 分鐘 NT\$50');
+      expect(
+        pricing.hourlyRuleTextFromQuote(
+          quote,
+          extraBillingPrice: plan.extraBillingPrice,
+        ),
+        '起步 2 小時 NT\$200，超過後每 30 分鐘 NT\$50；不足 30 分鐘以 30 分鐘計。',
+      );
+    });
+
+    test('加值服務與多寵費加入後，明細加總等於預估總額', () {
+      final DaycarePricingService pricing = DaycarePricingService.instance;
+      const DaycarePlanModel plan = DaycarePlanModel(
+        id: 'p',
+        name: '方案',
+        includedMinutes: 120,
+        basePrice: 200,
+        extraBillingMinutes: 60,
+        extraBillingPrice: 100,
+        extraPetPrice: 80,
+      );
+      final DaycareQuote quote = pricing.quote(
+        settings: const DaycareSettingsModel(),
+        plan: plan,
+        startAt: DateTime(2026, 9, 1, 9),
+        endAt: DateTime(2026, 9, 1, 19),
+        petCount: 2,
+        addonAmount: 500,
+      );
+      expect(quote.extraPetAmount, 80);
+      expect(quote.timeCharge, 1000);
+      expect(quote.totalAmount, 1580);
+      final List<BookingFeeLineItem> lines = pricing.customerFeeLines(
+        quote: quote,
+        primaryLabel: '方案',
+        includePayable: false,
+        addonLines: const <BookingFeeLineItem>[
+          BookingFeeLineItem(label: '加值 A', amount: 300),
+          BookingFeeLineItem(label: '加值 B', amount: 200),
+        ],
+      );
+      expect(
+        lines.any(
+          (BookingFeeLineItem e) =>
+              e.label == '多寵費（增加 1 隻 × NT\$80）' && e.amount == 80,
+        ),
+        isTrue,
+      );
+      expect(lines.any((BookingFeeLineItem e) => e.label == '加值服務小計'), isFalse);
+      int itemSum = 0;
+      for (final BookingFeeLineItem line in lines) {
+        if (line.kind == BookingFeeLineKind.total) {
+          continue;
+        }
+        itemSum += line.amount;
+      }
+      expect(itemSum, quote.totalAmount);
+    });
+
+    test('有最高上限時明細和總額一致', () {
+      final DaycarePricingService pricing = DaycarePricingService.instance;
+      const DaycarePlanModel plan = DaycarePlanModel(
+        id: 'cap',
+        name: '上限方案',
+        includedMinutes: 120,
+        basePrice: 200,
+        extraBillingMinutes: 60,
+        extraBillingPrice: 100,
+        maxBaseCharge: 600,
+      );
+      final DaycareQuote quote = pricing.quote(
+        settings: const DaycareSettingsModel(),
+        plan: plan,
+        startAt: DateTime(2026, 9, 1, 9),
+        endAt: DateTime(2026, 9, 1, 19),
+        petCount: 1,
+        addonAmount: 300,
+      );
+      expect(quote.uncappedTimeCharge, 1000);
+      expect(quote.timeCharge, 600);
+      expect(quote.totalAmount, 900);
+      final List<BookingFeeLineItem> lines = pricing.customerFeeLines(
+        quote: quote,
+        primaryLabel: '方案',
+        includePayable: false,
+        addonLines: const <BookingFeeLineItem>[
+          BookingFeeLineItem(label: '加值', amount: 300),
+        ],
+      );
+      expect(quote.timeChargeCapDiscount, 400);
+      int itemSum = 0;
+      for (final BookingFeeLineItem line in lines) {
+        if (line.kind == BookingFeeLineKind.total) {
+          continue;
+        }
+        itemSum += line.amount;
+      }
+      expect(itemSum, 900);
+      expect(
+        lines.any(
+          (BookingFeeLineItem e) =>
+              e.label == '已套用當次最高費用 NT\$600' && e.amount == -400,
+        ),
+        isTrue,
+      );
+    });
+
+    test('客戶端與店主端顯示同一套計費說明，舊單缺欄位不崩潰', () {
+      final DaycarePricingService pricing = DaycarePricingService.instance;
+      const DaycarePlanModel plan = DaycarePlanModel(
+        id: 'hourly',
+        name: '每小時計費',
+        includedMinutes: 120,
+        basePrice: 200,
+        extraBillingMinutes: 60,
+        extraBillingPrice: 100,
+      );
+      final DaycareQuote quote = pricing.quote(
+        settings: const DaycareSettingsModel(),
+        plan: plan,
+        startAt: DateTime(2026, 9, 1, 9),
+        endAt: DateTime(2026, 9, 1, 19),
+        petCount: 1,
+      );
+      final List<BookingFeeLineItem> quoteLines = pricing
+          .customerFeeLines(
+            quote: quote,
+            primaryLabel: plan.name,
+            includePayable: false,
+          )
+          .where((BookingFeeLineItem e) => e.kind == BookingFeeLineKind.normal)
+          .toList();
+      final Map<String, dynamic> booking = <String, dynamic>{
+        'pricingMode': DaycarePricingModes.independentPlan,
+        'daycarePricingSnapshot': quote.toPriceSnapshot(),
+        'timeChargeSnapshot': pricing.timeChargeSnapshot(
+          pricing.quoteTimeCharge(
+            includedMinutes: plan.includedMinutes,
+            basePrice: plan.basePrice,
+            extraBillingMinutes: plan.extraBillingMinutes,
+            extraBillingPrice: plan.extraBillingPrice,
+            extraPetPrice: 0,
+            maxBaseCharge: 0,
+            durationMinutes: 600,
+            petCount: 1,
+          ),
+        ),
+        'daycarePlanSnapshot': plan.toMap(),
+        'totalPrice': quote.totalAmount,
+      };
+      final List<BookingFeeLineItem> bookingLines = pricing
+          .itemLinesFromBooking(booking);
+      expect(
+        bookingLines.map((BookingFeeLineItem e) => e.label).toList(),
+        quoteLines.map((BookingFeeLineItem e) => e.label).toList(),
+      );
+      expect(
+        bookingLines.map((BookingFeeLineItem e) => e.amount).toList(),
+        quoteLines.map((BookingFeeLineItem e) => e.amount).toList(),
+      );
+      expect(
+        pricing.hourlyRuleTextFromBooking(booking),
+        pricing.hourlyRuleTextFromQuote(
+          quote,
+          extraBillingPrice: plan.extraBillingPrice,
+        ),
+      );
+      expect(
+        () => pricing.itemLinesFromBooking(<String, dynamic>{
+          'bookingKind': 'daycare',
+          'totalPrice': 880,
+          'daycarePricingSnapshot': <String, dynamic>{'baseAmount': 880},
+        }),
+        returnsNormally,
+      );
+      final List<BookingFeeLineItem> legacy = pricing.itemLinesFromBooking(
+        <String, dynamic>{
+          'daycarePricingSnapshot': <String, dynamic>{
+            'timeCharge': 1000,
+            'extraTimeAmount': 800,
+          },
+        },
+      );
+      expect(legacy.where((BookingFeeLineItem e) => e.amount == 1000), isEmpty);
+      expect(
+        legacy.any(
+          (BookingFeeLineItem e) =>
+              e.label.startsWith('超過起步') && e.amount == 800,
+        ),
+        isTrue,
+      );
     });
   });
 }

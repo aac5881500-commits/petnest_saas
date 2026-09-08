@@ -2,7 +2,10 @@
 // 功能說明：顯示訂單操作紀錄、操作者、操作時間與狀態變更內容
 // 📝 後台訂單詳細頁：操作紀錄卡片
 
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:petnest_saas/core/services/daycare_status_labels.dart';
+import 'package:petnest_saas/core/services/daycare_time_helper.dart';
 import 'package:petnest_saas/features/admin/widgets/admin_booking_date_helpers.dart';
 import 'package:petnest_saas/features/admin/widgets/admin_booking_status_chip.dart';
 import 'package:petnest_saas/features/admin/widgets/admin_booking_text_helpers.dart';
@@ -14,18 +17,26 @@ class AdminBookingActionLogCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final type = log['type'] ?? '';
-    final time = adminBookingFormatDateTime(log['createdAt']);
+    final type = (log['type'] ?? log['action'] ?? '').toString();
+    final String time = _formatTime(log['createdAt']);
     final operatorEmail = log['operatorEmail'];
 
     final operatorText =
         operatorEmail != null && operatorEmail.toString().isNotEmpty
         ? operatorEmail.toString()
+        : (log['operatorUid'] ?? '').toString().isNotEmpty
+        ? '${adminBookingOperatorRoleText(log['operatorRole'])}（${log['operatorUid']}）'
         : adminBookingOperatorRoleText(log['operatorRole']);
 
     String title = '操作紀錄';
-
-    if (type == 'booking_status_update') {
+    final String daycareTitle = DaycareStatusLabels.actionName(type);
+    if (daycareTitle.isNotEmpty) {
+      title = daycareTitle;
+      final dynamic payload = log['payload'];
+      if (payload is Map && (payload['roomName'] ?? '').toString().isNotEmpty) {
+        title = '$daycareTitle：${payload['roomName']}';
+      }
+    } else if (type == 'booking_status_update') {
       title =
           '狀態變更：'
           '${adminBookingStatusText(log['fromStatus'])}'
@@ -65,11 +76,21 @@ class AdminBookingActionLogCard extends StatelessWidget {
           Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
           const SizedBox(height: 4),
           Text(
-            '$time ・ 操作者：$operatorText',
+            '$time ・ 操作人員：$operatorText',
             style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
           ),
         ],
       ),
     );
+  }
+
+  static String _formatTime(dynamic value) {
+    if (value is Timestamp) {
+      return DaycareTimeHelper.formatDateTime(value.toDate());
+    }
+    if (value is DateTime) {
+      return DaycareTimeHelper.formatDateTime(value);
+    }
+    return adminBookingFormatDateTime(value);
   }
 }

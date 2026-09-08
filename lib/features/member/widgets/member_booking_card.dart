@@ -2,6 +2,7 @@
 // 功能說明：會員訂單列表卡：沿用 BookingDetailViewData 顯示，不重算價格。
 
 import 'package:flutter/material.dart';
+import 'package:petnest_saas/core/services/booking_payment_status.dart';
 import 'package:petnest_saas/features/booking/pages/booking_detail_page.dart';
 import 'package:petnest_saas/features/booking/widgets/booking_detail/booking_detail_view_data.dart';
 import 'package:petnest_saas/features/member/widgets/member_section_card.dart';
@@ -127,7 +128,12 @@ class MemberBookingCard extends StatelessWidget {
                       ),
                       const SizedBox(height: 2),
                       Text(
-                        view.isPaidInFull
+                        view.isDaycare &&
+                                BookingPaymentStatus.isDepositConfirmed(
+                                  view.raw,
+                                )
+                            ? BookingPaymentStatus.depositPaidSummary(view.raw)
+                            : view.isPaidInFull
                             ? '已付清'
                             : view.remainingAmount > 0
                             ? '尚需付款 NT\$ ${view.remainingAmount}'

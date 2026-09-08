@@ -7,6 +7,8 @@ import 'package:petnest_saas/core/models/payment_gateway_status.dart';
 import 'package:petnest_saas/core/models/payment_model.dart';
 import 'package:petnest_saas/core/services/payment_service.dart';
 import 'package:petnest_saas/core/utils/safe_parse.dart';
+import 'package:petnest_saas/core/widgets/booking_payment_deadline_banner.dart';
+import 'package:petnest_saas/core/widgets/booking_payment_proof_button.dart';
 import 'package:petnest_saas/core/models/shop_frontend_theme.dart';
 import 'package:petnest_saas/features/booking/widgets/booking_detail/booking_detail_ui.dart';
 import 'package:petnest_saas/features/booking/widgets/booking_detail/booking_detail_view_data.dart';
@@ -17,12 +19,14 @@ class BookingDetailShopPaymentFlags {
     required this.creditCardEnabled,
     required this.atmEnabled,
     required this.cvsEnabled,
+    this.bankTransferEnabled = false,
   });
 
   final bool canCreateOnlinePayment;
   final bool creditCardEnabled;
   final bool atmEnabled;
   final bool cvsEnabled;
+  final bool bankTransferEnabled;
 }
 
 class BookingDetailFinanceSection extends StatefulWidget {
@@ -38,6 +42,7 @@ class BookingDetailFinanceSection extends StatefulWidget {
     required this.onSubmitDeposit,
     required this.onDeleteTransferImage,
     required this.onPayOnline,
+    this.onChangePayment,
   });
 
   final BookingDetailViewData view;
@@ -50,6 +55,7 @@ class BookingDetailFinanceSection extends StatefulWidget {
   final VoidCallback onSubmitDeposit;
   final void Function(String imageUrl) onDeleteTransferImage;
   final VoidCallback onPayOnline;
+  final VoidCallback? onChangePayment;
 
   @override
   State<BookingDetailFinanceSection> createState() =>
@@ -76,15 +82,46 @@ class _BookingDetailFinanceSectionState
             'NT\$ ${view.totalAmount}',
             emphasize: true,
           ),
+          if (view.daycareBillingRuleText.isNotEmpty) ...<Widget>[
+            const SizedBox(height: 4),
+            Text(
+              view.daycareBillingRuleText,
+              style: TextStyle(
+                fontSize: BookingDetailUi.captionSize,
+                color: BookingDetailUi.of(context).muted,
+                height: 1.4,
+              ),
+            ),
+            const SizedBox(height: 8),
+          ],
+          if (view.showDepositDue)
+            _kv(
+              '本次應付訂金',
+              'NT\$ ${view.depositAmount}',
+              valueColor: BookingDetailUi.of(context).primary,
+            ),
           _kv('已付款', 'NT\$ ${view.paidAmount}'),
           _kv(
-            '尚需付款',
-            'NT\$ ${view.remainingAmount}',
-            valueColor: view.remainingAmount > 0
+            '尚需支付',
+            'NT\$ ${view.dueNowAmount}',
+            valueColor: view.dueNowAmount > 0
                 ? BookingDetailUi.of(context).primary
                 : BookingDetailUi.of(context).success,
           ),
+          BookingPaymentDeadlineBanner(data: view.raw),
           _kv('付款方式', view.paymentMethodLabel),
+          if (view.canChangePaymentChoice &&
+              widget.onChangePayment != null) ...<Widget>[
+            const SizedBox(height: 10),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: widget.loading ? null : widget.onChangePayment,
+                icon: const Icon(Icons.swap_horiz),
+                label: const Text('變更付款方式／付款金額'),
+              ),
+            ),
+          ],
           Row(
             children: <Widget>[
               Expanded(
@@ -128,7 +165,7 @@ class _BookingDetailFinanceSectionState
                 ),
             ],
           ),
-          if (view.remainingAmount > 0 &&
+          if (view.dueNowAmount > 0 &&
               widget.shopFlags.canCreateOnlinePayment) ...<Widget>[
             const SizedBox(height: 12),
             SizedBox(
@@ -146,8 +183,8 @@ class _BookingDetailFinanceSectionState
                   widget.creatingPayment
                       ? '正在建立付款...'
                       : view.paidAmount > 0
-                      ? '支付剩餘金額 NT\$ ${view.remainingAmount}'
-                      : '立即付款 NT\$ ${view.remainingAmount}',
+                      ? '支付剩餘金額 NT\$ ${view.dueNowAmount}'
+                      : '立即付款 NT\$ ${view.dueNowAmount}',
                 ),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: BookingDetailUi.of(context).primary,
@@ -177,6 +214,13 @@ class _BookingDetailFinanceSectionState
                   fontWeight: FontWeight.w600,
                 ),
               ),
+            ),
+          ],
+          if (view.isBankTransfer && !view.showBankTransferForm) ...<Widget>[
+            const SizedBox(height: 10),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: BookingPaymentProofButton(data: view.raw),
             ),
           ],
           const SizedBox(height: 8),
@@ -397,41 +441,30 @@ class _BookingDetailFinanceSectionState
           ),
         ),
         const SizedBox(height: 10),
-        GestureDetector(
-          onTap: widget.loading ? null : widget.onUploadImage,
-          child: Container(
-            width: double.infinity,
-            height: 140,
-            decoration: BoxDecoration(
-              color: BookingDetailUi.of(context).background,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: BookingDetailUi.of(context).border),
-            ),
-            child: imageUrl.isEmpty
-                ? const Center(child: Text('上傳轉帳截圖（JPG／PNG，5MB 內）'))
-                : Stack(
-                    children: <Widget>[
-                      Positioned.fill(
-                        child: BookingDetailSoftNetworkImage(
-                          url: imageUrl,
-                          fit: BoxFit.contain,
-                          fallbackIcon: Icons.image_outlined,
-                        ),
-                      ),
-                      Positioned(
-                        top: 8,
-                        right: 8,
-                        child: IconButton(
-                          onPressed: widget.loading
-                              ? null
-                              : () => widget.onDeleteTransferImage(imageUrl),
-                          icon: const Icon(Icons.close),
-                        ),
-                      ),
-                    ],
-                  ),
+        if (imageUrl.isEmpty)
+          OutlinedButton.icon(
+            onPressed: widget.loading ? null : widget.onUploadImage,
+            icon: const Icon(Icons.upload_file_outlined),
+            label: const Text('上傳轉帳截圖（JPG／PNG，5MB 內）'),
+          )
+        else
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: <Widget>[
+              BookingPaymentProofButton(data: view.raw),
+              OutlinedButton(
+                onPressed: widget.loading ? null : widget.onUploadImage,
+                child: const Text('更換照片'),
+              ),
+              TextButton(
+                onPressed: widget.loading
+                    ? null
+                    : () => widget.onDeleteTransferImage(imageUrl),
+                child: const Text('刪除照片'),
+              ),
+            ],
           ),
-        ),
         const SizedBox(height: 10),
         SizedBox(
           width: double.infinity,

@@ -426,7 +426,7 @@ class _AdminCreateBookingPageState extends State<AdminCreateBookingPage> {
       return const SizedBox();
     }
 
-    return AdminSelectedMemberCard(member: member);
+    return AdminSelectedMemberCard(member: member, shopId: widget.shopId);
   }
 
   Future<void> _quickCreateMember() async {

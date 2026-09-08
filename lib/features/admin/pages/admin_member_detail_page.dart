@@ -3,8 +3,12 @@
 
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:petnest_saas/features/admin/widgets/admin_booking_pet_card.dart';
 import 'package:petnest_saas/features/admin/widgets/admin_member_booking_card.dart';
 import 'package:petnest_saas/features/admin/widgets/admin_member_detail_badges.dart';
+import 'package:petnest_saas/core/models/shop_frontend_theme.dart';
+import 'package:petnest_saas/core/widgets/member_avatar.dart';
+import 'package:petnest_saas/core/widgets/shop_frontend_theme_scope.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:petnest_saas/features/admin/pages/admin_member_review_list_page.dart';
 import 'package:petnest_saas/core/models/coupon_template_model.dart';
@@ -30,259 +34,264 @@ class AdminMemberDetailPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('會員詳細')),
-      backgroundColor: Colors.grey.shade100,
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _buildMemberProfile(),
-
-            const SizedBox(height: 20),
-
-            PointModuleVisibility(
-              shopId: shopId,
-              enabledChild: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _buildMemberPointSection(),
-
-                  const SizedBox(height: 12),
-
-                  _buildMemberPointLogs(),
-
-                  const SizedBox(height: 20),
-                ],
-              ),
-            ),
-
-            _sectionTitle(
-              icon: Icons.card_giftcard,
-              color: Colors.deepOrange,
-              title: '會員優惠券',
-            ),
-
-            _buildMemberCoupons(),
-
-            PointModuleVisibility(
-              shopId: shopId,
-              enabledChild: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const SizedBox(height: 20),
-
-                  _sectionTitle(
-                    icon: Icons.inventory_2_outlined,
-                    color: Colors.brown,
-                    title: '實體商品兌換',
+    return ShopFrontendThemeScope(
+      shopId: shopId,
+      builder: (BuildContext context) {
+        final ShopFrontendTheme theme = ShopFrontendTheme.of(context);
+        return Scaffold(
+          appBar: AppBar(title: const Text('會員詳細')),
+          backgroundColor: theme.pageBackgroundColor,
+          body: SingleChildScrollView(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _buildMemberProfile(),
+                const SizedBox(height: 12),
+                PointModuleVisibility(
+                  shopId: shopId,
+                  enabledChild: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _buildMemberPointSection(),
+                      const SizedBox(height: 8),
+                      _buildMemberPointLogs(),
+                      const SizedBox(height: 12),
+                    ],
                   ),
-
-                  _buildMemberRedemptions(),
-
-                  const SizedBox(height: 20),
-                ],
-              ),
-            ),
-
-            _sectionTitle(
-              icon: Icons.note_alt_outlined,
-              color: Colors.orange,
-              title: '店家備註',
-            ),
-
-            _buildAdminNote(),
-
-            _sectionTitle(
-              icon: Icons.pets,
-              color: Colors.orange,
-              title: '寵物資料',
-            ),
-
-            _buildMemberPets(),
-
-            _sectionTitle(
-              icon: Icons.description_outlined,
-              color: Colors.teal,
-              title: '條款同意紀錄',
-            ),
-
-            _buildPolicyRecord(),
-
-            _sectionTitle(
-              icon: Icons.star_rate_rounded,
-              color: Colors.amber,
-              title: '我的評價',
-            ),
-
-            _buildMemberReviewsEntry(memberName: '會員'),
-
-            Container(
-              margin: const EdgeInsets.only(bottom: 12),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(14),
-              ),
-              child: ExpansionTile(
-                initiallyExpanded: false,
-                leading: const Icon(Icons.receipt_long, color: Colors.blue),
-                title: const Text(
-                  '訂單紀錄',
-                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900),
                 ),
-                childrenPadding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-                children: [
-                  StreamBuilder<QuerySnapshot>(
-                    stream: FirebaseFirestore.instance
-                        .collection('bookings')
-                        .where('shopId', isEqualTo: shopId)
-                        .where('userId', isEqualTo: userId)
-                        .snapshots(),
-                    builder: (context, snapshot) {
-                      if (snapshot.hasError) {
-                        return Text('訂單讀取失敗：${snapshot.error}');
-                      }
+                _sectionTitle(
+                  icon: Icons.pets,
+                  color: Colors.orange,
+                  title: '寵物資料',
+                ),
+                _buildMemberPets(),
+                _sectionTitle(
+                  icon: Icons.note_alt_outlined,
+                  color: Colors.orange,
+                  title: '店家備註',
+                ),
+                _buildAdminNote(),
+                _sectionTitle(
+                  icon: Icons.card_giftcard,
+                  color: Colors.deepOrange,
+                  title: '會員優惠券',
+                ),
+                _buildMemberCoupons(),
 
-                      if (!snapshot.hasData) {
-                        return const Padding(
-                          padding: EdgeInsets.all(12),
-                          child: CircularProgressIndicator(),
-                        );
-                      }
+                PointModuleVisibility(
+                  shopId: shopId,
+                  enabledChild: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const SizedBox(height: 20),
 
-                      final bookings = snapshot.data!.docs.toList();
+                      _sectionTitle(
+                        icon: Icons.inventory_2_outlined,
+                        color: Colors.brown,
+                        title: '實體商品兌換',
+                      ),
 
-                      if (bookings.isEmpty) {
-                        return const Padding(
-                          padding: EdgeInsets.all(12),
-                          child: Text('無訂單'),
-                        );
-                      }
+                      _buildMemberRedemptions(),
 
-                      return Column(
-                        children: bookings.map((doc) {
-                          final data = doc.data() as Map<String, dynamic>;
+                      const SizedBox(height: 20),
+                    ],
+                  ),
+                ),
 
-                          return AdminMemberBookingCard(
-                            bookingId: doc.id,
-                            data: data,
+                _sectionTitle(
+                  icon: Icons.description_outlined,
+                  color: Colors.teal,
+                  title: '條款同意紀錄',
+                ),
+
+                _buildPolicyRecord(),
+
+                _sectionTitle(
+                  icon: Icons.star_rate_rounded,
+                  color: Colors.amber,
+                  title: '我的評價',
+                ),
+
+                _buildMemberReviewsEntry(memberName: '會員'),
+
+                Container(
+                  margin: const EdgeInsets.only(bottom: 12),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: ExpansionTile(
+                    initiallyExpanded: false,
+                    leading: const Icon(Icons.receipt_long, color: Colors.blue),
+                    title: const Text(
+                      '訂單紀錄',
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    childrenPadding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+                    children: [
+                      StreamBuilder<QuerySnapshot>(
+                        stream: FirebaseFirestore.instance
+                            .collection('bookings')
+                            .where('shopId', isEqualTo: shopId)
+                            .where('userId', isEqualTo: userId)
+                            .snapshots(),
+                        builder: (context, snapshot) {
+                          if (snapshot.hasError) {
+                            return Text('訂單讀取失敗：${snapshot.error}');
+                          }
+
+                          if (!snapshot.hasData) {
+                            return const Padding(
+                              padding: EdgeInsets.all(12),
+                              child: CircularProgressIndicator(),
+                            );
+                          }
+
+                          final bookings = snapshot.data!.docs.toList();
+
+                          if (bookings.isEmpty) {
+                            return const Padding(
+                              padding: EdgeInsets.all(12),
+                              child: Text('無訂單'),
+                            );
+                          }
+
+                          return Column(
+                            children: bookings.map((doc) {
+                              final data = doc.data() as Map<String, dynamic>;
+
+                              return AdminMemberBookingCard(
+                                bookingId: doc.id,
+                                data: data,
+                              );
+                            }).toList(),
                           );
-                        }).toList(),
-                      );
-                    },
+                        },
+                      ),
+                    ],
                   ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 20),
-
-            Container(
-              margin: const EdgeInsets.only(bottom: 12),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(14),
-              ),
-              child: ExpansionTile(
-                initiallyExpanded: false,
-                leading: const Icon(Icons.history, color: Colors.purple),
-                title: const Text(
-                  '操作紀錄',
-                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900),
                 ),
-                childrenPadding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-                children: [
-                  StreamBuilder<QuerySnapshot>(
-                    stream: FirebaseFirestore.instance
-                        .collection('action_logs')
-                        .where('shopId', isEqualTo: shopId)
-                        .where('targetUserId', isEqualTo: userId)
-                        .limit(20)
-                        .snapshots(),
-                    builder: (context, snapshot) {
-                      if (snapshot.hasError) {
-                        return Text('操作紀錄讀取失敗：${snapshot.error}');
-                      }
+                const SizedBox(height: 20),
 
-                      if (!snapshot.hasData) {
-                        return const Padding(
-                          padding: EdgeInsets.all(12),
-                          child: CircularProgressIndicator(),
-                        );
-                      }
+                Container(
+                  margin: const EdgeInsets.only(bottom: 12),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: ExpansionTile(
+                    initiallyExpanded: false,
+                    leading: const Icon(Icons.history, color: Colors.purple),
+                    title: const Text(
+                      '操作紀錄',
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    childrenPadding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+                    children: [
+                      StreamBuilder<QuerySnapshot>(
+                        stream: FirebaseFirestore.instance
+                            .collection('action_logs')
+                            .where('shopId', isEqualTo: shopId)
+                            .where('targetUserId', isEqualTo: userId)
+                            .limit(20)
+                            .snapshots(),
+                        builder: (context, snapshot) {
+                          if (snapshot.hasError) {
+                            return Text('操作紀錄讀取失敗：${snapshot.error}');
+                          }
 
-                      final logs = snapshot.data!.docs.toList();
+                          if (!snapshot.hasData) {
+                            return const Padding(
+                              padding: EdgeInsets.all(12),
+                              child: CircularProgressIndicator(),
+                            );
+                          }
 
-                      logs.sort((a, b) {
-                        final aData = a.data() as Map<String, dynamic>;
-                        final bData = b.data() as Map<String, dynamic>;
+                          final logs = snapshot.data!.docs.toList();
 
-                        final aTime = aData['createdAt'];
-                        final bTime = bData['createdAt'];
+                          logs.sort((a, b) {
+                            final aData = a.data() as Map<String, dynamic>;
+                            final bData = b.data() as Map<String, dynamic>;
 
-                        if (aTime is! Timestamp || bTime is! Timestamp)
-                          return 0;
+                            final aTime = aData['createdAt'];
+                            final bTime = bData['createdAt'];
 
-                        return bTime.compareTo(aTime);
-                      });
+                            if (aTime is! Timestamp || bTime is! Timestamp)
+                              return 0;
 
-                      if (logs.isEmpty) {
-                        return const Padding(
-                          padding: EdgeInsets.all(12),
-                          child: Text('尚無操作紀錄'),
-                        );
-                      }
+                            return bTime.compareTo(aTime);
+                          });
 
-                      return Column(
-                        children: logs.map((doc) {
-                          final data = doc.data() as Map<String, dynamic>;
+                          if (logs.isEmpty) {
+                            return const Padding(
+                              padding: EdgeInsets.all(12),
+                              child: Text('尚無操作紀錄'),
+                            );
+                          }
 
-                          return Container(
-                            width: double.infinity,
-                            margin: const EdgeInsets.only(bottom: 10),
-                            padding: const EdgeInsets.all(12),
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              borderRadius: BorderRadius.circular(14),
-                              border: Border.all(color: Colors.grey.shade200),
-                            ),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  _logTitle(data['type']),
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 16,
+                          return Column(
+                            children: logs.map((doc) {
+                              final data = doc.data() as Map<String, dynamic>;
+
+                              return Container(
+                                width: double.infinity,
+                                margin: const EdgeInsets.only(bottom: 10),
+                                padding: const EdgeInsets.all(12),
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  borderRadius: BorderRadius.circular(14),
+                                  border: Border.all(
+                                    color: Colors.grey.shade200,
                                   ),
                                 ),
-                                const SizedBox(height: 4),
-                                Text('操作人：${data['operatorEmail'] ?? '未知操作人'}'),
-                                if ((data['reason'] ?? '')
-                                    .toString()
-                                    .isNotEmpty)
-                                  Text('原因：${data['reason']}'),
-                                const SizedBox(height: 4),
-                                Text(
-                                  _formatTime(data['createdAt']),
-                                  style: TextStyle(
-                                    color: Colors.grey.shade600,
-                                    fontSize: 12,
-                                  ),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      _logTitle(data['type']),
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 16,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      '操作人：${data['operatorEmail'] ?? '未知操作人'}',
+                                    ),
+                                    if ((data['reason'] ?? '')
+                                        .toString()
+                                        .isNotEmpty)
+                                      Text('原因：${data['reason']}'),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      _formatTime(data['createdAt']),
+                                      style: TextStyle(
+                                        color: Colors.grey.shade600,
+                                        fontSize: 12,
+                                      ),
+                                    ),
+                                  ],
                                 ),
-                              ],
-                            ),
+                              );
+                            }).toList(),
                           );
-                        }).toList(),
-                      );
-                    },
+                        },
+                      ),
+                    ],
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
-          ],
-        ),
-      ),
+          ),
+        );
+      },
     );
   }
 
@@ -942,170 +951,16 @@ class AdminMemberDetailPage extends StatelessWidget {
 
         return Column(
           children: pets.map((pet) {
-            final name = (pet['name'] ?? '未命名寵物').toString();
-            final type = (pet['type'] ?? '未填種類').toString();
-            final gender = (pet['gender'] ?? '未填性別').toString();
-            final breed = (pet['breed'] ?? '未填品種').toString();
-            final age = (pet['age'] ?? '未填年齡').toString();
-            final vaccine = (pet['vaccine'] ?? '未填疫苗').toString();
-            final litterType = (pet['litterType'] ?? '未填貓砂').toString();
-            final isNeutered = pet['isNeutered'];
-            final note = (pet['note'] ?? '').toString();
-            final photoUrl = (pet['photoUrl'] ?? pet['imageUrl'] ?? '')
-                .toString();
-
-            final neuteredText = isNeutered == true
-                ? '已結紮'
-                : isNeutered == false
-                ? '未結紮'
-                : '未填結紮';
-            return Container(
-              width: double.infinity,
-              padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
-              margin: const EdgeInsets.only(bottom: 10),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(18),
-                border: Border.all(color: Colors.orange.shade100),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.04),
-                    blurRadius: 10,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
-              ),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  CircleAvatar(
-                    radius: 30,
-                    backgroundColor: Colors.orange.shade50,
-                    backgroundImage: photoUrl.isNotEmpty
-                        ? NetworkImage(photoUrl)
-                        : null,
-                    child: photoUrl.isEmpty
-                        ? const Icon(Icons.pets, color: Colors.orange, size: 30)
-                        : null,
-                  ),
-                  const SizedBox(width: 14),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Expanded(
-                              child: Text(
-                                name,
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.w900,
-                                  fontSize: 18,
-                                ),
-                              ),
-                            ),
-
-                            StreamBuilder<DocumentSnapshot>(
-                              stream: FirebaseFirestore.instance
-                                  .collection('shops')
-                                  .doc(shopId)
-                                  .collection('members')
-                                  .doc(userId)
-                                  .snapshots(),
-                              builder: (context, memberSnapshot) {
-                                final member =
-                                    memberSnapshot.data?.data()
-                                        as Map<String, dynamic>? ??
-                                    {};
-
-                                final isManual = member['source'] == 'admin';
-
-                                if (!isManual) {
-                                  return const SizedBox();
-                                }
-
-                                return IconButton(
-                                  tooltip: '編輯寵物',
-                                  icon: const Icon(
-                                    Icons.edit,
-                                    color: Colors.deepPurple,
-                                  ),
-                                  onPressed: () {
-                                    _editManualPet(context, pet);
-                                  },
-                                );
-                              },
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 8),
-
-                        Wrap(
-                          spacing: 8,
-                          runSpacing: 8,
-                          children: [
-                            _petInfoChip('種類', type),
-                            _petInfoChip('性別', gender),
-                            _petInfoChip('年齡', age),
-                          ],
-                        ),
-
-                        const SizedBox(height: 10),
-
-                        _buildPetInfoRow(Icons.category_outlined, '品種', breed),
-                        _buildPetInfoRow(Icons.content_cut, '結紮', neuteredText),
-                        _buildPetInfoRow(Icons.favorite_outline, '疫苗', vaccine),
-                        _buildPetInfoRow(
-                          Icons.grass_outlined,
-                          '貓砂',
-                          litterType,
-                        ),
-                        if (note.isNotEmpty) ...[
-                          const SizedBox(height: 8),
-                          Text(
-                            '備註：$note',
-                            style: TextStyle(color: Colors.grey.shade700),
-                          ),
-                        ],
-                      ],
-                    ),
-                  ),
-                ],
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: AdminBookingPetCard(
+                pet: Map<String, dynamic>.from(pet),
+                shopId: shopId,
               ),
             );
           }).toList(),
         );
       },
-    );
-  }
-
-  Widget _petInfoChip(String label, String value) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-      decoration: BoxDecoration(
-        color: Colors.orange.shade50,
-        borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: Colors.orange.shade100),
-      ),
-      child: Text(
-        '$label：$value',
-        style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
-      ),
-    );
-  }
-
-  Widget _buildPetInfoRow(IconData icon, String title, String value) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 4),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(icon, size: 16, color: Colors.grey.shade600),
-          const SizedBox(width: 6),
-          Text('$title：', style: const TextStyle(fontWeight: FontWeight.w600)),
-          Expanded(child: Text(value)),
-        ],
-      ),
     );
   }
 
@@ -1817,24 +1672,52 @@ class AdminMemberDetailPage extends StatelessWidget {
         final emergencyAddress = (emergencyContact['address'] ?? '')
             .toString()
             .trim();
+        final lastAt = data['lastBookingAt'];
+        String lastText = '';
+        if (lastAt is Timestamp) {
+          final DateTime d = lastAt.toDate();
+          lastText = '${d.year}/${d.month}/${d.day}';
+        }
+        final int points = (data['points'] is num)
+            ? (data['points'] as num).toInt()
+            : int.tryParse((data['points'] ?? '0').toString()) ?? 0;
 
         return Container(
           width: double.infinity,
           padding: const EdgeInsets.all(16),
           margin: const EdgeInsets.only(bottom: 20),
           decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(18),
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: <Color>[
+                Color.alphaBlend(
+                  ShopFrontendTheme.of(
+                    context,
+                  ).primaryColor.withValues(alpha: 0.16),
+                  ShopFrontendTheme.of(context).cardColor,
+                ),
+                ShopFrontendTheme.of(context).cardColor,
+              ],
+            ),
+            border: Border.all(
+              color: ShopFrontendTheme.of(
+                context,
+              ).borderColor.withValues(alpha: 0.7),
+            ),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Row(
                 children: [
-                  CircleAvatar(
-                    radius: 30,
-                    backgroundColor: Colors.blue.shade50,
-                    child: const Icon(Icons.person, color: Colors.blue),
+                  ShopMemberLiveAvatar(
+                    shopId: shopId,
+                    userId: userId,
+                    name: name,
+                    size: 72,
+                    member: data,
                   ),
                   const SizedBox(width: 14),
                   Expanded(
@@ -1854,11 +1737,8 @@ class AdminMemberDetailPage extends StatelessWidget {
                           runSpacing: 6,
                           children: [
                             adminMemberSmallBadge(sourceLabel, sourceColor),
-                            if (source == 'app')
-                              adminMemberSmallBadge(
-                                isBlocked ? '黑名單' : '非黑名單',
-                                isBlocked ? Colors.red : Colors.grey,
-                              ),
+                            if (isBlocked)
+                              adminMemberSmallBadge('黑名單', Colors.red),
                             adminMemberSmallBadge(
                               isVip ? '常客' : '一般會員',
                               isVip ? Colors.amber : Colors.grey,
@@ -1872,21 +1752,30 @@ class AdminMemberDetailPage extends StatelessWidget {
               ),
 
               const SizedBox(height: 16),
-
-              Text('電話：$phone'),
-              const SizedBox(height: 6),
-              Text('Email：$email'),
-              const SizedBox(height: 6),
-              Text('地址：${addressText.isEmpty ? '未填地址' : addressText}'),
-              const SizedBox(height: 6),
-              Text(
-                '緊急聯絡人：${emergencyName.isEmpty ? '未填' : emergencyName}'
-                '${emergencyRelation.isEmpty ? '' : '（$emergencyRelation）'}'
-                '${emergencyPhone.isEmpty ? '' : '｜$emergencyPhone'}',
-              ),
+              if (phone != '未填電話') Text('電話：$phone'),
+              if (email != '無Email') ...[
+                const SizedBox(height: 6),
+                Text('Email：$email'),
+              ],
+              if (addressText.isNotEmpty) ...[
+                const SizedBox(height: 6),
+                Text('地址：$addressText'),
+              ],
+              if (emergencyName.isNotEmpty || emergencyPhone.isNotEmpty) ...[
+                const SizedBox(height: 6),
+                Text(
+                  '緊急聯絡人：${emergencyName.isEmpty ? '' : emergencyName}'
+                  '${emergencyRelation.isEmpty ? '' : '（$emergencyRelation）'}'
+                  '${emergencyPhone.isEmpty ? '' : '｜$emergencyPhone'}',
+                ),
+              ],
               if (emergencyAddress.isNotEmpty) ...[
                 const SizedBox(height: 6),
                 Text('緊急聯絡人地址：$emergencyAddress'),
+              ],
+              if (lastText.isNotEmpty) ...[
+                const SizedBox(height: 6),
+                Text('最後預約：$lastText'),
               ],
 
               const SizedBox(height: 16),
@@ -1895,186 +1784,64 @@ class AdminMemberDetailPage extends StatelessWidget {
                 const SizedBox(height: 12),
               ],
 
-              const SizedBox(height: 14),
-
-              if (source == 'app') ...[
-                const SizedBox(height: 14),
-                SizedBox(
-                  width: double.infinity,
-                  child: OutlinedButton.icon(
-                    onPressed: () => _toggleBlacklist(context, data),
-                    icon: Icon(
-                      isBlocked ? Icons.lock_open : Icons.block,
-                      color: isBlocked ? Colors.green : Colors.red,
-                    ),
-                    label: Text(
-                      isBlocked ? '解除黑名單' : '加入黑名單',
-                      style: TextStyle(
-                        color: isBlocked ? Colors.green : Colors.red,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    style: OutlinedButton.styleFrom(
-                      side: BorderSide(
-                        color: isBlocked ? Colors.green : Colors.red,
-                      ),
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(14),
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-              const SizedBox(height: 10),
-
-              SizedBox(
-                width: double.infinity,
-                child: OutlinedButton.icon(
-                  onPressed: () => _showIssueCouponDialog(context),
-                  icon: const Icon(Icons.card_giftcard),
-                  label: const Text(
-                    '發放優惠券',
-                    style: TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: Colors.deepOrange,
-                    side: const BorderSide(color: Colors.deepOrange),
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                  ),
-                ),
-              ),
-
-              const SizedBox(height: 10),
-
-              SizedBox(
-                width: double.infinity,
-                child: OutlinedButton.icon(
-                  onPressed: () => _toggleVip(context, data),
-                  icon: Icon(
-                    isVip ? Icons.star_border : Icons.star,
-                    color: isVip ? Colors.grey : Colors.amber,
-                  ),
-                  label: Text(
-                    isVip ? '取消常客' : '設為常客',
-                    style: TextStyle(
-                      color: isVip ? Colors.grey : Colors.amber,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  style: OutlinedButton.styleFrom(
-                    side: BorderSide(color: isVip ? Colors.grey : Colors.amber),
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                  ),
-                ),
-              ),
-
-              const SizedBox(height: 10),
-
-              if (source == 'admin') ...[
-                SizedBox(
-                  width: double.infinity,
-                  child: OutlinedButton.icon(
-                    onPressed: () => _editManualMember(context, data),
-                    icon: const Icon(Icons.edit),
-                    label: const Text('編輯會員資料'),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: Colors.deepPurple,
-                      side: const BorderSide(color: Colors.deepPurple),
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(14),
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 10),
-              ],
-              if (source == 'admin') ...[
-                SizedBox(
-                  width: double.infinity,
-                  child: OutlinedButton.icon(
-                    onPressed: () => _toggleArchive(context, data),
-                    icon: Icon(
-                      data['status'] == 'archived'
-                          ? Icons.unarchive
-                          : Icons.archive_outlined,
-                    ),
-                    label: Text(data['status'] == 'archived' ? '解除封存' : '封存會員'),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: Colors.blueGrey,
-                      side: const BorderSide(color: Colors.blueGrey),
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(14),
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 10),
-              ],
-
-              if (source == 'admin') ...[
-                const SizedBox(height: 10),
-
-                SizedBox(
-                  width: double.infinity,
-                  child: OutlinedButton.icon(
-                    onPressed: () => _deleteMember(context, data),
-                    icon: const Icon(Icons.delete_forever, color: Colors.red),
-                    label: const Text(
-                      '刪除會員',
-                      style: TextStyle(
-                        color: Colors.red,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    style: OutlinedButton.styleFrom(
-                      side: const BorderSide(color: Colors.red),
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(14),
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-              Row(
+              const SizedBox(height: 12),
+              Wrap(
+                spacing: 12,
+                runSpacing: 8,
                 children: [
-                  Expanded(
-                    child: _infoBox(
-                      icon: Icons.pets,
-                      color: Colors.orange,
-                      label: '寵物數',
-                      value: '$petCount',
+                  Text('寵物 $petCount'),
+                  Text('訂單 $bookingCount'),
+                  Text('點數 $points'),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  if (source == 'app')
+                    OutlinedButton.icon(
+                      onPressed: () => _toggleBlacklist(context, data),
+                      icon: Icon(
+                        isBlocked ? Icons.lock_open : Icons.block,
+                        color: isBlocked ? Colors.green : Colors.red,
+                      ),
+                      label: Text(isBlocked ? '解除黑名單' : '加入黑名單'),
                     ),
+                  OutlinedButton.icon(
+                    onPressed: () => _showIssueCouponDialog(context),
+                    icon: const Icon(Icons.card_giftcard),
+                    label: const Text('發放優惠券'),
                   ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: _infoBox(
-                      icon: Icons.receipt_long,
-                      color: Colors.blue,
-                      label: '訂單數',
-                      value: '$bookingCount',
+                  OutlinedButton.icon(
+                    onPressed: () => _toggleVip(context, data),
+                    icon: Icon(isVip ? Icons.star_border : Icons.star),
+                    label: Text(isVip ? '取消常客' : '設為常客'),
+                  ),
+                  if (source == 'admin')
+                    OutlinedButton.icon(
+                      onPressed: () => _editManualMember(context, data),
+                      icon: const Icon(Icons.edit),
+                      label: const Text('編輯會員資料'),
                     ),
-                  ),
-                  if (source == 'app') ...[
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: _infoBox(
-                        icon: Icons.verified_user,
-                        color: isBlocked ? Colors.red : Colors.grey,
-                        label: isBlocked ? '黑名單' : '一般',
-                        value: '會員',
+                  if (source == 'admin')
+                    OutlinedButton.icon(
+                      onPressed: () => _toggleArchive(context, data),
+                      icon: Icon(
+                        data['status'] == 'archived'
+                            ? Icons.unarchive
+                            : Icons.archive_outlined,
+                      ),
+                      label: Text(
+                        data['status'] == 'archived' ? '解除封存' : '封存會員',
                       ),
                     ),
-                  ],
+                  if (source == 'admin')
+                    OutlinedButton.icon(
+                      onPressed: () => _deleteMember(context, data),
+                      icon: const Icon(Icons.delete_forever, color: Colors.red),
+                      label: const Text('刪除會員'),
+                    ),
                 ],
               ),
             ],
@@ -3275,37 +3042,6 @@ class AdminMemberDetailPage extends StatelessWidget {
 
       Navigator.pop(context);
     }
-  }
-
-  Widget _infoBox({
-    required IconData icon,
-    required Color color,
-    required String label,
-    required String value,
-  }) {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: color.withValues(alpha: 0.18)),
-      ),
-      child: Column(
-        children: [
-          Icon(icon, color: color),
-          const SizedBox(height: 6),
-          Text(
-            value,
-            style: TextStyle(
-              color: color,
-              fontWeight: FontWeight.w900,
-              fontSize: 18,
-            ),
-          ),
-          Text(label, style: const TextStyle(fontSize: 12)),
-        ],
-      ),
-    );
   }
 
   String _logTitle(dynamic typeValue) {

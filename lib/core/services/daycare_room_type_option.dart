@@ -67,7 +67,7 @@ class DaycareRoomTypeCatalog {
     if (!setting.enabled) {
       reason = '房型未啟用';
     } else if (!typeExists) {
-      reason = '房型未啟用';
+      reason = '找不到對應房型資料，請聯絡店家';
     } else if (petCount > 0 && petCount > setting.maxPets) {
       reason = '寵物數量超過容量';
     } else if (dailyRemaining != null &&
@@ -147,7 +147,11 @@ class DaycareRoomTypeCatalog {
       if (id.isEmpty) {
         continue;
       }
-      final Map<String, dynamic>? type = types[id];
+      final Map<String, dynamic>? type = resolveRoomTypeDoc(types, id);
+      final bool hasRooms = rooms.any(
+        (Map<String, dynamic> room) =>
+            (room['roomTypeId'] ?? '').toString().trim() == id,
+      );
       int estimate = 0;
       String overtimeSummary = '';
       if (startAt != null && endAt != null) {
@@ -183,7 +187,7 @@ class DaycareRoomTypeCatalog {
           remainingRooms: remainingRooms,
           estimateAmount: estimate,
           overtimeSummary: overtimeSummary,
-          typeExists: type != null,
+          typeExists: type != null || hasRooms,
           isRoomBased: settings.isRoomBased,
         ),
       );
@@ -196,5 +200,28 @@ class DaycareRoomTypeCatalog {
       return '尚未設定安親房型';
     }
     return '目前沒有符合條件的安親房型';
+  }
+
+  static Map<String, dynamic>? resolveRoomTypeDoc(
+    Map<String, Map<String, dynamic>> types,
+    String settingId,
+  ) {
+    final String id = settingId.trim();
+    if (id.isEmpty) {
+      return null;
+    }
+    if (types.containsKey(id)) {
+      return types[id];
+    }
+    for (final MapEntry<String, Map<String, dynamic>> entry in types.entries) {
+      if (entry.key.trim() == id) {
+        return entry.value;
+      }
+      final String name = (entry.value['name'] ?? '').toString().trim();
+      if (name.isNotEmpty && name == id) {
+        return entry.value;
+      }
+    }
+    return null;
   }
 }

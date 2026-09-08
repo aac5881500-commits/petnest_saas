@@ -8,7 +8,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:petnest_saas/features/admin/widgets/booking_order_card.dart';
-import 'package:petnest_saas/features/admin/pages/admin_booking_detail_page.dart';
+import 'package:petnest_saas/core/navigation/admin_booking_route.dart';
 
 class AdminBookingHistoryPage extends StatefulWidget {
   const AdminBookingHistoryPage({super.key, required this.shopId});
@@ -291,12 +291,10 @@ class _AdminBookingHistoryPageState extends State<AdminBookingHistoryPage> {
                       bookingId: doc.id,
                       data: data,
                       onTap: () {
-                        Navigator.push(
+                        AdminBookingRoute.open(
                           context,
-                          MaterialPageRoute(
-                            builder: (_) =>
-                                AdminBookingDetailPage(bookingId: doc.id),
-                          ),
+                          bookingId: doc.id,
+                          data: data,
                         );
                       },
                     );

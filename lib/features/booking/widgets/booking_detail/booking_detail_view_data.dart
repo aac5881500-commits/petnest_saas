@@ -2,8 +2,12 @@
 // 功能說明：客戶端訂單詳細頁顯示資料：只做讀取與文案，不寫入 Firestore、不重算計價。
 
 import 'package:petnest_saas/core/models/booking_kind.dart';
+import 'package:petnest_saas/core/models/booking_fee_line_item.dart';
 import 'package:petnest_saas/core/models/daycare_settings_model.dart';
 import 'package:petnest_saas/core/models/payment_gateway_status.dart';
+import 'package:petnest_saas/core/services/booking_payment_status.dart';
+import 'package:petnest_saas/core/services/daycare_pricing_service.dart';
+import 'package:petnest_saas/core/services/daycare_time_helper.dart';
 import 'package:petnest_saas/features/booking/widgets/booking_detail/booking_detail_parse.dart';
 
 enum BookingDetailTermsState { confirmed, unconfirmed, needsReconfirm }
@@ -103,6 +107,11 @@ class BookingDetailViewData {
 
   String get paymentMethod =>
       BookingDetailParse.parseString(raw['paymentMethod']);
+
+  String get payAmountType {
+    final String type = BookingDetailParse.parseString(raw['payAmountType']);
+    return type.isEmpty ? 'deposit' : type;
+  }
 
   String get assignStatus =>
       BookingDetailParse.parseString(raw['assignStatus']);
@@ -320,6 +329,13 @@ class BookingDetailViewData {
     if (status == 'checked_in') {
       return isDaycare ? '安親中' : '入住中';
     }
+    if (isDaycare &&
+        BookingPaymentStatus.isDepositConfirmed(raw) &&
+        (status == 'pending' ||
+            status == 'pending_confirmation' ||
+            status == 'confirmed')) {
+      return '訂金已確認';
+    }
     if (status == 'confirmed') {
       if (_isUpcoming) {
         return isDaycare ? '即將安親' : '即將入住';
@@ -384,6 +400,9 @@ class BookingDetailViewData {
     if (depositStatus == 'pending_review') {
       return '付款資料已送出，店家確認後會更新付款狀態。';
     }
+    if (isDaycare && BookingPaymentStatus.isDepositConfirmed(raw)) {
+      return BookingPaymentStatus.depositPaidSummary(raw);
+    }
     if (status == 'confirmed') {
       return isDaycare ? '預約已確認，請於送達前完成相關資料。' : '房間已保留，請於入住前完成相關資料。';
     }
@@ -417,12 +436,26 @@ class BookingDetailViewData {
     );
   }
 
-  int get paidAmount => BookingDetailParse.parseMoney(raw['paidAmount']);
+  int get paidAmount => BookingPaymentStatus.resolvePaid(raw);
 
   int get remainingAmount {
     final int remain = totalAmount - paidAmount;
     return remain < 0 ? 0 : remain;
   }
+
+  int get dueNowAmount => BookingPaymentStatus.resolveDueNow(raw);
+
+  int get depositAmount => BookingPaymentStatus.resolveDepositAmount(raw);
+
+  bool get showDepositDue {
+    if (payAmountType == 'full') {
+      return false;
+    }
+    return depositAmount > 0 && !BookingPaymentStatus.isDepositConfirmed(raw);
+  }
+
+  bool get canChangePaymentChoice =>
+      BookingPaymentStatus.canChangePaymentChoice(raw);
 
   bool get isPaidInFull => remainingAmount <= 0 && totalAmount > 0;
 
@@ -448,6 +481,13 @@ class BookingDetailViewData {
   }
 
   String get totalAmountLabel => showEstimateLabel ? '暫估金額' : '訂單總額';
+
+  String get daycareBillingRuleText {
+    if (!isDaycare) {
+      return '';
+    }
+    return DaycarePricingService.instance.hourlyRuleTextFromBooking(raw);
+  }
 
   String get paymentMethodLabel {
     switch (paymentMethod) {
@@ -665,11 +705,20 @@ class BookingDetailViewData {
     return answers.isNotEmpty;
   }
 
-  bool get paymentTaskComplete => isPaidInFull;
+  bool get paymentTaskComplete {
+    if (isPaidInFull) {
+      return true;
+    }
+    if (BookingPaymentStatus.isDepositConfirmed(raw)) {
+      return true;
+    }
+    if (isDaycare && !BookingPaymentStatus.requiresUpfrontPayment(raw)) {
+      return true;
+    }
+    return false;
+  }
 
   bool get stayDataComplete =>
-      stayArrangementComplete &&
-      feedingComplete &&
       termsState != BookingDetailTermsState.unconfirmed &&
       termsState != BookingDetailTermsState.needsReconfirm &&
       paymentTaskComplete;
@@ -772,46 +821,15 @@ class BookingDetailViewData {
     }
 
     if (isDaycare) {
-      final Map<String, dynamic> snap = BookingDetailParse.parseMap(
-        raw['daycarePricingSnapshot'],
-      );
-      final String planName = BookingDetailParse.parseString(
-        BookingDetailParse.parseMap(raw['daycarePlanSnapshot'])['name'] ??
-            raw['daycarePlanName'],
-      );
-      addLine(
-        label: planName.isEmpty ? '安親費用' : planName,
-        amount: BookingDetailParse.parseMoney(
-          snap['baseAmount'] ?? raw['basePrice'],
-        ),
-      );
-      addLine(
-        label: '多寵物加價',
-        amount: BookingDetailParse.parseMoney(
-          snap['extraPetAmount'] ?? raw['extraPetTotal'],
-        ),
-      );
-      addLine(
-        label: '房型加價',
-        amount: BookingDetailParse.parseMoney(snap['roomTypeExtra']),
-      );
-      addLine(
-        label: '時間加購',
-        amount: BookingDetailParse.parseMoney(snap['timeAddonAmount']),
-      );
-      if (overtimeAmount > 0) {
+      for (final BookingFeeLineItem line
+          in DaycarePricingService.instance.itemLinesFromBooking(raw)) {
         addLine(
-          label: '逾時費',
-          amount: overtimeAmount,
-          subtitle: overtimeMinutes > 0 ? '$overtimeMinutes 分鐘' : '',
-        );
-      }
-      if (graceMinutes > 0) {
-        addLine(
-          label: '寬限時間',
-          amount: 0,
-          subtitle: '$graceMinutes 分鐘',
-          force: true,
+          label: line.label,
+          amount: line.kind == BookingFeeLineKind.discount
+              ? line.amount.abs()
+              : line.amount,
+          subtitle: line.subtitle,
+          isDiscount: line.kind == BookingFeeLineKind.discount,
         );
       }
     } else {
@@ -858,10 +876,14 @@ class BookingDetailViewData {
       );
     }
 
-    addLine(
-      label: '特殊日期加價',
-      amount: BookingDetailParse.parseMoney(raw['specialDateSurchargeAmount']),
-    );
+    if (!isDaycare) {
+      addLine(
+        label: '特殊日期加價',
+        amount: BookingDetailParse.parseMoney(
+          raw['specialDateSurchargeAmount'],
+        ),
+      );
+    }
     addLine(
       label: BookingDetailParse.parseString(raw['discountCampaignName']).isEmpty
           ? '優惠活動折扣'
@@ -978,8 +1000,7 @@ class BookingDetailViewData {
       }
 
       take('note', '備註');
-      take('medicalStatus', '健康／疫苗');
-      take('vaccine', '疫苗');
+      take('medicalStatus', '疾病／醫療');
       take('food', '餵食');
       take('diet', '飲食');
       take('medication', '用藥');
@@ -1014,6 +1035,10 @@ class BookingDetailViewData {
     final String h = value.hour.toString().padLeft(2, '0');
     final String min = value.minute.toString().padLeft(2, '0');
     return '$y/$m/$d $h:$min';
+  }
+
+  String formatDaycareDateTime(DateTime? value) {
+    return DaycareTimeHelper.formatDateTimeOrUnrecorded(value);
   }
 
   String formatDate(DateTime? value) {

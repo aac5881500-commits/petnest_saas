@@ -147,7 +147,7 @@ class BookingDetailHeaderSection extends StatelessWidget {
                 ),
                 child: Text(
                   BookingKind.isDaycare(data)
-                      ? '臨托'
+                      ? '安親'
                       : '${data['nights'] ?? 0} 晚',
                   style: const TextStyle(fontWeight: FontWeight.bold),
                 ),
@@ -165,7 +165,7 @@ class BookingDetailHeaderSection extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    BookingKind.isDaycare(data) ? '臨托日期' : '入住',
+                    BookingKind.isDaycare(data) ? '安親日期' : '入住',
                     style: const TextStyle(color: Colors.white70),
                   ),
                   Text(
@@ -249,7 +249,7 @@ class BookingDetailHeaderSection extends StatelessWidget {
           if (BookingKind.isDaycare(data)) ...<Widget>[
             const SizedBox(height: 12),
             Text(
-              '方案：${data['daycarePlanSnapshot'] is Map ? (data['daycarePlanSnapshot']['name'] ?? '臨托') : '臨托'}',
+              '方案：${data['daycarePlanSnapshot'] is Map ? (data['daycarePlanSnapshot']['name'] ?? '安親') : '安親'}',
               style: const TextStyle(color: Colors.white70, fontSize: 13),
             ),
             if (data['actualStartAt'] != null)

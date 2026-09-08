@@ -5,6 +5,7 @@
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:petnest_saas/core/widgets/member_avatar.dart';
 
 class AdminMemberSearchSection extends StatelessWidget {
   const AdminMemberSearchSection({
@@ -94,7 +95,13 @@ class AdminMemberSearchSection extends StatelessWidget {
                 borderRadius: BorderRadius.circular(14),
               ),
               child: ListTile(
-                leading: const CircleAvatar(child: Icon(Icons.person)),
+                leading: ShopMemberLiveAvatar(
+                  shopId: shopId,
+                  userId: doc.id,
+                  name: name.isNotEmpty ? name : '會員',
+                  size: 40,
+                  member: data,
+                ),
                 title: Text(
                   name.isNotEmpty ? name : '未填姓名',
                   style: const TextStyle(fontWeight: FontWeight.bold),

@@ -7,6 +7,7 @@ import 'package:petnest_saas/core/services/payment_function_service.dart';
 import 'package:petnest_saas/features/payment/pages/ecpay_payment_page.dart';
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/models/terms_consent_snapshot.dart';
+import 'package:petnest_saas/core/models/custom_form_answer_model.dart';
 import 'package:petnest_saas/core/services/shop_report_format.dart';
 import 'package:petnest_saas/core/services/shop_service.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -38,6 +39,7 @@ import 'package:petnest_saas/core/models/member_coupon_model.dart';
 import 'package:petnest_saas/core/services/member_coupon_service.dart';
 import 'package:petnest_saas/core/models/home_theme_model.dart';
 import 'package:petnest_saas/core/models/coupon_template_model.dart';
+import 'package:petnest_saas/features/booking/models/booking_form_submit_data.dart';
 import '../../../core/models/payment_gateway_status.dart';
 import 'package:petnest_saas/core/services/booking_service.dart';
 
@@ -742,6 +744,7 @@ class _ShopBookingPageState extends State<ShopBookingPage> {
               ),
             ),
           BookingPetSection(
+            shopId: widget.shopId,
             selectedPetIds: _selectedPetIds,
             theme: widget.theme,
             onPetsLoaded: (pets) {
@@ -1009,33 +1012,22 @@ class _ShopBookingPageState extends State<ShopBookingPage> {
           _selectedServiceType = value;
         });
       },
-      onSubmitWithData:
-          (
-            address,
-            emergencyName,
-            emergencyPhone,
-            relation,
-            emergencyAddress,
-            phone2,
-            depositAmount,
-            paymentMethod,
-            payAmountType,
-            termsConsent,
-          ) async {
-            await _submitBooking(
-              shop,
-              address: address,
-              emergencyName: emergencyName,
-              emergencyPhone: emergencyPhone,
-              relation: relation,
-              emergencyAddress: emergencyAddress,
-              phone2: phone2,
-              depositAmount: depositAmount,
-              paymentMethod: paymentMethod,
-              payAmountType: payAmountType,
-              termsConsent: termsConsent,
-            );
-          },
+      onSubmitWithData: (BookingFormSubmitData data) async {
+        await _submitBooking(
+          shop,
+          address: data.fullAddress,
+          emergencyName: data.emergencyName,
+          emergencyPhone: data.emergencyPhone,
+          relation: data.emergencyRelation,
+          emergencyAddress: data.emergencyAddress,
+          phone2: data.secondaryPhone,
+          depositAmount: data.calculatedDeposit,
+          paymentMethod: data.paymentMethod,
+          payAmountType: data.payAmountType,
+          termsConsent: data.termsConsent,
+          customFormAnswers: data.customFormAnswers,
+        );
+      },
     );
   }
 
@@ -1365,6 +1357,7 @@ class _ShopBookingPageState extends State<ShopBookingPage> {
     String paymentMethod = '',
     String payAmountType = '',
     TermsConsentSnapshot? termsConsent,
+    CustomFormAnswerSnapshot? customFormAnswers,
   }) async {
     debugPrint('[BookingSubmit] 11 parent submit entered');
     if (_submitting) {
@@ -1540,6 +1533,7 @@ class _ShopBookingPageState extends State<ShopBookingPage> {
         /// 🔒 同一次送出固定使用同一個訂單文件 ID
         requestId: _bookingRequestId!,
         termsConsent: termsConsent,
+        customFormAnswers: customFormAnswers,
       );
       debugPrint('[BookingSubmit] 13 booking created: $createdBookingId');
       if (!mounted) return;

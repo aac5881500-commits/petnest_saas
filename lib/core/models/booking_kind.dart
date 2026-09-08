@@ -23,6 +23,22 @@ class BookingKind {
     if (serviceType == daycare) {
       return daycare;
     }
+    if (serviceType == accommodation) {
+      return accommodation;
+    }
+    final String daycarePlanId = (data['daycarePlanId'] ?? '')
+        .toString()
+        .trim();
+    if (daycarePlanId.isNotEmpty) {
+      return daycare;
+    }
+    final String pricingMode = (data['pricingMode'] ?? '').toString().trim();
+    if (pricingMode == 'room_based' || pricingMode == 'time_based') {
+      return daycare;
+    }
+    if (data['scheduledStartAt'] != null) {
+      return daycare;
+    }
     return accommodation;
   }
 

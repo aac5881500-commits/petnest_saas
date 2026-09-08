@@ -8,9 +8,11 @@ class BookingFeeLineItem {
     required this.label,
     required this.amount,
     this.kind = BookingFeeLineKind.normal,
+    this.subtitle = '',
   });
 
   final String label;
   final int amount;
   final BookingFeeLineKind kind;
+  final String subtitle;
 }

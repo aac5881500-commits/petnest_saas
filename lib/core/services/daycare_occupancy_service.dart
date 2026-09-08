@@ -5,6 +5,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:petnest_saas/core/models/booking_kind.dart';
 import 'package:petnest_saas/core/models/daycare_settings_model.dart';
 import 'package:petnest_saas/core/services/daycare_time_helper.dart';
+import 'package:petnest_saas/core/utils/natural_sort.dart';
 
 class DaycareAssignableRoom {
   const DaycareAssignableRoom({
@@ -15,6 +16,8 @@ class DaycareAssignableRoom {
     required this.capacity,
     required this.status,
     this.overlappingSummaries = const <String>[],
+    this.available = true,
+    this.blockedReason = '',
   });
 
   final String roomId;
@@ -24,6 +27,8 @@ class DaycareAssignableRoom {
   final int capacity;
   final String status;
   final List<String> overlappingSummaries;
+  final bool available;
+  final String blockedReason;
 }
 
 class DaycareOccupancyService {
@@ -296,6 +301,19 @@ class DaycareOccupancyService {
         }
       }
       if (busy) {
+        result.add(
+          DaycareAssignableRoom(
+            roomId: doc.id,
+            roomName: (room['name'] ?? doc.id).toString(),
+            roomTypeId: roomTypeId,
+            roomTypeName: (type['name'] ?? roomTypeId).toString(),
+            capacity: capacity,
+            status: (room['status'] ?? '').toString(),
+            overlappingSummaries: summaries,
+            available: false,
+            blockedReason: summaries.isEmpty ? '此時段已被占用' : summaries.join('、'),
+          ),
+        );
         continue;
       }
       result.add(
@@ -311,11 +329,11 @@ class DaycareOccupancyService {
       );
     }
     result.sort((DaycareAssignableRoom a, DaycareAssignableRoom b) {
-      final int typeCmp = a.roomTypeName.compareTo(b.roomTypeName);
+      final int typeCmp = NaturalSort.compare(a.roomTypeName, b.roomTypeName);
       if (typeCmp != 0) {
         return typeCmp;
       }
-      return a.roomName.compareTo(b.roomName);
+      return NaturalSort.compare(a.roomName, b.roomName);
     });
     return result;
   }
@@ -330,7 +348,7 @@ class DaycareOccupancyService {
   }) {
     int free = 0;
     for (final Map<String, dynamic> room in rooms) {
-      if ((room['roomTypeId'] ?? '').toString() != roomTypeId) {
+      if ((room['roomTypeId'] ?? '').toString().trim() != roomTypeId.trim()) {
         continue;
       }
       if (_roomUnavailable(room)) {
@@ -388,7 +406,11 @@ class DaycareOccupancyService {
       if (!BookingKind.isDaycare(booking)) {
         continue;
       }
-      if ((booking['roomTypeId'] ?? '').toString() != roomTypeId) {
+      final String heldType =
+          ((booking['requestedRoomTypeId'] ?? booking['roomTypeId'] ?? '')
+                  .toString())
+              .trim();
+      if (heldType != roomTypeId.trim()) {
         continue;
       }
       if ((booking['roomId'] ?? '').toString().trim().isNotEmpty) {

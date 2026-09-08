@@ -1,10 +1,8 @@
 // 檔案名稱：lib/features/booking/widgets/booking_detail/booking_detail_preparation_section.dart
-// 功能說明：下一步／入住前事項：準備公告、接回、餵食、條款、付款。
+// 功能說明：下一步／入住前事項：入住前準備、條款、付款。
 
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/models/pre_arrival_guide_model.dart';
-import 'package:petnest_saas/features/booking/pages/booking_pet_care_info_page.dart';
-import 'package:petnest_saas/features/booking/pages/booking_stay_arrangement_page.dart';
 import 'package:petnest_saas/features/booking/pages/pre_arrival_guide_page.dart';
 import 'package:petnest_saas/features/booking/widgets/booking_detail/booking_detail_ui.dart';
 import 'package:petnest_saas/features/booking/widgets/booking_detail/booking_detail_view_data.dart';
@@ -54,38 +52,6 @@ class BookingDetailPreparationSection extends StatelessWidget {
               );
             },
           ),
-        BookingDetailEntryRow(
-          icon: Icons.schedule_outlined,
-          title: view.isDaycare ? '送達與接回安排' : '入住與接回安排',
-          subtitle: view.stayArrangementComplete
-              ? (view.dateRangeLabel.isEmpty ? '已安排' : view.dateRangeLabel)
-              : '尚未填寫時段',
-          done: view.stayArrangementComplete,
-          badge: view.stayArrangementComplete ? null : '待完成',
-          onTap: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute<void>(
-                builder: (_) => BookingStayArrangementPage(view: view),
-              ),
-            );
-          },
-        ),
-        BookingDetailEntryRow(
-          icon: Icons.restaurant_outlined,
-          title: '餵食與用藥安排',
-          subtitle: view.feedingComplete ? '已提供寵物照護資料' : '尚未填寫餵食或用藥資料',
-          done: view.feedingComplete,
-          badge: view.feedingComplete ? null : '待完成',
-          onTap: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute<void>(
-                builder: (_) => BookingPetCareInfoPage(view: view),
-              ),
-            );
-          },
-        ),
         BookingDetailEntryRow(
           icon: Icons.gavel_outlined,
           title: view.isDaycare ? '安親條款' : '住宿條款',

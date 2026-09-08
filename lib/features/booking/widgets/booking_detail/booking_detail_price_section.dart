@@ -3,7 +3,9 @@
 // 💰 客戶端訂單詳細頁：價格與加值服務區塊
 
 import 'package:flutter/material.dart';
+import 'package:petnest_saas/core/models/booking_fee_line_item.dart';
 import 'package:petnest_saas/core/models/booking_kind.dart';
+import 'package:petnest_saas/core/services/daycare_pricing_service.dart';
 
 class BookingDetailPriceSection extends StatelessWidget {
   const BookingDetailPriceSection({
@@ -75,74 +77,38 @@ class BookingDetailPriceSection extends StatelessWidget {
           child: Column(
             children: [
               if (BookingKind.isDaycare(data)) ...<Widget>[
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: <Widget>[
-                    const Text('臨托方案'),
-                    Text(
-                      (data['daycarePlanSnapshot'] is Map
-                              ? (data['daycarePlanSnapshot']['name'] ?? '臨托')
-                              : '臨托')
-                          .toString(),
-                      style: const TextStyle(color: Colors.grey),
+                ...DaycarePricingService.instance.itemLinesFromBooking(data).map((
+                  BookingFeeLineItem line,
+                ) {
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: <Widget>[
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: <Widget>[
+                              Text(line.label),
+                              if (line.subtitle.isNotEmpty)
+                                Text(
+                                  line.subtitle,
+                                  style: const TextStyle(
+                                    fontSize: 12,
+                                    color: Colors.grey,
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ),
+                        Text(
+                          '${line.amount < 0 ? '-' : ''}NT\$ ${line.amount.abs()}',
+                          style: const TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                      ],
                     ),
-                    Text(
-                      'NT\$ ${(data['daycarePricingSnapshot'] is Map ? (data['daycarePricingSnapshot']['baseAmount'] ?? data['totalPrice'] ?? 0) : (data['totalPrice'] ?? 0))}',
-                      style: const TextStyle(fontWeight: FontWeight.bold),
-                    ),
-                  ],
-                ),
-                if (data['daycarePricingSnapshot'] is Map &&
-                    ((data['daycarePricingSnapshot']['extraPetAmount'] ?? 0)
-                            as num) >
-                        0) ...<Widget>[
-                  const SizedBox(height: 8),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: <Widget>[
-                      const Text('多寵物加價'),
-                      const Text(''),
-                      Text(
-                        'NT\$ ${data['daycarePricingSnapshot']['extraPetAmount']}',
-                        style: const TextStyle(fontWeight: FontWeight.bold),
-                      ),
-                    ],
-                  ),
-                ],
-                if (data['daycarePricingSnapshot'] is Map &&
-                    ((data['daycarePricingSnapshot']['roomTypeExtra'] ?? 0)
-                            as num) >
-                        0) ...<Widget>[
-                  const SizedBox(height: 8),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: <Widget>[
-                      const Text('房型加價（歷史訂單）'),
-                      const Text(''),
-                      Text(
-                        'NT\$ ${data['daycarePricingSnapshot']['roomTypeExtra']}',
-                        style: const TextStyle(fontWeight: FontWeight.bold),
-                      ),
-                    ],
-                  ),
-                ],
-                if ((data['overtimeMinutes'] ?? 0) != 0) ...<Widget>[
-                  const SizedBox(height: 8),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: <Widget>[
-                      const Text('超時費'),
-                      Text(
-                        '${data['overtimeMinutes']} 分鐘',
-                        style: const TextStyle(color: Colors.grey),
-                      ),
-                      Text(
-                        'NT\$ ${data['overtimeAmount'] ?? 0}',
-                        style: const TextStyle(fontWeight: FontWeight.bold),
-                      ),
-                    ],
-                  ),
-                ],
+                  );
+                }),
                 if ((data['convertedBookingId'] ?? '').toString().isNotEmpty)
                   Padding(
                     padding: const EdgeInsets.only(top: 8),

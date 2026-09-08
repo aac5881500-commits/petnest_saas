@@ -42,7 +42,7 @@ class DaycarePricingModes {
 
   static bool isRoomBased(String? raw) {
     final String value = (raw ?? '').trim();
-    return value == roomType || value == roomBased;
+    return value == roomType || value == roomBased || value == 'room_type';
   }
 
   static String normalize(String? raw) {
@@ -399,6 +399,7 @@ class DaycareSettingsModel {
     this.plans = const <DaycarePlanModel>[],
     this.depositType = DaycareDepositTypes.none,
     this.depositValue = 0,
+    this.depositExpireHours = 12,
     this.allowCash = true,
     this.allowCoupon = false,
     this.refundDepositOnCancel = true,
@@ -448,6 +449,9 @@ class DaycareSettingsModel {
   final List<DaycarePlanModel> plans;
   final String depositType;
   final int depositValue;
+
+  /// 與住宿 shops.depositExpireHours 相同：0＝1 分鐘測試、12／24／72 小時。
+  final int depositExpireHours;
   final bool allowCash;
   final bool allowCoupon;
   final bool refundDepositOnCancel;
@@ -509,9 +513,9 @@ class DaycareSettingsModel {
         DaycareDepositTypes.fixed,
         DaycareDepositTypes.percent,
         DaycareDepositTypes.full,
-        DaycareDepositTypes.staffDecide,
       ], DaycareDepositTypes.none),
       depositValue: _int(map['depositValue'], 0),
+      depositExpireHours: _depositExpireHours(map['depositExpireHours']),
       allowCash: map['allowCash'] != false,
       allowCoupon: map['allowCoupon'] == true,
       refundDepositOnCancel: map['refundDepositOnCancel'] != false,
@@ -571,10 +575,8 @@ class DaycareSettingsModel {
       'plans': plans.map((DaycarePlanModel e) => e.toMap()).toList(),
       'depositType': depositType,
       'depositValue': depositValue,
-      'allowCash': allowCash,
+      'depositExpireHours': depositExpireHours,
       'allowCoupon': allowCoupon,
-      'refundDepositOnCancel': refundDepositOnCancel,
-      'forfeitDepositOnNoShow': forfeitDepositOnNoShow,
       'overtimeGraceMinutes': overtimeGraceMinutes,
       'latePickupEnabled': latePickupEnabled,
       'latePickupUnitMinutes': latePickupUnitMinutes,
@@ -719,6 +721,14 @@ class DaycareSettingsModel {
   static String _oneOf(dynamic raw, List<String> allowed, String fallback) {
     final String text = (raw ?? '').toString().trim();
     return allowed.contains(text) ? text : fallback;
+  }
+
+  static int _depositExpireHours(dynamic raw) {
+    final int value = _int(raw, 12);
+    if (value == 0 || value == 12 || value == 24 || value == 72) {
+      return value;
+    }
+    return 12;
   }
 
   static List<DaycareRoomTypeSetting> _roomTypes(dynamic raw) {

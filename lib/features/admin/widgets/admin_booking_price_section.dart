@@ -3,7 +3,11 @@
 // 💰 後台訂單詳細頁：價格與付款區塊
 
 import 'package:flutter/material.dart';
+import 'package:petnest_saas/core/models/booking_fee_line_item.dart';
 import 'package:petnest_saas/core/models/booking_kind.dart';
+import 'package:petnest_saas/core/services/daycare_payment_display.dart';
+import 'package:petnest_saas/core/services/daycare_pricing_service.dart';
+import 'package:petnest_saas/core/widgets/booking_payment_deadline_banner.dart';
 import 'package:petnest_saas/features/admin/widgets/admin_booking_date_helpers.dart';
 import 'package:petnest_saas/features/admin/widgets/admin_booking_text_helpers.dart';
 
@@ -12,13 +16,25 @@ class AdminBookingPriceSection extends StatelessWidget {
     super.key,
     required this.data,
     required this.pets,
+    this.lineItemsOnly = false,
   });
 
   final Map<String, dynamic> data;
   final List<Map<String, dynamic>> pets;
+  final bool lineItemsOnly;
 
   @override
   Widget build(BuildContext context) {
+    if (BookingKind.isDaycare(data)) {
+      return _DaycareAdminPriceSection(
+        data: data,
+        lineItemsOnly: lineItemsOnly,
+      );
+    }
+    return _stayPrice(context);
+  }
+
+  Widget _stayPrice(BuildContext context) {
     final basePrice = data['basePrice'] ?? 0;
     final extraPetPrice = data['extraPetPrice'] ?? 0;
     final extraPetCount = data['extraPetCount'] ?? 0;
@@ -91,77 +107,47 @@ class AdminBookingPriceSection extends StatelessWidget {
           ),
           child: Column(
             children: [
-              if (BookingKind.isDaycare(data)) ...<Widget>[
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: <Widget>[
-                    const Text('臨托方案'),
-                    Text(
-                      (data['daycarePlanSnapshot'] is Map
-                              ? (data['daycarePlanSnapshot']['name'] ?? '臨托')
-                              : '臨托')
-                          .toString(),
-                      style: const TextStyle(color: Colors.grey),
-                    ),
-                    Text(
-                      'NT\$ ${(data['daycarePricingSnapshot'] is Map ? (data['daycarePricingSnapshot']['baseAmount'] ?? data['totalPrice'] ?? 0) : (data['totalPrice'] ?? 0))}',
-                      style: const TextStyle(fontWeight: FontWeight.bold),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                if (data['daycarePricingSnapshot'] is Map &&
-                    ((data['daycarePricingSnapshot']['extraPetAmount'] ?? 0)
-                            as num) >
-                        0) ...<Widget>[
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: <Widget>[
-                      const Text('多寵物加價'),
-                      const Text(''),
-                      Text(
-                        'NT\$ ${data['daycarePricingSnapshot']['extraPetAmount']}',
-                        style: const TextStyle(fontWeight: FontWeight.bold),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                ],
-              ] else ...<Widget>[
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    const Text('房費'),
-                    Text(
+              Row(
+                children: [
+                  const Expanded(child: Text('房費')),
+                  Expanded(
+                    child: Text(
                       'NT\$ $basePrice × $nights 晚',
+                      textAlign: TextAlign.center,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
                       style: const TextStyle(color: Colors.grey),
                     ),
-                    Text(
-                      'NT\$ $roomPriceTotal',
-                      style: const TextStyle(fontWeight: FontWeight.bold),
-                    ),
-                  ],
-                ),
+                  ),
+                  Text(
+                    'NT\$ $roomPriceTotal',
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                ],
+              ),
 
-                const SizedBox(height: 8),
+              const SizedBox(height: 8),
 
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    const Text('寵物加價'),
-                    Text(
+              Row(
+                children: [
+                  const Expanded(child: Text('寵物加價')),
+                  Expanded(
+                    child: Text(
                       extraPetCount > 0
                           ? 'NT\$ $extraPetPrice × $extraPetCount 隻 × $nights 晚'
                           : '-',
+                      textAlign: TextAlign.center,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
                       style: const TextStyle(color: Colors.grey),
                     ),
-                    Text(
-                      'NT\$ $petPriceTotal',
-                      style: const TextStyle(fontWeight: FontWeight.bold),
-                    ),
-                  ],
-                ),
-              ],
+                  ),
+                  Text(
+                    'NT\$ $petPriceTotal',
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                ],
+              ),
 
               const Divider(height: 24),
 
@@ -188,13 +174,16 @@ class AdminBookingPriceSection extends StatelessWidget {
         const SizedBox(height: 10),
 
         if ((data['addons'] ?? []).isNotEmpty)
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text('加值服務', style: TextStyle(fontWeight: FontWeight.bold)),
-              const SizedBox(height: 6),
-
-              ...List.generate((data['addons'] as List).length, (index) {
+          Theme(
+            data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+            child: ExpansionTile(
+              initiallyExpanded: (data['addons'] as List).length <= 3,
+              tilePadding: EdgeInsets.zero,
+              title: Text(
+                '加值服務（${(data['addons'] as List).length}項）',
+                style: const TextStyle(fontWeight: FontWeight.bold),
+              ),
+              children: List.generate((data['addons'] as List).length, (index) {
                 final item = data['addons'][index];
 
                 final price = item['price'] ?? 0;
@@ -291,7 +280,7 @@ class AdminBookingPriceSection extends StatelessWidget {
                   ),
                 );
               }),
-            ],
+            ),
           ),
 
         const SizedBox(height: 10),
@@ -570,7 +559,7 @@ class AdminBookingPriceSection extends StatelessWidget {
           ),
         ),
 
-        if (paymentAmount > 0)
+        if (!lineItemsOnly && paymentAmount > 0)
           Container(
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
@@ -600,7 +589,7 @@ class AdminBookingPriceSection extends StatelessWidget {
               ],
             ),
           )
-        else
+        else if (!lineItemsOnly)
           Container(
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
@@ -613,135 +602,77 @@ class AdminBookingPriceSection extends StatelessWidget {
             ),
           ),
 
-        const SizedBox(height: 10),
-
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(
-            color: Colors.blue.shade50,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: Colors.blue.shade200),
-          ),
-          child: Row(
-            children: [
-              const Icon(Icons.payment, color: Colors.blue),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      '付款方式',
-                      style: TextStyle(fontSize: 12, color: Colors.grey),
-                    ),
-                    Text(
-                      paymentMethodText,
-                      style: const TextStyle(fontWeight: FontWeight.bold),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-
-        if (data['paymentMethod'] == 'transfer') ...[
+        if (!lineItemsOnly) ...<Widget>[
           const SizedBox(height: 10),
+
           Container(
             width: double.infinity,
-            padding: const EdgeInsets.all(12),
+            padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
-              color: Colors.yellow.shade100,
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: Colors.orange),
+              color: Colors.blue.shade50,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.blue.shade200),
             ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+            child: Row(
               children: [
-                const Text(
-                  '⚠️ 客戶轉帳後五碼',
-                  style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    color: Colors.orange,
-                  ),
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  (data['transferLast5'] ?? '').toString().isEmpty
-                      ? '未填寫'
-                      : data['transferLast5'].toString(),
-                  style: const TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
+                const Icon(Icons.payment, color: Colors.blue),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        '付款方式',
+                        style: TextStyle(fontSize: 12, color: Colors.grey),
+                      ),
+                      Text(
+                        paymentMethodText,
+                        style: const TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                    ],
                   ),
                 ),
               ],
             ),
           ),
-        ],
 
-        const SizedBox(height: 8),
-
-        if (data['transferImageUrl'] != null)
-          Container(
-            margin: const EdgeInsets.only(top: 10),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.orange),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: Colors.orange.shade100,
-                    borderRadius: const BorderRadius.vertical(
-                      top: Radius.circular(12),
-                    ),
-                  ),
-                  child: const Text(
-                    '📷 客戶轉帳截圖',
+          if (data['paymentMethod'] == 'transfer') ...[
+            const SizedBox(height: 10),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.yellow.shade100,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: Colors.orange),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    '⚠️ 客戶轉帳後五碼',
                     style: TextStyle(
                       fontWeight: FontWeight.bold,
-                      color: Colors.deepOrange,
+                      color: Colors.orange,
                     ),
                   ),
-                ),
-
-                GestureDetector(
-                  onTap: () {
-                    showDialog(
-                      context: context,
-                      builder: (_) => Dialog(
-                        child: InteractiveViewer(
-                          minScale: 0.8,
-                          maxScale: 5,
-                          child: Image.network(
-                            data['transferImageUrl'],
-                            fit: BoxFit.contain,
-                          ),
-                        ),
-                      ),
-                    );
-                  },
-                  child: ClipRRect(
-                    borderRadius: const BorderRadius.vertical(
-                      bottom: Radius.circular(12),
-                    ),
-                    child: Image.network(
-                      data['transferImageUrl'],
-                      height: 200,
-                      width: double.infinity,
-                      fit: BoxFit.cover,
+                  const SizedBox(height: 6),
+                  Text(
+                    (data['transferLast5'] ?? '').toString().isEmpty
+                        ? '未填寫'
+                        : data['transferLast5'].toString(),
+                    style: const TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
                     ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
+          ],
+
+          const SizedBox(height: 8),
+        ],
       ],
     );
   }
@@ -905,6 +836,292 @@ class AdminBookingPriceSection extends StatelessWidget {
           ),
         );
       },
+    );
+  }
+}
+
+class _DaycareAdminPriceSection extends StatelessWidget {
+  const _DaycareAdminPriceSection({
+    required this.data,
+    this.lineItemsOnly = false,
+  });
+
+  final Map<String, dynamic> data;
+  final bool lineItemsOnly;
+
+  @override
+  Widget build(BuildContext context) {
+    final Map<String, dynamic> snapshot = data['daycarePricingSnapshot'] is Map
+        ? Map<String, dynamic>.from(data['daycarePricingSnapshot'] as Map)
+        : <String, dynamic>{};
+    final int displayTotal = DaycarePaymentDisplay.resolveTotal(data);
+    final int displayPaid = DaycarePaymentDisplay.resolvePaid(data);
+    final int displayRemaining = DaycarePaymentDisplay.resolveRemaining(
+      total: displayTotal,
+      paid: displayPaid,
+    );
+    final List<BookingFeeLineItem> timeLines = DaycarePricingService.instance
+        .itemLinesFromBooking(data);
+    final List<dynamic> addons = (data['addons'] as List?) ?? const <dynamic>[];
+    int addonLinesTotal = 0;
+    for (final dynamic item in addons) {
+      if (item is Map) {
+        addonLinesTotal += DaycarePaymentDisplay.toInt(
+          item['total'] ?? item['price'],
+        );
+      }
+    }
+    final int snapshotAddonAmount = DaycarePaymentDisplay.toInt(
+      snapshot['addonAmount'],
+    );
+    final int addonAmount = addons.isNotEmpty
+        ? addonLinesTotal
+        : snapshotAddonAmount;
+    final int couponAmount = DaycarePaymentDisplay.toInt(
+      data['couponDiscountAmount'] ?? snapshot['couponAmount'],
+    );
+    final int discountAmount = DaycarePaymentDisplay.toInt(
+      data['discountAmount'] ?? snapshot['discountAmount'],
+    );
+    int subtotal = addonAmount;
+    for (final BookingFeeLineItem line in timeLines) {
+      subtotal += line.amount;
+    }
+
+    Widget moneyRow(
+      String label,
+      int amount, {
+      bool negative = false,
+      String subtitle = '',
+    }) {
+      return Padding(
+        padding: const EdgeInsets.only(bottom: 8),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  Text(label),
+                  if (subtitle.isNotEmpty)
+                    Text(
+                      subtitle,
+                      style: const TextStyle(fontSize: 12, color: Colors.grey),
+                    ),
+                ],
+              ),
+            ),
+            Text(
+              '${negative ? '-' : ''}NT\$ $amount',
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                color: negative ? Colors.green : Colors.black,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.grey.shade50,
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: <BoxShadow>[
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.05),
+                blurRadius: 10,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Column(
+            children: <Widget>[
+              ...timeLines.map(
+                (BookingFeeLineItem line) => moneyRow(
+                  line.label,
+                  line.amount.abs(),
+                  negative: line.amount < 0,
+                  subtitle: line.subtitle,
+                ),
+              ),
+              if (addonAmount > 0 && addons.isEmpty)
+                moneyRow('加值服務', addonAmount),
+              if (subtotal != 0 || timeLines.isNotEmpty) ...<Widget>[
+                const Divider(height: 24),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: <Widget>[
+                    const Text(
+                      '折扣前小計',
+                      style: TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                    Text(
+                      'NT\$ $subtotal',
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ],
+          ),
+        ),
+        if (addons.isNotEmpty) ...<Widget>[
+          const SizedBox(height: 10),
+          Theme(
+            data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+            child: ExpansionTile(
+              initiallyExpanded: addons.length <= 3,
+              tilePadding: EdgeInsets.zero,
+              title: Text(
+                '加值服務（${addons.length}項）',
+                style: const TextStyle(fontWeight: FontWeight.bold),
+              ),
+              children: addons.whereType<Map>().map((Map item) {
+                final int total = DaycarePaymentDisplay.toInt(
+                  item['total'] ?? item['price'],
+                );
+                if (total <= 0) {
+                  return const SizedBox.shrink();
+                }
+                return Container(
+                  margin: const EdgeInsets.only(bottom: 12),
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: Colors.orange.shade50,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.orange.shade200),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: <Widget>[
+                      Expanded(
+                        child: Text(
+                          (item['name'] ?? '加值服務').toString(),
+                          style: const TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                      Text(
+                        '+NT\$ $total',
+                        style: const TextStyle(
+                          color: Colors.blue,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              }).toList(),
+            ),
+          ),
+        ],
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(16),
+          margin: const EdgeInsets.only(top: 10),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: <BoxShadow>[
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.05),
+                blurRadius: 10,
+              ),
+            ],
+          ),
+          child: Column(
+            children: <Widget>[
+              if (discountAmount > 0)
+                moneyRow('折扣', discountAmount, negative: true),
+              if (couponAmount > 0)
+                moneyRow(
+                  (data['couponName'] ?? '優惠券').toString(),
+                  couponAmount,
+                  negative: true,
+                ),
+              const Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: <Widget>[
+                  Text(
+                    '應付金額',
+                    style: TextStyle(fontSize: 16, color: Colors.grey),
+                  ),
+                ],
+              ),
+              Align(
+                alignment: Alignment.centerRight,
+                child: Text(
+                  'NT\$ $displayTotal',
+                  style: const TextStyle(
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.red,
+                  ),
+                ),
+              ),
+              const Divider(height: 24),
+              if (!lineItemsOnly) ...<Widget>[
+                moneyRow('已付款', displayPaid),
+                moneyRow('尚需付款', displayRemaining),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: <Widget>[
+                    const Text('付款狀態', style: TextStyle(color: Colors.grey)),
+                    Text(
+                      DaycarePaymentDisplay.statusLabel(
+                        total: displayTotal,
+                        paid: displayPaid,
+                        remaining: displayRemaining,
+                      ),
+                      style: const TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: <Widget>[
+                    const Text('付款方式', style: TextStyle(color: Colors.grey)),
+                    Text(
+                      DaycarePaymentDisplay.storedPaymentMethodLabel(
+                        data['paymentMethod'],
+                      ),
+                      style: const TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                  ],
+                ),
+              ],
+            ],
+          ),
+        ),
+        if (!lineItemsOnly) BookingPaymentDeadlineBanner(data: data),
+        if (!lineItemsOnly &&
+            (data['paymentMethod'] ?? '').toString() == 'transfer') ...<Widget>[
+          const SizedBox(height: 10),
+          Builder(
+            builder: (BuildContext context) {
+              final String last5 = (data['transferLast5'] ?? '')
+                  .toString()
+                  .trim();
+              return Text(
+                last5.isEmpty ? '尚無轉帳後五碼' : '轉帳後五碼 $last5',
+                style: TextStyle(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  fontSize: 13,
+                ),
+              );
+            },
+          ),
+        ],
+      ],
     );
   }
 }

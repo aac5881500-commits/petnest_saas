@@ -32,10 +32,18 @@ const {
   depositAmount,
   SELECTABLE_PLAN_TYPES,
   isRoomBased,
+  remainingFromPaid,
 } = require("./daycare_pricing");
 const {
   assertAvailable,
 } = require("./daycare_occupancy");
+const {
+  validateAndNormalizeBookingSubmitAnswers,
+} = require("./custom_form_answers");
+const {
+  syncShopMemberCache,
+  loadShopFormAnswers,
+} = require("./sync_shop_member");
 
 /**
  * @param {Object} settings
@@ -92,12 +100,62 @@ function assertSchedule(settings, startAt, endAt, isAdmin, override) {
     if (sameDay && settings.allowSameDay === false) {
       throw new HttpsError("failed-precondition", "不可預約當日安親");
     }
+    const dayHours = resolveDayHours(settings, override);
+    if (sameDay &&
+        nowMinOfDay() >= minutesOf(dayHours.latestPickUp)) {
+      throw new HttpsError(
+          "failed-precondition",
+          "今日已超過最晚接回時間，請選擇其他日期",
+      );
+    }
+    if (startAt.getTime() <= now) {
+      throw new HttpsError("failed-precondition", "送達時間必須晚於現在時間");
+    }
     const advanceHours = toInt(settings.minAdvanceHours, 0);
     if (advanceHours > 0 &&
         startAt.getTime() - now < advanceHours * 60 * 60 * 1000) {
       throw new HttpsError("failed-precondition", "需提前預約");
     }
   }
+}
+
+/**
+ * @return {number}
+ */
+function nowMinOfDay() {
+  const taiwanOffsetMs = 8 * 60 * 60 * 1000;
+  const taiwanNow = new Date(Date.now() + taiwanOffsetMs);
+  return taiwanNow.getUTCHours() * 60 + taiwanNow.getUTCMinutes();
+}
+
+/**
+ * @param {string|undefined} raw
+ * @return {string}
+ */
+function persistDaycareDepositType(raw) {
+  const type = normalizeString(raw) || "none";
+  if (type === "staff_decide") {
+    return "none";
+  }
+  return type;
+}
+
+/**
+ * @param {string|undefined} raw
+ * @return {boolean}
+ */
+function daycareRequiresDeadline(raw) {
+  const type = persistDaycareDepositType(raw);
+  return type === "fixed" || type === "percent" || type === "full";
+}
+
+/**
+ * @param {number} hours
+ * @return {Date}
+ */
+function depositExpireAtFromHours(hours) {
+  const ms = hours === 0 ? 60 * 1000 : hours * 60 * 60 * 1000;
+  return new Date(Date.now() + ms);
 }
 
 /**
@@ -145,6 +203,86 @@ function daycareCouponAmount(coupon, parts) {
     amount = match ? toInt(match.amount || match.price, 0) : 0;
   }
   return Math.min(Math.max(0, amount), afterCampaign);
+}
+
+/**
+ * @param {Object} params
+ * @return {Promise<Array<Object>>}
+ */
+async function hydrateDaycarePets(params) {
+  const firestore = params.firestore;
+  const userId = params.userId;
+  const shopId = params.shopId;
+  const petIds = Array.isArray(params.petIds) ? params.petIds : [];
+  const clientPets = Array.isArray(params.clientPets) ? params.clientPets : [];
+  const byId = {};
+  clientPets.forEach((item) => {
+    const id = normalizeString(item && (item.petId || item.id));
+    if (id) {
+      byId[id] = item;
+    }
+  });
+  const out = [];
+  for (const petId of petIds) {
+    const liveSnap = await firestore.collection("user_profiles").doc(userId)
+        .collection("pets").doc(petId).get();
+    const live = liveSnap.exists ? (liveSnap.data() || {}) : {};
+    const client = byId[petId] || {};
+    const merged = {...live, ...client, petId};
+    delete merged.customFormAnswersByShop;
+    const shopAnswers = await loadShopFormAnswers(
+        firestore, userId, petId, shopId,
+    );
+    if (shopAnswers &&
+        (!shopAnswers.shopId || shopAnswers.shopId === shopId)) {
+      merged.shopFormAnswers = shopAnswers;
+    }
+    out.push(merged);
+  }
+  return out;
+}
+
+/**
+ * 訂單已成立後才同步；失敗只記 log，不可刪單。
+ * @param {Object} params
+ * @return {Promise<void>}
+ */
+async function syncMemberAfterDaycareBooking(params) {
+  try {
+    await syncShopMemberCache({
+      firestore: params.firestore,
+      FieldValue: admin.firestore.FieldValue,
+      shopId: params.shopId,
+      userId: params.userId,
+      customer: {
+        name: params.customerName,
+        phone: params.customerPhone,
+        address: params.data && params.data.address,
+        emergencyContact: {
+          name: normalizeString(params.data && params.data.emergencyName),
+          phone: normalizeString(params.data && params.data.emergencyPhone),
+          relation: normalizeString(params.data && params.data.relation),
+          address: normalizeString(params.data && params.data.emergencyAddress),
+          phone2: normalizeString(params.data && params.data.phone2),
+        },
+      },
+      policy: {
+        policyVersion: params.policyVersion || 0,
+        policyTitle: params.policyTitle || "",
+        policyAcceptedAt: params.termsAcceptedAt || null,
+        termsType: "daycare",
+        termsVersion: params.policyVersion || 0,
+        termsTitle: params.policyTitle || "",
+      },
+    });
+  } catch (error) {
+    console.error("[createDaycareBooking] member sync failed", {
+      shopId: params.shopId,
+      userId: params.userId,
+      bookingId: params.bookingId,
+      message: error && error.message ? error.message : String(error),
+    });
+  }
 }
 
 /**
@@ -453,7 +591,33 @@ exports.createDaycareBooking = onCall(
 
       const existing = await bookingRef.get();
       if (existing.exists) {
+        await syncMemberAfterDaycareBooking({
+          firestore,
+          shopId,
+          userId,
+          customerName: normalizeString(data.customerName) || "會員",
+          customerPhone: normalizeString(data.customerPhone),
+          data,
+          policyVersion: toInt((existing.data() || {}).policyVersion, 0),
+          policyTitle: normalizeString((existing.data() || {}).policyTitle),
+          termsAcceptedAt: (existing.data() || {}).policyAcceptedAt || null,
+          bookingId: bookingRef.id,
+        });
         return {bookingId: bookingRef.id, reused: true};
+      }
+
+      const customFormSnap = await firestore.collection("shops").doc(shopId)
+          .collection("custom_forms").doc("booking_submit").get();
+      const customFormChecked = validateAndNormalizeBookingSubmitAnswers({
+        form: customFormSnap.exists ? customFormSnap.data() : null,
+        payloadAnswers: data.customFormAnswers,
+        source,
+      });
+      if (customFormChecked.error) {
+        throw new HttpsError(
+            "failed-precondition",
+            customFormChecked.error,
+        );
       }
 
       const status = "pending";
@@ -511,6 +675,14 @@ exports.createDaycareBooking = onCall(
         policySummary.version : 0;
       const policyTitle = policySummary.title || "安親須知";
 
+      const hydratedPets = await hydrateDaycarePets({
+        firestore,
+        userId,
+        shopId,
+        petIds,
+        clientPets: Array.isArray(data.pets) ? data.pets : [],
+      });
+
       let requestedRoomTypeName = normalizeString(data.requestedRoomTypeName);
       if (roomBased && requestedRoomTypeId && !requestedRoomTypeName) {
         const typeSnap = await firestore.collection("shops").doc(shopId)
@@ -551,7 +723,7 @@ exports.createDaycareBooking = onCall(
             phone2: normalizeString(data.phone2),
           },
           petIds,
-          pets: Array.isArray(data.pets) ? data.pets : [],
+          pets: hydratedPets,
           serviceType: BOOKING_KIND_DAYCARE,
           serviceDate: serviceDateKey(startAt),
           scheduledStartAt: admin.firestore.Timestamp.fromDate(startAt),
@@ -567,6 +739,7 @@ exports.createDaycareBooking = onCall(
           pricingMode: roomBased ? "room_based" : "time_based",
           estimateTotalPrice,
           quotedTotalPrice: computed.totalAmount,
+          totalAmount: computed.totalAmount,
           priceQuoteLocked: true,
           priceConfirmedAt: admin.firestore.FieldValue.serverTimestamp(),
           roomTypeId: "",
@@ -583,6 +756,12 @@ exports.createDaycareBooking = onCall(
           cleaningRequired: true,
           addons: addonSnapshot,
           note: normalizeString(data.note),
+          ...(customFormChecked.snapshot ? {
+            customFormAnswers: {
+              ...customFormChecked.snapshot,
+              submittedAt: admin.firestore.FieldValue.serverTimestamp(),
+            },
+          } : {}),
           totalPrice: computed.totalAmount,
           originalTotal: computed.baseAmount + computed.extraPetAmount +
             computed.roomTypeExtra + computed.addonAmount +
@@ -602,12 +781,27 @@ exports.createDaycareBooking = onCall(
           overtimeAmount: 0,
           manualAdjust: computed.manualAdjust,
           depositAmount: computed.depositAmount,
+          requiredPaymentAmount: computed.depositAmount > 0 ?
+            computed.depositAmount : 0,
+          depositPercent: persistDaycareDepositType(settings.depositType) ===
+            "percent" ? toInt(settings.depositValue, 0) : null,
+          daycareDepositType: persistDaycareDepositType(settings.depositType),
+          depositType: persistDaycareDepositType(settings.depositType),
+          depositExpireHours: daycareRequiresDeadline(settings.depositType) ?
+            toInt(settings.depositExpireHours, 12) : null,
+          depositExpireAt: daycareRequiresDeadline(settings.depositType) ?
+            admin.firestore.Timestamp.fromDate(
+                depositExpireAtFromHours(
+                    toInt(settings.depositExpireHours, 12),
+                ),
+            ) : null,
+          depositPaid: false,
+          depositStatus: computed.depositAmount > 0 ? "unpaid" : "",
           paymentMethod: normalizeString(data.paymentMethod),
           payAmountType: normalizeString(data.payAmountType) ||
             (computed.depositAmount > 0 ? "deposit" : "full"),
           paidAmount: 0,
-          remainingAmount: computed.remainingAmount != null ?
-            computed.remainingAmount : computed.totalAmount,
+          remainingAmount: remainingFromPaid(computed.totalAmount, 0),
           paymentStatus: "unpaid",
           refundAmount: 0,
           refundStatus: "",
@@ -662,6 +856,21 @@ exports.createDaycareBooking = onCall(
           planId: normalizeString(plan.id),
           status,
         },
+      });
+
+      await syncMemberAfterDaycareBooking({
+        firestore,
+        shopId,
+        userId,
+        customerName,
+        customerPhone,
+        data,
+        policyVersion,
+        policyTitle,
+        termsAcceptedAt: termsAcceptedAt ?
+          admin.firestore.Timestamp.fromDate(termsAcceptedAt) :
+          admin.firestore.FieldValue.serverTimestamp(),
+        bookingId: bookingRef.id,
       });
 
       return {

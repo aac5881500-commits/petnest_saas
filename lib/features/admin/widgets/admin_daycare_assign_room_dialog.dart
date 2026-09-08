@@ -4,9 +4,12 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/models/daycare_settings_model.dart';
+import 'package:petnest_saas/core/services/daycare_assign_room_rules.dart';
 import 'package:petnest_saas/core/services/daycare_function_service.dart';
 import 'package:petnest_saas/core/services/daycare_occupancy_service.dart';
+import 'package:petnest_saas/core/services/daycare_settings_service.dart';
 import 'package:petnest_saas/core/services/daycare_time_helper.dart';
+import 'package:collection/collection.dart';
 
 Future<void> showDaycareAssignRoomDialog({
   required BuildContext context,
@@ -46,17 +49,14 @@ class _AssignRoomDialogState extends State<_AssignRoomDialog> {
   bool _saving = false;
   String? _error;
   String? _selectedTypeId;
+  String? _selectedRoomId;
   List<DaycareAssignableRoom> _rooms = const <DaycareAssignableRoom>[];
 
-  bool get _roomTypeLocked {
-    return DaycarePricingModes.isRoomBased(
-          (widget.booking['pricingMode'] ?? '').toString(),
-        ) &&
-        (widget.booking['requestedRoomTypeId'] ?? '').toString().isNotEmpty;
-  }
+  bool get _roomTypeLocked =>
+      DaycareAssignRoomRules.lockRoomType(widget.booking);
 
   String get _requestedTypeId =>
-      (widget.booking['requestedRoomTypeId'] ?? '').toString();
+      DaycareAssignRoomRules.requestedRoomTypeId(widget.booking);
 
   @override
   void initState() {
@@ -90,8 +90,42 @@ class _AssignRoomDialogState extends State<_AssignRoomDialog> {
       if (!mounted) {
         return;
       }
-      List<DaycareAssignableRoom> rooms = listed;
+      List<DaycareAssignableRoom> rooms =
+          List<DaycareAssignableRoom>.from(listed)
+            ..sort((DaycareAssignableRoom a, DaycareAssignableRoom b) {
+              final int typeCompare = compareNatural(
+                a.roomTypeName,
+                b.roomTypeName,
+              );
+              if (typeCompare != 0) {
+                return typeCompare;
+              }
+              return compareNatural(a.roomName, b.roomName);
+            });
       if (_roomTypeLocked) {
+        final DaycareSettingsModel settings = await DaycareSettingsService
+            .instance
+            .get(widget.shopId);
+        if (!mounted) {
+          return;
+        }
+        final DocumentSnapshot<Map<String, dynamic>> typeSnap =
+            await FirebaseFirestore.instance
+                .collection('shops')
+                .doc(widget.shopId)
+                .collection('room_types')
+                .doc(_requestedTypeId)
+                .get();
+        final DaycareRoomTypeSetting? setting = settings.roomTypeSetting(
+          _requestedTypeId,
+        );
+        if (!typeSnap.exists || setting == null || setting.enabled != true) {
+          setState(() {
+            _error = '客戶選擇的房型不存在或已停用，無法分配房間';
+            _loading = false;
+          });
+          return;
+        }
         rooms = listed
             .where(
               (DaycareAssignableRoom room) =>
@@ -104,6 +138,7 @@ class _AssignRoomDialogState extends State<_AssignRoomDialog> {
         _selectedTypeId = _roomTypeLocked
             ? _requestedTypeId
             : (rooms.isEmpty ? null : rooms.first.roomTypeId);
+        _selectedRoomId = null;
         _loading = false;
       });
     } catch (error) {
@@ -118,6 +153,15 @@ class _AssignRoomDialogState extends State<_AssignRoomDialog> {
   }
 
   Future<void> _assign(DaycareAssignableRoom room) async {
+    if (!DaycareAssignRoomRules.allowsAssignedRoomType(
+      booking: widget.booking,
+      assignedRoomTypeId: room.roomTypeId,
+    )) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('不可更換客戶選擇的房型')));
+      return;
+    }
     setState(() => _saving = true);
     try {
       await DaycareFunctionService.instance.assignRoom(
@@ -147,6 +191,15 @@ class _AssignRoomDialogState extends State<_AssignRoomDialog> {
   Widget build(BuildContext context) {
     final DateTime? start = _ts(widget.booking['scheduledStartAt']);
     final DateTime? end = _ts(widget.booking['scheduledEndAt']);
+    final int petCount = (widget.booking['petIds'] is List)
+        ? (widget.booking['petIds'] as List).length
+        : 0;
+    final String currentRoom =
+        (widget.booking['roomName'] ??
+                widget.booking['roomNumberSnapshot'] ??
+                '')
+            .toString()
+            .trim();
     final Set<String> typeIds = _rooms
         .map((DaycareAssignableRoom room) => room.roomTypeId)
         .toSet();
@@ -156,6 +209,15 @@ class _AssignRoomDialogState extends State<_AssignRoomDialog> {
               _selectedTypeId == null || room.roomTypeId == _selectedTypeId,
         )
         .toList();
+    DaycareAssignableRoom? selectedRoom;
+    for (final DaycareAssignableRoom room in filtered) {
+      if (room.roomId == _selectedRoomId) {
+        selectedRoom = room;
+        break;
+      }
+    }
+    final DaycareAssignableRoom? picked = selectedRoom;
+    final bool canConfirm = !_saving && picked != null && picked.available;
     return AlertDialog(
       title: const Text('分配房間'),
       content: SizedBox(
@@ -167,103 +229,91 @@ class _AssignRoomDialogState extends State<_AssignRoomDialog> {
               )
             : _error != null
             ? Text(_error!)
-            : _rooms.isEmpty
-            ? Text(
-                _roomTypeLocked
-                    ? '客戶選擇的房型目前沒有可分配房間，請聯絡客戶確認。'
-                    : '目前沒有可分配的房間。時計方案可先保持已確認未分房，完成分房後才能辦理入住。',
-              )
             : Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
-                  if (!_roomTypeLocked)
-                    const Padding(
-                      padding: EdgeInsets.only(bottom: 8),
-                      child: Text(
-                        '請選擇房型與實際房間。分房只供房務與容量管理，不會改變客戶方案價格。',
-                        style: TextStyle(color: Colors.black54),
-                      ),
-                    ),
-                  if (_roomTypeLocked)
-                    const Padding(
-                      padding: EdgeInsets.only(bottom: 8),
-                      child: Text(
-                        '請在客戶已選房型中選擇實際房間，不可改成其他房型。',
-                        style: TextStyle(color: Colors.black54),
-                      ),
-                    ),
                   if (start != null && end != null)
                     Text(
                       '${DaycareTimeHelper.formatDate(start)}  '
                       '${DaycareTimeHelper.formatHm(start)}-'
                       '${DaycareTimeHelper.formatHm(end)}',
-                      style: const TextStyle(color: Colors.black54),
                     ),
-                  const SizedBox(height: 12),
-                  const Text(
-                    '1. 選擇房型',
-                    style: TextStyle(fontWeight: FontWeight.bold),
-                  ),
+                  Text('寵物數：$petCount'),
+                  if (_roomTypeLocked) Text('客戶選擇房型：${_lockedRoomTypeName()}'),
+                  if (currentRoom.isNotEmpty) Text('目前已分配：$currentRoom'),
                   const SizedBox(height: 8),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: typeIds.map((String id) {
-                      final String name = _rooms
-                          .firstWhere(
-                            (DaycareAssignableRoom room) =>
-                                room.roomTypeId == id,
-                          )
-                          .roomTypeName;
-                      final bool selected = _selectedTypeId == id;
-                      return ChoiceChip(
-                        label: Text(name),
-                        selected: selected,
-                        onSelected: _roomTypeLocked
-                            ? null
-                            : (_) {
-                                setState(() => _selectedTypeId = id);
-                              },
-                      );
-                    }).toList(),
-                  ),
-                  const SizedBox(height: 16),
-                  const Text(
-                    '2. 選擇實際房間',
-                    style: TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 8),
-                  Flexible(
-                    child: ConstrainedBox(
-                      constraints: const BoxConstraints(maxHeight: 280),
-                      child: ListView(
-                        shrinkWrap: true,
-                        children: filtered.map((DaycareAssignableRoom room) {
-                          return Card(
-                            child: ListTile(
-                              enabled: !_saving,
-                              leading: const Icon(Icons.meeting_room),
-                              title: Text(
-                                '${room.roomTypeName}　${room.roomName}',
-                              ),
-                              subtitle: Text(
-                                <String>[
-                                  if (room.capacity > 0)
-                                    '容量 ${room.capacity} 隻',
-                                  if (room.status == 'cleaning') '待清潔',
-                                  if (room.overlappingSummaries.isNotEmpty)
-                                    room.overlappingSummaries.join('、'),
-                                  if (room.overlappingSummaries.isEmpty)
-                                    '此時段無其他訂單',
-                                ].join('\n'),
-                              ),
-                              onTap: _saving ? null : () => _assign(room),
-                            ),
-                          );
-                        }).toList(),
-                      ),
+                  if (!_roomTypeLocked)
+                    Wrap(
+                      spacing: 8,
+                      children: typeIds.map((String id) {
+                        final String name = _rooms
+                            .firstWhere(
+                              (DaycareAssignableRoom room) =>
+                                  room.roomTypeId == id,
+                            )
+                            .roomTypeName;
+                        return ChoiceChip(
+                          label: Text(name),
+                          selected: _selectedTypeId == id,
+                          onSelected: (_) {
+                            setState(() {
+                              _selectedTypeId = id;
+                              _selectedRoomId = null;
+                            });
+                          },
+                        );
+                      }).toList(),
                     ),
+                  const SizedBox(height: 8),
+                  ConstrainedBox(
+                    constraints: const BoxConstraints(maxHeight: 320),
+                    child: filtered.isEmpty
+                        ? const Text('此房型目前沒有房間可列出。')
+                        : ListView(
+                            shrinkWrap: true,
+                            children: filtered.map((
+                              DaycareAssignableRoom room,
+                            ) {
+                              final bool canPick = room.available && !_saving;
+                              final bool selected =
+                                  _selectedRoomId == room.roomId;
+                              return Card(
+                                color: canPick
+                                    ? (selected ? Colors.indigo.shade50 : null)
+                                    : Colors.grey.shade200,
+                                child: ListTile(
+                                  enabled: canPick,
+                                  selected: selected,
+                                  leading: Icon(
+                                    selected
+                                        ? Icons.check_circle
+                                        : Icons.meeting_room_outlined,
+                                  ),
+                                  title: Text(
+                                    '${room.roomName}　${room.roomTypeName}',
+                                  ),
+                                  subtitle: Text(
+                                    <String>[
+                                      if (room.capacity > 0)
+                                        '容量 ${room.capacity} 隻',
+                                      if (room.status.trim().isNotEmpty)
+                                        '狀態 ${room.status}',
+                                      if (room.available)
+                                        '此時段可分配'
+                                      else
+                                        room.blockedReason,
+                                    ].join('\n'),
+                                  ),
+                                  onTap: canPick
+                                      ? () => setState(
+                                          () => _selectedRoomId = room.roomId,
+                                        )
+                                      : null,
+                                ),
+                              );
+                            }).toList(),
+                          ),
                   ),
                 ],
               ),
@@ -273,8 +323,27 @@ class _AssignRoomDialogState extends State<_AssignRoomDialog> {
           onPressed: _saving ? null : () => Navigator.pop(context),
           child: const Text('取消'),
         ),
+        FilledButton(
+          onPressed: canConfirm ? () => _assign(picked) : null,
+          child: const Text('確認分配'),
+        ),
       ],
     );
+  }
+
+  String _lockedRoomTypeName() {
+    final String named = (widget.booking['requestedRoomTypeName'] ?? '')
+        .toString()
+        .trim();
+    if (named.isNotEmpty) {
+      return named;
+    }
+    for (final DaycareAssignableRoom room in _rooms) {
+      if (room.roomTypeId == _requestedTypeId) {
+        return room.roomTypeName;
+      }
+    }
+    return _requestedTypeId;
   }
 
   static DateTime? _ts(dynamic raw) {

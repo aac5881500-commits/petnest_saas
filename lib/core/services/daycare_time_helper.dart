@@ -31,6 +31,17 @@ class DaycareTimeHelper {
     return '${local.year}/$m/$d';
   }
 
+  static String formatDateTime(DateTime value) {
+    return '${formatDate(value)} ${formatHm(value)}';
+  }
+
+  static String formatDateTimeOrUnrecorded(DateTime? value) {
+    if (value == null) {
+      return '尚未記錄';
+    }
+    return formatDateTime(value);
+  }
+
   static String dateKey(DateTime value) {
     final DateTime day = DateTime(value.year, value.month, value.day);
     final String m = day.month.toString().padLeft(2, '0');
@@ -98,5 +109,47 @@ class DaycareTimeHelper {
       );
     }
     return result;
+  }
+
+  static bool isSameLocalDay(DateTime a, DateTime b) {
+    return a.year == b.year && a.month == b.month && a.day == b.day;
+  }
+
+  /// 今天已達或超過最晚接回（含整點），整天不可再預約。
+  static bool isTodayPastLatestPickUp({
+    required DateTime date,
+    required String latestPickUp,
+    DateTime? now,
+  }) {
+    final DateTime clock = now ?? DateTime.now();
+    final DateTime day = DateTime(date.year, date.month, date.day);
+    final DateTime today = DateTime(clock.year, clock.month, clock.day);
+    if (day != today) {
+      return false;
+    }
+    final DateTime latest = combineDateAndTime(day, latestPickUp);
+    return !clock.isBefore(latest);
+  }
+
+  /// 今日時段必須嚴格晚於現在；接回必須晚於送達。
+  static bool isSlotSelectable({
+    required String slot,
+    required DateTime date,
+    required DateTime now,
+    String? afterSlot,
+  }) {
+    final DateTime slotAt = combineDateAndTime(
+      DateTime(date.year, date.month, date.day),
+      slot,
+    );
+    if (isSameLocalDay(date, now) && !slotAt.isAfter(now)) {
+      return false;
+    }
+    if (afterSlot != null && afterSlot.isNotEmpty) {
+      if (minutesOf(slot) <= minutesOf(afterSlot)) {
+        return false;
+      }
+    }
+    return true;
   }
 }

@@ -45,6 +45,15 @@ class AdminBookingActionSection extends StatelessWidget {
     final bool isCheckedIn = status == 'checked_in';
     final bool canOperate = status != 'cancelled' && status != 'completed';
 
+    final ButtonStyle tap = ElevatedButton.styleFrom(
+      minimumSize: const Size(48, 44),
+    );
+    final ButtonStyle danger = OutlinedButton.styleFrom(
+      minimumSize: const Size(48, 44),
+      foregroundColor: Colors.red.shade700,
+      side: BorderSide(color: Colors.red.shade400),
+    );
+
     return Wrap(
       spacing: 8,
       runSpacing: 8,
@@ -75,6 +84,7 @@ class AdminBookingActionSection extends StatelessWidget {
         if (isPending && depositAmount <= 0)
           ElevatedButton(
             onPressed: onConfirmBooking,
+            style: tap,
             child: const Text('確認訂單'),
           ),
 
@@ -83,6 +93,7 @@ class AdminBookingActionSection extends StatelessWidget {
           ElevatedButton(
             onPressed: onConfirmDeposit,
             style: ElevatedButton.styleFrom(
+              minimumSize: const Size(48, 44),
               backgroundColor: Colors.green,
               foregroundColor: Colors.white,
             ),
@@ -93,6 +104,7 @@ class AdminBookingActionSection extends StatelessWidget {
         if (isPending && depositAmount > 0 && depositPaid == true)
           ElevatedButton(
             onPressed: onConfirmBooking,
+            style: tap,
             child: const Text('確認訂單'),
           ),
 
@@ -121,6 +133,7 @@ class AdminBookingActionSection extends StatelessWidget {
         if (isConfirmed && !isAssigned)
           ElevatedButton.icon(
             onPressed: onAssignRoom,
+            style: tap,
             icon: const Icon(Icons.meeting_room),
             label: const Text('選擇房間'),
           ),
@@ -132,6 +145,7 @@ class AdminBookingActionSection extends StatelessWidget {
           ElevatedButton(
             onPressed: onCheckIn,
             style: ElevatedButton.styleFrom(
+              minimumSize: const Size(48, 44),
               backgroundColor: Colors.blue,
               foregroundColor: Colors.white,
             ),
@@ -141,6 +155,7 @@ class AdminBookingActionSection extends StatelessWidget {
         if (isAssigned && canOperate)
           ElevatedButton.icon(
             onPressed: onChangeRoom,
+            style: tap,
             icon: const Icon(Icons.swap_horiz),
             label: const Text('更換房間'),
           ),
@@ -149,12 +164,9 @@ class AdminBookingActionSection extends StatelessWidget {
         // 取消訂單
         // ===============================
         if (isPending || isConfirmed)
-          ElevatedButton(
+          OutlinedButton(
             onPressed: onCancelBooking,
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.red,
-              foregroundColor: Colors.white,
-            ),
+            style: danger,
             child: const Text('取消訂單'),
           ),
 
@@ -165,6 +177,7 @@ class AdminBookingActionSection extends StatelessWidget {
           ElevatedButton(
             onPressed: onCheckOut,
             style: ElevatedButton.styleFrom(
+              minimumSize: const Size(48, 44),
               backgroundColor: Colors.green,
               foregroundColor: Colors.white,
             ),

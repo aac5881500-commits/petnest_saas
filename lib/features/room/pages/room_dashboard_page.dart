@@ -8,7 +8,8 @@ import 'package:petnest_saas/core/services/shop_service.dart';
 import 'package:petnest_saas/features/auth/pages/room_calendar_page.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:petnest_saas/core/constants/shop_permission_keys.dart';
-import 'package:petnest_saas/features/admin/pages/admin_booking_detail_page.dart';
+import 'package:petnest_saas/core/navigation/admin_booking_route.dart';
+import 'package:petnest_saas/core/presentation/room_status_presentation.dart';
 import 'package:petnest_saas/core/utils/natural_sort.dart';
 import 'package:petnest_saas/features/room/pages/housekeeping_setting_page.dart';
 import 'package:petnest_saas/core/models/shop_task_item.dart';
@@ -555,15 +556,11 @@ class _RoomDashboardPageState extends State<RoomDashboardPage> {
 
                                                 return InkWell(
                                                   onTap: () {
-                                                    Navigator.push(
+                                                    AdminBookingRoute.open(
                                                       context,
-                                                      MaterialPageRoute(
-                                                        builder: (_) =>
-                                                            AdminBookingDetailPage(
-                                                              bookingId: doc.id,
-                                                              canEdit: true,
-                                                            ),
-                                                      ),
+                                                      bookingId: doc.id,
+                                                      data: data,
+                                                      canEdit: true,
                                                     );
                                                   },
                                                   child: Container(
@@ -727,44 +724,20 @@ class _RoomDashboardPageState extends State<RoomDashboardPage> {
                                         }
                                       }
 
-                                      /// 🔥 右邊狀態顏色
-                                      Color color = Colors.green;
-
                                       final roomId = (room['id'] ?? '')
                                           .toString();
                                       final manualStatus =
                                           roomCalendarStatus['$roomId|$dateStr'];
-
-                                      if (manualStatus == 'closed') {
-                                        color = const Color(0xFF6D4C41);
-                                      } else if (manualStatus == 'blocked' ||
-                                          manualStatus == 'maintenance' ||
-                                          manualStatus == 'unavailable') {
-                                        color = Colors.black;
-                                      } else if (manualStatus == 'cleaning') {
-                                        color = Colors.orange;
-                                      } else if (todayBooking != null) {
-                                        final status =
-                                            todayBooking['status'] ?? '';
-
-                                        switch (status) {
-                                          case 'pending':
-                                          case 'confirmed':
-                                            color = Colors.red;
-                                            break;
-
-                                          case 'checked_in':
-                                            color = Colors.blue;
-                                            break;
-
-                                          case 'completed':
-                                            color = Colors.grey;
-                                            break;
-
-                                          default:
-                                            color = Colors.green;
-                                        }
-                                      }
+                                      final RoomStatusPresentation tone =
+                                          RoomStatusPresentation.of(
+                                            roomStatus:
+                                                (manualStatus ??
+                                                        room['status'] ??
+                                                        '')
+                                                    .toString(),
+                                            booking: todayBooking,
+                                          );
+                                      final Color color = tone.color;
                                       return InkWell(
                                         onTap: () async {
                                           String roomTypeName = '未設定房型';
@@ -1005,6 +978,11 @@ class _RoomDashboardPageState extends State<RoomDashboardPage> {
                                                             }
 
                                                             if (!hasManualStatus) {
+                                                              Map<
+                                                                String,
+                                                                dynamic
+                                                              >?
+                                                              dayBooking;
                                                               for (var doc
                                                                   in bookings) {
                                                                 final data =
@@ -1013,34 +991,24 @@ class _RoomDashboardPageState extends State<RoomDashboardPage> {
                                                                           String,
                                                                           dynamic
                                                                         >;
-
                                                                 if (data['roomId'] !=
                                                                     room['id']) {
                                                                   continue;
                                                                 }
-
                                                                 final start =
                                                                     (data['startDate']
                                                                             as Timestamp)
                                                                         .toDate();
-
                                                                 final end =
                                                                     (data['endDate']
                                                                             as Timestamp)
                                                                         .toDate();
-
-                                                                final status =
-                                                                    data['status']
-                                                                        ?.toString() ??
-                                                                    '';
-
                                                                 final dayOnly =
                                                                     DateTime(
                                                                       day.year,
                                                                       day.month,
                                                                       day.day,
                                                                     );
-
                                                                 final startOnly =
                                                                     DateTime(
                                                                       start
@@ -1049,14 +1017,12 @@ class _RoomDashboardPageState extends State<RoomDashboardPage> {
                                                                           .month,
                                                                       start.day,
                                                                     );
-
                                                                 final endOnly =
                                                                     DateTime(
                                                                       end.year,
                                                                       end.month,
                                                                       end.day,
                                                                     );
-
                                                                 if (!dayOnly.isBefore(
                                                                       startOnly,
                                                                     ) &&
@@ -1064,35 +1030,18 @@ class _RoomDashboardPageState extends State<RoomDashboardPage> {
                                                                         .isBefore(
                                                                           endOnly,
                                                                         )) {
-                                                                  switch (status) {
-                                                                    case 'pending':
-                                                                    case 'confirmed':
-                                                                      dotColor =
-                                                                          Colors
-                                                                              .deepOrange;
-                                                                      break;
-
-                                                                    case 'checked_in':
-                                                                      dotColor =
-                                                                          Colors
-                                                                              .blue;
-                                                                      break;
-
-                                                                    case 'completed':
-                                                                      dotColor =
-                                                                          Colors
-                                                                              .purple;
-                                                                      break;
-
-                                                                    default:
-                                                                      dotColor =
-                                                                          Colors
-                                                                              .green;
-                                                                  }
-
+                                                                  dayBooking =
+                                                                      data;
                                                                   break;
                                                                 }
                                                               }
+                                                              dotColor =
+                                                                  RoomStatusPresentation.of(
+                                                                    roomStatus:
+                                                                        '',
+                                                                    booking:
+                                                                        dayBooking,
+                                                                  ).color;
                                                             }
 
                                                             return _buildDot(

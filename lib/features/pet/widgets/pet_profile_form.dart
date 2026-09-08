@@ -334,6 +334,8 @@ class PetProfileForm extends StatelessWidget {
     this.healthEnabled = true,
     this.adminNoteController,
     this.bottomPadding = 16,
+    this.extraChildren = const <Widget>[],
+    this.scrollController,
   });
 
   final HomeThemeModel theme;
@@ -361,6 +363,8 @@ class PetProfileForm extends StatelessWidget {
   final bool healthEnabled;
   final TextEditingController? adminNoteController;
   final double bottomPadding;
+  final List<Widget> extraChildren;
+  final ScrollController? scrollController;
 
   static const List<String> genders = <String>['公貓', '母貓'];
   static const List<String> ages = <String>[
@@ -393,7 +397,9 @@ class PetProfileForm extends StatelessWidget {
       autovalidateMode: AutovalidateMode.onUserInteraction,
       onChanged: onChanged,
       child: ListView(
+        controller: scrollController,
         padding: EdgeInsets.fromLTRB(16, 12, 16, bottomPadding),
+        keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
         children: <Widget>[
           PetFormSectionCard(
             theme: theme,
@@ -650,6 +656,7 @@ class PetProfileForm extends StatelessWidget {
               ],
             ],
           ),
+          ...extraChildren,
         ],
       ),
     );

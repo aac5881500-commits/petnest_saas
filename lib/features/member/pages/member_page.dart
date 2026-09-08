@@ -859,6 +859,7 @@ class _MemberPageState extends State<_MemberPageBody> {
         newStoragePath: uploaded.imageStoragePath,
         previousImageUrl: previousUrl,
         previousStoragePath: previousPath,
+        extraShopId: widget.shopId,
       );
 
       if (!mounted) {
@@ -910,6 +911,7 @@ class _MemberPageState extends State<_MemberPageBody> {
       await MemberAvatarService.instance.removeProfileAvatar(
         previousImageUrl: previousUrl,
         previousStoragePath: previousPath,
+        extraShopId: widget.shopId,
       );
       if (!mounted) {
         return;
@@ -936,7 +938,10 @@ class _MemberPageState extends State<_MemberPageBody> {
     Navigator.push(
       context,
       MaterialPageRoute<void>(
-        builder: (_) => AddPetPage(theme: ShopFrontendTheme.of(context).home),
+        builder: (_) => AddPetPage(
+          shopId: widget.shopId,
+          theme: ShopFrontendTheme.of(context).home,
+        ),
       ),
     );
   }
@@ -1736,6 +1741,7 @@ class _MemberPageState extends State<_MemberPageBody> {
           children: [
             MemberAvatar(
               imageUrl: avatarUrl,
+              name: name,
               size: 60,
               showCameraBadge: true,
               loading: _avatarBusy,
@@ -2017,7 +2023,8 @@ class _MemberPageState extends State<_MemberPageBody> {
           Navigator.push(
             context,
             MaterialPageRoute<void>(
-              builder: (_) => PetDetailPage(pet: pet, theme: theme),
+              builder: (_) =>
+                  PetDetailPage(pet: pet, theme: theme, shopId: widget.shopId),
             ),
           );
         },

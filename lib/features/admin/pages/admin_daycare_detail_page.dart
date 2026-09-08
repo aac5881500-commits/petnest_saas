@@ -3,33 +3,44 @@
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
-import 'package:petnest_saas/core/models/policy_applicable_service.dart';
+import 'package:petnest_saas/core/models/home_theme_model.dart';
+import 'package:petnest_saas/features/custom_form/widgets/custom_form_answer_view.dart';
 import 'package:petnest_saas/core/services/booking_inventory_function_service.dart';
-import 'package:petnest_saas/core/services/daycare_booking_validator.dart';
+import 'package:petnest_saas/core/services/booking_payment_status.dart';
+import 'package:petnest_saas/core/services/daycare_assign_room_rules.dart';
 import 'package:petnest_saas/core/services/daycare_function_service.dart';
+import 'package:petnest_saas/core/services/daycare_payment_display.dart';
+import 'package:petnest_saas/core/services/daycare_pricing_service.dart';
+import 'package:petnest_saas/core/services/daycare_status_labels.dart';
 import 'package:petnest_saas/core/services/daycare_time_helper.dart';
-import 'package:petnest_saas/core/services/shop_policy_service.dart';
-import 'package:petnest_saas/features/admin/pages/admin_payment_center_page.dart';
+import 'package:petnest_saas/core/widgets/shop_frontend_theme_scope.dart';
 import 'package:petnest_saas/features/admin/widgets/admin_booking_action_log_section.dart';
 import 'package:petnest_saas/features/admin/widgets/admin_booking_customer_section.dart';
+import 'package:petnest_saas/features/admin/widgets/admin_booking_detail_layout.dart';
+import 'package:petnest_saas/features/admin/widgets/admin_booking_detail_payment_aside.dart';
+import 'package:petnest_saas/features/admin/widgets/admin_booking_detail_policy_card.dart';
 import 'package:petnest_saas/features/admin/widgets/admin_booking_header_card.dart';
 import 'package:petnest_saas/features/admin/widgets/admin_booking_note_section.dart';
-import 'package:petnest_saas/features/admin/widgets/admin_booking_pet_card.dart';
+import 'package:petnest_saas/features/admin/widgets/admin_booking_pet_strip.dart';
 import 'package:petnest_saas/features/admin/widgets/admin_booking_price_section.dart';
 import 'package:petnest_saas/features/admin/widgets/admin_booking_status_chip.dart';
+import 'package:petnest_saas/features/admin/widgets/admin_booking_timeline.dart';
+import 'package:petnest_saas/features/booking/widgets/booking_detail/booking_detail_message_section.dart';
 import 'package:petnest_saas/features/admin/widgets/admin_daycare_assign_room_dialog.dart';
+import 'package:petnest_saas/features/admin/widgets/admin_daycare_settle_sheet.dart';
 import 'package:petnest_saas/features/booking/pages/booking_detail_page.dart';
-import 'package:petnest_saas/features/shop/widgets/booking/policy_sign_method_field.dart';
 
 class AdminDaycareDetailPage extends StatelessWidget {
   const AdminDaycareDetailPage({
     super.key,
     required this.shopId,
     required this.bookingId,
+    this.canEdit = true,
   });
 
   final String shopId;
   final String bookingId;
+  final bool canEdit;
 
   @override
   Widget build(BuildContext context) {
@@ -56,6 +67,7 @@ class AdminDaycareDetailPage extends StatelessWidget {
               shopId: shopId,
               bookingId: bookingId,
               data: data,
+              canEdit: canEdit,
             );
           },
     );
@@ -67,11 +79,13 @@ class _DaycareDetailBody extends StatefulWidget {
     required this.shopId,
     required this.bookingId,
     required this.data,
+    this.canEdit = true,
   });
 
   final String shopId;
   final String bookingId;
   final Map<String, dynamic> data;
+  final bool canEdit;
 
   @override
   State<_DaycareDetailBody> createState() => _DaycareDetailBodyState();
@@ -109,7 +123,8 @@ class _DaycareDetailBodyState extends State<_DaycareDetailBody> {
     }
     setState(() => _busy = true);
     try {
-      await DaycareFunctionService.instance.manage(
+      final Map<String, dynamic>
+      result = await DaycareFunctionService.instance.manage(
         shopId: widget.shopId,
         bookingId: widget.bookingId,
         action: action,
@@ -117,7 +132,20 @@ class _DaycareDetailBodyState extends State<_DaycareDetailBody> {
             '${widget.bookingId}_${action}_${DateTime.now().millisecondsSinceEpoch}',
         extra: extra,
       );
-      if (action == 'cancel' || action == 'noShow') {
+      if (action == 'confirmDeposit') {
+        final bool written =
+            result['depositPaid'] == true ||
+            (result['depositStatus'] ?? '').toString() == 'confirmed';
+        if (!written) {
+          throw const DaycareFunctionException('確認訂金未寫入付款狀態，請重試');
+        }
+        if (mounted) {
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(const SnackBar(content: Text('已確認訂金')));
+        }
+      }
+      if (action == 'cancel') {
         try {
           await BookingInventoryFunctionService.instance.returnBookingInventory(
             shopId: widget.shopId,
@@ -148,126 +176,11 @@ class _DaycareDetailBodyState extends State<_DaycareDetailBody> {
   }
 
   Future<void> _openSettlement() async {
-    final DateTime scheduledStart =
-        _ts(widget.data['scheduledStartAt']) ?? DateTime.now();
-    final DateTime scheduledEnd =
-        _ts(widget.data['scheduledEndAt']) ?? DateTime.now();
-    DateTime actualEnd = DateTime.now();
-    final Map<String, dynamic> preview = await DaycareFunctionService.instance
-        .manage(
-          shopId: widget.shopId,
-          bookingId: widget.bookingId,
-          action: 'previewSettle',
-          extra: <String, dynamic>{'actualEndAt': actualEnd.toIso8601String()},
-        );
-    if (!mounted) {
-      return;
-    }
-    String mode = 'cash';
-    final TextEditingController waiveReason = TextEditingController();
-    final String? choice = await showModalBottomSheet<String>(
+    final AdminDaycareSettleResult? choice = await showAdminDaycareSettleSheet(
       context: context,
-      isScrollControlled: true,
-      builder: (BuildContext context) {
-        return StatefulBuilder(
-          builder: (BuildContext context, StateSetter setModal) {
-            return Padding(
-              padding: EdgeInsets.fromLTRB(
-                16,
-                16,
-                16,
-                16 + MediaQuery.of(context).viewInsets.bottom,
-              ),
-              child: SingleChildScrollView(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: <Widget>[
-                    const Text(
-                      '結算安親',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text('預約送達：${DaycareTimeHelper.formatHm(scheduledStart)}'),
-                    Text('預約接回：${DaycareTimeHelper.formatHm(scheduledEnd)}'),
-                    ListTile(
-                      contentPadding: EdgeInsets.zero,
-                      title: const Text('實際接回時間'),
-                      subtitle: Text(DaycareTimeHelper.formatHm(actualEnd)),
-                      onTap: () async {
-                        final TimeOfDay? picked = await showTimePicker(
-                          context: context,
-                          initialTime: TimeOfDay.fromDateTime(actualEnd),
-                        );
-                        if (picked == null) {
-                          return;
-                        }
-                        actualEnd = DateTime(
-                          actualEnd.year,
-                          actualEnd.month,
-                          actualEnd.day,
-                          picked.hour,
-                          picked.minute,
-                        );
-                        setModal(() {});
-                      },
-                    ),
-                    Text(
-                      '已確認預約時段費用：\$${preview['quotedTotal'] ?? widget.data['quotedTotalPrice'] ?? widget.data['totalPrice'] ?? 0}',
-                    ),
-                    Text('超時分鐘：${preview['overtimeMinutes'] ?? 0}'),
-                    Text('超時規則：${preview['roundingLabel'] ?? '-'}'),
-                    Text('超時費：\$${preview['overtimeAmount'] ?? 0}'),
-                    Text('當日住宿費上限：\$${preview['capAmount'] ?? 0}'),
-                    Text('最終費用：\$${preview['finalTotal'] ?? 0}'),
-                    Text('已付款：\$${preview['paidAmount'] ?? 0}'),
-                    Text('尚待收款：\$${preview['remainingAmount'] ?? 0}'),
-                    const SizedBox(height: 8),
-                    RadioListTile<String>(
-                      title: const Text('已到店收款並完成安親'),
-                      value: 'cash',
-                      groupValue: mode,
-                      onChanged: (String? value) {
-                        setModal(() => mode = value ?? 'cash');
-                      },
-                    ),
-                    RadioListTile<String>(
-                      title: const Text('發送線上補款通知'),
-                      value: 'request_online',
-                      groupValue: mode,
-                      onChanged: (String? value) {
-                        setModal(() => mode = value ?? 'request_online');
-                      },
-                    ),
-                    RadioListTile<String>(
-                      title: const Text('免收本次超時費並完成安親'),
-                      value: 'waive',
-                      groupValue: mode,
-                      onChanged: (String? value) {
-                        setModal(() => mode = value ?? 'waive');
-                      },
-                    ),
-                    if (mode == 'waive')
-                      TextField(
-                        controller: waiveReason,
-                        decoration: const InputDecoration(
-                          labelText: '免收原因（將寫入操作紀錄）',
-                        ),
-                      ),
-                    const SizedBox(height: 12),
-                    FilledButton(
-                      onPressed: () => Navigator.pop(context, mode),
-                      child: const Text('確認結算'),
-                    ),
-                  ],
-                ),
-              ),
-            );
-          },
-        );
-      },
+      shopId: widget.shopId,
+      bookingId: widget.bookingId,
+      booking: widget.data,
     );
     if (choice == null) {
       return;
@@ -275,170 +188,14 @@ class _DaycareDetailBodyState extends State<_DaycareDetailBody> {
     await _run(
       'settle',
       extra: <String, dynamic>{
-        'actualEndAt': actualEnd.toIso8601String(),
-        'completeMode': choice,
-        'waiveOvertime': choice == 'waive',
-        'waiveReason': waiveReason.text.trim(),
+        'actualEndAt': choice.actualEndAt.toIso8601String(),
+        'completeMode': choice.completeMode,
+        'waiveOvertime': choice.completeMode == 'waive',
+        'waiveReason': choice.waiveReason,
+        'manualAdjust': choice.manualAdjust,
+        'manualAdjustReason': choice.manualAdjustReason,
       },
     );
-  }
-
-  Future<void> _convert() async {
-    final DateTime now = DateTime.now();
-    final DateTime start = DateTime(now.year, now.month, now.day);
-    final DateTime end = start.add(const Duration(days: 1));
-    String policy = DaycareConversionHelper.keepDaycare;
-    String? staySignMethod;
-    final TextEditingController stayTotal = TextEditingController();
-    final TextEditingController roomTypeId = TextEditingController();
-    final TextEditingController custom = TextEditingController(text: '0');
-    final Map<String, dynamic>? stayPolicy = await ShopPolicyService.instance
-        .getCheckinPolicy(widget.shopId);
-    bool stayPolicyRequired = false;
-    int stayPolicyVersion = 0;
-    if (stayPolicy != null) {
-      final Map<String, dynamic> filtered = ShopPolicyService.instance
-          .filterPolicyForService(
-            policy: stayPolicy,
-            serviceType: PolicyApplicableService.accommodation,
-          );
-      stayPolicyRequired = ShopPolicyService.instance.policyRequiresSignature(
-        filteredPolicy: filtered,
-      );
-      stayPolicyVersion = (filtered['version'] as num?)?.toInt() ?? 0;
-    }
-    if (!mounted) {
-      return;
-    }
-    final bool? ok = await showDialog<bool>(
-      context: context,
-      builder: (BuildContext context) {
-        return StatefulBuilder(
-          builder: (BuildContext context, StateSetter setDialogState) {
-            return AlertDialog(
-              title: const Text('轉為住宿'),
-              content: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: <Widget>[
-                    const Text('會新增一張住宿訂單，原安親簽署紀錄仍保留，不可把安親條款當成住宿條款。'),
-                    TextField(
-                      controller: roomTypeId,
-                      decoration: const InputDecoration(labelText: '住宿房型 ID'),
-                    ),
-                    TextField(
-                      controller: stayTotal,
-                      keyboardType: TextInputType.number,
-                      decoration: const InputDecoration(labelText: '住宿總價'),
-                    ),
-                    DropdownButtonFormField<String>(
-                      initialValue: policy,
-                      items: const <DropdownMenuItem<String>>[
-                        DropdownMenuItem<String>(
-                          value: DaycareConversionHelper.keepDaycare,
-                          child: Text('安親費照收，住宿另外計算'),
-                        ),
-                        DropdownMenuItem<String>(
-                          value: DaycareConversionHelper.creditAll,
-                          child: Text('安親費全部折抵住宿'),
-                        ),
-                        DropdownMenuItem<String>(
-                          value: DaycareConversionHelper.custom,
-                          child: Text('自訂折抵金額'),
-                        ),
-                        DropdownMenuItem<String>(
-                          value: DaycareConversionHelper.cancelFee,
-                          child: Text('取消安親費，只收住宿'),
-                        ),
-                      ],
-                      onChanged: (String? value) {
-                        if (value != null) {
-                          policy = value;
-                        }
-                      },
-                    ),
-                    TextField(
-                      controller: custom,
-                      keyboardType: TextInputType.number,
-                      decoration: const InputDecoration(labelText: '自訂折抵'),
-                    ),
-                    if (stayPolicyRequired) ...<Widget>[
-                      const SizedBox(height: 12),
-                      Text(
-                        '目前住宿條款版本 v$stayPolicyVersion，轉住宿前必須補簽，不可自動同意。',
-                        style: TextStyle(
-                          color: Colors.grey.shade700,
-                          fontSize: 13,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      PolicySignMethodField(
-                        title: '住宿條款簽署方式',
-                        value: staySignMethod,
-                        onChanged: (String value) {
-                          setDialogState(() => staySignMethod = value);
-                        },
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-              actions: <Widget>[
-                TextButton(
-                  onPressed: () => Navigator.pop(context, false),
-                  child: const Text('取消'),
-                ),
-                FilledButton(
-                  onPressed: () => Navigator.pop(context, true),
-                  child: const Text('轉住宿'),
-                ),
-              ],
-            );
-          },
-        );
-      },
-    );
-    if (ok != true) {
-      return;
-    }
-    if (stayPolicyRequired &&
-        (staySignMethod == null || staySignMethod!.isEmpty)) {
-      if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('轉住宿前請完成住宿條款簽署或記錄現場簽署')));
-      }
-      return;
-    }
-    setState(() => _busy = true);
-    try {
-      await DaycareFunctionService.instance
-          .convertToAccommodation(<String, dynamic>{
-            'shopId': widget.shopId,
-            'bookingId': widget.bookingId,
-            'requestId': 'convert_${widget.bookingId}',
-            'startDate': start.toIso8601String(),
-            'endDate': end.toIso8601String(),
-            'nights': 1,
-            'roomTypeId': roomTypeId.text.trim(),
-            'stayTotalPrice': int.tryParse(stayTotal.text) ?? 0,
-            'conversionPolicy': policy,
-            'conversionCreditAmount': int.tryParse(custom.text) ?? 0,
-            if (stayPolicyRequired)
-              'accommodationPolicySignMethod':
-                  staySignMethod ?? PolicySignMethods.staffWitness,
-          });
-    } catch (error) {
-      if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(error.toString())));
-      }
-    } finally {
-      if (mounted) {
-        setState(() => _busy = false);
-      }
-    }
   }
 
   @override
@@ -459,225 +216,292 @@ class _DaycareDetailBodyState extends State<_DaycareDetailBody> {
               .toList()
         : <Map<String, dynamic>>[];
     final bool locked = status == 'cancelled' || status == 'completed';
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('安親訂單詳細'),
-        actions: <Widget>[
-          TextButton(
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute<void>(
-                  builder: (_) =>
-                      BookingDetailPage(data: data, docId: widget.bookingId),
-                ),
-              );
-            },
-            child: const Text('聊天／會員視角'),
+    final bool roomBased = DaycareAssignRoomRules.isRoomBased(data);
+    final int durationMinutes = start != null && end != null
+        ? end.difference(start).inMinutes
+        : DaycarePaymentDisplay.toInt(
+            data['daycarePricingSnapshot'] is Map
+                ? (data['daycarePricingSnapshot'] as Map)['durationMinutes']
+                : 0,
+          );
+    final DaycareHourlyDisplayInfo hourlyDisplay = DaycarePricingService
+        .instance
+        .hourlyDisplayFromBooking(data, startAt: start, endAt: end);
+    final Widget actionBar = Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: <Widget>[
+        if (!locked &&
+            (status == 'pending' || status == 'pending_confirmation') &&
+            DaycarePaymentDisplay.toInt(data['depositAmount']) > 0 &&
+            !BookingPaymentStatus.isDepositConfirmed(data))
+          FilledButton(
+            style: FilledButton.styleFrom(minimumSize: const Size(48, 44)),
+            onPressed: _busy
+                ? null
+                : () => _run('confirmDeposit', confirm: '確認已收到訂金？'),
+            child: const Text('確認訂金'),
           ),
-        ],
-      ),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: <Widget>[
-          AdminBookingHeaderCard(data: data, bookingId: widget.bookingId),
-          AdminBookingStatusChip(status: status),
-          const SizedBox(height: 8),
-          Text(
-            '付款狀態：${data['paymentStatus'] ?? 'unpaid'}',
-            style: TextStyle(color: Colors.grey.shade700),
+        if (!locked &&
+            (status == 'pending' || status == 'pending_confirmation') &&
+            (DaycarePaymentDisplay.toInt(data['depositAmount']) <= 0 ||
+                BookingPaymentStatus.isDepositConfirmed(data)))
+          FilledButton(
+            style: FilledButton.styleFrom(minimumSize: const Size(48, 44)),
+            onPressed: _busy ? null : () => _run('confirm'),
+            child: const Text('確認'),
           ),
-          if (status == 'pending')
-            const Padding(
-              padding: EdgeInsets.only(top: 8),
-              child: Text('請先確認訂單，確認後才能分配房間'),
-            ),
-          if (status == 'confirmed' &&
-              (data['assignStatus'] ?? 'unassigned') != 'assigned')
-            const Padding(
-              padding: EdgeInsets.only(top: 8),
-              child: Text('訂單已確認，請完成分房後再辦理入住'),
-            ),
-          const SizedBox(height: 16),
-          const Text('顧客資訊', style: TextStyle(fontWeight: FontWeight.bold)),
-          const SizedBox(height: 8),
-          AdminBookingCustomerSection(data: data, emergency: emergency),
-          const SizedBox(height: 16),
-          Text(
-            '寵物資訊（${pets.length}隻）',
-            style: const TextStyle(fontWeight: FontWeight.bold),
+        if (!locked &&
+            status == 'confirmed' &&
+            (data['assignStatus'] ?? 'unassigned') != 'assigned')
+          FilledButton.icon(
+            style: FilledButton.styleFrom(minimumSize: const Size(48, 44)),
+            onPressed: _busy ? null : _assignRoom,
+            icon: const Icon(Icons.meeting_room),
+            label: const Text('分配房間'),
           ),
-          const SizedBox(height: 8),
-          if (pets.isEmpty)
-            const Text('沒有寵物資料', style: TextStyle(color: Colors.grey))
-          else
-            GridView.builder(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              itemCount: pets.length,
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 3,
-                crossAxisSpacing: 12,
-                mainAxisSpacing: 12,
-                childAspectRatio: 0.52,
-              ),
-              itemBuilder: (BuildContext context, int index) {
-                return AdminBookingPetCard(pet: pets[index]);
-              },
-            ),
-          const SizedBox(height: 16),
-          const Text('安親時間', style: TextStyle(fontWeight: FontWeight.bold)),
-          const SizedBox(height: 8),
-          Text('安親日期：${data['serviceDate'] ?? '-'}'),
-          Text(
-            '送達／接回：${start == null ? '-' : DaycareTimeHelper.formatHm(start)}'
-            ' - ${end == null ? '-' : DaycareTimeHelper.formatHm(end)}',
+        if (!locked &&
+            status == 'confirmed' &&
+            (data['assignStatus'] ?? '') == 'assigned')
+          FilledButton(
+            style: FilledButton.styleFrom(minimumSize: const Size(48, 44)),
+            onPressed: _busy ? null : () => _run('start'),
+            child: const Text('入住'),
           ),
-          if (actualStart != null)
-            Text('實際開始：${DaycareTimeHelper.formatHm(actualStart)}'),
-          if (actualEnd != null)
-            Text('實際完成／接回：${DaycareTimeHelper.formatHm(actualEnd)}'),
-          Text(
-            '方案：${data['daycarePlanSnapshot'] is Map ? (data['daycarePlanSnapshot']['name'] ?? '-') : '-'}',
-          ),
-          Text(
-            '房型：${data['roomTypeName'] ?? '-'}　實際房號：${(data['roomName'] ?? '').toString().isEmpty ? '尚未分房' : data['roomName']}',
-          ),
-          Text('分房狀態：${data['assignStatus'] ?? 'unassigned'}'),
-          if ((data['convertedBookingId'] ?? '').toString().isNotEmpty)
-            Text('已轉住宿：${data['convertedBookingId']}'),
-          if ((data['overtimeMinutes'] ?? 0) != 0)
-            Text(
-              '超時 ${data['overtimeMinutes']} 分鐘　超時費 \$${data['overtimeAmount'] ?? 0}',
-            ),
-          const SizedBox(height: 16),
-          const Text('價格', style: TextStyle(fontWeight: FontWeight.bold)),
-          const SizedBox(height: 8),
-          AdminBookingPriceSection(data: data, pets: pets),
-          const SizedBox(height: 16),
-          const Text('付款摘要', style: TextStyle(fontWeight: FontWeight.bold)),
-          const SizedBox(height: 8),
+        if (!locked &&
+            (data['assignStatus'] ?? '') == 'assigned' &&
+            (status == 'confirmed' || status == 'checked_in'))
           OutlinedButton.icon(
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute<void>(
-                  builder: (_) => AdminPaymentCenterPage(
-                    shopId: widget.shopId,
-                    bookingId: widget.bookingId,
-                    bookingCode: (data['bookingCode'] ?? '').toString(),
+            style: OutlinedButton.styleFrom(minimumSize: const Size(48, 44)),
+            onPressed: _busy ? null : _assignRoom,
+            icon: const Icon(Icons.swap_horiz),
+            label: const Text('換房'),
+          ),
+        if (!locked && status == 'checked_in')
+          FilledButton(
+            style: FilledButton.styleFrom(minimumSize: const Size(48, 44)),
+            onPressed: _busy ? null : _openSettlement,
+            child: const Text('結算安親／退房'),
+          ),
+        if (!locked)
+          OutlinedButton(
+            style: OutlinedButton.styleFrom(
+              minimumSize: const Size(48, 44),
+              foregroundColor: Colors.red,
+              side: const BorderSide(color: Colors.red),
+            ),
+            onPressed: _busy
+                ? null
+                : () => _run('cancel', confirm: '確定取消此安親訂單？'),
+            child: const Text('取消訂單'),
+          ),
+      ],
+    );
+
+    return ShopFrontendThemeScope(
+      shopId: widget.shopId,
+      builder: (BuildContext context) {
+        return AdminBookingDetailScaffold(
+          title: '訂單詳細',
+          bookingCode: (data['bookingCode'] ?? '').toString(),
+          appBarActions: <Widget>[
+            TextButton(
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute<void>(
+                    builder: (_) =>
+                        BookingDetailPage(data: data, docId: widget.bookingId),
                   ),
-                ),
-              );
-            },
-            icon: const Icon(Icons.receipt_long_outlined),
-            label: const Text('查看完整交易'),
-          ),
-          const SizedBox(height: 16),
-          const Text('訂單備註', style: TextStyle(fontWeight: FontWeight.bold)),
-          const SizedBox(height: 8),
-          AdminBookingNoteSection(data: data),
-          Card(
-            child: ListTile(
-              leading: const Icon(Icons.gavel_rounded),
-              title: Text(
-                (data['policyVersion'] == null || data['policyVersion'] == 0)
-                    ? '舊訂單／尚無條款確認紀錄'
-                    : ((data['signatureUrl'] ?? data['signatureImageUrl'] ?? '')
-                              .toString()
-                              .isNotEmpty
-                          ? (data['policyTitle'] ?? '安親須知').toString()
-                          : '已確認條款'),
-              ),
-              subtitle: Text(
-                (data['policyVersion'] == null || data['policyVersion'] == 0)
-                    ? '舊安親訂單沒有條款確認資料'
-                    : '條款版本 v${data['termsVersion'] ?? data['policyVersion']}',
-              ),
-            ),
-          ),
-          if (status == 'cancelled') ...<Widget>[
-            const SizedBox(height: 12),
-            Text(
-              '取消原因：${data['cancelReason'] ?? '未填寫'}',
-              style: const TextStyle(
-                color: Colors.red,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            Text(
-              '取消來源：${data['cancelBy'] ?? '未填寫'}',
-              style: TextStyle(color: Colors.red.shade700),
+                );
+              },
+              child: const Text('聊天／會員視角'),
             ),
           ],
-          const SizedBox(height: 16),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: <Widget>[
-              if (!locked && status == 'pending')
-                FilledButton(
-                  onPressed: _busy ? null : () => _run('confirm'),
-                  child: const Text('確認訂單'),
-                ),
-              if (!locked &&
-                  status == 'confirmed' &&
-                  (data['assignStatus'] ?? 'unassigned') != 'assigned')
-                FilledButton.icon(
-                  onPressed: _busy ? null : _assignRoom,
-                  icon: const Icon(Icons.meeting_room),
-                  label: const Text('分配房間'),
-                ),
-              if (!locked &&
-                  status == 'confirmed' &&
-                  (data['assignStatus'] ?? '') == 'assigned')
-                FilledButton(
-                  onPressed: _busy ? null : () => _run('start'),
-                  child: const Text('入住'),
-                ),
-              if (!locked &&
-                  (data['assignStatus'] ?? '') == 'assigned' &&
-                  (status == 'confirmed' || status == 'checked_in'))
-                OutlinedButton.icon(
-                  onPressed: _busy ? null : _assignRoom,
-                  icon: const Icon(Icons.swap_horiz),
-                  label: const Text('換房'),
-                ),
-              if (!locked && status == 'checked_in')
-                FilledButton(
-                  onPressed: _busy ? null : _openSettlement,
-                  child: const Text('結算安親／退房'),
-                ),
-              if (!locked && (status == 'confirmed' || status == 'pending'))
-                OutlinedButton(
-                  onPressed: _busy
-                      ? null
-                      : () => _run('noShow', confirm: '標記未到並依設定沒收訂金？'),
-                  child: const Text('No-show'),
-                ),
-              if (!locked)
-                OutlinedButton(
-                  onPressed: _busy
-                      ? null
-                      : () => _run('cancel', confirm: '確定取消此安親訂單？'),
-                  child: const Text('取消訂單'),
-                ),
-              if (status != 'cancelled')
-                OutlinedButton(
-                  onPressed: _busy ? null : _convert,
-                  child: const Text('轉為住宿'),
-                ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          const Text('操作紀錄', style: TextStyle(fontWeight: FontWeight.bold)),
-          const SizedBox(height: 8),
-          AdminBookingActionLogSection(
-            shopId: widget.shopId,
+          overview: AdminBookingHeaderCard(
+            data: data,
             bookingId: widget.bookingId,
           ),
-        ],
-      ),
+          actions: widget.canEdit
+              ? AdminBookingDetailCard(child: actionBar)
+              : null,
+          left: <Widget>[
+            if (status == 'pending' || status == 'pending_confirmation')
+              const Text('請先確認訂單，確認後才能分配房間'),
+            if (status == 'confirmed' &&
+                (data['assignStatus'] ?? 'unassigned') != 'assigned')
+              const Text('訂單已確認，請完成分房後再辦理入住'),
+            AdminBookingDetailSection(
+              title: '顧客資訊',
+              child: AdminBookingCustomerSection(
+                data: data,
+                emergency: emergency,
+                shopId: widget.shopId,
+              ),
+            ),
+            AdminBookingDetailSection(
+              title: '寵物資訊（${pets.length}隻）',
+              child: AdminBookingPetStrip(
+                pets: pets,
+                shopId: widget.shopId,
+                userId: (data['userId'] ?? '').toString(),
+              ),
+            ),
+            AdminBookingDetailSection(
+              title: '安親時間',
+              child: AdminBookingDetailCard(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Text(
+                      '安親日期：${data['serviceDate'] ?? (start == null ? '未填' : DaycareTimeHelper.formatDate(start))}',
+                    ),
+                    Text(
+                      '預約送達：${DaycareTimeHelper.formatDateTimeOrUnrecorded(start)}',
+                    ),
+                    Text(
+                      '預約接回：${DaycareTimeHelper.formatDateTimeOrUnrecorded(end)}',
+                    ),
+                    Text(
+                      '預計時數：${DaycareTimeHelper.durationLabel(durationMinutes)}',
+                    ),
+                    const SizedBox(height: 8),
+                    Text(hourlyDisplay.reservationText),
+                    Text(hourlyDisplay.thisChargeText),
+                    Text(
+                      '實際送達：${DaycareTimeHelper.formatDateTimeOrUnrecorded(actualStart)}',
+                    ),
+                    Text(
+                      '實際接回／結算完成：${DaycareTimeHelper.formatDateTimeOrUnrecorded(actualEnd)}',
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            AdminBookingDetailSection(
+              title: '安親方案與房間安排',
+              child: AdminBookingDetailCard(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Text(hourlyDisplay.billingModeLabel),
+                    if (hourlyDisplay.startRuleText.isNotEmpty)
+                      Text(hourlyDisplay.startRuleText),
+                    if (hourlyDisplay.extraRuleText.isNotEmpty)
+                      Text(hourlyDisplay.extraRuleText),
+                    if (hourlyDisplay.capText.isNotEmpty)
+                      Text(hourlyDisplay.capText),
+                    if (hourlyDisplay.ruleText.isNotEmpty)
+                      Text(hourlyDisplay.ruleText),
+                    if (!roomBased)
+                      Text(
+                        '安親方案：${data['daycarePlanSnapshot'] is Map ? ((data['daycarePlanSnapshot']['name'] ?? '').toString().trim().isEmpty ? '未填' : data['daycarePlanSnapshot']['name']) : '未填'}',
+                      ),
+                    if (roomBased)
+                      Text(
+                        '客戶選擇房型：${(data['requestedRoomTypeName'] ?? '').toString().trim().isEmpty ? '未填' : data['requestedRoomTypeName']}',
+                      )
+                    else
+                      Text(
+                        '分配房型：${(data['roomTypeName'] ?? '').toString().trim().isEmpty ? '尚未選擇' : data['roomTypeName']}',
+                      ),
+                    Text(
+                      '實際房間：${(data['roomName'] ?? '').toString().trim().isEmpty ? '尚未分房' : data['roomName']}',
+                    ),
+                    Text('分房狀態：${DaycareStatusLabels.assignLabel(data)}'),
+                    if ((data['convertedBookingId'] ?? '')
+                        .toString()
+                        .isNotEmpty)
+                      Text('已轉住宿：${data['convertedBookingId']}'),
+                  ],
+                ),
+              ),
+            ),
+            CustomFormAnswerView(
+              raw:
+                  data['customFormAnswers'] ??
+                  data['bookingFormAnswers'] ??
+                  data['formAnswers'],
+              title: '本次照護交代',
+              theme: HomeThemeModel.classicDefault,
+              collapsible: true,
+            ),
+            AdminBookingDetailSection(
+              title: '價格與加值服務',
+              child: AdminBookingPriceSection(
+                data: data,
+                pets: pets,
+                lineItemsOnly: true,
+              ),
+            ),
+            AdminBookingDetailSection(
+              title: '訂單備註',
+              collapsible: true,
+              initiallyExpanded: false,
+              child: AdminBookingNoteSection(data: data),
+            ),
+            AdminBookingDetailSection(
+              title: '訂單留言',
+              collapsible: true,
+              initiallyExpanded: false,
+              child: BookingDetailMessageSection(
+                bookingId: widget.bookingId,
+                senderType: 'shop',
+                bookingStatus: status,
+              ),
+            ),
+          ],
+          right: <Widget>[
+            AdminBookingDetailPaymentAside(
+              data: data,
+              bookingId: widget.bookingId,
+            ),
+            AdminBookingDetailPolicyCard(data: data),
+            AdminBookingDetailSection(
+              title: '訂單時間軸',
+              collapsible: true,
+              child: AdminBookingTimeline(
+                data: data,
+                status: status,
+                depositRequired: data['depositRequired'] == true,
+                daycare: true,
+              ),
+            ),
+            AdminBookingDetailSection(
+              title: '狀態',
+              collapsible: true,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  AdminBookingStatusChip(status: status, daycare: true),
+                  if (status == 'cancelled') ...<Widget>[
+                    const SizedBox(height: 8),
+                    Text(
+                      '取消原因：${(data['cancelReason'] ?? '').toString().trim().isEmpty ? '未填' : data['cancelReason']}',
+                      style: const TextStyle(
+                        color: Colors.red,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    Text(
+                      '取消來源：${(data['cancelBy'] ?? '').toString().trim().isEmpty ? '未填' : data['cancelBy']}',
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            AdminBookingDetailSection(
+              title: '操作紀錄',
+              collapsible: true,
+              initiallyExpanded: false,
+              child: AdminBookingActionLogSection(
+                shopId: widget.shopId,
+                bookingId: widget.bookingId,
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 

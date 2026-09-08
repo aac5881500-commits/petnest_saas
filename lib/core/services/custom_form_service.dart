@@ -3,7 +3,7 @@
 // 路徑：shops/{shopId}/custom_forms/{pet_profile|booking_submit}
 
 import 'dart:convert';
-
+import 'package:petnest_saas/core/models/custom_form_default_templates.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:petnest_saas/core/models/custom_form_model.dart';
 
@@ -41,7 +41,7 @@ class CustomFormService {
     ).get();
 
     if (!snapshot.exists || snapshot.data() == null) {
-      return CustomFormModel.empty(
+      return CustomFormDefaultTemplates.create(
         shopId: normalizedShopId,
         formType: formType,
       );
@@ -101,7 +101,56 @@ class CustomFormService {
     await ref.set(payload);
   }
 
+  /// 前台會員讀取。rules 不允許讀未啟用表單，permission-denied 視為未開啟。
+  Future<CustomFormFrontLoadResult> loadFormForCustomer({
+    required String shopId,
+    required CustomFormType formType,
+  }) async {
+    try {
+      final CustomFormModel form = await getForm(
+        shopId: shopId,
+        formType: formType,
+      );
+      return CustomFormFrontLoadResult.success(form);
+    } on FirebaseException catch (error) {
+      if (error.code == 'permission-denied' || error.code == 'not-found') {
+        return CustomFormFrontLoadResult.unavailable();
+      }
+      return CustomFormFrontLoadResult.failed(error.message ?? error.code);
+    } catch (error) {
+      return CustomFormFrontLoadResult.failed(error.toString());
+    }
+  }
+
   bool _sameContent(CustomFormModel a, CustomFormModel b) {
     return jsonEncode(a.contentSnapshot()) == jsonEncode(b.contentSnapshot());
   }
+}
+
+class CustomFormFrontLoadResult {
+  const CustomFormFrontLoadResult._({
+    required this.form,
+    required this.failed,
+    this.errorMessage = '',
+  });
+
+  factory CustomFormFrontLoadResult.success(CustomFormModel form) {
+    return CustomFormFrontLoadResult._(form: form, failed: false);
+  }
+
+  factory CustomFormFrontLoadResult.unavailable() {
+    return const CustomFormFrontLoadResult._(form: null, failed: false);
+  }
+
+  factory CustomFormFrontLoadResult.failed(String message) {
+    return CustomFormFrontLoadResult._(
+      form: null,
+      failed: true,
+      errorMessage: message,
+    );
+  }
+
+  final CustomFormModel? form;
+  final bool failed;
+  final String errorMessage;
 }

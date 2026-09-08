@@ -3,6 +3,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/models/custom_form_model.dart';
+import 'package:petnest_saas/core/models/custom_form_default_templates.dart';
 import 'package:petnest_saas/core/services/custom_form_service.dart';
 import 'package:petnest_saas/core/widgets/shop_task_center_button.dart';
 import 'package:petnest_saas/features/shop/widgets/custom_form/custom_form_question_editor.dart';
@@ -261,6 +262,43 @@ class _ShopCustomFormEditorPageState extends State<ShopCustomFormEditorPage> {
     return leave == true;
   }
 
+  Future<void> _applyDefaultTemplate() async {
+    final bool? confirmed = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('套用建議範本'),
+          content: const Text('套用後會取代目前畫面中的所有分類與問題，但必須再按「儲存設定」才會正式保存。'),
+          actions: <Widget>[
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('取消'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('確認套用'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirmed != true || !mounted) {
+      return;
+    }
+
+    final CustomFormModel template = CustomFormDefaultTemplates.create(
+      shopId: widget.shopId,
+      formType: widget.formType,
+    );
+
+    _markDirty(_form.copyWith(sections: template.sections));
+
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('已套用建議範本，確認內容後請按儲存設定')));
+  }
+
   Future<void> _save() async {
     final CustomFormModel form = _withFields(_form);
     if (form.title.trim().isEmpty) {
@@ -345,6 +383,12 @@ class _ShopCustomFormEditorPageState extends State<ShopCustomFormEditorPage> {
                       padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
                       children: <Widget>[
                         _buildFormMetaCard(colors),
+                        const SizedBox(height: 12),
+                        OutlinedButton.icon(
+                          onPressed: _saving ? null : _applyDefaultTemplate,
+                          icon: const Icon(Icons.auto_awesome_outlined),
+                          label: const Text('套用建議範本'),
+                        ),
                         const SizedBox(height: 12),
                         ..._form.sections.asMap().entries.map((
                           MapEntry<int, CustomFormSection> entry,

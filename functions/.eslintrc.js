@@ -20,11 +20,17 @@ module.exports = {
   },
   overrides: [
     {
-      files: ["**/*.spec.*"],
+      files: ["**/*.spec.*", "**/*.test.js"],
       env: {
         mocha: true,
+        es2020: true,
       },
-      rules: {},
+      parserOptions: {
+        "ecmaVersion": 2020,
+      },
+      rules: {
+        "max-len": "off",
+      },
     },
   ],
   globals: {},

@@ -15,6 +15,7 @@ class BookingSortBar extends StatelessWidget {
     required this.onSortChanged,
     required this.isGridMode,
     required this.onToggleViewMode,
+    this.daycareLabels = false,
   });
 
   final int totalCount;
@@ -22,6 +23,7 @@ class BookingSortBar extends StatelessWidget {
   final ValueChanged<String> onSortChanged;
   final bool isGridMode;
   final VoidCallback onToggleViewMode;
+  final bool daycareLabels;
 
   @override
   Widget build(BuildContext context) {
@@ -45,11 +47,17 @@ class BookingSortBar extends StatelessWidget {
               borderRadius: BorderRadius.circular(14),
             ),
             itemBuilder: (context) {
-              return const [
-                PopupMenuItem(value: 'startDesc', child: Text('入住日新到舊')),
-                PopupMenuItem(value: 'startAsc', child: Text('入住日舊到新')),
-                PopupMenuItem(value: 'createdDesc', child: Text('下訂新到舊')),
-                PopupMenuItem(value: 'createdAsc', child: Text('下訂舊到新')),
+              return [
+                PopupMenuItem(
+                  value: 'startDesc',
+                  child: Text(daycareLabels ? '安親日期新到舊' : '入住日新到舊'),
+                ),
+                PopupMenuItem(
+                  value: 'startAsc',
+                  child: Text(daycareLabels ? '安親日期舊到新' : '入住日舊到新'),
+                ),
+                const PopupMenuItem(value: 'createdDesc', child: Text('下訂新到舊')),
+                const PopupMenuItem(value: 'createdAsc', child: Text('下訂舊到新')),
               ];
             },
             child: Container(
@@ -123,14 +131,14 @@ class BookingSortBar extends StatelessWidget {
   String _sortText(String value) {
     switch (value) {
       case 'startAsc':
-        return '入住日舊到新';
+        return daycareLabels ? '安親日期舊到新' : '入住日舊到新';
       case 'createdDesc':
         return '下訂新到舊';
       case 'createdAsc':
         return '下訂舊到新';
       case 'startDesc':
       default:
-        return '入住日新到舊';
+        return daycareLabels ? '安親日期新到舊' : '入住日新到舊';
     }
   }
 }

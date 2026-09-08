@@ -128,7 +128,12 @@ class PreArrivalGuideModel {
 
   String get displayTitle {
     final String value = title.trim();
-    return value.isEmpty ? '入住前請準備' : value;
+    if (value.isNotEmpty) {
+      return value;
+    }
+    return serviceType == PreArrivalGuideServiceType.daycare
+        ? '安親前準備'
+        : '入住前準備';
   }
 
   List<PreArrivalGuideBlock> get visibleBlocks {
@@ -151,7 +156,9 @@ class PreArrivalGuideModel {
     return PreArrivalGuideModel(
       shopId: shopId.trim(),
       serviceType: serviceType,
-      title: '入住前請準備',
+      title: serviceType == PreArrivalGuideServiceType.daycare
+          ? '安親前準備'
+          : '入住前準備',
     );
   }
 

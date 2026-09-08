@@ -48,6 +48,72 @@ void main() {
       expect(view.serviceLabel.contains('臨托'), isFalse);
     });
 
+    test('安親小時計費明細顯示起步與超過起步，不用方案名稱當時間費', () {
+      final BookingDetailViewData view = BookingDetailViewData.fromBooking(
+        data: <String, dynamic>{
+          'bookingKind': 'daycare',
+          'totalPrice': 1500,
+          'daycarePlanName': '每小時計費',
+          'daycarePlanSnapshot': <String, dynamic>{
+            'name': '每小時計費',
+            'includedMinutes': 120,
+            'basePrice': 200,
+            'extraBillingMinutes': 60,
+            'extraBillingPrice': 100,
+          },
+          'daycarePricingSnapshot': <String, dynamic>{
+            'baseAmount': 200,
+            'extraTimeAmount': 800,
+            'extraMinutes': 480,
+            'extraUnits': 8,
+            'includedMinutes': 120,
+            'extraBillingMinutes': 60,
+            'timeCharge': 1000,
+            'addonAmount': 500,
+            'totalAmount': 1500,
+            'durationMinutes': 600,
+          },
+          'addons': <Map<String, dynamic>>[
+            <String, dynamic>{'name': '加值 A', 'total': 300},
+            <String, dynamic>{'name': '加值 B', 'total': 200},
+          ],
+        },
+        docId: 'id',
+      );
+      expect(view.daycareBillingRuleText, contains('起步 2 小時 NT\$200'));
+      expect(
+        view.feeLines.any((BookingDetailFeeLine line) => line.label == '每小時計費'),
+        isFalse,
+      );
+      expect(
+        view.feeLines.any(
+          (BookingDetailFeeLine line) =>
+              line.label.startsWith('起步費') && line.amount == 200,
+        ),
+        isTrue,
+      );
+      expect(
+        view.feeLines.any(
+          (BookingDetailFeeLine line) =>
+              line.label.contains('超過起步') && line.amount == 800,
+        ),
+        isTrue,
+      );
+      expect(
+        view.feeLines.any(
+          (BookingDetailFeeLine line) =>
+              line.label == '加值 A' && line.amount == 300,
+        ),
+        isTrue,
+      );
+      expect(
+        view.feeLines
+            .firstWhere((BookingDetailFeeLine line) => line.isTotal)
+            .amount,
+        1500,
+      );
+    });
+
     test('未分房不顯示 ---', () {
       final BookingDetailViewData view = BookingDetailViewData.fromBooking(
         data: <String, dynamic>{

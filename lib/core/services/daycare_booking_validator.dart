@@ -69,6 +69,18 @@ class DaycareBookingValidator {
           DaycareTimeHelper.sameCalendarDay(startAt, clock)) {
         return const DaycareValidationResult.error('不可預約當日安親');
       }
+      if (DaycareTimeHelper.isTodayPastLatestPickUp(
+        date: startAt,
+        latestPickUp: hours.latestPickUp,
+        now: clock,
+      )) {
+        return DaycareValidationResult.error(
+          '今日已超過最晚接回時間（${hours.latestPickUp}），請選擇其他日期',
+        );
+      }
+      if (!startAt.isAfter(clock)) {
+        return const DaycareValidationResult.error('送達時間必須晚於現在時間');
+      }
       if (settings.minAdvanceHours > 0 &&
           startAt.difference(clock).inHours < settings.minAdvanceHours) {
         return const DaycareValidationResult.error('需提前預約');

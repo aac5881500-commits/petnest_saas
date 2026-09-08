@@ -111,6 +111,7 @@ class BookingService {
 
     /// 🔒 同一次送出請求的唯一識別碼，用來避免網路重送建立兩筆訂單
     String requestId = '',
+    Map<String, dynamic>? customFormAnswers,
   }) async {
     final user = _currentUser;
 
@@ -324,6 +325,8 @@ class BookingService {
         /// 系統欄位
         'createdAt': FieldValue.serverTimestamp(),
         'updatedAt': FieldValue.serverTimestamp(),
+        if (customFormAnswers != null && customFormAnswers.isNotEmpty)
+          'customFormAnswers': customFormAnswers,
       });
 
       debugPrint('BOOKING_IDEMPOTENCY: 建立成功 ${doc.id}');

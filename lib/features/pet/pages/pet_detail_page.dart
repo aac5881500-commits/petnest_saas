@@ -6,6 +6,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/models/home_theme_model.dart';
+import 'package:petnest_saas/core/services/pet_shop_form_answers.dart';
+import 'package:petnest_saas/features/custom_form/widgets/custom_form_answer_view.dart';
 import 'package:petnest_saas/features/pet/widgets/edit_pet_sheet.dart';
 
 class PetDetailPage extends StatelessWidget {
@@ -14,11 +16,13 @@ class PetDetailPage extends StatelessWidget {
     required this.pet,
     this.isAdminView = false,
     this.theme = HomeThemeModel.modernDefault,
+    this.shopId = '',
   });
 
   final Map<String, dynamic> pet;
   final bool isAdminView;
   final HomeThemeModel theme;
+  final String shopId;
 
   @override
   Widget build(BuildContext context) {
@@ -39,7 +43,16 @@ class PetDetailPage extends StatelessWidget {
         ),
       ),
       body: uid.isEmpty || petId.isEmpty
-          ? _PetDetailBody(pet: pet, theme: theme, isAdminView: isAdminView)
+          ? _PetDetailBody(
+              pet: pet,
+              theme: theme,
+              isAdminView: isAdminView,
+              shopId: shopId,
+              shopAnswers: PetShopFormAnswers.resolve(
+                shopId: shopId,
+                petData: pet,
+              ),
+            )
           : StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
               stream: FirebaseFirestore.instance
                   .collection('user_profiles')
@@ -55,10 +68,50 @@ class PetDetailPage extends StatelessWidget {
                   ) {
                     final Map<String, dynamic> data =
                         snapshot.data?.data() ?? pet;
-                    return _PetDetailBody(
-                      pet: data,
-                      theme: theme,
-                      isAdminView: isAdminView,
+                    final String currentShopId = shopId.trim();
+                    if (currentShopId.isEmpty) {
+                      return _PetDetailBody(
+                        pet: data,
+                        theme: theme,
+                        isAdminView: isAdminView,
+                        shopId: shopId,
+                        shopAnswers: PetShopFormAnswers.resolve(
+                          shopId: shopId,
+                          petData: data,
+                        ),
+                      );
+                    }
+                    return StreamBuilder<
+                      DocumentSnapshot<Map<String, dynamic>>
+                    >(
+                      stream: FirebaseFirestore.instance
+                          .collection('user_profiles')
+                          .doc(uid)
+                          .collection('pets')
+                          .doc(petId)
+                          .collection(PetShopFormAnswers.collectionName)
+                          .doc(currentShopId)
+                          .snapshots(),
+                      builder:
+                          (
+                            BuildContext context,
+                            AsyncSnapshot<
+                              DocumentSnapshot<Map<String, dynamic>>
+                            >
+                            answersSnapshot,
+                          ) {
+                            return _PetDetailBody(
+                              pet: data,
+                              theme: theme,
+                              isAdminView: isAdminView,
+                              shopId: shopId,
+                              shopAnswers: PetShopFormAnswers.resolve(
+                                shopId: currentShopId,
+                                subcollectionData: answersSnapshot.data?.data(),
+                                petData: data,
+                              ),
+                            );
+                          },
                     );
                   },
             ),
@@ -71,11 +124,15 @@ class _PetDetailBody extends StatelessWidget {
     required this.pet,
     required this.theme,
     required this.isAdminView,
+    required this.shopId,
+    this.shopAnswers,
   });
 
   final Map<String, dynamic> pet;
   final HomeThemeModel theme;
   final bool isAdminView;
+  final String shopId;
+  final Map<String, dynamic>? shopAnswers;
 
   String _text(dynamic value) {
     final String text = (value ?? '').toString().trim();
@@ -165,20 +222,7 @@ class _PetDetailBody extends StatelessWidget {
         ),
         const SizedBox(height: 12),
         _notesCard(note),
-        const SizedBox(height: 12),
-        _sectionCard(
-          icon: Icons.assignment_outlined,
-          title: '店家自訂資料',
-          children: <Widget>[
-            Text(
-              '尚無自訂資料',
-              style: TextStyle(
-                fontSize: 12,
-                color: theme.textColor.withValues(alpha: 0.45),
-              ),
-            ),
-          ],
-        ),
+        CustomFormAnswerView(raw: shopAnswers, title: '店家照護資料', theme: theme),
         if (isAdminView) ...<Widget>[
           const SizedBox(height: 12),
           _sectionCard(
@@ -300,6 +344,7 @@ class _PetDetailBody extends StatelessWidget {
                     pet: pet,
                     theme: theme,
                     isAdminView: isAdminView,
+                    shopId: shopId,
                   ),
                   icon: Icon(Icons.edit_outlined, color: theme.textColor),
                 ),

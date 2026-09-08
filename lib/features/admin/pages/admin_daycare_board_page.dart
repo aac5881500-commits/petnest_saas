@@ -1,5 +1,5 @@
 // 檔案名稱：lib/features/admin/pages/admin_daycare_board_page.dart
-// 功能說明：今日臨托：當天操作看板，不是第二個訂單列表
+// 功能說明：今日安親：當天操作看板，不是第二個訂單列表
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
@@ -25,7 +25,7 @@ class AdminDaycareBoardPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('今日臨托')),
+      appBar: AppBar(title: const Text('今日安親')),
       body: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
         stream: FirebaseFirestore.instance
             .collection('bookings')
@@ -66,7 +66,7 @@ class AdminDaycareBoardPage extends StatelessWidget {
                             Icon(Icons.wb_sunny_outlined, size: 36),
                             SizedBox(height: 12),
                             Text(
-                              '今日尚無臨托訂單',
+                              '今日尚無安親訂單',
                               style: TextStyle(
                                 fontSize: 16,
                                 fontWeight: FontWeight.w700,
@@ -123,7 +123,7 @@ class AdminDaycareBoardPage extends StatelessWidget {
                 children: <Widget>[
                   _BoardSection(shopId: shopId, title: '待店家確認', items: pending),
                   _BoardSection(shopId: shopId, title: '等待送達', items: waiting),
-                  _BoardSection(shopId: shopId, title: '臨托中', items: ongoing),
+                  _BoardSection(shopId: shopId, title: '安親中', items: ongoing),
                   _BoardSection(shopId: shopId, title: '即將接回', items: pickup),
                   _BoardSection(shopId: shopId, title: '已超時', items: overtime),
                   _BoardSection(shopId: shopId, title: '今日已完成', items: done),
@@ -327,7 +327,7 @@ class _BoardCardState extends State<_BoardCard> {
                 if (status == 'checked_in')
                   FilledButton(
                     onPressed: _busy ? null : () => _run('complete'),
-                    child: const Text('完成臨托'),
+                    child: const Text('完成安親'),
                   ),
               ],
             ),

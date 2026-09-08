@@ -7,7 +7,7 @@ import '../models/daily_care_setting_model.dart';
 import '../models/shop_task_item.dart';
 import '../services/daily_care_setting_service.dart';
 import '../services/shop_task_center_service.dart';
-import '../../features/admin/pages/admin_booking_detail_page.dart';
+import 'package:petnest_saas/core/navigation/admin_booking_route.dart';
 import '../../features/room/pages/daily_care_record_edit_page.dart';
 
 class ShopTaskCenterPanel extends StatelessWidget {
@@ -341,7 +341,7 @@ class _BookingTile extends StatelessWidget {
               Navigator.of(context).push(
                 MaterialPageRoute<void>(
                   builder: (_) =>
-                      AdminBookingDetailPage(bookingId: item.targetId),
+                      AdminBookingRouteGate(bookingId: item.targetId),
                 ),
               );
             }

@@ -11,11 +11,13 @@ class AdminBookingTimeline extends StatelessWidget {
     required this.data,
     required this.status,
     required this.depositRequired,
+    this.daycare = false,
   });
 
   final Map<String, dynamic> data;
   final String status;
   final bool depositRequired;
+  final bool daycare;
 
   @override
   Widget build(BuildContext context) {
@@ -68,15 +70,19 @@ class AdminBookingTimeline extends StatelessWidget {
           ),
 
           _timelineItem(
-            title: '入住',
-            time: adminBookingFormatDateTime(data['checkInAt']),
-            active: data['checkInAt'] != null,
+            title: daycare ? '送達／開始安親' : '入住',
+            time: adminBookingFormatDateTime(
+              data['actualStartAt'] ?? data['checkInAt'],
+            ),
+            active: data['actualStartAt'] != null || data['checkInAt'] != null,
           ),
 
           _timelineItem(
-            title: '退房完成',
-            time: adminBookingFormatDateTime(data['checkOutAt']),
-            active: data['checkOutAt'] != null,
+            title: daycare ? '接回／結算完成' : '退房完成',
+            time: adminBookingFormatDateTime(
+              data['actualEndAt'] ?? data['checkOutAt'],
+            ),
+            active: data['actualEndAt'] != null || data['checkOutAt'] != null,
           ),
 
           if (status == 'cancelled')

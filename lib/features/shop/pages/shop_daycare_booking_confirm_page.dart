@@ -26,6 +26,7 @@ import 'package:petnest_saas/core/services/payment_function_service.dart';
 import 'package:petnest_saas/core/services/point_setting_service.dart';
 import 'package:petnest_saas/core/services/home_banner_service.dart';
 import 'package:petnest_saas/core/services/shop_service.dart';
+import 'package:petnest_saas/features/booking/models/booking_form_submit_data.dart';
 import 'package:petnest_saas/features/booking/pages/booking_form_page.dart';
 import 'package:petnest_saas/features/booking/pages/booking_success_page.dart';
 import 'package:petnest_saas/features/payment/pages/ecpay_payment_page.dart';
@@ -277,12 +278,25 @@ class _ShopDaycareBookingConfirmPageState
           isBlacklisted: false,
           submitLabel: '確認訂單',
           feeSummaryTitle: '安親費用摘要',
+          feeRuleText: _ruleText(quote),
           theme: HomeBannerService.instance.themeFromShop(widget.shop),
           termsServiceType: PolicyApplicableService.daycare,
           feeLineItems: feeLines,
           onSubmitWithData: _submit,
         ),
       ),
+    );
+  }
+
+  String _ruleText(DaycareQuote quote) {
+    return DaycarePricingService.instance.hourlyRuleTextFromQuote(
+      quote,
+      extraBillingPrice: widget.settings.isRoomBased
+          ? (widget.settings
+                    .roomTypeSetting(widget.requestedRoomTypeId)
+                    ?.extraBillingPrice ??
+                0)
+          : widget.plan.extraBillingPrice,
     );
   }
 
@@ -295,6 +309,7 @@ class _ShopDaycareBookingConfirmPageState
                 : '${widget.requestedRoomTypeName}・起步價格')
           : widget.plan.name,
       depositType: widget.settings.depositType,
+      isRoomBased: widget.settings.isRoomBased,
       addonLines: _addonLines
           .map(
             (Map<String, dynamic> addon) => BookingFeeLineItem(
@@ -306,18 +321,17 @@ class _ShopDaycareBookingConfirmPageState
     );
   }
 
-  Future<void> _submit(
-    String address,
-    String emergencyName,
-    String emergencyPhone,
-    String relation,
-    String emergencyAddress,
-    String phone2,
-    int depositAmount,
-    String paymentMethod,
-    String payAmountType,
-    TermsConsentSnapshot termsConsent,
-  ) async {
+  Future<void> _submit(BookingFormSubmitData data) async {
+    final String address = data.fullAddress;
+    final String emergencyName = data.emergencyName;
+    final String emergencyPhone = data.emergencyPhone;
+    final String relation = data.emergencyRelation;
+    final String emergencyAddress = data.emergencyAddress;
+    final String phone2 = data.secondaryPhone;
+    final int depositAmount = data.calculatedDeposit;
+    final String paymentMethod = data.paymentMethod;
+    final String payAmountType = data.payAmountType;
+    final TermsConsentSnapshot termsConsent = data.termsConsent;
     final User? user = FirebaseAuth.instance.currentUser;
     if (user == null) {
       return;
@@ -489,6 +503,8 @@ class _ShopDaycareBookingConfirmPageState
             if (_selectedCoupon != null) 'couponId': _selectedCoupon!.id,
             if (_selectedCoupon != null) 'couponName': _selectedCoupon!.name,
             'couponDiscountAmount': quote.couponAmount,
+            if (data.customFormAnswers != null)
+              'customFormAnswers': data.customFormAnswers!.toCallableMap(),
           });
       final String bookingId = (created['bookingId'] ?? requestId).toString();
       if (!mounted) {
@@ -589,6 +605,71 @@ class _ShopDaycareBookingConfirmPageState
                 ? '實際房間將由店家安排'
                 : '房間將由店家安排',
           ),
+          const SizedBox(height: 16),
+          Text(
+            '費用明細',
+            style: Theme.of(
+              context,
+            ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            _ruleText(quote),
+            style: const TextStyle(
+              fontSize: 13,
+              height: 1.4,
+              color: Colors.grey,
+            ),
+          ),
+          const SizedBox(height: 8),
+          ..._buildFeeLines(quote).map((BookingFeeLineItem line) {
+            final String prefix = line.amount < 0
+                ? '-NT\$ ${line.amount.abs()}'
+                : 'NT\$ ${line.amount}';
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: <Widget>[
+                        Text(
+                          line.label,
+                          style: TextStyle(
+                            fontWeight:
+                                line.kind == BookingFeeLineKind.total ||
+                                    line.kind == BookingFeeLineKind.payable
+                                ? FontWeight.w700
+                                : FontWeight.w500,
+                          ),
+                        ),
+                        if (line.subtitle.isNotEmpty)
+                          Text(
+                            line.subtitle,
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: Colors.grey,
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                  Text(
+                    prefix,
+                    style: TextStyle(
+                      fontWeight:
+                          line.kind == BookingFeeLineKind.total ||
+                              line.kind == BookingFeeLineKind.payable
+                          ? FontWeight.w700
+                          : FontWeight.w500,
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }),
           if (_pointsSpendEnabled && quote.pointAmount == 0) ...<Widget>[
             const SizedBox(height: 12),
             const Text(

@@ -1041,7 +1041,7 @@ class _CatHotelTab extends StatelessWidget {
         if (_can(ShopPermissionKeys.manageBookingSettings) ||
             _can(ShopPermissionKeys.managePolicy))
           _MenuTile(
-            title: '入住前準備',
+            title: '入住／安親前準備',
             subtitle: isProfileComplete ? '設定入住前需要攜帶與注意的內容' : '請先完成基本資料',
             icon: Icons.checklist_outlined,
             enabled: isProfileComplete,

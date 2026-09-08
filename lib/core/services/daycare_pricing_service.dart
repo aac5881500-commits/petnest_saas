@@ -196,12 +196,86 @@ class DaycareSettlement {
   }
 }
 
+class DaycareLatePickupBreakdown {
+  const DaycareLatePickupBreakdown({
+    required this.extraMinutes,
+    required this.graceMinutes,
+    required this.billableMinutes,
+    required this.unitMinutes,
+    required this.unitPrice,
+    required this.units,
+    required this.amount,
+    required this.enabled,
+  });
+
+  final int extraMinutes;
+  final int graceMinutes;
+  final int billableMinutes;
+  final int unitMinutes;
+  final int unitPrice;
+  final int units;
+  final int amount;
+  final bool enabled;
+
+  String get formula {
+    if (amount <= 0 || units <= 0) {
+      return '未加收';
+    }
+    if (unitMinutes == 30) {
+      return '$units 個 30 分鐘 × NT\$$unitPrice';
+    }
+    return '$units 小時 × NT\$$unitPrice';
+  }
+}
+
+class DaycareHourlyDisplayInfo {
+  const DaycareHourlyDisplayInfo({
+    required this.billingModeLabel,
+    required this.ruleText,
+    required this.startRuleText,
+    required this.extraRuleText,
+    required this.reservationText,
+    required this.thisChargeText,
+    required this.capText,
+    required this.itemLines,
+  });
+
+  final String billingModeLabel;
+  final String ruleText;
+  final String startRuleText;
+  final String extraRuleText;
+  final String reservationText;
+  final String thisChargeText;
+  final String capText;
+  final List<BookingFeeLineItem> itemLines;
+}
+
 class DaycarePricingService {
   DaycarePricingService._();
 
   static final DaycarePricingService instance = DaycarePricingService._();
 
   static int roundMoney(num value) => value.round();
+
+  static int readInt(dynamic value) {
+    if (value is int) {
+      return value;
+    }
+    if (value is num) {
+      return value.round();
+    }
+    return int.tryParse(value?.toString() ?? '') ?? 0;
+  }
+
+  static Map<String, dynamic> readMap(dynamic value) {
+    if (value is Map<String, dynamic>) {
+      return value;
+    }
+    if (value is Map) {
+      return Map<String, dynamic>.from(value);
+    }
+    return <String, dynamic>{};
+  }
 
   static String minutesLabel(int minutes) {
     if (minutes <= 0) {
@@ -214,6 +288,47 @@ class DaycarePricingService {
       return '${minutes ~/ 60} 小時 ${minutes % 60} 分鐘';
     }
     return '$minutes 分鐘';
+  }
+
+  static String hourlyBillingRuleText({
+    required int includedMinutes,
+    required int basePrice,
+    required int extraBillingMinutes,
+    required int extraBillingPrice,
+  }) {
+    final String included = minutesLabel(
+      includedMinutes < 1 ? 0 : includedMinutes,
+    );
+    if (extraBillingMinutes == 30) {
+      return '起步 $included NT\$$basePrice，超過後每 30 分鐘 NT\$$extraBillingPrice；不足 30 分鐘以 30 分鐘計。';
+    }
+    return '起步 $included NT\$$basePrice，超過後每小時 NT\$$extraBillingPrice；不足 1 小時以 1 小時計。';
+  }
+
+  static String extraUnitRateText({
+    required int extraBillingMinutes,
+    required int extraBillingPrice,
+  }) {
+    if (extraBillingMinutes == 30) {
+      return '每 30 分鐘 NT\$$extraBillingPrice';
+    }
+    return '每小時 NT\$$extraBillingPrice';
+  }
+
+  static String extraOvertimeLineLabel({
+    required int extraMinutes,
+    required int extraUnits,
+    required int extraBillingMinutes,
+    required int unitPrice,
+  }) {
+    final int billedMinutes = extraMinutes > 0
+        ? extraMinutes
+        : extraUnits * (extraBillingMinutes == 30 ? 30 : 60);
+    final String over = minutesLabel(billedMinutes);
+    if (extraBillingMinutes == 30) {
+      return '超過起步 $over（$extraUnits 個 30 分鐘 × NT\$$unitPrice）';
+    }
+    return '超過起步 $over（$extraUnits 小時 × NT\$$unitPrice）';
   }
 
   DaycareTimeCharge quoteTimeCharge({
@@ -266,6 +381,120 @@ class DaycarePricingService {
     };
   }
 
+  List<BookingFeeLineItem> timeChargeItemLines({
+    required int baseAmount,
+    required int includedMinutes,
+    required int extraMinutes,
+    required int extraUnits,
+    required int extraBillingMinutes,
+    required int extraBillingPrice,
+    required int extraTimeAmount,
+    required int extraPetCount,
+    required int extraPetAmount,
+    int extraPetUnitPrice = 0,
+    int maxBaseCharge = 0,
+    int timeCharge = 0,
+    int uncappedTimeCharge = 0,
+    int surchargeAmount = 0,
+    int timeAddonAmount = 0,
+    int overtimeAmount = 0,
+    int overtimeMinutes = 0,
+  }) {
+    final List<BookingFeeLineItem> lines = <BookingFeeLineItem>[];
+    final int unit = extraBillingMinutes == 30 ? 30 : 60;
+    if (baseAmount > 0) {
+      final String includedLabel = includedMinutes > 0
+          ? minutesLabel(includedMinutes)
+          : '';
+      lines.add(
+        BookingFeeLineItem(
+          label: includedLabel.isEmpty ? '起步費' : '起步費（含 $includedLabel）',
+          amount: baseAmount,
+        ),
+      );
+    }
+    final int extraTime = extraTimeAmount > 0
+        ? extraTimeAmount
+        : (extraUnits > 0 && uncappedTimeCharge > baseAmount
+              ? (uncappedTimeCharge - baseAmount).clamp(0, 1 << 30)
+              : 0);
+    if (extraTime > 0) {
+      final int units = extraUnits > 0
+          ? extraUnits
+          : (extraMinutes > 0 ? (extraMinutes / unit).ceil() : 0);
+      final int unitPrice = units > 0
+          ? extraTime ~/ units
+          : (extraBillingPrice > 0 ? extraBillingPrice : extraTime);
+      final int shownUnits = units > 0 ? units : 1;
+      lines.add(
+        BookingFeeLineItem(
+          label: extraOvertimeLineLabel(
+            extraMinutes: extraMinutes,
+            extraUnits: shownUnits,
+            extraBillingMinutes: unit,
+            unitPrice: unitPrice,
+          ),
+          amount: extraTime,
+          subtitle: extraUnitRateText(
+            extraBillingMinutes: unit,
+            extraBillingPrice: unitPrice,
+          ),
+        ),
+      );
+    } else if (baseAmount <= 0 && timeCharge > 0) {
+      lines.add(BookingFeeLineItem(label: '安親時間費用', amount: timeCharge));
+    }
+
+    final int uncapped = uncappedTimeCharge > 0
+        ? uncappedTimeCharge
+        : (baseAmount + extraTime);
+    final int charged = timeCharge > 0 ? timeCharge : uncapped;
+    final int capDiscount = maxBaseCharge > 0 && uncapped > charged
+        ? uncapped - charged
+        : 0;
+    if (capDiscount > 0 && maxBaseCharge > 0) {
+      lines.add(
+        BookingFeeLineItem(
+          label: '已套用當次最高費用 NT\$$maxBaseCharge',
+          amount: -capDiscount,
+          kind: BookingFeeLineKind.discount,
+        ),
+      );
+    }
+
+    if (extraPetCount > 0 && extraPetAmount > 0) {
+      final int unitPrice = extraPetUnitPrice > 0
+          ? extraPetUnitPrice
+          : extraPetAmount ~/ extraPetCount;
+      lines.add(
+        BookingFeeLineItem(
+          label: unitPrice > 0
+              ? '多寵費（增加 $extraPetCount 隻 × NT\$$unitPrice）'
+              : '多寵費（增加 $extraPetCount 隻）',
+          amount: extraPetAmount,
+        ),
+      );
+    } else if (extraPetAmount > 0) {
+      lines.add(BookingFeeLineItem(label: '多寵費', amount: extraPetAmount));
+    }
+    if (surchargeAmount > 0) {
+      lines.add(BookingFeeLineItem(label: '特殊日期加價', amount: surchargeAmount));
+    }
+    if (timeAddonAmount > 0) {
+      lines.add(BookingFeeLineItem(label: '時間加購', amount: timeAddonAmount));
+    }
+    if (overtimeAmount > 0) {
+      lines.add(
+        BookingFeeLineItem(
+          label: '接回逾時費',
+          amount: overtimeAmount,
+          subtitle: overtimeMinutes > 0 ? '$overtimeMinutes 分鐘' : '',
+        ),
+      );
+    }
+    return lines;
+  }
+
   List<BookingFeeLineItem> customerFeeLines({
     required DaycareQuote quote,
     required String primaryLabel,
@@ -274,72 +503,26 @@ class DaycarePricingService {
     bool isRoomBased = false,
     bool includePayable = true,
   }) {
-    final String includedLabel = minutesLabel(quote.includedMinutes);
-    final String uncappedLabel = isRoomBased ? '原計費金額' : '計費原計';
-    final String capDiscountLabel = isRoomBased ? '當日房型上限調整' : '計費上限調整';
-    final String cappedLabel = isRoomBased ? '當日房型費' : '方案計費';
-
-    final List<BookingFeeLineItem> lines = <BookingFeeLineItem>[
-      BookingFeeLineItem(
-        label: '起步費（含 $includedLabel）',
-        amount: quote.baseAmount,
-      ),
-    ];
-
-    final int extraTime = quote.extraUnits > 0
-        ? (quote.uncappedTimeCharge - quote.baseAmount).clamp(0, 1 << 30)
-        : 0;
-
-    if (quote.extraUnits > 0 && extraTime > 0) {
-      final int unitPrice = extraTime ~/ quote.extraUnits;
-      final String unitText = quote.extraBillingMinutes == 30
-          ? '${quote.extraUnits} 個 30 分鐘'
-          : '${quote.extraUnits} 小時';
-
-      lines.add(
-        BookingFeeLineItem(
-          label: '超時費（$unitText × ${DaycarePlanModel.moneyLabel(unitPrice)}）',
-          amount: extraTime,
-        ),
-      );
-    }
-
-    final bool capHit =
-        quote.maxBaseCharge > 0 && quote.timeChargeCapDiscount > 0;
-
-    if (capHit) {
-      lines.add(
-        BookingFeeLineItem(
-          label: uncappedLabel,
-          amount: quote.uncappedTimeCharge,
-        ),
-      );
-      lines.add(
-        BookingFeeLineItem(
-          label: capDiscountLabel,
-          amount: -quote.timeChargeCapDiscount,
-          kind: BookingFeeLineKind.discount,
-        ),
-      );
-      lines.add(
-        BookingFeeLineItem(label: cappedLabel, amount: quote.timeCharge),
-      );
-    }
-    if (quote.extraPetCount > 0 && quote.extraPetAmount > 0) {
-      lines.add(
-        BookingFeeLineItem(
-          label: '多寵費（增加 ${quote.extraPetCount} 隻）',
-          amount: quote.extraPetAmount,
-        ),
-      );
-    }
+    final List<BookingFeeLineItem> lines = timeChargeItemLines(
+      baseAmount: quote.baseAmount,
+      includedMinutes: quote.includedMinutes,
+      extraMinutes: quote.extraMinutes,
+      extraUnits: quote.extraUnits,
+      extraBillingMinutes: quote.extraBillingMinutes,
+      extraBillingPrice: quote.extraUnits > 0 && quote.extraTimeAmount > 0
+          ? quote.extraTimeAmount ~/ quote.extraUnits
+          : 0,
+      extraTimeAmount: quote.extraTimeAmount,
+      extraPetCount: quote.extraPetCount,
+      extraPetAmount: quote.extraPetAmount,
+      maxBaseCharge: quote.maxBaseCharge,
+      timeCharge: quote.timeCharge,
+      uncappedTimeCharge: quote.uncappedTimeCharge,
+      surchargeAmount: quote.surchargeAmount,
+      overtimeAmount: quote.overtimeAmount,
+    );
     if (addonLines.isNotEmpty) {
       lines.addAll(addonLines);
-      int addonTotal = 0;
-      for (final BookingFeeLineItem line in addonLines) {
-        addonTotal += line.amount;
-      }
-      lines.add(BookingFeeLineItem(label: '加值服務小計', amount: addonTotal));
     }
     if (quote.couponAmount > 0) {
       lines.add(
@@ -379,13 +562,329 @@ class DaycarePricingService {
     return lines;
   }
 
+  List<BookingFeeLineItem> itemLinesFromBooking(Map<String, dynamic> booking) {
+    final Map<String, dynamic> snap = readMap(
+      booking['daycarePricingSnapshot'],
+    );
+    final Map<String, dynamic> timeSnap = readMap(
+      booking['timeChargeSnapshot'],
+    );
+    final Map<String, dynamic> plan = readMap(
+      booking['daycarePlanPriceSnapshot'] ?? booking['daycarePlanSnapshot'],
+    );
+    final Map<String, dynamic> room = readMap(
+      booking['requestedRoomTypePriceSnapshot'],
+    );
+    final Map<String, dynamic> rateSource = plan;
+
+    int extraBillingMinutes = readInt(
+      snap['extraBillingMinutes'] ?? timeSnap['extraBillingMinutes'],
+    );
+    if (extraBillingMinutes != 30 && extraBillingMinutes != 60) {
+      extraBillingMinutes = readInt(
+        rateSource['extraBillingMinutes'] ?? room['extraBillingMinutes'],
+      );
+    }
+    if (extraBillingMinutes != 30) {
+      extraBillingMinutes = 60;
+    }
+
+    int includedMinutes = readInt(
+      snap['includedMinutes'] ?? timeSnap['includedMinutes'],
+    );
+    if (includedMinutes <= 0) {
+      includedMinutes = readInt(
+        rateSource['includedMinutes'] ?? room['includedMinutes'],
+      );
+    }
+
+    int extraTimeAmount = readInt(snap['extraTimeAmount']);
+    if (extraTimeAmount <= 0) {
+      extraTimeAmount = readInt(snap['roomTypeExtra']);
+    }
+
+    int extraUnits = readInt(snap['extraUnits'] ?? timeSnap['extraUnits']);
+    int extraMinutes = readInt(
+      snap['extraMinutes'] ?? timeSnap['extraMinutes'],
+    );
+    if (extraMinutes <= 0 && extraUnits > 0) {
+      extraMinutes = extraUnits * extraBillingMinutes;
+    }
+
+    int extraBillingPrice = readInt(
+      rateSource['extraBillingPrice'] ?? room['extraBillingPrice'],
+    );
+    if (extraBillingPrice <= 0 && extraUnits > 0 && extraTimeAmount > 0) {
+      extraBillingPrice = extraTimeAmount ~/ extraUnits;
+    }
+
+    int baseAmount = readInt(snap['baseAmount']);
+    if (baseAmount <= 0) {
+      baseAmount = readInt(rateSource['basePrice'] ?? room['basePrice']);
+    }
+    final int timeCharge = readInt(
+      snap['timeCharge'] ?? timeSnap['timeCharge'],
+    );
+    final int uncappedTimeCharge = readInt(
+      snap['uncappedTimeCharge'] ?? timeSnap['uncappedTimeCharge'],
+    );
+    final int maxBaseCharge = readInt(
+      snap['maxBaseCharge'] ??
+          timeSnap['maxBaseCharge'] ??
+          rateSource['maxBaseCharge'] ??
+          room['maxBaseCharge'],
+    );
+    if (baseAmount <= 0 &&
+        extraTimeAmount > 0 &&
+        timeCharge > extraTimeAmount) {
+      final bool capped =
+          maxBaseCharge > 0 &&
+          uncappedTimeCharge > 0 &&
+          timeCharge < uncappedTimeCharge;
+      if (!capped) {
+        baseAmount = timeCharge - extraTimeAmount;
+      }
+    }
+    if (baseAmount <= 0 && extraTimeAmount <= 0 && timeCharge > 0) {
+      baseAmount = timeCharge;
+    }
+
+    final int extraPetAmount = readInt(
+      snap['extraPetAmount'] ?? timeSnap['extraPetCharge'],
+    );
+    int extraPetCount = readInt(
+      snap['extraPetCount'] ?? timeSnap['extraPetCount'],
+    );
+    if (extraPetCount <= 0 && extraPetAmount > 0) {
+      extraPetCount = 1;
+    }
+    int extraPetUnitPrice = readInt(
+      rateSource['extraPetPrice'] ?? room['extraPetPrice'],
+    );
+    if (extraPetUnitPrice <= 0 && extraPetCount > 0 && extraPetAmount > 0) {
+      extraPetUnitPrice = extraPetAmount ~/ extraPetCount;
+    }
+
+    final int surchargeAmount = readInt(
+      snap['surchargeAmount'] ?? booking['specialDateSurchargeAmount'],
+    );
+    final int timeAddonAmount = readInt(
+      snap['timeAddonAmount'] ?? booking['timeAddonAmount'],
+    );
+    final int overtimeAmount = readInt(
+      booking['overtimeAmount'] ?? snap['overtimeAmount'],
+    );
+    final int overtimeMinutes = readInt(booking['overtimeMinutes']);
+
+    return timeChargeItemLines(
+      baseAmount: baseAmount,
+      includedMinutes: includedMinutes,
+      extraMinutes: extraMinutes,
+      extraUnits: extraUnits,
+      extraBillingMinutes: extraBillingMinutes,
+      extraBillingPrice: extraBillingPrice,
+      extraTimeAmount: extraTimeAmount,
+      extraPetCount: extraPetCount,
+      extraPetAmount: extraPetAmount,
+      extraPetUnitPrice: extraPetUnitPrice,
+      maxBaseCharge: maxBaseCharge,
+      timeCharge: timeCharge,
+      uncappedTimeCharge: uncappedTimeCharge,
+      surchargeAmount: surchargeAmount,
+      timeAddonAmount: timeAddonAmount,
+      overtimeAmount: overtimeAmount,
+      overtimeMinutes: overtimeMinutes,
+    );
+  }
+
+  String hourlyRuleTextFromQuote(
+    DaycareQuote quote, {
+    int extraBillingPrice = 0,
+  }) {
+    final int unitPrice = quote.extraUnits > 0 && quote.extraTimeAmount > 0
+        ? quote.extraTimeAmount ~/ quote.extraUnits
+        : extraBillingPrice;
+    return hourlyBillingRuleText(
+      includedMinutes: quote.includedMinutes,
+      basePrice: quote.baseAmount,
+      extraBillingMinutes: quote.extraBillingMinutes,
+      extraBillingPrice: unitPrice,
+    );
+  }
+
+  String hourlyRuleTextFromBooking(Map<String, dynamic> booking) {
+    final Map<String, dynamic> snap = readMap(
+      booking['daycarePricingSnapshot'],
+    );
+    final Map<String, dynamic> timeSnap = readMap(
+      booking['timeChargeSnapshot'],
+    );
+    final Map<String, dynamic> plan = readMap(
+      booking['daycarePlanPriceSnapshot'] ?? booking['daycarePlanSnapshot'],
+    );
+    final Map<String, dynamic> room = readMap(
+      booking['requestedRoomTypePriceSnapshot'],
+    );
+    int includedMinutes = readInt(
+      snap['includedMinutes'] ?? timeSnap['includedMinutes'],
+    );
+    if (includedMinutes <= 0) {
+      includedMinutes = readInt(
+        plan['includedMinutes'] ?? room['includedMinutes'],
+      );
+    }
+    int extraBillingMinutes = readInt(
+      snap['extraBillingMinutes'] ?? timeSnap['extraBillingMinutes'],
+    );
+    if (extraBillingMinutes != 30 && extraBillingMinutes != 60) {
+      extraBillingMinutes = readInt(
+        plan['extraBillingMinutes'] ?? room['extraBillingMinutes'],
+      );
+    }
+    if (extraBillingMinutes != 30) {
+      extraBillingMinutes = 60;
+    }
+    int basePrice = readInt(snap['baseAmount']);
+    if (basePrice <= 0) {
+      basePrice = readInt(plan['basePrice'] ?? room['basePrice']);
+    }
+    int extraBillingPrice = readInt(
+      plan['extraBillingPrice'] ?? room['extraBillingPrice'],
+    );
+    final int extraUnits = readInt(
+      snap['extraUnits'] ?? timeSnap['extraUnits'],
+    );
+    final int extraTimeAmount = readInt(
+      snap['extraTimeAmount'] ?? snap['roomTypeExtra'],
+    );
+    if (extraBillingPrice <= 0 && extraUnits > 0 && extraTimeAmount > 0) {
+      extraBillingPrice = extraTimeAmount ~/ extraUnits;
+    }
+    if (includedMinutes <= 0 && basePrice <= 0) {
+      return '';
+    }
+    return hourlyBillingRuleText(
+      includedMinutes: includedMinutes,
+      basePrice: basePrice,
+      extraBillingMinutes: extraBillingMinutes,
+      extraBillingPrice: extraBillingPrice,
+    );
+  }
+
+  DaycareHourlyDisplayInfo hourlyDisplayFromBooking(
+    Map<String, dynamic> booking, {
+    DateTime? startAt,
+    DateTime? endAt,
+  }) {
+    final Map<String, dynamic> snap = readMap(
+      booking['daycarePricingSnapshot'],
+    );
+    final Map<String, dynamic> timeSnap = readMap(
+      booking['timeChargeSnapshot'],
+    );
+    final Map<String, dynamic> plan = readMap(
+      booking['daycarePlanPriceSnapshot'] ?? booking['daycarePlanSnapshot'],
+    );
+    final Map<String, dynamic> room = readMap(
+      booking['requestedRoomTypePriceSnapshot'],
+    );
+    final bool roomBased = DaycarePricingModes.isRoomBased(
+      (booking['pricingMode'] ?? '').toString(),
+    );
+    final List<BookingFeeLineItem> itemLines = itemLinesFromBooking(booking);
+    final String ruleText = hourlyRuleTextFromBooking(booking);
+    int includedMinutes = readInt(
+      snap['includedMinutes'] ?? timeSnap['includedMinutes'],
+    );
+    if (includedMinutes <= 0) {
+      includedMinutes = readInt(
+        plan['includedMinutes'] ?? room['includedMinutes'],
+      );
+    }
+    int extraBillingMinutes = readInt(
+      snap['extraBillingMinutes'] ?? timeSnap['extraBillingMinutes'],
+    );
+    if (extraBillingMinutes != 30 && extraBillingMinutes != 60) {
+      extraBillingMinutes = readInt(
+        plan['extraBillingMinutes'] ?? room['extraBillingMinutes'],
+      );
+    }
+    if (extraBillingMinutes != 30) {
+      extraBillingMinutes = 60;
+    }
+    int basePrice = readInt(snap['baseAmount']);
+    if (basePrice <= 0) {
+      basePrice = readInt(plan['basePrice'] ?? room['basePrice']);
+    }
+    int extraBillingPrice = readInt(
+      plan['extraBillingPrice'] ?? room['extraBillingPrice'],
+    );
+    final int extraUnits = readInt(
+      snap['extraUnits'] ?? timeSnap['extraUnits'],
+    );
+    final int extraMinutes = readInt(
+      snap['extraMinutes'] ?? timeSnap['extraMinutes'],
+    );
+    final int extraTimeAmount = readInt(
+      snap['extraTimeAmount'] ?? snap['roomTypeExtra'],
+    );
+    if (extraBillingPrice <= 0 && extraUnits > 0 && extraTimeAmount > 0) {
+      extraBillingPrice = extraTimeAmount ~/ extraUnits;
+    }
+    final int durationMinutes = startAt != null && endAt != null
+        ? endAt.difference(startAt).inMinutes
+        : readInt(snap['durationMinutes'] ?? timeSnap['durationMinutes']);
+    final int maxBaseCharge = readInt(
+      snap['maxBaseCharge'] ??
+          timeSnap['maxBaseCharge'] ??
+          plan['maxBaseCharge'] ??
+          room['maxBaseCharge'],
+    );
+
+    String reservationText = '本次預約：共 ${minutesLabel(durationMinutes)}';
+    if (startAt != null && endAt != null) {
+      reservationText =
+          '本次預約：送達 ${DaycareTimeHelper.formatDateTime(startAt)}、接回 ${DaycareTimeHelper.formatDateTime(endAt)}，共 ${minutesLabel(durationMinutes)}';
+    }
+
+    final String startRuleText = includedMinutes > 0 || basePrice > 0
+        ? '起步：${includedMinutes > 0 ? minutesLabel(includedMinutes) : '—'}，NT\$ ${basePrice > 0 ? basePrice : '—'}'
+        : '';
+    final String extraRuleText = extraBillingPrice > 0
+        ? '超過後：${extraUnitRateText(extraBillingMinutes: extraBillingMinutes, extraBillingPrice: extraBillingPrice)}'
+        : '';
+
+    String thisChargeText = '本次計費：依訂單快照顯示既有金額';
+    if (basePrice > 0 && extraTimeAmount > 0) {
+      final int shownUnits = extraUnits > 0 ? extraUnits : 1;
+      final String billed = extraBillingMinutes == 30
+          ? '$shownUnits 個 30 分鐘 × NT\$$extraBillingPrice'
+          : '$shownUnits 小時 × NT\$$extraBillingPrice';
+      thisChargeText =
+          '本次計費：起步費 NT\$$basePrice＋超過起步 ${minutesLabel(extraMinutes > 0 ? extraMinutes : shownUnits * extraBillingMinutes)}（$billed）';
+    } else if (basePrice > 0) {
+      thisChargeText = '本次計費：起步費 NT\$$basePrice（未超過起步時間）';
+    }
+
+    return DaycareHourlyDisplayInfo(
+      billingModeLabel: roomBased ? '計費方式：房型計費' : '計費方式：獨立方案',
+      ruleText: ruleText,
+      startRuleText: startRuleText,
+      extraRuleText: extraRuleText,
+      reservationText: reservationText,
+      thisChargeText: thisChargeText,
+      capText: maxBaseCharge > 0 ? '當次最高費用 NT\$$maxBaseCharge' : '',
+      itemLines: itemLines,
+    );
+  }
+
   String payableLabel(String depositType) {
     switch (depositType) {
       case DaycareDepositTypes.full:
-        return '預計付款金額';
+        return '本次應付全額';
       case DaycareDepositTypes.fixed:
       case DaycareDepositTypes.percent:
-        return '預計訂金';
+        return '本次應付訂金';
       default:
         return '到店付款';
     }
@@ -429,24 +928,55 @@ class DaycarePricingService {
     return '預定 $scheduledPickup 接回，免費寬限至 ${_addMinutes(scheduledPickup, graceMinutes)}；之後$unitLabel加收 NT\$$unitPrice。';
   }
 
+  DaycareLatePickupBreakdown latePickupBreakdown({
+    required DaycareSettingsModel settings,
+    required DateTime scheduledEndAt,
+    required DateTime actualEndAt,
+  }) {
+    final int extra = actualEndAt.difference(scheduledEndAt).inMinutes < 0
+        ? 0
+        : actualEndAt.difference(scheduledEndAt).inMinutes;
+    final int grace = settings.overtimeGraceMinutes < 0
+        ? 0
+        : settings.overtimeGraceMinutes;
+    final bool enabled =
+        settings.latePickupEnabled && settings.latePickupPrice > 0;
+    final int unitMinutes = settings.latePickupUnitMinutes == 30 ? 30 : 60;
+    final int unitPrice = settings.latePickupPrice;
+    final int billableRaw = extra - grace;
+    final int billable = billableRaw < 0 ? 0 : billableRaw;
+    int units = 0;
+    int amount = 0;
+    if (enabled && billable > 0 && unitPrice > 0) {
+      amount = intervalOvertimeFee(
+        extraMinutes: billable,
+        unitMinutes: unitMinutes,
+        unitPrice: unitPrice,
+      );
+      units = unitPrice <= 0 ? 0 : amount ~/ unitPrice;
+    }
+    return DaycareLatePickupBreakdown(
+      extraMinutes: extra,
+      graceMinutes: grace,
+      billableMinutes: billable,
+      unitMinutes: unitMinutes,
+      unitPrice: unitPrice,
+      units: units,
+      amount: amount,
+      enabled: enabled,
+    );
+  }
+
   int shopLatePickupFee({
     required DaycareSettingsModel settings,
     required DateTime scheduledEndAt,
     required DateTime actualEndAt,
   }) {
-    if (!settings.latePickupEnabled || settings.latePickupPrice <= 0) {
-      return 0;
-    }
-    final int extra = actualEndAt.difference(scheduledEndAt).inMinutes;
-    final int billable = extra - settings.overtimeGraceMinutes;
-    if (billable <= 0) {
-      return 0;
-    }
-    return intervalOvertimeFee(
-      extraMinutes: billable,
-      unitMinutes: settings.latePickupUnitMinutes,
-      unitPrice: settings.latePickupPrice,
-    );
+    return latePickupBreakdown(
+      settings: settings,
+      scheduledEndAt: scheduledEndAt,
+      actualEndAt: actualEndAt,
+    ).amount;
   }
 
   DaycareQuote quote({
@@ -842,47 +1372,33 @@ class DaycarePricingService {
     required DateTime actualEndAt,
     bool waiveOvertime = false,
     int overnightCapAmount = 0,
-    DaycarePlanModel? plan,
+    int manualAdjust = 0,
   }) {
     final DateTime scheduledEnd = booking['scheduledEndAt'] is DateTime
         ? booking['scheduledEndAt'] as DateTime
-        : DateTime.now();
+        : actualEndAt;
     final int quoted = _toInt(
       booking['quotedTotalPrice'] ?? booking['totalPrice'],
       0,
     );
     final int paid = _toInt(booking['paidAmount'], 0);
-    final int overtimeMinutes = actualEndAt
-        .difference(scheduledEnd)
-        .inMinutes
-        .clamp(0, 24 * 60);
-    int overtimeAmount = 0;
-    String roundingLabel = '未超時';
-    if (!waiveOvertime) {
-      overtimeAmount = shopLatePickupFee(
-        settings: settings,
-        scheduledEndAt: scheduledEnd,
-        actualEndAt: actualEndAt,
-      );
-      if (overtimeAmount <= 0 && plan != null) {
-        overtimeAmount = overtimeFee(
-          plan: plan,
-          settings: settings,
-          scheduledEndAt: scheduledEnd,
-          actualEndAt: actualEndAt,
-        );
-      }
-      if (overtimeAmount > 0) {
-        roundingLabel = settings.latePickupUnitMinutes == 30
-            ? '寬限後每 30 分鐘加收'
-            : '寬限後每 1 小時加收';
-      }
+    final DaycareLatePickupBreakdown pickup = latePickupBreakdown(
+      settings: settings,
+      scheduledEndAt: scheduledEnd,
+      actualEndAt: actualEndAt,
+    );
+    final int overtimeAmount = waiveOvertime ? 0 : pickup.amount;
+    String roundingLabel = pickup.formula;
+    if (waiveOvertime) {
+      roundingLabel = '店家免收本次超時費';
     }
-    final int finalTotal = quoted + (waiveOvertime ? 0 : overtimeAmount);
+    final int finalTotal = quoted + overtimeAmount + manualAdjust < 0
+        ? 0
+        : quoted + overtimeAmount + manualAdjust;
     return DaycareSettlement(
       quotedTotal: quoted,
-      overtimeMinutes: overtimeMinutes,
-      overtimeAmount: waiveOvertime ? 0 : overtimeAmount,
+      overtimeMinutes: pickup.extraMinutes,
+      overtimeAmount: overtimeAmount,
       capAmount: overnightCapAmount,
       finalTotal: finalTotal,
       paidAmount: paid,

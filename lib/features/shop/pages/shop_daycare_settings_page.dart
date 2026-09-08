@@ -1441,10 +1441,6 @@ class _PayTab extends StatelessWidget {
               value: DaycareDepositTypes.full,
               child: Text('預約時全額付款'),
             ),
-            DropdownMenuItem<String>(
-              value: DaycareDepositTypes.staffDecide,
-              child: Text('店員手動決定'),
-            ),
           ],
           onChanged: (String? value) {
             if (value == null) {
@@ -1484,19 +1480,45 @@ class _PayTab extends StatelessWidget {
               ),
             ),
           ),
-        SwitchListTile(
-          title: const Text('允許到店付款'),
-          value: settings.allowCash,
-          onChanged: (bool value) {
-            onChanged(
-              DaycareSettingsModel.fromMap({
-                ...settings.toMap(),
-                'allowCash': value,
-                'updatedAt': null,
-              }),
+        if (settings.depositType == DaycareDepositTypes.fixed ||
+            settings.depositType == DaycareDepositTypes.percent ||
+            settings.depositType == DaycareDepositTypes.full) ...<Widget>[
+          const SizedBox(height: 8),
+          const Align(
+            alignment: Alignment.centerLeft,
+            child: Text('付款期限', style: TextStyle(fontWeight: FontWeight.bold)),
+          ),
+          const SizedBox(height: 4),
+          const Text(
+            '新安親訂單建立後，須在此期限內完成訂金或全額付款。',
+            style: TextStyle(fontSize: 12, color: Colors.black54),
+          ),
+          ...<Map<String, Object>>[
+            <String, Object>{'label': '1 分鐘（測試用）', 'value': 0},
+            <String, Object>{'label': '12 小時', 'value': 12},
+            <String, Object>{'label': '1 天', 'value': 24},
+            <String, Object>{'label': '3 天', 'value': 72},
+          ].map((Map<String, Object> item) {
+            final int value = item['value']! as int;
+            return RadioListTile<int>(
+              title: Text(item['label']!.toString()),
+              value: value,
+              groupValue: settings.depositExpireHours,
+              onChanged: (int? selected) {
+                if (selected == null) {
+                  return;
+                }
+                onChanged(
+                  DaycareSettingsModel.fromMap({
+                    ...settings.toMap(),
+                    'depositExpireHours': selected,
+                    'updatedAt': null,
+                  }),
+                );
+              },
             );
-          },
-        ),
+          }),
+        ],
         SwitchListTile(
           title: const Text('允許使用優惠券'),
           subtitle: const Text('關閉時前台不顯示優惠券，建立訂單也不套用折扣'),
@@ -1511,31 +1533,10 @@ class _PayTab extends StatelessWidget {
             );
           },
         ),
-        SwitchListTile(
-          title: const Text('取消時退還訂金'),
-          value: settings.refundDepositOnCancel,
-          onChanged: (bool value) {
-            onChanged(
-              DaycareSettingsModel.fromMap({
-                ...settings.toMap(),
-                'refundDepositOnCancel': value,
-                'updatedAt': null,
-              }),
-            );
-          },
-        ),
-        SwitchListTile(
-          title: const Text('No-show 沒收訂金'),
-          value: settings.forfeitDepositOnNoShow,
-          onChanged: (bool value) {
-            onChanged(
-              DaycareSettingsModel.fromMap({
-                ...settings.toMap(),
-                'forfeitDepositOnNoShow': value,
-                'updatedAt': null,
-              }),
-            );
-          },
+        const SizedBox(height: 12),
+        Text(
+          '黑名單沿用會員管理設定，前台住宿與安親一律不可預約。疫苗與結紮不另設安親專用限制。',
+          style: TextStyle(color: Colors.grey.shade700, fontSize: 13),
         ),
       ],
     );
