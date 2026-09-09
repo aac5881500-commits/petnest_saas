@@ -15,6 +15,7 @@ import 'package:petnest_saas/features/shop/pages/shop_daycare_date_override_page
 import 'package:petnest_saas/features/shop/pages/shop_policy_page.dart';
 import 'package:petnest_saas/features/shop/widgets/booking/booking_entry_card_editor.dart';
 import 'package:petnest_saas/features/shop/widgets/booking/zh_tw_time_picker.dart';
+import 'package:petnest_saas/features/shop/widgets/daycare_enabled_gate.dart';
 
 class ShopDaycareSettingsPage extends StatefulWidget {
   const ShopDaycareSettingsPage({super.key, required this.shopId});
@@ -79,6 +80,7 @@ class _ShopDaycareSettingsPageState extends State<ShopDaycareSettingsPage> {
         ..._settings.toMap(),
         'serviceName': _name.text.trim(),
         'intro': _intro.text.trim(),
+        'enabled': true,
         'updatedAt': null,
       });
       await DaycareSettingsService.instance.save(
@@ -117,81 +119,85 @@ class _ShopDaycareSettingsPageState extends State<ShopDaycareSettingsPage> {
         body: Center(child: Text(_error!)),
       );
     }
-    return DefaultTabController(
-      length: 4,
-      child: Scaffold(
-        appBar: AppBar(
-          title: const Text('安親設定'),
-          actions: <Widget>[
-            ShopTaskCenterButton(shopId: widget.shopId),
-            TextButton(
-              onPressed: _saving ? null : _save,
-              child: Text(_saving ? '儲存中' : '儲存'),
+    return DaycareEnabledGate(
+      shopId: widget.shopId,
+      title: '安親設定',
+      child: DefaultTabController(
+        length: 4,
+        child: Scaffold(
+          appBar: AppBar(
+            title: const Text('安親設定'),
+            actions: <Widget>[
+              ShopTaskCenterButton(shopId: widget.shopId),
+              TextButton(
+                onPressed: _saving ? null : _save,
+                child: Text(_saving ? '儲存中' : '儲存'),
+              ),
+            ],
+            bottom: const TabBar(
+              isScrollable: true,
+              tabAlignment: TabAlignment.start,
+              tabs: <Widget>[
+                Tab(text: '基本設定'),
+                Tab(text: '收費方式'),
+                Tab(text: '加購與付款'),
+                Tab(text: '條款'),
+              ],
             ),
-          ],
-          bottom: const TabBar(
-            isScrollable: true,
-            tabAlignment: TabAlignment.start,
-            tabs: <Widget>[
-              Tab(text: '基本設定'),
-              Tab(text: '收費方式'),
-              Tab(text: '加購與付款'),
-              Tab(text: '條款'),
+          ),
+          body: TabBarView(
+            children: <Widget>[
+              ListView(
+                padding: const EdgeInsets.all(16),
+                children: <Widget>[
+                  _BasicTab(
+                    shopId: widget.shopId,
+                    settings: _settings,
+                    name: _name,
+                    intro: _intro,
+                    onChanged: (DaycareSettingsModel value) {
+                      setState(() => _settings = value);
+                    },
+                  ),
+                  const Divider(height: 32),
+                  _TimeTab(
+                    shopId: widget.shopId,
+                    settings: _settings,
+                    onChanged: (DaycareSettingsModel value) {
+                      setState(() => _settings = value);
+                    },
+                  ),
+                ],
+              ),
+              _PricingTab(
+                shopId: widget.shopId,
+                settings: _settings,
+                onChanged: (DaycareSettingsModel value) {
+                  setState(() => _settings = value);
+                },
+              ),
+              ListView(
+                padding: const EdgeInsets.all(16),
+                children: <Widget>[
+                  _AddonTab(
+                    shopId: widget.shopId,
+                    settings: _settings,
+                    onChanged: (DaycareSettingsModel value) {
+                      setState(() => _settings = value);
+                    },
+                  ),
+                  const Divider(height: 32),
+                  _PayTab(
+                    settings: _settings,
+                    onChanged: (DaycareSettingsModel value) {
+                      setState(() => _settings = value);
+                    },
+                  ),
+                ],
+              ),
+              _PolicyTab(shopId: widget.shopId),
             ],
           ),
-        ),
-        body: TabBarView(
-          children: <Widget>[
-            ListView(
-              padding: const EdgeInsets.all(16),
-              children: <Widget>[
-                _BasicTab(
-                  shopId: widget.shopId,
-                  settings: _settings,
-                  name: _name,
-                  intro: _intro,
-                  onChanged: (DaycareSettingsModel value) {
-                    setState(() => _settings = value);
-                  },
-                ),
-                const Divider(height: 32),
-                _TimeTab(
-                  shopId: widget.shopId,
-                  settings: _settings,
-                  onChanged: (DaycareSettingsModel value) {
-                    setState(() => _settings = value);
-                  },
-                ),
-              ],
-            ),
-            _PricingTab(
-              shopId: widget.shopId,
-              settings: _settings,
-              onChanged: (DaycareSettingsModel value) {
-                setState(() => _settings = value);
-              },
-            ),
-            ListView(
-              padding: const EdgeInsets.all(16),
-              children: <Widget>[
-                _AddonTab(
-                  shopId: widget.shopId,
-                  settings: _settings,
-                  onChanged: (DaycareSettingsModel value) {
-                    setState(() => _settings = value);
-                  },
-                ),
-                const Divider(height: 32),
-                _PayTab(
-                  settings: _settings,
-                  onChanged: (DaycareSettingsModel value) {
-                    setState(() => _settings = value);
-                  },
-                ),
-              ],
-            ),
-            _PolicyTab(shopId: widget.shopId),
-          ],
         ),
       ),
     );
@@ -221,20 +227,11 @@ class _BasicTab extends StatelessWidget {
         const SizedBox(height: 8),
         BookingEntryCardEditor(shopId: shopId),
         const SizedBox(height: 16),
-        SwitchListTile(
-          title: const Text('開放安親服務'),
-          subtitle: const Text('開啟後客戶端即可預約安親，無需重新登入。'),
-          value: settings.enabled,
-          onChanged: (bool value) {
-            onChanged(
-              DaycareSettingsModel.fromMap({
-                ...settings.toMap(),
-                'enabled': value,
-                'updatedAt': null,
-              }),
-            );
-          },
+        const Text(
+          '安親總開關請到「預約管理」設定。此頁只編輯時間、方案與加購等內容，關閉安親時不會清空。',
+          style: TextStyle(color: Colors.black54, height: 1.4),
         ),
+        const SizedBox(height: 16),
         TextField(
           controller: name,
           decoration: const InputDecoration(labelText: '安親服務名稱'),

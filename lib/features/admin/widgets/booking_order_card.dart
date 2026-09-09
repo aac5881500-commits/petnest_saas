@@ -12,6 +12,7 @@ import 'package:petnest_saas/core/models/booking_kind.dart';
 import 'package:petnest_saas/core/services/booking_payment_status.dart';
 import 'package:petnest_saas/core/services/daycare_status_labels.dart';
 import 'package:petnest_saas/core/services/daycare_time_helper.dart';
+import 'package:petnest_saas/core/widgets/booking_payment_proof_button.dart';
 
 class BookingOrderCard extends StatefulWidget {
   const BookingOrderCard({
@@ -442,6 +443,15 @@ class _BookingOrderCardState extends State<BookingOrderCard> {
                     ),
 
                     const SizedBox(height: 10),
+
+                    if (BookingPaymentProof.shouldShow(data))
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: BookingPaymentProofButton(data: data),
+                      ),
+
+                    if (BookingPaymentProof.shouldShow(data))
+                      const SizedBox(height: 10),
 
                     Row(
                       children: [

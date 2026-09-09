@@ -21,6 +21,7 @@ import 'package:petnest_saas/core/models/member_point_log_model.dart';
 import 'package:petnest_saas/core/models/point_redemption_model.dart';
 import 'package:petnest_saas/core/services/point_redemption_service.dart';
 import 'package:petnest_saas/core/widgets/point_module_visibility.dart';
+import 'package:petnest_saas/core/services/operator_display.dart';
 
 class AdminMemberDetailPage extends StatelessWidget {
   const AdminMemberDetailPage({
@@ -262,8 +263,10 @@ class AdminMemberDetailPage extends StatelessWidget {
                                       ),
                                     ),
                                     const SizedBox(height: 4),
-                                    Text(
-                                      '操作人：${data['operatorEmail'] ?? '未知操作人'}',
+                                    OperatorActorLabel(
+                                      shopId: shopId,
+                                      log: data,
+                                      prefix: '操作人：',
                                     ),
                                     if ((data['reason'] ?? '')
                                         .toString()

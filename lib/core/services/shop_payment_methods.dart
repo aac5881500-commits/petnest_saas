@@ -146,6 +146,13 @@ class ShopPaymentMethods {
     }
   }
 
+  /// 僅銀行轉帳（正規化值 `transfer`／`bank_transfer`）才顯示付款憑證。
+  /// 付款方式缺失或無法判定時不顯示。
+  static bool isManualBankTransferPayment(dynamic value) {
+    final String id = normalizeMethodId((value ?? '').toString());
+    return id == PaymentMethodType.bankTransfer;
+  }
+
   static String normalizeMethodId(String paymentMethod) {
     switch (paymentMethod.trim().toLowerCase()) {
       case 'pay_at_store':

@@ -11,7 +11,7 @@
 // - 不建議在首頁長時間監聽所有操作紀錄
 
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:petnest_saas/core/services/operator_stamp.dart';
 
 class ActionLogService {
   ActionLogService._();
@@ -33,15 +33,14 @@ class ActionLogService {
     required String operatorRole,
     Map<String, dynamic>? payload,
   }) async {
-    final user = FirebaseAuth.instance.currentUser;
+    final Map<String, dynamic> stamp = OperatorStamp.fields(role: operatorRole);
+    stamp['operatorUid'] = operatorUid;
     await _actionLogs.add({
       'shopId': shopId,
       'targetType': targetType,
       'targetId': targetId,
       'action': action,
-      'operatorUid': operatorUid,
-      'operatorEmail': user?.email ?? '',
-      'operatorRole': operatorRole,
+      ...stamp,
       'payload': payload ?? <String, dynamic>{},
       'createdAt': FieldValue.serverTimestamp(),
     });

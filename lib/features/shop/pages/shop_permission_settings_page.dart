@@ -7,6 +7,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
 import 'package:petnest_saas/core/constants/shop_roles.dart';
 import 'package:petnest_saas/core/services/action_log_service.dart';
+import 'package:petnest_saas/core/services/daycare_enabled.dart';
 import 'package:petnest_saas/core/services/shop_service.dart';
 import 'package:petnest_saas/core/widgets/shop_task_center_button.dart';
 import 'package:petnest_saas/features/shop/widgets/permissions/permission_category_tile.dart';
@@ -412,26 +413,38 @@ class _ShopPermissionSettingsPageState
             },
           ),
           const SizedBox(height: 12),
-          PermissionCategoryTile(
-            title: '安親權限',
-            subtitle: '安親訂單、設定、方案、轉住宿與改價',
-            icon: Icons.wb_sunny_outlined,
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute<void>(
-                  builder: (_) => DaycarePermissionPage(
-                    permissions: _permissions,
-                    isOwner: _isOwner,
-                    onChanged: (String key, bool value) {
-                      setState(() {
-                        _permissions[key] = value;
-                      });
+          StreamBuilder<Map<String, dynamic>?>(
+            stream: ShopService.instance.streamShop(widget.shopId),
+            builder:
+                (
+                  BuildContext context,
+                  AsyncSnapshot<Map<String, dynamic>?> shopSnap,
+                ) {
+                  if (!DaycareEnabled.isOn(shop: shopSnap.data)) {
+                    return const SizedBox.shrink();
+                  }
+                  return PermissionCategoryTile(
+                    title: '安親權限',
+                    subtitle: '安親訂單、設定、方案、轉住宿與改價',
+                    icon: Icons.wb_sunny_outlined,
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute<void>(
+                          builder: (_) => DaycarePermissionPage(
+                            permissions: _permissions,
+                            isOwner: _isOwner,
+                            onChanged: (String key, bool value) {
+                              setState(() {
+                                _permissions[key] = value;
+                              });
+                            },
+                          ),
+                        ),
+                      );
                     },
-                  ),
-                ),
-              );
-            },
+                  );
+                },
           ),
           const SizedBox(height: 12),
 

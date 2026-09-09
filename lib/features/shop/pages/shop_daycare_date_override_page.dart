@@ -10,6 +10,7 @@ import 'package:petnest_saas/core/services/daycare_occupancy_service.dart';
 import 'package:petnest_saas/core/services/daycare_time_helper.dart';
 import 'package:petnest_saas/core/services/shop_service.dart';
 import 'package:petnest_saas/shared/widgets/booking_calendar.dart';
+import 'package:petnest_saas/features/shop/widgets/daycare_enabled_gate.dart';
 
 class ShopDaycareDateOverridePage extends StatefulWidget {
   const ShopDaycareDateOverridePage({
@@ -168,104 +169,110 @@ class _ShopDaycareDateOverridePageState
   Widget build(BuildContext context) {
     final DateTime monthStart = DateTime(_month.year, _month.month, 1);
     final DateTime monthEnd = DateTime(_month.year, _month.month + 1, 0);
-    return Scaffold(
-      appBar: AppBar(title: const Text('管理可預約日期')),
-      body: StreamBuilder<List<DaycareDateOverrideModel>>(
-        stream: DaycareDateOverrideService.instance.streamRange(
-          shopId: widget.shopId,
-          start: monthStart,
-          end: monthEnd,
-        ),
-        builder:
-            (
-              BuildContext context,
-              AsyncSnapshot<List<DaycareDateOverrideModel>> snapshot,
-            ) {
-              final List<DaycareDateOverrideModel> overrides =
-                  snapshot.data ?? const <DaycareDateOverrideModel>[];
-              return FutureBuilder<Map<String, int>>(
-                future: DaycareOccupancyService.instance.usedPetsByDate(
-                  shopId: widget.shopId,
-                  start: monthStart,
-                  end: monthEnd,
-                ),
-                builder:
-                    (
-                      BuildContext context,
-                      AsyncSnapshot<Map<String, int>> usedSnap,
-                    ) {
-                      final Map<String, int> used =
-                          usedSnap.data ?? const <String, int>{};
-                      final Set<String> blocked = <String>{};
-                      final Set<String> full = <String>{};
-                      final int dailyMax = DaycareDateAvailability.dailyMaxPets(
-                        settings: widget.settings,
-                      );
-                      DateTime cursor = monthStart;
-                      while (!cursor.isAfter(monthEnd)) {
-                        final String key = ShopService.instance.formatDateKey(
-                          cursor,
-                        );
-                        final DaycareDateOverrideModel? override = _find(
-                          overrides,
-                          cursor,
-                        );
-                        final bool open = DaycareDateAvailability.isDateOpen(
-                          settings: widget.settings,
-                          date: cursor,
-                          override: override,
-                        );
-                        if (!open) {
-                          blocked.add(key);
-                        } else if (dailyMax > 0) {
-                          final int left = (dailyMax - (used[key] ?? 0)).clamp(
-                            0,
-                            dailyMax,
+    return DaycareEnabledGate(
+      shopId: widget.shopId,
+      title: '管理可預約日期',
+      child: Scaffold(
+        appBar: AppBar(title: const Text('管理可預約日期')),
+        body: StreamBuilder<List<DaycareDateOverrideModel>>(
+          stream: DaycareDateOverrideService.instance.streamRange(
+            shopId: widget.shopId,
+            start: monthStart,
+            end: monthEnd,
+          ),
+          builder:
+              (
+                BuildContext context,
+                AsyncSnapshot<List<DaycareDateOverrideModel>> snapshot,
+              ) {
+                final List<DaycareDateOverrideModel> overrides =
+                    snapshot.data ?? const <DaycareDateOverrideModel>[];
+                return FutureBuilder<Map<String, int>>(
+                  future: DaycareOccupancyService.instance.usedPetsByDate(
+                    shopId: widget.shopId,
+                    start: monthStart,
+                    end: monthEnd,
+                  ),
+                  builder:
+                      (
+                        BuildContext context,
+                        AsyncSnapshot<Map<String, int>> usedSnap,
+                      ) {
+                        final Map<String, int> used =
+                            usedSnap.data ?? const <String, int>{};
+                        final Set<String> blocked = <String>{};
+                        final Set<String> full = <String>{};
+                        final int dailyMax =
+                            DaycareDateAvailability.dailyMaxPets(
+                              settings: widget.settings,
+                            );
+                        DateTime cursor = monthStart;
+                        while (!cursor.isAfter(monthEnd)) {
+                          final String key = ShopService.instance.formatDateKey(
+                            cursor,
                           );
-                          if (left <= 0) {
-                            full.add(key);
+                          final DaycareDateOverrideModel? override = _find(
+                            overrides,
+                            cursor,
+                          );
+                          final bool open = DaycareDateAvailability.isDateOpen(
+                            settings: widget.settings,
+                            date: cursor,
+                            override: override,
+                          );
+                          if (!open) {
+                            blocked.add(key);
+                          } else if (dailyMax > 0) {
+                            final int left = (dailyMax - (used[key] ?? 0))
+                                .clamp(0, dailyMax);
+                            if (left <= 0) {
+                              full.add(key);
+                            }
                           }
+                          cursor = cursor.add(const Duration(days: 1));
                         }
-                        cursor = cursor.add(const Duration(days: 1));
-                      }
-                      return ListView(
-                        padding: const EdgeInsets.all(16),
-                        children: <Widget>[
-                          const Wrap(
-                            spacing: 8,
-                            runSpacing: 8,
-                            children: <Widget>[
-                              _Legend(color: Colors.white, label: '可預約'),
-                              _Legend(color: Color(0xFFEEEEEE), label: '店休'),
-                              _Legend(color: Color(0xFFFFF3E0), label: '額滿'),
-                            ],
-                          ),
-                          const SizedBox(height: 12),
-                          BookingCalendar(
-                            allowBlockedTap: true,
-                            compactCells: true,
-                            initialMonth: _month,
-                            firstDate: _firstDate,
-                            lastDate: _lastDate,
-                            blockedDateKeys: blocked,
-                            unbookableDateKeys: full,
-                            onMonthChanged: (DateTime month) {
-                              setState(() => _month = month);
-                            },
-                            onDayTap: (DateTime date) {
-                              _editDay(date, _find(overrides, date));
-                            },
-                          ),
-                          const SizedBox(height: 12),
-                          const Text(
-                            '所有日期預設可預約。點選日期可改為店休，或刪除例外恢復正常。額滿由訂單自動計算，無法手動設定。',
-                            style: TextStyle(color: Colors.grey, fontSize: 13),
-                          ),
-                        ],
-                      );
-                    },
-              );
-            },
+                        return ListView(
+                          padding: const EdgeInsets.all(16),
+                          children: <Widget>[
+                            const Wrap(
+                              spacing: 8,
+                              runSpacing: 8,
+                              children: <Widget>[
+                                _Legend(color: Colors.white, label: '可預約'),
+                                _Legend(color: Color(0xFFEEEEEE), label: '店休'),
+                                _Legend(color: Color(0xFFFFF3E0), label: '額滿'),
+                              ],
+                            ),
+                            const SizedBox(height: 12),
+                            BookingCalendar(
+                              allowBlockedTap: true,
+                              compactCells: true,
+                              initialMonth: _month,
+                              firstDate: _firstDate,
+                              lastDate: _lastDate,
+                              blockedDateKeys: blocked,
+                              unbookableDateKeys: full,
+                              onMonthChanged: (DateTime month) {
+                                setState(() => _month = month);
+                              },
+                              onDayTap: (DateTime date) {
+                                _editDay(date, _find(overrides, date));
+                              },
+                            ),
+                            const SizedBox(height: 12),
+                            const Text(
+                              '所有日期預設可預約。點選日期可改為店休，或刪除例外恢復正常。額滿由訂單自動計算，無法手動設定。',
+                              style: TextStyle(
+                                color: Colors.grey,
+                                fontSize: 13,
+                              ),
+                            ),
+                          ],
+                        );
+                      },
+                );
+              },
+        ),
       ),
     );
   }

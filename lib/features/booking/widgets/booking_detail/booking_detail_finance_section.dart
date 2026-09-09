@@ -228,11 +228,13 @@ class _BookingDetailFinanceSectionState
             ),
           ],
           if (view.isBankTransfer && !view.showBankTransferForm) ...<Widget>[
-            const SizedBox(height: 10),
-            Align(
-              alignment: Alignment.centerLeft,
-              child: BookingPaymentProofButton(data: view.raw),
-            ),
+            if (BookingPaymentProof.shouldShow(view.raw)) ...<Widget>[
+              const SizedBox(height: 10),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: BookingPaymentProofButton(data: view.raw),
+              ),
+            ],
           ],
           const SizedBox(height: 8),
           _toggle(

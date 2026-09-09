@@ -8,6 +8,7 @@ import 'package:petnest_saas/core/models/payment_gateway_status.dart';
 import 'package:petnest_saas/core/services/booking_payment_status.dart';
 import 'package:petnest_saas/core/services/daycare_pricing_service.dart';
 import 'package:petnest_saas/core/services/daycare_time_helper.dart';
+import 'package:petnest_saas/core/services/shop_payment_methods.dart';
 import 'package:petnest_saas/features/booking/widgets/booking_detail/booking_detail_parse.dart';
 
 enum BookingDetailTermsState { confirmed, unconfirmed, needsReconfirm }
@@ -529,10 +530,7 @@ class BookingDetailViewData {
   }
 
   bool get isBankTransfer {
-    return paymentMethod == PaymentMethodType.bankTransfer ||
-        paymentMethod == 'bank_transfer' ||
-        paymentMethod == 'bankTransfer' ||
-        paymentMethod == '銀行轉帳';
+    return ShopPaymentMethods.isManualBankTransferPayment(paymentMethod);
   }
 
   bool get showBankTransferForm {

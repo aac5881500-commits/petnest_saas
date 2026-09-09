@@ -80,6 +80,14 @@ function resolveTotalAmount(booking) {
     return totalPrice;
   }
 
+  const quotedTotalPrice = normalizeInteger(
+      booking.quotedTotalPrice,
+  );
+
+  if (quotedTotalPrice > 0) {
+    return quotedTotalPrice;
+  }
+
   const finalAmount = normalizeInteger(
       booking.finalAmount,
   );

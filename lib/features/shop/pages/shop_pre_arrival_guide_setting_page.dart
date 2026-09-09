@@ -6,6 +6,8 @@ import 'package:petnest_saas/core/models/pre_arrival_guide_model.dart';
 import 'package:petnest_saas/core/services/pre_arrival_guide_service.dart';
 import 'package:petnest_saas/core/widgets/shop_frontend_theme_scope.dart';
 import 'package:petnest_saas/features/booking/pages/pre_arrival_guide_page.dart';
+import 'package:petnest_saas/core/services/daycare_enabled.dart';
+import 'package:petnest_saas/core/services/shop_service.dart';
 import 'package:petnest_saas/features/booking/widgets/booking_detail/booking_detail_ui.dart';
 
 class ShopPreArrivalGuideSettingPage extends StatefulWidget {
@@ -172,49 +174,63 @@ class _ShopPreArrivalGuideSettingPageState
     return ShopFrontendThemeScope(
       shopId: widget.shopId,
       builder: (BuildContext context) {
-        return PopScope(
-          canPop: !_dirty,
-          onPopInvokedWithResult: (bool didPop, Object? result) async {
-            if (didPop) {
-              return;
-            }
-            final bool leave = await _confirmLeave();
-            if (!context.mounted) {
-              return;
-            }
-            if (leave) {
-              Navigator.of(context).pop();
-            }
-          },
-          child: Scaffold(
-            backgroundColor: BookingDetailUi.of(context).background,
-            appBar: AppBar(
-              title: const Text('入住／安親前準備'),
-              backgroundColor: BookingDetailUi.of(context).background,
-              bottom: TabBar(
-                controller: _tabs,
-                tabs: const <Widget>[
-                  Tab(text: '住宿'),
-                  Tab(text: '安親'),
-                ],
-              ),
-              actions: <Widget>[
-                TextButton(
-                  onPressed: _saving ? null : _save,
-                  child: Text(_saving ? '儲存中' : '儲存'),
-                ),
-              ],
-            ),
-            body: _loading
-                ? const Center(child: CircularProgressIndicator())
-                : TabBarView(
-                    controller: _tabs,
-                    children: <Widget>[
-                      _editor(isDaycare: false),
-                      _editor(isDaycare: true),
-                    ],
+        return StreamBuilder<Map<String, dynamic>?>(
+          stream: ShopService.instance.streamShop(widget.shopId),
+          builder:
+              (
+                BuildContext context,
+                AsyncSnapshot<Map<String, dynamic>?> shopSnap,
+              ) {
+                final bool daycareOn = DaycareEnabled.isOn(shop: shopSnap.data);
+                return PopScope(
+                  canPop: !_dirty,
+                  onPopInvokedWithResult: (bool didPop, Object? result) async {
+                    if (didPop) {
+                      return;
+                    }
+                    final bool leave = await _confirmLeave();
+                    if (!context.mounted) {
+                      return;
+                    }
+                    if (leave) {
+                      Navigator.of(context).pop();
+                    }
+                  },
+                  child: Scaffold(
+                    backgroundColor: BookingDetailUi.of(context).background,
+                    appBar: AppBar(
+                      title: Text(daycareOn ? '入住／安親前準備' : '入住前準備'),
+                      backgroundColor: BookingDetailUi.of(context).background,
+                      bottom: daycareOn
+                          ? TabBar(
+                              controller: _tabs,
+                              tabs: const <Widget>[
+                                Tab(text: '住宿'),
+                                Tab(text: '安親'),
+                              ],
+                            )
+                          : null,
+                      actions: <Widget>[
+                        TextButton(
+                          onPressed: _saving ? null : _save,
+                          child: Text(_saving ? '儲存中' : '儲存'),
+                        ),
+                      ],
+                    ),
+                    body: _loading
+                        ? const Center(child: CircularProgressIndicator())
+                        : daycareOn
+                        ? TabBarView(
+                            controller: _tabs,
+                            children: <Widget>[
+                              _editor(isDaycare: false),
+                              _editor(isDaycare: true),
+                            ],
+                          )
+                        : _editor(isDaycare: false),
                   ),
-          ),
+                );
+              },
         );
       },
     );

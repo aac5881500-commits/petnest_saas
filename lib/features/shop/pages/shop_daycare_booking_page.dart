@@ -26,6 +26,8 @@ import 'package:petnest_saas/core/services/daycare_occupancy_service.dart';
 import 'package:petnest_saas/core/services/daycare_pricing_service.dart';
 import 'package:petnest_saas/core/services/daycare_room_type_option.dart';
 import 'package:petnest_saas/core/services/daycare_settings_service.dart';
+import 'package:petnest_saas/core/services/daycare_enabled.dart';
+import 'package:petnest_saas/features/shop/widgets/daycare_feature_off_scaffold.dart';
 import 'package:petnest_saas/core/services/daycare_time_helper.dart';
 import 'package:petnest_saas/core/models/home_theme_model.dart';
 import 'package:petnest_saas/core/services/home_banner_service.dart';
@@ -823,9 +825,9 @@ class _ShopDaycareBookingPageState extends State<ShopDaycareBookingPage> {
       if (!mounted) {
         return;
       }
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('此店家尚未開放安親')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text(DaycareEnabled.closedMessage)),
+      );
       return;
     }
     if (liveSettings.isRoomBased) {
@@ -974,6 +976,7 @@ class _ShopDaycareBookingPageState extends State<ShopDaycareBookingPage> {
           ),
           theme: HomeBannerService.instance.themeFromShop(widget.shop),
           termsServiceType: PolicyApplicableService.daycare,
+          showStepBackButton: true,
           feeLineItems: _feeLines(quote, includePayable: false),
           skipRemoteLoads: widget.skipRemoteLoads,
           daycareDepositType: widget.settings.depositType,
@@ -1183,7 +1186,7 @@ class _ShopDaycareBookingPageState extends State<ShopDaycareBookingPage> {
       debugPrintStack(stackTrace: stackTrace);
       _bookingRequestId = null;
       _bookingRequestSignature = null;
-      throw Exception(error.message);
+      throw DaycareFunctionException(error.message);
     } catch (error, stackTrace) {
       debugPrint('[DaycareSubmit] failed: $error');
       debugPrintStack(stackTrace: stackTrace);
@@ -1220,6 +1223,9 @@ class _ShopDaycareBookingPageState extends State<ShopDaycareBookingPage> {
 
   @override
   Widget build(BuildContext context) {
+    if (!DaycareEnabled.isOn(shop: widget.shop, settings: widget.settings)) {
+      return const DaycareFeatureOffScaffold(title: '安親預約');
+    }
     HomeThemeModel theme;
     try {
       theme = HomeBannerService.instance.themeFromShop(widget.shop);
@@ -1328,22 +1334,13 @@ class _ShopDaycareBookingPageState extends State<ShopDaycareBookingPage> {
                     children: <Widget>[
                       if (_step > 1)
                         Expanded(
-                          child: OutlinedButton(
+                          child: BookingStepBackButton(
+                            theme: theme,
                             onPressed: () => setState(() => _step -= 1),
-                            style: OutlinedButton.styleFrom(
-                              foregroundColor: theme.textColor,
-                              side: BorderSide(color: theme.cardBorderColor),
-                              minimumSize: const Size.fromHeight(48),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(14),
-                              ),
-                            ),
-                            child: const Text('上一步'),
                           ),
                         ),
                       if (_step > 1) const SizedBox(width: 10),
                       Expanded(
-                        flex: 2,
                         child: BookingPrimaryButton(
                           theme: theme,
                           label: _submitting
@@ -1410,6 +1407,8 @@ class _ShopDaycareBookingPageState extends State<ShopDaycareBookingPage> {
         selectedPetIds: _selectedPetIds,
         petsStream: widget.debugPetsStream,
         isLoggedIn: widget.debugLoggedIn,
+        enabled: _petsSelectionEnabled,
+        disabledHint: _petsDisabledHint,
         onPetsLoaded: (List<Map<String, dynamic>> pets) {
           _pets = pets;
         },
@@ -1428,9 +1427,36 @@ class _ShopDaycareBookingPageState extends State<ShopDaycareBookingPage> {
     ];
   }
 
+  bool get _dropOffSelectionEnabled => _date != null;
+
+  bool get _pickUpSelectionEnabled => _date != null && _dropOff != null;
+
+  bool get _petsSelectionEnabled {
+    if (_date == null || _dropOff == null || _pickUp == null) {
+      return false;
+    }
+    return _startAt != null && _endAt != null && _startAt!.isBefore(_endAt!);
+  }
+
+  String get _petsDisabledHint {
+    if (_date == null) {
+      return '請先選擇安親日期';
+    }
+    if (_dropOff == null) {
+      return '請先選擇送達時間';
+    }
+    if (_pickUp == null ||
+        _startAt == null ||
+        _endAt == null ||
+        !_startAt!.isBefore(_endAt!)) {
+      return '請先選擇接回時間';
+    }
+    return '請先選擇安親日期';
+  }
+
   bool _isDropOffOpen(String slot) {
     if (_date == null) {
-      return true;
+      return false;
     }
     return DaycareTimeHelper.isSlotSelectable(
       slot: slot,
@@ -1440,8 +1466,8 @@ class _ShopDaycareBookingPageState extends State<ShopDaycareBookingPage> {
   }
 
   bool _isPickUpOpen(String slot) {
-    if (_date == null) {
-      return true;
+    if (_date == null || _dropOff == null) {
+      return false;
     }
     return DaycareTimeHelper.isSlotSelectable(
       slot: slot,
@@ -1606,6 +1632,8 @@ class _ShopDaycareBookingPageState extends State<ShopDaycareBookingPage> {
                 ),
                 decoration: InputDecoration(
                   labelText: '送達時間',
+                  hintText: _dropOffSelectionEnabled ? null : '請先選擇安親日期',
+                  helperText: _dropOffSelectionEnabled ? null : '請先選擇安親日期',
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(14),
                   ),
@@ -1624,10 +1652,17 @@ class _ShopDaycareBookingPageState extends State<ShopDaycareBookingPage> {
                       ),
                     )
                     .toList(),
-                onChanged: (String? value) {
-                  setState(() => _dropOff = value);
-                  _refreshRoomOptions();
-                },
+                onChanged: _dropOffSelectionEnabled
+                    ? (String? value) {
+                        setState(() {
+                          _dropOff = value;
+                          if (_pickUp != null && !_isPickUpOpen(_pickUp!)) {
+                            _pickUp = null;
+                          }
+                        });
+                        _refreshRoomOptions();
+                      }
+                    : null,
               ),
               const SizedBox(height: 12),
               DropdownButtonFormField<String>(
@@ -1637,6 +1672,12 @@ class _ShopDaycareBookingPageState extends State<ShopDaycareBookingPage> {
                 ),
                 decoration: InputDecoration(
                   labelText: '接回時間',
+                  hintText: _pickUpSelectionEnabled
+                      ? null
+                      : (_date == null ? '請先選擇安親日期' : '請先選擇送達時間'),
+                  helperText: _pickUpSelectionEnabled
+                      ? null
+                      : (_date == null ? '請先選擇安親日期' : '請先選擇送達時間'),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(14),
                   ),
@@ -1655,10 +1696,12 @@ class _ShopDaycareBookingPageState extends State<ShopDaycareBookingPage> {
                       ),
                     )
                     .toList(),
-                onChanged: (String? value) {
-                  setState(() => _pickUp = value);
-                  _refreshRoomOptions();
-                },
+                onChanged: _pickUpSelectionEnabled
+                    ? (String? value) {
+                        setState(() => _pickUp = value);
+                        _refreshRoomOptions();
+                      }
+                    : null,
               ),
             ],
           ],
@@ -1760,15 +1803,8 @@ class _ShopDaycareBookingPageState extends State<ShopDaycareBookingPage> {
       ],
       if (_addons.isNotEmpty && _startAt != null && _endAt != null) ...<Widget>[
         const SizedBox(height: 16),
-        Text(
-          '加值服務',
-          style: TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.bold,
-            color: theme.textColor,
-          ),
-        ),
         DaycareAddonSelector(
+          theme: theme,
           addons: _addons,
           selectedAddonIds: _selectedAddonIds,
           selectedPetIds: _selectedPetIds,
@@ -1777,6 +1813,9 @@ class _ShopDaycareBookingPageState extends State<ShopDaycareBookingPage> {
           addonSlotKeys: _addonSlotKeys,
           scheduledStartAt: _startAt!,
           scheduledEndAt: _endAt!,
+          addonSubtotal: _quote?.addonAmount ?? 0,
+          estimateTotal: _quote?.totalAmount ?? 0,
+          showFeeSummary: true,
           onToggleAddon: (String id) {
             setState(() {
               if (_selectedAddonIds.contains(id)) {

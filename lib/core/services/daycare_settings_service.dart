@@ -5,6 +5,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:petnest_saas/core/constants/shop_modules.dart';
 import 'package:petnest_saas/core/models/daycare_settings_model.dart';
+import 'package:petnest_saas/core/services/daycare_enabled.dart';
 
 class DaycareSettingsService {
   DaycareSettingsService._();
@@ -66,14 +67,12 @@ class DaycareSettingsService {
     }, SetOptions(merge: true));
   }
 
-  /// 任一正式／相容欄位為開即視為開放，避免舊欄位缺失把已開啟的安親判成關閉。
+  /// 正式來源：shops.daycareEnabled。關閉後即使 settings.enabled 仍為 true 也視為關閉。
   bool isEnabledForShop({
     required Map<String, dynamic>? shop,
     DaycareSettingsModel? settings,
   }) {
-    final bool shopOn = DaycareBool.parse(shop?['daycareEnabled']);
-    final bool settingsOn = DaycareBool.parse(settings?.enabled);
-    return shopOn || settingsOn;
+    return DaycareEnabled.isOn(shop: shop, settings: settings);
   }
 
   bool isCatHotelEnabled(Map<String, dynamic>? shop) {

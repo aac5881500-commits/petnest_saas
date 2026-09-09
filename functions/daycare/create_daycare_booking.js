@@ -16,6 +16,8 @@ const {
   serviceDateKey,
   isDaycareEnabled,
   summarizePolicyForService,
+  submittedServicePolicyVersion,
+  acceptedServiceVersion,
   toDate,
   toInt,
   weekdayTaiwan,
@@ -38,6 +40,7 @@ const {
   depositAmount,
   SELECTABLE_PLAN_TYPES,
   isRoomBased,
+  persistPricingMode,
   remainingFromPaid,
 } = require("./daycare_pricing");
 const {
@@ -71,10 +74,6 @@ function assertSchedule(settings, startAt, endAt, isAdmin, override) {
   }
   if (startAt.getTime() >= endAt.getTime()) {
     throw new HttpsError("invalid-argument", "送達時間不得晚於接回時間");
-  }
-  const minutes = Math.round((endAt - startAt) / 60000);
-  if (minutes < toInt(settings.minDurationMinutes, 60)) {
-    throw new HttpsError("failed-precondition", "未達最短安親時間");
   }
   if (!isDateOpen(settings, override, startAt)) {
     throw new HttpsError("failed-precondition", "該日期不開放安親");
@@ -338,7 +337,7 @@ exports.createDaycareBooking = onCall(
         "admin" : "customer";
 
       if (!isDaycareEnabled(shopData, settings)) {
-        throw new HttpsError("failed-precondition", "本店目前未開放安親服務");
+        throw new HttpsError("failed-precondition", "店家目前未開放安親服務");
       }
       const availablePaymentMethods = effectiveMethodIds(shopData);
       if (!availablePaymentMethods.length) {
@@ -386,6 +385,14 @@ exports.createDaycareBooking = onCall(
       }
 
       const roomBased = isRoomBased(settings);
+      const sentPricingMode = normalizeString(data.pricingMode);
+      if (sentPricingMode &&
+          isRoomBased({pricingMode: sentPricingMode}) !== roomBased) {
+        throw new HttpsError(
+            "failed-precondition",
+            "安親收費模式已變更，請重新選擇房型或方案。",
+        );
+      }
       const plans = Array.isArray(settings.plans) ? settings.plans : [];
       const planId = normalizeString(data.daycarePlanId || data.planId);
       const plan = plans.find((item) =>
@@ -690,8 +697,8 @@ exports.createDaycareBooking = onCall(
           if (policySignMethod === "member_online") {
             const acc = await firestore.collection("users").doc(userId)
                 .collection("policy_acceptances").doc(shopId).get();
-            const byService = (acc.data() || {}).acceptedVersions || {};
-            if (toInt(byService.daycare, 0) !== policySummary.version) {
+            if (acceptedServiceVersion(acc.data() || {}, "daycare") !==
+                policySummary.version) {
               throw new HttpsError(
                   "failed-precondition",
                   "會員尚未同意目前安親條款",
@@ -700,19 +707,20 @@ exports.createDaycareBooking = onCall(
           }
         } else {
           policySignMethod = "member_online";
-          const submittedVersion = toInt(
-              data.policyVersion || data.termsVersion, 0,
+          const submittedVersion = submittedServicePolicyVersion(data);
+          const acc = await firestore.collection("users").doc(userId)
+              .collection("policy_acceptances").doc(shopId).get();
+          const acceptedVersion = acceptedServiceVersion(
+              acc.data() || {}, "daycare",
           );
-          if (submittedVersion !== policySummary.version) {
+          if (submittedVersion !== policySummary.version &&
+              acceptedVersion !== policySummary.version) {
             throw new HttpsError(
                 "failed-precondition",
                 "安親條款已更新，請重新閱讀並同意。",
             );
           }
-          const acc = await firestore.collection("users").doc(userId)
-              .collection("policy_acceptances").doc(shopId).get();
-          const byService = (acc.data() || {}).acceptedVersions || {};
-          if (toInt(byService.daycare, 0) !== policySummary.version) {
+          if (acceptedVersion !== policySummary.version) {
             throw new HttpsError(
                 "failed-precondition",
                 "安親條款已更新，請重新閱讀並同意。",
@@ -829,10 +837,11 @@ exports.createDaycareBooking = onCall(
           nights: 0,
           actualStartAt: null,
           actualEndAt: null,
-          daycarePlanId: plan.id || "",
-          daycarePlanSnapshot: plan,
+          daycarePlanId: roomBased ? "" : (plan.id || ""),
+          daycarePlanSnapshot: roomBased ? {} : plan,
+          daycarePlanName: roomBased ? "" : (normalizeString(plan.name) || ""),
           daycarePricingSnapshot: computed,
-          pricingMode: roomBased ? "room_based" : "time_based",
+          pricingMode: persistPricingMode(settings),
           estimateTotalPrice,
           quotedTotalPrice: computed.totalAmount,
           totalAmount: computed.totalAmount,
@@ -843,6 +852,8 @@ exports.createDaycareBooking = onCall(
           roomTypeNameSnapshot: "",
           requestedRoomTypeId,
           requestedRoomTypeName,
+          requestedRoomTypePriceSnapshot: roomBased ?
+            (requestedRoomSetting || {}) : {},
           roomId: null,
           roomName: null,
           roomNumberSnapshot: "",
@@ -922,6 +933,8 @@ exports.createDaycareBooking = onCall(
           policySignedByUid: source === "admin" ? uid : userId,
           policySnapshotVersion: policyVersion,
           createdByUid: source === "admin" ? uid : "",
+          createdByEmail: source === "admin" ?
+            normalizeString((request.auth.token || {}).email) : "",
           status,
           bankName: shopData.bankName || "",
           accountName: shopData.accountName || "",
@@ -976,7 +989,7 @@ exports.createDaycareBooking = onCall(
         estimateTotalPrice,
         depositAmount: computed.depositAmount,
         status,
-        pricingMode: roomBased ? "room_based" : "time_based",
+        pricingMode: persistPricingMode(settings),
       };
     },
 );

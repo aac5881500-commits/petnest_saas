@@ -409,6 +409,9 @@ class BookingService {
     String payAmountType = '', // deposit / full
     List<Map<String, dynamic>>? pets,
     List<Map<String, dynamic>>? addons,
+    int policyVersion = 0,
+    String policySignMethod = '',
+    String policyServiceType = PolicyApplicableService.accommodation,
   }) async {
     final operator = _currentUser;
     final doc = _bookings.doc();
@@ -478,6 +481,14 @@ class BookingService {
       'source': 'admin',
       'createdByUid': operator.uid,
       'createdByEmail': operator.email,
+      'createdByDisplayName': operator.displayName,
+      'policyVersion': policyVersion,
+      'policySignMethod': policySignMethod,
+      'policyServiceType': policyServiceType,
+      'policyAcceptedAt': policySignMethod.isEmpty
+          ? null
+          : FieldValue.serverTimestamp(),
+      'policyAcceptedByEmail': operator.email,
       'customerName': customerName.trim(),
       'customerPhone': customerPhone.trim(),
       'address': address,

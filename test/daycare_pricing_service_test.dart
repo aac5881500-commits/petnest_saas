@@ -80,6 +80,22 @@ void main() {
       expect(quote.depositAmount, 440);
     });
 
+    test('5 小時起步方案使用 3 小時仍收起步價、不加超時費', () {
+      final DaycareTimeCharge charge = pricing.quoteTimeCharge(
+        includedMinutes: 300,
+        basePrice: 1000,
+        extraBillingMinutes: 60,
+        extraBillingPrice: 200,
+        extraPetPrice: 0,
+        maxBaseCharge: 0,
+        durationMinutes: 180,
+        petCount: 1,
+      );
+      expect(charge.timeCharge, 1000);
+      expect(charge.extraMinutes, 0);
+      expect(charge.extraUnits, 0);
+    });
+
     test('4 小時 NT\$880，使用 3 小時只收起步價格', () {
       final DaycareTimeCharge charge = pricing.quoteTimeCharge(
         includedMinutes: 240,
@@ -452,6 +468,25 @@ void main() {
       );
       expect(settings.pricingMode, DaycarePricingModes.independentPlan);
       expect(settings.isRoomBased, isFalse);
+    });
+
+    test('roomType 設定只提供安親房型、不列出獨立方案', () {
+      const DaycareSettingsModel settings = DaycareSettingsModel(
+        pricingMode: DaycarePricingModes.roomType,
+        plans: <DaycarePlanModel>[
+          DaycarePlanModel(id: 'hourly', name: '每小時計費', enabled: true),
+        ],
+      );
+      expect(settings.isRoomBased, isTrue);
+      expect(settings.customerPlans, isEmpty);
+      expect(
+        DaycarePricingModes.persist('room_based'),
+        DaycarePricingModes.roomType,
+      );
+      expect(
+        DaycarePricingModes.persist('time_based'),
+        DaycarePricingModes.independentPlan,
+      );
     });
 
     test('固定日價不因停留時長改變，多寵加價正確', () {

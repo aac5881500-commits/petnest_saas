@@ -10,6 +10,8 @@ import 'package:image_picker/image_picker.dart';
 import '../../../core/models/daily_care_setting_model.dart';
 import '../../../core/services/daily_care_background_service.dart';
 import '../../../core/services/daily_care_setting_service.dart';
+import '../../../core/services/daycare_enabled.dart';
+import '../../../core/services/shop_service.dart';
 import '../../../core/widgets/daily_care_card_surface.dart';
 import '../../../core/widgets/shop_task_center_button.dart';
 
@@ -868,9 +870,24 @@ class _DailyCareSettingPageState extends State<DailyCareSettingPage> {
 
                 const SizedBox(height: 16),
 
-                _buildDaycareCareCard(),
-
-                const SizedBox(height: 16),
+                StreamBuilder<Map<String, dynamic>?>(
+                  stream: ShopService.instance.streamShop(widget.shopId),
+                  builder:
+                      (
+                        BuildContext context,
+                        AsyncSnapshot<Map<String, dynamic>?> shopSnap,
+                      ) {
+                        if (!DaycareEnabled.isOn(shop: shopSnap.data)) {
+                          return const SizedBox.shrink();
+                        }
+                        return Column(
+                          children: <Widget>[
+                            _buildDaycareCareCard(),
+                            const SizedBox(height: 16),
+                          ],
+                        );
+                      },
+                ),
 
                 IgnorePointer(
                   ignoring: !_enabled,

@@ -63,6 +63,15 @@ function isRoomBased(settingsOrBooking) {
 }
 
 /**
+ * 訂單寫入正式值：roomType／independentPlan，仍相容舊 room_based／time_based。
+ * @param {Object} settingsOrBooking
+ * @return {string}
+ */
+function persistPricingMode(settingsOrBooking) {
+  return isRoomBased(settingsOrBooking) ? "roomType" : "independentPlan";
+}
+
+/**
  * 訂金報價可預估尾款；真正入帳的尚需付款必須是總額減已付。
  * @param {number} total
  * @param {number} paid
@@ -534,6 +543,7 @@ module.exports = {
   shopLatePickupFee,
   addonLineAmount,
   isRoomBased,
+  persistPricingMode,
   remainingFromPaid,
   extraTimeAmount,
   overnightStayOriginal,

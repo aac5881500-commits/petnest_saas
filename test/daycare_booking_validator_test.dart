@@ -35,7 +35,7 @@ void main() {
         shop: <String, dynamic>{'daycareEnabled': false},
         settings: const DaycareSettingsModel(enabled: true),
       ),
-      isTrue,
+      isFalse,
     );
     expect(
       DaycareSettingsService.instance.isEnabledForShop(
@@ -104,6 +104,22 @@ void main() {
     );
   });
 
+  test('短於起步時間仍可預約，不視為未達最短安親時間', () {
+    final DaycareValidationResult result =
+        DaycareBookingValidator.validateSchedule(
+          settings: const DaycareSettingsModel(
+            minDurationMinutes: 300,
+            allowSameDay: true,
+            blockOutsideHours: false,
+          ),
+          startAt: DateTime(2026, 9, 1, 10),
+          endAt: DateTime(2026, 9, 1, 13),
+          isAdmin: true,
+        );
+    expect(result.isOk, isTrue);
+    expect(result.error, isNot(contains('最短安親')));
+  });
+
   test('長時間安親不再被最長安親時間阻擋', () {
     final DaycareValidationResult result =
         DaycareBookingValidator.validateSchedule(
@@ -114,8 +130,8 @@ void main() {
             blockOutsideHours: false,
             allowSameDay: true,
           ),
-          startAt: DateTime(2026, 9, 1, 8),
-          endAt: DateTime(2026, 9, 1, 20),
+          startAt: DateTime(2026, 9, 1, 9),
+          endAt: DateTime(2026, 9, 1, 18),
           isAdmin: true,
         );
     expect(result.isOk, isTrue);

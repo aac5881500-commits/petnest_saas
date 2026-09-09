@@ -8,6 +8,8 @@
 
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/models/policy_applicable_service.dart';
+import 'package:petnest_saas/core/services/daycare_enabled.dart';
+import 'package:petnest_saas/core/services/shop_service.dart';
 import 'package:petnest_saas/core/widgets/shop_task_center_button.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:petnest_saas/features/shop/pages/inventory/shop_inventory_list_page.dart';
@@ -377,44 +379,82 @@ class _ShopAddonPageState extends State<ShopAddonPage>
         : current.contains(PolicyApplicableService.daycare)
         ? 'daycare'
         : 'stay';
-    return Padding(
-      padding: const EdgeInsets.only(top: 10),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
-          const Text('適用服務', style: TextStyle(fontWeight: FontWeight.w700)),
-          const SizedBox(height: 6),
-          SegmentedButton<String>(
-            segments: const <ButtonSegment<String>>[
-              ButtonSegment<String>(value: 'stay', label: Text('住宿')),
-              ButtonSegment<String>(value: 'daycare', label: Text('安親')),
-              ButtonSegment<String>(value: 'both', label: Text('住宿與安親')),
-            ],
-            selected: <String>{mode},
-            onSelectionChanged: (Set<String> values) {
-              if (values.isEmpty) {
-                return;
-              }
-              setState(() {
-                switch (values.first) {
-                  case 'daycare':
-                    item['applicableServices'] = List<String>.from(
-                      PolicyApplicableService.daycareOnly,
-                    );
-                  case 'both':
-                    item['applicableServices'] = List<String>.from(
-                      PolicyApplicableService.shared,
-                    );
-                  default:
-                    item['applicableServices'] = List<String>.from(
-                      PolicyApplicableService.accommodationOnly,
-                    );
-                }
-              });
-            },
-          ),
-        ],
-      ),
+    return StreamBuilder<Map<String, dynamic>?>(
+      stream: ShopService.instance.streamShop(widget.shopId),
+      builder:
+          (
+            BuildContext context,
+            AsyncSnapshot<Map<String, dynamic>?> shopSnap,
+          ) {
+            final bool daycareOn = DaycareEnabled.isOn(shop: shopSnap.data);
+            final String effectiveMode = daycareOn ? mode : 'stay';
+            return Padding(
+              padding: const EdgeInsets.only(top: 10),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  const Text(
+                    '適用服務',
+                    style: TextStyle(fontWeight: FontWeight.w700),
+                  ),
+                  const SizedBox(height: 6),
+                  if (!daycareOn)
+                    const Padding(
+                      padding: EdgeInsets.only(bottom: 8),
+                      child: Text(
+                        '安親服務目前關閉，加購僅能設定住宿適用。',
+                        style: TextStyle(color: Colors.black54, fontSize: 13),
+                      ),
+                    ),
+                  SegmentedButton<String>(
+                    segments: daycareOn
+                        ? const <ButtonSegment<String>>[
+                            ButtonSegment<String>(
+                              value: 'stay',
+                              label: Text('住宿'),
+                            ),
+                            ButtonSegment<String>(
+                              value: 'daycare',
+                              label: Text('安親'),
+                            ),
+                            ButtonSegment<String>(
+                              value: 'both',
+                              label: Text('住宿與安親'),
+                            ),
+                          ]
+                        : const <ButtonSegment<String>>[
+                            ButtonSegment<String>(
+                              value: 'stay',
+                              label: Text('住宿'),
+                            ),
+                          ],
+                    selected: <String>{effectiveMode},
+                    onSelectionChanged: (Set<String> values) {
+                      if (values.isEmpty) {
+                        return;
+                      }
+                      setState(() {
+                        switch (values.first) {
+                          case 'daycare':
+                            item['applicableServices'] = List<String>.from(
+                              PolicyApplicableService.daycareOnly,
+                            );
+                          case 'both':
+                            item['applicableServices'] = List<String>.from(
+                              PolicyApplicableService.shared,
+                            );
+                          default:
+                            item['applicableServices'] = List<String>.from(
+                              PolicyApplicableService.accommodationOnly,
+                            );
+                        }
+                      });
+                    },
+                  ),
+                ],
+              ),
+            );
+          },
     );
   }
 

@@ -21,6 +21,7 @@ import 'package:petnest_saas/core/services/daycare_date_override_service.dart';
 import 'package:petnest_saas/core/services/daycare_function_service.dart';
 import 'package:petnest_saas/core/services/daycare_pricing_service.dart';
 import 'package:petnest_saas/core/services/daycare_settings_service.dart';
+import 'package:petnest_saas/core/services/daycare_enabled.dart';
 import 'package:petnest_saas/core/services/daycare_time_helper.dart';
 import 'package:petnest_saas/core/services/member_coupon_service.dart';
 import 'package:petnest_saas/core/services/payment_function_service.dart';
@@ -341,6 +342,7 @@ class _ShopDaycareBookingConfirmPageState
           feeRuleText: _ruleText(quote),
           theme: HomeBannerService.instance.themeFromShop(widget.shop),
           termsServiceType: PolicyApplicableService.daycare,
+          showStepBackButton: true,
           feeLineItems: feeLines,
           onSubmitWithData: _submit,
         ),
@@ -426,9 +428,9 @@ class _ShopDaycareBookingConfirmPageState
       settings: liveSettings,
     )) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('此店家尚未開放安親')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text(DaycareEnabled.closedMessage)),
+        );
       }
       return;
     }

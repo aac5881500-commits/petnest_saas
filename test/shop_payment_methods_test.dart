@@ -39,7 +39,7 @@ Map<String, dynamic> _shop({
         'cvsCode': true,
       },
       'operationSettings': <String, dynamic>{
-        if (cash != null) 'cashPaymentEnabled': cash!,
+        if (cash != null) 'cashPaymentEnabled': cash,
         'bankTransferEnabled': bank,
         'ecpayEnabled': ecpay,
         'creditCardEnabled': credit,
@@ -206,5 +206,22 @@ void main() {
           .contains('到店支付訂金'),
       isFalse,
     );
+  });
+
+  test('僅明確銀行轉帳才視為人工轉帳憑證', () {
+    expect(ShopPaymentMethods.isManualBankTransferPayment('transfer'), isTrue);
+    expect(
+      ShopPaymentMethods.isManualBankTransferPayment('bank_transfer'),
+      isTrue,
+    );
+    expect(
+      ShopPaymentMethods.isManualBankTransferPayment('credit_card'),
+      isFalse,
+    );
+    expect(ShopPaymentMethods.isManualBankTransferPayment('atm'), isFalse);
+    expect(ShopPaymentMethods.isManualBankTransferPayment('cvs_code'), isFalse);
+    expect(ShopPaymentMethods.isManualBankTransferPayment(''), isFalse);
+    expect(ShopPaymentMethods.isManualBankTransferPayment(null), isFalse);
+    expect(ShopPaymentMethods.isManualBankTransferPayment('銀行轉帳'), isFalse);
   });
 }

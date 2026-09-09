@@ -16,7 +16,9 @@ import 'package:petnest_saas/core/services/shop_service.dart';
 import 'package:petnest_saas/shared/widgets/booking_calendar.dart';
 import 'package:petnest_saas/core/constants/shop_permission_keys.dart';
 import 'package:petnest_saas/core/services/shop_plan_service.dart';
+import 'package:petnest_saas/core/services/operator_display.dart';
 import 'package:petnest_saas/core/widgets/shop_task_center_button.dart';
+import 'package:petnest_saas/features/shop/widgets/unsaved_booking_settings_dialog.dart';
 
 class ShopBookingSettingsPage extends StatefulWidget {
   const ShopBookingSettingsPage({super.key, required this.shopId});
@@ -35,6 +37,11 @@ class _ShopBookingSettingsPageState extends State<ShopBookingSettingsPage> {
   bool _daycareEnabled = false;
   bool _settingsInitialized = false;
   bool _savingSettings = false;
+  Set<String> _draftBlockedDates = <String>{};
+  Set<String> _savedBlockedDates = <String>{};
+  bool _savedBookingEnabled = true;
+  bool _savedDaycareEnabled = false;
+  String _savedMaxAdvanceDays = '30';
 
   String? _currentUserRole;
   bool _roleLoaded = false;
@@ -52,6 +59,39 @@ class _ShopBookingSettingsPageState extends State<ShopBookingSettingsPage> {
   void dispose() {
     _maxAdvanceBookingDaysController.dispose();
     super.dispose();
+  }
+
+  bool get _dirty {
+    if (!_settingsInitialized) {
+      return false;
+    }
+    final String days = _maxAdvanceBookingDaysController.text.trim();
+    return _bookingEnabled != _savedBookingEnabled ||
+        _daycareEnabled != _savedDaycareEnabled ||
+        days != _savedMaxAdvanceDays ||
+        !_sameSet(_draftBlockedDates, _savedBlockedDates);
+  }
+
+  bool _sameSet(Set<String> a, Set<String> b) {
+    if (a.length != b.length) {
+      return false;
+    }
+    return a.containsAll(b);
+  }
+
+  Future<bool> _handleLeave() async {
+    if (!_dirty) {
+      return true;
+    }
+    final UnsavedBookingSettingsAction? action =
+        await showUnsavedBookingSettingsDialog(context);
+    if (action == UnsavedBookingSettingsAction.discard) {
+      return true;
+    }
+    if (action == UnsavedBookingSettingsAction.saveAndLeave) {
+      return _saveSettings();
+    }
+    return false;
   }
 
   Future<void> _loadRole() async {
@@ -122,75 +162,95 @@ class _ShopBookingSettingsPageState extends State<ShopBookingSettingsPage> {
         body: const Center(child: Text('你沒有管理權限')),
       );
     }
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('預約管理'),
-        actions: <Widget>[ShopTaskCenterButton(shopId: widget.shopId)],
-      ),
-      body: StreamBuilder<Map<String, dynamic>?>(
-        stream: ShopService.instance.streamShop(widget.shopId),
-        builder: (context, shopSnapshot) {
-          if (shopSnapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
-
-          if (shopSnapshot.hasError) {
-            return Center(child: Text('店家資料載入失敗：${shopSnapshot.error}'));
-          }
-
-          final shop = shopSnapshot.data;
-          if (shop == null) {
-            return const Center(child: Text('找不到店家資料'));
-          }
-
-          if (!_settingsInitialized) {
-            _initSettingsIfNeeded(shop);
-          }
-
-          final today = _dateOnly(DateTime.now());
-          final savedMaxAdvanceBookingDays = _toInt(
-            shop['maxAdvanceBookingDays'],
-            fallback: 30,
-          );
-
-          final planLimit = ShopPlanService.bookingOpenDaysLimit(shop);
-
-          final maxAdvanceBookingDays = savedMaxAdvanceBookingDays > planLimit
-              ? planLimit
-              : savedMaxAdvanceBookingDays;
-
-          final lastDate = today.add(Duration(days: maxAdvanceBookingDays));
-          return FutureBuilder<_CalendarPayload>(
-            future: _buildCalendarPayload(
-              shop: shop,
-              firstDate: today,
-              lastDate: lastDate,
-            ),
-            builder: (context, calendarSnapshot) {
-              final payload = calendarSnapshot.data;
-
-              return SingleChildScrollView(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _buildBookingSettingsCard(),
-                    const SizedBox(height: 16),
-                    _buildCalendarSection(
-                      shop: shop,
-                      firstDate: today,
-                      lastDate: lastDate,
-                      payload: payload,
-                    ),
-                    const SizedBox(height: 16),
-                    _buildBookingActionLogs(),
-                    const SizedBox(height: 16),
-                  ],
-                ),
-              );
+    return PopScope(
+      canPop: !_dirty,
+      onPopInvokedWithResult: (bool didPop, Object? result) async {
+        if (didPop) {
+          return;
+        }
+        final bool leave = await _handleLeave();
+        if (leave && mounted) {
+          Navigator.of(context).pop();
+        }
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('預約管理'),
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back),
+            onPressed: () async {
+              final bool leave = await _handleLeave();
+              if (leave && mounted) {
+                Navigator.of(context).maybePop();
+              }
             },
-          );
-        },
+          ),
+          actions: <Widget>[ShopTaskCenterButton(shopId: widget.shopId)],
+        ),
+        body: StreamBuilder<Map<String, dynamic>?>(
+          stream: ShopService.instance.streamShop(widget.shopId),
+          builder: (context, shopSnapshot) {
+            if (shopSnapshot.connectionState == ConnectionState.waiting) {
+              return const Center(child: CircularProgressIndicator());
+            }
+
+            if (shopSnapshot.hasError) {
+              return Center(child: Text('店家資料載入失敗：${shopSnapshot.error}'));
+            }
+
+            final shop = shopSnapshot.data;
+            if (shop == null) {
+              return const Center(child: Text('找不到店家資料'));
+            }
+
+            if (!_settingsInitialized) {
+              _initSettingsIfNeeded(shop);
+            }
+
+            final today = _dateOnly(DateTime.now());
+            final savedMaxAdvanceBookingDays = _toInt(
+              shop['maxAdvanceBookingDays'],
+              fallback: 30,
+            );
+
+            final planLimit = ShopPlanService.bookingOpenDaysLimit(shop);
+            final draftDays = _toInt(
+              _maxAdvanceBookingDaysController.text,
+              fallback: savedMaxAdvanceBookingDays,
+            );
+            final maxAdvanceBookingDays = draftDays > planLimit
+                ? planLimit
+                : (draftDays <= 0 ? savedMaxAdvanceBookingDays : draftDays);
+
+            final lastDate = today.add(Duration(days: maxAdvanceBookingDays));
+            final _CalendarPayload payload = _CalendarPayload(
+              blockedDateKeys: Set<String>.from(_draftBlockedDates),
+              unbookableDateKeys: <String>{},
+              remainingRoomsMap: const <String, int>{},
+              occupiedRoomsMap: const <String, int>{},
+            );
+
+            return SingleChildScrollView(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildBookingSettingsCard(),
+                  const SizedBox(height: 16),
+                  _buildCalendarSection(
+                    shop: shop,
+                    firstDate: today,
+                    lastDate: lastDate,
+                    payload: payload,
+                  ),
+                  const SizedBox(height: 16),
+                  _buildBookingActionLogs(),
+                  const SizedBox(height: 16),
+                ],
+              ),
+            );
+          },
+        ),
       ),
     );
   }
@@ -241,13 +301,18 @@ class _ShopBookingSettingsPageState extends State<ShopBookingSettingsPage> {
                 hintText: '免費版30天｜999方案365天',
                 border: OutlineInputBorder(),
               ),
+              onChanged: (_) => setState(() {}),
             ),
 
             const SizedBox(height: 16),
             SizedBox(
               width: double.infinity,
               child: ElevatedButton(
-                onPressed: _savingSettings ? null : _saveSettings,
+                onPressed: _savingSettings
+                    ? null
+                    : () {
+                        _saveSettings();
+                      },
                 child: _savingSettings
                     ? const SizedBox(
                         height: 20,
@@ -282,7 +347,7 @@ class _ShopBookingSettingsPageState extends State<ShopBookingSettingsPage> {
         Text(
           '1. 可開啟或關閉前台預約功能。\n'
           '2. 可設定客戶最遠可預約天數。\n'
-          '3. 可點擊日期關閉單日預約，並設定原因（例如：休假、清潔、維修）。\n'
+          '3. 可點擊日期關閉單日預約（先留在本機，儲存後才生效）。\n'
           '4. 關閉日期後，前台將無法選擇該日期預約。\n'
           '5. 若只是單一房間維修或臨時關閉，請至房務管理設定個別房間日期。',
           style: TextStyle(
@@ -308,13 +373,9 @@ class _ShopBookingSettingsPageState extends State<ShopBookingSettingsPage> {
             allowBlockedTap: true,
             blockedDateKeys: payload.blockedDateKeys,
             unbookableDateKeys: payload.unbookableDateKeys,
-            onDayTap: (date) async {
+            onDayTap: (date) {
               final selected = _dateOnly(date);
-
-              await _toggleBlockedDate(shop: shop, date: selected);
-
-              if (!mounted) return;
-
+              _toggleDraftBlockedDate(date: selected);
               setState(() {
                 _selectedCalendarDate = selected;
               });
@@ -358,7 +419,6 @@ class _ShopBookingSettingsPageState extends State<ShopBookingSettingsPage> {
 
                 ...logs.map((log) {
                   final action = log['action']?.toString() ?? '';
-                  final operatorEmail = log['operatorEmail']?.toString() ?? '-';
 
                   final payload = Map<String, dynamic>.from(
                     log['payload'] ?? {},
@@ -400,11 +460,18 @@ class _ShopBookingSettingsPageState extends State<ShopBookingSettingsPage> {
                     dense: true,
                     leading: const Icon(Icons.history),
                     title: Text(title),
-                    subtitle: Text(
-                      '${settingDetail.isNotEmpty ? '$settingDetail\n' : ''}'
-                      '異動日期：$dateKey\n'
-                      '操作時間：$formattedTime\n'
-                      '操作人：$operatorEmail\n',
+                    subtitle: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: <Widget>[
+                        if (settingDetail.isNotEmpty) Text(settingDetail),
+                        Text('異動日期：$dateKey'),
+                        Text('操作時間：$formattedTime'),
+                        OperatorActorLabel(
+                          shopId: widget.shopId,
+                          log: log,
+                          prefix: '操作人：',
+                        ),
+                      ],
                     ),
                   );
                 }),
@@ -416,50 +483,25 @@ class _ShopBookingSettingsPageState extends State<ShopBookingSettingsPage> {
     );
   }
 
-  Future<_CalendarPayload> _buildCalendarPayload({
-    required Map<String, dynamic> shop,
-    required DateTime firstDate,
-    required DateTime lastDate,
-  }) async {
-    final blockedDateKeys = List<String>.from(
-      shop['blockedDates'] ?? [],
-    ).map((e) => e.toString()).toSet();
-
-    final Map<String, int> remainingRoomsMap = {};
-    final Map<String, int> occupiedRoomsMap = {};
-    final Set<String> unbookableDateKeys = {};
-
-    DateTime cursor = _dateOnly(firstDate);
-    final last = _dateOnly(lastDate);
-
-    while (!cursor.isAfter(last)) {
-      final key = ShopService.instance.formatDateKey(cursor);
-
-      // 🔥 後台月曆不再算房間（統一用前台邏輯）
-      occupiedRoomsMap[key] = 0;
-      remainingRoomsMap[key] = 0;
-
-      cursor = cursor.add(const Duration(days: 1));
-    }
-
-    return _CalendarPayload(
-      blockedDateKeys: blockedDateKeys,
-      unbookableDateKeys: unbookableDateKeys,
-      remainingRoomsMap: remainingRoomsMap,
-      occupiedRoomsMap: occupiedRoomsMap,
-    );
-  }
-
   void _initSettingsIfNeeded(Map<String, dynamic> shop) {
     if (_settingsInitialized) return;
 
     _bookingEnabled = DaycareBool.parse(shop['bookingEnabled'], fallback: true);
     _daycareEnabled = DaycareBool.parse(shop['daycareEnabled']);
+    _savedBookingEnabled = _bookingEnabled;
+    _savedDaycareEnabled = _daycareEnabled;
 
     _maxAdvanceBookingDaysController.text = _toInt(
       shop['maxAdvanceBookingDays'],
       fallback: 30,
     ).toString();
+    _savedMaxAdvanceDays = _maxAdvanceBookingDaysController.text;
+
+    _draftBlockedDates = List<String>.from(shop['blockedDates'] ?? <dynamic>[])
+        .map((dynamic e) => e.toString())
+        .where((String e) => e.isNotEmpty)
+        .toSet();
+    _savedBlockedDates = Set<String>.from(_draftBlockedDates);
 
     _selectedCalendarDate = _dateOnly(DateTime.now());
 
@@ -476,16 +518,30 @@ class _ShopBookingSettingsPageState extends State<ShopBookingSettingsPage> {
   Future<void> _loadLegacyDaycareEnabled() async {
     try {
       final settings = await DaycareSettingsService.instance.get(widget.shopId);
-      if (!mounted || _daycareEnabled) {
+      if (!mounted || _dirty || _daycareEnabled) {
         return;
       }
       if (settings.enabled) {
-        setState(() => _daycareEnabled = true);
+        setState(() {
+          _daycareEnabled = true;
+          _savedDaycareEnabled = true;
+        });
       }
     } catch (_) {}
   }
 
-  Future<void> _saveSettings() async {
+  void _toggleDraftBlockedDate({required DateTime date}) {
+    final String dateKey = ShopService.instance.formatDateKey(date);
+    setState(() {
+      if (_draftBlockedDates.contains(dateKey)) {
+        _draftBlockedDates.remove(dateKey);
+      } else {
+        _draftBlockedDates.add(dateKey);
+      }
+    });
+  }
+
+  Future<bool> _saveSettings() async {
     final maxAdvanceBookingDays =
         int.tryParse(_maxAdvanceBookingDaysController.text.trim()) ?? 0;
 
@@ -500,12 +556,12 @@ class _ShopBookingSettingsPageState extends State<ShopBookingSettingsPage> {
 
     if (maxAdvanceBookingDays > maxLimit) {
       _showSnackBar('目前方案最多只能設定 $maxLimit 天');
-      return;
+      return false;
     }
 
     if (maxAdvanceBookingDays <= 0) {
       _showSnackBar('最遠可預約天數至少要 1');
-      return;
+      return false;
     }
 
     setState(() {
@@ -519,6 +575,10 @@ class _ShopBookingSettingsPageState extends State<ShopBookingSettingsPage> {
         daycareEnabled: _daycareEnabled,
         maxAdvanceBookingDays: maxAdvanceBookingDays,
       );
+      await ShopService.instance.updateBlockedDates(
+        shopId: widget.shopId,
+        blockedDates: _draftBlockedDates.toList(),
+      );
       await DaycareSettingsService.instance.syncEnabledFlag(
         shopId: widget.shopId,
         enabled: _daycareEnabled,
@@ -526,75 +586,33 @@ class _ShopBookingSettingsPageState extends State<ShopBookingSettingsPage> {
 
       final user = FirebaseAuth.instance.currentUser;
       if (user != null && _currentUserRole != null) {
-        await ActionLogService.instance.logAction(
-          shopId: widget.shopId,
-          targetType: 'shop_booking_settings',
-          targetId: widget.shopId,
-          action: 'update_booking_settings',
-          operatorUid: user.uid,
-          operatorRole: _currentUserRole!,
-          payload: {
-            'bookingEnabled': _bookingEnabled,
-            'daycareEnabled': _daycareEnabled,
-            'maxAdvanceBookingDays': maxAdvanceBookingDays,
-          },
-        );
-      }
-
-      if (!mounted) return;
-      _showSnackBar('預約設定已儲存');
-    } catch (e) {
-      if (!mounted) return;
-      _showSnackBar('儲存失敗：$e');
-    } finally {
-      if (mounted) {
-        setState(() {
-          _savingSettings = false;
-        });
-      }
-    }
-  }
-
-  Future<void> _toggleBlockedDate({
-    required Map<String, dynamic> shop,
-    required DateTime date,
-  }) async {
-    final dateKey = ShopService.instance.formatDateKey(date);
-    final blocked = ShopService.instance.isBlockedDate(shop, date);
-
-    try {
-      final user = FirebaseAuth.instance.currentUser;
-
-      if (blocked) {
-        await ShopService.instance.removeBlockedDate(
-          shopId: widget.shopId,
-          dateKey: dateKey,
-        );
-
-        if (user != null && _currentUserRole != null) {
+        final bool settingsChanged =
+            _bookingEnabled != _savedBookingEnabled ||
+            _daycareEnabled != _savedDaycareEnabled ||
+            _maxAdvanceBookingDaysController.text.trim() !=
+                _savedMaxAdvanceDays;
+        if (settingsChanged) {
           await ActionLogService.instance.logAction(
             shopId: widget.shopId,
-            targetType: 'shop_calendar_date',
-            targetId: dateKey,
-            action: 'unblock_date',
+            targetType: 'shop_booking_settings',
+            targetId: widget.shopId,
+            action: 'update_booking_settings',
             operatorUid: user.uid,
             operatorRole: _currentUserRole!,
-            payload: {'dateKey': dateKey},
+            payload: {
+              'bookingEnabled': _bookingEnabled,
+              'daycareEnabled': _daycareEnabled,
+              'maxAdvanceBookingDays': maxAdvanceBookingDays,
+            },
           );
         }
-
-        if (!mounted) return;
-        _showSnackBar('已改成開放：$dateKey');
-      } else {
-        await FirebaseFirestore.instance
-            .collection('shops')
-            .doc(widget.shopId)
-            .update({
-              'blockedDates': FieldValue.arrayUnion([dateKey]),
-              'blockedDateReasons.$dateKey': FieldValue.delete(),
-            });
-
-        if (user != null && _currentUserRole != null) {
+        final Set<String> added = _draftBlockedDates.difference(
+          _savedBlockedDates,
+        );
+        final Set<String> removed = _savedBlockedDates.difference(
+          _draftBlockedDates,
+        );
+        for (final String dateKey in added) {
           await ActionLogService.instance.logAction(
             shopId: widget.shopId,
             targetType: 'shop_calendar_date',
@@ -605,13 +623,40 @@ class _ShopBookingSettingsPageState extends State<ShopBookingSettingsPage> {
             payload: {'dateKey': dateKey},
           );
         }
-
-        if (!mounted) return;
-        _showSnackBar('已改成關閉：$dateKey');
+        for (final String dateKey in removed) {
+          await ActionLogService.instance.logAction(
+            shopId: widget.shopId,
+            targetType: 'shop_calendar_date',
+            targetId: dateKey,
+            action: 'unblock_date',
+            operatorUid: user.uid,
+            operatorRole: _currentUserRole!,
+            payload: {'dateKey': dateKey},
+          );
+        }
       }
+
+      if (!mounted) {
+        return false;
+      }
+      setState(() {
+        _savedBookingEnabled = _bookingEnabled;
+        _savedDaycareEnabled = _daycareEnabled;
+        _savedMaxAdvanceDays = _maxAdvanceBookingDaysController.text.trim();
+        _savedBlockedDates = Set<String>.from(_draftBlockedDates);
+        _savingSettings = false;
+      });
+      _showSnackBar('預約設定已儲存');
+      return true;
     } catch (e) {
-      if (!mounted) return;
-      _showSnackBar('更新失敗：$e');
+      if (!mounted) {
+        return false;
+      }
+      setState(() {
+        _savingSettings = false;
+      });
+      _showSnackBar('儲存失敗：$e');
+      return false;
     }
   }
 

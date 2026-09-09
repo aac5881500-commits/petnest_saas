@@ -16,4 +16,27 @@ void main() {
     );
     expect(BookingPaymentProof.urls(<String, dynamic>{}), isEmpty);
   });
+
+  test('只有銀行轉帳才顯示付款回傳照片按鈕', () {
+    expect(
+      BookingPaymentProof.shouldShow(<String, dynamic>{
+        'paymentMethod': 'transfer',
+      }),
+      isTrue,
+    );
+    expect(
+      BookingPaymentProof.shouldShow(<String, dynamic>{
+        'paymentMethod': 'credit_card',
+      }),
+      isFalse,
+    );
+    expect(
+      BookingPaymentProof.shouldShow(<String, dynamic>{'paymentMethod': 'atm'}),
+      isFalse,
+    );
+    expect(
+      BookingPaymentProof.shouldShow(<String, dynamic>{'paymentMethod': ''}),
+      isFalse,
+    );
+  });
 }

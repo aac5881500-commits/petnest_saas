@@ -63,6 +63,7 @@ class BookingFormPage extends StatefulWidget {
     this.paymentTestState,
     this.depositOverrideAmount,
     this.showSubmitError = true,
+    this.showStepBackButton = false,
     this.seedCustomForm,
   });
 
@@ -122,6 +123,9 @@ class BookingFormPage extends StatefulWidget {
   /// 若父層已顯示錯誤，避免重複 Snackbar。
   final bool showSubmitError;
 
+  /// 安親第 4 步底部「上一步」：pop 回第 3 步並保留 draft。住宿預設關閉。
+  final bool showStepBackButton;
+
   /// 測試用：略過遠端讀取時注入送出訂單表單。
   @visibleForTesting
   final CustomFormModel? seedCustomForm;
@@ -150,6 +154,7 @@ class _BookingFormPageState extends State<BookingFormPage> {
   String? _paymentLoadError;
   bool _termsLoadError = false;
   TermsStatus? _termsStatus;
+  bool _termsServerRejected = false;
 
   String? _paymentMethod;
   String _payAmountType = 'deposit';
@@ -693,6 +698,9 @@ class _BookingFormPageState extends State<BookingFormPage> {
         _termsStatus = status;
         _loadingTerms = false;
         _termsLoadError = false;
+        if (status.accepted && !status.versionUpdated) {
+          _termsServerRejected = false;
+        }
       });
     } catch (_) {
       if (!mounted) {
@@ -1347,6 +1355,20 @@ class _BookingFormPageState extends State<BookingFormPage> {
         if (!mounted) {
           return;
         }
+        setState(() {
+          _termsServerRejected = true;
+          final TermsStatus? current = _termsStatus;
+          if (current != null) {
+            _termsStatus = TermsStatus(
+              required: true,
+              accepted: false,
+              versionUpdated: true,
+              version: current.version,
+              title: current.title,
+              acceptedAt: current.acceptedAt,
+            );
+          }
+        });
         _showSubmitMessage(
           widget.termsServiceType == PolicyApplicableService.daycare
               ? ShopPolicyService.daycareTermsUpdatedMessage
@@ -1520,7 +1542,8 @@ class _BookingFormPageState extends State<BookingFormPage> {
         ? calculatedDeposit
         : widget.totalPrice;
     final String submitHint = _submitHint();
-    final bool termsReady = _termsStatus?.canSubmit ?? true;
+    final bool termsReady =
+        (_termsStatus?.canSubmit ?? true) && !_termsServerRejected;
     final bool canPressSubmit =
         widget.canSubmit &&
         !widget.isBlacklisted &&
@@ -1857,30 +1880,45 @@ class _BookingFormPageState extends State<BookingFormPage> {
                   ),
                 ),
               ),
-            BookingPrimaryButton(
-              theme: widget.theme,
-              label: widget.submitLabel,
-              enabled: canPressSubmit,
-              onPressed: () {
-                if (!canPressSubmit) {
-                  final String reason = submitHint.isNotEmpty
-                      ? submitHint
-                      : widget.isBlacklisted
-                      ? '目前無法使用預約功能'
-                      : !widget.canSubmit
-                      ? '預約條件尚未完成'
-                      : _isSubmitting || widget.isSubmitting
-                      ? '正在送出，請稍候'
-                      : '請先完成付款方式與條款確認';
-                  debugPrint('[BookingSubmit] 01 ignored: $reason');
-                  if (reason == '請完成送出訂單表單' || reason == '表單載入失敗，請重試') {
-                    _scrollToCustomForm();
-                  }
-                  _showSubmitMessage(reason);
-                  return;
-                }
-                _handleSubmit(calculatedDeposit);
-              },
+            Row(
+              children: <Widget>[
+                if (widget.showStepBackButton) ...<Widget>[
+                  Expanded(
+                    child: BookingStepBackButton(
+                      theme: widget.theme,
+                      onPressed: () => Navigator.of(context).pop(),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                ],
+                Expanded(
+                  child: BookingPrimaryButton(
+                    theme: widget.theme,
+                    label: widget.submitLabel,
+                    enabled: canPressSubmit,
+                    onPressed: () {
+                      if (!canPressSubmit) {
+                        final String reason = submitHint.isNotEmpty
+                            ? submitHint
+                            : widget.isBlacklisted
+                            ? '目前無法使用預約功能'
+                            : !widget.canSubmit
+                            ? '預約條件尚未完成'
+                            : _isSubmitting || widget.isSubmitting
+                            ? '正在送出，請稍候'
+                            : '請先完成付款方式與條款確認';
+                        debugPrint('[BookingSubmit] 01 ignored: $reason');
+                        if (reason == '請完成送出訂單表單' || reason == '表單載入失敗，請重試') {
+                          _scrollToCustomForm();
+                        }
+                        _showSubmitMessage(reason);
+                        return;
+                      }
+                      _handleSubmit(calculatedDeposit);
+                    },
+                  ),
+                ),
+              ],
             ),
           ],
         ),

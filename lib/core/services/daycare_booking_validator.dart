@@ -29,12 +29,7 @@ class DaycareBookingValidator {
     if (!startAt.isBefore(endAt)) {
       return const DaycareValidationResult.error('送達時間不得晚於接回時間');
     }
-    final int minutes = endAt.difference(startAt).inMinutes;
-    if (minutes < settings.minDurationMinutes) {
-      if (!settings.isRoomBased) {
-        return const DaycareValidationResult.error('未達最短安親時間');
-      }
-    }
+    // includedMinutes / minDurationMinutes 是起步計費時間，不是最短停留限制。
     // maxDurationMinutes 僅相容舊欄位，新版不再用來阻擋送單。
     // 跨日與每日名額不再以前台開關阻擋；仍一律檢查最早送達／最晚接回。
     if (!DaycareDateAvailability.isDateOpen(

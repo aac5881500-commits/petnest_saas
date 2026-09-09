@@ -16,6 +16,7 @@ import 'package:petnest_saas/features/admin/pages/admin_create_booking_page.dart
 import 'package:petnest_saas/features/admin/pages/admin_create_daycare_booking_page.dart';
 import 'package:petnest_saas/features/admin/widgets/admin_daycare_order_list.dart';
 import 'package:petnest_saas/core/services/daycare_settings_service.dart';
+import 'package:petnest_saas/core/services/daycare_status_labels.dart';
 import 'package:petnest_saas/core/services/shop_permission_service.dart';
 import 'package:petnest_saas/core/services/shop_service.dart';
 import 'package:petnest_saas/core/widgets/shop_task_center_button.dart';
@@ -40,10 +41,13 @@ class AdminBookingListPage extends StatefulWidget {
 class _AdminBookingListPageState extends State<AdminBookingListPage>
     with SingleTickerProviderStateMixin {
   StreamSubscription<Map<String, dynamic>?>? _shopSub;
+  StreamSubscription<QuerySnapshot<Map<String, dynamic>>>? _openDaycareSub;
   TabController? _tabController;
   Map<String, dynamic> _shop = <String, dynamic>{};
   bool _shopLoaded = false;
   bool _daycareOn = false;
+  bool _hasOpenDaycare = false;
+  bool _appliedInitialKind = false;
 
   @override
   void initState() {
@@ -54,39 +58,69 @@ class _AdminBookingListPageState extends State<AdminBookingListPage>
       if (!mounted) {
         return;
       }
-      final Map<String, dynamic> next = shop ?? <String, dynamic>{};
-      final bool daycareOn = DaycareSettingsService.instance.isEnabledForShop(
-        shop: next,
+      _shop = shop ?? <String, dynamic>{};
+      _shopLoaded = true;
+      _daycareOn = DaycareSettingsService.instance.isEnabledForShop(
+        shop: _shop,
       );
-      setState(() {
-        _shop = next;
-        _shopLoaded = true;
-        if (daycareOn != _daycareOn) {
-          _daycareOn = daycareOn;
-          _syncTabs();
-        } else if (_daycareOn && _tabController == null) {
-          _syncTabs();
-        }
-      });
+      _syncTabs();
+      setState(() {});
     });
+    _openDaycareSub = FirebaseFirestore.instance
+        .collection('bookings')
+        .where('shopId', isEqualTo: widget.shopId)
+        .where('bookingKind', isEqualTo: BookingKind.daycare)
+        .orderBy('createdAt', descending: true)
+        .limit(40)
+        .snapshots()
+        .listen((QuerySnapshot<Map<String, dynamic>> snap) {
+          if (!mounted) {
+            return;
+          }
+          final bool hasOpen = snap.docs.any((
+            QueryDocumentSnapshot<Map<String, dynamic>> doc,
+          ) {
+            return !DaycareStatusLabels.isHistory(doc.data());
+          });
+          if (hasOpen == _hasOpenDaycare) {
+            return;
+          }
+          _hasOpenDaycare = hasOpen;
+          _syncTabs();
+          setState(() {});
+        });
   }
 
   void _syncTabs() {
-    _tabController?.dispose();
-    _tabController = null;
-    if (_daycareOn) {
-      final int initial = widget.initialKind == BookingKind.daycare ? 1 : 0;
+    final bool needTabs = _daycareOn || _hasOpenDaycare;
+    final bool hadTabs = _tabController != null;
+    if (needTabs == hadTabs) {
+      return;
+    }
+    if (needTabs) {
+      final int initial =
+          !_appliedInitialKind && widget.initialKind == BookingKind.daycare
+          ? 1
+          : 0;
+      _appliedInitialKind = true;
       _tabController = TabController(
         length: 2,
         vsync: this,
         initialIndex: initial,
       );
+      return;
     }
+    final TabController? old = _tabController;
+    _tabController = null;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      old?.dispose();
+    });
   }
 
   @override
   void dispose() {
     _shopSub?.cancel();
+    _openDaycareSub?.cancel();
     _tabController?.dispose();
     super.dispose();
   }
@@ -96,16 +130,17 @@ class _AdminBookingListPageState extends State<AdminBookingListPage>
     if (!_shopLoaded) {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
-    final bool showDaycareTab = _daycareOn && _tabController != null;
+    final bool showDaycareTab =
+        (_daycareOn || _hasOpenDaycare) && _tabController != null;
     return Scaffold(
       appBar: AppBar(
         title: const Text('訂單管理'),
         bottom: showDaycareTab
             ? TabBar(
                 controller: _tabController,
-                tabs: const <Widget>[
-                  Tab(text: '住宿訂單'),
-                  Tab(text: '安親訂單'),
+                tabs: <Widget>[
+                  const Tab(text: '住宿訂單'),
+                  Tab(text: _daycareOn ? '安親訂單' : '待處理安親'),
                 ],
               )
             : null,

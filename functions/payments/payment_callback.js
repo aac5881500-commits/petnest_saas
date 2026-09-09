@@ -25,6 +25,11 @@ const {
   convertReservationToDeduct,
 } = require("../store/store_inventory");
 
+const {
+  buildSuccessfulEcpayBookingPaymentUpdates,
+  resolvePaymentBookingId,
+} = require("./apply_booking_payment");
+
 /**
  * 回覆綠界通知結果
  *
@@ -242,9 +247,7 @@ exports.ecpayPaymentCallback = onRequest(
           "store_order" :
           "booking";
 
-        const bookingId = normalizeString(
-            payment.bookingId,
-        );
+        const bookingId = resolvePaymentBookingId(payment);
 
         const storeOrderId = normalizeString(
             payment.storeOrderId || payment.sourceId,
@@ -491,227 +494,59 @@ exports.ecpayPaymentCallback = onRequest(
               const booking =
                 bookingSnapshot.data() || {};
 
-              const bookingCode = normalizeString(
-                  booking.bookingCode,
-              );
+              const outcome =
+                buildSuccessfulEcpayBookingPaymentUpdates({
+                  payment: latestPayment,
+                  booking,
+                  paymentId,
+                  merchantTradeNo,
+                  gatewayTradeNo,
+                  callbackAmount,
+                });
 
-              /*
-               * 綠界可能重複發送 Callback。
-               * 已付款完成時直接結束，
-               * 不再次增加 booking.paidAmount。
-               */
-              if (
-                normalizeString(
-                    latestPayment.status,
-                ) === "paid"
-              ) {
+              if (outcome.alreadyPaid) {
                 return;
               }
 
-              const latestMerchantTradeNo =
-                normalizeString(
-                    latestPayment.merchantTradeNo,
-                );
-
-              if (
-                latestMerchantTradeNo !==
-                merchantTradeNo
-              ) {
-                throw new Error(
-                    "交易編號已變更，停止更新訂單。",
-                );
-              }
-
-              const latestExpectedAmount =
-                normalizeInteger(
-                    latestPayment.amount,
-                );
-
-              if (
-                latestExpectedAmount !==
-                callbackAmount
-              ) {
-                throw new Error(
-                    "付款紀錄金額與 Callback 不一致。",
-                );
-              }
-
-              const rawBookingTotalAmount =
-                booking.totalPayableAmount !== undefined &&
-                booking.totalPayableAmount !== null ?
-                  booking.totalPayableAmount :
-                  booking.totalPrice !== undefined &&
-                  booking.totalPrice !== null ?
-                    booking.totalPrice :
-                    booking.totalAmount !== undefined &&
-                    booking.totalAmount !== null ?
-                      booking.totalAmount :
-                      booking.total;
-
-              const bookingTotalAmount = normalizeInteger(
-                  rawBookingTotalAmount,
-              );
-
-              if (bookingTotalAmount <= 0) {
-                throw new Error(
-                    "訂單總金額不正確，停止更新付款彙總。",
-                );
-              }
-
-              const currentPaidAmount =
-                normalizeInteger(
-                    booking.paidAmount,
-                );
-
-              const newPaidAmount =
-                currentPaidAmount +
-                callbackAmount;
-
-              const safePaidAmount =
-                bookingTotalAmount > 0 ?
-                  Math.min(
-                      newPaidAmount,
-                      bookingTotalAmount,
-                  ) :
-                  newPaidAmount;
-
-              const remainingAmount =
-                bookingTotalAmount > 0 ?
-                  Math.max(
-                      bookingTotalAmount -
-                      safePaidAmount,
-                      0,
-                  ) :
-                  0;
-
-              const paymentStatus =
-                remainingAmount <= 0 ?
-                  "paid" :
-                  "partially_paid";
+              const now =
+                admin.firestore.FieldValue.serverTimestamp();
 
               transaction.set(
                   paymentRef,
                   {
-                    status: "paid",
-                    gatewayStatus:
-                      "payment_success",
+                    ...outcome.paymentUpdate,
                     gatewayRtnCode: rtnCode,
-                    gatewayRtnMessage:
-                      rtnMessage,
-                    gatewayTradeNo,
-                    bookingCode,
-                    callbackAmount,
-                    paidAt:
-                      admin.firestore.FieldValue
-                          .serverTimestamp(),
-                    callbackReceivedAt:
-                      admin.firestore.FieldValue
-                          .serverTimestamp(),
-                    updatedAt:
-                      admin.firestore.FieldValue
-                          .serverTimestamp(),
+                    gatewayRtnMessage: rtnMessage,
+                    paidAt: now,
+                    callbackReceivedAt: now,
+                    updatedAt: now,
                   },
-                  {
-                    merge: true,
-                  },
+                  {merge: true},
               );
 
-              const lastPaymentMethod =
-                normalizeString(
-                    latestPayment.paymentMethod,
-                );
-
-              const lastPaymentPurpose =
-                normalizeString(
-                    latestPayment.paymentPurpose,
-                );
-
-              /*
-               * 是否為「訂金付款」。
-               *
-               * 新付款紀錄優先使用 paymentPurpose，
-               * 舊資料若沒有 paymentPurpose，
-               * 則退回判斷 amountType。
-               */
-              const lastAmountType =
-                normalizeString(
-                    latestPayment.amountType,
-                );
-
-              const isDepositPayment =
-                lastPaymentPurpose === "deposit" ||
-                lastAmountType === "deposit";
-
               const bookingUpdate = {
-                paidAmount: safePaidAmount,
-                remainingAmount,
-                paymentStatus,
-
-                /*
-                 * 最近一筆成功付款摘要。
-                 *
-                 * Booking 只保存付款彙總，
-                 * 完整付款資料仍以 payments 集合為準。
-                 */
-                lastPaymentId: paymentId,
-                lastMerchantTradeNo:
-                  merchantTradeNo,
-                lastGatewayTradeNo:
-                  gatewayTradeNo,
-                lastPaymentAmount:
-                  callbackAmount,
-                lastPaymentMethod,
-                lastPaymentPurpose,
-
-                paymentUpdatedAt:
-                  admin.firestore.FieldValue
-                      .serverTimestamp(),
-                updatedAt:
-                  admin.firestore.FieldValue
-                      .serverTimestamp(),
+                ...outcome.bookingUpdate,
+                paymentUpdatedAt: now,
+                updatedAt: now,
               };
+              delete bookingUpdate.markPaidAt;
+              delete bookingUpdate.markDepositPaidAt;
+              delete bookingUpdate.markConfirmedAt;
 
-              if (remainingAmount <= 0) {
-                bookingUpdate.paidAt =
-                  admin.firestore.FieldValue
-                      .serverTimestamp();
+              if (outcome.bookingUpdate.markPaidAt) {
+                bookingUpdate.paidAt = now;
               }
-
-              /*
-               * 綠界訂金付款成功後，自動確認訂金。
-               *
-               * 銀行轉帳不會走綠界 Callback，
-               * 因此仍維持原本店家人工確認流程。
-               */
-              if (isDepositPayment) {
-                bookingUpdate.depositPaid = true;
-                bookingUpdate.depositStatus = "confirmed";
-                bookingUpdate.depositPaidAt =
-                  admin.firestore.FieldValue
-                      .serverTimestamp();
-
-                /*
-                 * 與目前店主端「確認訂金」流程一致：
-                 * pending 訂單在訂金確認後正式 confirmed。
-                 *
-                 * 避免覆蓋已入住、已完成等後續狀態。
-                 */
-                if (
-                  normalizeString(booking.status) === "pending"
-                ) {
-                  bookingUpdate.status = "confirmed";
-                  bookingUpdate.confirmedAt =
-                    admin.firestore.FieldValue
-                        .serverTimestamp();
-                }
+              if (outcome.bookingUpdate.markDepositPaidAt) {
+                bookingUpdate.depositPaidAt = now;
+              }
+              if (outcome.bookingUpdate.markConfirmedAt) {
+                bookingUpdate.confirmedAt = now;
               }
 
               transaction.set(
                   bookingRef,
                   bookingUpdate,
-                  {
-                    merge: true,
-                  },
+                  {merge: true},
               );
             },
         );

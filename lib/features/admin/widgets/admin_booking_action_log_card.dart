@@ -5,10 +5,10 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/services/daycare_status_labels.dart';
+import 'package:petnest_saas/core/services/operator_display.dart';
 import 'package:petnest_saas/core/services/daycare_time_helper.dart';
 import 'package:petnest_saas/features/admin/widgets/admin_booking_date_helpers.dart';
 import 'package:petnest_saas/features/admin/widgets/admin_booking_status_chip.dart';
-import 'package:petnest_saas/features/admin/widgets/admin_booking_text_helpers.dart';
 
 class AdminBookingActionLogCard extends StatelessWidget {
   const AdminBookingActionLogCard({super.key, required this.log});
@@ -19,14 +19,6 @@ class AdminBookingActionLogCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final type = (log['type'] ?? log['action'] ?? '').toString();
     final String time = _formatTime(log['createdAt']);
-    final operatorEmail = log['operatorEmail'];
-
-    final operatorText =
-        operatorEmail != null && operatorEmail.toString().isNotEmpty
-        ? operatorEmail.toString()
-        : (log['operatorUid'] ?? '').toString().isNotEmpty
-        ? '${adminBookingOperatorRoleText(log['operatorRole'])}（${log['operatorUid']}）'
-        : adminBookingOperatorRoleText(log['operatorRole']);
 
     String title = '操作紀錄';
     final String daycareTitle = DaycareStatusLabels.actionName(type);
@@ -75,9 +67,19 @@ class AdminBookingActionLogCard extends StatelessWidget {
         children: [
           Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
           const SizedBox(height: 4),
-          Text(
-            '$time ・ 操作人員：$operatorText',
+          DefaultTextStyle(
             style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+            child: Row(
+              children: <Widget>[
+                Text('$time ・ 操作人員：'),
+                Flexible(
+                  child: OperatorActorLabel(
+                    shopId: (log['shopId'] ?? '').toString(),
+                    log: log,
+                  ),
+                ),
+              ],
+            ),
           ),
         ],
       ),

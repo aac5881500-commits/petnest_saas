@@ -106,10 +106,11 @@ class AdminBookingDetailPaymentAside extends StatelessWidget {
             ),
           ],
           const SizedBox(height: 8),
-          Align(
-            alignment: Alignment.centerLeft,
-            child: BookingPaymentProofButton(data: data),
-          ),
+          if (BookingPaymentProof.shouldShow(data))
+            Align(
+              alignment: Alignment.centerLeft,
+              child: BookingPaymentProofButton(data: data),
+            ),
           const SizedBox(height: 12),
           SizedBox(
             width: double.infinity,

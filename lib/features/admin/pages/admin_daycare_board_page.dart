@@ -10,6 +10,7 @@ import 'package:petnest_saas/features/admin/pages/admin_daycare_detail_page.dart
 import 'package:petnest_saas/features/admin/widgets/admin_daycare_assign_room_dialog.dart';
 import 'package:petnest_saas/features/admin/widgets/admin_daycare_care_report_section.dart';
 import 'package:petnest_saas/features/booking/widgets/booking_detail/booking_detail_status_card.dart';
+import 'package:petnest_saas/features/shop/widgets/daycare_enabled_gate.dart';
 
 class AdminDaycareBoardPage extends StatelessWidget {
   const AdminDaycareBoardPage({super.key, required this.shopId});
@@ -25,112 +26,128 @@ class AdminDaycareBoardPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('今日安親看板')),
-      body: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-        stream: FirebaseFirestore.instance
-            .collection('bookings')
-            .where('shopId', isEqualTo: shopId)
-            .where('bookingKind', isEqualTo: BookingKind.daycare)
-            .where('serviceDate', isEqualTo: _todayKey)
-            .snapshots(),
-        builder:
-            (
-              BuildContext context,
-              AsyncSnapshot<QuerySnapshot<Map<String, dynamic>>> snapshot,
-            ) {
-              if (snapshot.hasError) {
-                return Center(child: Text('載入失敗：${snapshot.error}'));
-              }
-              if (!snapshot.hasData) {
-                return const Center(child: CircularProgressIndicator());
-              }
-              final List<QueryDocumentSnapshot<Map<String, dynamic>>> docs =
-                  snapshot.data!.docs.where((
-                    QueryDocumentSnapshot<Map<String, dynamic>> doc,
-                  ) {
-                    return (doc.data()['status'] ?? '').toString() !=
-                        'cancelled';
-                  }).toList();
-              if (docs.isEmpty) {
-                return ListView(
-                  padding: const EdgeInsets.all(24),
-                  children: const <Widget>[
-                    Card(
-                      child: Padding(
-                        padding: EdgeInsets.symmetric(
-                          vertical: 32,
-                          horizontal: 20,
-                        ),
-                        child: Column(
-                          children: <Widget>[
-                            Icon(Icons.wb_sunny_outlined, size: 36),
-                            SizedBox(height: 12),
-                            Text(
-                              '今日尚無安親訂單',
-                              style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w700,
+    return DaycareEnabledGate(
+      shopId: shopId,
+      title: '今日安親看板',
+      child: Scaffold(
+        appBar: AppBar(title: const Text('今日安親看板')),
+        body: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+          stream: FirebaseFirestore.instance
+              .collection('bookings')
+              .where('shopId', isEqualTo: shopId)
+              .where('bookingKind', isEqualTo: BookingKind.daycare)
+              .where('serviceDate', isEqualTo: _todayKey)
+              .snapshots(),
+          builder:
+              (
+                BuildContext context,
+                AsyncSnapshot<QuerySnapshot<Map<String, dynamic>>> snapshot,
+              ) {
+                if (snapshot.hasError) {
+                  return Center(child: Text('載入失敗：${snapshot.error}'));
+                }
+                if (!snapshot.hasData) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+                final List<QueryDocumentSnapshot<Map<String, dynamic>>> docs =
+                    snapshot.data!.docs.where((
+                      QueryDocumentSnapshot<Map<String, dynamic>> doc,
+                    ) {
+                      return (doc.data()['status'] ?? '').toString() !=
+                          'cancelled';
+                    }).toList();
+                if (docs.isEmpty) {
+                  return ListView(
+                    padding: const EdgeInsets.all(24),
+                    children: const <Widget>[
+                      Card(
+                        child: Padding(
+                          padding: EdgeInsets.symmetric(
+                            vertical: 32,
+                            horizontal: 20,
+                          ),
+                          child: Column(
+                            children: <Widget>[
+                              Icon(Icons.wb_sunny_outlined, size: 36),
+                              SizedBox(height: 12),
+                              Text(
+                                '今日尚無安親訂單',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w700,
+                                ),
                               ),
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
                       ),
+                    ],
+                  );
+                }
+                final DateTime now = DateTime.now();
+                final List<QueryDocumentSnapshot<Map<String, dynamic>>>
+                pending = <QueryDocumentSnapshot<Map<String, dynamic>>>[];
+                final List<QueryDocumentSnapshot<Map<String, dynamic>>>
+                waiting = <QueryDocumentSnapshot<Map<String, dynamic>>>[];
+                final List<QueryDocumentSnapshot<Map<String, dynamic>>>
+                ongoing = <QueryDocumentSnapshot<Map<String, dynamic>>>[];
+                final List<QueryDocumentSnapshot<Map<String, dynamic>>> pickup =
+                    <QueryDocumentSnapshot<Map<String, dynamic>>>[];
+                final List<QueryDocumentSnapshot<Map<String, dynamic>>>
+                overtime = <QueryDocumentSnapshot<Map<String, dynamic>>>[];
+                final List<QueryDocumentSnapshot<Map<String, dynamic>>> done =
+                    <QueryDocumentSnapshot<Map<String, dynamic>>>[];
+                for (final QueryDocumentSnapshot<Map<String, dynamic>> doc
+                    in docs) {
+                  final Map<String, dynamic> data = doc.data();
+                  final String status = (data['status'] ?? '').toString();
+                  if (status == 'completed') {
+                    done.add(doc);
+                    continue;
+                  }
+                  if (status == 'pending') {
+                    pending.add(doc);
+                    continue;
+                  }
+                  if (status == 'checked_in') {
+                    final DateTime? end = _ts(data['scheduledEndAt']);
+                    if (end != null && now.isAfter(end)) {
+                      overtime.add(doc);
+                    } else if (end != null &&
+                        end.difference(now).inMinutes <= 60) {
+                      pickup.add(doc);
+                    } else {
+                      ongoing.add(doc);
+                    }
+                    continue;
+                  }
+                  waiting.add(doc);
+                }
+                return ListView(
+                  padding: const EdgeInsets.all(16),
+                  children: <Widget>[
+                    _BoardSection(
+                      shopId: shopId,
+                      title: '待店家確認',
+                      items: pending,
                     ),
+                    _BoardSection(
+                      shopId: shopId,
+                      title: '等待送達',
+                      items: waiting,
+                    ),
+                    _BoardSection(shopId: shopId, title: '安親中', items: ongoing),
+                    _BoardSection(shopId: shopId, title: '即將接回', items: pickup),
+                    _BoardSection(
+                      shopId: shopId,
+                      title: '已超時',
+                      items: overtime,
+                    ),
+                    _BoardSection(shopId: shopId, title: '今日已完成', items: done),
                   ],
                 );
-              }
-              final DateTime now = DateTime.now();
-              final List<QueryDocumentSnapshot<Map<String, dynamic>>> pending =
-                  <QueryDocumentSnapshot<Map<String, dynamic>>>[];
-              final List<QueryDocumentSnapshot<Map<String, dynamic>>> waiting =
-                  <QueryDocumentSnapshot<Map<String, dynamic>>>[];
-              final List<QueryDocumentSnapshot<Map<String, dynamic>>> ongoing =
-                  <QueryDocumentSnapshot<Map<String, dynamic>>>[];
-              final List<QueryDocumentSnapshot<Map<String, dynamic>>> pickup =
-                  <QueryDocumentSnapshot<Map<String, dynamic>>>[];
-              final List<QueryDocumentSnapshot<Map<String, dynamic>>> overtime =
-                  <QueryDocumentSnapshot<Map<String, dynamic>>>[];
-              final List<QueryDocumentSnapshot<Map<String, dynamic>>> done =
-                  <QueryDocumentSnapshot<Map<String, dynamic>>>[];
-              for (final QueryDocumentSnapshot<Map<String, dynamic>> doc
-                  in docs) {
-                final Map<String, dynamic> data = doc.data();
-                final String status = (data['status'] ?? '').toString();
-                if (status == 'completed') {
-                  done.add(doc);
-                  continue;
-                }
-                if (status == 'pending') {
-                  pending.add(doc);
-                  continue;
-                }
-                if (status == 'checked_in') {
-                  final DateTime? end = _ts(data['scheduledEndAt']);
-                  if (end != null && now.isAfter(end)) {
-                    overtime.add(doc);
-                  } else if (end != null &&
-                      end.difference(now).inMinutes <= 60) {
-                    pickup.add(doc);
-                  } else {
-                    ongoing.add(doc);
-                  }
-                  continue;
-                }
-                waiting.add(doc);
-              }
-              return ListView(
-                padding: const EdgeInsets.all(16),
-                children: <Widget>[
-                  _BoardSection(shopId: shopId, title: '待店家確認', items: pending),
-                  _BoardSection(shopId: shopId, title: '等待送達', items: waiting),
-                  _BoardSection(shopId: shopId, title: '安親中', items: ongoing),
-                  _BoardSection(shopId: shopId, title: '即將接回', items: pickup),
-                  _BoardSection(shopId: shopId, title: '已超時', items: overtime),
-                  _BoardSection(shopId: shopId, title: '今日已完成', items: done),
-                ],
-              );
-            },
+              },
+        ),
       ),
     );
   }

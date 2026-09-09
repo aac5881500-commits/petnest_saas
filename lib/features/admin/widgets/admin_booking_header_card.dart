@@ -13,6 +13,7 @@ import 'package:petnest_saas/core/widgets/member_avatar.dart';
 import 'package:petnest_saas/features/admin/widgets/admin_booking_date_helpers.dart';
 import 'package:petnest_saas/features/admin/widgets/admin_booking_detail_layout.dart';
 import 'package:petnest_saas/features/admin/widgets/admin_booking_status_chip.dart';
+import 'package:petnest_saas/features/shop/widgets/booking/policy_sign_method_field.dart';
 
 class AdminBookingHeaderCard extends StatelessWidget {
   const AdminBookingHeaderCard({
@@ -60,7 +61,7 @@ class AdminBookingHeaderCard extends StatelessWidget {
               ),
               _pill(daycare ? '安親' : '住宿', theme.primaryColor),
               if ((data['source'] ?? '').toString() == 'admin')
-                _pill('手動建單', ShopFrontendTheme.warningColor),
+                _pill('手動建立', ShopFrontendTheme.warningColor),
             ],
           ),
           const SizedBox(height: 12),
@@ -135,6 +136,25 @@ class AdminBookingHeaderCard extends StatelessWidget {
             runSpacing: 6,
             children: <Widget>[
               _meta(theme, '建立', adminBookingFormatDateTime(data['createdAt'])),
+              if ((data['source'] ?? '').toString() == 'admin') ...<Widget>[
+                _meta(
+                  theme,
+                  '建立人',
+                  (data['createdByEmail'] ?? '').toString().trim().isEmpty
+                      ? '已移除店員'
+                      : (data['createdByEmail'] ?? '').toString(),
+                ),
+                if ((data['policySignMethod'] ?? '').toString().isNotEmpty)
+                  _meta(
+                    theme,
+                    '條款確認',
+                    PolicySignMethods.label(
+                      (data['policySignMethod'] ?? '').toString(),
+                    ),
+                  ),
+                if ((data['note'] ?? '').toString().trim().isNotEmpty)
+                  _meta(theme, '店主備註', (data['note'] ?? '').toString()),
+              ],
               _meta(
                 theme,
                 daycare ? '方案／房型' : '房型',

@@ -1,30 +1,40 @@
 // 檔案名稱：lib/features/admin/pages/admin_create_daycare_booking_page.dart
-// 功能說明：後台手動新增安親訂單：沿用住宿日期表、寵物、房型、加值與條款簽署方式
+// 功能說明：後台手動新增安親訂單：與住宿同一套階段版型，收費模式沿用店家 pricingMode
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/models/daycare_plan_model.dart';
 import 'package:petnest_saas/core/models/daycare_settings_model.dart';
+import 'package:petnest_saas/core/models/home_theme_model.dart';
 import 'package:petnest_saas/core/models/policy_applicable_service.dart';
+import 'package:petnest_saas/core/navigation/admin_booking_route.dart';
 import 'package:petnest_saas/core/services/daycare_addon_catalog.dart';
 import 'package:petnest_saas/core/services/daycare_addon_line.dart';
 import 'package:petnest_saas/core/services/daycare_calendar_helper.dart';
+import 'package:petnest_saas/core/services/daycare_enabled.dart';
 import 'package:petnest_saas/core/services/daycare_function_service.dart';
 import 'package:petnest_saas/core/services/daycare_pricing_service.dart';
+import 'package:petnest_saas/core/services/daycare_room_type_option.dart';
 import 'package:petnest_saas/core/services/daycare_settings_service.dart';
 import 'package:petnest_saas/core/services/daycare_time_helper.dart';
+import 'package:petnest_saas/core/services/home_banner_service.dart';
 import 'package:petnest_saas/core/services/shop_payment_methods.dart';
 import 'package:petnest_saas/core/services/shop_policy_service.dart';
 import 'package:petnest_saas/core/services/shop_service.dart';
-import 'package:petnest_saas/features/booking/widgets/shop_payment_method_cards.dart';
+import 'package:petnest_saas/features/admin/widgets/admin_create_flow_scaffold.dart';
 import 'package:petnest_saas/features/admin/widgets/admin_member_search_section.dart';
+import 'package:petnest_saas/features/admin/widgets/admin_quick_create_member_dialog.dart';
 import 'package:petnest_saas/features/admin/widgets/admin_quick_create_pet_dialog.dart';
 import 'package:petnest_saas/features/admin/widgets/admin_selected_member_card.dart';
+import 'package:petnest_saas/features/booking/widgets/shop_payment_method_cards.dart';
 import 'package:petnest_saas/features/shop/widgets/booking/booking_calendar_dialog.dart';
+import 'package:petnest_saas/features/shop/widgets/booking/booking_step_widgets.dart';
 import 'package:petnest_saas/features/shop/widgets/booking/daycare_addon_selector.dart';
 import 'package:petnest_saas/features/shop/widgets/booking/daycare_date_card.dart';
+import 'package:petnest_saas/features/shop/widgets/booking/daycare_offer_card.dart';
 import 'package:petnest_saas/features/shop/widgets/booking/front_calendar_payload.dart';
 import 'package:petnest_saas/features/shop/widgets/booking/policy_sign_method_field.dart';
+import 'package:petnest_saas/features/shop/widgets/daycare_enabled_gate.dart';
 
 class AdminCreateDaycareBookingPage extends StatefulWidget {
   const AdminCreateDaycareBookingPage({super.key, required this.shopId});
@@ -39,7 +49,9 @@ class AdminCreateDaycareBookingPage extends StatefulWidget {
 class _AdminCreateDaycareBookingPageState
     extends State<AdminCreateDaycareBookingPage> {
   final TextEditingController _keyword = TextEditingController();
+  final TextEditingController _note = TextEditingController();
   String _keywordText = '';
+  int _step = 0;
   Map<String, dynamic>? _member;
   Map<String, dynamic> _shop = const <String, dynamic>{};
   DaycareSettingsModel? _settings;
@@ -49,6 +61,8 @@ class _AdminCreateDaycareBookingPageState
   String? _dropOff;
   String? _pickUp;
   DaycarePlanModel? _plan;
+  String? _selectedRoomTypeId;
+  List<DaycareRoomTypeOption> _roomOptions = const <DaycareRoomTypeOption>[];
   final Set<String> _petIds = <String>{};
   List<Map<String, dynamic>> _pets = <Map<String, dynamic>>[];
   List<Map<String, dynamic>> _addons = <Map<String, dynamic>>[];
@@ -76,7 +90,22 @@ class _AdminCreateDaycareBookingPageState
   @override
   void dispose() {
     _keyword.dispose();
+    _note.dispose();
     super.dispose();
+  }
+
+  DateTime? get _startAt {
+    if (_date == null || _dropOff == null) {
+      return null;
+    }
+    return DaycareTimeHelper.combineDateAndTime(_date!, _dropOff!);
+  }
+
+  DateTime? get _endAt {
+    if (_date == null || _pickUp == null) {
+      return null;
+    }
+    return DaycareTimeHelper.combineDateAndTime(_date!, _pickUp!);
   }
 
   Future<void> _bootstrap() async {
@@ -136,24 +165,77 @@ class _AdminCreateDaycareBookingPageState
       _paymentMethod = catalog.methodIds.isEmpty
           ? null
           : catalog.methodIds.first;
+      if (settings.isRoomBased) {
+        _plan = null;
+      } else {
+        _selectedRoomTypeId = null;
+      }
     });
   }
 
   Future<void> _loadPets(String userId) async {
     final QuerySnapshot<Map<String, dynamic>> snap = await FirebaseFirestore
         .instance
-        .collection('user_profiles')
+        .collection('shops')
+        .doc(widget.shopId)
+        .collection('members')
         .doc(userId)
         .collection('pets')
         .get();
+
+    if (!mounted) return;
+
+    final String currentMemberId =
+        (_member?['userId'] ?? _member?['uid'] ?? _member?['id'] ?? '')
+            .toString();
+
+    // 使用者若在讀取期間切換了會員，不讓舊查詢覆蓋新會員的寵物。
+    if (currentMemberId != userId) return;
+
     setState(() {
       _pets = snap.docs
           .map(
             (QueryDocumentSnapshot<Map<String, dynamic>> d) =>
-                <String, dynamic>{'id': d.id, ...d.data()},
+                <String, dynamic>{'id': d.id, 'petId': d.id, ...d.data()},
           )
           .toList();
       _petIds.clear();
+    });
+
+    await _refreshRoomOptions();
+  }
+
+  Future<void> _refreshRoomOptions() async {
+    final DaycareSettingsModel? settings = _settings;
+    if (settings == null || !settings.isRoomBased) {
+      if (mounted) {
+        setState(() => _roomOptions = const <DaycareRoomTypeOption>[]);
+      }
+      return;
+    }
+    if (_startAt == null || _endAt == null) {
+      return;
+    }
+    final List<DaycareRoomTypeOption> options =
+        await DaycareRoomTypeCatalog.load(
+          shopId: widget.shopId,
+          settings: settings,
+          petCount: _petIds.isEmpty ? 1 : _petIds.length,
+          startAt: _startAt,
+          endAt: _endAt,
+        );
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _roomOptions = options;
+      if (_selectedRoomTypeId != null &&
+          !options.any(
+            (DaycareRoomTypeOption e) =>
+                e.selectable && e.roomTypeId == _selectedRoomTypeId,
+          )) {
+        _selectedRoomTypeId = null;
+      }
     });
   }
 
@@ -221,7 +303,12 @@ class _AdminCreateDaycareBookingPageState
                       onCancel: () => Navigator.pop(context),
                       onConfirm: () {
                         if (tempDate != null) {
-                          setState(() => _date = tempDate);
+                          setState(() {
+                            _date = tempDate;
+                            _dropOff = null;
+                            _pickUp = null;
+                          });
+                          _refreshRoomOptions();
                         }
                         Navigator.pop(context);
                       },
@@ -236,18 +323,9 @@ class _AdminCreateDaycareBookingPageState
 
   DaycareQuote? get _quote {
     final DaycareSettingsModel? settings = _settings;
-    if (settings == null ||
-        _plan == null ||
-        _date == null ||
-        _dropOff == null ||
-        _pickUp == null) {
+    if (settings == null || _startAt == null || _endAt == null) {
       return null;
     }
-    final DateTime start = DaycareTimeHelper.combineDateAndTime(
-      _date!,
-      _dropOff!,
-    );
-    final DateTime end = DaycareTimeHelper.combineDateAndTime(_date!, _pickUp!);
     int addonAmount = 0;
     for (final Map<String, dynamic> addon in _addons) {
       if (!_selectedAddonIds.contains((addon['id'] ?? '').toString())) {
@@ -266,19 +344,47 @@ class _AdminCreateDaycareBookingPageState
         requested: requested,
         orderPetIds: _petIds.toList(),
         allowedAddonIds: settings.allowedAddonIds,
-        scheduledStartAt: start,
-        scheduledEndAt: end,
+        scheduledStartAt: _startAt!,
+        scheduledEndAt: _endAt!,
       );
       if (resolved.ok) {
         addonAmount += resolved.amount;
       }
     }
+    final int petCount = _petIds.isEmpty ? 1 : _petIds.length;
+    if (settings.isRoomBased) {
+      if (_selectedRoomTypeId == null) {
+        return null;
+      }
+      final DaycareRoomTypeSetting? roomSetting = settings.roomTypeSetting(
+        _selectedRoomTypeId!,
+      );
+      if (roomSetting == null || !roomSetting.enabled) {
+        return null;
+      }
+      final DaycareRoomQuote roomQuote = DaycarePricingService.instance
+          .quoteRoom(
+            roomSetting: roomSetting,
+            startAt: _startAt!,
+            endAt: _endAt!,
+            petCount: petCount,
+          );
+      return DaycarePricingService.instance.quoteFromRoom(
+        settings: settings,
+        room: roomQuote,
+        addonAmount: addonAmount,
+        manualAdjust: _manualAdjust,
+      );
+    }
+    if (_plan == null) {
+      return null;
+    }
     return DaycarePricingService.instance.quote(
       settings: settings,
       plan: _plan!,
-      startAt: start,
-      endAt: end,
-      petCount: _petIds.isEmpty ? 1 : _petIds.length,
+      startAt: _startAt!,
+      endAt: _endAt!,
+      petCount: petCount,
       addonAmount: addonAmount,
       manualAdjust: _manualAdjust,
     );
@@ -306,50 +412,118 @@ class _AdminCreateDaycareBookingPageState
     await _loadPets(userId);
   }
 
+  Future<void> _quickCreateMember() async {
+    final Map<String, String>? result = await showDialog<Map<String, String>>(
+      context: context,
+      builder: (_) => AdminQuickCreateMemberDialog(defaultPhone: _keywordText),
+    );
+    if (result == null || !mounted) {
+      return;
+    }
+    setState(() {
+      _member = <String, dynamic>{
+        'userId': FirebaseFirestore.instance
+            .collection('user_profiles')
+            .doc()
+            .id,
+        'id': '',
+        'isTempAdminMember': true,
+        'name': result['name'],
+        'phone': result['phone'],
+        'email': '',
+      };
+      _pets = <Map<String, dynamic>>[];
+      _petIds.clear();
+    });
+  }
+
+  String get _hint {
+    final DaycareSettingsModel? settings = _settings;
+    if (_step == 0) {
+      if (_member == null) {
+        return '請搜尋或快速建立會員';
+      }
+      if (_petIds.isEmpty) {
+        return '請至少選擇一隻寵物';
+      }
+      return '';
+    }
+    if (_step == 1) {
+      if (_date == null) {
+        return '請先選擇安親日期';
+      }
+      if (_dropOff == null) {
+        return '請選擇送達時間';
+      }
+      if (_pickUp == null ||
+          _startAt == null ||
+          _endAt == null ||
+          !_startAt!.isBefore(_endAt!)) {
+        return '請選擇有效的接回時間';
+      }
+      return '';
+    }
+    if (_step == 2) {
+      if (settings == null) {
+        return '安親設定載入中';
+      }
+      if (settings.isRoomBased && _selectedRoomTypeId == null) {
+        return '請選擇安親房型';
+      }
+      if (!settings.isRoomBased && _plan == null) {
+        return '請選擇安親方案';
+      }
+      return '';
+    }
+    if (_step == 3) {
+      if (_paymentMethod == null) {
+        return '請選擇付款方式';
+      }
+      if (_policyRequired &&
+          (_policySignMethod == null || _policySignMethod!.isEmpty)) {
+        return '請記錄安親條款簽署方式';
+      }
+      return '';
+    }
+    return '';
+  }
+
+  Future<void> _advance() async {
+    if (_submitting || _hint.isNotEmpty) {
+      return;
+    }
+    if (_step < 4) {
+      setState(() => _step += 1);
+      if (_step == 2) {
+        await _refreshRoomOptions();
+      }
+      return;
+    }
+    await _submit();
+  }
+
   Future<void> _submit() async {
     final DaycareSettingsModel? settings = _settings;
     final Map<String, dynamic>? member = _member;
     if (settings == null ||
         member == null ||
-        _plan == null ||
-        _date == null ||
-        _dropOff == null ||
-        _pickUp == null) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('請完整填寫安親資料')));
+        _startAt == null ||
+        _endAt == null) {
       return;
     }
-    if (_petIds.isEmpty) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('請選擇寵物')));
-      return;
-    }
-    if (_policyRequired &&
-        (_policySignMethod == null || _policySignMethod!.isEmpty)) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('請記錄安親條款簽署方式')));
-      return;
-    }
-    if (_paymentCatalog.isEmpty) {
+    if (!DaycareEnabled.isOn(shop: _shop, settings: settings)) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text(ShopPaymentMethods.noMethodsMessage)),
+        const SnackBar(content: Text(DaycareEnabled.closedMessage)),
       );
       return;
     }
-    if (_paymentMethod == null || !_paymentCatalog.isEnabled(_paymentMethod!)) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('請選擇付款方式')));
+    final bool roomBased = settings.isRoomBased;
+    if (roomBased && _selectedRoomTypeId == null) {
       return;
     }
-    final DateTime start = DaycareTimeHelper.combineDateAndTime(
-      _date!,
-      _dropOff!,
-    );
-    final DateTime end = DaycareTimeHelper.combineDateAndTime(_date!, _pickUp!);
+    if (!roomBased && _plan == null) {
+      return;
+    }
     setState(() => _submitting = true);
     try {
       final List<Map<String, dynamic>> selectedAddons = _addons
@@ -376,8 +550,8 @@ class _AdminCreateDaycareBookingPageState
           requested: addon,
           orderPetIds: _petIds.toList(),
           allowedAddonIds: settings.allowedAddonIds,
-          scheduledStartAt: start,
-          scheduledEndAt: end,
+          scheduledStartAt: _startAt!,
+          scheduledEndAt: _endAt!,
         );
         if (!resolved.ok) {
           if (!mounted) {
@@ -390,39 +564,81 @@ class _AdminCreateDaycareBookingPageState
           return;
         }
       }
-      await DaycareFunctionService.instance.createBooking(<String, dynamic>{
-        'shopId': widget.shopId,
-        'source': 'admin',
-        'userId': (member['userId'] ?? member['uid'] ?? member['id'] ?? '')
-            .toString(),
-        'customerName': (member['name'] ?? member['displayName'] ?? '')
-            .toString(),
-        'customerPhone': (member['phone'] ?? '').toString(),
-        'scheduledStartAt': start.toIso8601String(),
-        'scheduledEndAt': end.toIso8601String(),
-        'petIds': _petIds.toList(),
-        'pets': _pets
-            .where((Map<String, dynamic> e) => _petIds.contains(e['id']))
-            .toList(),
-        'daycarePlanId': _plan!.id,
-        'addons': selectedAddons,
-        'manualAdjust': _manualAdjust,
-        'policyVersion': _policyVersion,
-        'policyKind': PolicyApplicableService.daycare,
-        'policySignMethod': _policyRequired
-            ? (_policySignMethod ?? PolicySignMethods.staffWitness)
-            : '',
-        'paymentMethod': _paymentMethod,
-        'termsType': PolicyApplicableService.daycare,
-        'requestId': 'admin_dc_${DateTime.now().millisecondsSinceEpoch}',
-      });
+      final DaycareRoomTypeSetting? roomSetting = roomBased
+          ? settings.roomTypeSetting(_selectedRoomTypeId ?? '')
+          : null;
+      final String roomName = _roomOptions
+          .where(
+            (DaycareRoomTypeOption e) => e.roomTypeId == _selectedRoomTypeId,
+          )
+          .map((DaycareRoomTypeOption e) => e.name)
+          .firstWhere((String name) => name.isNotEmpty, orElse: () => '');
+      final Map<String, dynamic> created = await DaycareFunctionService.instance
+          .createBooking(<String, dynamic>{
+            'shopId': widget.shopId,
+            'source': 'admin',
+            'userId': (member['userId'] ?? member['uid'] ?? member['id'] ?? '')
+                .toString(),
+            'customerName': (member['name'] ?? member['displayName'] ?? '')
+                .toString(),
+            'customerPhone': (member['phone'] ?? '').toString(),
+            'scheduledStartAt': _startAt!.toUtc().toIso8601String(),
+            'scheduledEndAt': _endAt!.toUtc().toIso8601String(),
+            'petIds': _petIds.toList(),
+            'pets': _pets
+                .where(
+                  (Map<String, dynamic> e) => _petIds.contains(
+                    (e['id'] ?? e['petId'] ?? '').toString(),
+                  ),
+                )
+                .toList(),
+            'pricingMode': DaycarePricingModes.persist(settings.pricingMode),
+            'daycarePlanId': roomBased ? '' : (_plan?.id ?? ''),
+            'daycarePlanName': roomBased ? '' : (_plan?.name ?? ''),
+            'daycarePlanPriceSnapshot': roomBased
+                ? <String, dynamic>{}
+                : (_plan?.toCallableSnapshot() ?? <String, dynamic>{}),
+            'requestedRoomTypeId': roomBased ? (_selectedRoomTypeId ?? '') : '',
+            'requestedRoomTypeName': roomBased ? roomName : '',
+            'requestedRoomTypePriceSnapshot': roomBased
+                ? (roomSetting?.toCallableSnapshot() ?? <String, dynamic>{})
+                : <String, dynamic>{},
+            'addons': selectedAddons,
+            'manualAdjust': _manualAdjust,
+            'policyVersion': _policyVersion,
+            'policyKind': PolicyApplicableService.daycare,
+            'policySignMethod': _policyRequired
+                ? (_policySignMethod ?? PolicySignMethods.staffWitness)
+                : '',
+            'paymentMethod': _paymentMethod,
+            'termsType': PolicyApplicableService.daycare,
+            'note': _note.text.trim(),
+            'requestId': 'admin_dc_${DateTime.now().millisecondsSinceEpoch}',
+          });
       if (!mounted) {
         return;
       }
-      Navigator.pop(context);
+      final String bookingId = (created['bookingId'] ?? '').toString();
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(const SnackBar(content: Text('安親訂單已建立')));
+      if (bookingId.isEmpty) {
+        Navigator.pop(context);
+        return;
+      }
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute<void>(
+          builder: (_) => AdminBookingRoute.page(
+            bookingId: bookingId,
+            shopId: widget.shopId,
+            data: <String, dynamic>{
+              'bookingKind': 'daycare',
+              'shopId': widget.shopId,
+            },
+          ),
+        ),
+      );
     } catch (error) {
       if (!mounted) {
         return;
@@ -439,270 +655,534 @@ class _AdminCreateDaycareBookingPageState
 
   @override
   Widget build(BuildContext context) {
+    return DaycareEnabledGate(
+      shopId: widget.shopId,
+      title: '新增安親訂單',
+      child: _buildBody(context),
+    );
+  }
+
+  Widget _buildBody(BuildContext context) {
     final DaycareSettingsModel? settings = _settings;
     if (settings == null) {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
+    final HomeThemeModel theme = HomeBannerService.instance.themeFromShop(
+      _shop,
+    );
+    final DaycareQuote? quote = _quote;
+    final String offerLabel = settings.isRoomBased
+        ? (_roomOptions
+              .where(
+                (DaycareRoomTypeOption e) =>
+                    e.roomTypeId == _selectedRoomTypeId,
+              )
+              .map((DaycareRoomTypeOption e) => e.name)
+              .firstWhere((String n) => n.isNotEmpty, orElse: () => ''))
+        : (_plan?.name ?? '');
+    return AdminCreateFlowScaffold(
+      title: '手動新增安親訂單',
+      theme: theme,
+      stepIndex: _step,
+      stepTitles: const <String>['會員與寵物', '日期與時間', '房型或方案', '費用與條款', '確認建立'],
+      primaryLabel: _step == 4 ? '建立訂單' : '下一步',
+      primaryEnabled: _hint.isEmpty && !_submitting,
+      hint: _hint,
+      busy: _submitting,
+      onBackStep: _step == 0 ? null : () => setState(() => _step -= 1),
+      onPrimary: _advance,
+      summary: AdminCreateFeeSummaryCard(
+        theme: theme,
+        lines: <String>[
+          if (_member != null) '會員：${(_member!['name'] ?? '').toString()}',
+          if (_petIds.isNotEmpty) '寵物：${_petIds.length} 隻',
+          if (_date != null)
+            '日期：${_date!.year}/${_date!.month.toString().padLeft(2, '0')}/${_date!.day.toString().padLeft(2, '0')}',
+          if (_dropOff != null && _pickUp != null) '時間：$_dropOff–$_pickUp',
+          if (offerLabel.isNotEmpty)
+            settings.isRoomBased ? '預約房型：$offerLabel' : '方案：$offerLabel',
+        ],
+        totalLabel: '預估總額',
+        totalAmount: quote == null
+            ? ''
+            : DaycarePlanModel.moneyLabel(quote.totalAmount),
+      ),
+      body: ListView(
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+        children: <Widget>[
+          if (_step > 0 && _member != null) ...<Widget>[
+            AdminSelectedMemberCard(member: _member!, shopId: widget.shopId),
+            const SizedBox(height: 12),
+          ],
+          if (_step == 0) ..._stepMemberPets(theme),
+          if (_step == 1) ..._stepDateTime(theme, settings),
+          if (_step == 2) ..._stepOffer(theme, settings),
+          if (_step == 3) ..._stepPay(theme, quote),
+          if (_step == 4) ..._stepConfirm(theme, quote, offerLabel),
+        ],
+      ),
+    );
+  }
+
+  List<Widget> _stepMemberPets(HomeThemeModel theme) {
+    return <Widget>[
+      BookingThemedCard(
+        theme: theme,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            Text(
+              '會員與寵物',
+              style: TextStyle(
+                fontSize: 17,
+                fontWeight: FontWeight.w800,
+                color: theme.textColor,
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              '可輸入姓名或電話搜尋會員。沒有會員時，可快速建立會員。',
+              style: TextStyle(
+                fontSize: 13,
+                color: theme.textColor.withValues(alpha: 0.7),
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _keyword,
+              decoration: InputDecoration(
+                hintText: '搜尋會員姓名 / 電話',
+                prefixIcon: const Icon(Icons.search),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(14),
+                ),
+              ),
+              onChanged: (String value) => setState(() => _keywordText = value),
+            ),
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: _quickCreateMember,
+                icon: const Icon(Icons.person_add_alt_1),
+                label: const Text('沒有會員？快速建立會員'),
+              ),
+            ),
+          ],
+        ),
+      ),
+      const SizedBox(height: 12),
+      AdminMemberSearchSection(
+        shopId: widget.shopId,
+        keyword: _keywordText,
+        onSelectMember: (String userId, Map<String, dynamic> data) {
+          setState(() {
+            _member = <String, dynamic>{
+              'id': userId,
+              'userId': userId,
+              ...data,
+            };
+          });
+          _loadPets(userId);
+        },
+      ),
+      if (_member != null) ...<Widget>[
+        const SizedBox(height: 12),
+        AdminSelectedMemberCard(member: _member!, shopId: widget.shopId),
+        const SizedBox(height: 12),
+        BookingThemedCard(
+          theme: theme,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Row(
+                children: <Widget>[
+                  Expanded(
+                    child: Text(
+                      '選擇寵物',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w800,
+                        color: theme.textColor,
+                      ),
+                    ),
+                  ),
+                  TextButton.icon(
+                    onPressed: _addPet,
+                    icon: const Icon(Icons.add),
+                    label: const Text('新增寵物'),
+                  ),
+                ],
+              ),
+              ..._pets.map((Map<String, dynamic> pet) {
+                final String id = (pet['id'] ?? pet['petId'] ?? '').toString();
+                return CheckboxListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: Text((pet['name'] ?? '寵物').toString()),
+                  subtitle: Text((pet['breed'] ?? '').toString()),
+                  value: _petIds.contains(id),
+                  onChanged: (bool? value) {
+                    setState(() {
+                      if (value == true) {
+                        _petIds.add(id);
+                      } else {
+                        _petIds.remove(id);
+                      }
+                    });
+                    _refreshRoomOptions();
+                  },
+                );
+              }),
+            ],
+          ),
+        ),
+      ],
+    ];
+  }
+
+  List<Widget> _stepDateTime(
+    HomeThemeModel theme,
+    DaycareSettingsModel settings,
+  ) {
     final List<String> slots = DaycareTimeHelper.slots(
       start: settings.earliestDropOff,
       end: settings.latestPickUp,
       stepMinutes: settings.slotMinutes,
     );
-    final DaycareQuote? quote = _quote;
-    return Scaffold(
-      appBar: AppBar(title: const Text('新增安親訂單')),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: <Widget>[
-          const Text(
-            '選擇會員',
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
-          ),
-          const SizedBox(height: 8),
-          TextField(
-            controller: _keyword,
-            decoration: const InputDecoration(
-              labelText: '搜尋會員姓名或電話',
-              border: OutlineInputBorder(),
-            ),
-            onChanged: (String value) => setState(() => _keywordText = value),
-          ),
-          AdminMemberSearchSection(
-            shopId: widget.shopId,
-            keyword: _keywordText,
-            onSelectMember: (String userId, Map<String, dynamic> data) {
-              setState(() {
-                _member = <String, dynamic>{
-                  'id': userId,
-                  'userId': userId,
-                  ...data,
-                };
-              });
-              _loadPets(userId);
-            },
-          ),
-          if (_member != null)
-            AdminSelectedMemberCard(member: _member!, shopId: widget.shopId),
-          const SizedBox(height: 16),
-          const Text(
-            '安親日期與時間',
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
-          ),
-          const SizedBox(height: 8),
-          DaycareDateCard(date: _date, onTap: _openCalendar),
-          const SizedBox(height: 12),
-          DropdownButtonFormField<String>(
-            initialValue: _dropOff,
-            decoration: const InputDecoration(
-              labelText: '送達時間',
-              border: OutlineInputBorder(),
-            ),
-            items: slots
-                .map(
-                  (String t) =>
-                      DropdownMenuItem<String>(value: t, child: Text(t)),
-                )
-                .toList(),
-            onChanged: (String? value) => setState(() => _dropOff = value),
-          ),
-          const SizedBox(height: 12),
-          DropdownButtonFormField<String>(
-            initialValue: _pickUp,
-            decoration: const InputDecoration(
-              labelText: '預計接回時間',
-              border: OutlineInputBorder(),
-            ),
-            items: slots
-                .map(
-                  (String t) =>
-                      DropdownMenuItem<String>(value: t, child: Text(t)),
-                )
-                .toList(),
-            onChanged: (String? value) => setState(() => _pickUp = value),
-          ),
-          const SizedBox(height: 16),
-          Row(
-            children: <Widget>[
-              const Expanded(
-                child: Text(
-                  '選擇寵物',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
-                ),
+    return <Widget>[
+      BookingThemedCard(
+        theme: theme,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            Text(
+              '安親日期與時間',
+              style: TextStyle(
+                fontSize: 17,
+                fontWeight: FontWeight.w800,
+                color: theme.textColor,
               ),
-              if (_member != null)
-                TextButton.icon(
-                  onPressed: _addPet,
-                  icon: const Icon(Icons.add),
-                  label: const Text('新增寵物'),
-                ),
-            ],
-          ),
-          ..._pets.map((Map<String, dynamic> pet) {
-            final String id = (pet['id'] ?? '').toString();
-            return CheckboxListTile(
-              title: Text((pet['name'] ?? '寵物').toString()),
-              subtitle: Text((pet['breed'] ?? '').toString()),
-              value: _petIds.contains(id),
-              onChanged: (bool? value) {
-                setState(() {
-                  if (value == true) {
-                    _petIds.add(id);
-                  } else {
-                    _petIds.remove(id);
-                  }
-                });
-              },
-            );
-          }),
-          const SizedBox(height: 8),
-          const Text(
-            '安親方案',
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
-          ),
-          ...settings.enabledPlans.map((DaycarePlanModel plan) {
-            final bool selected = _plan?.id == plan.id;
-            return Card(
-              color: selected ? Colors.blue.shade50 : null,
-              child: ListTile(
-                title: Text(plan.name),
-                subtitle: Text(
-                  '${DaycarePlanTypes.label(plan.type)} ｜ \$${plan.basePrice}',
-                ),
-                trailing: selected
-                    ? const Icon(Icons.check_circle, color: Colors.blue)
-                    : null,
-                onTap: () => setState(() => _plan = plan),
-              ),
-            );
-          }),
-          if (_addons.isNotEmpty &&
-              _date != null &&
-              _dropOff != null &&
-              _pickUp != null) ...<Widget>[
+            ),
+            const SizedBox(height: 10),
+            DaycareDateCard(date: _date, onTap: _openCalendar),
             const SizedBox(height: 12),
-            const Text(
-              '加值服務',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
+            DropdownButtonFormField<String>(
+              key: ValueKey<String>('drop-$_date-$_dropOff'),
+              initialValue: _dropOff,
+              decoration: InputDecoration(
+                labelText: '送達時間',
+                helperText: _date == null ? '請先選擇安親日期' : null,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(14),
+                ),
+              ),
+              items: slots
+                  .map(
+                    (String t) =>
+                        DropdownMenuItem<String>(value: t, child: Text(t)),
+                  )
+                  .toList(),
+              onChanged: _date == null
+                  ? null
+                  : (String? value) {
+                      setState(() {
+                        _dropOff = value;
+                        _pickUp = null;
+                      });
+                      _refreshRoomOptions();
+                    },
             ),
-            DaycareAddonSelector(
-              addons: _addons,
-              selectedAddonIds: _selectedAddonIds,
-              selectedPetIds: _petIds,
-              pets: _pets,
-              addonPetIds: _addonPetIds,
-              addonSlotKeys: _addonSlotKeys,
-              scheduledStartAt: DaycareTimeHelper.combineDateAndTime(
-                _date!,
-                _dropOff!,
+            const SizedBox(height: 12),
+            DropdownButtonFormField<String>(
+              key: ValueKey<String>('pick-$_date-$_dropOff-$_pickUp'),
+              initialValue: _pickUp,
+              decoration: InputDecoration(
+                labelText: '接回時間',
+                helperText: _dropOff == null
+                    ? (_date == null ? '請先選擇安親日期' : '請先選擇送達時間')
+                    : null,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(14),
+                ),
               ),
-              scheduledEndAt: DaycareTimeHelper.combineDateAndTime(
-                _date!,
-                _pickUp!,
-              ),
-              onToggleAddon: (String id) {
-                setState(() {
-                  if (_selectedAddonIds.contains(id)) {
-                    _selectedAddonIds.remove(id);
-                    _addonPetIds.remove(id);
-                    _addonSlotKeys.remove(id);
-                  } else {
-                    _selectedAddonIds.add(id);
-                  }
-                });
-              },
-              onTogglePet: (String addonId, String petId) {
-                setState(() {
-                  final Set<String> next = Set<String>.from(
-                    _addonPetIds[addonId] ?? <String>{},
-                  );
-                  if (!next.add(petId)) {
-                    next.remove(petId);
-                  }
-                  _addonPetIds[addonId] = next;
-                });
-              },
-              onToggleSlot: (String addonId, String slotKey) {
-                setState(() {
-                  final Set<String> next = Set<String>.from(
-                    _addonSlotKeys[addonId] ?? <String>{},
-                  );
-                  if (!next.add(slotKey)) {
-                    next.remove(slotKey);
-                  }
-                  _addonSlotKeys[addonId] = next;
-                });
-              },
+              items: slots
+                  .map(
+                    (String t) =>
+                        DropdownMenuItem<String>(value: t, child: Text(t)),
+                  )
+                  .toList(),
+              onChanged: _dropOff == null
+                  ? null
+                  : (String? value) {
+                      setState(() => _pickUp = value);
+                      _refreshRoomOptions();
+                    },
             ),
           ],
-          if (_policyRequired) ...<Widget>[
-            const SizedBox(height: 12),
-            const Text(
-              '安親條款',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
+        ),
+      ),
+    ];
+  }
+
+  List<Widget> _stepOffer(HomeThemeModel theme, DaycareSettingsModel settings) {
+    return <Widget>[
+      BookingThemedCard(
+        theme: theme,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            Text(
+              settings.isRoomBased ? '選擇安親房型' : '選擇安親方案',
+              style: TextStyle(
+                fontSize: 17,
+                fontWeight: FontWeight.w800,
+                color: theme.textColor,
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              settings.isRoomBased
+                  ? '實際房間仍於確認訂單後分配，這裡只選擇客戶預約的房型。'
+                  : '實際房型／房間於後續分房決定，不影響方案價格。',
+              style: TextStyle(
+                fontSize: 13,
+                color: theme.textColor.withValues(alpha: 0.7),
+              ),
+            ),
+          ],
+        ),
+      ),
+      const SizedBox(height: 8),
+      if (settings.isRoomBased) ...<Widget>[
+        if (_roomOptions.isEmpty)
+          Text(
+            DaycareRoomTypeCatalog.emptyReason(_roomOptions),
+            style: TextStyle(color: theme.textColor),
+          ),
+        ..._roomOptions.map((DaycareRoomTypeOption option) {
+          final DaycareRoomTypeSetting setting = option.setting;
+          return DaycareOfferCard(
+            theme: theme,
+            title: option.name,
+            lines: DaycarePlanModel.offerDetailLines(
+              includedMinutes: setting.includedMinutes,
+              basePrice: setting.basePrice,
+              extraBillingMinutes: setting.extraBillingMinutes,
+              extraBillingPrice: setting.extraBillingPrice,
+              maxBaseCharge: setting.maxBaseCharge,
+              extraPetPrice: setting.extraPetPrice,
+              maxPets: setting.maxPets,
+              enabled: setting.enabled,
+              roomBased: true,
+              remainingRooms: option.remainingRooms,
+            ),
+            selected: _selectedRoomTypeId == option.roomTypeId,
+            enabled: option.selectable,
+            blockedReason: option.blockedReason,
+            onTap: () =>
+                setState(() => _selectedRoomTypeId = option.roomTypeId),
+          );
+        }),
+      ] else
+        ...settings.customerPlans.map((DaycarePlanModel plan) {
+          return DaycareOfferCard(
+            theme: theme,
+            title: plan.name,
+            lines: DaycarePlanModel.offerDetailLines(
+              includedMinutes: plan.includedMinutes,
+              basePrice: plan.basePrice,
+              extraBillingMinutes: plan.extraBillingMinutes,
+              extraBillingPrice: plan.extraBillingPrice,
+              maxBaseCharge: plan.maxBaseCharge,
+              extraPetPrice: plan.extraPetPrice,
+              maxPets: plan.maxPets,
+              enabled: plan.enabled,
+              roomBased: false,
+            ),
+            selected: _plan?.id == plan.id,
+            enabled: plan.enabled,
+            onTap: () => setState(() => _plan = plan),
+          );
+        }),
+      if (_addons.isNotEmpty && _startAt != null && _endAt != null) ...<Widget>[
+        const SizedBox(height: 8),
+        DaycareAddonSelector(
+          theme: theme,
+          addons: _addons,
+          selectedAddonIds: _selectedAddonIds,
+          selectedPetIds: _petIds,
+          pets: _pets,
+          addonPetIds: _addonPetIds,
+          addonSlotKeys: _addonSlotKeys,
+          scheduledStartAt: _startAt!,
+          scheduledEndAt: _endAt!,
+          addonSubtotal: _quote?.addonAmount ?? 0,
+          estimateTotal: _quote?.totalAmount ?? 0,
+          showFeeSummary: true,
+          onToggleAddon: (String id) {
+            setState(() {
+              if (_selectedAddonIds.contains(id)) {
+                _selectedAddonIds.remove(id);
+                _addonPetIds.remove(id);
+                _addonSlotKeys.remove(id);
+              } else {
+                _selectedAddonIds.add(id);
+              }
+            });
+          },
+          onTogglePet: (String addonId, String petId) {
+            setState(() {
+              final Set<String> next = Set<String>.from(
+                _addonPetIds[addonId] ?? <String>{},
+              );
+              if (!next.add(petId)) {
+                next.remove(petId);
+              }
+              _addonPetIds[addonId] = next;
+            });
+          },
+          onToggleSlot: (String addonId, String slotKey) {
+            setState(() {
+              final Set<String> next = Set<String>.from(
+                _addonSlotKeys[addonId] ?? <String>{},
+              );
+              if (!next.add(slotKey)) {
+                next.remove(slotKey);
+              }
+              _addonSlotKeys[addonId] = next;
+            });
+          },
+        ),
+      ],
+    ];
+  }
+
+  List<Widget> _stepPay(HomeThemeModel theme, DaycareQuote? quote) {
+    return <Widget>[
+      if (quote != null)
+        BookingThemedCard(
+          theme: theme,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Text(
+                '費用',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w800,
+                  color: theme.textColor,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text('起步／方案：${DaycarePlanModel.moneyLabel(quote.baseAmount)}'),
+              if (quote.extraTimeAmount > 0)
+                Text(
+                  '超時：${DaycarePlanModel.moneyLabel(quote.extraTimeAmount)}',
+                ),
+              if (quote.extraPetAmount > 0)
+                Text(
+                  '多寵物加價：${DaycarePlanModel.moneyLabel(quote.extraPetAmount)}',
+                ),
+              if (quote.addonAmount > 0)
+                Text('加購：${DaycarePlanModel.moneyLabel(quote.addonAmount)}'),
+              const SizedBox(height: 6),
+              Text(
+                '合計 ${DaycarePlanModel.moneyLabel(quote.totalAmount)}',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w900,
+                  color: theme.primaryColor,
+                ),
+              ),
+            ],
+          ),
+        ),
+      const SizedBox(height: 12),
+      BookingThemedCard(
+        theme: theme,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            Text(
+              '付款方式',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w800,
+                color: theme.textColor,
+              ),
+            ),
+            ShopPaymentMethodCards(
+              catalog: _paymentCatalog,
+              selectedMethod: _paymentMethod,
+              onSelected: (String id) => setState(() => _paymentMethod = id),
+            ),
+          ],
+        ),
+      ),
+      const SizedBox(height: 12),
+      BookingThemedCard(
+        theme: theme,
+        child: TextField(
+          controller: _note,
+          maxLines: 3,
+          decoration: InputDecoration(
+            labelText: '店主備註',
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
+          ),
+        ),
+      ),
+      if (_policyRequired) ...<Widget>[
+        const SizedBox(height: 12),
+        PolicySignMethodField(
+          value: _policySignMethod,
+          title: '安親條款簽署方式',
+          onChanged: (String value) =>
+              setState(() => _policySignMethod = value),
+        ),
+      ],
+    ];
+  }
+
+  List<Widget> _stepConfirm(
+    HomeThemeModel theme,
+    DaycareQuote? quote,
+    String offerLabel,
+  ) {
+    return <Widget>[
+      BookingThemedCard(
+        theme: theme,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            Text(
+              '確認建立',
+              style: TextStyle(
+                fontSize: 17,
+                fontWeight: FontWeight.w800,
+                color: theme.textColor,
+              ),
             ),
             const SizedBox(height: 8),
             Text(
-              '目前安親條款版本 v$_policyVersion。店員代客建立時必須記錄簽署方式，不可只勾選同意。',
-              style: TextStyle(color: Colors.grey.shade700, fontSize: 13),
+              '建立後會進入既有店主訂單詳細頁，並標示為手動建立。實際房間仍待確認後分配。',
+              style: TextStyle(
+                fontSize: 13,
+                color: theme.textColor.withValues(alpha: 0.72),
+              ),
             ),
-            const SizedBox(height: 8),
-            PolicySignMethodField(
-              value: _policySignMethod,
-              onChanged: (String value) =>
-                  setState(() => _policySignMethod = value),
-            ),
-          ],
-          if (quote != null) ...<Widget>[
-            const SizedBox(height: 16),
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: <Widget>[
-                    const Text(
-                      '費用明細',
-                      style: TextStyle(fontWeight: FontWeight.bold),
-                    ),
-                    Text('安親方案：\$${quote.baseAmount}'),
-                    if (quote.extraPetAmount > 0)
-                      Text('多寵物加價：\$${quote.extraPetAmount}'),
-                    if (quote.addonAmount > 0)
-                      Text('加值服務：\$${quote.addonAmount}'),
-                    if (quote.manualAdjust != 0)
-                      Text('店家手動調整：\$${quote.manualAdjust}'),
-                    const Divider(),
-                    Text(
-                      '合計 \$${quote.totalAmount}',
-                      style: const TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w900,
-                      ),
-                    ),
-                    if (quote.depositAmount > 0)
-                      Text('訂金 \$${quote.depositAmount}'),
-                  ],
-                ),
+            const SizedBox(height: 10),
+            Text(
+              '${(_member?['name'] ?? '').toString()} ｜ ${_petIds.length} 隻 ｜ '
+              '$offerLabel ｜ ${quote == null ? '' : DaycarePlanModel.moneyLabel(quote.totalAmount)}',
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w700,
+                color: theme.textColor,
               ),
             ),
           ],
-          const SizedBox(height: 12),
-          const Text(
-            '付款方式',
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
-          ),
-          ShopPaymentMethodCards(
-            catalog: _paymentCatalog,
-            selectedMethod: _paymentMethod,
-            onSelected: (String id) => setState(() => _paymentMethod = id),
-          ),
-          const SizedBox(height: 12),
-          FilledButton(
-            onPressed: _submitting ? null : _submit,
-            child: Text(_submitting ? '建立中…' : '建立安親訂單'),
-          ),
-        ],
+        ),
       ),
-    );
+    ];
   }
 }

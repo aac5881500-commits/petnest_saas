@@ -89,6 +89,34 @@ void main() {
     );
   });
 
+  test('v5 string and dedicated daycare texts ignore stay global version', () {
+    expect(ShopPolicyService.parsePolicyVersion('v5'), 5);
+    expect(ShopPolicyService.parsePolicyVersion(5), 5);
+    const Map<String, dynamic> policy = <String, dynamic>{
+      'version': 8,
+      'accommodationVersion': 8,
+      'daycareVersion': 5,
+      'serviceVersions': <String, dynamic>{'accommodation': 8, 'daycare': 5},
+      'sectionTextsByService': <String, dynamic>{
+        'daycare': <String, String>{'notice': '安親內容'},
+      },
+    };
+    expect(
+      ShopPolicyService.servicePolicyVersion(
+        policy: policy,
+        serviceType: PolicyApplicableService.daycare,
+      ),
+      5,
+    );
+    expect(
+      ShopPolicyService.servicePolicyVersion(
+        policy: policy,
+        serviceType: PolicyApplicableService.accommodation,
+      ),
+      8,
+    );
+  });
+
   test('daycare terms updated error is recognized', () {
     expect(
       ShopPolicyService.isTermsUpdatedError(Exception('安親條款已更新，請重新閱讀並同意。')),

@@ -8,6 +8,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:petnest_saas/core/models/policy_applicable_service.dart';
 import 'package:petnest_saas/core/models/terms_consent_snapshot.dart';
+import 'package:petnest_saas/core/services/policy_acceptance_rows.dart';
 
 /// 前台條款確認狀態（userId + shopId + termsType + termsVersion）
 class TermsStatus {
@@ -106,10 +107,10 @@ class ShopPolicyService {
         versions[serviceType] ??
         (serviceType == PolicyApplicableService.accommodation
             ? data['acceptedVersion']
-            : null);
-    final int acceptedVersion = rawAccepted is int
-        ? rawAccepted
-        : int.tryParse(rawAccepted?.toString() ?? '') ?? 0;
+            : (data['lastAcceptedServiceType']?.toString() == serviceType
+                  ? data['acceptedVersion']
+                  : null));
+    final int acceptedVersion = parsePolicyVersion(rawAccepted);
     DateTime? acceptedAt;
     final dynamic rawAt = byService[serviceType] ?? data['acceptedAt'];
     if (rawAt is Timestamp) {
@@ -393,15 +394,17 @@ class ShopPolicyService {
     final Map<String, dynamic> byService = Map<String, dynamic>.from(
       data['acceptedVersions'] ?? {},
     );
-    final dynamic serviceVersion = byService[serviceType];
-    if (serviceVersion != null) {
+    final int serviceVersion = parsePolicyVersion(byService[serviceType]);
+    if (serviceVersion > 0) {
       return serviceVersion == currentVersion;
     }
     if (serviceType != PolicyApplicableService.accommodation) {
+      if (data['lastAcceptedServiceType']?.toString() == serviceType) {
+        return parsePolicyVersion(data['acceptedVersion']) == currentVersion;
+      }
       return false;
     }
-    final acceptedVersion = data['acceptedVersion'] ?? 0;
-    return acceptedVersion == currentVersion;
+    return parsePolicyVersion(data['acceptedVersion']) == currentVersion;
   }
 
   Future<void> acceptPolicy({
@@ -449,51 +452,122 @@ class ShopPolicyService {
     });
   }
 
+  Future<Map<String, dynamic>> loadPolicyVersionSnapshot({
+    required String shopId,
+    required String serviceType,
+    required int version,
+  }) async {
+    final String historyId = serviceType == PolicyApplicableService.daycare
+        ? 'daycare_v$version'
+        : 'v$version';
+    DocumentSnapshot<Map<String, dynamic>> doc = await _firestore
+        .collection('shops')
+        .doc(shopId)
+        .collection('policy_versions')
+        .doc(historyId)
+        .get();
+    if (!doc.exists && serviceType == PolicyApplicableService.daycare) {
+      doc = await _firestore
+          .collection('shops')
+          .doc(shopId)
+          .collection('policy_versions')
+          .doc('v$version')
+          .get();
+    }
+    return doc.data() ?? <String, dynamic>{};
+  }
+
   Future<List<Map<String, dynamic>>> getPolicyAcceptances(String shopId) async {
-    final snapshot = await _firestore
-        .collection('bookings')
+    final QuerySnapshot<Map<String, dynamic>> snapshot = await _firestore
+        .collectionGroup('policy_acceptances')
         .where('shopId', isEqualTo: shopId)
         .get();
 
-    final latestMap = <String, Map<String, dynamic>>{};
-
-    for (final doc in snapshot.docs) {
-      final data = doc.data();
-
-      final policyVersion = data['policyVersion'] ?? 0;
-      final policyAcceptedAt = data['policyAcceptedAt'];
-
-      if (policyVersion == 0 || policyAcceptedAt == null) continue;
-
-      final userId = data['userId'] ?? '';
-      final key = '${userId}_v$policyVersion';
-
-      final item = {
-        'bookingId': doc.id,
-        'userId': userId,
-        'email': data['customerEmail'] ?? '',
-        'customerName': data['customerName'] ?? '',
-        'customerPhone': data['customerPhone'] ?? '',
-        'acceptedVersion': policyVersion,
-        'acceptedAt': policyAcceptedAt,
-        'policyTitle': data['policyTitle'] ?? '入住須知',
-      };
-
-      final old = latestMap[key];
-      if (old == null) {
-        latestMap[key] = item;
-        continue;
+    final List<PolicyAcceptanceRow> rows = <PolicyAcceptanceRow>[];
+    for (final QueryDocumentSnapshot<Map<String, dynamic>> doc
+        in snapshot.docs) {
+      final Map<String, dynamic> data = doc.data();
+      if ((data['userId'] ?? '').toString().trim().isEmpty) {
+        data['userId'] = doc.reference.parent.parent?.id ?? '';
       }
-
-      final oldTime = old['acceptedAt'];
-      if (oldTime is Timestamp &&
-          policyAcceptedAt is Timestamp &&
-          policyAcceptedAt.compareTo(oldTime) > 0) {
-        latestMap[key] = item;
-      }
+      rows.addAll(PolicyAcceptanceRows.expand(data));
     }
 
-    return latestMap.values.toList();
+    final Set<String> userIds = rows
+        .map((PolicyAcceptanceRow row) => row.userId)
+        .where((String id) => id.isNotEmpty)
+        .toSet();
+    final Map<String, Map<String, dynamic>> members =
+        await _loadShopMembersByIds(shopId: shopId, userIds: userIds);
+
+    return rows.map((PolicyAcceptanceRow row) {
+      final Map<String, dynamic>? member = members[row.userId];
+      final String name = (member?['name'] ?? member?['displayName'] ?? '')
+          .toString()
+          .trim();
+      final String email = row.docEmail.isNotEmpty
+          ? row.docEmail
+          : (member?['email'] ?? '').toString().trim();
+      final String phone = (member?['phone'] ?? member?['mobile'] ?? '')
+          .toString()
+          .trim();
+      return <String, dynamic>{
+        'userId': row.userId,
+        'serviceType': row.serviceType,
+        'acceptedVersion': row.acceptedVersion,
+        'acceptedAt': row.acceptedAt,
+        'memberExists': member != null,
+        'customerName': name,
+        'email': email,
+        'customerPhone': phone,
+      };
+    }).toList();
+  }
+
+  Future<Map<String, Map<String, dynamic>>> _loadShopMembersByIds({
+    required String shopId,
+    required Set<String> userIds,
+  }) async {
+    final Map<String, Map<String, dynamic>> out =
+        <String, Map<String, dynamic>>{};
+    if (userIds.isEmpty) {
+      return out;
+    }
+    final List<String> ids = userIds.toList();
+    for (int i = 0; i < ids.length; i += 20) {
+      final List<String> chunk = ids.sublist(
+        i,
+        i + 20 > ids.length ? ids.length : i + 20,
+      );
+      final List<DocumentSnapshot<Map<String, dynamic>>> snaps =
+          await Future.wait(
+            chunk.map((String id) {
+              return _firestore
+                  .collection('shops')
+                  .doc(shopId)
+                  .collection('members')
+                  .doc(id)
+                  .get();
+            }),
+          );
+      for (final DocumentSnapshot<Map<String, dynamic>> snap in snaps) {
+        if (snap.exists) {
+          out[snap.id] = snap.data() ?? <String, dynamic>{};
+        }
+      }
+    }
+    return out;
+  }
+
+  static int parsePolicyVersion(dynamic raw) {
+    if (raw is int) {
+      return raw;
+    }
+    if (raw is num) {
+      return raw.toInt();
+    }
+    final Match? match = RegExp(r'(\d+)').firstMatch(raw?.toString() ?? '');
+    return int.tryParse(match?.group(1) ?? '') ?? 0;
   }
 
   static int servicePolicyVersion({
@@ -505,13 +579,12 @@ class ShopPolicyService {
           ? policy['serviceVersions'] as Map
           : const <String, dynamic>{},
     );
-    final int mapped = (serviceVersions[serviceType] as num?)?.toInt() ?? 0;
+    final int mapped = parsePolicyVersion(serviceVersions[serviceType]);
     if (mapped > 0) {
       return mapped;
     }
     if (serviceType == PolicyApplicableService.daycare) {
-      final int daycareVersion =
-          (policy['daycareVersion'] as num?)?.toInt() ?? 0;
+      final int daycareVersion = parsePolicyVersion(policy['daycareVersion']);
       if (daycareVersion > 0) {
         return daycareVersion;
       }
@@ -526,13 +599,13 @@ class ShopPolicyService {
             : const <String, dynamic>{},
       );
       if (daycareTexts.isNotEmpty) {
-        return daycareVersion;
+        return 1;
       }
-      return (policy['version'] as num?)?.toInt() ?? 0;
+      return parsePolicyVersion(policy['version']);
     }
-    return (policy['accommodationVersion'] as num?)?.toInt() ??
-        (policy['version'] as num?)?.toInt() ??
-        0;
+    return parsePolicyVersion(policy['accommodationVersion']) > 0
+        ? parsePolicyVersion(policy['accommodationVersion'])
+        : parsePolicyVersion(policy['version']);
   }
 
   static String policyContentFingerprint(Map<String, dynamic> filteredPolicy) {

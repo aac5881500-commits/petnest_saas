@@ -109,19 +109,14 @@ class AdminBookingDetailPage extends StatelessWidget {
                         : bookingId)
                   : bookingCode,
               banners: <Widget>[
-                if (data['source'] == 'admin')
+                if (data['source'] == 'admin' &&
+                    (data['note'] ?? '').toString().trim().isNotEmpty)
                   Padding(
                     padding: const EdgeInsets.only(bottom: 12),
                     child: AdminBookingDetailCard(
-                      tint: Colors.orange.shade50,
                       child: Text(
-                        '手動新增訂單｜${data['createdByEmail'] ?? '未知操作人員'}\n'
-                        '此訂單為店家後台手動建立，請自行確認訂單與收款狀態。',
-                        style: TextStyle(
-                          color: Colors.orange.shade900,
-                          fontWeight: FontWeight.w700,
-                          height: 1.4,
-                        ),
+                        '代客建立備註：${data['note']}',
+                        style: const TextStyle(height: 1.4),
                       ),
                     ),
                   ),

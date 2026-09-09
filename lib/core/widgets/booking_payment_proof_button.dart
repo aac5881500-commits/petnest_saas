@@ -2,6 +2,7 @@
 // 功能說明：住宿／安親共用：查看付款回傳照片（相容舊欄位，失敗顯示空狀態）
 
 import 'package:flutter/material.dart';
+import 'package:petnest_saas/core/services/shop_payment_methods.dart';
 import 'package:petnest_saas/core/utils/safe_parse.dart';
 
 class BookingPaymentProof {
@@ -45,6 +46,12 @@ class BookingPaymentProof {
     }
     return out;
   }
+
+  static bool shouldShow(Map<String, dynamic> data) {
+    return ShopPaymentMethods.isManualBankTransferPayment(
+      data['paymentMethod'],
+    );
+  }
 }
 
 class BookingPaymentProofButton extends StatelessWidget {
@@ -54,6 +61,9 @@ class BookingPaymentProofButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (!BookingPaymentProof.shouldShow(data)) {
+      return const SizedBox.shrink();
+    }
     final List<String> urls = BookingPaymentProof.urls(data);
     return OutlinedButton.icon(
       onPressed: () => _open(context, urls),

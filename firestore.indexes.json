@@ -184,6 +184,13 @@
       "density": "SPARSE_ALL"
     },
     {
+      "collectionGroup": "policy_acceptances",
+      "queryScope": "COLLECTION_GROUP",
+      "fields": [
+        { "fieldPath": "shopId", "order": "ASCENDING" }
+      ]
+    },
+    {
       "collectionGroup": "shop_notifications",
       "queryScope": "COLLECTION",
       "fields": [

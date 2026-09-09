@@ -295,6 +295,61 @@ function policyAppliesTo(raw, serviceType) {
 }
 
 /**
+ * @param {*} raw
+ * @return {number}
+ */
+function parsePolicyVersion(raw) {
+  if (raw == null || raw === "") {
+    return 0;
+  }
+  if (typeof raw === "number" && Number.isFinite(raw)) {
+    return Math.round(raw);
+  }
+  const match = String(raw).match(/(\d+)/);
+  if (!match) {
+    return 0;
+  }
+  const parsed = Number.parseInt(match[1], 10);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+/**
+ * @param {Object|null} acc
+ * @param {string} serviceType
+ * @return {number}
+ */
+function acceptedServiceVersion(acc, serviceType) {
+  const data = acc || {};
+  const byService = data.acceptedVersions &&
+    typeof data.acceptedVersions === "object" ?
+      data.acceptedVersions : {};
+  const mapped = parsePolicyVersion(byService[serviceType]);
+  if (mapped > 0) {
+    return mapped;
+  }
+  if (serviceType === "accommodation") {
+    return parsePolicyVersion(data.acceptedVersion);
+  }
+  if (normalizeString(data.lastAcceptedServiceType) === serviceType) {
+    return parsePolicyVersion(data.acceptedVersion);
+  }
+  return 0;
+}
+
+/**
+ * @param {Object|null} data
+ * @return {number}
+ */
+function submittedServicePolicyVersion(data) {
+  const payload = data || {};
+  const fromPolicy = parsePolicyVersion(payload.policyVersion);
+  if (fromPolicy > 0) {
+    return fromPolicy;
+  }
+  return parsePolicyVersion(payload.termsVersion);
+}
+
+/**
  * @param {Object} policy
  * @param {string} serviceType
  * @return {number}
@@ -306,12 +361,12 @@ function servicePolicyVersion(policy, serviceType) {
   const serviceVersions = policy.serviceVersions &&
     typeof policy.serviceVersions === "object" ?
       policy.serviceVersions : {};
-  const mapped = toInt(serviceVersions[serviceType], 0);
+  const mapped = parsePolicyVersion(serviceVersions[serviceType]);
   if (mapped > 0) {
     return mapped;
   }
   if (serviceType === "daycare") {
-    const daycareVersion = toInt(policy.daycareVersion, 0);
+    const daycareVersion = parsePolicyVersion(policy.daycareVersion);
     if (daycareVersion > 0) {
       return daycareVersion;
     }
@@ -321,11 +376,12 @@ function servicePolicyVersion(policy, serviceType) {
     const daycareTexts = texts.daycare && typeof texts.daycare === "object" ?
       texts.daycare : {};
     if (Object.keys(daycareTexts).length > 0) {
-      return daycareVersion;
+      return 1;
     }
-    return toInt(policy.version, 0);
+    return parsePolicyVersion(policy.version);
   }
-  return toInt(policy.accommodationVersion, 0) || toInt(policy.version, 0);
+  return parsePolicyVersion(policy.accommodationVersion) ||
+    parsePolicyVersion(policy.version);
 }
 
 /**
@@ -440,8 +496,12 @@ function shopHasCatHotel(shopData) {
  */
 function isDaycareEnabled(shopData, settings) {
   const shop = shopData || {};
-  return parseBool(shop.daycareEnabled) ||
-    parseBool(settings && settings.enabled);
+  if (Object.prototype.hasOwnProperty.call(shop, "daycareEnabled") &&
+      shop.daycareEnabled !== null &&
+      String(shop.daycareEnabled).trim() !== "") {
+    return parseBool(shop.daycareEnabled);
+  }
+  return parseBool(settings && settings.enabled);
 }
 
 /** @deprecated 請改用 isDaycareEnabled
@@ -476,6 +536,41 @@ async function generateBookingCode(transaction, shopId) {
  * @return {Promise<void>}
  */
 async function writeActionLog(params) {
+  const uid = normalizeString(params.operatorUid);
+  let email = normalizeString(params.operatorEmail);
+  let displayName = normalizeString(params.operatorDisplayName);
+  if (uid && (!email || !displayName)) {
+    try {
+      const user = await admin.auth().getUser(uid);
+      if (!email) {
+        email = normalizeString(user.email);
+      }
+      if (!displayName) {
+        displayName = normalizeString(user.displayName);
+      }
+    } catch (_) {
+      // 找不到 Auth 帳號時改讀 shop member，不把 UID 當顯示值。
+    }
+  }
+  if (uid && !email && params.shopId) {
+    try {
+      const memberSnap = await admin.firestore()
+          .collection("shops").doc(params.shopId)
+          .collection("members").doc(uid).get();
+      if (memberSnap.exists) {
+        const member = memberSnap.data() || {};
+        if (!email) {
+          email = normalizeString(member.email);
+        }
+        if (!displayName) {
+          displayName = normalizeString(member.name || member.displayName);
+        }
+      }
+    } catch (_) {
+      // 找不到店員資料時仍寫入 UID 供內部追蹤，畫面不顯示 UID。
+    }
+  }
+  const now = admin.firestore.FieldValue.serverTimestamp();
   await admin.firestore().collection("action_logs").add({
     shopId: params.shopId || "",
     targetType: params.targetType || "booking",
@@ -484,10 +579,13 @@ async function writeActionLog(params) {
     type: params.action || "",
     bookingId: params.targetId || "",
     bookingKind: BOOKING_KIND_DAYCARE,
-    operatorUid: params.operatorUid || "",
+    operatorUid: uid,
+    operatorEmail: email,
+    operatorDisplayName: displayName,
     operatorRole: params.operatorRole || "",
+    operatedAt: now,
     payload: params.payload || {},
-    createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    createdAt: now,
   });
 }
 
@@ -629,6 +727,9 @@ module.exports = {
   shopHasCatHotel,
   isDaycareEnabled,
   policyAppliesTo,
+  parsePolicyVersion,
+  acceptedServiceVersion,
+  submittedServicePolicyVersion,
   servicePolicyVersion,
   summarizePolicyForService,
   generateBookingCode,

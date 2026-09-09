@@ -28,6 +28,13 @@ import 'package:petnest_saas/core/services/discount_campaign_calculator.dart';
 import 'package:petnest_saas/core/models/special_date_surcharge_model.dart';
 import 'package:petnest_saas/core/services/special_date_surcharge_service.dart';
 import 'package:petnest_saas/core/services/special_date_surcharge_calculator.dart';
+import 'package:petnest_saas/core/navigation/admin_booking_route.dart';
+import 'package:petnest_saas/core/services/shop_policy_service.dart';
+import 'package:petnest_saas/core/models/home_theme_model.dart';
+import 'package:petnest_saas/core/services/home_banner_service.dart';
+import 'package:petnest_saas/features/admin/widgets/admin_create_flow_scaffold.dart';
+import 'package:petnest_saas/features/shop/widgets/booking/booking_step_widgets.dart';
+import 'package:petnest_saas/features/shop/widgets/booking/policy_sign_method_field.dart';
 
 class AdminCreateBookingPage extends StatefulWidget {
   const AdminCreateBookingPage({super.key, required this.shopId});
@@ -76,6 +83,9 @@ class _AdminCreateBookingPageState extends State<AdminCreateBookingPage> {
   String? _paymentMethod;
   String _payAmountType = 'deposit';
   bool _submitting = false;
+  bool _policyRequired = false;
+  int _policyVersion = 0;
+  String? _policySignMethod;
   bool _addonLoading = true;
   Map<String, dynamic>? _addonData;
   bool _campaignsLoading = true;
@@ -114,6 +124,73 @@ class _AdminCreateBookingPageState extends State<AdminCreateBookingPage> {
     _loadDiscountCampaigns();
     _loadSpecialDateSurcharges();
     _loadShopPaymentSettings();
+    _loadPolicy();
+  }
+
+  Future<void> _loadPolicy() async {
+    final Map<String, dynamic>? policy = await ShopPolicyService.instance
+        .getCheckinPolicy(widget.shopId);
+    if (!mounted || policy == null) {
+      return;
+    }
+    final Map<String, dynamic> filtered = ShopPolicyService.instance
+        .filterPolicyForService(
+          policy: policy,
+          serviceType: PolicyApplicableService.accommodation,
+        );
+    setState(() {
+      _policyRequired = ShopPolicyService.instance.policyRequiresSignature(
+        filteredPolicy: filtered,
+      );
+      _policyVersion = ShopPolicyService.servicePolicyVersion(
+        policy: policy,
+        serviceType: PolicyApplicableService.accommodation,
+      );
+    });
+  }
+
+  Future<void> _advanceStep() async {
+    if (_submitting) {
+      return;
+    }
+    if (_step == 0) {
+      if (_selectedMember == null || _selectedPetIds.isEmpty) {
+        return;
+      }
+      setState(() {
+        _step = 1;
+        _selectedRoomType = null;
+      });
+      return;
+    }
+    if (_step == 1) {
+      if (_startDate == null || _endDate == null) {
+        return;
+      }
+      setState(() => _step = 2);
+      return;
+    }
+    if (_step == 2) {
+      if (_selectedRoomType == null) {
+        return;
+      }
+      setState(() => _step = 3);
+      return;
+    }
+    if (_step == 3) {
+      if (_policyRequired &&
+          (_policySignMethod == null || _policySignMethod!.isEmpty)) {
+        return;
+      }
+      if (_paymentMethod == null) {
+        return;
+      }
+      setState(() => _step = 4);
+      return;
+    }
+    if (_step == 4) {
+      await _submitBooking();
+    }
   }
 
   @override
@@ -251,167 +328,233 @@ class _AdminCreateBookingPageState extends State<AdminCreateBookingPage> {
     }
   }
 
+  String get _stayHint {
+    if (_step == 0) {
+      if (_selectedMember == null) {
+        return '請搜尋或快速建立會員';
+      }
+      if (_selectedPetIds.isEmpty) {
+        return '請至少選擇一隻寵物';
+      }
+      return '';
+    }
+    if (_step == 1) {
+      if (_startDate == null || _endDate == null) {
+        return '請先選擇入住與退房日期';
+      }
+      return '';
+    }
+    if (_step == 2) {
+      if (_selectedRoomType == null) {
+        return '請選擇房型';
+      }
+      return '';
+    }
+    if (_step == 3) {
+      if (_paymentMethod == null) {
+        return '請選擇付款方式';
+      }
+      if (_policyRequired &&
+          (_policySignMethod == null || _policySignMethod!.isEmpty)) {
+        return '請記錄住宿條款簽署方式';
+      }
+      return '';
+    }
+    return '';
+  }
+
+  bool get _stayCanAdvance => _stayHint.isEmpty && !_submitting;
+
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFFFFCF7),
-      appBar: AppBar(
-        title: const Text('手動新增訂單'),
-        backgroundColor: const Color(0xFFFFFCF7),
-        elevation: 0,
-        surfaceTintColor: Colors.transparent,
-      ),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          const Text(
-            '第一步：選擇會員',
-            style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900),
-          ),
-
-          const SizedBox(height: 8),
-
-          const Text(
-            '可輸入姓名或電話搜尋會員。沒有會員時，下一步會加入快速建立會員。',
-            style: TextStyle(color: Colors.grey),
-          ),
-
-          const SizedBox(height: 16),
-
-          TextField(
-            controller: _keywordController,
-            decoration: InputDecoration(
-              hintText: '搜尋會員姓名 / 電話',
-              prefixIcon: const Icon(Icons.search),
-              suffixIcon: _keyword.isEmpty
-                  ? null
-                  : IconButton(
-                      icon: const Icon(Icons.clear),
-                      onPressed: () async {
-                        setState(() {
-                          _keywordController.clear();
-                          _keyword = '';
-                          _selectedMember = null;
-                          _selectedPetIds.clear();
-                          _step = 0;
-                        });
-                      },
-                    ),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(14),
+    const List<String> titles = <String>[
+      '會員與寵物',
+      '日期',
+      '房型與加購',
+      '費用與條款',
+      '確認建立',
+    ];
+    return StreamBuilder<Map<String, dynamic>?>(
+      stream: ShopService.instance.streamShop(widget.shopId),
+      builder:
+          (BuildContext context, AsyncSnapshot<Map<String, dynamic>?> snap) {
+            final HomeThemeModel theme = HomeBannerService.instance
+                .themeFromShop(snap.data);
+            final int nights = _startDate != null && _endDate != null
+                ? _endDate!.difference(_startDate!).inDays
+                : 0;
+            final Map<String, dynamic>? discountInfo =
+                _selectedRoomType != null && nights > 0
+                ? _calculateAdminDiscountInfo(
+                    roomType: _selectedRoomType!,
+                    nights: nights,
+                  )
+                : null;
+            final String totalText = discountInfo == null
+                ? ''
+                : 'NT\$${(discountInfo['finalTotal'] as num?)?.toInt() ?? 0}';
+            return AdminCreateFlowScaffold(
+              title: '手動新增住宿訂單',
+              theme: theme,
+              stepIndex: _step,
+              stepTitles: titles,
+              primaryLabel: _step == 4 ? '建立訂單' : '下一步',
+              primaryEnabled: _stayCanAdvance,
+              hint: _stayHint,
+              busy: _submitting,
+              onBackStep: _step == 0 ? null : () => setState(() => _step -= 1),
+              onPrimary: _advanceStep,
+              summary: AdminCreateFeeSummaryCard(
+                theme: theme,
+                lines: <String>[
+                  if (_selectedMember != null)
+                    '會員：${(_selectedMember!['name'] ?? '').toString()}',
+                  if (_selectedPetIds.isNotEmpty)
+                    '寵物：${_selectedPetIds.length} 隻',
+                  if (_startDate != null && _endDate != null) '住宿：$nights 晚',
+                  if (_selectedRoomType != null)
+                    '房型：${(_selectedRoomType!['name'] ?? '').toString()}',
+                ],
+                totalLabel: '預估總額',
+                totalAmount: totalText,
               ),
-            ),
-            onChanged: (value) {
-              setState(() {
-                _keyword = value.trim();
-              });
-            },
-          ),
-
-          const SizedBox(height: 12),
-
-          SizedBox(
-            width: double.infinity,
-            child: OutlinedButton.icon(
-              onPressed: _quickCreateMember,
-              icon: const Icon(Icons.person_add_alt_1),
-              label: const Text('沒有會員？快速建立會員'),
-            ),
-          ),
-
-          const SizedBox(height: 16),
-
-          if (_selectedMember != null) _selectedMemberCard(),
-          const SizedBox(height: 16),
-
-          if (_step == 0) _memberSearchResult(),
-
-          if (_step == 1) _petSection(),
-          if (_step == 2) _dateSection(),
-          if (_step == 3) _roomTypeSection(),
-          if (_step == 4) _addonSection(),
-          if (_step == 5) _confirmSection(),
-
-          const SizedBox(height: 24),
-
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton(
-              onPressed: _selectedMember == null || _submitting
-                  ? null
-                  : () async {
-                      if (_step == 0) {
-                        setState(() {
-                          _step = 1;
-                        });
-                        return;
-                      }
-
-                      if (_step == 1) {
-                        if (_selectedPetIds.isEmpty) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('請至少選擇一隻寵物')),
-                          );
-                          return;
-                        }
-
-                        setState(() {
-                          _step = 2;
-                          _selectedRoomType = null;
-                        });
-                        return;
-                      }
-
-                      if (_step == 2) {
-                        if (_startDate == null || _endDate == null) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('請先選擇日期')),
-                          );
-                          return;
-                        }
-
-                        setState(() {
-                          _step = 3;
-                        });
-                        return;
-                      }
-
-                      if (_step == 3) {
-                        if (_selectedRoomType == null) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('請先選擇房型')),
-                          );
-                          return;
-                        }
-
-                        setState(() {
-                          _step = 4;
-                        });
-                        return;
-                      }
-
-                      if (_step == 4) {
-                        setState(() {
-                          _step = 5;
-                        });
-                        return;
-                      }
-
-                      if (_step == 5) {
-                        await _submitBooking();
-                      }
-                    },
-              child: _submitting
-                  ? const SizedBox(
-                      width: 22,
-                      height: 22,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : Text(_step == 5 ? '建立訂單' : '下一步'),
-            ),
-          ),
-        ],
-      ),
+              body: ListView(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+                children: <Widget>[
+                  if (_step > 0 && _selectedMember != null) ...<Widget>[
+                    _selectedMemberCard(),
+                    const SizedBox(height: 12),
+                  ],
+                  if (_step == 0) ...<Widget>[
+                    BookingThemedCard(
+                      theme: theme,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: <Widget>[
+                          Text(
+                            '會員與寵物',
+                            style: TextStyle(
+                              fontSize: 17,
+                              fontWeight: FontWeight.w800,
+                              color: theme.textColor,
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            '可輸入姓名或電話搜尋會員。沒有會員時，可快速建立會員。',
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: theme.textColor.withValues(alpha: 0.7),
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          TextField(
+                            controller: _keywordController,
+                            decoration: InputDecoration(
+                              hintText: '搜尋會員姓名 / 電話',
+                              prefixIcon: const Icon(Icons.search),
+                              suffixIcon: _keyword.isEmpty
+                                  ? null
+                                  : IconButton(
+                                      icon: const Icon(Icons.clear),
+                                      onPressed: () {
+                                        setState(() {
+                                          _keywordController.clear();
+                                          _keyword = '';
+                                          _selectedMember = null;
+                                          _selectedPetIds.clear();
+                                          _step = 0;
+                                        });
+                                      },
+                                    ),
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(14),
+                              ),
+                            ),
+                            onChanged: (String value) {
+                              setState(() => _keyword = value.trim());
+                            },
+                          ),
+                          const SizedBox(height: 12),
+                          SizedBox(
+                            width: double.infinity,
+                            child: OutlinedButton.icon(
+                              onPressed: _quickCreateMember,
+                              icon: const Icon(Icons.person_add_alt_1),
+                              label: const Text('沒有會員？快速建立會員'),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    if (_selectedMember != null) _selectedMemberCard(),
+                    const SizedBox(height: 12),
+                    _memberSearchResult(),
+                    if (_selectedMember != null) ...<Widget>[
+                      const SizedBox(height: 12),
+                      _petSection(),
+                    ],
+                  ],
+                  if (_step == 1) _dateSection(),
+                  if (_step == 2) ...<Widget>[
+                    _roomTypeSection(),
+                    const SizedBox(height: 12),
+                    _addonSection(),
+                  ],
+                  if (_step == 3) ...<Widget>[
+                    _confirmSection(),
+                    const SizedBox(height: 12),
+                    if (_policyRequired)
+                      PolicySignMethodField(
+                        value: _policySignMethod,
+                        title: '住宿條款簽署方式',
+                        onChanged: (String value) {
+                          setState(() => _policySignMethod = value);
+                        },
+                      ),
+                  ],
+                  if (_step == 4)
+                    BookingThemedCard(
+                      theme: theme,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: <Widget>[
+                          Text(
+                            '確認建立',
+                            style: TextStyle(
+                              fontSize: 17,
+                              fontWeight: FontWeight.w800,
+                              color: theme.textColor,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            '請確認會員、日期、房型、加購與付款資料無誤。建立後會進入既有店主訂單詳細頁。',
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: theme.textColor.withValues(alpha: 0.72),
+                            ),
+                          ),
+                          const SizedBox(height: 10),
+                          Text(
+                            '${(_selectedMember?['name'] ?? '').toString()} ｜ '
+                            '${_selectedPetIds.length} 隻寵物 ｜ '
+                            '${_selectedRoomType?['name'] ?? ''} ｜ '
+                            '${totalText.isEmpty ? '' : totalText}',
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w700,
+                              color: theme.textColor,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                ],
+              ),
+            );
+          },
     );
   }
 
@@ -1673,7 +1816,7 @@ class _AdminCreateBookingPageState extends State<AdminCreateBookingPage> {
 
       final bookingPaymentMethod = _paymentMethod ?? '';
 
-      await BookingService.instance.createAdminBooking(
+      final String bookingId = await BookingService.instance.createAdminBooking(
         shopId: widget.shopId,
         userId: finalUserId,
         customerName: member['name'] ?? '',
@@ -1746,6 +1889,9 @@ class _AdminCreateBookingPageState extends State<AdminCreateBookingPage> {
         allowCouponTogether: discountInfo['allowCouponTogether'] == true,
         pets: _pets,
         addons: _buildAdminAddons(),
+        policyVersion: _policyVersion,
+        policySignMethod: _policyRequired ? (_policySignMethod ?? '') : '',
+        policyServiceType: PolicyApplicableService.accommodation,
         note:
             '手動新增訂單｜$_adminOrderSource'
             '${_noteController.text.trim().isEmpty ? '' : '｜${_noteController.text.trim()}'}',
@@ -1773,7 +1919,15 @@ class _AdminCreateBookingPageState extends State<AdminCreateBookingPage> {
         context,
       ).showSnackBar(const SnackBar(content: Text('訂單建立成功')));
 
-      Navigator.pop(context);
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute<void>(
+          builder: (_) => AdminBookingRoute.page(
+            bookingId: bookingId,
+            shopId: widget.shopId,
+          ),
+        ),
+      );
     } catch (e, stackTrace) {
       debugPrint('====================');
       debugPrint('建立訂單失敗');

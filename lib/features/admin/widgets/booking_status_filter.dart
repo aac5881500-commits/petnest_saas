@@ -30,7 +30,6 @@ class BookingStatusFilter extends StatelessWidget {
   final List<BookingFilterChipSpec> items;
 
   static const List<BookingFilterChipSpec> stayItems = <BookingFilterChipSpec>[
-    BookingFilterChipSpec(type: 'all', label: '全部'),
     BookingFilterChipSpec(type: 'pending', label: '待確認', attention: true),
     BookingFilterChipSpec(
       type: 'depositReview',
@@ -51,7 +50,6 @@ class BookingStatusFilter extends StatelessWidget {
 
   static const List<BookingFilterChipSpec>
   daycareItems = <BookingFilterChipSpec>[
-    BookingFilterChipSpec(type: 'all', label: '全部'),
     BookingFilterChipSpec(type: 'pending', label: '待確認', attention: true),
     BookingFilterChipSpec(
       type: 'depositReview',

@@ -225,3 +225,42 @@ class BookingPrimaryButton extends StatelessWidget {
     );
   }
 }
+
+class BookingStepBackButton extends StatelessWidget {
+  const BookingStepBackButton({
+    super.key,
+    required this.theme,
+    required this.onPressed,
+    this.label = '上一步',
+  });
+
+  final HomeThemeModel theme;
+  final VoidCallback onPressed;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: double.infinity,
+      height: 48,
+      child: ElevatedButton.icon(
+        onPressed: onPressed,
+        icon: const Icon(Icons.arrow_back, size: 18),
+        label: Text(
+          label,
+          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+        ),
+        style: ElevatedButton.styleFrom(
+          elevation: 0,
+          backgroundColor: theme.primaryColor.withValues(alpha: 0.16),
+          foregroundColor: theme.primaryColor,
+          disabledBackgroundColor: theme.primaryColor.withValues(alpha: 0.16),
+          disabledForegroundColor: theme.primaryColor,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+          ),
+        ),
+      ),
+    );
+  }
+}
