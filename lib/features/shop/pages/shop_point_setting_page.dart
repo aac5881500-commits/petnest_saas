@@ -67,7 +67,8 @@ class _ShopPointSettingPageState extends State<ShopPointSettingPage> {
       PointSettingModel.daycareCalculationTypeAmount;
   bool _daycareIncludeAddons = true;
   bool _daycareIncludeSurcharge = true;
-  bool _daycareIncludeOvertime = true;
+  bool _daycareIncludeOvertime = false;
+  bool _daycareIncludeExpanded = false;
 
   bool get _isAmountCalculation =>
       _calculationType == PointSettingModel.calculationTypeAmount;
@@ -244,111 +245,131 @@ class _ShopPointSettingPageState extends State<ShopPointSettingPage> {
       children: <Widget>[
         const Divider(),
         const Text(
-          '安親點數設定',
+          '安親點數',
           style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
         ),
         const SizedBox(height: 4),
-        const Text(
-          '僅 APP 會員可獲得點數。點數有效期限沿用上方全店設定。',
-          style: TextStyle(fontSize: 13, color: Colors.black54),
+        Text(
+          _enabled
+              ? '點數只在訂單完成後發一次；取消、退款或未完成不發，且不會重複發點。'
+              : '請先開啟全店點數制度，才能設定安親發點與折抵。',
+          style: const TextStyle(fontSize: 13, color: Colors.black54),
         ),
         SwitchListTile(
           contentPadding: EdgeInsets.zero,
           title: const Text('安親完成後發放點數'),
+          subtitle: const Text('訂單完成時依下方規則發點，取消與未完成不發。'),
           value: _daycareEarnEnabled,
-          onChanged: (bool value) =>
-              setState(() => _daycareEarnEnabled = value),
+          onChanged: !_enabled
+              ? null
+              : (bool value) => setState(() => _daycareEarnEnabled = value),
         ),
         SwitchListTile(
           contentPadding: EdgeInsets.zero,
-          title: const Text('安親允許點數折抵'),
+          title: const Text('安親預約可使用點數折抵'),
+          subtitle: const Text('沿用全店點數餘額，1 點折抵 NT\$1，不可讓應付變負數。'),
           value: _daycareSpendEnabled,
-          onChanged: (bool value) =>
-              setState(() => _daycareSpendEnabled = value),
+          onChanged: !_enabled
+              ? null
+              : (bool value) => setState(() => _daycareSpendEnabled = value),
         ),
-        const Text('點數計算方式'),
-        RadioListTile<String>(
-          contentPadding: EdgeInsets.zero,
-          title: const Text('依消費金額'),
-          value: PointSettingModel.daycareCalculationTypeAmount,
-          groupValue: _daycareCalculationType,
-          onChanged: (String? value) {
-            if (value == null) {
-              return;
-            }
-            setState(() => _daycareCalculationType = value);
-          },
-        ),
-        RadioListTile<String>(
-          contentPadding: EdgeInsets.zero,
-          title: const Text('每張完成訂單固定點數'),
-          value: PointSettingModel.daycareCalculationTypeFixed,
-          groupValue: _daycareCalculationType,
-          onChanged: (String? value) {
-            if (value == null) {
-              return;
-            }
-            setState(() => _daycareCalculationType = value);
-          },
-        ),
-        if (_daycareCalculationType ==
-            PointSettingModel.daycareCalculationTypeAmount)
+        if (_daycareEarnEnabled && _enabled) ...<Widget>[
+          const Text('發點計算方式'),
+          RadioListTile<String>(
+            contentPadding: EdgeInsets.zero,
+            title: const Text('每消費 NT\$ N 得 1 點（推薦）'),
+            value: PointSettingModel.daycareCalculationTypeAmount,
+            groupValue: _daycareCalculationType,
+            onChanged: (String? value) {
+              if (value == null) {
+                return;
+              }
+              setState(() => _daycareCalculationType = value);
+            },
+          ),
+          RadioListTile<String>(
+            contentPadding: EdgeInsets.zero,
+            title: const Text('每筆完成安親固定得 N 點'),
+            value: PointSettingModel.daycareCalculationTypeFixed,
+            groupValue: _daycareCalculationType,
+            onChanged: (String? value) {
+              if (value == null) {
+                return;
+              }
+              setState(() => _daycareCalculationType = value);
+            },
+          ),
+          if (_daycareCalculationType ==
+              PointSettingModel.daycareCalculationTypeAmount)
+            TextField(
+              controller: _daycareAmountPerPointController,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(
+                labelText: '每消費多少元獲得 1 點',
+                border: OutlineInputBorder(),
+              ),
+            )
+          else
+            TextField(
+              controller: _daycarePointsPerOrderController,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(
+                labelText: '每筆完成安親獲得點數',
+                border: OutlineInputBorder(),
+              ),
+            ),
+          const SizedBox(height: 12),
           TextField(
-            controller: _daycareAmountPerPointController,
+            controller: _daycareMinimumController,
             keyboardType: TextInputType.number,
             decoration: const InputDecoration(
-              labelText: '每消費多少元獲得 1 點',
+              labelText: '最低消費金額（0 為不限制）',
               border: OutlineInputBorder(),
             ),
-          )
-        else
+          ),
+          const SizedBox(height: 12),
           TextField(
-            controller: _daycarePointsPerOrderController,
+            controller: _daycareMaximumController,
             keyboardType: TextInputType.number,
             decoration: const InputDecoration(
-              labelText: '每張完成安親訂單獲得點數',
+              labelText: '單筆發點上限（0 為不限制）',
               border: OutlineInputBorder(),
             ),
           ),
-        const SizedBox(height: 12),
-        TextField(
-          controller: _daycareMinimumController,
-          keyboardType: TextInputType.number,
-          decoration: const InputDecoration(
-            labelText: '最低消費金額（0 為不限制）',
-            border: OutlineInputBorder(),
+          ExpansionTile(
+            tilePadding: EdgeInsets.zero,
+            title: const Text('計算金額包含項目'),
+            initiallyExpanded: _daycareIncludeExpanded,
+            onExpansionChanged: (bool open) =>
+                setState(() => _daycareIncludeExpanded = open),
+            children: <Widget>[
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('加購'),
+                subtitle: const Text('預設包含'),
+                value: _daycareIncludeAddons,
+                onChanged: (bool value) =>
+                    setState(() => _daycareIncludeAddons = value),
+              ),
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('特殊日期加價'),
+                subtitle: const Text('預設包含'),
+                value: _daycareIncludeSurcharge,
+                onChanged: (bool value) =>
+                    setState(() => _daycareIncludeSurcharge = value),
+              ),
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('超時接回費'),
+                subtitle: const Text('預設不包含'),
+                value: _daycareIncludeOvertime,
+                onChanged: (bool value) =>
+                    setState(() => _daycareIncludeOvertime = value),
+              ),
+            ],
           ),
-        ),
-        const SizedBox(height: 12),
-        TextField(
-          controller: _daycareMaximumController,
-          keyboardType: TextInputType.number,
-          decoration: const InputDecoration(
-            labelText: '每張安親訂單最多發放點數（0 為不限制）',
-            border: OutlineInputBorder(),
-          ),
-        ),
-        SwitchListTile(
-          contentPadding: EdgeInsets.zero,
-          title: const Text('計算時包含加值服務'),
-          value: _daycareIncludeAddons,
-          onChanged: (bool value) =>
-              setState(() => _daycareIncludeAddons = value),
-        ),
-        SwitchListTile(
-          contentPadding: EdgeInsets.zero,
-          title: const Text('計算時包含特殊日期加價'),
-          value: _daycareIncludeSurcharge,
-          onChanged: (bool value) =>
-              setState(() => _daycareIncludeSurcharge = value),
-        ),
-        SwitchListTile(
-          contentPadding: EdgeInsets.zero,
-          title: const Text('計算時包含超時費'),
-          value: _daycareIncludeOvertime,
-          onChanged: (bool value) =>
-              setState(() => _daycareIncludeOvertime = value),
-        ),
+        ],
       ],
     );
   }

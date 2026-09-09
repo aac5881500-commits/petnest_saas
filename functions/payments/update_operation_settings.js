@@ -1,7 +1,7 @@
 // 檔案名稱：functions/payments/update_operation_settings.js
 // 功能說明：由店主安全更新銀行轉帳與綠界付款營運開關
 // ⚙️ 店家收款方式營運設定
-// 到店付款固定啟用，綠界未核准時不得啟用線上付款。
+// 到店付款可由店主開關；至少保留一種有效客戶付款方式。綠界未核准時不得啟用線上付款。
 
 const admin = require("firebase-admin");
 
@@ -13,6 +13,10 @@ const {
 const {
   normalizeString,
 } = require("./payment_verify");
+
+const {
+  validateOperationSettings,
+} = require("./shop_payment_methods");
 
 /**
  * 驗證目前登入使用者是否為店主
@@ -91,6 +95,8 @@ exports.updatePaymentOperationSettings = onCall(
         userId: request.auth.uid,
       });
 
+      const cashPaymentEnabled = requestData.cashPaymentEnabled !== false;
+
       const bankTransferEnabled =
         requestData.bankTransferEnabled === true;
 
@@ -162,13 +168,28 @@ exports.updatePaymentOperationSettings = onCall(
           );
         }
 
+        const validation = validateOperationSettings({
+          shop,
+          cashPaymentEnabled,
+          bankTransferEnabled,
+          ecpayEnabled: requestedEcpayEnabled,
+          creditCardEnabled,
+          atmEnabled,
+          cvsCodeEnabled,
+        });
+        if (!validation.ok) {
+          throw new HttpsError(
+              "failed-precondition",
+              validation.message,
+          );
+        }
+
         transaction.set(
             shopRef,
             {
               paymentSetting: {
                 operationSettings: {
-                  // 🏪 到店付款固定啟用
-                  cashPaymentEnabled: true,
+                  cashPaymentEnabled,
 
                   bankTransferEnabled,
 

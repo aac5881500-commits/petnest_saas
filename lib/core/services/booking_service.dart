@@ -3,7 +3,9 @@
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:petnest_saas/core/models/policy_applicable_service.dart';
 import 'package:petnest_saas/core/models/terms_consent_snapshot.dart';
+import 'package:petnest_saas/core/services/shop_payment_methods.dart';
 import 'package:petnest_saas/core/services/shop_service.dart';
 import 'package:petnest_saas/core/services/member_coupon_service.dart';
 import 'package:petnest_saas/core/services/inventory_stock_service.dart';
@@ -156,6 +158,20 @@ class BookingService {
 
     final shopData = shopDoc.data() ?? {};
 
+    final String normalizedPaymentMethod = ShopPaymentMethods.normalizeMethodId(
+      paymentMethod,
+    );
+    final ShopPaymentCatalog paymentCatalog = ShopPaymentMethods.resolve(
+      shopData: Map<String, dynamic>.from(shopData),
+      serviceType: PolicyApplicableService.accommodation,
+    );
+    if (paymentCatalog.isEmpty) {
+      throw Exception(ShopPaymentMethods.noMethodsMessage);
+    }
+    if (!paymentCatalog.isEnabled(normalizedPaymentMethod)) {
+      throw Exception('請選擇有效的付款方式');
+    }
+
     final bankName = shopData['bankName'] ?? '';
     final accountName = shopData['accountName'] ?? '';
     final accountNumber = shopData['accountNumber'] ?? '';
@@ -283,7 +299,9 @@ class BookingService {
         'couponDiscountAmount': couponDiscountAmount,
 
         'depositAmount': depositAmount,
-        'paymentMethod': paymentMethod,
+        'paymentMethod': normalizedPaymentMethod.isNotEmpty
+            ? normalizedPaymentMethod
+            : paymentMethod,
         'payAmountType': payAmountType,
 
         /// 💰 Booking 付款摘要初始值
@@ -408,6 +426,20 @@ class BookingService {
 
     final shopData = shopDoc.data() ?? {};
 
+    final String normalizedPaymentMethod = ShopPaymentMethods.normalizeMethodId(
+      paymentMethod,
+    );
+    final ShopPaymentCatalog paymentCatalog = ShopPaymentMethods.resolve(
+      shopData: Map<String, dynamic>.from(shopData),
+      serviceType: PolicyApplicableService.accommodation,
+    );
+    if (paymentCatalog.isEmpty) {
+      throw Exception(ShopPaymentMethods.noMethodsMessage);
+    }
+    if (!paymentCatalog.isEnabled(normalizedPaymentMethod)) {
+      throw Exception('請選擇有效的付款方式');
+    }
+
     final bankName = shopData['bankName'] ?? '';
     final accountName = shopData['accountName'] ?? '';
     final accountNumber = shopData['accountNumber'] ?? '';
@@ -504,7 +536,9 @@ class BookingService {
       'discountValue': discountValue,
       'allowCouponTogether': allowCouponTogether,
       'depositAmount': depositAmount,
-      'paymentMethod': paymentMethod,
+      'paymentMethod': normalizedPaymentMethod.isNotEmpty
+          ? normalizedPaymentMethod
+          : paymentMethod,
       'payAmountType': payAmountType,
 
       /// 💰 Booking 付款摘要初始值

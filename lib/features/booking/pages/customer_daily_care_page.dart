@@ -10,11 +10,13 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 import '../../../core/constants/shop_permission_keys.dart';
+import '../../../core/models/booking_kind.dart';
 import '../../../core/models/daily_care_date_helper.dart';
 import '../../../core/models/daily_care_photo_model.dart';
 import '../../../core/models/daily_care_record_model.dart';
 import '../../../core/models/daily_care_setting_model.dart';
 import '../../../core/models/daily_care_stay_info.dart';
+import '../../../core/services/daily_care_daycare_access.dart';
 import '../../../core/services/daily_care_photo_service.dart';
 import '../../../core/services/daily_care_record_service.dart';
 import '../../../core/services/daily_care_setting_service.dart';
@@ -30,6 +32,7 @@ class CustomerDailyCarePage extends StatefulWidget {
     this.previewMode = false,
     this.initialDate,
     this.initialSessionIndex,
+    this.journalTitle,
   });
 
   final String shopId;
@@ -38,6 +41,7 @@ class CustomerDailyCarePage extends StatefulWidget {
   final bool previewMode;
   final DateTime? initialDate;
   final int? initialSessionIndex;
+  final String? journalTitle;
 
   /// 店家預覽：owner、可管理預約、或可看房務管理的成員。
   /// 不依賴 booking.userId，手動訂單也可預覽。
@@ -184,7 +188,7 @@ class _CustomerDailyCarePageState extends State<CustomerDailyCarePage> {
           }
           if (snapshot.data != true) {
             return Scaffold(
-              appBar: AppBar(title: const Text('每日照護日誌')),
+              appBar: AppBar(title: Text(widget.journalTitle ?? '每日照護日誌')),
               body: const Center(child: Text('沒有預覽客戶照護日誌的權限')),
             );
           }
@@ -282,22 +286,33 @@ class _CustomerDailyCarePageState extends State<CustomerDailyCarePage> {
               );
             }
 
+            final bool isDaycare = BookingKind.isDaycare(bookingData);
+            final String journalTitle =
+                widget.journalTitle ?? (isDaycare ? '本次安親回報' : '每日照護日誌');
             final DailyCareStayInfo stay = DailyCareStayInfo.fromBookingMap(
               bookingData,
               fallbackRoomName: widget.roomName,
             );
-            final List<DateTime> careDates = stay
-                .careDateKeys()
-                .map(DailyCareDateHelper.parseDateKey)
-                .whereType<DateTime>()
-                .toList();
+            final List<DateTime> careDates = isDaycare
+                ? <DateTime>[
+                    DailyCareDaycareAccess.serviceCalendarDate(bookingData) ??
+                        DailyCareDateHelper.todayInTaipei(),
+                  ]
+                : stay
+                      .careDateKeys()
+                      .map(DailyCareDateHelper.parseDateKey)
+                      .whereType<DateTime>()
+                      .toList();
+            final int sessionCount = isDaycare
+                ? setting.daycareSessionCount
+                : setting.sessionCount;
 
             return StreamBuilder<List<DailyCareRecordModel>>(
               stream: DailyCareRecordService.instance.streamBookingRecords(
                 bookingId: widget.bookingId,
                 shopId: widget.previewMode ? widget.shopId : null,
                 careDates: widget.previewMode ? careDates : null,
-                sessionCount: setting.sessionCount,
+                sessionCount: sessionCount,
               ),
               builder: (context, recordSnapshot) {
                 if (recordSnapshot.hasError) {
@@ -309,6 +324,7 @@ class _CustomerDailyCarePageState extends State<CustomerDailyCarePage> {
                   );
                   return _journalScaffold(
                     setting: setting,
+                    title: journalTitle,
                     child: _errorView(_loadErrorMessage(recordSnapshot.error)),
                   );
                 }
@@ -316,6 +332,7 @@ class _CustomerDailyCarePageState extends State<CustomerDailyCarePage> {
                 if (!recordSnapshot.hasData) {
                   return _journalScaffold(
                     setting: setting,
+                    title: journalTitle,
                     child: const Center(child: CircularProgressIndicator()),
                   );
                 }
@@ -327,11 +344,15 @@ class _CustomerDailyCarePageState extends State<CustomerDailyCarePage> {
                 final List<String> dateKeys = _resolveDateKeys(
                   stay: stay,
                   recordDateKeys: grouped.keys.toList()..sort(),
+                  extraDateKeys: isDaycare
+                      ? careDates.map(DailyCareDateHelper.dateKey).toList()
+                      : const <String>[],
                 );
 
                 if (dateKeys.isEmpty) {
                   return _journalScaffold(
                     setting: setting,
+                    title: journalTitle,
                     child: const _EmptyCareView(),
                   );
                 }
@@ -349,6 +370,7 @@ class _CustomerDailyCarePageState extends State<CustomerDailyCarePage> {
                 final List<_SessionTab> sessionTabs = _buildSessionTabs(
                   setting: setting,
                   records: selectedDateRecords,
+                  sessionCount: sessionCount,
                 );
                 final int selectedSessionIndex = _resolveSelectedSessionIndex(
                   sessionTabs,
@@ -362,6 +384,7 @@ class _CustomerDailyCarePageState extends State<CustomerDailyCarePage> {
 
                 return _journalScaffold(
                   setting: setting,
+                  title: journalTitle,
                   child: Column(
                     children: <Widget>[
                       Padding(
@@ -430,12 +453,13 @@ class _CustomerDailyCarePageState extends State<CustomerDailyCarePage> {
   Widget _journalScaffold({
     required DailyCareSettingModel setting,
     required Widget child,
+    String? title,
   }) {
     return Scaffold(
       backgroundColor: Colors.transparent,
       extendBodyBehindAppBar: true,
       appBar: AppBar(
-        title: const Text('每日照護日誌'),
+        title: Text(title ?? widget.journalTitle ?? '每日照護日誌'),
         backgroundColor: Colors.transparent,
         surfaceTintColor: Colors.transparent,
         elevation: 0,
@@ -492,7 +516,11 @@ class _CustomerDailyCarePageState extends State<CustomerDailyCarePage> {
   List<String> _resolveDateKeys({
     required DailyCareStayInfo stay,
     required List<String> recordDateKeys,
+    List<String> extraDateKeys = const <String>[],
   }) {
+    if (extraDateKeys.isNotEmpty) {
+      return extraDateKeys;
+    }
     final List<String> stayKeys = stay.careDateKeys();
     if (stayKeys.isNotEmpty) {
       return stayKeys;
@@ -562,8 +590,9 @@ class _CustomerDailyCarePageState extends State<CustomerDailyCarePage> {
   List<_SessionTab> _buildSessionTabs({
     required DailyCareSettingModel setting,
     required List<DailyCareRecordModel> records,
+    int? sessionCount,
   }) {
-    int tabCount = setting.sessionCount;
+    int tabCount = sessionCount ?? setting.sessionCount;
     if (records.isNotEmpty) {
       final int maxIndex = records
           .map((DailyCareRecordModel record) => record.sessionIndex)

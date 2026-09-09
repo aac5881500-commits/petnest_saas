@@ -49,7 +49,6 @@ async function assertAvailable(firestore, params) {
   const roomId = normalizeString(params.roomId);
   const roomTypeId = normalizeString(params.roomTypeId);
   const occupancyMode = normalizeString(params.occupancyMode) || "slot";
-  const dailyMaxPets = toInt(params.dailyMaxPets, 0);
   const excludeBookingId = normalizeString(params.excludeBookingId);
   const serviceDate = serviceDateKey(startAt);
 
@@ -57,8 +56,6 @@ async function assertAvailable(firestore, params) {
       .where("shopId", "==", shopId)
       .where("status", "in", ACTIVE_STATUSES)
       .get();
-
-  let dayPetCount = 0;
 
   for (const doc of bookingsSnap.docs) {
     if (doc.id === excludeBookingId) {
@@ -76,9 +73,6 @@ async function assertAvailable(firestore, params) {
       if (!otherStart || !otherEnd) {
         continue;
       }
-      if (serviceDateKey(otherStart) === serviceDate) {
-        dayPetCount += Math.max(1, otherPets.length || toInt(data.petCount, 1));
-      }
       if (petOverlap && overlaps(startAt, endAt, otherStart, otherEnd)) {
         return {ok: false, reason: "此寵物在相同時段已有臨托預約"};
       }
@@ -90,7 +84,7 @@ async function assertAvailable(firestore, params) {
             return {ok: false, reason: "此房間當日已被整日占用"};
           }
         } else if (overlaps(startAt, endAt, otherStart, otherEnd)) {
-          return {ok: false, reason: "此房間此時段已被臨托占用"};
+          return {ok: false, reason: "此時段房間已被占用"};
         }
       }
       continue;
@@ -109,11 +103,6 @@ async function assertAvailable(firestore, params) {
     if (roomId && stayRoom && stayRoom === roomId && occupiesDay) {
       return {ok: false, reason: "此房間已被住宿訂單占用"};
     }
-  }
-
-  if (dailyMaxPets > 0 &&
-      dayPetCount + Math.max(1, petIds.length) > dailyMaxPets) {
-    return {ok: false, reason: "當日臨托名額已滿"};
   }
 
   if (roomId) {
@@ -163,7 +152,7 @@ async function assertAvailable(firestore, params) {
           return {ok: false, reason: "此房間當日占用衝突"};
         }
       } else if (overlaps(startAt, endAt, occStart, occEnd)) {
-        return {ok: false, reason: "此房間時段占用衝突"};
+        return {ok: false, reason: "此時段房間已被占用"};
       }
     }
   }
@@ -304,6 +293,92 @@ function releaseOccupancyDocs(transaction, docs) {
  * @param {string} bookingId
  * @return {Promise<void>}
  */
+/**
+ * 純函式：檢查占用紀錄是否與指定時段重疊（供測試與 Transaction 共用）
+ * @param {Array<Object>} occupancies
+ * @param {Date} startAt
+ * @param {Date} endAt
+ * @param {string} excludeBookingId
+ * @param {string} occupancyMode
+ * @return {boolean}
+ */
+function hasOverlappingOccupancy(
+    occupancies, startAt, endAt, excludeBookingId, occupancyMode,
+) {
+  const mode = occupancyMode || "slot";
+  const serviceDate = serviceDateKey(startAt);
+  for (const occ of occupancies) {
+    if (normalizeString(occ.bookingId) === normalizeString(excludeBookingId)) {
+      continue;
+    }
+    if (normalizeString(occ.status) &&
+        normalizeString(occ.status) !== "active") {
+      continue;
+    }
+    const occStart = occ.startAt instanceof Date ?
+      occ.startAt : toDate(occ.startAt);
+    const occEnd = occ.endAt instanceof Date ? occ.endAt : toDate(occ.endAt);
+    if (!occStart || !occEnd) {
+      continue;
+    }
+    const occMode = normalizeString(occ.occupancyMode) || "slot";
+    if (occMode === "full_day" || mode === "full_day") {
+      if (serviceDateKey(occStart) === serviceDate) {
+        return true;
+      }
+    } else if (overlaps(startAt, endAt, occStart, occEnd)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/**
+ * Transaction 內再檢查同一房間占用，並更新房間文件作為鎖。
+ * @param {FirebaseFirestore.Transaction} transaction
+ * @param {FirebaseFirestore.Firestore} firestore
+ * @param {Object} params
+ * @return {Promise<void>}
+ */
+async function assertRoomFreeInTransaction(transaction, firestore, params) {
+  const shopId = params.shopId;
+  const roomId = normalizeString(params.roomId);
+  const startAt = params.startAt;
+  const endAt = params.endAt;
+  const excludeBookingId = normalizeString(params.excludeBookingId);
+  const occupancyMode = normalizeString(params.occupancyMode) || "slot";
+  if (!roomId) {
+    return;
+  }
+  const roomRef = firestore.collection("shops").doc(shopId)
+      .collection("rooms").doc(roomId);
+  await transaction.get(roomRef);
+  const occSnap = await transaction.get(
+      firestore.collection("shops").doc(shopId)
+          .collection("room_occupancies")
+          .where("roomId", "==", roomId)
+          .where("status", "==", "active"),
+  );
+  const occupancies = occSnap.docs.map((doc) => doc.data() || {});
+  if (hasOverlappingOccupancy(
+      occupancies, startAt, endAt, excludeBookingId, occupancyMode,
+  )) {
+    const error = new Error("此時段房間已被占用");
+    error.code = "failed-precondition";
+    throw error;
+  }
+  transaction.update(roomRef, {
+    occupancyLockAt: admin.firestore.FieldValue.serverTimestamp(),
+  });
+}
+
+/**
+ * @param {FirebaseFirestore.Firestore} firestore
+ * @param {FirebaseFirestore.Transaction} transaction
+ * @param {string} shopId
+ * @param {string} bookingId
+ * @return {Promise<void>}
+ */
 async function releaseOccupancies(firestore, transaction, shopId, bookingId) {
   const snap = await loadActiveOccupancies(firestore, shopId, bookingId);
   releaseOccupancyDocs(transaction, snap.docs);
@@ -317,4 +392,6 @@ module.exports = {
   loadActiveOccupancies,
   releaseOccupancyDocs,
   releaseOccupancies,
+  hasOverlappingOccupancy,
+  assertRoomFreeInTransaction,
 };

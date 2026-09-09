@@ -343,67 +343,6 @@ class _TimeTab extends StatelessWidget {
           'latestPickUp',
           helper: '客戶可選擇的最晚接回時間',
         ),
-        _intField('每日最大接待寵物數', settings.dailyMaxPets, 'dailyMaxPets'),
-        const Padding(
-          padding: EdgeInsets.only(left: 16, bottom: 8),
-          child: Text(
-            '0 代表不限制。額滿由實際訂單計算，不必手動設定。',
-            style: TextStyle(fontSize: 12, color: Colors.grey),
-          ),
-        ),
-        const SizedBox(height: 8),
-        SwitchListTile(
-          title: const Text('禁止跨日'),
-          value: settings.forbidOvernight,
-          onChanged: (bool value) {
-            onChanged(
-              DaycareSettingsModel.fromMap({
-                ...settings.toMap(),
-                'forbidOvernight': value,
-                'updatedAt': null,
-              }),
-            );
-          },
-        ),
-        SwitchListTile(
-          title: const Text('超過營業時間禁止下單'),
-          value: settings.blockOutsideHours,
-          onChanged: (bool value) {
-            onChanged(
-              DaycareSettingsModel.fromMap({
-                ...settings.toMap(),
-                'blockOutsideHours': value,
-                'updatedAt': null,
-              }),
-            );
-          },
-        ),
-        SwitchListTile(
-          title: const Text('顯示剩餘名額'),
-          value: settings.showRemainingSlots,
-          onChanged: (bool value) {
-            onChanged(
-              DaycareSettingsModel.fromMap({
-                ...settings.toMap(),
-                'showRemainingSlots': value,
-                'updatedAt': null,
-              }),
-            );
-          },
-        ),
-        SwitchListTile(
-          title: const Text('允許店家拒絕特殊狀況寵物'),
-          value: settings.allowStaffRejectSpecial,
-          onChanged: (bool value) {
-            onChanged(
-              DaycareSettingsModel.fromMap({
-                ...settings.toMap(),
-                'allowStaffRejectSpecial': value,
-                'updatedAt': null,
-              }),
-            );
-          },
-        ),
       ],
     );
   }
@@ -1248,7 +1187,9 @@ class _AddonTab extends StatelessWidget {
           ) {
             final Map<String, dynamic>? data = snapshot.data?.data();
             final List<Map<String, dynamic>> catalog =
-                DaycareAddonCatalog.flatten(data);
+                DaycareAddonCatalog.flatten(
+                  data,
+                ).where(DaycareAddonCatalog.appliesToDaycare).toList();
             if (catalog.isEmpty) {
               return Column(
                 children: <Widget>[

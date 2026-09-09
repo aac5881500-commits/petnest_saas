@@ -26,7 +26,7 @@ class DailyCareRecordService {
   ///
   /// 例如：
   /// booking123_20260808_0
-  String buildRecordId({
+  static String recordId({
     required String bookingId,
     required DateTime recordDate,
     required int sessionIndex,
@@ -34,6 +34,18 @@ class DailyCareRecordService {
     final String dateKey = DailyCareDateHelper.recordIdDateKey(recordDate);
 
     return '${bookingId}_${dateKey}_$sessionIndex';
+  }
+
+  String buildRecordId({
+    required String bookingId,
+    required DateTime recordDate,
+    required int sessionIndex,
+  }) {
+    return DailyCareRecordService.recordId(
+      bookingId: bookingId,
+      recordDate: recordDate,
+      sessionIndex: sessionIndex,
+    );
   }
 
   /// 監聽單一場次紀錄
@@ -130,6 +142,8 @@ class DailyCareRecordService {
     required Map<String, String> petNotes,
     required String? operatorUid,
     required String? operatorName,
+    String serviceType = DailyCareServiceTypes.accommodation,
+    List<String> petIds = const <String>[],
   }) async {
     final String normalizedShopId = shopId.trim();
 
@@ -147,7 +161,13 @@ class DailyCareRecordService {
       throw ArgumentError('缺少訂單 ID');
     }
 
-    if (normalizedRoomId.isEmpty) {
+    final String normalizedServiceType = DailyCareServiceTypes.parse(
+      serviceType,
+    );
+    final bool isDaycare =
+        normalizedServiceType == DailyCareServiceTypes.daycare;
+
+    if (normalizedRoomId.isEmpty && !isDaycare) {
       throw ArgumentError('缺少房間 ID');
     }
 
@@ -161,16 +181,30 @@ class DailyCareRecordService {
       recordId,
     );
 
+    final DateTime day = DateTime(
+      recordDate.year,
+      recordDate.month,
+      recordDate.day,
+    );
+    final String serviceDate = DailyCareDateHelper.dateKey(
+      day,
+    ).replaceAll('/', '-');
+
     await ref.set(<String, dynamic>{
       'shopId': normalizedShopId,
       'bookingId': normalizedBookingId,
       'roomId': normalizedRoomId,
       'roomName': normalizedRoomName,
-      'recordDate': Timestamp.fromDate(
-        DateTime(recordDate.year, recordDate.month, recordDate.day),
-      ),
+      'recordDate': Timestamp.fromDate(day),
       'sessionIndex': sessionIndex,
+      'recordIndex': sessionIndex,
       'sessionName': sessionName.trim(),
+      'serviceType': normalizedServiceType,
+      'serviceDate': serviceDate,
+      'petIds': petIds
+          .map((String id) => id.trim())
+          .where((String id) => id.isNotEmpty)
+          .toList(),
       'values': values,
 
       // 個別寵物概況目前停用，

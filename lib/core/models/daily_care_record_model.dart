@@ -5,6 +5,17 @@
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+class DailyCareServiceTypes {
+  DailyCareServiceTypes._();
+
+  static const String accommodation = 'accommodation';
+  static const String daycare = 'daycare';
+
+  static String parse(Object? raw) {
+    return raw?.toString().trim() == daycare ? daycare : accommodation;
+  }
+}
+
 class DailyCareRecordModel {
   const DailyCareRecordModel({
     required this.id,
@@ -22,6 +33,10 @@ class DailyCareRecordModel {
     required this.updatedAt,
     this.createdByUid,
     this.createdByName,
+    this.serviceType = DailyCareServiceTypes.accommodation,
+    this.petIds = const <String>[],
+    this.serviceDate = '',
+    this.recordIndex,
   });
 
   /// 紀錄 ID
@@ -48,6 +63,18 @@ class DailyCareRecordModel {
   /// 1 = 第二場
   /// 2 = 第三場
   final int sessionIndex;
+
+  /// 與 sessionIndex 相同，安親以 bookingId + recordIndex 辨識
+  final int? recordIndex;
+
+  /// accommodation | daycare；舊資料缺欄視為住宿
+  final String serviceType;
+
+  /// 本次共同回報涵蓋的寵物（安親多寵仍一筆）
+  final List<String> petIds;
+
+  /// YYYY-MM-DD 相容欄位，讀取仍以 recordDate 為準
+  final String serviceDate;
 
   /// 當時顯示名稱快照（僅顯示用，讀取仍靠 sessionIndex）
   final String sessionName;
@@ -113,6 +140,12 @@ class DailyCareRecordModel {
       createdByName: _readNullableString(map['createdByName']),
       createdAt: _readDateTime(map['createdAt']),
       updatedAt: _readDateTime(map['updatedAt']),
+      serviceType: DailyCareServiceTypes.parse(map['serviceType']),
+      petIds: _readStringList(map['petIds']),
+      serviceDate: _readString(map['serviceDate']),
+      recordIndex: map.containsKey('recordIndex')
+          ? _readInt(map['recordIndex'])
+          : null,
     );
   }
 
@@ -126,7 +159,11 @@ class DailyCareRecordModel {
         DateTime(recordDate.year, recordDate.month, recordDate.day),
       ),
       'sessionIndex': sessionIndex,
+      'recordIndex': recordIndex ?? sessionIndex,
       'sessionName': sessionName,
+      'serviceType': serviceType,
+      'petIds': petIds,
+      'serviceDate': serviceDate,
       'values': values,
       'petNotes': petNotes,
       'photoCount': photoCount,
@@ -139,6 +176,16 @@ class DailyCareRecordModel {
 
   static String _readString(Object? value) {
     return value?.toString().trim() ?? '';
+  }
+
+  static List<String> _readStringList(Object? value) {
+    if (value is! Iterable) {
+      return const <String>[];
+    }
+    return value
+        .map((dynamic item) => item.toString().trim())
+        .where((String item) => item.isNotEmpty)
+        .toList();
   }
 
   static String? _readNullableString(Object? value) {

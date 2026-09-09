@@ -27,6 +27,8 @@ class DailyCareRecordEditPage extends StatefulWidget {
     required this.sessionName,
     required this.enabledFields,
     required this.photoEnabled,
+    this.serviceType = DailyCareServiceTypes.accommodation,
+    this.petIds = const <String>[],
   });
 
   final String shopId;
@@ -44,6 +46,8 @@ class DailyCareRecordEditPage extends StatefulWidget {
   /// 室內溫度、室內濕度不在這裡，
   /// 因為兩者為系統固定必填欄位。
   final List<String> enabledFields;
+  final String serviceType;
+  final List<String> petIds;
 
   @override
   State<DailyCareRecordEditPage> createState() =>
@@ -375,6 +379,8 @@ class _DailyCareRecordEditPageState extends State<DailyCareRecordEditPage> {
 
         operatorUid: user?.uid,
         operatorName: operatorName,
+        serviceType: widget.serviceType,
+        petIds: widget.petIds,
       );
 
       if (!mounted) return;

@@ -7,6 +7,7 @@ import 'dart:async';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+import '../models/booking_kind.dart';
 import '../models/daily_care_date_helper.dart';
 import '../models/daily_care_setting_model.dart';
 import '../models/daily_care_stay_info.dart';
@@ -237,6 +238,9 @@ class ShopTaskCenterService {
 
     if (setting.enabled) {
       for (final Map<String, dynamic> booking in checkedIn) {
+        if (_isStayDailyCareSkip(booking)) {
+          continue;
+        }
         final DateTime? start = _readDate(booking['startDate']);
         final DateTime? end = _readDate(booking['endDate']);
         if (!DailyCareDateHelper.isCareDate(
@@ -421,6 +425,11 @@ class ShopTaskCenterService {
       return '${diff.inHours} 小時前建立';
     }
     return '${createdAt.month}/${createdAt.day} 建立';
+  }
+
+  static bool _isStayDailyCareSkip(Map<String, dynamic> booking) {
+    return (booking['bookingKind'] ?? '').toString() == BookingKind.daycare ||
+        (booking['serviceType'] ?? '').toString() == BookingKind.daycare;
   }
 
   static DateTime? _readDate(Object? value) {

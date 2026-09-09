@@ -10,6 +10,7 @@ import 'package:petnest_saas/features/admin/pages/admin_daycare_detail_page.dart
 import 'package:petnest_saas/features/admin/widgets/booking_order_card.dart';
 import 'package:petnest_saas/features/admin/widgets/booking_search_bar.dart';
 import 'package:petnest_saas/features/admin/widgets/booking_sort_bar.dart';
+import 'package:petnest_saas/features/admin/widgets/booking_status_filter.dart';
 
 class AdminDaycareOrderList extends StatefulWidget {
   const AdminDaycareOrderList({
@@ -81,26 +82,6 @@ class _AdminDaycareOrderListState extends State<AdminDaycareOrderList>
             setState(() => _keyword = value.trim());
           },
         ),
-        SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          padding: const EdgeInsets.symmetric(horizontal: 12),
-          child: Row(
-            children: <Widget>[
-              for (final Map<String, String> item
-                  in DaycareStatusLabels.listFilters)
-                Padding(
-                  padding: const EdgeInsets.only(right: 8),
-                  child: ChoiceChip(
-                    label: Text(item['label']!),
-                    selected: _status == item['id'],
-                    onSelected: (_) {
-                      setState(() => _status = item['id']!);
-                    },
-                  ),
-                ),
-            ],
-          ),
-        ),
         Expanded(
           child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
             stream: _stream,
@@ -115,8 +96,20 @@ class _AdminDaycareOrderListState extends State<AdminDaycareOrderList>
                   if (!snapshot.hasData) {
                     return const Center(child: CircularProgressIndicator());
                   }
+                  final List<QueryDocumentSnapshot<Map<String, dynamic>>>
+                  allDocs = snapshot.data!.docs;
+                  final Map<String, int> statusCounts =
+                      DaycareStatusLabels.counts(
+                        allDocs
+                            .map(
+                              (
+                                QueryDocumentSnapshot<Map<String, dynamic>> doc,
+                              ) => doc.data(),
+                            )
+                            .toList(),
+                      );
                   final List<QueryDocumentSnapshot<Map<String, dynamic>>> docs =
-                      snapshot.data!.docs.where((
+                      allDocs.where((
                         QueryDocumentSnapshot<Map<String, dynamic>> doc,
                       ) {
                         final Map<String, dynamic> data = doc.data();
@@ -144,6 +137,14 @@ class _AdminDaycareOrderListState extends State<AdminDaycareOrderList>
 
                   return ListView(
                     children: <Widget>[
+                      BookingStatusFilter(
+                        selectedType: _status,
+                        counts: statusCounts,
+                        items: BookingStatusFilter.daycareItems,
+                        onChanged: (String type) {
+                          setState(() => _status = type);
+                        },
+                      ),
                       BookingSortBar(
                         totalCount: docs.length,
                         sortType: _sortType,

@@ -14,6 +14,7 @@ import 'package:petnest_saas/core/models/payment_gateway_status.dart';
 import 'package:petnest_saas/core/models/policy_applicable_service.dart';
 import 'package:petnest_saas/core/models/terms_consent_snapshot.dart';
 import 'package:petnest_saas/core/services/daycare_addon_catalog.dart';
+import 'package:petnest_saas/core/services/daycare_addon_line.dart';
 import 'package:petnest_saas/core/services/daycare_booking_validator.dart';
 import 'package:petnest_saas/core/services/daycare_calendar_helper.dart';
 import 'package:petnest_saas/core/services/daycare_callable_payload.dart';
@@ -42,6 +43,7 @@ import 'package:petnest_saas/features/shop/widgets/booking/booking_calendar_dial
 import 'package:petnest_saas/features/shop/widgets/booking/booking_member_coupon_ui.dart';
 import 'package:petnest_saas/features/shop/widgets/booking/booking_pet_section.dart';
 import 'package:petnest_saas/features/shop/widgets/booking/booking_step_widgets.dart';
+import 'package:petnest_saas/features/shop/widgets/booking/daycare_addon_selector.dart';
 import 'package:petnest_saas/features/shop/widgets/booking/daycare_booking_summary_card.dart';
 import 'package:petnest_saas/features/shop/widgets/booking/daycare_offer_card.dart';
 import 'package:petnest_saas/features/shop/widgets/booking/front_calendar_payload.dart';
@@ -102,6 +104,8 @@ class _ShopDaycareBookingPageState extends State<ShopDaycareBookingPage> {
   List<DaycareRoomTypeOption> _roomOptions = const <DaycareRoomTypeOption>[];
   List<Map<String, dynamic>> _addons = <Map<String, dynamic>>[];
   final Set<String> _selectedAddonIds = <String>{};
+  final Map<String, Set<String>> _addonPetIds = <String, Set<String>>{};
+  final Map<String, Set<String>> _addonSlotKeys = <String, Set<String>>{};
   bool _submitting = false;
   int? _remaining;
   bool _isBlacklisted = false;
@@ -314,16 +318,12 @@ class _ShopDaycareBookingPageState extends State<ShopDaycareBookingPage> {
       return;
     }
     try {
-      final int dailyMax = DaycareDateAvailability.dailyMaxPets(
-        settings: widget.settings,
-        override: _dateOverride,
-      );
       final List<DaycareRoomTypeOption> options =
           await DaycareRoomTypeCatalog.load(
             shopId: widget.shopId,
             settings: widget.settings,
             petCount: _selectedPetIds.length,
-            dailyRemaining: dailyMax <= 0 ? null : _remaining,
+            dailyRemaining: null,
             startAt: _startAt,
             endAt: _endAt,
           );
@@ -406,18 +406,10 @@ class _ShopDaycareBookingPageState extends State<ShopDaycareBookingPage> {
       return null;
     }
     int addonAmount = 0;
-    final int minutes = _endAt!.difference(_startAt!).inMinutes;
-    final int petCount = _selectedPetIds.isEmpty ? 1 : _selectedPetIds.length;
-    for (final Map<String, dynamic> addon in _addons) {
-      if (!_selectedAddonIds.contains((addon['id'] ?? '').toString())) {
-        continue;
-      }
-      addonAmount += DaycarePricingService.instance.addonLineAmount(
-        addon: addon,
-        minutes: minutes,
-        petCount: petCount,
-      );
+    for (final Map<String, dynamic> line in _addonLines) {
+      addonAmount += (line['amount'] as num?)?.toInt() ?? 0;
     }
+    final int petCount = _selectedPetIds.isEmpty ? 1 : _selectedPetIds.length;
     if (widget.settings.isRoomBased) {
       if (_selectedRoomTypeId == null) {
         return null;
@@ -494,6 +486,16 @@ class _ShopDaycareBookingPageState extends State<ShopDaycareBookingPage> {
           (Map<String, dynamic> e) =>
               _selectedAddonIds.contains((e['id'] ?? '').toString()),
         )
+        .map((Map<String, dynamic> addon) {
+          final String id = (addon['id'] ?? '').toString();
+          return <String, dynamic>{
+            ...addon,
+            'selectedPetIds': (_addonPetIds[id] ?? <String>{}).toList(),
+            'selectedTimeSlots': (_addonSlotKeys[id] ?? <String>{})
+                .map((String key) => <String, dynamic>{'id': key, 'label': key})
+                .toList(),
+          };
+        })
         .toList();
   }
 
@@ -501,16 +503,27 @@ class _ShopDaycareBookingPageState extends State<ShopDaycareBookingPage> {
     if (_startAt == null || _endAt == null) {
       return const <Map<String, dynamic>>[];
     }
-    final int minutes = _endAt!.difference(_startAt!).inMinutes;
-    final int petCount = _selectedPetIds.isEmpty ? 1 : _selectedPetIds.length;
-    return _selectedAddonMaps.map((Map<String, dynamic> addon) {
-      final int amount = DaycarePricingService.instance.addonLineAmount(
-        addon: addon,
-        minutes: minutes,
-        petCount: petCount,
+    final List<Map<String, dynamic>> lines = <Map<String, dynamic>>[];
+    for (final Map<String, dynamic> addon in _selectedAddonMaps) {
+      final DaycareAddonLineResult resolved = DaycareAddonLine.resolve(
+        live: addon,
+        requested: addon,
+        orderPetIds: _selectedPetIds.toList(),
+        allowedAddonIds: widget.settings.allowedAddonIds,
+        scheduledStartAt: _startAt!,
+        scheduledEndAt: _endAt!,
       );
-      return DaycareCallablePayload.addonSnapshot(addon, amount: amount);
-    }).toList();
+      if (!resolved.ok) {
+        continue;
+      }
+      lines.add(
+        DaycareCallablePayload.addonSnapshot(
+          resolved.line,
+          amount: resolved.amount,
+        ),
+      );
+    }
+    return lines;
   }
 
   String get _primaryFeeLabel {
@@ -872,24 +885,25 @@ class _ShopDaycareBookingPageState extends State<ShopDaycareBookingPage> {
       ).showSnackBar(SnackBar(content: Text(addonCheck.error!)));
       return;
     }
-    final int dailyMax = DaycareDateAvailability.dailyMaxPets(
-      settings: widget.settings,
-      override: _dateOverride,
-    );
-    if (dailyMax > 0) {
-      final int petsLeft = await DaycareOccupancyService.instance.remainingPets(
-        shopId: widget.shopId,
-        serviceDate: _date!,
-        dailyMaxPets: dailyMax,
-      );
-      if (petsLeft < _selectedPetIds.length) {
-        if (!mounted) {
+    if (_startAt != null && _endAt != null) {
+      for (final Map<String, dynamic> addon in _selectedAddonMaps) {
+        final DaycareAddonLineResult resolved = DaycareAddonLine.resolve(
+          live: addon,
+          requested: addon,
+          orderPetIds: _selectedPetIds.toList(),
+          allowedAddonIds: liveSettings.allowedAddonIds,
+          scheduledStartAt: _startAt!,
+          scheduledEndAt: _endAt!,
+        );
+        if (!resolved.ok) {
+          if (!mounted) {
+            return;
+          }
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text(resolved.error!)));
           return;
         }
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('當日安親名額不足')));
-        return;
       }
     }
     final bool conflict = await DaycareOccupancyService.instance.hasPetConflict(
@@ -1556,21 +1570,6 @@ class _ShopDaycareBookingPageState extends State<ShopDaycareBookingPage> {
           ],
         ),
       ),
-      if (widget.settings.showRemainingSlots && _date != null) ...<Widget>[
-        const SizedBox(height: 8),
-        Text(
-          DaycareDateAvailability.dailyMaxPets(
-                    settings: widget.settings,
-                    override: _dateOverride,
-                  ) <=
-                  0
-              ? '當日名額：不限量'
-              : ((_remaining == null || _remaining! < 0)
-                    ? '當日剩餘名額：計算中'
-                    : '當日剩餘名額：$_remaining'),
-          style: TextStyle(color: theme.textColor),
-        ),
-      ],
       const SizedBox(height: 16),
       BookingThemedCard(
         theme: theme,
@@ -1759,7 +1758,7 @@ class _ShopDaycareBookingPageState extends State<ShopDaycareBookingPage> {
           );
         }),
       ],
-      if (_addons.isNotEmpty) ...<Widget>[
+      if (_addons.isNotEmpty && _startAt != null && _endAt != null) ...<Widget>[
         const SizedBox(height: 16),
         Text(
           '加值服務',
@@ -1769,27 +1768,49 @@ class _ShopDaycareBookingPageState extends State<ShopDaycareBookingPage> {
             color: theme.textColor,
           ),
         ),
-        ..._addons.map((Map<String, dynamic> addon) {
-          final String id = (addon['id'] ?? '').toString();
-          final bool selected = _selectedAddonIds.contains(id);
-          return CheckboxListTile(
-            value: selected,
-            title: Text(DaycareAddonCatalog.displayName(addon)),
-            subtitle: Text(
-              '${DaycarePlanModel.moneyLabel((addon['price'] as num?)?.toInt() ?? 0)}　${DaycareAddonCatalog.chargeLabel(addon)}',
-            ),
-            activeColor: theme.primaryColor,
-            onChanged: (bool? value) {
-              setState(() {
-                if (value == true) {
-                  _selectedAddonIds.add(id);
-                } else {
-                  _selectedAddonIds.remove(id);
-                }
-              });
-            },
-          );
-        }),
+        DaycareAddonSelector(
+          addons: _addons,
+          selectedAddonIds: _selectedAddonIds,
+          selectedPetIds: _selectedPetIds,
+          pets: _pets,
+          addonPetIds: _addonPetIds,
+          addonSlotKeys: _addonSlotKeys,
+          scheduledStartAt: _startAt!,
+          scheduledEndAt: _endAt!,
+          onToggleAddon: (String id) {
+            setState(() {
+              if (_selectedAddonIds.contains(id)) {
+                _selectedAddonIds.remove(id);
+                _addonPetIds.remove(id);
+                _addonSlotKeys.remove(id);
+              } else {
+                _selectedAddonIds.add(id);
+              }
+            });
+          },
+          onTogglePet: (String addonId, String petId) {
+            setState(() {
+              final Set<String> next = Set<String>.from(
+                _addonPetIds[addonId] ?? <String>{},
+              );
+              if (!next.add(petId)) {
+                next.remove(petId);
+              }
+              _addonPetIds[addonId] = next;
+            });
+          },
+          onToggleSlot: (String addonId, String slotKey) {
+            setState(() {
+              final Set<String> next = Set<String>.from(
+                _addonSlotKeys[addonId] ?? <String>{},
+              );
+              if (!next.add(slotKey)) {
+                next.remove(slotKey);
+              }
+              _addonSlotKeys[addonId] = next;
+            });
+          },
+        ),
       ],
     ];
   }

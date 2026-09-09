@@ -12,7 +12,6 @@ import 'package:petnest_saas/features/admin/widgets/booking_status_filter.dart';
 import 'package:petnest_saas/features/admin/widgets/booking_sort_bar.dart';
 import 'package:petnest_saas/features/admin/widgets/booking_order_card.dart';
 import 'package:petnest_saas/features/admin/widgets/booking_advanced_filter_button.dart';
-import 'package:petnest_saas/features/admin/pages/admin_booking_history_page.dart';
 import 'package:petnest_saas/features/admin/pages/admin_create_booking_page.dart';
 import 'package:petnest_saas/features/admin/pages/admin_create_daycare_booking_page.dart';
 import 'package:petnest_saas/features/admin/widgets/admin_daycare_order_list.dart';
@@ -250,7 +249,7 @@ class _AdminStayOrderListState extends State<_AdminStayOrderList>
   @override
   void initState() {
     super.initState();
-    _filterType = widget.filterType ?? 'pending';
+    _filterType = widget.filterType ?? 'all';
     _stream = FirebaseFirestore.instance
         .collection('bookings')
         .where('shopId', isEqualTo: widget.shopId)
@@ -361,54 +360,60 @@ class _AdminStayOrderListState extends State<_AdminStayOrderList>
                       return false;
                     }
 
-                    final shopUnreadMessageCount =
-                        (data['shopUnreadMessageCount'] ?? 0) as int;
-
                     switch (_filterType) {
                       case 'pending':
-                        return status == 'pending' || status == 'unpaid';
+                        return status == 'pending' ||
+                            status == 'unpaid' ||
+                            status == 'pending_confirmation';
 
                       case 'depositReview':
                         final depositStatus = (data['depositStatus'] ?? '')
                             .toString();
-
                         return depositStatus == 'pending_review' &&
                             status != 'completed' &&
                             status != 'cancelled';
 
-                      case 'messageUnread':
-                        return shopUnreadMessageCount > 0;
-
                       case 'confirmed':
                         return status == 'confirmed';
 
-                      case 'checked_in':
-                        return status == 'checked_in';
+                      case 'awaitingRoom':
+                        if (status == 'completed' || status == 'cancelled') {
+                          return false;
+                        }
+                        final String assign = (data['assignStatus'] ?? '')
+                            .toString();
+                        if (assign == 'assigned') {
+                          return false;
+                        }
+                        if (assign == 'unassigned') {
+                          return status == 'confirmed';
+                        }
+                        return status == 'confirmed' &&
+                            (data['roomId'] ?? '').toString().trim().isEmpty;
 
                       case 'todayCheckIn':
                         return status != 'cancelled' &&
-                            start.isAfter(todayStart) &&
+                            status != 'completed' &&
+                            !start.isBefore(todayStart) &&
                             start.isBefore(todayEnd);
 
                       case 'todayCheckOut':
                         return status != 'cancelled' &&
-                            end.isAfter(todayStart) &&
+                            status != 'completed' &&
+                            !end.isBefore(todayStart) &&
                             end.isBefore(todayEnd);
 
                       case 'futureCheckIn':
                         return status != 'cancelled' &&
                             status != 'completed' &&
-                            start.isAfter(todayEnd);
+                            !start.isBefore(todayEnd);
 
                       case 'history':
-                        return false;
+                        return status == 'completed' || status == 'cancelled';
 
-                      case 'active':
+                      case 'all':
                       default:
-                        return status == 'pending' ||
-                            status == 'unpaid' ||
-                            status == 'confirmed' ||
-                            status == 'checked_in';
+                        return true;
                     }
                   }).toList()..sort((a, b) {
                     final aData = a.data();
@@ -463,18 +468,8 @@ class _AdminStayOrderListState extends State<_AdminStayOrderList>
                 return BookingStatusFilter(
                   selectedType: _filterType,
                   counts: statusCounts,
+                  items: BookingStatusFilter.stayItems,
                   onChanged: (type) {
-                    if (type == 'history') {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) =>
-                              AdminBookingHistoryPage(shopId: widget.shopId),
-                        ),
-                      );
-                      return;
-                    }
-
                     setState(() {
                       _filterType = type;
                       _currentPage = 0;
@@ -509,9 +504,7 @@ class _AdminStayOrderListState extends State<_AdminStayOrderList>
                     const SizedBox(height: 80),
                     Center(
                       child: Text(
-                        _filterType == 'history'
-                            ? '歷史查詢之後會改成用月份搜尋'
-                            : '尚無符合條件的訂單',
+                        _filterType == 'history' ? '尚無歷史訂單' : '尚無符合條件的訂單',
                         style: const TextStyle(
                           color: Colors.grey,
                           fontWeight: FontWeight.bold,
@@ -602,12 +595,11 @@ class _AdminStayOrderListState extends State<_AdminStayOrderList>
     final todayEnd = todayStart.add(const Duration(days: 1));
 
     final counts = <String, int>{
-      'active': 0,
+      'all': docs.length,
       'pending': 0,
       'depositReview': 0,
-      'messageUnread': 0,
       'confirmed': 0,
-      'checked_in': 0,
+      'awaitingRoom': 0,
       'todayCheckIn': 0,
       'todayCheckOut': 0,
       'futureCheckIn': 0,
@@ -617,19 +609,13 @@ class _AdminStayOrderListState extends State<_AdminStayOrderList>
     for (final doc in docs) {
       final data = doc.data();
       final status = (data['status'] ?? 'pending').toString();
-
       final depositStatus = (data['depositStatus'] ?? '').toString();
+      final String assign = (data['assignStatus'] ?? '').toString();
 
-      final shopUnreadMessageCount =
-          (data['shopUnreadMessageCount'] ?? 0) as int;
-
-      if (shopUnreadMessageCount > 0) {
-        counts['messageUnread'] = (counts['messageUnread'] ?? 0) + 1;
-      }
-
-      if (status == 'pending' || status == 'unpaid') {
+      if (status == 'pending' ||
+          status == 'unpaid' ||
+          status == 'pending_confirmation') {
         counts['pending'] = (counts['pending'] ?? 0) + 1;
-        counts['active'] = (counts['active'] ?? 0) + 1;
       }
 
       if (depositStatus == 'pending_review' &&
@@ -640,16 +626,17 @@ class _AdminStayOrderListState extends State<_AdminStayOrderList>
 
       if (status == 'confirmed') {
         counts['confirmed'] = (counts['confirmed'] ?? 0) + 1;
-        counts['active'] = (counts['active'] ?? 0) + 1;
       }
 
-      if (status == 'checked_in') {
-        counts['checked_in'] = (counts['checked_in'] ?? 0) + 1;
-        counts['active'] = (counts['active'] ?? 0) + 1;
-      }
-
-      if (status == 'completed' || status == 'cancelled') {
+      final bool history = status == 'completed' || status == 'cancelled';
+      if (history) {
         counts['history'] = (counts['history'] ?? 0) + 1;
+      } else if (status == 'confirmed') {
+        if (assign == 'unassigned' ||
+            (assign != 'assigned' &&
+                (data['roomId'] ?? '').toString().trim().isEmpty)) {
+          counts['awaitingRoom'] = (counts['awaitingRoom'] ?? 0) + 1;
+        }
       }
 
       final startRaw = data['startDate'];
@@ -657,21 +644,19 @@ class _AdminStayOrderListState extends State<_AdminStayOrderList>
 
       if (startRaw is Timestamp) {
         final start = startRaw.toDate();
-
-        if (start.isAfter(todayStart) && start.isBefore(todayEnd)) {
+        if (!history &&
+            !start.isBefore(todayStart) &&
+            start.isBefore(todayEnd)) {
           counts['todayCheckIn'] = (counts['todayCheckIn'] ?? 0) + 1;
         }
-
-        if (status != 'completed' &&
-            status != 'cancelled' &&
-            start.isAfter(todayEnd)) {
+        if (!history && !start.isBefore(todayEnd)) {
           counts['futureCheckIn'] = (counts['futureCheckIn'] ?? 0) + 1;
         }
       }
 
       if (endRaw is Timestamp) {
         final end = endRaw.toDate();
-        if (end.isAfter(todayStart) && end.isBefore(todayEnd)) {
+        if (!history && !end.isBefore(todayStart) && end.isBefore(todayEnd)) {
           counts['todayCheckOut'] = (counts['todayCheckOut'] ?? 0) + 1;
         }
       }

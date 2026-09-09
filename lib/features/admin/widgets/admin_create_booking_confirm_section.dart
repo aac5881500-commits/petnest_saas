@@ -3,6 +3,8 @@
 // ✅ 後台手動新增訂單：確認資料區塊
 
 import 'package:flutter/material.dart';
+import 'package:petnest_saas/core/services/shop_payment_methods.dart';
+import 'package:petnest_saas/features/booking/widgets/shop_payment_method_cards.dart';
 
 class AdminCreateBookingConfirmSection extends StatelessWidget {
   const AdminCreateBookingConfirmSection({
@@ -28,8 +30,7 @@ class AdminCreateBookingConfirmSection extends StatelessWidget {
     required this.depositAmount,
     required this.payAmountType,
     required this.paymentMethod,
-    required this.cashEnabled,
-    required this.transferEnabled,
+    required this.paymentCatalog,
     required this.onPayAmountTypeChanged,
     required this.onPaymentMethodChanged,
 
@@ -71,9 +72,7 @@ class AdminCreateBookingConfirmSection extends StatelessWidget {
 
   final String? paymentMethod;
 
-  final bool cashEnabled;
-
-  final bool transferEnabled;
+  final ShopPaymentCatalog paymentCatalog;
 
   final ValueChanged<String> onPayAmountTypeChanged;
 
@@ -294,34 +293,12 @@ class AdminCreateBookingConfirmSection extends StatelessWidget {
 
               const Text('付款方式', style: TextStyle(fontWeight: FontWeight.w800)),
 
-              if (cashEnabled)
-                RadioListTile<String>(
-                  contentPadding: EdgeInsets.zero,
-                  dense: true,
-                  title: const Text('現金'),
-                  value: 'cash',
-                  groupValue: paymentMethod,
-                  onChanged: onPaymentMethodChanged,
-                ),
-
-              if (transferEnabled)
-                RadioListTile<String>(
-                  contentPadding: EdgeInsets.zero,
-                  dense: true,
-                  title: const Text('銀行轉帳'),
-                  value: 'transfer',
-                  groupValue: paymentMethod,
-                  onChanged: onPaymentMethodChanged,
-                ),
-
-              if (!cashEnabled && !transferEnabled)
-                const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 8),
-                  child: Text(
-                    '店家尚未啟用付款方式',
-                    style: TextStyle(color: Colors.red),
-                  ),
-                ),
+              ShopPaymentMethodCards(
+                catalog: paymentCatalog,
+                selectedMethod: paymentMethod,
+                onSelected: (String id) => onPaymentMethodChanged(id),
+                emptyMessage: ShopPaymentMethods.noMethodsMessage,
+              ),
 
               const Divider(height: 24),
 

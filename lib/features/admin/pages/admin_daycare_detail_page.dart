@@ -27,6 +27,7 @@ import 'package:petnest_saas/features/admin/widgets/admin_booking_status_chip.da
 import 'package:petnest_saas/features/admin/widgets/admin_booking_timeline.dart';
 import 'package:petnest_saas/features/booking/widgets/booking_detail/booking_detail_message_section.dart';
 import 'package:petnest_saas/features/admin/widgets/admin_daycare_assign_room_dialog.dart';
+import 'package:petnest_saas/features/admin/widgets/admin_daycare_care_report_section.dart';
 import 'package:petnest_saas/features/admin/widgets/admin_daycare_settle_sheet.dart';
 import 'package:petnest_saas/features/booking/pages/booking_detail_page.dart';
 
@@ -415,6 +416,14 @@ class _DaycareDetailBodyState extends State<_DaycareDetailBody> {
                       Text('已轉住宿：${data['convertedBookingId']}'),
                   ],
                 ),
+              ),
+            ),
+            AdminBookingDetailSection(
+              title: '照護回報',
+              child: AdminDaycareCareReportSection(
+                shopId: widget.shopId,
+                bookingId: widget.bookingId,
+                booking: data,
               ),
             ),
             CustomFormAnswerView(

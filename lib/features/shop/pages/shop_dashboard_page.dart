@@ -33,7 +33,6 @@ import 'package:petnest_saas/features/shop/pages/shop_room_type_page.dart';
 import 'package:petnest_saas/features/shop/pages/shop_room_page.dart';
 import 'package:petnest_saas/features/admin/pages/admin_booking_list_page.dart';
 import 'package:petnest_saas/features/admin/pages/admin_daycare_board_page.dart';
-import 'package:petnest_saas/features/admin/pages/admin_daycare_list_page.dart';
 import 'package:petnest_saas/features/shop/pages/shop_daycare_settings_page.dart';
 import 'package:petnest_saas/features/admin/pages/admin_member_list_page.dart';
 import 'package:petnest_saas/features/admin/pages/admin_payment_center_page.dart';
@@ -920,9 +919,9 @@ class _CatHotelTab extends StatelessWidget {
                             ))) ...<Widget>[
                       const _MenuSectionTitle('安親'),
                       _MenuTile(
-                        title: '今日安親',
+                        title: '今日安親看板',
                         subtitle: isProfileComplete
-                            ? '當天待確認、送達、安親中與接回'
+                            ? '只看今天需操作的安親：待確認、等待送達、安親中、即將接回、已超時。'
                             : '請先完成基本資料',
                         icon: Icons.today,
                         enabled: isProfileComplete,
@@ -932,21 +931,6 @@ class _CatHotelTab extends StatelessWidget {
                             MaterialPageRoute<void>(
                               builder: (_) =>
                                   AdminDaycareBoardPage(shopId: shopId),
-                            ),
-                          );
-                        },
-                      ),
-                      _MenuTile(
-                        title: '安親訂單',
-                        subtitle: isProfileComplete ? '查詢與管理安親預約' : '請先完成基本資料',
-                        icon: Icons.wb_sunny_outlined,
-                        enabled: isProfileComplete,
-                        onTap: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute<void>(
-                              builder: (_) =>
-                                  AdminDaycareListPage(shopId: shopId),
                             ),
                           );
                         },

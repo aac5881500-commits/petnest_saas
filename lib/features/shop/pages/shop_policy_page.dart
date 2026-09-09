@@ -1,12 +1,11 @@
 // 檔案名稱：lib/features/shop/pages/shop_policy_page.dart
-// 功能說明：入住條款編輯頁（後台｜模板版＋一鍵套用）
+// 功能說明：條款設定：住宿／安親／退款分頁編輯，互不污染同意版本
 
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/models/policy_applicable_service.dart';
+import 'package:petnest_saas/core/services/shop_policy_service.dart';
 import 'package:petnest_saas/core/services/shop_service.dart';
 import 'package:petnest_saas/features/shop/pages/policy_version_history_page.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:petnest_saas/core/services/action_log_service.dart';
 
 class ShopPolicyPage extends StatefulWidget {
   const ShopPolicyPage({super.key, required this.shopId});
@@ -17,26 +16,23 @@ class ShopPolicyPage extends StatefulWidget {
   State<ShopPolicyPage> createState() => _ShopPolicyPageState();
 }
 
-class _ShopPolicyPageState extends State<ShopPolicyPage> {
-  /// 🔥 模板欄位
-  final Map<String, TextEditingController> _controllers = {
-    /// 🔵 第一頁（入住須知）
-    'checkinTime': TextEditingController(), // 營業時間與環境參觀時間
-    'checkOutFlow': TextEditingController(), // 入住與退房安排
-    'basicCondition': TextEditingController(), // 貓咪入住基本條件
-    'ownerNotice': TextEditingController(), // 飼主須知
-    'checkinNotice': TextEditingController(), // 入住須知
-    'facility': TextEditingController(), // 基本設施
-    'specialCase': TextEditingController(), // 特殊情況
-    'activity': TextEditingController(), // 活動安排
-    'extraNotice': TextEditingController(), // 額外注意事項
-    /// 🔴 第二頁（退款）
-    'cancelPolicy': TextEditingController(), // 訂房取消政策
-  };
-
-  /// 🔥 開關
-  Map<String, bool> _enabled = {
-    /// 第一頁
+class _ShopPolicyPageState extends State<ShopPolicyPage>
+    with SingleTickerProviderStateMixin {
+  late final TabController _tabs;
+  final Map<String, TextEditingController> _controllers =
+      <String, TextEditingController>{
+        'checkinTime': TextEditingController(),
+        'checkOutFlow': TextEditingController(),
+        'basicCondition': TextEditingController(),
+        'ownerNotice': TextEditingController(),
+        'checkinNotice': TextEditingController(),
+        'facility': TextEditingController(),
+        'specialCase': TextEditingController(),
+        'activity': TextEditingController(),
+        'extraNotice': TextEditingController(),
+        'cancelPolicy': TextEditingController(),
+      };
+  Map<String, bool> _enabled = <String, bool>{
     'checkinTime': true,
     'checkOutFlow': true,
     'basicCondition': true,
@@ -46,700 +42,468 @@ class _ShopPolicyPageState extends State<ShopPolicyPage> {
     'specialCase': true,
     'activity': true,
     'extraNotice': true,
-
-    /// 第二頁
     'cancelPolicy': true,
   };
-
-  /// 🔥 額外條款
-  /// 🔵 第一頁額外條款
-  List<TextEditingController> _customControllersPage1 = [];
-
-  /// 🔴 第二頁額外條款
-  List<TextEditingController> _customControllersPage2 = [];
-  Map<String, List<String>> _sectionServices = <String, List<String>>{};
-  List<List<String>> _customServicesPage1 = <List<String>>[];
-  List<List<String>> _customServicesPage2 = <List<String>>[];
-
+  final Map<String, Map<String, String>> _drafts =
+      <String, Map<String, String>>{
+        PolicyApplicableService.accommodation: <String, String>{},
+        PolicyApplicableService.daycare: <String, String>{},
+      };
+  final Map<String, Map<String, bool>> _enabledDrafts =
+      <String, Map<String, bool>>{
+        PolicyApplicableService.accommodation: <String, bool>{},
+        PolicyApplicableService.daycare: <String, bool>{},
+      };
+  final TextEditingController _refundTitle = TextEditingController(
+    text: '退款條款',
+  );
+  final TextEditingController _refundDescription = TextEditingController();
+  final TextEditingController _refundBody = TextEditingController();
+  bool _refundEnabled = true;
   bool _loading = true;
-  int _version = 0;
+  bool _dirty = false;
+  int _stayVersion = 0;
+  int _daycareVersion = 0;
+  int _refundVersion = 0;
+  final Set<String> _expanded = <String>{};
+
+  String get _activeService => _tabs.index == 1
+      ? PolicyApplicableService.daycare
+      : PolicyApplicableService.accommodation;
 
   @override
   void initState() {
     super.initState();
+    _tabs = TabController(length: 3, vsync: this);
+    _tabs.addListener(() {
+      if (_tabs.indexIsChanging) {
+        _storeCurrentDraft();
+      } else {
+        if (_tabs.index != 2) {
+          _restoreDraft(_activeService);
+        }
+        if (mounted) {
+          setState(() {});
+        }
+      }
+    });
     _loadPolicy();
   }
 
   @override
   void dispose() {
-    for (final c in _controllers.values) {
+    for (final TextEditingController c in _controllers.values) {
       c.dispose();
     }
-    for (final c in _customControllersPage1) {
-      c.dispose();
-    }
-    for (final c in _customControllersPage2) {
-      c.dispose();
-    }
+    _refundTitle.dispose();
+    _refundDescription.dispose();
+    _refundBody.dispose();
+    _tabs.dispose();
     super.dispose();
   }
 
-  /// 🔥 讀取
-  Future<void> _loadPolicy() async {
-    final data = await ShopService.instance.getCheckinPolicy(widget.shopId);
-
-    if (data != null) {
-      final sections = data['sections'] ?? {};
-      final enabled = data['enabled'] ?? {};
-
-      /// 🔥 回填模板欄位
-      sections.forEach((key, value) {
-        if (_controllers.containsKey(key)) {
-          _controllers[key]!.text = value ?? '';
-        }
-      });
-
-      /// 🔥 回填開關
-      _enabled = Map<String, bool>.from(enabled);
-      final Map<String, dynamic> sectionServices = Map<String, dynamic>.from(
-        data['sectionApplicableServices'] ?? {},
-      );
-      _sectionServices = sectionServices.map(
-        (String key, dynamic value) =>
-            MapEntry(key, PolicyApplicableService.parse(value)),
-      );
-      final List<Map<String, dynamic>> custom1Maps =
-          PolicyApplicableService.normalizeCustomPolicies(
-            data['customPoliciesPage1'] ?? [],
-          );
-      final List<Map<String, dynamic>> custom2Maps =
-          PolicyApplicableService.normalizeCustomPolicies(
-            data['customPoliciesPage2'] ?? [],
-          );
-
-      _customControllersPage1 = custom1Maps.map<TextEditingController>((
-        Map<String, dynamic> e,
-      ) {
-        return TextEditingController(text: (e['text'] ?? '').toString());
-      }).toList();
-      _customServicesPage1 = custom1Maps
-          .map(
-            (Map<String, dynamic> e) =>
-                PolicyApplicableService.parse(e['applicableServices']),
-          )
-          .toList();
-
-      _customControllersPage2 = custom2Maps.map<TextEditingController>((
-        Map<String, dynamic> e,
-      ) {
-        return TextEditingController(text: (e['text'] ?? '').toString());
-      }).toList();
-      _customServicesPage2 = custom2Maps
-          .map(
-            (Map<String, dynamic> e) =>
-                PolicyApplicableService.parse(e['applicableServices']),
-          )
-          .toList();
-
-      _version = data['version'] ?? 1;
+  void _markDirty() {
+    if (!_dirty) {
+      setState(() => _dirty = true);
     }
-
-    setState(() {
-      _loading = false;
-    });
   }
 
-  /// 🔥 儲存
-  Future<void> _save() async {
-    final sections = <String, dynamic>{};
+  void _storeCurrentDraft() {
+    final int from = _tabs.previousIndex;
+    if (from == 2) {
+      return;
+    }
+    final String service = from == 1
+        ? PolicyApplicableService.daycare
+        : PolicyApplicableService.accommodation;
+    _drafts[service] = _controllers.map(
+      (String key, TextEditingController ctrl) => MapEntry(key, ctrl.text),
+    );
+    _enabledDrafts[service] = Map<String, bool>.from(_enabled);
+  }
 
-    _controllers.forEach((key, ctrl) {
-      sections[key] = ctrl.text.trim();
+  void _restoreDraft(String service) {
+    final Map<String, String> draft = _drafts[service] ?? <String, String>{};
+    _controllers.forEach((String key, TextEditingController ctrl) {
+      ctrl.text = draft[key] ?? '';
     });
+    _enabled = Map<String, bool>.from(_enabledDrafts[service] ?? _enabled);
+    if (mounted) {
+      setState(() {});
+    }
+  }
 
-    final customPoliciesPage1 = _customControllersPage1
-        .map((e) => e.text.trim())
-        .toList();
+  Future<void> _loadPolicy() async {
+    final Map<String, dynamic>? data = await ShopService.instance
+        .getCheckinPolicy(widget.shopId);
+    if (data != null) {
+      for (final String service in <String>[
+        PolicyApplicableService.accommodation,
+        PolicyApplicableService.daycare,
+      ]) {
+        final Map<String, dynamic> filtered = ShopPolicyService.instance
+            .filterPolicyForService(policy: data, serviceType: service);
+        final Map<String, dynamic> sections = Map<String, dynamic>.from(
+          filtered['sections'] ?? <String, dynamic>{},
+        );
+        _drafts[service] = <String, String>{
+          for (final String key in _controllers.keys)
+            key: (sections[key] ?? '').toString(),
+        };
+        final Map<String, dynamic> enabled = Map<String, dynamic>.from(
+          filtered['enabled'] ?? <String, dynamic>{},
+        );
+        _enabledDrafts[service] = <String, bool>{
+          for (final String key in _controllers.keys)
+            key: enabled[key] != false,
+        };
+      }
+      _stayVersion = ShopPolicyService.servicePolicyVersion(
+        policy: data,
+        serviceType: PolicyApplicableService.accommodation,
+      );
+      _daycareVersion = ShopPolicyService.servicePolicyVersion(
+        policy: data,
+        serviceType: PolicyApplicableService.daycare,
+      );
+      _restoreDraft(PolicyApplicableService.accommodation);
+    }
+    final Map<String, dynamic>? refund = await ShopPolicyService.instance
+        .getRefundPolicy(widget.shopId);
+    if (refund != null) {
+      _refundTitle.text = (refund['title'] ?? '退款條款').toString();
+      _refundDescription.text = (refund['description'] ?? '').toString();
+      _refundBody.text = (refund['body'] ?? '').toString();
+      _refundEnabled = refund['enabled'] != false;
+      _refundVersion =
+          (refund['refundPolicyVersion'] as num?)?.toInt() ??
+          (refund['version'] as num?)?.toInt() ??
+          0;
+    }
+    if (mounted) {
+      setState(() {
+        _loading = false;
+        _dirty = false;
+      });
+    }
+  }
 
-    final customPoliciesPage2 = _customControllersPage2
-        .map((e) => e.text.trim())
-        .toList();
-
-    await ShopService.instance.updateCheckinPolicy(
+  Future<void> _save() async {
+    if (_tabs.index == 2) {
+      await ShopPolicyService.instance.updateRefundPolicy(
+        shopId: widget.shopId,
+        title: _refundTitle.text,
+        description: _refundDescription.text,
+        body: _refundBody.text,
+        enabled: _refundEnabled,
+      );
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('已更新退款條款')));
+      await _loadPolicy();
+      return;
+    }
+    _storeCurrentDraft();
+    final Map<String, dynamic> sections = <String, dynamic>{
+      for (final MapEntry<String, TextEditingController> e
+          in _controllers.entries)
+        e.key: e.value.text.trim(),
+    };
+    await ShopPolicyService.instance.updateServicePolicy(
       shopId: widget.shopId,
+      serviceType: _activeService,
       sections: sections,
       enabled: _enabled,
-      customPoliciesPage1: customPoliciesPage1,
-      customPoliciesPage2: customPoliciesPage2,
-      sectionApplicableServices: _sectionServices,
-      customPolicyServicesPage1: _customServicesPage1,
-      customPolicyServicesPage2: _customServicesPage2,
+      customPoliciesPage1: const <String>[],
+      customPoliciesPage2: const <String>[],
     );
-
-    final user = FirebaseAuth.instance.currentUser;
-
-    /// 📝 操作紀錄：條款版本更新
-    await ActionLogService.instance.logAction(
-      shopId: widget.shopId,
-      targetType: 'policy',
-      targetId: 'checkin_policy',
-      action: '更新入住條款版本',
-      operatorUid: user?.uid ?? '',
-      operatorRole: 'owner',
-      payload: {'oldVersion': _version, 'newVersion': _version + 1},
-    );
-    if (!mounted) return;
-
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text('已更新條款（版本已升級）')));
-
-    _loadPolicy();
-  }
-
-  /// 🔥 ⭐ 一鍵模板
-  /// 🔥 ⭐ 一鍵模板（完整對應新版欄位）
-  void _applyTemplate() {
-    setState(() {
-      /// =========================
-      /// 🔵 第一頁：入住須知
-      /// =========================
-
-      /// 🔹 營業時間與環境參觀時間
-      _controllers['checkinTime']!.text = '''
-* 營業時間：全館採預約制，每日早上11:00至晚上20:00。
-* 環境參觀：參觀也需事先預約，請透過LINE或電話預約，確保每位訪客都能得到妥善接待。
-''';
-
-      /// 🔹 入住與退房安排
-      _controllers['checkOutFlow']!.text = '''
-* 辦理時間：每日11:00至20:00皆可辦理入住或退房，需事先預約以便我們做好準備。
-           辦理退房限貓主人或指定接送人辦理，皆須提供身分證明文件供核對。
-* 營業時間外辦理入住/退房：每超過1小時酌收200元額外費用。
-
-★ 營業時間外入住/退房收費基準 ★
-09:00 – 09:59 入住/退房：加收400元。
-10:00 – 10:59 入住/退房：加收200元。
-20:01 – 21:00 入住/退房：加收200元。
-21:01 – 22:00 入住/退房：加收400元。
-* 若需營業時間外辦理入住/退房：最遲需於24小時提前確認，是否有小管家可以協助。當天臨時通知，恕無法配合營業時間外入住/退房。
-* 超過以上時間欲辦理退房，則請於隔天辦理，並加收一天住宿費用，如原入住房型滿房，將依現場狀況調整，並以實際入住房型收費。
-* 逾期未退宿：若住宿期滿後未前來辦理退宿，我們將視為同意續住，費用依原房型定價計費。如仍無法聯繫飼主並接回愛貓，將依動物保護法與相關棄養寵物法理規定處理與通報，並收取延長住宿及其衍生之費用。
-''';
-
-      /// 🔹 貓咪入住基本條件
-      _controllers['basicCondition']!.text = '''
-* 以下情況將無法辦理入住，建議尋求動物醫院協助：
-    。 6個月以下幼貓以及14歲以上高齡貓。
-    。 最近7天內剛施打預防針的貓咪。
-    。 需要特殊醫療協助（如擠尿）的貓咪。
-    。 發情中、懷孕中、哺乳中及產後兩個月內貓咪。
-    。 剛從動物醫院出院14天內或動物收容所離開14天以內。
-    。 已知患有高度傳染疾病、皮膚病相關疾病或其他心肺肝腎重大疾病貓旅客(如：愛滋病、白血病、腎貓、糖尿病、耳疥蟲、黴菌、心臟病…等)
-* 貓咪入住時請詳盡告知貓咪狀況，若未確實告知之疾病健康史，或接種疫苗而產生相關傳染疾病，造成貓咪或其他本館內貓咪傷亡，將由貓飼主全權負責。
-* 貓咪入住時如遇須緊急就診之情況，貓飼主同意本館立即就近送醫，並願意支付就醫後之所有衍生費用。
-''';
-
-      /// 🔹 飼主需告知
-      _controllers['ownerNotice']!.text = '''
-* 疫苗施打紀錄：包含三合一、狂犬病或其他基礎預防針之施打日期、間隔、是否完成全程施打等。
-* 健康狀況：包含過往病史、用藥、過敏、懷孕、手術史、慢性病、食物忌口等。
-* 行為特性：如攻擊性、怕生、過度緊張、噴尿、逃脫習性、抓門等行為。
-* 感染風險：如曾接觸疑似疾病、脫毛異常、上吐下瀉、呼吸異常等。
-* 住宿風險了解：飼主了解寵物外出或住宿期間，因環境變化、壓力或不可預期因素，可能誘發潛在疾病，故寵物於寄宿期間或返家後若出現疾病、情緒反應或其他身體狀況，在店家無故意或重大過失情形下，飼主不得歸責於店家()。
-* 未如實告知所生後果：店家得無條件解除契約。若因飼主未提前告知導致寵物、他人或店家財物受損，飼主並應負擔全部相關損害責任。
-
-* 注意:法規遵循：動物保護處人員依法可不定時稽查住宿貓咪的晶片，如經認定未植入晶片，飼主將面臨3000元至15000元不等的罰款，敬請配合並事先確認愛貓已植入晶片。
-''';
-
-      /// 🔹 入住須知
-      _controllers['checkinNotice']!.text = '''
-* 預留時間：辦理入住時，請預留30-60分鐘讓我們與您確認愛貓的照護資料，並希望您能多花幾分鐘與愛貓道別，以減少牠的緊張感。
-* 住宿費用與文件：入住時需結清100%住宿費用，並簽訂「寄宿入住契約書」。請攜帶飼主的身分證正本及寵物健康手冊，供我們留檔後即時歸還。
-* 飲食準備：請飼主自備貓咪常用食物，以確保腸胃適應性(如果是吃罐頭也沒問題)。如無法攜帶食物，我們也有準備2款乾飼料。
-* 熟悉物品：可攜帶貓咪熟悉的毯子、睡窩或有飼主氣味的衣物，幫助貓咪快速適應新環境。
-* 健康用品：如有特殊需求，可攜帶必要的補充劑、化毛膏或藥品，並提供詳細使用說明，我們提供額外客製化服務。
-* 玩具與安撫物品：也可帶上愛貓習慣的貓抓板或玩具，能提升貓咪在住宿期間的舒適度。
-''';
-
-      /// 🔹 基本設施
-      _controllers['facility']!.text = '''
-* 24小時監控：每間貓房皆配有獨立的24小時連線監視器，入住當天小管家將協助您進行設定。
-             由於房間並未進行隔音設計，為避免突然聲音對貓咪造成不安，監視器的通話功能未開放，敬請諒解。
-* 免費提供貓砂：礦砂、豆腐砂。如遇缺貨，將以同等價位貓砂替代，確保貓咪舒適。為使貓咪更快適應，建議自備少量貓砂增加對環境的安全感。
-* 砂盆配置：提供幾種形式的砂盆供飼主選擇使用。1-2隻貓提供1個砂盆；3-5隻貓提供2個砂盆，以滿足愛貓的如廁需求。
-* 多種餐具選擇：我們為貓咪提供陶瓷碗，以及木製餐碗架，讓貓咪在進食時更加舒適。此外，我們還提供自動飲水機，確保貓咪隨時能飲用新鮮的水源。
-''';
-
-      /// 🔹 特殊情況
-      _controllers['specialCase']!.text = '''
-* 未結紮公貓：如未結紮的公貓在住宿期間出現發情占地盤噴尿的情況，我們將拍照通知飼主，並酌收每晚清潔費800元。
-             此外，該貓將取消戶外探索時間，以避免其他貓咪受到影響。
-* 強制分房：為保護貓咪安全，如同房貓咪出現攻擊或交配行為，影響其他房間貓咪的情緒或安全，我們將以安全優先為考量，得未經飼主同意強制分房，並收取額外住房費用。
-''';
-
-      /// 🔹 活動安排
-      _controllers['activity']!.text = '''
-* 每日放風時間：每房貓咪每日享有15分鐘探索活動時間，將是否探索館內的選擇權交給貓咪本身，不免強貓咪走出房間。
-               我們將依館內入住狀況提供額外陪伴或探索時間的選配服務(每10分鐘150元)。
-* 單一家庭放風：戶外放風採單一家庭方式，確保不同家庭的貓咪不會互相接觸，以保障貓咪們的安全與健康。
-* 活動時間調整：基於安全考量，如貓咪在探索活動期間情緒過嗨或行為間接影響其他貓的安全，店家將有權酌情減少或暫停活動時間，並將貓咪帶回住宿房內。
-''';
-
-      /// 🔹 額外注意事項
-      _controllers['extraNotice']!.text = '''
-* 驅蟲建議：入住前7天內請為貓咪進行體外驅蟲，確保其他貓咪及旅館環境的衛生安全。
-           如確認貓咪身上有跳蚤、壁蝨等高度傳染力疾病，將連繫飼主當日接回，並酌收「環境消毒費6000元/日」，若無法立即接回，將視房間使用狀況隔離貓旅客，衍伸住宿費用由貓飼主全額負擔且不得有議。
-* 疫苗規定：入住貓咪需提供2年內的核心疫苗接種證明，未接種完整疫苗的貓咪將無法享有探索活動時間。
-* 疫苗防護說明：貓咪注射預防針（如三合一或五合一疫苗）僅能預防致死率極高的疾病，但並不代表貓咪完全不會感冒或生病。因此，飼主需留意貓咪的健康狀況，並在入住時告知任何可能的健康問題。
-* 法規遵循：動物保護處人員依法可不定時稽查住宿貓咪的晶片，如經認定未植入晶片，飼主將面臨3000元至15000元不等的罰款，敬請配合並事先確認愛貓已植入晶片。
-''';
-
-      _customControllersPage1 = [TextEditingController(text: '特殊情況依現場調整')];
-
-      /// =========================
-      /// 🔴 第二頁：取消政策（先留空位）
-      /// =========================
-      _controllers['cancelPolicy']!.text = '''
-★ 訂房後，須於3天內(含)支付當筆訂單房價總額的50%(非國定假日)及100%(國定假日)作為訂金，才算完成訂房，尾款於入住時結清，提前退宿不予退款。
-
-           ▲於住宿日7日內(含)取消或未告知取消訂房，恕不退還訂金。
-           ▲於住宿日08-10日內取消訂房，退回訂金50%。
-           ▲於住宿日11-13日內取消訂房，退回訂金70%。
-           ▲於住宿日14日內(含14日)內可免費取消訂房。
-          ( 日期計算範例：4/20住宿，前3日係指4/17 – 4/19 )
-★登記住宿日當天若遇颱風、地震等天災害或不可抗拒之因素時，以店家所在地臺北市政府公告狀況，之影響作為接收延期或取消訂房之判斷標準，請於入住日起3日內(含當日)與我們聯絡。
-
-★ 訂金支付後，表示已詳閱並同意以上之訂房須知。
-
-★ 國定假日定義，包含清明、端午、中秋、國慶日及元旦等連續3日以上(含)之假期，住宿日其中1天涵蓋國定假期即適用國定假日規範及定價。
-
-★ 凡有無故退訂紀錄或不前來住宿卻未提前到知者，後續預定住宿須事先給付100%全額費用或有權不接受預訂。
-
-★ 退費以轉帳放式，需請飼主負擔手續費15元(從退款中扣除)。
-
-★ 農曆春節(過年)住宿不適用以上規定，相關規定將另行公告。
-''';
-
-      /// 🔹 額外條款
-      _customControllersPage2 = [TextEditingController(text: '本館保有最終解釋權')];
-
-      /// 🔥 全部開啟
-      _enabled.updateAll((key, value) => true);
-    });
-  }
-
-  Widget _serviceDropdown({
-    required List<String> value,
-    required ValueChanged<List<String>> onChanged,
-  }) {
-    final String token = PolicyApplicableService.label(value);
-    return DropdownButtonFormField<String>(
-      initialValue: token,
-      decoration: const InputDecoration(
-        labelText: '適用服務',
-        border: OutlineInputBorder(),
-        isDense: true,
-      ),
-      items: const <DropdownMenuItem<String>>[
-        DropdownMenuItem<String>(value: '僅住宿', child: Text('僅住宿')),
-        DropdownMenuItem<String>(value: '僅安親', child: Text('僅安親')),
-        DropdownMenuItem<String>(value: '住宿與安親共用', child: Text('住宿與安親共用')),
-      ],
-      onChanged: (String? next) {
-        if (next == '僅安親' || next == '僅臨托') {
-          onChanged(List<String>.from(PolicyApplicableService.daycareOnly));
-        } else if (next == '住宿與安親共用' || next == '住宿與臨托共用') {
-          onChanged(List<String>.from(PolicyApplicableService.shared));
-        } else {
-          onChanged(
-            List<String>.from(PolicyApplicableService.accommodationOnly),
-          );
-        }
-      },
-    );
-  }
-
-  /// 🔥 UI
-  Widget _buildSection(String title, String key) {
-    return Card(
-      margin: const EdgeInsets.only(bottom: 12),
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Column(
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    title,
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-                Switch(
-                  value: _enabled[key] ?? true,
-                  onChanged: (v) {
-                    setState(() {
-                      _enabled[key] = v;
-                    });
-                  },
-                ),
-              ],
-            ),
-            TextField(
-              controller: _controllers[key],
-              maxLines: null,
-              decoration: const InputDecoration(border: OutlineInputBorder()),
-            ),
-            const SizedBox(height: 8),
-            Align(
-              alignment: Alignment.centerLeft,
-              child: _serviceDropdown(
-                value: PolicyApplicableService.parse(_sectionServices[key]),
-                onChanged: (List<String> next) {
-                  setState(() {
-                    _sectionServices[key] = next;
-                  });
-                },
-              ),
-            ),
-          ],
+    if (!mounted) {
+      return;
+    }
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          _activeService == PolicyApplicableService.daycare
+              ? '已更新安親條款（住宿條款版本不變）'
+              : '已更新住宿條款（安親條款版本不變）',
         ),
       ),
     );
-  }
-
-  /// 📝 條款版本操作紀錄
-  Widget _buildPolicyActionLogs() {
-    return StreamBuilder<List<Map<String, dynamic>>>(
-      stream: ActionLogService.instance.streamShopLogs(widget.shopId),
-      builder: (context, snapshot) {
-        final logs = (snapshot.data ?? []).where((log) {
-          return log['targetType'] == 'policy' && log['action'] == '更新入住條款版本';
-        }).toList();
-
-        if (logs.isEmpty) return const SizedBox();
-
-        return Card(
-          child: Padding(
-            padding: const EdgeInsets.all(12),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  '版本操作紀錄',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 8),
-                ...logs.map((log) {
-                  final payload = Map<String, dynamic>.from(
-                    log['payload'] ?? {},
-                  );
-                  final operatorEmail = log['operatorEmail'] ?? '';
-
-                  return Text(
-                    '更新入住條款版本：v${payload['oldVersion']} → v${payload['newVersion']}\n'
-                    '操作信箱：$operatorEmail',
-                    style: const TextStyle(fontSize: 13, height: 1.5),
-                  );
-                }),
-              ],
-            ),
-          ),
-        );
-      },
-    );
+    await _loadPolicy();
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('入住規則設定')),
-      body: _loading
-          ? const Center(child: CircularProgressIndicator())
-          : Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                children: [
-                  Container(
-                    margin: const EdgeInsets.only(bottom: 16),
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: Colors.orange.shade50,
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: Colors.orange),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: const [
-                        Text(
-                          '⚠️ 條款使用說明',
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            color: Colors.orange,
+    return PopScope(
+      canPop: !_dirty,
+      onPopInvokedWithResult: (bool didPop, Object? result) async {
+        if (didPop || !_dirty) {
+          return;
+        }
+        final bool? leave = await showDialog<bool>(
+          context: context,
+          builder: (BuildContext context) => AlertDialog(
+            title: const Text('尚未儲存'),
+            content: const Text('離開此頁將捨棄未儲存的條款變更。'),
+            actions: <Widget>[
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('繼續編輯'),
+              ),
+              TextButton(
+                onPressed: () => Navigator.pop(context, true),
+                child: const Text('離開'),
+              ),
+            ],
+          ),
+        );
+        if (leave == true && context.mounted) {
+          Navigator.pop(context);
+        }
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('條款設定'),
+          bottom: TabBar(
+            controller: _tabs,
+            tabs: const <Widget>[
+              Tab(text: '預約／入住條款'),
+              Tab(text: '安親條款'),
+              Tab(text: '退款條款'),
+            ],
+          ),
+        ),
+        body: _loading
+            ? const Center(child: CircularProgressIndicator())
+            : Align(
+                alignment: Alignment.topCenter,
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 1100),
+                  child: Column(
+                    children: <Widget>[
+                      Expanded(
+                        child: TabBarView(
+                          controller: _tabs,
+                          children: <Widget>[
+                            _serviceEditor(isDaycare: false),
+                            _serviceEditor(isDaycare: true),
+                            _refundEditor(),
+                          ],
+                        ),
+                      ),
+                      SafeArea(
+                        top: false,
+                        child: Padding(
+                          padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                          child: SizedBox(
+                            width: double.infinity,
+                            height: 48,
+                            child: FilledButton(
+                              onPressed: _save,
+                              child: Text(
+                                _tabs.index == 2 ? '儲存退款條款' : '儲存此分頁條款',
+                              ),
+                            ),
                           ),
-                        ),
-                        SizedBox(height: 8),
-                        Text(
-                          '本系統提供之條款模板僅供參考，實際內容請店家自行確認與修改。\n'
-                          '本平台不保證條款之法律正確性與完整性，所有責任由使用本條款之店家自行負責。\n'
-                          '本平台僅提供條款編輯與展示工具，不介入店家與消費者之間之交易或糾紛。\n'
-                          '若發生任何爭議，應由店家與消費者自行協商處理，本平台不負相關責任。',
-                          style: TextStyle(fontSize: 13),
-                        ),
-                      ],
-                    ),
-                  ),
-
-                  /// 🔥 版本
-                  Row(
-                    children: [
-                      const Text('目前版本：'),
-                      Text(
-                        'v$_version',
-                        style: const TextStyle(
-                          fontWeight: FontWeight.bold,
-                          color: Colors.blue,
                         ),
                       ),
                     ],
                   ),
+                ),
+              ),
+      ),
+    );
+  }
 
-                  TextButton.icon(
-                    onPressed: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) =>
-                              PolicyVersionHistoryPage(shopId: widget.shopId),
-                        ),
-                      );
-                    },
-                    icon: const Icon(Icons.history),
-                    label: const Text('查看歷史版本'),
+  Widget _serviceEditor({required bool isDaycare}) {
+    final int version = isDaycare ? _daycareVersion : _stayVersion;
+    final List<List<String>> sections = <List<String>>[
+      <String>['checkinTime', '營業時間與環境參觀時間'],
+      <String>['checkOutFlow', isDaycare ? '送達與接回安排' : '入住與退房安排'],
+      <String>['basicCondition', '貓咪基本條件'],
+      <String>['ownerNotice', '飼主應告知資訊'],
+      <String>['checkinNotice', isDaycare ? '安親須知' : '入住須知'],
+      <String>['facility', '本店提供的基本設施'],
+      <String>['specialCase', '特殊情況處理'],
+      <String>['activity', '探索活動安排'],
+      <String>['extraNotice', '額外注意事項'],
+      <String>['cancelPolicy', '取消政策'],
+    ];
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: <Widget>[
+        Text(
+          isDaycare
+              ? '目前安親條款版本：v$version。修改不會要求住宿客人重新勾選。'
+              : '目前住宿條款版本：v$version。修改不會要求安親客人重新勾選。',
+        ),
+        Wrap(
+          spacing: 8,
+          children: <Widget>[
+            TextButton.icon(
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute<void>(
+                    builder: (_) =>
+                        PolicyVersionHistoryPage(shopId: widget.shopId),
                   ),
-
-                  const SizedBox(height: 12),
-
-                  /// 🔥 ⭐模板按鈕
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton(
-                      onPressed: _applyTemplate,
-                      child: const Text('一鍵套用預設模板'),
+                );
+              },
+              icon: const Icon(Icons.history),
+              label: const Text('查看歷史版本'),
+            ),
+            TextButton(
+              onPressed: () {
+                final String other = isDaycare
+                    ? PolicyApplicableService.accommodation
+                    : PolicyApplicableService.daycare;
+                _storeCurrentDraft();
+                _drafts[other] = _controllers.map(
+                  (String key, TextEditingController ctrl) =>
+                      MapEntry(key, ctrl.text),
+                );
+                _enabledDrafts[other] = Map<String, bool>.from(_enabled);
+                _markDirty();
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(isDaycare ? '已複製到住宿條款草稿' : '已複製到安親條款草稿'),
+                  ),
+                );
+              },
+              child: Text(isDaycare ? '複製到住宿條款' : '複製到安親條款'),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        ...sections.map((List<String> item) {
+          final String key = item.first;
+          final String title = item.last;
+          final bool open = _expanded.contains(key);
+          final String preview = (_controllers[key]?.text ?? '').trim();
+          return Card(
+            margin: const EdgeInsets.only(bottom: 10),
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  Row(
+                    children: <Widget>[
+                      Expanded(
+                        child: Text(
+                          title,
+                          style: const TextStyle(fontWeight: FontWeight.w700),
+                        ),
+                      ),
+                      Switch(
+                        value: _enabled[key] ?? true,
+                        onChanged: (bool value) {
+                          setState(() {
+                            _enabled[key] = value;
+                            _dirty = true;
+                          });
+                        },
+                      ),
+                      TextButton(
+                        onPressed: () {
+                          setState(() {
+                            if (open) {
+                              _expanded.remove(key);
+                            } else {
+                              _expanded.add(key);
+                            }
+                          });
+                        },
+                        child: Text(open ? '收合' : '編輯'),
+                      ),
+                    ],
+                  ),
+                  if (!open)
+                    Text(
+                      preview.isEmpty ? '尚未填寫' : preview,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(color: Colors.black54),
+                    )
+                  else
+                    TextField(
+                      controller: _controllers[key],
+                      minLines: 4,
+                      maxLines: 10,
+                      onChanged: (_) => _markDirty(),
+                      decoration: const InputDecoration(
+                        border: OutlineInputBorder(),
+                      ),
                     ),
-                  ),
-
-                  const SizedBox(height: 12),
-
-                  Expanded(
-                    child: ListView(
-                      children: [
-                        /// 🔵 第一頁
-                        const Text(
-                          '📄 入住須知（前台第1頁）',
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-
-                        _buildSection('營業時間與環境參觀時間', 'checkinTime'),
-                        _buildSection('入住與退房安排', 'checkOutFlow'),
-                        _buildSection('貓咪入住基本條件', 'basicCondition'),
-                        _buildSection('貓咪入住前飼主應告知資訊', 'ownerNotice'),
-                        _buildSection('貓咪入住須知', 'checkinNotice'),
-                        _buildSection('本店提供的基本設施', 'facility'),
-                        _buildSection('特殊情況處理', 'specialCase'),
-                        _buildSection('探索活動安排', 'activity'),
-                        _buildSection('額外注意事項', 'extraNotice'),
-
-                        const SizedBox(height: 20),
-
-                        /// 🔴 第二頁
-                        const Text(
-                          '📄 訂房與退款（前台第2頁）',
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-
-                        _buildSection('訂房取消政策', 'cancelPolicy'),
-
-                        const SizedBox(height: 20),
-
-                        const Text('第二頁額外條款', style: TextStyle(fontSize: 18)),
-
-                        ..._customControllersPage2.asMap().entries.map((entry) {
-                          final index = entry.key;
-                          final ctrl = entry.value;
-
-                          return Padding(
-                            padding: const EdgeInsets.only(bottom: 10),
-                            child: Column(
-                              children: [
-                                TextField(
-                                  controller: ctrl,
-                                  decoration: InputDecoration(
-                                    labelText: '條款 ${index + 1}',
-                                    border: const OutlineInputBorder(),
-                                    suffixIcon: IconButton(
-                                      icon: const Icon(Icons.delete),
-                                      onPressed: () {
-                                        setState(() {
-                                          _customControllersPage2.removeAt(
-                                            index,
-                                          );
-                                          if (index <
-                                              _customServicesPage2.length) {
-                                            _customServicesPage2.removeAt(
-                                              index,
-                                            );
-                                          }
-                                        });
-                                      },
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(height: 8),
-                                _serviceDropdown(
-                                  value: index < _customServicesPage2.length
-                                      ? _customServicesPage2[index]
-                                      : PolicyApplicableService
-                                            .accommodationOnly,
-                                  onChanged: (List<String> next) {
-                                    setState(() {
-                                      while (_customServicesPage2.length <=
-                                          index) {
-                                        _customServicesPage2.add(
-                                          List<String>.from(
-                                            PolicyApplicableService
-                                                .accommodationOnly,
-                                          ),
-                                        );
-                                      }
-                                      _customServicesPage2[index] = next;
-                                    });
-                                  },
-                                ),
-                              ],
-                            ),
-                          );
-                        }),
-
-                        ElevatedButton(
-                          onPressed: () {
-                            setState(() {
-                              _customControllersPage2.add(
-                                TextEditingController(),
-                              );
-                              _customServicesPage2.add(
-                                List<String>.from(
-                                  PolicyApplicableService.accommodationOnly,
-                                ),
-                              );
-                            });
-                          },
-                          child: const Text('新增第二頁條款'),
-                        ),
-
-                        const SizedBox(height: 20),
-
-                        const Text('額外條款', style: TextStyle(fontSize: 18)),
-
-                        ..._customControllersPage1.asMap().entries.map((entry) {
-                          final index = entry.key;
-                          final ctrl = entry.value;
-
-                          return Padding(
-                            padding: const EdgeInsets.only(bottom: 10),
-                            child: Column(
-                              children: [
-                                TextField(
-                                  controller: ctrl,
-                                  decoration: InputDecoration(
-                                    labelText: '條款 ${index + 1}',
-                                    border: const OutlineInputBorder(),
-                                    suffixIcon: IconButton(
-                                      icon: const Icon(Icons.delete),
-                                      onPressed: () {
-                                        setState(() {
-                                          _customControllersPage1.removeAt(
-                                            index,
-                                          );
-                                          if (index <
-                                              _customServicesPage1.length) {
-                                            _customServicesPage1.removeAt(
-                                              index,
-                                            );
-                                          }
-                                        });
-                                      },
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(height: 8),
-                                _serviceDropdown(
-                                  value: index < _customServicesPage1.length
-                                      ? _customServicesPage1[index]
-                                      : PolicyApplicableService
-                                            .accommodationOnly,
-                                  onChanged: (List<String> next) {
-                                    setState(() {
-                                      while (_customServicesPage1.length <=
-                                          index) {
-                                        _customServicesPage1.add(
-                                          List<String>.from(
-                                            PolicyApplicableService
-                                                .accommodationOnly,
-                                          ),
-                                        );
-                                      }
-                                      _customServicesPage1[index] = next;
-                                    });
-                                  },
-                                ),
-                              ],
-                            ),
-                          );
-                        }),
-
-                        ElevatedButton(
-                          onPressed: () {
-                            setState(() {
-                              _customControllersPage1.add(
-                                TextEditingController(),
-                              );
-                              _customServicesPage1.add(
-                                List<String>.from(
-                                  PolicyApplicableService.accommodationOnly,
-                                ),
-                              );
-                            });
-                          },
-                          child: const Text('新增條款'),
-                        ),
-                        const SizedBox(height: 20),
-
-                        _buildPolicyActionLogs(),
-                      ],
-                    ),
-                  ),
-
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton(
-                      onPressed: _save,
-                      child: const Text('儲存並升級版本'),
-                    ),
-                  ),
                 ],
               ),
             ),
+          );
+        }),
+      ],
+    );
+  }
+
+  Widget _refundEditor() {
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: <Widget>[
+        Text('退款條款版本：v$_refundVersion（申請退款時閱讀，不參與預約勾選）'),
+        SwitchListTile(
+          contentPadding: EdgeInsets.zero,
+          title: const Text('啟用退款條款'),
+          value: _refundEnabled,
+          onChanged: (bool value) {
+            setState(() {
+              _refundEnabled = value;
+              _dirty = true;
+            });
+          },
+        ),
+        TextField(
+          controller: _refundTitle,
+          decoration: const InputDecoration(
+            labelText: '標題',
+            border: OutlineInputBorder(),
+          ),
+          onChanged: (_) => _markDirty(),
+        ),
+        const SizedBox(height: 12),
+        TextField(
+          controller: _refundDescription,
+          decoration: const InputDecoration(
+            labelText: '簡短說明',
+            border: OutlineInputBorder(),
+          ),
+          onChanged: (_) => _markDirty(),
+        ),
+        const SizedBox(height: 12),
+        OutlinedButton(
+          onPressed: () {
+            setState(() {
+              _refundBody.text = ShopPolicyService.refundTemplate();
+              _dirty = true;
+            });
+          },
+          child: const Text('一鍵套用退款模板'),
+        ),
+        const SizedBox(height: 12),
+        TextField(
+          controller: _refundBody,
+          minLines: 12,
+          maxLines: 20,
+          onChanged: (_) => _markDirty(),
+          decoration: const InputDecoration(
+            labelText: '退款規則內容',
+            alignLabelWithHint: true,
+            border: OutlineInputBorder(),
+          ),
+        ),
+      ],
     );
   }
 }

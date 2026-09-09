@@ -11,7 +11,7 @@ import 'package:petnest_saas/features/shop/widgets/about/about_message_section.d
 import 'package:petnest_saas/features/shop/widgets/about/about_philosophy_section.dart';
 import 'package:petnest_saas/features/shop/widgets/about/about_shop_info_section.dart';
 
-class ShopAboutPage extends StatelessWidget {
+class ShopAboutPage extends StatefulWidget {
   const ShopAboutPage({
     super.key,
     required this.shopId,
@@ -21,6 +21,7 @@ class ShopAboutPage extends StatelessWidget {
     this.previewMessage,
     this.previewImageUrl,
     this.previewFrame,
+    this.scrollToContact = false,
   });
 
   final String shopId;
@@ -30,42 +31,77 @@ class ShopAboutPage extends StatelessWidget {
   final String? previewMessage;
   final String? previewImageUrl;
   final AboutCoverFrameSetting? previewFrame;
+  final bool scrollToContact;
+
+  @override
+  State<ShopAboutPage> createState() => _ShopAboutPageState();
+}
+
+class _ShopAboutPageState extends State<ShopAboutPage> {
+  final GlobalKey _contactKey = GlobalKey();
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.scrollToContact) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        final BuildContext? target = _contactKey.currentContext;
+        if (target == null) {
+          return;
+        }
+        Scrollable.ensureVisible(
+          target,
+          duration: const Duration(milliseconds: 400),
+          curve: Curves.easeInOut,
+        );
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: theme.backgroundColor,
+      backgroundColor: widget.theme.backgroundColor,
       appBar: AppBar(
-        backgroundColor: theme.cardColor,
-        foregroundColor: theme.textColor,
+        backgroundColor: widget.theme.cardColor,
+        foregroundColor: widget.theme.textColor,
         elevation: 0,
         surfaceTintColor: Colors.transparent,
         centerTitle: true,
         title: Text(
           '關於我們',
-          style: TextStyle(fontWeight: FontWeight.w900, color: theme.textColor),
+          style: TextStyle(
+            fontWeight: FontWeight.w900,
+            color: widget.theme.textColor,
+          ),
         ),
       ),
       body: ListView(
         children: [
           AboutHeroSection(
-            shopId: shopId,
-            theme: theme,
-            previewTitle: previewTitle,
-            previewDescription: previewDescription,
-            previewImageUrl: previewImageUrl,
-            previewFrame: previewFrame,
+            shopId: widget.shopId,
+            theme: widget.theme,
+            previewTitle: widget.previewTitle,
+            previewDescription: widget.previewDescription,
+            previewImageUrl: widget.previewImageUrl,
+            previewFrame: widget.previewFrame,
           ),
           const SizedBox(height: 28),
-          AboutPhilosophySection(theme: theme),
+          AboutPhilosophySection(theme: widget.theme),
           const SizedBox(height: 30),
           AboutMessageSection(
-            shopId: shopId,
-            theme: theme,
-            previewMessage: previewMessage,
+            shopId: widget.shopId,
+            theme: widget.theme,
+            previewMessage: widget.previewMessage,
           ),
           const SizedBox(height: 30),
-          AboutShopInfoSection(shopId: shopId, theme: theme),
+          KeyedSubtree(
+            key: _contactKey,
+            child: AboutShopInfoSection(
+              shopId: widget.shopId,
+              theme: widget.theme,
+            ),
+          ),
           const SizedBox(height: 40),
         ],
       ),

@@ -61,6 +61,20 @@ class DaycareCallablePayload {
         }
       }
     }
+    final List<Map<String, dynamic>> slots = <Map<String, dynamic>>[];
+    final Object? rawSlots = addon['selectedTimeSlots'];
+    if (rawSlots is Iterable) {
+      for (final Object? item in rawSlots) {
+        if (item is Map) {
+          slots.add(Map<String, dynamic>.from(item));
+        } else {
+          final String label = item.toString().trim();
+          if (label.isNotEmpty) {
+            slots.add(<String, dynamic>{'id': label, 'label': label});
+          }
+        }
+      }
+    }
     return <String, dynamic>{
       'id': (addon['id'] ?? '').toString(),
       'name': (addon['name'] ?? addon['label'] ?? '').toString(),
@@ -71,6 +85,7 @@ class DaycareCallablePayload {
       'slotCount': SafeParse.parseMoney(addon['slotCount']),
       'amount': amount,
       'selectedPetIds': petIds,
+      'selectedTimeSlots': slots,
     };
   }
 }

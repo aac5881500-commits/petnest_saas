@@ -3,6 +3,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:petnest_saas/core/services/shop_payment_methods.dart';
 import 'package:petnest_saas/features/booking/models/booking_form_submit_data.dart';
 import 'package:petnest_saas/features/booking/pages/booking_form_page.dart';
 
@@ -125,6 +126,6 @@ void main() {
       payment: BookingFormPaymentTestState.empty,
     );
     _expectFormChrome(tester);
-    expect(find.text('店家目前尚未設定可用的付款方式，請聯絡店家。'), findsOneWidget);
+    expect(find.text(ShopPaymentMethods.noMethodsMessage), findsWidgets);
   });
 }

@@ -21,6 +21,7 @@ import 'package:petnest_saas/core/services/booking_service.dart';
 import 'package:petnest_saas/core/services/daily_care_setting_service.dart';
 import 'package:petnest_saas/core/services/payment_function_service.dart';
 import 'package:petnest_saas/core/services/pre_arrival_guide_service.dart';
+import 'package:petnest_saas/core/services/shop_payment_methods.dart';
 import 'package:petnest_saas/core/models/shop_frontend_theme.dart';
 import 'package:petnest_saas/core/utils/safe_parse.dart';
 import 'package:petnest_saas/features/shop/pages/shop_public_page.dart';
@@ -33,8 +34,11 @@ import 'package:petnest_saas/features/booking/widgets/booking_detail/booking_det
 import 'package:petnest_saas/features/booking/widgets/booking_detail/booking_detail_preparation_section.dart';
 import 'package:petnest_saas/features/booking/widgets/booking_detail/booking_detail_stay_services_section.dart';
 import 'package:petnest_saas/features/booking/widgets/booking_detail/booking_detail_summary_card.dart';
+import 'package:petnest_saas/features/booking/widgets/booking_refund_request_sheet.dart';
+import 'package:petnest_saas/features/booking/pages/booking_message_page.dart';
 import 'package:petnest_saas/features/booking/widgets/booking_detail/booking_detail_ui.dart';
 import 'package:petnest_saas/features/booking/widgets/booking_detail/booking_detail_view_data.dart';
+import 'package:petnest_saas/features/booking/widgets/shop_payment_method_cards.dart';
 import 'package:petnest_saas/features/payment/pages/ecpay_payment_page.dart';
 import 'package:petnest_saas/features/shop/pages/policy_version_detail_page.dart';
 import 'package:petnest_saas/features/shop/widgets/booking/terms_confirmation_sheet.dart';
@@ -260,6 +264,7 @@ class _BookingDetailPageState extends State<_BookingDetailBody> {
                       view: view,
                       onCancel: () => _onCancel(view),
                       onContactShop: _scrollToMessageSection,
+                      onRequestRefund: () => _onRequestRefund(view),
                     ),
                     FutureBuilder<PreArrivalGuideModel>(
                       future: _guideFuture,
@@ -298,6 +303,7 @@ class _BookingDetailPageState extends State<_BookingDetailBody> {
                               bookingId: widget.docId,
                               downloadHoursAfterCheckout:
                                   setting.downloadHoursAfterCheckout,
+                              daycareCareEnabled: setting.daycareEnabled,
                             );
                           },
                     ),
@@ -318,58 +324,29 @@ class _BookingDetailPageState extends State<_BookingDetailBody> {
                           ) {
                             final Map<String, dynamic> shopData =
                                 SafeParse.parseMap(shopSnapshot.data?.data());
-                            final Map<String, dynamic> paymentSetting =
-                                SafeParse.parseMap(shopData['paymentSetting']);
-                            final Map<String, dynamic> operationSettings =
-                                SafeParse.parseMap(
-                                  paymentSetting['operationSettings'],
+                            final ShopPaymentCatalog catalog =
+                                ShopPaymentMethods.resolve(
+                                  shopData: shopData,
+                                  serviceType: view.isDaycare
+                                      ? PolicyApplicableService.daycare
+                                      : PolicyApplicableService.accommodation,
+                                  daycareDepositType: SafeParse.parseString(
+                                    view.raw['daycareDepositType'] ??
+                                        view.raw['depositType'],
+                                  ),
                                 );
-                            final String reviewStatus = SafeParse.parseString(
-                              paymentSetting['reviewStatus'],
-                            ).toLowerCase();
-                            final bool ecpayEnabled = SafeParse.parseBool(
-                              operationSettings['ecpayEnabled'],
-                            );
-                            final bool creditCardEnabled = SafeParse.parseBool(
-                              operationSettings['creditCardEnabled'],
-                            );
-                            final bool atmEnabled = SafeParse.parseBool(
-                              operationSettings['atmEnabled'],
-                            );
-                            final bool cvsEnabled = SafeParse.parseBool(
-                              operationSettings['cvsCodeEnabled'],
-                            );
-                            final bool bankTransferEnabled =
-                                SafeParse.parseBool(
-                                  operationSettings['bankTransferEnabled'],
-                                  fallback: true,
+                            final BookingDetailShopPaymentFlags flags =
+                                BookingDetailShopPaymentFlags(
+                                  catalog: catalog,
+                                  bookingAllowsOnlinePayment:
+                                      view.canCreateOnlinePaymentCandidate,
                                 );
-                            final bool canCreateOnlinePayment =
-                                reviewStatus == 'approved' &&
-                                ecpayEnabled &&
-                                (creditCardEnabled ||
-                                    atmEnabled ||
-                                    cvsEnabled) &&
-                                !SafeParse.parseBool(
-                                  paymentSetting['platformSuspended'],
-                                ) &&
-                                !SafeParse.parseBool(
-                                  paymentSetting['shopDisabled'],
-                                ) &&
-                                view.canCreateOnlinePaymentCandidate;
                             return KeyedSubtree(
                               key: _financeKey,
                               child: BookingDetailFinanceSection(
                                 view: view,
                                 bookingId: widget.docId,
-                                shopFlags: BookingDetailShopPaymentFlags(
-                                  canCreateOnlinePayment:
-                                      canCreateOnlinePayment,
-                                  creditCardEnabled: creditCardEnabled,
-                                  atmEnabled: atmEnabled,
-                                  cvsEnabled: cvsEnabled,
-                                  bankTransferEnabled: bankTransferEnabled,
-                                ),
+                                shopFlags: flags,
                                 last5Controller: _last5Controller,
                                 loading: _loading,
                                 creatingPayment: _creatingPayment,
@@ -378,27 +355,12 @@ class _BookingDetailPageState extends State<_BookingDetailBody> {
                                 onDeleteTransferImage: _deleteTransferImage,
                                 onChangePayment: () => _showChangePaymentSheet(
                                   booking: data,
-                                  flags: BookingDetailShopPaymentFlags(
-                                    canCreateOnlinePayment:
-                                        canCreateOnlinePayment,
-                                    creditCardEnabled: creditCardEnabled,
-                                    atmEnabled: atmEnabled,
-                                    cvsEnabled: cvsEnabled,
-                                    bankTransferEnabled: bankTransferEnabled,
-                                  ),
+                                  flags: flags,
                                 ),
                                 onPayOnline: () =>
                                     _showOnlinePaymentMethodSheet(
                                       booking: data,
-                                      flags: BookingDetailShopPaymentFlags(
-                                        canCreateOnlinePayment:
-                                            canCreateOnlinePayment,
-                                        creditCardEnabled: creditCardEnabled,
-                                        atmEnabled: atmEnabled,
-                                        cvsEnabled: cvsEnabled,
-                                        bankTransferEnabled:
-                                            bankTransferEnabled,
-                                      ),
+                                      flags: flags,
                                     ),
                               ),
                             );
@@ -427,6 +389,28 @@ class _BookingDetailPageState extends State<_BookingDetailBody> {
       return const DailyCareSettingModel();
     }
     return DailyCareSettingService.instance.getSetting(shopId.trim());
+  }
+
+  Future<void> _onRequestRefund(BookingDetailViewData view) async {
+    await showBookingRefundRequestSheet(
+      context: context,
+      shopId: view.shopId,
+      onGoToMessages: () {
+        _scrollToMessageSection();
+        Navigator.push<void>(
+          context,
+          MaterialPageRoute<void>(
+            builder: (_) => BookingMessagePage(
+              bookingId: widget.docId,
+              bookingStatus: view.status,
+              senderType: 'customer',
+              shopId: view.shopId,
+              autofocusInput: true,
+            ),
+          ),
+        );
+      },
+    );
   }
 
   void _scrollToMessageSection() {
@@ -673,15 +657,11 @@ class _BookingDetailPageState extends State<_BookingDetailBody> {
     if (view.depositAmount <= 0) {
       amountType = 'full';
     }
-    String method = view.paymentMethod;
-    if (method.isEmpty) {
-      method = flags.bankTransferEnabled
-          ? PaymentMethodType.bankTransfer
-          : (flags.creditCardEnabled
-                ? PaymentMethodType.creditCard
-                : (flags.atmEnabled
-                      ? PaymentMethodType.atm
-                      : PaymentMethodType.convenienceStoreCode));
+    String method = ShopPaymentMethods.normalizeMethodId(view.paymentMethod);
+    if (!flags.catalog.isEnabled(method)) {
+      method = flags.catalog.methodIds.isEmpty
+          ? ''
+          : flags.catalog.methodIds.first;
     }
     final bool? saved = await showModalBottomSheet<bool>(
       context: context,
@@ -720,73 +700,7 @@ class _BookingDetailPageState extends State<_BookingDetailBody> {
               );
             }
 
-            Widget methodTile({required String value, required String title}) {
-              final bool selected = method == value;
-              return Padding(
-                padding: const EdgeInsets.only(bottom: 8),
-                child: InkWell(
-                  onTap: () => setSheet(() => method = value),
-                  child: Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(
-                        color: selected
-                            ? Theme.of(context).colorScheme.primary
-                            : Theme.of(context).dividerColor,
-                        width: selected ? 1.6 : 1,
-                      ),
-                    ),
-                    child: Text(
-                      title,
-                      style: TextStyle(
-                        fontWeight: selected
-                            ? FontWeight.w700
-                            : FontWeight.w500,
-                      ),
-                    ),
-                  ),
-                ),
-              );
-            }
-
             final int remaining = view.remainingAmount;
-            final List<Widget> methods = <Widget>[];
-            if (flags.bankTransferEnabled) {
-              methods.add(
-                methodTile(
-                  value: PaymentMethodType.bankTransfer,
-                  title: '銀行轉帳',
-                ),
-              );
-            }
-            if (flags.canCreateOnlinePayment) {
-              if (flags.creditCardEnabled) {
-                methods.add(
-                  methodTile(
-                    value: PaymentMethodType.creditCard,
-                    title: '綠界線上付款（信用卡）',
-                  ),
-                );
-              }
-              if (flags.atmEnabled) {
-                methods.add(
-                  methodTile(
-                    value: PaymentMethodType.atm,
-                    title: '綠界線上付款（ATM）',
-                  ),
-                );
-              }
-              if (flags.cvsEnabled) {
-                methods.add(
-                  methodTile(
-                    value: PaymentMethodType.convenienceStoreCode,
-                    title: '綠界線上付款（超商代碼）',
-                  ),
-                );
-              }
-            }
             return Padding(
               padding: EdgeInsets.fromLTRB(
                 20,
@@ -827,16 +741,18 @@ class _BookingDetailPageState extends State<_BookingDetailBody> {
                     ],
                     const SizedBox(height: 12),
                     const Text('付款方式'),
-                    const SizedBox(height: 8),
-                    if (methods.isEmpty)
-                      const Text('店家目前沒有可選的付款方式')
-                    else
-                      ...methods,
+                    ShopPaymentMethodCards(
+                      catalog: flags.catalog,
+                      selectedMethod: method,
+                      onSelected: (String id) => setSheet(() => method = id),
+                    ),
                     const SizedBox(height: 16),
                     SizedBox(
                       width: double.infinity,
                       child: FilledButton(
-                        onPressed: methods.isEmpty
+                        onPressed:
+                            flags.catalog.isEmpty ||
+                                !flags.catalog.isEnabled(method)
                             ? null
                             : () => Navigator.pop(sheetContext, true),
                         child: const Text('儲存變更'),
@@ -857,6 +773,7 @@ class _BookingDetailPageState extends State<_BookingDetailBody> {
       booking: booking,
       payAmountType: amountType,
       paymentMethod: method,
+      catalog: flags.catalog,
     );
   }
 
@@ -864,8 +781,15 @@ class _BookingDetailPageState extends State<_BookingDetailBody> {
     required Map<String, dynamic> booking,
     required String payAmountType,
     required String paymentMethod,
+    required ShopPaymentCatalog catalog,
   }) async {
     if (!BookingPaymentStatus.canChangePaymentChoice(booking)) {
+      return;
+    }
+    if (!catalog.isEnabled(paymentMethod)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text(ShopPaymentMethods.noMethodsMessage)),
+      );
       return;
     }
     final String uid = FirebaseAuth.instance.currentUser?.uid ?? '';

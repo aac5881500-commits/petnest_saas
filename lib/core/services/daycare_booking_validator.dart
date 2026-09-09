@@ -36,10 +36,7 @@ class DaycareBookingValidator {
       }
     }
     // maxDurationMinutes 僅相容舊欄位，新版不再用來阻擋送單。
-    if (settings.forbidOvernight &&
-        !DaycareTimeHelper.sameCalendarDay(startAt, endAt)) {
-      return const DaycareValidationResult.error('此店家不接受跨日安親');
-    }
+    // 跨日與每日名額不再以前台開關阻擋；仍一律檢查最早送達／最晚接回。
     if (!DaycareDateAvailability.isDateOpen(
       settings: settings,
       date: startAt,
@@ -51,17 +48,15 @@ class DaycareBookingValidator {
       settings: settings,
       override: dateOverride,
     );
-    if (settings.blockOutsideHours) {
-      final int startMin = startAt.hour * 60 + startAt.minute;
-      final int endMin = endAt.hour * 60 + endAt.minute;
-      if (startMin < DaycareTimeHelper.minutesOf(hours.earliestDropOff) ||
-          endMin > DaycareTimeHelper.minutesOf(hours.latestPickUp)) {
-        return const DaycareValidationResult.error('已超出安親營業時間');
-      }
-      if (hours.latestDropoffTime.isNotEmpty &&
-          startMin > DaycareTimeHelper.minutesOf(hours.latestDropoffTime)) {
-        return const DaycareValidationResult.error('已超過當日最晚送達時間');
-      }
+    final int startMin = startAt.hour * 60 + startAt.minute;
+    final int endMin = endAt.hour * 60 + endAt.minute;
+    if (startMin < DaycareTimeHelper.minutesOf(hours.earliestDropOff) ||
+        endMin > DaycareTimeHelper.minutesOf(hours.latestPickUp)) {
+      return const DaycareValidationResult.error('已超出安親營業時間');
+    }
+    if (hours.latestDropoffTime.isNotEmpty &&
+        startMin > DaycareTimeHelper.minutesOf(hours.latestDropoffTime)) {
+      return const DaycareValidationResult.error('已超過當日最晚送達時間');
     }
     if (!isAdmin) {
       final DateTime clock = now ?? DateTime.now();

@@ -14,12 +14,14 @@ class BookingMessagePage extends StatefulWidget {
     required this.bookingStatus,
     required this.senderType,
     this.shopId = '',
+    this.autofocusInput = false,
   });
 
   final String bookingId;
   final String bookingStatus;
   final String senderType;
   final String shopId;
+  final bool autofocusInput;
 
   @override
   State<BookingMessagePage> createState() => _BookingMessagePageState();
@@ -217,6 +219,7 @@ class _BookingMessagePageState extends State<BookingMessagePage> {
                             Expanded(
                               child: TextField(
                                 controller: _controller,
+                                autofocus: widget.autofocusInput,
                                 minLines: 1,
                                 maxLines: 4,
                                 decoration: const InputDecoration(

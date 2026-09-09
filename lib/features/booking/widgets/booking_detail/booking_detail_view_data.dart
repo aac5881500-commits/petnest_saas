@@ -594,7 +594,18 @@ class BookingDetailViewData {
   }
 
   bool get canCancel {
+    if (depositStatus == 'confirmed' || paidAmount > 0) {
+      return false;
+    }
     return status == 'pending' || status == 'unpaid';
+  }
+
+  /// 訂金或款項已確認、訂單尚未完成／取消時，改走申請退款溝通流程。
+  bool get canRequestRefund {
+    if (status == 'cancelled' || status == 'completed' || status == 'no_show') {
+      return false;
+    }
+    return depositStatus == 'confirmed' || paidAmount > 0;
   }
 
   bool get contactShopInsteadOfCancel =>
@@ -730,16 +741,36 @@ class BookingDetailViewData {
   }
 
   DateTime? dailyCareDownloadDeadline(int downloadHoursAfterCheckout) {
-    if (checkOutAt == null) {
+    DateTime? end = checkOutAt;
+    if (isDaycare) {
+      end = actualEndAt ?? scheduledEndAt ?? checkOutAt;
+    }
+    if (end == null) {
       return null;
     }
-    return checkOutAt!.add(Duration(hours: downloadHoursAfterCheckout));
+    return end.add(Duration(hours: downloadHoursAfterCheckout));
   }
 
   bool canViewDailyCare({
     required int downloadHoursAfterCheckout,
     DateTime? now,
+    bool daycareCareEnabled = false,
   }) {
+    if (isDaycare) {
+      if (!daycareCareEnabled || status == 'cancelled') {
+        return false;
+      }
+      if (status == 'completed') {
+        final DateTime? deadline = dailyCareDownloadDeadline(
+          downloadHoursAfterCheckout,
+        );
+        if (deadline == null) {
+          return true;
+        }
+        return (now ?? DateTime.now()).isBefore(deadline);
+      }
+      return true;
+    }
     if (status == 'checked_in') {
       return true;
     }

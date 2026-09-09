@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:petnest_saas/core/models/payment_gateway_status.dart';
 import 'package:petnest_saas/core/models/payment_model.dart';
 import 'package:petnest_saas/core/services/payment_service.dart';
+import 'package:petnest_saas/core/services/shop_payment_methods.dart';
 import 'package:petnest_saas/core/utils/safe_parse.dart';
 import 'package:petnest_saas/core/widgets/booking_payment_deadline_banner.dart';
 import 'package:petnest_saas/core/widgets/booking_payment_proof_button.dart';
@@ -15,18 +16,28 @@ import 'package:petnest_saas/features/booking/widgets/booking_detail/booking_det
 
 class BookingDetailShopPaymentFlags {
   const BookingDetailShopPaymentFlags({
-    required this.canCreateOnlinePayment,
-    required this.creditCardEnabled,
-    required this.atmEnabled,
-    required this.cvsEnabled,
-    this.bankTransferEnabled = false,
+    required this.catalog,
+    this.bookingAllowsOnlinePayment = true,
   });
 
-  final bool canCreateOnlinePayment;
-  final bool creditCardEnabled;
-  final bool atmEnabled;
-  final bool cvsEnabled;
-  final bool bankTransferEnabled;
+  final ShopPaymentCatalog catalog;
+  final bool bookingAllowsOnlinePayment;
+
+  bool get canCreateOnlinePayment =>
+      bookingAllowsOnlinePayment &&
+      (catalog.isEnabled(PaymentMethodType.creditCard) ||
+          catalog.isEnabled(PaymentMethodType.atm) ||
+          catalog.isEnabled(PaymentMethodType.convenienceStoreCode));
+
+  bool get creditCardEnabled => catalog.isEnabled(PaymentMethodType.creditCard);
+
+  bool get atmEnabled => catalog.isEnabled(PaymentMethodType.atm);
+
+  bool get cvsEnabled =>
+      catalog.isEnabled(PaymentMethodType.convenienceStoreCode);
+
+  bool get bankTransferEnabled =>
+      catalog.isEnabled(PaymentMethodType.bankTransfer);
 }
 
 class BookingDetailFinanceSection extends StatefulWidget {

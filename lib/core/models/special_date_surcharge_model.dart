@@ -4,6 +4,8 @@
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+import '../models/policy_applicable_service.dart';
+
 class SpecialDateSurchargeModel {
   const SpecialDateSurchargeModel({
     required this.id,
@@ -20,6 +22,7 @@ class SpecialDateSurchargeModel {
     this.allowCampaignDiscount = true,
     this.allowCoupon = true,
     this.roomTypeIds = const <String>[],
+    this.applicableServices = PolicyApplicableService.accommodationOnly,
   });
 
   final String id;
@@ -58,6 +61,9 @@ class SpecialDateSurchargeModel {
   /// 空陣列代表所有房型都適用。
   final List<String> roomTypeIds;
 
+  /// 適用服務。舊資料沒有此欄時視為僅住宿。
+  final List<String> applicableServices;
+
   final String createdBy;
   final DateTime createdAt;
   final DateTime updatedAt;
@@ -77,6 +83,33 @@ class SpecialDateSurchargeModel {
     return !target.isBefore(start) && !target.isAfter(end);
   }
 
+  bool get appliesToAccommodation => PolicyApplicableService.appliesTo(
+    applicableServices,
+    PolicyApplicableService.accommodation,
+  );
+
+  bool get appliesToDaycare => PolicyApplicableService.appliesTo(
+    applicableServices,
+    PolicyApplicableService.daycare,
+  );
+
+  bool matchesDaycare({
+    required DateTime serviceDate,
+    required bool isRoomBased,
+    String roomTypeId = '',
+  }) {
+    if (!enabled || !appliesToDaycare || !appliesToDate(serviceDate)) {
+      return false;
+    }
+    if (roomTypeIds.isEmpty) {
+      return true;
+    }
+    if (!isRoomBased) {
+      return false;
+    }
+    return roomTypeIds.contains(roomTypeId);
+  }
+
   Map<String, dynamic> toMap() {
     return <String, dynamic>{
       'shopId': shopId.trim(),
@@ -89,6 +122,7 @@ class SpecialDateSurchargeModel {
       'allowCampaignDiscount': allowCampaignDiscount,
       'allowCoupon': allowCoupon,
       'roomTypeIds': roomTypeIds,
+      'applicableServices': applicableServices,
       'createdBy': createdBy,
       'createdAt': Timestamp.fromDate(createdAt),
       'updatedAt': Timestamp.fromDate(updatedAt),
@@ -125,6 +159,9 @@ class SpecialDateSurchargeModel {
               ),
             )
           : const <String>[],
+      applicableServices: PolicyApplicableService.parse(
+        data['applicableServices'],
+      ),
       createdBy: (data['createdBy'] ?? '').toString(),
       createdAt:
           _dateTimeFromValue(data['createdAt']) ??
@@ -147,6 +184,7 @@ class SpecialDateSurchargeModel {
     bool? allowCampaignDiscount,
     bool? allowCoupon,
     List<String>? roomTypeIds,
+    List<String>? applicableServices,
     String? createdBy,
     DateTime? createdAt,
     DateTime? updatedAt,
@@ -164,6 +202,7 @@ class SpecialDateSurchargeModel {
           allowCampaignDiscount ?? this.allowCampaignDiscount,
       allowCoupon: allowCoupon ?? this.allowCoupon,
       roomTypeIds: roomTypeIds ?? this.roomTypeIds,
+      applicableServices: applicableServices ?? this.applicableServices,
       createdBy: createdBy ?? this.createdBy,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,

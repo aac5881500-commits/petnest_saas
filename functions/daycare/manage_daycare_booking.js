@@ -24,6 +24,7 @@ const {
   loadActiveOccupancies,
   releaseOccupancyDocs,
 } = require("./daycare_occupancy");
+const {computeEarnPoints} = require("./daycare_points");
 
 /**
  * @param {string} uid
@@ -418,6 +419,11 @@ exports.manageDaycareBooking = onCall(
           releaseOccupancyDocs(transaction, occSnap.docs);
           transaction.update(bookingRef, cancelUpdates);
         });
+        await restoreDaycareSpend(firestore, {
+          shopId,
+          bookingId,
+          booking,
+        });
         await issueOrRevokeDaycarePoints(firestore, {
           shopId,
           bookingId,
@@ -450,6 +456,17 @@ exports.manageDaycareBooking = onCall(
             updatedAt: now,
           });
         });
+        await restoreDaycareSpend(firestore, {
+          shopId,
+          bookingId,
+          booking,
+        });
+        await issueOrRevokeDaycarePoints(firestore, {
+          shopId,
+          bookingId,
+          booking: {...booking, status: "cancelled"},
+          mode: "revoke",
+        });
       } else if (action === "extend") {
         await requirePerm(uid, shopId, "manage_daycare_bookings");
         const newEnd = toDate(payload.scheduledEndAt);
@@ -468,7 +485,7 @@ exports.manageDaycareBooking = onCall(
           roomId: booking.roomId || "",
           roomTypeId: booking.roomTypeId || "",
           occupancyMode: "slot",
-          dailyMaxPets: toInt(settings.dailyMaxPets, 0),
+          dailyMaxPets: 0,
           blockUntilCleaned: true,
           excludeBookingId: bookingId,
         });
@@ -618,6 +635,47 @@ exports.manageDaycareBooking = onCall(
 );
 
 /**
+ * 取消安親訂單時返還折抵點數（只返還一次）
+ * @param {FirebaseFirestore.Firestore} firestore
+ * @param {Object} params
+ */
+async function restoreDaycareSpend(firestore, params) {
+  const booking = params.booking || {};
+  const userId = normalizeString(booking.userId);
+  const spent = toInt(booking.pointAmount, 0);
+  if (!userId || spent <= 0) {
+    return;
+  }
+  const spendRef = firestore.collection("shops").doc(params.shopId)
+      .collection("member_point_logs")
+      .doc(`spend_booking_${params.bookingId}`);
+  const pointRef = firestore.collection("shops").doc(params.shopId)
+      .collection("member_points").doc(userId);
+  const bookingRef = firestore.collection("bookings").doc(params.bookingId);
+  await firestore.runTransaction(async (transaction) => {
+    const spendSnap = await transaction.get(spendRef);
+    if (!spendSnap.exists || spendSnap.data().returned === true) {
+      return;
+    }
+    const pointSnap = await transaction.get(pointRef);
+    const current = toInt(
+        pointSnap.exists ? pointSnap.data().points : 0, 0,
+    );
+    transaction.update(spendRef, {
+      returned: true,
+      returnedAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+    transaction.set(pointRef, {
+      points: current + spent,
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    }, {merge: true});
+    transaction.update(bookingRef, {
+      pointsReturned: true,
+    });
+  });
+}
+
+/**
  * @param {FirebaseFirestore.Firestore} firestore
  * @param {Object} params
  */
@@ -684,35 +742,7 @@ async function issueOrRevokeDaycarePoints(firestore, params) {
   if (setting.issueAfterCompleted === false) {
     return;
   }
-  let amount = toInt(booking.totalPrice, 0);
-  if (setting.daycareIncludeAddons === false) {
-    const addons = Array.isArray(booking.addons) ? booking.addons : [];
-    const addonSum = addons.reduce((sum, item) =>
-      sum + toInt(item && item.price, 0), 0);
-    amount -= addonSum;
-  }
-  if (setting.daycareIncludeSurcharge === false) {
-    amount -= toInt(booking.specialDateSurchargeAmount, 0);
-  }
-  if (setting.daycareIncludeOvertime === false) {
-    amount -= toInt(booking.overtimeAmount, 0);
-  }
-  amount = Math.max(0, amount);
-  const minAmount = toInt(setting.daycareMinimumOrderAmount, 0);
-  if (minAmount > 0 && amount < minAmount) {
-    amount = 0;
-  }
-  let points = 0;
-  if (setting.daycareCalculationType === "fixed") {
-    points = toInt(setting.daycarePointsPerOrder, 0);
-  } else {
-    const per = toInt(setting.daycareAmountPerPoint, 0);
-    points = per > 0 ? Math.floor(amount / per) : 0;
-  }
-  const maxPoints = toInt(setting.daycareMaximumPointsPerBooking, 0);
-  if (maxPoints > 0 && points > maxPoints) {
-    points = maxPoints;
-  }
+  const points = computeEarnPoints(setting, booking);
 
   await firestore.runTransaction(async (transaction) => {
     const logSnap = await transaction.get(logRef);
@@ -761,6 +791,13 @@ async function issueOrRevokeDaycarePoints(firestore, params) {
       shopId: params.shopId,
       revoked: false,
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      snapshot: {
+        finalSettlementAmount: toInt(booking.finalSettlementAmount, 0),
+        totalPrice: toInt(booking.totalPrice, 0),
+        overtimeAmount: toInt(booking.overtimeAmount, 0),
+        specialDateSurchargeAmount:
+          toInt(booking.specialDateSurchargeAmount, 0),
+      },
     });
     transaction.set(pointRef, {
       points: current + points,

@@ -17,16 +17,19 @@ class BookingDetailStayServicesSection extends StatelessWidget {
     required this.view,
     required this.bookingId,
     required this.downloadHoursAfterCheckout,
+    this.daycareCareEnabled = false,
   });
 
   final BookingDetailViewData view;
   final String bookingId;
   final int downloadHoursAfterCheckout;
+  final bool daycareCareEnabled;
 
   @override
   Widget build(BuildContext context) {
     final bool canView = view.canViewDailyCare(
       downloadHoursAfterCheckout: downloadHoursAfterCheckout,
+      daycareCareEnabled: daycareCareEnabled,
     );
     final bool expired = view.dailyCareDownloadExpired(
       downloadHoursAfterCheckout: downloadHoursAfterCheckout,
@@ -35,7 +38,11 @@ class BookingDetailStayServicesSection extends StatelessWidget {
       downloadHoursAfterCheckout,
     );
 
-    if (view.status != 'checked_in' && view.status != 'completed') {
+    if (view.isDaycare) {
+      if (!daycareCareEnabled || view.status == 'cancelled') {
+        return const SizedBox.shrink();
+      }
+    } else if (view.status != 'checked_in' && view.status != 'completed') {
       return const SizedBox.shrink();
     }
 
@@ -64,7 +71,7 @@ class BookingDetailStayServicesSection extends StatelessWidget {
         Padding(
           padding: const EdgeInsets.only(bottom: 8, left: 2),
           child: Text(
-            '入住期間服務',
+            view.isDaycare ? '本次安親回報' : '入住期間服務',
             style: TextStyle(
               fontSize: BookingDetailUi.sectionTitleSize,
               fontWeight: FontWeight.w700,
@@ -74,8 +81,10 @@ class BookingDetailStayServicesSection extends StatelessWidget {
         ),
         BookingDetailEntryRow(
           icon: Icons.pets_outlined,
-          title: '每日照護',
-          subtitle: view.status == 'checked_in' ? '查看最新照護紀錄' : '查看住宿期間照護紀錄',
+          title: view.isDaycare ? '本次安親回報' : '每日照護紀錄',
+          subtitle: view.isDaycare
+              ? '查看本次安親回報'
+              : (view.status == 'checked_in' ? '查看最新照護紀錄' : '查看住宿期間照護紀錄'),
           onTap: () {
             Navigator.push(
               context,
@@ -84,6 +93,7 @@ class BookingDetailStayServicesSection extends StatelessWidget {
                   shopId: shopId,
                   bookingId: bookingId,
                   roomName: roomName,
+                  journalTitle: view.isDaycare ? '本次安親回報' : '每日照護紀錄',
                 ),
               ),
             );

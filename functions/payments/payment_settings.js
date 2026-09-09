@@ -9,6 +9,9 @@ const admin = require("firebase-admin");
 const {
   normalizeString,
 } = require("./payment_verify");
+const {
+  isCustomerMethodAvailable,
+} = require("./shop_payment_methods");
 
 /**
  * 將未知資料安全轉成布林值
@@ -330,6 +333,13 @@ async function verifyPaymentSettings({
         normalizedPaymentMethod,
     )
   ) {
+    throw new HttpsError(
+        "failed-precondition",
+        "店家目前未開啟這個付款方式。",
+    );
+  }
+
+  if (!isCustomerMethodAvailable(shop, normalizedPaymentMethod)) {
     throw new HttpsError(
         "failed-precondition",
         "店家目前未開啟這個付款方式。",

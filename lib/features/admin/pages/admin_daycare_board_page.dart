@@ -8,6 +8,7 @@ import 'package:petnest_saas/core/services/daycare_function_service.dart';
 import 'package:petnest_saas/core/services/daycare_time_helper.dart';
 import 'package:petnest_saas/features/admin/pages/admin_daycare_detail_page.dart';
 import 'package:petnest_saas/features/admin/widgets/admin_daycare_assign_room_dialog.dart';
+import 'package:petnest_saas/features/admin/widgets/admin_daycare_care_report_section.dart';
 import 'package:petnest_saas/features/booking/widgets/booking_detail/booking_detail_status_card.dart';
 
 class AdminDaycareBoardPage extends StatelessWidget {
@@ -25,7 +26,7 @@ class AdminDaycareBoardPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('今日安親')),
+      appBar: AppBar(title: const Text('今日安親看板')),
       body: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
         stream: FirebaseFirestore.instance
             .collection('bookings')
@@ -293,6 +294,13 @@ class _BoardCardState extends State<_BoardCard> {
                   Text(
                     '付款：${_payText(data)}',
                     style: const TextStyle(color: Colors.black54),
+                  ),
+                  const SizedBox(height: 8),
+                  AdminDaycareCareReportSection(
+                    shopId: widget.shopId,
+                    bookingId: widget.bookingId,
+                    booking: data,
+                    compact: true,
                   ),
                 ],
               ),

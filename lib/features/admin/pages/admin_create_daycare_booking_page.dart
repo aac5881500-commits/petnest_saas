@@ -7,17 +7,21 @@ import 'package:petnest_saas/core/models/daycare_plan_model.dart';
 import 'package:petnest_saas/core/models/daycare_settings_model.dart';
 import 'package:petnest_saas/core/models/policy_applicable_service.dart';
 import 'package:petnest_saas/core/services/daycare_addon_catalog.dart';
+import 'package:petnest_saas/core/services/daycare_addon_line.dart';
 import 'package:petnest_saas/core/services/daycare_calendar_helper.dart';
 import 'package:petnest_saas/core/services/daycare_function_service.dart';
 import 'package:petnest_saas/core/services/daycare_pricing_service.dart';
 import 'package:petnest_saas/core/services/daycare_settings_service.dart';
 import 'package:petnest_saas/core/services/daycare_time_helper.dart';
+import 'package:petnest_saas/core/services/shop_payment_methods.dart';
 import 'package:petnest_saas/core/services/shop_policy_service.dart';
 import 'package:petnest_saas/core/services/shop_service.dart';
+import 'package:petnest_saas/features/booking/widgets/shop_payment_method_cards.dart';
 import 'package:petnest_saas/features/admin/widgets/admin_member_search_section.dart';
 import 'package:petnest_saas/features/admin/widgets/admin_quick_create_pet_dialog.dart';
 import 'package:petnest_saas/features/admin/widgets/admin_selected_member_card.dart';
 import 'package:petnest_saas/features/shop/widgets/booking/booking_calendar_dialog.dart';
+import 'package:petnest_saas/features/shop/widgets/booking/daycare_addon_selector.dart';
 import 'package:petnest_saas/features/shop/widgets/booking/daycare_date_card.dart';
 import 'package:petnest_saas/features/shop/widgets/booking/front_calendar_payload.dart';
 import 'package:petnest_saas/features/shop/widgets/booking/policy_sign_method_field.dart';
@@ -49,11 +53,19 @@ class _AdminCreateDaycareBookingPageState
   List<Map<String, dynamic>> _pets = <Map<String, dynamic>>[];
   List<Map<String, dynamic>> _addons = <Map<String, dynamic>>[];
   final Set<String> _selectedAddonIds = <String>{};
+  final Map<String, Set<String>> _addonPetIds = <String, Set<String>>{};
+  final Map<String, Set<String>> _addonSlotKeys = <String, Set<String>>{};
   bool _submitting = false;
   final int _manualAdjust = 0;
   bool _policyRequired = false;
   int _policyVersion = 0;
   String? _policySignMethod;
+  ShopPaymentCatalog _paymentCatalog = const ShopPaymentCatalog(
+    methods: <ShopPaymentMethodOption>[],
+    isDepositMode: false,
+    serviceType: PolicyApplicableService.daycare,
+  );
+  String? _paymentMethod;
 
   @override
   void initState() {
@@ -101,8 +113,16 @@ class _AdminCreateDaycareBookingPageState
       required = ShopPolicyService.instance.policyRequiresSignature(
         filteredPolicy: filtered,
       );
-      version = (filtered['version'] as num?)?.toInt() ?? 0;
+      version = ShopPolicyService.servicePolicyVersion(
+        policy: policy,
+        serviceType: PolicyApplicableService.daycare,
+      );
     }
+    final ShopPaymentCatalog catalog = ShopPaymentMethods.resolve(
+      shopData: shop ?? const <String, dynamic>{},
+      serviceType: PolicyApplicableService.daycare,
+      daycareDepositType: settings.depositType,
+    );
     if (!mounted) {
       return;
     }
@@ -112,6 +132,10 @@ class _AdminCreateDaycareBookingPageState
       _addons = addons;
       _policyRequired = required;
       _policyVersion = version;
+      _paymentCatalog = catalog;
+      _paymentMethod = catalog.methodIds.isEmpty
+          ? null
+          : catalog.methodIds.first;
     });
   }
 
@@ -225,16 +249,29 @@ class _AdminCreateDaycareBookingPageState
     );
     final DateTime end = DaycareTimeHelper.combineDateAndTime(_date!, _pickUp!);
     int addonAmount = 0;
-    final int minutes = end.difference(start).inMinutes;
     for (final Map<String, dynamic> addon in _addons) {
       if (!_selectedAddonIds.contains((addon['id'] ?? '').toString())) {
         continue;
       }
-      addonAmount += DaycarePricingService.instance.addonLineAmount(
-        addon: addon,
-        minutes: minutes,
-        petCount: _petIds.isEmpty ? 1 : _petIds.length,
+      final String id = (addon['id'] ?? '').toString();
+      final Map<String, dynamic> requested = <String, dynamic>{
+        ...addon,
+        'selectedPetIds': (_addonPetIds[id] ?? <String>{}).toList(),
+        'selectedTimeSlots': (_addonSlotKeys[id] ?? <String>{})
+            .map((String key) => <String, dynamic>{'id': key, 'label': key})
+            .toList(),
+      };
+      final DaycareAddonLineResult resolved = DaycareAddonLine.resolve(
+        live: addon,
+        requested: requested,
+        orderPetIds: _petIds.toList(),
+        allowedAddonIds: settings.allowedAddonIds,
+        scheduledStartAt: start,
+        scheduledEndAt: end,
       );
+      if (resolved.ok) {
+        addonAmount += resolved.amount;
+      }
     }
     return DaycarePricingService.instance.quote(
       settings: settings,
@@ -296,6 +333,18 @@ class _AdminCreateDaycareBookingPageState
       ).showSnackBar(const SnackBar(content: Text('請記錄安親條款簽署方式')));
       return;
     }
+    if (_paymentCatalog.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text(ShopPaymentMethods.noMethodsMessage)),
+      );
+      return;
+    }
+    if (_paymentMethod == null || !_paymentCatalog.isEnabled(_paymentMethod!)) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('請選擇付款方式')));
+      return;
+    }
     final DateTime start = DaycareTimeHelper.combineDateAndTime(
       _date!,
       _dropOff!,
@@ -308,7 +357,39 @@ class _AdminCreateDaycareBookingPageState
             (Map<String, dynamic> e) =>
                 _selectedAddonIds.contains((e['id'] ?? '').toString()),
           )
+          .map((Map<String, dynamic> addon) {
+            final String id = (addon['id'] ?? '').toString();
+            return <String, dynamic>{
+              ...addon,
+              'selectedPetIds': (_addonPetIds[id] ?? <String>{}).toList(),
+              'selectedTimeSlots': (_addonSlotKeys[id] ?? <String>{})
+                  .map(
+                    (String key) => <String, dynamic>{'id': key, 'label': key},
+                  )
+                  .toList(),
+            };
+          })
           .toList();
+      for (final Map<String, dynamic> addon in selectedAddons) {
+        final DaycareAddonLineResult resolved = DaycareAddonLine.resolve(
+          live: addon,
+          requested: addon,
+          orderPetIds: _petIds.toList(),
+          allowedAddonIds: settings.allowedAddonIds,
+          scheduledStartAt: start,
+          scheduledEndAt: end,
+        );
+        if (!resolved.ok) {
+          if (!mounted) {
+            return;
+          }
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text(resolved.error!)));
+          setState(() => _submitting = false);
+          return;
+        }
+      }
       await DaycareFunctionService.instance.createBooking(<String, dynamic>{
         'shopId': widget.shopId,
         'source': 'admin',
@@ -331,6 +412,8 @@ class _AdminCreateDaycareBookingPageState
         'policySignMethod': _policyRequired
             ? (_policySignMethod ?? PolicySignMethods.staffWitness)
             : '',
+        'paymentMethod': _paymentMethod,
+        'termsType': PolicyApplicableService.daycare,
         'requestId': 'admin_dc_${DateTime.now().millisecondsSinceEpoch}',
       });
       if (!mounted) {
@@ -492,29 +575,64 @@ class _AdminCreateDaycareBookingPageState
               ),
             );
           }),
-          if (_addons.isNotEmpty) ...<Widget>[
+          if (_addons.isNotEmpty &&
+              _date != null &&
+              _dropOff != null &&
+              _pickUp != null) ...<Widget>[
             const SizedBox(height: 12),
             const Text(
               '加值服務',
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
             ),
-            ..._addons.map((Map<String, dynamic> addon) {
-              final String id = (addon['id'] ?? '').toString();
-              return CheckboxListTile(
-                value: _selectedAddonIds.contains(id),
-                title: Text((addon['name'] ?? '').toString()),
-                subtitle: Text('\$${addon['price'] ?? 0}'),
-                onChanged: (bool? value) {
-                  setState(() {
-                    if (value == true) {
-                      _selectedAddonIds.add(id);
-                    } else {
-                      _selectedAddonIds.remove(id);
-                    }
-                  });
-                },
-              );
-            }),
+            DaycareAddonSelector(
+              addons: _addons,
+              selectedAddonIds: _selectedAddonIds,
+              selectedPetIds: _petIds,
+              pets: _pets,
+              addonPetIds: _addonPetIds,
+              addonSlotKeys: _addonSlotKeys,
+              scheduledStartAt: DaycareTimeHelper.combineDateAndTime(
+                _date!,
+                _dropOff!,
+              ),
+              scheduledEndAt: DaycareTimeHelper.combineDateAndTime(
+                _date!,
+                _pickUp!,
+              ),
+              onToggleAddon: (String id) {
+                setState(() {
+                  if (_selectedAddonIds.contains(id)) {
+                    _selectedAddonIds.remove(id);
+                    _addonPetIds.remove(id);
+                    _addonSlotKeys.remove(id);
+                  } else {
+                    _selectedAddonIds.add(id);
+                  }
+                });
+              },
+              onTogglePet: (String addonId, String petId) {
+                setState(() {
+                  final Set<String> next = Set<String>.from(
+                    _addonPetIds[addonId] ?? <String>{},
+                  );
+                  if (!next.add(petId)) {
+                    next.remove(petId);
+                  }
+                  _addonPetIds[addonId] = next;
+                });
+              },
+              onToggleSlot: (String addonId, String slotKey) {
+                setState(() {
+                  final Set<String> next = Set<String>.from(
+                    _addonSlotKeys[addonId] ?? <String>{},
+                  );
+                  if (!next.add(slotKey)) {
+                    next.remove(slotKey);
+                  }
+                  _addonSlotKeys[addonId] = next;
+                });
+              },
+            ),
           ],
           if (_policyRequired) ...<Widget>[
             const SizedBox(height: 12),
@@ -568,6 +686,16 @@ class _AdminCreateDaycareBookingPageState
               ),
             ),
           ],
+          const SizedBox(height: 12),
+          const Text(
+            '付款方式',
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
+          ),
+          ShopPaymentMethodCards(
+            catalog: _paymentCatalog,
+            selectedMethod: _paymentMethod,
+            onSelected: (String id) => setState(() => _paymentMethod = id),
+          ),
           const SizedBox(height: 12),
           FilledButton(
             onPressed: _submitting ? null : _submit,

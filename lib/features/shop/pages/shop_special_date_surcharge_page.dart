@@ -4,6 +4,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import '../../../core/models/policy_applicable_service.dart';
 import '../../../core/models/special_date_surcharge_model.dart';
 import '../../../core/services/special_date_surcharge_service.dart';
 
@@ -71,6 +72,27 @@ class _ShopSpecialDateSurchargePageState
     );
 
     bool applyToAllRoomTypes = selectedRoomTypeIds.isEmpty;
+
+    List<String> applicableServices = List<String>.from(
+      surcharge?.applicableServices ??
+          PolicyApplicableService.accommodationOnly,
+    );
+
+    String amountHelper() {
+      final bool stay = applicableServices.contains(
+        PolicyApplicableService.accommodation,
+      );
+      final bool daycare = applicableServices.contains(
+        PolicyApplicableService.daycare,
+      );
+      if (stay && daycare) {
+        return '住宿每晚加價／安親每次加價';
+      }
+      if (daycare) {
+        return '每次安親加價';
+      }
+      return '每晚加價';
+    }
 
     final Future<List<Map<String, dynamic>>> roomTypesFuture = _loadRoomTypes();
 
@@ -157,6 +179,16 @@ class _ShopSpecialDateSurchargePageState
                 _showMessage('請至少選擇一個適用房型');
                 return;
               }
+              if (applicableServices.contains(
+                    PolicyApplicableService.daycare,
+                  ) &&
+                  !applicableServices.contains(
+                    PolicyApplicableService.accommodation,
+                  ) &&
+                  !applyToAllRoomTypes) {
+                applyToAllRoomTypes = true;
+                selectedRoomTypeIds = <String>[];
+              }
 
               setDialogState(() {
                 saving = true;
@@ -175,6 +207,7 @@ class _ShopSpecialDateSurchargePageState
                     allowCampaignDiscount: allowCampaignDiscount,
                     allowCoupon: allowCoupon,
                     roomTypeIds: selectedRoomTypeIds,
+                    applicableServices: applicableServices,
                   );
                 } else {
                   await _service.updateSurcharge(
@@ -189,6 +222,7 @@ class _ShopSpecialDateSurchargePageState
                     allowCampaignDiscount: allowCampaignDiscount,
                     allowCoupon: allowCoupon,
                     roomTypeIds: selectedRoomTypeIds,
+                    applicableServices: applicableServices,
                   );
                 }
 
@@ -268,155 +302,249 @@ class _ShopSpecialDateSurchargePageState
                       TextField(
                         controller: amountController,
                         keyboardType: TextInputType.number,
-                        decoration: const InputDecoration(
-                          labelText: '每晚加價',
+                        decoration: InputDecoration(
+                          labelText: amountHelper(),
                           hintText: '例如：500',
-                          suffixText: '元 / 晚',
-                          border: OutlineInputBorder(),
+                          suffixText: '元',
+                          border: const OutlineInputBorder(),
                         ),
                       ),
-
-                      const SizedBox(height: 16),
-
-                      SwitchListTile(
+                      const SizedBox(height: 8),
+                      const Text(
+                        '適用服務',
+                        style: TextStyle(fontWeight: FontWeight.w700),
+                      ),
+                      RadioListTile<String>(
                         contentPadding: EdgeInsets.zero,
-                        title: const Text('全部房型適用'),
-                        subtitle: const Text('開啟後，這筆特殊日期加價會套用到所有房型。'),
-                        value: applyToAllRoomTypes,
+                        title: const Text('僅住宿'),
+                        value: 'stay',
+                        groupValue:
+                            applicableServices.contains(
+                              PolicyApplicableService.daycare,
+                            )
+                            ? (applicableServices.contains(
+                                    PolicyApplicableService.accommodation,
+                                  )
+                                  ? 'both'
+                                  : 'daycare')
+                            : 'stay',
                         onChanged: saving
                             ? null
-                            : (bool value) {
+                            : (String? value) {
                                 setDialogState(() {
-                                  applyToAllRoomTypes = value;
-
-                                  if (value) {
-                                    selectedRoomTypeIds = <String>[];
-                                  }
+                                  applicableServices = List<String>.from(
+                                    PolicyApplicableService.accommodationOnly,
+                                  );
+                                });
+                              },
+                      ),
+                      RadioListTile<String>(
+                        contentPadding: EdgeInsets.zero,
+                        title: const Text('僅安親'),
+                        value: 'daycare',
+                        groupValue:
+                            applicableServices.contains(
+                              PolicyApplicableService.daycare,
+                            )
+                            ? (applicableServices.contains(
+                                    PolicyApplicableService.accommodation,
+                                  )
+                                  ? 'both'
+                                  : 'daycare')
+                            : 'stay',
+                        onChanged: saving
+                            ? null
+                            : (String? value) {
+                                setDialogState(() {
+                                  applicableServices = List<String>.from(
+                                    PolicyApplicableService.daycareOnly,
+                                  );
+                                  applyToAllRoomTypes = true;
+                                  selectedRoomTypeIds = <String>[];
+                                });
+                              },
+                      ),
+                      RadioListTile<String>(
+                        contentPadding: EdgeInsets.zero,
+                        title: const Text('住宿與安親'),
+                        subtitle: const Text('住宿每晚加價／安親每次加價'),
+                        value: 'both',
+                        groupValue:
+                            applicableServices.contains(
+                              PolicyApplicableService.daycare,
+                            )
+                            ? (applicableServices.contains(
+                                    PolicyApplicableService.accommodation,
+                                  )
+                                  ? 'both'
+                                  : 'daycare')
+                            : 'stay',
+                        onChanged: saving
+                            ? null
+                            : (String? value) {
+                                setDialogState(() {
+                                  applicableServices = List<String>.from(
+                                    PolicyApplicableService.shared,
+                                  );
                                 });
                               },
                       ),
 
-                      const SizedBox(height: 14),
+                      const SizedBox(height: 16),
 
-                      if (!applyToAllRoomTypes)
-                        FutureBuilder<List<Map<String, dynamic>>>(
-                          future: roomTypesFuture,
-                          builder:
-                              (
-                                BuildContext context,
-                                AsyncSnapshot<List<Map<String, dynamic>>>
-                                snapshot,
-                              ) {
-                                if (snapshot.connectionState ==
-                                    ConnectionState.waiting) {
-                                  return const Padding(
-                                    padding: EdgeInsets.symmetric(vertical: 12),
-                                    child: Center(
-                                      child: CircularProgressIndicator(),
-                                    ),
-                                  );
-                                }
+                      if (!applicableServices.contains(
+                            PolicyApplicableService.daycare,
+                          ) ||
+                          applicableServices.contains(
+                            PolicyApplicableService.accommodation,
+                          )) ...<Widget>[
+                        SwitchListTile(
+                          contentPadding: EdgeInsets.zero,
+                          title: const Text('全部房型適用'),
+                          subtitle: Text(
+                            applicableServices.contains(
+                                  PolicyApplicableService.daycare,
+                                )
+                                ? '安親指定房型只套用於「依房型計費」訂單；獨立方案不加價指定房型。'
+                                : '開啟後，這筆特殊日期加價會套用到所有房型。',
+                          ),
+                          value: applyToAllRoomTypes,
+                          onChanged: saving
+                              ? null
+                              : (bool value) {
+                                  setDialogState(() {
+                                    applyToAllRoomTypes = value;
 
-                                if (snapshot.hasError) {
-                                  return Container(
-                                    width: double.infinity,
-                                    padding: const EdgeInsets.all(12),
-                                    decoration: BoxDecoration(
-                                      color: Colors.red.shade50,
-                                      borderRadius: BorderRadius.circular(12),
-                                      border: Border.all(
-                                        color: Colors.red.shade200,
-                                      ),
-                                    ),
-                                    child: const Text('房型讀取失敗，請稍後再試。'),
-                                  );
-                                }
-
-                                final List<Map<String, dynamic>> roomTypes =
-                                    snapshot.data ??
-                                    const <Map<String, dynamic>>[];
-
-                                if (roomTypes.isEmpty) {
-                                  return Container(
-                                    width: double.infinity,
-                                    padding: const EdgeInsets.all(12),
-                                    decoration: BoxDecoration(
-                                      color: Colors.orange.shade50,
-                                      borderRadius: BorderRadius.circular(12),
-                                    ),
-                                    child: const Text('目前尚未建立房型，請先建立房型後再指定。'),
-                                  );
-                                }
-
-                                return Container(
-                                  width: double.infinity,
-                                  padding: const EdgeInsets.all(12),
-                                  decoration: BoxDecoration(
-                                    color: Colors.grey.shade50,
-                                    borderRadius: BorderRadius.circular(12),
-                                    border: Border.all(
-                                      color: Colors.grey.shade300,
-                                    ),
-                                  ),
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: <Widget>[
-                                      const Text(
-                                        '指定適用房型',
-                                        style: TextStyle(
-                                          fontWeight: FontWeight.bold,
-                                        ),
-                                      ),
-                                      const SizedBox(height: 6),
-                                      ...roomTypes.map((
-                                        Map<String, dynamic> roomType,
-                                      ) {
-                                        final String roomTypeId =
-                                            (roomType['id'] ?? '').toString();
-
-                                        final String roomTypeName =
-                                            (roomType['name'] ?? '未命名房型')
-                                                .toString();
-
-                                        final bool selected =
-                                            selectedRoomTypeIds.contains(
-                                              roomTypeId,
-                                            );
-
-                                        return CheckboxListTile(
-                                          contentPadding: EdgeInsets.zero,
-                                          dense: true,
-                                          value: selected,
-                                          title: Text(roomTypeName),
-                                          onChanged: saving
-                                              ? null
-                                              : (bool? value) {
-                                                  setDialogState(() {
-                                                    if (value == true) {
-                                                      if (!selectedRoomTypeIds
-                                                          .contains(
-                                                            roomTypeId,
-                                                          )) {
-                                                        selectedRoomTypeIds.add(
-                                                          roomTypeId,
-                                                        );
-                                                      }
-                                                    } else {
-                                                      selectedRoomTypeIds
-                                                          .remove(roomTypeId);
-                                                    }
-                                                  });
-                                                },
-                                        );
-                                      }),
-                                    ],
-                                  ),
-                                );
-                              },
+                                    if (value) {
+                                      selectedRoomTypeIds = <String>[];
+                                    }
+                                  });
+                                },
                         ),
 
-                      if (!applyToAllRoomTypes) const SizedBox(height: 14),
+                        const SizedBox(height: 14),
+
+                        if (!applyToAllRoomTypes)
+                          FutureBuilder<List<Map<String, dynamic>>>(
+                            future: roomTypesFuture,
+                            builder:
+                                (
+                                  BuildContext context,
+                                  AsyncSnapshot<List<Map<String, dynamic>>>
+                                  snapshot,
+                                ) {
+                                  if (snapshot.connectionState ==
+                                      ConnectionState.waiting) {
+                                    return const Padding(
+                                      padding: EdgeInsets.symmetric(
+                                        vertical: 12,
+                                      ),
+                                      child: Center(
+                                        child: CircularProgressIndicator(),
+                                      ),
+                                    );
+                                  }
+
+                                  if (snapshot.hasError) {
+                                    return Container(
+                                      width: double.infinity,
+                                      padding: const EdgeInsets.all(12),
+                                      decoration: BoxDecoration(
+                                        color: Colors.red.shade50,
+                                        borderRadius: BorderRadius.circular(12),
+                                        border: Border.all(
+                                          color: Colors.red.shade200,
+                                        ),
+                                      ),
+                                      child: const Text('房型讀取失敗，請稍後再試。'),
+                                    );
+                                  }
+
+                                  final List<Map<String, dynamic>> roomTypes =
+                                      snapshot.data ??
+                                      const <Map<String, dynamic>>[];
+
+                                  if (roomTypes.isEmpty) {
+                                    return Container(
+                                      width: double.infinity,
+                                      padding: const EdgeInsets.all(12),
+                                      decoration: BoxDecoration(
+                                        color: Colors.orange.shade50,
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
+                                      child: const Text('目前尚未建立房型，請先建立房型後再指定。'),
+                                    );
+                                  }
+
+                                  return Container(
+                                    width: double.infinity,
+                                    padding: const EdgeInsets.all(12),
+                                    decoration: BoxDecoration(
+                                      color: Colors.grey.shade50,
+                                      borderRadius: BorderRadius.circular(12),
+                                      border: Border.all(
+                                        color: Colors.grey.shade300,
+                                      ),
+                                    ),
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: <Widget>[
+                                        const Text(
+                                          '指定適用房型',
+                                          style: TextStyle(
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 6),
+                                        ...roomTypes.map((
+                                          Map<String, dynamic> roomType,
+                                        ) {
+                                          final String roomTypeId =
+                                              (roomType['id'] ?? '').toString();
+
+                                          final String roomTypeName =
+                                              (roomType['name'] ?? '未命名房型')
+                                                  .toString();
+
+                                          final bool selected =
+                                              selectedRoomTypeIds.contains(
+                                                roomTypeId,
+                                              );
+
+                                          return CheckboxListTile(
+                                            contentPadding: EdgeInsets.zero,
+                                            dense: true,
+                                            value: selected,
+                                            title: Text(roomTypeName),
+                                            onChanged: saving
+                                                ? null
+                                                : (bool? value) {
+                                                    setDialogState(() {
+                                                      if (value == true) {
+                                                        if (!selectedRoomTypeIds
+                                                            .contains(
+                                                              roomTypeId,
+                                                            )) {
+                                                          selectedRoomTypeIds
+                                                              .add(roomTypeId);
+                                                        }
+                                                      } else {
+                                                        selectedRoomTypeIds
+                                                            .remove(roomTypeId);
+                                                      }
+                                                    });
+                                                  },
+                                          );
+                                        }),
+                                      ],
+                                    ),
+                                  );
+                                },
+                          ),
+
+                        if (!applyToAllRoomTypes) const SizedBox(height: 14),
+                      ],
 
                       Container(
                         padding: const EdgeInsets.all(12),

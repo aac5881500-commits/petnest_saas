@@ -14,7 +14,8 @@ const {
 } = require("./daycare_utils");
 const {
   assertAvailable,
-  releaseOccupancies,
+  releaseOccupancyDocs,
+  hasOverlappingOccupancy,
 } = require("./daycare_occupancy");
 const {
   isRoomBased,
@@ -159,37 +160,71 @@ exports.assignDaycareRoom = onCall(
       }
 
       const now = admin.firestore.FieldValue.serverTimestamp();
-      await firestore.runTransaction(async (transaction) => {
-        await releaseOccupancies(firestore, transaction, shopId, bookingId);
-        const occRef = firestore.collection("shops").doc(shopId)
-            .collection("room_occupancies").doc();
-        transaction.set(occRef, {
-          shopId,
-          bookingId,
-          bookingKind: BOOKING_KIND_DAYCARE,
-          roomId,
-          roomTypeId: actualRoomTypeId,
-          startAt: booking.scheduledStartAt,
-          endAt: booking.scheduledEndAt,
-          occupancyMode: "slot",
-          serviceDate: booking.serviceDate || "",
-          status: "active",
-          createdAt: now,
-          updatedAt: now,
+      try {
+        await firestore.runTransaction(async (transaction) => {
+          const roomRef = firestore.collection("shops").doc(shopId)
+              .collection("rooms").doc(roomId);
+          await transaction.get(roomRef);
+          const occSnap = await transaction.get(
+              firestore.collection("shops").doc(shopId)
+                  .collection("room_occupancies")
+                  .where("roomId", "==", roomId)
+                  .where("status", "==", "active"),
+          );
+          const myOccSnap = await transaction.get(
+              firestore.collection("shops").doc(shopId)
+                  .collection("room_occupancies")
+                  .where("bookingId", "==", bookingId)
+                  .where("status", "==", "active"),
+          );
+          const occupancies = occSnap.docs.map((doc) => doc.data() || {});
+          if (hasOverlappingOccupancy(
+              occupancies, startAt, endAt, bookingId, "slot",
+          )) {
+            throw new HttpsError("failed-precondition", "此時段房間已被占用");
+          }
+          releaseOccupancyDocs(transaction, myOccSnap.docs);
+          transaction.update(roomRef, {occupancyLockAt: now});
+          const occRef = firestore.collection("shops").doc(shopId)
+              .collection("room_occupancies").doc();
+          transaction.set(occRef, {
+            shopId,
+            bookingId,
+            bookingKind: BOOKING_KIND_DAYCARE,
+            roomId,
+            roomTypeId: actualRoomTypeId,
+            startAt: booking.scheduledStartAt,
+            endAt: booking.scheduledEndAt,
+            occupancyMode: "slot",
+            serviceDate: booking.serviceDate || "",
+            status: "active",
+            createdAt: now,
+            updatedAt: now,
+          });
+          transaction.update(bookingRef, {
+            roomId,
+            roomName,
+            roomNumberSnapshot: roomNumber,
+            roomTypeId: actualRoomTypeId,
+            roomTypeName,
+            roomTypeNameSnapshot: roomTypeName,
+            assignStatus: "assigned",
+            assignedAt: now,
+            assignedBy: uid,
+            updatedAt: now,
+          });
         });
-        transaction.update(bookingRef, {
-          roomId,
-          roomName,
-          roomNumberSnapshot: roomNumber,
-          roomTypeId: actualRoomTypeId,
-          roomTypeName,
-          roomTypeNameSnapshot: roomTypeName,
-          assignStatus: "assigned",
-          assignedAt: now,
-          assignedBy: uid,
-          updatedAt: now,
-        });
-      });
+      } catch (error) {
+        if (error instanceof HttpsError) {
+          throw error;
+        }
+        const message = error && error.message ?
+          error.message : String(error);
+        if (message.includes("此時段房間已被占用")) {
+          throw new HttpsError("failed-precondition", "此時段房間已被占用");
+        }
+        throw error;
+      }
 
       await writeActionLog({
         shopId,

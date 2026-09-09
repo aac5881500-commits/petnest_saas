@@ -33,7 +33,7 @@ class PointSettingModel {
     this.daycareMaximumPointsPerBooking = 0,
     this.daycareIncludeAddons = true,
     this.daycareIncludeSurcharge = true,
-    this.daycareIncludeOvertime = true,
+    this.daycareIncludeOvertime = false,
   });
 
   /// 依消費金額計算點數
@@ -299,7 +299,7 @@ class PointSettingModel {
       ),
       daycareIncludeAddons: data['daycareIncludeAddons'] != false,
       daycareIncludeSurcharge: data['daycareIncludeSurcharge'] != false,
-      daycareIncludeOvertime: data['daycareIncludeOvertime'] != false,
+      daycareIncludeOvertime: data['daycareIncludeOvertime'] == true,
       createdBy: (data['createdBy'] ?? '').toString(),
       updatedBy: (data['updatedBy'] ?? '').toString(),
       createdAt: _dateTimeFromValue(data['createdAt']) ?? DateTime.now(),

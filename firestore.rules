@@ -2871,6 +2871,34 @@ allow update: if
     request.resource.data.createdAt == resource.data.createdAt
   );
 }
+    function dailyCareBookingData(bookingId) {
+      return get(
+        /databases/$(database)/documents/bookings/$(bookingId)
+      ).data;
+    }
+
+    function isDaycareBookingData(b) {
+      return b.bookingKind == 'daycare' || b.serviceType == 'daycare';
+    }
+
+    function canWriteDailyCareRecord(bookingId, shopId) {
+      return exists(
+        /databases/$(database)/documents/bookings/$(bookingId)
+      )
+      && dailyCareBookingData(bookingId).shopId == shopId
+      && (
+        (
+          !isDaycareBookingData(dailyCareBookingData(bookingId))
+          && dailyCareBookingData(bookingId).status == 'checked_in'
+        )
+        ||
+        (
+          isDaycareBookingData(dailyCareBookingData(bookingId))
+          && dailyCareBookingData(bookingId).status != 'cancelled'
+        )
+      );
+    }
+
 // ============================================================
 // 🐾 每日照護紀錄
 // Firestore：daily_care_records/{recordId}
@@ -2878,6 +2906,7 @@ allow update: if
 // 1. 店家人員在入住期間填寫 / 修改
 // 2. 該訂單會員只能查看自己的紀錄
 // 3. 一般會員不能自行建立或修改
+// 4. 安親訂單不強制 checked_in / 分房，未取消即可寫入同一套紀錄
 // ============================================================
 match /daily_care_records/{recordId} {
 
@@ -2907,19 +2936,13 @@ match /daily_care_records/{recordId} {
     );
 
   // 只有店家人員 / Root Admin 可以新增
-  // 而且必須真的是該店訂單，並且目前已入住
   allow create: if signedIn()
     && request.resource.data.shopId is string
     && request.resource.data.bookingId is string
-    && exists(
-      /databases/$(database)/documents/bookings/$(request.resource.data.bookingId)
+    && canWriteDailyCareRecord(
+      request.resource.data.bookingId,
+      request.resource.data.shopId
     )
-    && get(
-      /databases/$(database)/documents/bookings/$(request.resource.data.bookingId)
-    ).data.shopId == request.resource.data.shopId
-    && get(
-      /databases/$(database)/documents/bookings/$(request.resource.data.bookingId)
-    ).data.status == 'checked_in'
     && (
       isRootAdmin()
       || isShopMember(request.resource.data.shopId)
@@ -2937,12 +2960,10 @@ match /daily_care_records/{recordId} {
       )
     )
         && resource.data.bookingId is string
-    && exists(
-      /databases/$(database)/documents/bookings/$(resource.data.bookingId)
+    && canWriteDailyCareRecord(
+      resource.data.bookingId,
+      resource.data.shopId
     )
-    && get(
-      /databases/$(database)/documents/bookings/$(resource.data.bookingId)
-    ).data.status == 'checked_in'
     && request.resource.data.shopId == resource.data.shopId
     && request.resource.data.bookingId == resource.data.bookingId
     && request.resource.data.roomId == resource.data.roomId
@@ -2993,12 +3014,10 @@ match /daily_care_photos/{photoId} {
     && exists(
       /databases/$(database)/documents/bookings/$(request.resource.data.bookingId)
     )
-    && get(
-      /databases/$(database)/documents/bookings/$(request.resource.data.bookingId)
-    ).data.shopId == request.resource.data.shopId
-    && get(
-      /databases/$(database)/documents/bookings/$(request.resource.data.bookingId)
-    ).data.status == 'checked_in'
+    && canWriteDailyCareRecord(
+      request.resource.data.bookingId,
+      request.resource.data.shopId
+    )
     && (
       isRootAdmin()
       || isShopMember(request.resource.data.shopId)

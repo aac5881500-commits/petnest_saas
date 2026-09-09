@@ -2,6 +2,7 @@
 // 功能說明：安親可用加購：只讀既有 shops/{shopId}/addons/main，允許清單為 allowedAddonIds。
 
 import 'package:petnest_saas/core/models/daycare_settings_model.dart';
+import 'package:petnest_saas/core/models/policy_applicable_service.dart';
 
 class DaycareAddonCatalog {
   DaycareAddonCatalog._();
@@ -18,7 +19,21 @@ class DaycareAddonCatalog {
     return name;
   }
 
+  static bool appliesToDaycare(Map<String, dynamic> item) {
+    return PolicyApplicableService.appliesTo(
+      PolicyApplicableService.parse(item['applicableServices']),
+      PolicyApplicableService.daycare,
+    );
+  }
+
   static String chargeLabel(Map<String, dynamic> item) {
+    final String group = (item['groupKey'] ?? item['type'] ?? '').toString();
+    if (group == 'customServices' || group == 'custom') {
+      return '單價 × 勾選寵物數';
+    }
+    if (group == 'dailyTimedServices' || group == 'daily_timed') {
+      return '單價 × 勾選寵物數 × 勾選時段數';
+    }
     switch ((item['daycareChargeMode'] ?? 'per_order').toString()) {
       case 'per_pet':
         return '每隻計費';
@@ -98,6 +113,9 @@ class DaycareAddonCatalog {
     return flatten(doc).where((Map<String, dynamic> item) {
       final String id = (item['id'] ?? '').toString();
       if (!allowed.contains(id) || !isItemEnabled(item)) {
+        return false;
+      }
+      if (!appliesToDaycare(item)) {
         return false;
       }
       return _matchesDateAndPets(

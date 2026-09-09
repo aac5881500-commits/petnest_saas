@@ -98,6 +98,7 @@ class SpecialDateSurchargeCalculator {
                 surcharge.roomTypeIds.contains(roomTypeId);
 
             return surcharge.enabled &&
+                surcharge.appliesToAccommodation &&
                 surcharge.appliesToDate(stayDate) &&
                 roomTypeMatched;
           })
@@ -130,6 +131,43 @@ class SpecialDateSurchargeCalculator {
       ),
       totalAmount: totalAmount,
       totalStayNights: nightDetails.length,
+    );
+  }
+
+  /// 安親：命中 serviceDate 時每筆訂單加一次，不是每晚。
+  static SpecialDateSurchargeCalculationResult calculateDaycare({
+    required DateTime serviceDate,
+    required bool isRoomBased,
+    String roomTypeId = '',
+    required List<SpecialDateSurchargeModel> surcharges,
+  }) {
+    final List<SpecialDateSurchargeModel> matched = surcharges
+        .where(
+          (SpecialDateSurchargeModel surcharge) => surcharge.matchesDaycare(
+            serviceDate: serviceDate,
+            isRoomBased: isRoomBased,
+            roomTypeId: roomTypeId,
+          ),
+        )
+        .toList();
+    final int total = matched.fold<int>(
+      0,
+      (int sum, SpecialDateSurchargeModel item) => sum + item.amountPerNight,
+    );
+    return SpecialDateSurchargeCalculationResult(
+      nightDetails: <SpecialDateSurchargeNightDetail>[
+        SpecialDateSurchargeNightDetail(
+          stayDate: DateTime(
+            serviceDate.year,
+            serviceDate.month,
+            serviceDate.day,
+          ),
+          surcharges: List<SpecialDateSurchargeModel>.unmodifiable(matched),
+          amount: total,
+        ),
+      ],
+      totalAmount: total,
+      totalStayNights: 1,
     );
   }
 

@@ -10,10 +10,12 @@ import 'package:petnest_saas/core/models/custom_form_answer_model.dart';
 import 'package:petnest_saas/core/models/custom_form_model.dart';
 import 'package:petnest_saas/core/models/daycare_settings_model.dart';
 import 'package:petnest_saas/core/models/home_theme_model.dart';
+import 'package:petnest_saas/core/models/payment_gateway_status.dart';
 import 'package:petnest_saas/core/models/policy_applicable_service.dart';
 import 'package:petnest_saas/core/models/terms_consent_snapshot.dart';
 import 'package:petnest_saas/core/services/custom_form_service.dart';
 import 'package:petnest_saas/core/services/shop_policy_service.dart';
+import 'package:petnest_saas/core/services/shop_payment_methods.dart';
 import 'package:petnest_saas/core/utils/dropdown_value.dart';
 import 'package:petnest_saas/core/utils/safe_parse.dart';
 import 'package:petnest_saas/features/booking/models/booking_form_submit_data.dart';
@@ -21,6 +23,7 @@ import 'package:petnest_saas/features/custom_form/widgets/custom_form_response_f
 import 'package:petnest_saas/features/shop/widgets/booking/booking_step_widgets.dart';
 import 'package:petnest_saas/features/shop/widgets/booking/terms_confirmation_card.dart';
 import 'package:petnest_saas/features/shop/widgets/booking/terms_confirmation_sheet.dart';
+import 'package:petnest_saas/features/booking/widgets/shop_payment_method_cards.dart';
 
 enum BookingFormPaymentTestState { loading, error, empty, ready }
 
@@ -137,19 +140,16 @@ class _BookingFormPageState extends State<BookingFormPage> {
   int _depositAmount = 0;
   double _depositRate = 0;
   String _depositBase = 'total';
-  bool _cashEnabled = false;
-  bool _transferEnabled = false;
+  ShopPaymentCatalog _paymentCatalog = const ShopPaymentCatalog(
+    methods: <ShopPaymentMethodOption>[],
+    isDepositMode: false,
+    serviceType: PolicyApplicableService.accommodation,
+  );
   bool _loadingTerms = true;
   bool _paymentSettingsLoaded = false;
   String? _paymentLoadError;
   bool _termsLoadError = false;
   TermsStatus? _termsStatus;
-
-  /// 💳 綠界線上付款方式
-  /// 功能：只有通過平台審核且店家有啟用時才顯示。
-  bool _creditCardEnabled = false;
-  bool _atmEnabled = false;
-  bool _cvsCodeEnabled = false;
 
   String? _paymentMethod;
   String _payAmountType = 'deposit';
@@ -599,12 +599,18 @@ class _BookingFormPageState extends State<BookingFormPage> {
     });
   }
 
+  void _syncPaymentFlagsFromCatalog(ShopPaymentCatalog catalog) {
+    _paymentCatalog = catalog;
+  }
+
   void _applyPaymentTestState(BookingFormPaymentTestState state) {
-    _cashEnabled = false;
-    _transferEnabled = false;
-    _creditCardEnabled = false;
-    _atmEnabled = false;
-    _cvsCodeEnabled = false;
+    _syncPaymentFlagsFromCatalog(
+      const ShopPaymentCatalog(
+        methods: <ShopPaymentMethodOption>[],
+        isDepositMode: false,
+        serviceType: PolicyApplicableService.accommodation,
+      ),
+    );
     _paymentMethod = null;
     switch (state) {
       case BookingFormPaymentTestState.loading:
@@ -622,8 +628,24 @@ class _BookingFormPageState extends State<BookingFormPage> {
       case BookingFormPaymentTestState.ready:
         _paymentSettingsLoaded = true;
         _paymentLoadError = null;
-        _cashEnabled = true;
-        _transferEnabled = true;
+        _syncPaymentFlagsFromCatalog(
+          const ShopPaymentCatalog(
+            methods: <ShopPaymentMethodOption>[
+              ShopPaymentMethodOption(
+                id: PaymentMethodType.cash,
+                title: '到店付款',
+                subtitle: '',
+              ),
+              ShopPaymentMethodOption(
+                id: PaymentMethodType.bankTransfer,
+                title: '銀行轉帳',
+                subtitle: '',
+              ),
+            ],
+            isDepositMode: false,
+            serviceType: PolicyApplicableService.accommodation,
+          ),
+        );
         break;
     }
     final String? daycareType = widget.daycareDepositType;
@@ -911,6 +933,11 @@ class _BookingFormPageState extends State<BookingFormPage> {
     if (widget.customerPhoneController.text.trim().isEmpty) {
       return '請填寫聯絡電話';
     }
+    if (_paymentSettingsLoaded &&
+        _paymentLoadError == null &&
+        _paymentCatalog.isEmpty) {
+      return ShopPaymentMethods.noMethodsMessage;
+    }
     if (_paymentMethod == null) {
       return '請選擇付款方式';
     }
@@ -1017,8 +1044,13 @@ class _BookingFormPageState extends State<BookingFormPage> {
         setState(() {
           _paymentSettingsLoaded = true;
           _paymentLoadError = '付款方式載入失敗';
-          _cashEnabled = false;
-          _transferEnabled = false;
+          _syncPaymentFlagsFromCatalog(
+            ShopPaymentCatalog(
+              methods: const <ShopPaymentMethodOption>[],
+              isDepositMode: false,
+              serviceType: widget.termsServiceType,
+            ),
+          );
         });
         return;
       }
@@ -1048,89 +1080,22 @@ class _BookingFormPageState extends State<BookingFormPage> {
             daycareDepositType == 'fixed' || daycareDepositType == 'percent';
       }
 
-      // 💳 綠界公開設定
-      final dynamic rawPaymentSetting = data['paymentSetting'];
-
-      final Map<String, dynamic> paymentSetting = rawPaymentSetting is Map
-          ? Map<String, dynamic>.from(rawPaymentSetting)
-          : <String, dynamic>{};
-
-      final String reviewStatus = (paymentSetting['reviewStatus'] ?? '')
-          .toString()
-          .trim()
-          .toLowerCase();
-
-      final bool platformSuspended = SafeParse.parseBool(
-        paymentSetting['platformSuspended'],
+      ShopPaymentCatalog catalog = ShopPaymentMethods.resolve(
+        shopData: data,
+        serviceType: widget.termsServiceType,
+        daycareDepositType: widget.daycareDepositType,
       );
-
-      final bool shopDisabled = SafeParse.parseBool(
-        paymentSetting['shopDisabled'],
-      );
-
-      // 🏪 店家的實際營運開關
-      final dynamic rawOperationSettings = paymentSetting['operationSettings'];
-
-      final Map<String, dynamic> operationSettings = rawOperationSettings is Map
-          ? Map<String, dynamic>.from(rawOperationSettings)
-          : <String, dynamic>{};
-
-      final bool cashEnabled = SafeParse.parseBool(
-        operationSettings['cashPaymentEnabled'],
-        fallback: true,
-      );
-
-      final bool transferEnabled = SafeParse.parseBool(
-        operationSettings['bankTransferEnabled'],
-        fallback: true,
-      );
-
-      final bool ecpayEnabled = SafeParse.parseBool(
-        operationSettings['ecpayEnabled'],
-      );
-
-      // ✅ 平台核准的綠界付款方式
-      final dynamic rawApprovedMethods = paymentSetting['enabledMethods'];
-
-      final Map<String, dynamic> approvedMethods = rawApprovedMethods is Map
-          ? Map<String, dynamic>.from(rawApprovedMethods)
-          : <String, dynamic>{};
-
-      final bool approvedCreditCard =
-          SafeParse.parseBool(approvedMethods['creditCard']) ||
-          SafeParse.parseBool(paymentSetting['creditCardEnabled']);
-
-      final bool approvedAtm =
-          SafeParse.parseBool(approvedMethods['atm']) ||
-          SafeParse.parseBool(paymentSetting['atmEnabled']);
-
-      final bool approvedCvsCode =
-          SafeParse.parseBool(approvedMethods['cvsCode']) ||
-          SafeParse.parseBool(paymentSetting['cvsCodeEnabled']) ||
-          SafeParse.parseBool(paymentSetting['convenienceStoreCodeEnabled']);
-
-      // 🔐 綠界總資格
-      final bool canUseEcpay =
-          reviewStatus == 'approved' &&
-          !platformSuspended &&
-          !shopDisabled &&
-          ecpayEnabled;
-
-      // 🎛️ 店家實際開啟的綠界付款方式
-      final bool creditCardEnabled =
-          canUseEcpay &&
-          approvedCreditCard &&
-          SafeParse.parseBool(operationSettings['creditCardEnabled']);
-
-      final bool atmEnabled =
-          canUseEcpay &&
-          approvedAtm &&
-          SafeParse.parseBool(operationSettings['atmEnabled']);
-
-      final bool cvsCodeEnabled =
-          canUseEcpay &&
-          approvedCvsCode &&
-          SafeParse.parseBool(operationSettings['cvsCodeEnabled']);
+      if (widget.allowCashOverride == false) {
+        catalog = ShopPaymentCatalog(
+          methods: catalog.methods
+              .where(
+                (ShopPaymentMethodOption e) => e.id != PaymentMethodType.cash,
+              )
+              .toList(),
+          isDepositMode: catalog.isDepositMode,
+          serviceType: catalog.serviceType,
+        );
+      }
 
       setState(() {
         _depositEnabled = depositEnabled;
@@ -1144,12 +1109,7 @@ class _BookingFormPageState extends State<BookingFormPage> {
           _depositRate = 0;
         }
 
-        _cashEnabled = cashEnabled && (widget.allowCashOverride ?? true);
-        _transferEnabled = transferEnabled;
-
-        _creditCardEnabled = creditCardEnabled;
-        _atmEnabled = atmEnabled;
-        _cvsCodeEnabled = cvsCodeEnabled;
+        _syncPaymentFlagsFromCatalog(catalog);
         _paymentSettingsLoaded = true;
         _paymentLoadError = null;
 
@@ -1159,15 +1119,8 @@ class _BookingFormPageState extends State<BookingFormPage> {
           _payAmountType = 'full';
         }
 
-        // 目前選擇的方式若已被店家關閉，就清除選擇
-        final bool selectedMethodStillAvailable =
-            (_paymentMethod == 'cash' && _cashEnabled) ||
-            (_paymentMethod == 'transfer' && _transferEnabled) ||
-            (_paymentMethod == 'credit_card' && _creditCardEnabled) ||
-            (_paymentMethod == 'atm' && _atmEnabled) ||
-            (_paymentMethod == 'cvs_code' && _cvsCodeEnabled);
-
-        if (_paymentMethod != null && !selectedMethodStillAvailable) {
+        if (_paymentMethod != null &&
+            !_paymentCatalog.isEnabled(_paymentMethod!)) {
           _paymentMethod = null;
         }
       });
@@ -1178,8 +1131,13 @@ class _BookingFormPageState extends State<BookingFormPage> {
       setState(() {
         _paymentSettingsLoaded = true;
         _paymentLoadError = '付款方式載入失敗';
-        _cashEnabled = false;
-        _transferEnabled = false;
+        _syncPaymentFlagsFromCatalog(
+          ShopPaymentCatalog(
+            methods: const <ShopPaymentMethodOption>[],
+            isDepositMode: false,
+            serviceType: widget.termsServiceType,
+          ),
+        );
       });
     }
   }
@@ -1310,9 +1268,18 @@ class _BookingFormPageState extends State<BookingFormPage> {
       _showSubmitMessage('請完整填寫緊急聯絡人資料');
       return;
     }
-    if (_paymentMethod == null) {
+    if (_paymentCatalog.isEmpty) {
+      debugPrint('[BookingSubmit] 07 no payment methods');
+      _showSubmitMessage(ShopPaymentMethods.noMethodsMessage);
+      return;
+    }
+    if (_paymentMethod == null || !_paymentCatalog.isEnabled(_paymentMethod!)) {
       debugPrint('[BookingSubmit] 07 payment method missing');
       _showSubmitMessage('請選擇付款方式');
+      return;
+    }
+    await _loadTermsStatus();
+    if (!mounted) {
       return;
     }
     if (_termsStatus != null &&
@@ -1372,7 +1339,22 @@ class _BookingFormPageState extends State<BookingFormPage> {
     } catch (error, stackTrace) {
       debugPrint('[BookingSubmit] form submit failed: $error');
       debugPrintStack(stackTrace: stackTrace);
-      if (widget.showSubmitError && mounted) {
+      if (!mounted) {
+        return;
+      }
+      if (ShopPolicyService.isTermsUpdatedError(error)) {
+        await _loadTermsStatus();
+        if (!mounted) {
+          return;
+        }
+        _showSubmitMessage(
+          widget.termsServiceType == PolicyApplicableService.daycare
+              ? ShopPolicyService.daycareTermsUpdatedMessage
+              : ShopPolicyService.stayTermsUpdatedMessage,
+        );
+        return;
+      }
+      if (widget.showSubmitError) {
         _showSubmitMessage(error.toString());
       }
     } finally {
@@ -1777,15 +1759,6 @@ class _BookingFormPageState extends State<BookingFormPage> {
                           ),
                         ],
                       ),
-                    )
-                  else if (!_cashEnabled &&
-                      !_transferEnabled &&
-                      !_creditCardEnabled &&
-                      !_atmEnabled &&
-                      !_cvsCodeEnabled)
-                    const Padding(
-                      padding: EdgeInsets.only(top: 8),
-                      child: Text('店家目前尚未設定可用的付款方式，請聯絡店家。'),
                     ),
                   if (_depositEnabled) ...<Widget>[
                     const SizedBox(height: 12),
@@ -1818,45 +1791,14 @@ class _BookingFormPageState extends State<BookingFormPage> {
                       color: widget.theme.textColor,
                     ),
                   ),
-                  if (_paymentSettingsLoaded &&
-                      _paymentLoadError == null) ...<Widget>[
-                    if (_cashEnabled)
-                      _choiceCard(
-                        title: '到店付款',
-                        selected: _paymentMethod == 'cash',
-                        onTap: () => setState(() => _paymentMethod = 'cash'),
-                      ),
-                    if (_transferEnabled)
-                      _choiceCard(
-                        title: '銀行轉帳',
-                        selected: _paymentMethod == 'transfer',
-                        onTap: () =>
-                            setState(() => _paymentMethod = 'transfer'),
-                      ),
-                    if (_creditCardEnabled)
-                      _choiceCard(
-                        title: '信用卡',
-                        subtitle: '透過綠界線上付款',
-                        selected: _paymentMethod == 'credit_card',
-                        onTap: () =>
-                            setState(() => _paymentMethod = 'credit_card'),
-                      ),
-                    if (_atmEnabled)
-                      _choiceCard(
-                        title: 'ATM 虛擬帳號',
-                        subtitle: '透過綠界取得轉帳帳號',
-                        selected: _paymentMethod == 'atm',
-                        onTap: () => setState(() => _paymentMethod = 'atm'),
-                      ),
-                    if (_cvsCodeEnabled)
-                      _choiceCard(
-                        title: '超商代碼',
-                        subtitle: '透過綠界取得繳費代碼',
-                        selected: _paymentMethod == 'cvs_code',
-                        onTap: () =>
-                            setState(() => _paymentMethod = 'cvs_code'),
-                      ),
-                  ],
+                  if (_paymentSettingsLoaded && _paymentLoadError == null)
+                    ShopPaymentMethodCards(
+                      catalog: _paymentCatalog,
+                      selectedMethod: _paymentMethod,
+                      onSelected: (String id) {
+                        setState(() => _paymentMethod = id);
+                      },
+                    ),
                 ],
               ),
               _buildBookingCustomFormSection(),

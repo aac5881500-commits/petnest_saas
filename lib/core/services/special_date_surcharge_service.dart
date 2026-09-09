@@ -5,6 +5,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
+import '../models/policy_applicable_service.dart';
 import '../models/special_date_surcharge_model.dart';
 
 class SpecialDateSurchargeService {
@@ -92,6 +93,7 @@ class SpecialDateSurchargeService {
     required bool allowCampaignDiscount,
     required bool allowCoupon,
     required List<String> roomTypeIds,
+    List<String>? applicableServices,
   }) async {
     final String normalizedShopId = shopId.trim();
     final String normalizedName = name.trim();
@@ -122,6 +124,8 @@ class SpecialDateSurchargeService {
       allowCampaignDiscount: allowCampaignDiscount,
       allowCoupon: allowCoupon,
       roomTypeIds: roomTypeIds,
+      applicableServices:
+          applicableServices ?? PolicyApplicableService.accommodationOnly,
       createdBy: _auth.currentUser?.uid ?? '',
       createdAt: now,
       updatedAt: now,
@@ -145,6 +149,7 @@ class SpecialDateSurchargeService {
     required bool allowCampaignDiscount,
     required bool allowCoupon,
     required List<String> roomTypeIds,
+    List<String>? applicableServices,
   }) async {
     final String normalizedShopId = shopId.trim();
     final String normalizedSurchargeId = surchargeId.trim();
@@ -178,6 +183,8 @@ class SpecialDateSurchargeService {
       'allowCampaignDiscount': allowCampaignDiscount,
       'allowCoupon': allowCoupon,
       'roomTypeIds': roomTypeIds,
+      'applicableServices':
+          applicableServices ?? PolicyApplicableService.accommodationOnly,
       'updatedAt': Timestamp.fromDate(DateTime.now()),
     });
   }

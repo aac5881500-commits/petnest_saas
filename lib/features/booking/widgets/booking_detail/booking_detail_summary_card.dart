@@ -12,11 +12,13 @@ class BookingDetailSummaryCard extends StatefulWidget {
     required this.view,
     required this.onCancel,
     required this.onContactShop,
+    this.onRequestRefund,
   });
 
   final BookingDetailViewData view;
   final VoidCallback onCancel;
   final VoidCallback onContactShop;
+  final VoidCallback? onRequestRefund;
 
   @override
   State<BookingDetailSummaryCard> createState() =>
@@ -198,6 +200,19 @@ class _BookingDetailSummaryCardState extends State<BookingDetailSummaryCard> {
                   side: BorderSide(color: BookingDetailUi.of(context).border),
                 ),
                 child: Text(view.contactShopInsteadOfCancel ? '聯絡店家' : '取消訂單'),
+              ),
+            ),
+          ] else if (view.canRequestRefund) ...<Widget>[
+            const SizedBox(height: 8),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: OutlinedButton(
+                onPressed: widget.onRequestRefund,
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: BookingDetailUi.of(context).primary,
+                  side: BorderSide(color: BookingDetailUi.of(context).border),
+                ),
+                child: const Text('申請退款'),
               ),
             ),
           ],

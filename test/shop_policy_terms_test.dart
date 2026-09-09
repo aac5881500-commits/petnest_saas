@@ -40,6 +40,62 @@ void main() {
     );
   });
 
+  test('accommodation version change does not move daycare version', () {
+    const Map<String, dynamic> policy = <String, dynamic>{
+      'version': 5,
+      'accommodationVersion': 5,
+      'daycareVersion': 1,
+      'serviceVersions': <String, int>{'accommodation': 5, 'daycare': 1},
+    };
+    expect(
+      ShopPolicyService.servicePolicyVersion(
+        policy: policy,
+        serviceType: PolicyApplicableService.accommodation,
+      ),
+      5,
+    );
+    expect(
+      ShopPolicyService.servicePolicyVersion(
+        policy: policy,
+        serviceType: PolicyApplicableService.daycare,
+      ),
+      1,
+    );
+  });
+
+  test('legacy daycare without daycareVersion uses global version', () {
+    const Map<String, dynamic> policy = <String, dynamic>{'version': 1};
+    expect(
+      ShopPolicyService.servicePolicyVersion(
+        policy: policy,
+        serviceType: PolicyApplicableService.daycare,
+      ),
+      1,
+    );
+  });
+
+  test('refund policy version is independent of stay and daycare versions', () {
+    const Map<String, dynamic> policy = <String, dynamic>{
+      'version': 2,
+      'accommodationVersion': 2,
+      'daycareVersion': 1,
+    };
+    expect(
+      ShopPolicyService.servicePolicyVersion(
+        policy: policy,
+        serviceType: PolicyApplicableService.daycare,
+      ),
+      1,
+    );
+  });
+
+  test('daycare terms updated error is recognized', () {
+    expect(
+      ShopPolicyService.isTermsUpdatedError(Exception('安親條款已更新，請重新閱讀並同意。')),
+      isTrue,
+    );
+  });
+
   test('version update requires re-confirm', () {
     const TermsStatus status = TermsStatus(
       required: true,

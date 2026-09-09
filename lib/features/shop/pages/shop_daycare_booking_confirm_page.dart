@@ -14,6 +14,7 @@ import 'package:petnest_saas/core/models/member_coupon_model.dart';
 import 'package:petnest_saas/core/models/payment_gateway_status.dart';
 import 'package:petnest_saas/core/models/point_setting_model.dart';
 import 'package:petnest_saas/core/services/daycare_addon_catalog.dart';
+import 'package:petnest_saas/core/services/daycare_addon_line.dart';
 import 'package:petnest_saas/core/services/daycare_booking_validator.dart';
 import 'package:petnest_saas/core/services/daycare_coupon_helper.dart';
 import 'package:petnest_saas/core/services/daycare_date_override_service.dart';
@@ -23,7 +24,10 @@ import 'package:petnest_saas/core/services/daycare_settings_service.dart';
 import 'package:petnest_saas/core/services/daycare_time_helper.dart';
 import 'package:petnest_saas/core/services/member_coupon_service.dart';
 import 'package:petnest_saas/core/services/payment_function_service.dart';
+import 'package:petnest_saas/core/services/member_point_service.dart';
 import 'package:petnest_saas/core/services/point_setting_service.dart';
+import 'package:petnest_saas/core/services/special_date_surcharge_calculator.dart';
+import 'package:petnest_saas/core/services/special_date_surcharge_service.dart';
 import 'package:petnest_saas/core/services/home_banner_service.dart';
 import 'package:petnest_saas/core/services/shop_service.dart';
 import 'package:petnest_saas/features/booking/models/booking_form_submit_data.dart';
@@ -74,6 +78,10 @@ class _ShopDaycareBookingConfirmPageState
   MemberCouponModel? _selectedCoupon;
   bool _loadingCoupons = true;
   bool _pointsSpendEnabled = false;
+  bool _usePoints = false;
+  int _pointBalance = 0;
+  int _surchargeAmount = 0;
+  bool _surchargeAllowsCoupon = true;
   bool _submitting = false;
 
   @override
@@ -113,10 +121,35 @@ class _ShopDaycareBookingConfirmPageState
   Future<void> _loadPoints() async {
     final PointSettingModel setting = await PointSettingService.instance
         .getPointSetting(widget.shopId);
+    int balance = 0;
+    final User? user = FirebaseAuth.instance.currentUser;
+    if (user != null) {
+      final member = await MemberPointService.instance.getMemberPoint(
+        shopId: widget.shopId,
+        userId: user.uid,
+      );
+      balance = member.currentPoints;
+    }
+    final surcharges = await SpecialDateSurchargeService.instance
+        .getEnabledSurcharges(widget.shopId);
+    final calc = SpecialDateSurchargeCalculator.calculateDaycare(
+      serviceDate: widget.startAt,
+      isRoomBased: widget.settings.isRoomBased,
+      roomTypeId: widget.requestedRoomTypeId,
+      surcharges: surcharges,
+    );
     if (!mounted) {
       return;
     }
-    setState(() => _pointsSpendEnabled = setting.daycareSpendEnabled);
+    setState(() {
+      _pointsSpendEnabled = setting.enabled && setting.daycareSpendEnabled;
+      _pointBalance = balance;
+      _surchargeAmount = calc.totalAmount;
+      _surchargeAllowsCoupon = calc.nightDetails.every(
+        (SpecialDateSurchargeNightDetail d) =>
+            d.surcharges.every((s) => s.allowCoupon),
+      );
+    });
   }
 
   Future<void> _loadCoupons() async {
@@ -151,16 +184,22 @@ class _ShopDaycareBookingConfirmPageState
   }
 
   List<Map<String, dynamic>> get _addonLines {
-    final int minutes = widget.endAt.difference(widget.startAt).inMinutes;
-    final int petCount = widget.selectedPetIds.length;
-    return widget.addons.map((Map<String, dynamic> addon) {
-      final int amount = DaycarePricingService.instance.addonLineAmount(
-        addon: addon,
-        minutes: minutes,
-        petCount: petCount,
+    final List<Map<String, dynamic>> lines = <Map<String, dynamic>>[];
+    for (final Map<String, dynamic> addon in widget.addons) {
+      final DaycareAddonLineResult resolved = DaycareAddonLine.resolve(
+        live: addon,
+        requested: addon,
+        orderPetIds: widget.selectedPetIds,
+        allowedAddonIds: widget.settings.allowedAddonIds,
+        scheduledStartAt: widget.startAt,
+        scheduledEndAt: widget.endAt,
       );
-      return <String, dynamic>{...addon, 'amount': amount};
-    }).toList();
+      if (!resolved.ok) {
+        continue;
+      }
+      lines.add(<String, dynamic>{...resolved.line, 'amount': resolved.amount});
+    }
+    return lines;
   }
 
   DaycareQuote get _quote {
@@ -193,18 +232,35 @@ class _ShopDaycareBookingConfirmPageState
         addonAmount: addonAmount,
       );
     }
-    final int resolvedCoupon = _selectedCoupon == null
+    final int resolvedCoupon =
+        _selectedCoupon == null || !_surchargeAllowsCoupon
         ? 0
         : DaycareCouponHelper.discountAmount(
             coupon: _selectedCoupon!,
             planAmount: draft.baseAmount,
             extraPetAmount: draft.extraPetAmount,
             addonAmount: addonAmount,
-            surchargeAmount: draft.surchargeAmount,
+            surchargeAmount: _surchargeAmount,
             campaignDiscountAmount: draft.discountAmount,
             selectedAddons: _addonLines,
-            specialDateAllowsCoupon: true,
+            specialDateAllowsCoupon: _surchargeAllowsCoupon,
           );
+    int payable =
+        draft.baseAmount +
+        draft.extraPetAmount +
+        addonAmount +
+        _surchargeAmount -
+        resolvedCoupon;
+    if (widget.settings.isRoomBased) {
+      payable =
+          draft.totalAmount +
+          _surchargeAmount -
+          draft.surchargeAmount -
+          resolvedCoupon;
+    }
+    final int pointAmount = !_usePoints || !_pointsSpendEnabled
+        ? 0
+        : (_pointBalance < payable ? _pointBalance : payable).clamp(0, payable);
     if (widget.settings.isRoomBased) {
       final DaycareRoomTypeSetting roomSetting =
           widget.settings.roomTypeSetting(widget.requestedRoomTypeId) ??
@@ -218,7 +274,9 @@ class _ShopDaycareBookingConfirmPageState
           petCount: widget.selectedPetIds.length,
         ),
         addonAmount: addonAmount,
+        surchargeAmount: _surchargeAmount,
         couponAmount: resolvedCoupon,
+        pointAmount: pointAmount,
       );
     }
     return DaycarePricingService.instance.quote(
@@ -228,7 +286,9 @@ class _ShopDaycareBookingConfirmPageState
       endAt: widget.endAt,
       petCount: widget.selectedPetIds.length,
       addonAmount: addonAmount,
+      surchargeAmount: _surchargeAmount,
       couponAmount: resolvedCoupon,
+      pointAmount: pointAmount,
     );
   }
 
@@ -503,6 +563,8 @@ class _ShopDaycareBookingConfirmPageState
             if (_selectedCoupon != null) 'couponId': _selectedCoupon!.id,
             if (_selectedCoupon != null) 'couponName': _selectedCoupon!.name,
             'couponDiscountAmount': quote.couponAmount,
+            'specialDateSurchargeAmount': quote.surchargeAmount,
+            'pointAmount': quote.pointAmount,
             if (data.customFormAnswers != null)
               'customFormAnswers': data.customFormAnswers!.toCallableMap(),
           });
@@ -670,11 +732,16 @@ class _ShopDaycareBookingConfirmPageState
               ),
             );
           }),
-          if (_pointsSpendEnabled && quote.pointAmount == 0) ...<Widget>[
+          if (_pointsSpendEnabled) ...<Widget>[
             const SizedBox(height: 12),
-            const Text(
-              '此店安親可折抵點數，實際折抵金額會在店家確認後依點數設定計算。',
-              style: TextStyle(color: Colors.grey, fontSize: 13),
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('使用點數折抵'),
+              subtitle: Text('目前可用 $_pointBalance 點，1 點折抵 NT\$1。折抵後應付不可為負。'),
+              value: _usePoints,
+              onChanged: _pointBalance <= 0
+                  ? null
+                  : (bool value) => setState(() => _usePoints = value),
             ),
           ],
           if (widget.settings.allowCoupon) ...<Widget>[

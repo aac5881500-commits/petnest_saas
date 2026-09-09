@@ -7,6 +7,9 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 
 import '../../../core/services/payment_function_service.dart';
+import '../../../core/services/shop_payment_methods.dart';
+import '../../../core/services/daycare_settings_service.dart';
+import '../../../core/models/daycare_settings_model.dart';
 import '../../../core/widgets/shop_task_center_button.dart';
 
 class ShopPayoutSettingPage extends StatefulWidget {
@@ -39,6 +42,7 @@ class _ShopPayoutSettingPageState extends State<ShopPayoutSettingPage> {
   bool _cvsCodeEnabled = false;
 
   // 🏪 收款方式營運設定
+  bool _cashPaymentEnabled = true;
   bool _bankTransferEnabled = true;
 
   bool _ecpayEnabled = false;
@@ -53,6 +57,9 @@ class _ShopPayoutSettingPageState extends State<ShopPayoutSettingPage> {
 
   // ⛔ 平台是否暫停此店家的綠界金流
   bool _platformSuspended = false;
+  Map<String, dynamic> _paymentSettingSnapshot = <String, dynamic>{};
+  bool _shopDepositEnabled = false;
+  bool _daycareDepositMode = false;
 
   // ⏳ 畫面操作狀態
   bool _loading = true;
@@ -97,6 +104,17 @@ class _ShopPayoutSettingPageState extends State<ShopPayoutSettingPage> {
               .get();
 
       final Map<String, dynamic> data = document.data() ?? <String, dynamic>{};
+      _shopDepositEnabled = data['depositEnabled'] == true;
+      try {
+        final DaycareSettingsModel daycare = await DaycareSettingsService
+            .instance
+            .get(widget.shopId);
+        _daycareDepositMode =
+            daycare.depositType == DaycareDepositTypes.fixed ||
+            daycare.depositType == DaycareDepositTypes.percent;
+      } catch (_) {
+        _daycareDepositMode = false;
+      }
 
       // 🏦 銀行轉帳資料
       _bankNameCtrl.text = (data['bankName'] ?? '').toString();
@@ -110,6 +128,7 @@ class _ShopPayoutSettingPageState extends State<ShopPayoutSettingPage> {
           ? Map<String, dynamic>.from(rawPaymentSetting)
           : <String, dynamic>{};
 
+      _paymentSettingSnapshot = paymentSetting;
       _merchantNameCtrl.text = (paymentSetting['merchantName'] ?? '')
           .toString();
       _merchantIdCtrl.text = (paymentSetting['merchantId'] ?? '').toString();
@@ -152,6 +171,7 @@ class _ShopPayoutSettingPageState extends State<ShopPayoutSettingPage> {
           ? Map<String, dynamic>.from(rawOperationSettings)
           : <String, dynamic>{};
 
+      _cashPaymentEnabled = ShopPaymentMethods.isCashEnabled(operationSettings);
       _bankTransferEnabled = operationSettings['bankTransferEnabled'] ?? true;
 
       _ecpayEnabled = operationSettings['ecpayEnabled'] ?? false;
@@ -182,6 +202,64 @@ class _ShopPayoutSettingPageState extends State<ShopPayoutSettingPage> {
     }
   }
 
+  Map<String, dynamic> _shopForValidation() {
+    return <String, dynamic>{
+      'bankName': _bankNameCtrl.text.trim(),
+      'accountName': _accountNameCtrl.text.trim(),
+      'accountNumber': _accountNumberCtrl.text.trim(),
+      'paymentSetting': <String, dynamic>{
+        ..._paymentSettingSnapshot,
+        'reviewStatus': _paymentReviewStatus,
+        'platformSuspended': _platformSuspended,
+        'operationSettings': <String, dynamic>{
+          'cashPaymentEnabled': _cashPaymentEnabled,
+          'bankTransferEnabled': _bankTransferEnabled,
+          'ecpayEnabled': _ecpayEnabled,
+          'creditCardEnabled': _ecpayCreditCardEnabled,
+          'atmEnabled': _ecpayAtmEnabled,
+          'cvsCodeEnabled': _ecpayCvsCodeEnabled,
+        },
+      },
+    };
+  }
+
+  ShopPaymentSettingsValidation _validateCurrentDraft() {
+    return ShopPaymentMethods.validateOperationSettings(
+      shopData: _shopForValidation(),
+      cashPaymentEnabled: _cashPaymentEnabled,
+      bankTransferEnabled: _bankTransferEnabled,
+      ecpayEnabled: _ecpayEnabled,
+      creditCardEnabled: _ecpayCreditCardEnabled,
+      atmEnabled: _ecpayAtmEnabled,
+      cvsCodeEnabled: _ecpayCvsCodeEnabled,
+    );
+  }
+
+  Future<void> _applyOperationChange(VoidCallback apply) async {
+    final bool previousCash = _cashPaymentEnabled;
+    final bool previousBank = _bankTransferEnabled;
+    final bool previousEcpay = _ecpayEnabled;
+    final bool previousCredit = _ecpayCreditCardEnabled;
+    final bool previousAtm = _ecpayAtmEnabled;
+    final bool previousCvs = _ecpayCvsCodeEnabled;
+    apply();
+    final ShopPaymentSettingsValidation check = _validateCurrentDraft();
+    if (!check.ok) {
+      setState(() {
+        _cashPaymentEnabled = previousCash;
+        _bankTransferEnabled = previousBank;
+        _ecpayEnabled = previousEcpay;
+        _ecpayCreditCardEnabled = previousCredit;
+        _ecpayAtmEnabled = previousAtm;
+        _ecpayCvsCodeEnabled = previousCvs;
+      });
+      _showMessage(check.message);
+      return;
+    }
+    setState(() {});
+    await _saveOperationSettings();
+  }
+
   /// 🏦 儲存銀行轉帳收款資料
   Future<void> _saveBankAccount() async {
     if (_saving) {
@@ -193,6 +271,11 @@ class _ShopPayoutSettingPageState extends State<ShopPayoutSettingPage> {
     });
 
     try {
+      if (_bankTransferEnabled &&
+          !ShopPaymentMethods.isBankAccountComplete(_shopForValidation())) {
+        _showMessage(ShopPaymentMethods.bankAccountIncompleteMessage);
+        return;
+      }
       await FirebaseFirestore.instance
           .collection('shops')
           .doc(widget.shopId)
@@ -229,9 +312,15 @@ class _ShopPayoutSettingPageState extends State<ShopPayoutSettingPage> {
 
   /// 💾 儲存收款方式營運設定
   Future<void> _saveOperationSettings() async {
+    final ShopPaymentSettingsValidation check = _validateCurrentDraft();
+    if (!check.ok) {
+      _showMessage(check.message);
+      return;
+    }
     try {
       await PaymentFunctionService.instance.updatePaymentOperationSettings(
         shopId: widget.shopId,
+        cashPaymentEnabled: _cashPaymentEnabled,
         bankTransferEnabled: _bankTransferEnabled,
         ecpayEnabled: _ecpayEnabled,
         creditCardEnabled: _ecpayCreditCardEnabled,
@@ -515,10 +604,18 @@ class _ShopPayoutSettingPageState extends State<ShopPayoutSettingPage> {
             const SizedBox(height: 16),
 
             SwitchListTile(
-              value: true,
+              value: _cashPaymentEnabled,
               title: const Text('到店付款'),
-              subtitle: const Text('會員到店付款（固定啟用）'),
-              onChanged: null,
+              subtitle: Text(
+                _shopDepositEnabled || _daycareDepositMode
+                    ? ShopPaymentMethods.cashDepositNoteSettings
+                    : '會員到店付款，可於退房／接回時結清。',
+              ),
+              onChanged: (bool value) async {
+                await _applyOperationChange(() {
+                  _cashPaymentEnabled = value;
+                });
+              },
             ),
 
             SwitchListTile(
@@ -526,11 +623,9 @@ class _ShopPayoutSettingPageState extends State<ShopPayoutSettingPage> {
               title: const Text('銀行轉帳'),
               subtitle: const Text('會員依銀行帳戶付款'),
               onChanged: (bool value) async {
-                setState(() {
+                await _applyOperationChange(() {
                   _bankTransferEnabled = value;
                 });
-
-                await _saveOperationSettings();
               },
             ),
             if (_bankTransferEnabled) ...[
@@ -627,11 +722,9 @@ class _ShopPayoutSettingPageState extends State<ShopPayoutSettingPage> {
                       ),
                       onChanged: _canEnableEcpay
                           ? (bool value) async {
-                              setState(() {
+                              await _applyOperationChange(() {
                                 _ecpayEnabled = value;
                               });
-
-                              await _saveOperationSettings();
                             }
                           : null,
                     ),
@@ -647,7 +740,7 @@ class _ShopPayoutSettingPageState extends State<ShopPayoutSettingPage> {
                           secondary: const Icon(Icons.credit_card_outlined),
                           onChanged: _canEnableEcpay
                               ? (value) {
-                                  setState(() {
+                                  _applyOperationChange(() {
                                     _ecpayCreditCardEnabled = value ?? false;
                                   });
                                 }
@@ -663,7 +756,7 @@ class _ShopPayoutSettingPageState extends State<ShopPayoutSettingPage> {
                           secondary: const Icon(Icons.account_balance_outlined),
                           onChanged: _canEnableEcpay
                               ? (value) {
-                                  setState(() {
+                                  _applyOperationChange(() {
                                     _ecpayAtmEnabled = value ?? false;
                                   });
                                 }
@@ -681,7 +774,7 @@ class _ShopPayoutSettingPageState extends State<ShopPayoutSettingPage> {
                           secondary: const Icon(Icons.store_outlined),
                           onChanged: _canEnableEcpay
                               ? (value) {
-                                  setState(() {
+                                  _applyOperationChange(() {
                                     _ecpayCvsCodeEnabled = value ?? false;
                                   });
                                 }

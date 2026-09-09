@@ -18,6 +18,8 @@ import 'package:petnest_saas/features/admin/widgets/admin_selected_member_card.d
 import 'package:petnest_saas/features/admin/widgets/admin_pet_section.dart';
 import 'package:petnest_saas/features/admin/widgets/admin_booking_date_section.dart';
 import 'package:petnest_saas/features/admin/widgets/admin_booking_room_type_section.dart';
+import 'package:petnest_saas/core/models/policy_applicable_service.dart';
+import 'package:petnest_saas/core/services/shop_payment_methods.dart';
 import 'package:petnest_saas/core/services/shop_plan_service.dart';
 import 'package:petnest_saas/core/services/shop_permission_service.dart';
 import 'package:petnest_saas/core/models/discount_campaign_model.dart';
@@ -65,8 +67,11 @@ class _AdminCreateBookingPageState extends State<AdminCreateBookingPage> {
   double _depositRate = 0;
   String _depositBase = 'total';
 
-  bool _cashEnabled = true;
-  bool _transferEnabled = true;
+  ShopPaymentCatalog _paymentCatalog = const ShopPaymentCatalog(
+    methods: <ShopPaymentMethodOption>[],
+    isDepositMode: false,
+    serviceType: PolicyApplicableService.accommodation,
+  );
 
   String? _paymentMethod;
   String _payAmountType = 'deposit';
@@ -155,22 +160,14 @@ class _AdminCreateBookingPageState extends State<AdminCreateBookingPage> {
           ? rawDepositValue.toInt()
           : int.tryParse(rawDepositValue.toString()) ?? 0;
 
-      final rawPaymentMethods = data['paymentMethods'];
+      final ShopPaymentCatalog catalog = ShopPaymentMethods.resolve(
+        shopData: data,
+        serviceType: PolicyApplicableService.accommodation,
+      );
 
-      final paymentMethods = rawPaymentMethods is Map
-          ? Map<String, dynamic>.from(rawPaymentMethods)
-          : <String, dynamic>{};
-
-      final cashEnabled = paymentMethods['cash'] == true;
-      final transferEnabled = paymentMethods['transfer'] == true;
-
-      String? defaultPaymentMethod;
-
-      if (cashEnabled) {
-        defaultPaymentMethod = 'cash';
-      } else if (transferEnabled) {
-        defaultPaymentMethod = 'transfer';
-      }
+      String? defaultPaymentMethod = catalog.methodIds.isEmpty
+          ? null
+          : catalog.methodIds.first;
 
       setState(() {
         _depositEnabled = data['depositEnabled'] == true;
@@ -184,8 +181,7 @@ class _AdminCreateBookingPageState extends State<AdminCreateBookingPage> {
           _depositRate = 0;
         }
 
-        _cashEnabled = cashEnabled;
-        _transferEnabled = transferEnabled;
+        _paymentCatalog = catalog;
         _paymentMethod = defaultPaymentMethod;
 
         if (!_depositEnabled) {
@@ -1532,12 +1528,12 @@ class _AdminCreateBookingPageState extends State<AdminCreateBookingPage> {
         return;
       }
 
-      if (!_cashEnabled && !_transferEnabled) {
+      if (_paymentCatalog.isEmpty) {
         if (!mounted) return;
 
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('店家尚未啟用任何付款方式，請先到收款設定開啟')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text(ShopPaymentMethods.noMethodsMessage)),
+        );
 
         return;
       }
@@ -1849,9 +1845,7 @@ class _AdminCreateBookingPageState extends State<AdminCreateBookingPage> {
 
           paymentMethod: _paymentMethod,
 
-          cashEnabled: _cashEnabled,
-
-          transferEnabled: _transferEnabled,
+          paymentCatalog: _paymentCatalog,
 
           onPayAmountTypeChanged: (value) {
             setState(() {

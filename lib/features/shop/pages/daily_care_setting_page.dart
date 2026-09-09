@@ -31,6 +31,7 @@ class _DailyCareSettingPageState extends State<DailyCareSettingPage> {
   int _sessionCount = 2;
   bool _photoEnabled = true;
   bool _daycareEnabled = false;
+  int _daycareSessionCount = 1;
   int _downloadHours = 24;
 
   String _backgroundType = DailyCareJournalTheme.typeSystem;
@@ -145,6 +146,7 @@ class _DailyCareSettingPageState extends State<DailyCareSettingPage> {
         _sessionCount = setting.sessionCount;
         _photoEnabled = setting.photoEnabled;
         _daycareEnabled = setting.daycareEnabled;
+        _daycareSessionCount = setting.daycareSessionCount;
         _downloadHours = setting.downloadHoursAfterCheckout;
         _enabledFields = setting.enabledFields.toSet();
         _customFields = List<DailyCareCustomField>.from(setting.customFields);
@@ -202,23 +204,29 @@ class _DailyCareSettingPageState extends State<DailyCareSettingPage> {
 
   List<String>? _readSessionLabelsOrNull() {
     final List<String> labels = <String>[];
-    for (int index = 0; index < _sessionCount; index++) {
+    int requiredCount = _sessionCount;
+    if (_daycareEnabled && _daycareSessionCount > requiredCount) {
+      requiredCount = _daycareSessionCount;
+    }
+    for (int index = 0; index < 3; index++) {
       final String label = _sessionLabelControllers[index].text.trim();
-      if (label.isEmpty) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('照護 ${index + 1} 名稱不可空白')));
-        return null;
-      }
-      if (label.length > DailyCareJournalTheme.sessionLabelMaxLength) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              '照護 ${index + 1} 名稱請控制在 ${DailyCareJournalTheme.sessionLabelMaxLength} 字以內',
+      if (index < requiredCount) {
+        if (label.isEmpty) {
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text('照護 ${index + 1} 名稱不可空白')));
+          return null;
+        }
+        if (label.length > DailyCareJournalTheme.sessionLabelMaxLength) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                '照護 ${index + 1} 名稱請控制在 ${DailyCareJournalTheme.sessionLabelMaxLength} 字以內',
+              ),
             ),
-          ),
-        );
-        return null;
+          );
+          return null;
+        }
       }
       labels.add(label);
     }
@@ -245,6 +253,7 @@ class _DailyCareSettingPageState extends State<DailyCareSettingPage> {
       customFields: _customFields,
       photoEnabled: _photoEnabled,
       daycareEnabled: _daycareEnabled,
+      daycareSessionCount: _daycareSessionCount,
       downloadHoursAfterCheckout: _downloadHours,
       backgroundType: backgroundType,
       backgroundColorKey: _backgroundColorKey,
@@ -859,6 +868,10 @@ class _DailyCareSettingPageState extends State<DailyCareSettingPage> {
 
                 const SizedBox(height: 16),
 
+                _buildDaycareCareCard(),
+
+                const SizedBox(height: 16),
+
                 IgnorePointer(
                   ignoring: !_enabled,
                   child: Opacity(
@@ -958,11 +971,11 @@ class _DailyCareSettingPageState extends State<DailyCareSettingPage> {
           ),
           const SizedBox(height: 16),
           const Text(
-            '照護紀錄名稱',
+            '照護紀錄名稱（第 1～3 個名稱同時給安親回報使用）',
             style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
           ),
           const SizedBox(height: 8),
-          for (int index = 0; index < _sessionCount; index++) ...<Widget>[
+          for (int index = 0; index < 3; index++) ...<Widget>[
             TextField(
               controller: _sessionLabelControllers[index],
               maxLength: DailyCareJournalTheme.sessionLabelMaxLength,
@@ -973,7 +986,7 @@ class _DailyCareSettingPageState extends State<DailyCareSettingPage> {
                 counterText: '',
               ),
             ),
-            if (index < _sessionCount - 1) const SizedBox(height: 10),
+            if (index < 2) const SizedBox(height: 10),
           ],
         ],
       ),
@@ -1707,17 +1720,17 @@ class _DailyCareSettingPageState extends State<DailyCareSettingPage> {
     );
   }
 
-  Widget _buildPhotoCard() {
+  Widget _buildDaycareCareCard() {
     return _SettingCard(
-      title: '照護照片',
-      subtitle: '照片會使用壓縮預覽圖顯示，下載版會控制尺寸以降低儲存與流量成本。',
+      title: '安親照護回報',
+      subtitle: '開啟後，可在今日安親看板與安親訂單詳細填寫本次安親回報。',
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
           SwitchListTile(
             contentPadding: EdgeInsets.zero,
-            title: const Text('安親訂單也可填寫照護紀錄'),
-            subtitle: const Text('僅在安親實際開始後允許填寫'),
+            title: const Text('啟用安親照護回報'),
+            subtitle: const Text('開啟後，可在今日安親看板與安親訂單詳細填寫本次安親回報。'),
             value: _daycareEnabled,
             onChanged: (bool value) {
               setState(() {
@@ -1725,6 +1738,47 @@ class _DailyCareSettingPageState extends State<DailyCareSettingPage> {
               });
             },
           ),
+          if (_daycareEnabled) ...<Widget>[
+            const SizedBox(height: 8),
+            const Text(
+              '每筆安親回報次數',
+              style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
+            ),
+            const SizedBox(height: 8),
+            SegmentedButton<int>(
+              segments: const <ButtonSegment<int>>[
+                ButtonSegment<int>(value: 1, label: Text('1 次')),
+                ButtonSegment<int>(value: 2, label: Text('2 次')),
+                ButtonSegment<int>(value: 3, label: Text('3 次')),
+              ],
+              selected: <int>{_daycareSessionCount},
+              onSelectionChanged: (Set<int> values) {
+                if (values.isEmpty) {
+                  return;
+                }
+                setState(() {
+                  _daycareSessionCount = values.first;
+                });
+              },
+            ),
+            const SizedBox(height: 8),
+            Text(
+              '回報名稱使用上方「照護紀錄名稱」的第 1～$_daycareSessionCount 個。',
+              style: const TextStyle(fontSize: 13, color: Colors.black54),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPhotoCard() {
+    return _SettingCard(
+      title: '照護照片',
+      subtitle: '照片會使用壓縮預覽圖顯示，下載版會控制尺寸以降低儲存與流量成本。',
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
           SwitchListTile(
             contentPadding: EdgeInsets.zero,
             title: const Text('啟用照護照片'),

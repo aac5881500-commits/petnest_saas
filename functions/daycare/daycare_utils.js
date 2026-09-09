@@ -297,17 +297,97 @@ function policyAppliesTo(raw, serviceType) {
 /**
  * @param {Object} policy
  * @param {string} serviceType
+ * @return {number}
+ */
+function servicePolicyVersion(policy, serviceType) {
+  if (!policy) {
+    return 0;
+  }
+  const serviceVersions = policy.serviceVersions &&
+    typeof policy.serviceVersions === "object" ?
+      policy.serviceVersions : {};
+  const mapped = toInt(serviceVersions[serviceType], 0);
+  if (mapped > 0) {
+    return mapped;
+  }
+  if (serviceType === "daycare") {
+    const daycareVersion = toInt(policy.daycareVersion, 0);
+    if (daycareVersion > 0) {
+      return daycareVersion;
+    }
+    const texts = policy.sectionTextsByService &&
+      typeof policy.sectionTextsByService === "object" ?
+        policy.sectionTextsByService : {};
+    const daycareTexts = texts.daycare && typeof texts.daycare === "object" ?
+      texts.daycare : {};
+    if (Object.keys(daycareTexts).length > 0) {
+      return daycareVersion;
+    }
+    return toInt(policy.version, 0);
+  }
+  return toInt(policy.accommodationVersion, 0) || toInt(policy.version, 0);
+}
+
+/**
+ * @param {Object} policy
+ * @param {string} serviceType
  * @return {{required: boolean, version: number, title: string}}
  */
 function summarizePolicyForService(policy, serviceType) {
   if (!policy) {
     return {required: false, version: 0, title: ""};
   }
-  const version = toInt(policy.version, 0);
+  const version = servicePolicyVersion(policy, serviceType);
+  const textsByService = policy.sectionTextsByService &&
+    typeof policy.sectionTextsByService === "object" ?
+      policy.sectionTextsByService : {};
+  const serviceTexts = textsByService[serviceType] &&
+    typeof textsByService[serviceType] === "object" ?
+      textsByService[serviceType] : null;
+  let hasContent = false;
+  if (serviceTexts && Object.keys(serviceTexts).length > 0) {
+    const enabledByService = policy.enabledByService &&
+      typeof policy.enabledByService === "object" ?
+        policy.enabledByService : {};
+    const serviceEnabled = enabledByService[serviceType] &&
+      typeof enabledByService[serviceType] === "object" ?
+        enabledByService[serviceType] : {};
+    Object.keys(serviceTexts).forEach((key) => {
+      if (serviceEnabled[key] === false) {
+        return;
+      }
+      if (String(serviceTexts[key] || "").trim()) {
+        hasContent = true;
+      }
+    });
+    const customByService = policy.customPoliciesByService &&
+      typeof policy.customPoliciesByService === "object" ?
+        policy.customPoliciesByService : {};
+    const serviceCustom = customByService[serviceType] &&
+      typeof customByService[serviceType] === "object" ?
+        customByService[serviceType] : {};
+    []
+        .concat(serviceCustom.page1 || [])
+        .concat(serviceCustom.page2 || [])
+        .forEach((item) => {
+          if (typeof item === "string" && item.trim()) {
+            hasContent = true;
+            return;
+          }
+          if (item && String(item.text || item).trim()) {
+            hasContent = true;
+          }
+        });
+    return {
+      required: hasContent,
+      version,
+      title: serviceType === "daycare" ? "安親須知" : "入住須知",
+    };
+  }
   const sections = policy.sections || {};
   const enabled = policy.enabled || {};
   const sectionServices = policy.sectionApplicableServices || {};
-  let hasContent = false;
+  hasContent = false;
   Object.keys(sections).forEach((key) => {
     if (enabled[key] === false) {
       return;
@@ -337,7 +417,7 @@ function summarizePolicyForService(policy, serviceType) {
   return {
     required: hasContent,
     version,
-    title: serviceType === "daycare" ? "臨托須知" : "入住須知",
+    title: serviceType === "daycare" ? "安親須知" : "入住須知",
   };
 }
 
@@ -508,6 +588,11 @@ async function overnightCapForRoom(
     if (ids.length > 0 && !ids.includes(id)) {
       return;
     }
+    const applicable = Array.isArray(data.applicableServices) ?
+      data.applicableServices.map((item) => normalizeString(item)) : [];
+    if (applicable.length > 0 && !applicable.includes("accommodation")) {
+      return;
+    }
     const startKey = serviceDateKey(start);
     const endKey = serviceDateKey(end);
     if (key >= startKey && key <= endKey) {
@@ -544,10 +629,12 @@ module.exports = {
   shopHasCatHotel,
   isDaycareEnabled,
   policyAppliesTo,
+  servicePolicyVersion,
   summarizePolicyForService,
   generateBookingCode,
   writeActionLog,
   overlaps,
+  ADDON_GROUP_KEYS,
   flattenAddonCatalog,
   overnightCapForRoom,
 };

@@ -234,10 +234,10 @@ class PaymentFunctionService {
   ///
   /// 功能：
   /// - 呼叫 updatePaymentOperationSettings Cloud Function
-  /// - 更新銀行轉帳與綠界付款營運開關
-  /// - 到店付款由後端固定維持啟用
+  /// - 更新銀行轉帳、到店付款與綠界付款營運開關
   Future<void> updatePaymentOperationSettings({
     required String shopId,
+    required bool cashPaymentEnabled,
     required bool bankTransferEnabled,
     required bool ecpayEnabled,
     required bool creditCardEnabled,
@@ -259,6 +259,7 @@ class PaymentFunctionService {
 
       await callable.call<dynamic>({
         'shopId': shopId.trim(),
+        'cashPaymentEnabled': cashPaymentEnabled,
         'bankTransferEnabled': bankTransferEnabled,
         'ecpayEnabled': ecpayEnabled,
         'creditCardEnabled': creditCardEnabled,

@@ -207,6 +207,7 @@ class DailyCareSettingModel {
     this.customFields = const <DailyCareCustomField>[],
     this.photoEnabled = true,
     this.daycareEnabled = false,
+    this.daycareSessionCount = 1,
     this.downloadHoursAfterCheckout = 24,
     this.backgroundType = DailyCareJournalTheme.typeSystem,
     this.backgroundColorKey = DailyCareJournalTheme.colorDefault,
@@ -287,8 +288,11 @@ class DailyCareSettingModel {
   /// 是否啟用照護照片
   final bool photoEnabled;
 
-  /// 是否對臨托訂單啟用照護紀錄
+  /// 是否對安親訂單啟用照護回報（舊店家預設關閉）
   final bool daycareEnabled;
+
+  /// 每筆安親回報次數（1 / 2 / 3），名稱共用 sessionLabels 第 1～3 個
+  final int daycareSessionCount;
 
   /// 退房後可下載紀錄與照片的時間
   final int downloadHoursAfterCheckout;
@@ -302,12 +306,15 @@ class DailyCareSettingModel {
     final Object? rawFields = map['enabledFields'];
     final Object? rawCustomFields = map['customFields'];
     final int sessionCount = _readSessionCount(map['sessionCount']);
+    final int daycareSessionCount = _readDaycareSessionCount(
+      map['daycareSessionCount'],
+    );
 
     return DailyCareSettingModel(
       enabled: map['enabled'] is bool ? map['enabled'] as bool : false,
 
       sessionCount: sessionCount,
-      sessionLabels: _readSessionLabels(map['sessionLabels'], sessionCount),
+      sessionLabels: _readStoredSessionLabels(map['sessionLabels']),
       backgroundType: _readBackgroundType(map['backgroundType']),
       backgroundColorKey: _readBackgroundColorKey(map['backgroundColorKey']),
       backgroundImageUrl: _readString(map['backgroundImageUrl']),
@@ -352,6 +359,7 @@ class DailyCareSettingModel {
           ? map['photoEnabled'] as bool
           : true,
       daycareEnabled: map['daycareEnabled'] == true,
+      daycareSessionCount: daycareSessionCount,
 
       downloadHoursAfterCheckout: _readDownloadHours(
         map['downloadHoursAfterCheckout'],
@@ -364,7 +372,7 @@ class DailyCareSettingModel {
     return <String, dynamic>{
       'enabled': enabled,
       'sessionCount': sessionCount,
-      'sessionLabels': resolvedSessionLabels(),
+      'sessionLabels': List<String>.generate(3, sessionLabelAt),
       'backgroundType': backgroundType,
       'backgroundColorKey': backgroundColorKey,
       'backgroundImageUrl': backgroundImageUrl,
@@ -383,6 +391,7 @@ class DailyCareSettingModel {
           .toList(),
       'photoEnabled': photoEnabled,
       'daycareEnabled': daycareEnabled,
+      'daycareSessionCount': daycareSessionCount,
       'downloadHoursAfterCheckout': downloadHoursAfterCheckout,
     };
   }
@@ -396,6 +405,7 @@ class DailyCareSettingModel {
     List<DailyCareCustomField>? customFields,
     bool? photoEnabled,
     bool? daycareEnabled,
+    int? daycareSessionCount,
     int? downloadHoursAfterCheckout,
     String? backgroundType,
     String? backgroundColorKey,
@@ -418,6 +428,7 @@ class DailyCareSettingModel {
       customFields: customFields ?? this.customFields,
       photoEnabled: photoEnabled ?? this.photoEnabled,
       daycareEnabled: daycareEnabled ?? this.daycareEnabled,
+      daycareSessionCount: daycareSessionCount ?? this.daycareSessionCount,
       downloadHoursAfterCheckout:
           downloadHoursAfterCheckout ?? this.downloadHoursAfterCheckout,
       backgroundType: backgroundType ?? this.backgroundType,
@@ -441,25 +452,28 @@ class DailyCareSettingModel {
 
   /// 依 sessionCount 回傳完整顯示名稱（含舊資料 fallback）
   List<String> resolvedSessionLabels() {
-    final List<String> defaults = defaultSessionLabels(sessionCount);
-    return List<String>.generate(sessionCount, (int index) {
-      if (index < sessionLabels.length) {
-        final String label = sessionLabels[index].trim();
-        if (label.isNotEmpty) {
-          return label;
-        }
+    return List<String>.generate(sessionCount, sessionLabelAt);
+  }
+
+  /// 安親回報名稱：共用照護紀錄名稱第 1、2、3 個
+  List<String> resolvedDaycareSessionLabels() {
+    return List<String>.generate(daycareSessionCount, sessionLabelAt);
+  }
+
+  /// 以 index 取顯示名稱，不受住宿每天次數截斷，安親可共用第 3 個名稱
+  String sessionLabelAt(int sessionIndex) {
+    if (sessionIndex >= 0 && sessionIndex < sessionLabels.length) {
+      final String label = sessionLabels[sessionIndex].trim();
+      if (label.isNotEmpty) {
+        return label;
       }
-      return defaults[index];
-    });
+    }
+    return fallbackSessionLabel(sessionIndex);
   }
 
   /// 以 sessionIndex 取顯示名稱，舊紀錄仍靠 index 對應
   String sessionLabel(int sessionIndex) {
-    final List<String> labels = resolvedSessionLabels();
-    if (sessionIndex >= 0 && sessionIndex < labels.length) {
-      return labels[sessionIndex];
-    }
-    return fallbackSessionLabel(sessionIndex);
+    return sessionLabelAt(sessionIndex);
   }
 
   bool get hasCustomBackgroundImage {
@@ -600,18 +614,24 @@ class DailyCareSettingModel {
     return value?.toString().trim() ?? '';
   }
 
-  static List<String> _readSessionLabels(Object? value, int sessionCount) {
-    final List<String> defaults = defaultSessionLabels(sessionCount);
-    final List<String> raw = value is List
-        ? value.map((dynamic item) => item?.toString().trim() ?? '').toList()
-        : const <String>[];
+  static List<String> _readStoredSessionLabels(Object? value) {
+    if (value is! List) {
+      return const <String>[];
+    }
+    return value
+        .map((dynamic item) => item?.toString().trim() ?? '')
+        .take(3)
+        .toList();
+  }
 
-    return List<String>.generate(sessionCount, (int index) {
-      if (index < raw.length && raw[index].isNotEmpty) {
-        return raw[index];
+  static int _readDaycareSessionCount(Object? value) {
+    if (value is num) {
+      final int result = value.toInt();
+      if (result >= 1 && result <= 3) {
+        return result;
       }
-      return defaults[index];
-    });
+    }
+    return 1;
   }
 
   static String _readBackgroundType(Object? value) {

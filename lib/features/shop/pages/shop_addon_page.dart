@@ -7,6 +7,7 @@
 // - Firebase 存取完整
 
 import 'package:flutter/material.dart';
+import 'package:petnest_saas/core/models/policy_applicable_service.dart';
 import 'package:petnest_saas/core/widgets/shop_task_center_button.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:petnest_saas/features/shop/pages/inventory/shop_inventory_list_page.dart';
@@ -328,6 +329,7 @@ class _ShopAddonPageState extends State<ShopAddonPage>
                 item['desc'] = val;
               },
             ),
+            _applicableServicesField(item),
             if (showInventoryBinding)
               AddonInventoryBindingEditor(
                 shopId: widget.shopId,
@@ -360,6 +362,58 @@ class _ShopAddonPageState extends State<ShopAddonPage>
               ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _applicableServicesField(Map<String, dynamic> item) {
+    final List<String> current = PolicyApplicableService.parse(
+      item['applicableServices'],
+    );
+    final String mode =
+        current.contains(PolicyApplicableService.accommodation) &&
+            current.contains(PolicyApplicableService.daycare)
+        ? 'both'
+        : current.contains(PolicyApplicableService.daycare)
+        ? 'daycare'
+        : 'stay';
+    return Padding(
+      padding: const EdgeInsets.only(top: 10),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          const Text('適用服務', style: TextStyle(fontWeight: FontWeight.w700)),
+          const SizedBox(height: 6),
+          SegmentedButton<String>(
+            segments: const <ButtonSegment<String>>[
+              ButtonSegment<String>(value: 'stay', label: Text('住宿')),
+              ButtonSegment<String>(value: 'daycare', label: Text('安親')),
+              ButtonSegment<String>(value: 'both', label: Text('住宿與安親')),
+            ],
+            selected: <String>{mode},
+            onSelectionChanged: (Set<String> values) {
+              if (values.isEmpty) {
+                return;
+              }
+              setState(() {
+                switch (values.first) {
+                  case 'daycare':
+                    item['applicableServices'] = List<String>.from(
+                      PolicyApplicableService.daycareOnly,
+                    );
+                  case 'both':
+                    item['applicableServices'] = List<String>.from(
+                      PolicyApplicableService.shared,
+                    );
+                  default:
+                    item['applicableServices'] = List<String>.from(
+                      PolicyApplicableService.accommodationOnly,
+                    );
+                }
+              });
+            },
+          ),
+        ],
       ),
     );
   }
@@ -511,6 +565,7 @@ class _ShopAddonPageState extends State<ShopAddonPage>
                 item['desc'] = value;
               },
             ),
+            _applicableServicesField(item),
             const SizedBox(height: 12),
             SwitchListTile(
               contentPadding: EdgeInsets.zero,
