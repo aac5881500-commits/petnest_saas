@@ -4,6 +4,7 @@
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:petnest_saas/core/services/member_search_fields.dart';
 
 class MemberService {
   MemberService._();
@@ -38,6 +39,10 @@ class MemberService {
 
     final profileName = (profileData['name'] ?? '').toString().trim();
     final profilePhone = (profileData['phone'] ?? '').toString().trim();
+    final String resolvedName =
+        name ?? profileName.ifEmpty(user.displayName ?? '');
+    final String resolvedPhone =
+        phone ?? profilePhone.ifEmpty(user.phoneNumber ?? '');
 
     final rawAddress = profileData['address'];
     String addressText = '';
@@ -61,8 +66,8 @@ class MemberService {
         await memberRef.set({
           'userId': user.uid,
           'email': user.email ?? '',
-          'name': name ?? profileName.ifEmpty(user.displayName ?? ''),
-          'phone': phone ?? profilePhone.ifEmpty(user.phoneNumber ?? ''),
+          'name': resolvedName,
+          'phone': resolvedPhone,
           'address': addressText,
           'emergencyContact': emergencyContact,
           'avatarUrl': (profileData['avatarUrl'] ?? '').toString().trim(),
@@ -72,13 +77,19 @@ class MemberService {
           'updatedAt': FieldValue.serverTimestamp(),
           'lastLoginAt': FieldValue.serverTimestamp(),
           'lastBookingAt': FieldValue.serverTimestamp(),
+          ...MemberSearchFields.fromMember(
+            name: resolvedName,
+            phone: resolvedPhone,
+            email: user.email ?? '',
+            source: 'app',
+          ),
         }, SetOptions(merge: true));
       } else {
         await memberRef.set({
           'userId': user.uid,
           'email': user.email ?? '',
-          'name': name ?? profileName.ifEmpty(user.displayName ?? ''),
-          'phone': phone ?? profilePhone.ifEmpty(user.phoneNumber ?? ''),
+          'name': resolvedName,
+          'phone': resolvedPhone,
           'address': addressText,
           'emergencyContact': emergencyContact,
           'avatarUrl': (profileData['avatarUrl'] ?? '').toString().trim(),
@@ -95,6 +106,12 @@ class MemberService {
           'lastLoginAt': FieldValue.serverTimestamp(),
           'lastBookingAt': FieldValue.serverTimestamp(),
           'isBlocked': false,
+          ...MemberSearchFields.fromMember(
+            name: resolvedName,
+            phone: resolvedPhone,
+            email: user.email ?? '',
+            source: 'app',
+          ),
         }, SetOptions(merge: true));
       }
 

@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:petnest_saas/core/models/payment_gateway_status.dart';
 import 'package:petnest_saas/core/models/payment_model.dart';
+import 'package:petnest_saas/core/services/booking_settlement_math.dart';
 import 'package:petnest_saas/core/services/payment_service.dart';
 import 'package:petnest_saas/core/services/shop_payment_methods.dart';
 import 'package:petnest_saas/core/utils/safe_parse.dart';
@@ -112,6 +113,24 @@ class _BookingDetailFinanceSectionState
               valueColor: BookingDetailUi.of(context).primary,
             ),
           _kv('已付款', 'NT\$ ${view.paidAmount}'),
+          if (BookingSettlementMath.isSettlementConfirmed(view.raw)) ...<Widget>[
+            _kv(
+              '已完成退款',
+              'NT\$ ${BookingSettlementMath.refundedAmount(view.raw)}',
+            ),
+            _kv(
+              '實收淨額',
+              'NT\$ ${BookingSettlementMath.netCollected(view.raw)}',
+            ),
+            _kv(
+              '待補款',
+              'NT\$ ${BookingSettlementMath.remainingDue(data: view.raw)}',
+            ),
+            _kv(
+              '待退款',
+              'NT\$ ${BookingSettlementMath.refundDue(data: view.raw)}',
+            ),
+          ],
           _kv(
             '尚需支付',
             'NT\$ ${view.dueNowAmount}',
@@ -422,7 +441,7 @@ class _BookingDetailFinanceSectionState
     final String accountNumber = SafeParse.parseString(
       view.raw['accountNumber'],
     );
-    final String imageUrl = SafeParse.parseString(view.raw['transferImageUrl']);
+    final String imageUrl = view.transferProofUrl;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,

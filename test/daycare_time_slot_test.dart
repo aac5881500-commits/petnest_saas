@@ -7,9 +7,9 @@ import 'package:petnest_saas/core/services/daycare_booking_validator.dart';
 import 'package:petnest_saas/core/services/daycare_time_helper.dart';
 
 void main() {
-  test('今天中午 12:00 時，12:00 前不可選、之後可選', () {
+  test('今天中午 12:00（台灣）時，12:00 前不可選、之後可選', () {
     final DateTime date = DateTime(2026, 9, 7);
-    final DateTime now = DateTime(2026, 9, 7, 12, 0);
+    final DateTime now = DateTime.utc(2026, 9, 7, 4, 0);
     expect(
       DaycareTimeHelper.isSlotSelectable(slot: '11:30', date: date, now: now),
       isFalse,
@@ -20,6 +20,28 @@ void main() {
     );
     expect(
       DaycareTimeHelper.isSlotSelectable(slot: '12:30', date: date, now: now),
+      isTrue,
+    );
+  });
+
+  test('15:10 時今天 15:00 含以前不可選，15:30 可選', () {
+    final DateTime date = DateTime(2026, 9, 7);
+    final DateTime now = DateTime.utc(2026, 9, 7, 7, 10);
+    expect(
+      DaycareTimeHelper.isSlotSelectable(slot: '15:00', date: date, now: now),
+      isFalse,
+    );
+    expect(
+      DaycareTimeHelper.isSlotSelectable(slot: '15:30', date: date, now: now),
+      isTrue,
+    );
+  });
+
+  test('明天上午不受現在時刻影響', () {
+    final DateTime date = DateTime(2026, 9, 8);
+    final DateTime now = DateTime.utc(2026, 9, 7, 7, 10);
+    expect(
+      DaycareTimeHelper.isSlotSelectable(slot: '09:00', date: date, now: now),
       isTrue,
     );
   });

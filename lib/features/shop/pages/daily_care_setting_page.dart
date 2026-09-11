@@ -7,13 +7,18 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
+import '../../../core/models/daily_care_offer_quota.dart';
+import '../../../core/models/daily_care_paid_plan.dart';
+import '../../../core/models/daily_care_report_mode.dart';
 import '../../../core/models/daily_care_setting_model.dart';
 import '../../../core/services/daily_care_background_service.dart';
 import '../../../core/services/daily_care_setting_service.dart';
 import '../../../core/services/daycare_enabled.dart';
+import '../../../core/services/shop_room_service.dart';
 import '../../../core/services/shop_service.dart';
 import '../../../core/widgets/daily_care_card_surface.dart';
 import '../../../core/widgets/shop_task_center_button.dart';
+import '../widgets/daily_care_full_journal_preview.dart';
 
 class DailyCareSettingPage extends StatefulWidget {
   const DailyCareSettingPage({super.key, required this.shopId});
@@ -28,13 +33,49 @@ class _DailyCareSettingPageState extends State<DailyCareSettingPage> {
   bool _loading = true;
   bool _saving = false;
   bool _backgroundBusy = false;
+  DailyCareSettingModel _loaded = const DailyCareSettingModel();
 
   bool _enabled = false;
   int _sessionCount = 2;
   bool _photoEnabled = true;
+  String _stayReportMode = DailyCareReportMode.includedFixed;
+  int _stayPhotosIncluded = 3;
+  bool _stayAddonUpgradeEnabled = false;
+  Map<String, DailyCareOfferQuota> _stayOfferQuotas =
+      <String, DailyCareOfferQuota>{};
   bool _daycareEnabled = false;
   int _daycareSessionCount = 1;
-  int _downloadHours = 24;
+  String _daycareReportMode = DailyCareReportMode.includedFixed;
+  int _daycarePhotosIncluded = 3;
+  bool _daycareAddonUpgradeEnabled = false;
+  Map<String, DailyCareOfferQuota> _daycareOfferQuotas =
+      <String, DailyCareOfferQuota>{};
+  DailyCarePaidPlan _stayPaidPlan = const DailyCarePaidPlan();
+  DailyCarePaidPlan _daycarePaidPlan = const DailyCarePaidPlan(
+    chargeUnit: DailyCareReportMode.chargePerVisit,
+  );
+  bool _includeCheckInDay = true;
+  bool _includeCheckOutDay = false;
+  bool _logoVisible = true;
+  String _logoAlign = 'left';
+  double _logoSize = 36;
+  double _titleFontSize = 18;
+  double _bodyFontSize = 14;
+  String _textColorKey = 'ink';
+  String _accentColorKey = 'brown';
+  double _iconSize = 18;
+  String _iconColorKey = 'brown';
+  double _cardRadius = 16;
+  double _cardPadding = 12;
+  double _cardGap = 12;
+  bool _showCardBorder = true;
+  double _photoRadius = 10;
+  int _tabIndex = 0;
+  bool _previewDaycare = false;
+  int _previewSessionIndex = 0;
+  double _previewScale = 1;
+  bool _previewPhotos = true;
+  String _previewOfferId = '';
 
   String _backgroundType = DailyCareJournalTheme.typeSystem;
   String _backgroundColorKey = DailyCareJournalTheme.colorDefault;
@@ -55,6 +96,12 @@ class _DailyCareSettingPageState extends State<DailyCareSettingPage> {
   List<DailyCareCustomField> _customFields = <DailyCareCustomField>[];
 
   final List<TextEditingController> _sessionLabelControllers =
+      List<TextEditingController>.generate(
+        3,
+        (int index) => TextEditingController(),
+      );
+
+  final List<TextEditingController> _daycareLabelControllers =
       List<TextEditingController>.generate(
         3,
         (int index) => TextEditingController(),
@@ -124,12 +171,16 @@ class _DailyCareSettingPageState extends State<DailyCareSettingPage> {
   void initState() {
     super.initState();
     _syncSessionLabelControllers(_sessionCount);
+    _syncDaycareLabelControllers(_daycareSessionCount);
     _loadSetting();
   }
 
   @override
   void dispose() {
     for (final TextEditingController controller in _sessionLabelControllers) {
+      controller.dispose();
+    }
+    for (final TextEditingController controller in _daycareLabelControllers) {
       controller.dispose();
     }
     super.dispose();
@@ -144,12 +195,42 @@ class _DailyCareSettingPageState extends State<DailyCareSettingPage> {
       if (!mounted) return;
 
       setState(() {
+        _loaded = setting;
         _enabled = setting.enabled;
         _sessionCount = setting.sessionCount;
         _photoEnabled = setting.photoEnabled;
+        _stayReportMode = setting.stayReportMode;
+        _stayPhotosIncluded = setting.stayPhotosIncluded;
+        _stayAddonUpgradeEnabled = setting.stayAddonUpgradeEnabled;
+        _stayOfferQuotas = Map<String, DailyCareOfferQuota>.from(
+          setting.stayOfferQuotas,
+        );
         _daycareEnabled = setting.daycareEnabled;
         _daycareSessionCount = setting.daycareSessionCount;
-        _downloadHours = setting.downloadHoursAfterCheckout;
+        _daycareReportMode = setting.daycareReportMode;
+        _daycarePhotosIncluded = setting.daycarePhotosIncluded;
+        _daycareAddonUpgradeEnabled = setting.daycareAddonUpgradeEnabled;
+        _daycareOfferQuotas = Map<String, DailyCareOfferQuota>.from(
+          setting.daycareOfferQuotas,
+        );
+        _stayPaidPlan = setting.stayPaidPlan;
+        _daycarePaidPlan = setting.daycarePaidPlan;
+        _includeCheckInDay = setting.includeCheckInDay;
+        _includeCheckOutDay = setting.includeCheckOutDay;
+        _logoVisible = setting.logoVisible;
+        _logoAlign = setting.logoAlign;
+        _logoSize = setting.logoSize;
+        _titleFontSize = setting.titleFontSize;
+        _bodyFontSize = setting.bodyFontSize;
+        _textColorKey = setting.textColorKey;
+        _accentColorKey = setting.accentColorKey;
+        _iconSize = setting.iconSize;
+        _iconColorKey = setting.iconColorKey;
+        _cardRadius = setting.cardRadius;
+        _cardPadding = setting.cardPadding;
+        _cardGap = setting.cardGap;
+        _showCardBorder = setting.showCardBorder;
+        _photoRadius = setting.photoRadius;
         _enabledFields = setting.enabledFields.toSet();
         _customFields = List<DailyCareCustomField>.from(setting.customFields);
         _backgroundType = setting.backgroundType;
@@ -168,6 +249,10 @@ class _DailyCareSettingPageState extends State<DailyCareSettingPage> {
           setting.sessionCount,
           labels: setting.resolvedSessionLabels(),
         );
+        _syncDaycareLabelControllers(
+          setting.daycareSessionCount,
+          labels: setting.resolvedDaycareSessionLabels(),
+        );
         _loading = false;
       });
     } catch (e) {
@@ -180,6 +265,19 @@ class _DailyCareSettingPageState extends State<DailyCareSettingPage> {
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text('讀取設定失敗：$e')));
+    }
+  }
+
+  void _syncDaycareLabelControllers(int sessionCount, {List<String>? labels}) {
+    final List<String> defaults = DailyCareSettingModel.defaultSessionLabels(
+      sessionCount,
+    );
+    for (int index = 0; index < _daycareLabelControllers.length; index++) {
+      if (labels != null && index < labels.length && labels[index].trim().isNotEmpty) {
+        _daycareLabelControllers[index].text = labels[index];
+      } else if (_daycareLabelControllers[index].text.trim().isEmpty) {
+        _daycareLabelControllers[index].text = defaults[index < defaults.length ? index : 0];
+      }
     }
   }
 
@@ -206,31 +304,23 @@ class _DailyCareSettingPageState extends State<DailyCareSettingPage> {
 
   List<String>? _readSessionLabelsOrNull() {
     final List<String> labels = <String>[];
-    int requiredCount = _sessionCount;
-    if (_daycareEnabled && _daycareSessionCount > requiredCount) {
-      requiredCount = _daycareSessionCount;
-    }
     for (int index = 0; index < 3; index++) {
-      final String label = _sessionLabelControllers[index].text.trim();
-      if (index < requiredCount) {
-        if (label.isEmpty) {
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(SnackBar(content: Text('照護 ${index + 1} 名稱不可空白')));
-          return null;
-        }
-        if (label.length > DailyCareJournalTheme.sessionLabelMaxLength) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(
-                '照護 ${index + 1} 名稱請控制在 ${DailyCareJournalTheme.sessionLabelMaxLength} 字以內',
-              ),
-            ),
-          );
-          return null;
-        }
+      labels.add(_sessionLabelControllers[index].text.trim());
+    }
+    int required = 0;
+    if (_enabled && _stayReportMode == DailyCareReportMode.includedFixed) {
+      required = _sessionCount;
+    }
+    if (_enabled && _stayReportMode == DailyCareReportMode.paidAddon) {
+      required = _stayPaidPlan.reports;
+    }
+    for (int index = 0; index < required; index++) {
+      if (labels[index].isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('住宿第 ${index + 1} 場名稱不可空白')),
+        );
+        return null;
       }
-      labels.add(label);
     }
     return labels;
   }
@@ -254,9 +344,50 @@ class _DailyCareSettingPageState extends State<DailyCareSettingPage> {
       enabledFields: _enabledFields.toList(),
       customFields: _customFields,
       photoEnabled: _photoEnabled,
+      stayReportMode: _stayReportMode,
+      stayPhotosIncluded: _stayPhotosIncluded,
+      stayAddonUpgradeEnabled: _stayAddonUpgradeEnabled,
+      stayOfferQuotas: _stayOfferQuotas,
+      includeCheckInDay: _includeCheckInDay,
+      includeCheckOutDay: _includeCheckOutDay,
+      stayPaidPlan: _stayPaidPlan.copyWith(
+        sessionLabels: List<String>.generate(
+          _stayPaidPlan.reports,
+          (int index) => _sessionLabelControllers[index].text.trim(),
+        ),
+      ),
+      daycarePaidPlan: _daycarePaidPlan.copyWith(
+        sessionLabels: List<String>.generate(
+          _daycarePaidPlan.reports,
+          (int index) => _daycareLabelControllers[index].text.trim(),
+        ),
+      ),
+      logoVisible: _logoVisible,
+      logoAlign: _logoAlign,
+      logoSize: _logoSize,
+      titleFontSize: _titleFontSize,
+      bodyFontSize: _bodyFontSize,
+      textColorKey: _textColorKey,
+      accentColorKey: _accentColorKey,
+      iconSize: _iconSize,
+      iconColorKey: _iconColorKey,
+      cardRadius: _cardRadius,
+      cardPadding: _cardPadding,
+      cardGap: _cardGap,
+      showCardBorder: _showCardBorder,
+      photoRadius: _photoRadius,
       daycareEnabled: _daycareEnabled,
       daycareSessionCount: _daycareSessionCount,
-      downloadHoursAfterCheckout: _downloadHours,
+      daycareSessionLabels: List<String>.generate(
+        3,
+        (int index) => _daycareLabelControllers[index].text.trim(),
+      ),
+      daycareReportMode: _daycareReportMode,
+      daycarePhotosIncluded: _daycarePhotosIncluded,
+      daycareAddonUpgradeEnabled: _daycareAddonUpgradeEnabled,
+      daycareOfferQuotas: _daycareOfferQuotas,
+      revision: _loaded.revision,
+      downloadHoursAfterCheckout: 24,
       backgroundType: backgroundType,
       backgroundColorKey: _backgroundColorKey,
       backgroundImageUrl: _backgroundImageUrl,
@@ -283,40 +414,25 @@ class _DailyCareSettingPageState extends State<DailyCareSettingPage> {
   }
 
   DailyCareSettingModel _previewSetting() {
-    return DailyCareSettingModel(
-      sessionCount: _sessionCount,
-      sessionLabels: List<String>.generate(
-        _sessionCount,
-        (int index) => _sessionLabelControllers[index].text.trim(),
-      ),
-      backgroundType: _backgroundType,
-      backgroundColorKey: _backgroundColorKey,
-      backgroundImageUrl: _backgroundImageUrl,
-      backgroundImagePath: _backgroundImagePath,
-      backgroundImageFit: _backgroundImageFit,
-      backgroundImageFade: _backgroundImageFade,
-      cardBackgroundType: _resolvedCardBackgroundType(),
-      cardBackgroundPreset: _cardBackgroundPreset,
-      cardBackgroundImageUrl: _cardBackgroundImageUrl,
-      cardBackgroundImagePath: _cardBackgroundImagePath,
-      cardBackgroundImageFit: _cardBackgroundImageFit,
-      cardBackgroundImageFade: _cardBackgroundImageFade,
-    );
+    return _draftSetting() ?? _loaded;
   }
 
-  Future<void> _save({String successMessage = '每日照護紀錄設定已儲存'}) async {
-    if (_saving || _backgroundBusy) return;
+  Future<bool> _save({
+    String successMessage = '每日照護紀錄設定已儲存',
+    DailyCareSettingSection section = DailyCareSettingSection.all,
+  }) async {
+    if (_saving || _backgroundBusy) return false;
 
-    if (_enabled && _enabledFields.isEmpty) {
+    if (_enabled && _enabledFields.isEmpty && _tabIndex == 1) {
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(const SnackBar(content: Text('請至少選擇一個照護紀錄欄位')));
-      return;
+      return false;
     }
 
     final DailyCareSettingModel? setting = _draftSetting();
     if (setting == null) {
-      return;
+      return false;
     }
 
     setState(() {
@@ -327,19 +443,33 @@ class _DailyCareSettingPageState extends State<DailyCareSettingPage> {
       await DailyCareSettingService.instance.saveSetting(
         shopId: widget.shopId,
         setting: setting,
+        expectedRevision: _loaded.revision,
+        section: section == DailyCareSettingSection.all
+            ? _sectionForTab(_tabIndex)
+            : section,
       );
+      final DailyCareSettingModel stored = await DailyCareSettingService
+          .instance
+          .getSetting(widget.shopId);
+      if (mounted) {
+        setState(() {
+          _loaded = stored;
+        });
+      }
 
-      if (!mounted) return;
+      if (!mounted) return true;
 
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text(successMessage)));
+      return true;
     } catch (e) {
-      if (!mounted) return;
+      if (!mounted) return false;
 
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text('儲存失敗：$e')));
+      return false;
     } finally {
       if (mounted) {
         setState(() {
@@ -347,6 +477,132 @@ class _DailyCareSettingPageState extends State<DailyCareSettingPage> {
         });
       }
     }
+  }
+
+  DailyCareSettingSection _sectionForTab(int index) {
+    switch (index) {
+      case 1:
+        return DailyCareSettingSection.content;
+      case 2:
+        return DailyCareSettingSection.appearance;
+      default:
+        return DailyCareSettingSection.rules;
+    }
+  }
+
+  bool _sectionDirty(int index) {
+    final DailyCareSettingModel? draft = _draftSetting();
+    if (draft == null) {
+      return true;
+    }
+    switch (_sectionForTab(index)) {
+      case DailyCareSettingSection.rules:
+        return draft.enabled != _loaded.enabled ||
+            draft.sessionCount != _loaded.sessionCount ||
+            draft.sessionLabels.toString() != _loaded.sessionLabels.toString() ||
+            draft.stayReportMode != _loaded.stayReportMode ||
+            draft.stayPaidPlan.toMap().toString() !=
+                _loaded.stayPaidPlan.toMap().toString() ||
+            draft.daycareEnabled != _loaded.daycareEnabled ||
+            draft.daycareReportMode != _loaded.daycareReportMode ||
+            draft.includeCheckInDay != _loaded.includeCheckInDay ||
+            draft.includeCheckOutDay != _loaded.includeCheckOutDay;
+      case DailyCareSettingSection.content:
+        return draft.enabledFields.toString() !=
+                _loaded.enabledFields.toString() ||
+            draft.customFields.map((e) => e.id).join() !=
+                _loaded.customFields.map((e) => e.id).join();
+      case DailyCareSettingSection.appearance:
+        return draft.backgroundType != _loaded.backgroundType ||
+            draft.cardBackgroundType != _loaded.cardBackgroundType ||
+            draft.logoVisible != _loaded.logoVisible ||
+            draft.titleFontSize != _loaded.titleFontSize;
+      case DailyCareSettingSection.all:
+        return true;
+    }
+  }
+
+  Future<void> _requestTab(int next) async {
+    if (next == _tabIndex) {
+      return;
+    }
+    if (!_sectionDirty(_tabIndex)) {
+      setState(() {
+        _tabIndex = next;
+      });
+      return;
+    }
+    final String? action = await showDialog<String>(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('有尚未儲存的變更'),
+          content: const Text('要先儲存目前分頁，還是放棄變更再前往？'),
+          actions: <Widget>[
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('取消'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(context, 'discard'),
+              child: const Text('放棄變更並前往'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(context, 'save'),
+              child: const Text('儲存並前往'),
+            ),
+          ],
+        );
+      },
+    );
+    if (action == 'save') {
+      final bool ok = await _save(section: _sectionForTab(_tabIndex));
+      if (ok && mounted) {
+        setState(() {
+          _tabIndex = next;
+        });
+      }
+    } else if (action == 'discard') {
+      await _loadSetting();
+      if (mounted) {
+        setState(() {
+          _tabIndex = next;
+        });
+      }
+    }
+  }
+
+  Future<bool> _onLeaveEditor() async {
+    if (!_sectionDirty(_tabIndex)) {
+      return true;
+    }
+    final String? action = await showDialog<String>(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('有尚未儲存的變更'),
+          content: const Text('離開前要儲存、放棄，還是繼續編輯？'),
+          actions: <Widget>[
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('繼續編輯'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(context, 'discard'),
+              child: const Text('放棄變更'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(context, 'save'),
+              child: const Text('儲存'),
+            ),
+          ],
+        );
+      },
+    );
+    if (action == 'save') {
+      return _save(section: _sectionForTab(_tabIndex));
+    }
+    return action == 'discard';
   }
 
   Future<void> _pickAndUploadBackground() async {
@@ -855,89 +1111,833 @@ class _DailyCareSettingPageState extends State<DailyCareSettingPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFF7F7F7),
-      appBar: AppBar(
-        title: const Text('每日照護紀錄設定'),
-        actions: <Widget>[ShopTaskCenterButton(shopId: widget.shopId)],
-      ),
-      body: _loading
-          ? const Center(child: CircularProgressIndicator())
-          : ListView(
-              padding: const EdgeInsets.all(16),
+    final bool wide = MediaQuery.sizeOf(context).width >= 900;
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (bool didPop, Object? result) async {
+        if (didPop) {
+          return;
+        }
+        final bool leave = await _onLeaveEditor();
+        if (leave && context.mounted) {
+          Navigator.of(context).pop();
+        }
+      },
+      child: Scaffold(
+        backgroundColor: const Color(0xFFF7F7F7),
+        appBar: AppBar(
+          title: const Text('每日照護紀錄設定'),
+          actions: <Widget>[ShopTaskCenterButton(shopId: widget.shopId)],
+          bottom: PreferredSize(
+            preferredSize: const Size.fromHeight(48),
+            child: Row(
               children: <Widget>[
-                _buildMainSwitchCard(),
-
-                const SizedBox(height: 16),
-
-                StreamBuilder<Map<String, dynamic>?>(
-                  stream: ShopService.instance.streamShop(widget.shopId),
-                  builder:
-                      (
-                        BuildContext context,
-                        AsyncSnapshot<Map<String, dynamic>?> shopSnap,
-                      ) {
-                        if (!DaycareEnabled.isOn(shop: shopSnap.data)) {
-                          return const SizedBox.shrink();
-                        }
-                        return Column(
-                          children: <Widget>[
-                            _buildDaycareCareCard(),
-                            const SizedBox(height: 16),
-                          ],
-                        );
-                      },
-                ),
-
-                IgnorePointer(
-                  ignoring: !_enabled,
-                  child: Opacity(
-                    opacity: _enabled ? 1 : 0.45,
-                    child: Column(
+                _tabButton(0, '回報規則'),
+                _tabButton(1, '照護內容'),
+                _tabButton(2, '外觀設定'),
+              ],
+            ),
+          ),
+        ),
+        body: _loading
+            ? const Center(child: CircularProgressIndicator())
+            : Column(
+                children: <Widget>[
+                  Expanded(
+                    child: IndexedStack(
+                      index: _tabIndex,
                       children: <Widget>[
-                        _buildSessionCard(),
-
-                        const SizedBox(height: 16),
-
-                        _buildAppearanceCard(),
-
-                        const SizedBox(height: 16),
-
-                        _buildFieldsCard(),
-
-                        const SizedBox(height: 16),
-
-                        _buildPhotoCard(),
-
-                        const SizedBox(height: 16),
-
-                        _buildDownloadCard(),
+                        _wrapWidth(wide, _buildReportRulesTab()),
+                        _buildContentTab(wide),
+                        _buildAppearanceTab(wide),
                       ],
                     ),
                   ),
-                ),
-
-                const SizedBox(height: 24),
-
-                SizedBox(
-                  width: double.infinity,
-                  height: 50,
-                  child: FilledButton.icon(
-                    onPressed: _saving || _backgroundBusy ? null : _save,
-                    icon: _saving
-                        ? const SizedBox(
-                            width: 18,
-                            height: 18,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Icon(Icons.save_outlined),
-                    label: Text(_saving ? '儲存中...' : '儲存設定'),
+                  SafeArea(
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+                      child: SizedBox(
+                        width: double.infinity,
+                        height: 50,
+                        child: FilledButton.icon(
+                          onPressed: _saving || _backgroundBusy
+                              ? null
+                              : () => _save(
+                                  section: _sectionForTab(_tabIndex),
+                                ),
+                          icon: _saving
+                              ? const SizedBox(
+                                  width: 18,
+                                  height: 18,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
+                                )
+                              : const Icon(Icons.save_outlined),
+                          label: Text(_saving ? '儲存中...' : '確認儲存此分頁'),
+                        ),
+                      ),
+                    ),
                   ),
-                ),
+                ],
+              ),
+      ),
+    );
+  }
 
-                const SizedBox(height: 24),
-              ],
+  Widget _tabButton(int index, String label) {
+    final bool selected = _tabIndex == index;
+    return Expanded(
+      child: InkWell(
+        onTap: () => _requestTab(index),
+        child: Container(
+          height: 48,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            border: Border(
+              bottom: BorderSide(
+                color: selected ? const Color(0xFF3D6F9F) : Colors.transparent,
+                width: 3,
+              ),
             ),
+          ),
+          child: Text(
+            label,
+            style: TextStyle(
+              fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
+              color: selected ? const Color(0xFF3D6F9F) : Colors.black54,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _wrapWidth(bool wide, Widget child) {
+    if (!wide) {
+      return child;
+    }
+    return Align(
+      alignment: Alignment.topCenter,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 980),
+        child: child,
+      ),
+    );
+  }
+
+  Widget _buildReportRulesTab() {
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: <Widget>[
+        _buildMainSwitchCard(),
+        const SizedBox(height: 16),
+        _buildStayRuleCard(),
+        const SizedBox(height: 16),
+        StreamBuilder<Map<String, dynamic>?>(
+          stream: ShopService.instance.streamShop(widget.shopId),
+          builder:
+              (
+                BuildContext context,
+                AsyncSnapshot<Map<String, dynamic>?> shopSnap,
+              ) {
+                if (!DaycareEnabled.isOn(shop: shopSnap.data)) {
+                  return const SizedBox.shrink();
+                }
+                return _buildDaycareRuleCard();
+              },
+        ),
+        const SizedBox(height: 16),
+        _SettingCard(
+          title: '照片與保存',
+          subtitle:
+              '每場回報可附最多 3 張照片；服務結束後保留 24 小時，請及時下載。',
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('入住日提供照護回報'),
+                value: _includeCheckInDay,
+                onChanged: (bool value) {
+                  setState(() {
+                    _includeCheckInDay = value;
+                  });
+                },
+              ),
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('退房日提供照護回報'),
+                subtitle: const Text('兩種住宿計費方式共用。同一日期不重複計費。'),
+                value: _includeCheckOutDay,
+                onChanged: (bool value) {
+                  setState(() {
+                    _includeCheckOutDay = value;
+                  });
+                },
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 16),
+        _buildDownloadCard(),
+      ],
+    );
+  }
+
+  Widget _buildContentTab(bool wide) {
+    final Widget settings = ListView(
+      padding: const EdgeInsets.all(16),
+      children: <Widget>[
+        const Text(
+          '場次數量與名稱請在「回報規則」設定。此頁只編輯顧客日誌會出現的照護項目。',
+          style: TextStyle(height: 1.4),
+        ),
+        const SizedBox(height: 16),
+        _buildFieldsCard(),
+        if (!wide) ...<Widget>[
+          const SizedBox(height: 16),
+          FilledButton.tonal(
+            onPressed: () => _openMobilePreview(),
+            child: const Text('預覽圖片'),
+          ),
+        ],
+      ],
+    );
+    return _splitEditor(wide: wide, settings: settings);
+  }
+
+  Widget _buildAppearanceTab(bool wide) {
+    final Widget settings = ListView(
+      padding: const EdgeInsets.all(16),
+      children: <Widget>[
+        _logoAndTypeCard(),
+        const SizedBox(height: 16),
+        _buildAppearanceCard(),
+        if (!wide) ...<Widget>[
+          const SizedBox(height: 16),
+          FilledButton.tonal(
+            onPressed: () => _openMobilePreview(),
+            child: const Text('預覽圖片'),
+          ),
+        ],
+      ],
+    );
+    return _splitEditor(wide: wide, settings: settings);
+  }
+
+  Widget _splitEditor({required bool wide, required Widget settings}) {
+    if (!wide) {
+      return settings;
+    }
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: <Widget>[
+        Expanded(child: _desktopPreviewPane()),
+        const VerticalDivider(width: 1),
+        Expanded(child: settings),
+      ],
+    );
+  }
+
+  Widget _desktopPreviewPane() {
+    final DailyCareSettingModel preview = _previewSetting();
+    final List<String> labels = DailyCarePreviewSession.labelsFor(
+      preview,
+      isDaycare: _previewDaycare,
+      offerId: _previewOfferId,
+    );
+    return Column(
+      children: <Widget>[
+        Padding(
+          padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+          child: Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: <Widget>[
+              ChoiceChip(
+                label: const Text('住宿'),
+                selected: !_previewDaycare,
+                onSelected: (_) {
+                  setState(() {
+                    _previewDaycare = false;
+                  });
+                },
+              ),
+              ChoiceChip(
+                label: const Text('安親'),
+                selected: _previewDaycare,
+                onSelected: (_) {
+                  setState(() {
+                    _previewDaycare = true;
+                  });
+                },
+              ),
+              ChoiceChip(
+                label: Text(_previewPhotos ? '有照片' : '無照片'),
+                selected: _previewPhotos,
+                onSelected: (_) {
+                  setState(() {
+                    _previewPhotos = !_previewPhotos;
+                  });
+                },
+              ),
+              for (int i = 0; i < labels.length; i++)
+                ChoiceChip(
+                  label: Text(labels[i]),
+                  selected: _previewSessionIndex == i,
+                  onSelected: (_) {
+                    setState(() {
+                      _previewSessionIndex = i;
+                    });
+                  },
+                ),
+              TextButton(
+                onPressed: () {
+                  setState(() {
+                    _previewScale = _previewScale == 1 ? 1.15 : 1;
+                  });
+                },
+                child: Text('預覽倍率 ${_previewScale == 1 ? '100%' : '115%'}'),
+              ),
+            ],
+          ),
+        ),
+        Expanded(
+          child: Padding(
+            padding: const EdgeInsets.all(12),
+            child: DailyCareFullJournalPreview(
+              setting: preview,
+              isDaycare: _previewDaycare,
+              sessionLabels: labels,
+              sessionIndex: _previewSessionIndex,
+              showPhotos: _previewPhotos,
+              previewScale: _previewScale,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Future<void> _openMobilePreview() async {
+    final DailyCareSettingModel preview = _previewSetting();
+    final List<String> labels = DailyCarePreviewSession.labelsFor(
+      preview,
+      isDaycare: _previewDaycare,
+      offerId: _previewOfferId,
+    );
+    await Navigator.push<void>(
+      context,
+      MaterialPageRoute<void>(
+        builder: (BuildContext context) {
+          return Scaffold(
+            appBar: AppBar(title: const Text('照護日誌預覽')),
+            body: DailyCareFullJournalPreview(
+              setting: preview,
+              isDaycare: _previewDaycare,
+              sessionLabels: labels,
+              sessionIndex: _previewSessionIndex,
+              showPhotos: _previewPhotos,
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _logoAndTypeCard() {
+    return _SettingCard(
+      title: '品牌與文字',
+      subtitle: '預設使用店家 LOGO。還原預設後仍是本機草稿，需確認儲存才生效。',
+      child: Column(
+        children: <Widget>[
+          SwitchListTile(
+            contentPadding: EdgeInsets.zero,
+            title: const Text('顯示店家 LOGO'),
+            value: _logoVisible,
+            onChanged: (bool value) {
+              setState(() {
+                _logoVisible = value;
+              });
+            },
+          ),
+          RadioListTile<String>(
+            value: 'left',
+            groupValue: _logoAlign,
+            title: const Text('LOGO 靠左'),
+            onChanged: (String? value) {
+              setState(() {
+                _logoAlign = value ?? 'left';
+              });
+            },
+          ),
+          RadioListTile<String>(
+            value: 'center',
+            groupValue: _logoAlign,
+            title: const Text('LOGO 置中'),
+            onChanged: (String? value) {
+              setState(() {
+                _logoAlign = value ?? 'center';
+              });
+            },
+          ),
+          Text('LOGO 大小 ${_logoSize.round()}'),
+          Slider(
+            min: 20,
+            max: 72,
+            value: _logoSize,
+            onChanged: (double value) {
+              setState(() {
+                _logoSize = value;
+              });
+            },
+          ),
+          Text('標題字級 ${_titleFontSize.round()}'),
+          Slider(
+            min: 14,
+            max: 28,
+            value: _titleFontSize,
+            onChanged: (double value) {
+              setState(() {
+                _titleFontSize = value;
+              });
+            },
+          ),
+          Text('內文字級 ${_bodyFontSize.round()}'),
+          Slider(
+            min: 12,
+            max: 20,
+            value: _bodyFontSize,
+            onChanged: (double value) {
+              setState(() {
+                _bodyFontSize = value;
+              });
+            },
+          ),
+          TextButton(
+            onPressed: () {
+              setState(() {
+                _logoVisible = true;
+                _logoAlign = 'left';
+                _logoSize = 36;
+                _titleFontSize = 18;
+                _bodyFontSize = 14;
+                _cardRadius = 16;
+                _cardPadding = 12;
+                _cardGap = 12;
+                _photoRadius = 10;
+                _backgroundType = DailyCareJournalTheme.typeSystem;
+                _cardBackgroundType = DailyCareJournalTheme.cardTypeSolid;
+                _cardBackgroundPreset = DailyCareJournalTheme.cardPresetNone;
+              });
+            },
+            child: const Text('還原預設（本機草稿）'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _modeSelector({
+    required String value,
+    required ValueChanged<String> onChanged,
+    required bool daycare,
+    bool roomBased = true,
+  }) {
+    return Column(
+      children: <Widget>[
+        RadioListTile<String>(
+          value: DailyCareReportMode.includedFixed,
+          groupValue: value,
+          title: const Text('固定提供'),
+          subtitle: const Text('所有訂單提供相同場次數量與名稱'),
+          onChanged: (String? next) {
+            if (next != null) {
+              onChanged(next);
+            }
+          },
+        ),
+        RadioListTile<String>(
+          value: DailyCareReportMode.includedByOffer,
+          groupValue: value,
+          title: Text(daycare && !roomBased ? '依方案提供' : '依房型提供'),
+          subtitle: Text(
+            daycare
+                ? (roomBased ? '依安親房型設定場次，購買時即確定，不等分房。' : '依安親方案設定場次。')
+                : '各房型只設定回報幾場與各場名稱，購買房型時即確定。',
+          ),
+          onChanged: (String? next) {
+            if (next != null) {
+              onChanged(next);
+            }
+          },
+        ),
+        RadioListTile<String>(
+          value: DailyCareReportMode.paidAddon,
+          groupValue: value,
+          title: const Text('付費加購'),
+          subtitle: const Text('店家不免費提供；顧客購買後才享有回報及可附照片的服務。'),
+          onChanged: (String? next) {
+            if (next != null) {
+              onChanged(next);
+            }
+          },
+        ),
+      ],
+    );
+  }
+
+  Widget _buildStayRuleCard() {
+    return _SettingCard(
+      title: '住宿回報規則',
+      subtitle: '住宿獨立保存啟用狀態、模式、場次與付費方案。',
+      child: Column(
+        children: <Widget>[
+          _modeSelector(
+            value: _stayReportMode,
+            onChanged: (String value) {
+              setState(() {
+                _stayReportMode = value;
+              });
+            },
+            daycare: false,
+          ),
+          if (_stayReportMode == DailyCareReportMode.includedFixed) ...<Widget>[
+            DropdownButtonFormField<int>(
+              initialValue: _sessionCount,
+              decoration: const InputDecoration(labelText: '每天回報幾場'),
+              items: const <DropdownMenuItem<int>>[
+                DropdownMenuItem<int>(value: 1, child: Text('1 場')),
+                DropdownMenuItem<int>(value: 2, child: Text('2 場')),
+                DropdownMenuItem<int>(value: 3, child: Text('3 場')),
+              ],
+              onChanged: (int? value) {
+                if (value == null) {
+                  return;
+                }
+                setState(() {
+                  _sessionCount = value;
+                  _syncSessionLabelControllers(_sessionCount);
+                });
+              },
+            ),
+            ..._sessionNameFields(_sessionCount, _sessionLabelControllers),
+          ],
+          if (_stayReportMode == DailyCareReportMode.includedByOffer)
+            _roomTypeQuotaEditor(),
+          if (_stayReportMode == DailyCareReportMode.paidAddon)
+            _paidPlanEditor(daycare: false),
+        ],
+      ),
+    );
+  }
+
+  List<Widget> _sessionNameFields(
+    int count,
+    List<TextEditingController> controllers,
+  ) {
+    return List<Widget>.generate(count, (int index) {
+      return Padding(
+        padding: const EdgeInsets.only(top: 8),
+        child: TextField(
+          controller: controllers[index],
+          decoration: InputDecoration(labelText: '第 ${index + 1} 場名稱'),
+          onChanged: (_) => setState(() {}),
+        ),
+      );
+    });
+  }
+
+  Widget _paidPlanEditor({required bool daycare}) {
+    final DailyCarePaidPlan plan = daycare ? _daycarePaidPlan : _stayPaidPlan;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        TextField(
+          controller: TextEditingController(text: plan.name)
+            ..selection = TextSelection.collapsed(offset: plan.name.length),
+          decoration: const InputDecoration(labelText: '方案名稱'),
+          onChanged: (String value) {
+            setState(() {
+              if (daycare) {
+                _daycarePaidPlan = _daycarePaidPlan.copyWith(name: value);
+              } else {
+                _stayPaidPlan = _stayPaidPlan.copyWith(name: value);
+              }
+            });
+          },
+        ),
+        TextField(
+          controller: TextEditingController(text: plan.description)
+            ..selection =
+                TextSelection.collapsed(offset: plan.description.length),
+          decoration: const InputDecoration(labelText: '方案說明'),
+          maxLines: 2,
+          onChanged: (String value) {
+            setState(() {
+              if (daycare) {
+                _daycarePaidPlan = _daycarePaidPlan.copyWith(description: value);
+              } else {
+                _stayPaidPlan = _stayPaidPlan.copyWith(description: value);
+              }
+            });
+          },
+        ),
+        if (!daycare)
+          DropdownButtonFormField<String>(
+            initialValue: DailyCareReportMode.normalizeChargeUnit(
+              plan.chargeUnit,
+            ),
+            decoration: const InputDecoration(labelText: '收費方式'),
+            items: const <DropdownMenuItem<String>>[
+              DropdownMenuItem<String>(
+                value: DailyCareReportMode.chargePerServiceDay,
+                child: Text('每日計費（依服務日期）'),
+              ),
+              DropdownMenuItem<String>(
+                value: DailyCareReportMode.chargeOncePerStay,
+                child: Text('整筆住宿收費一次'),
+              ),
+            ],
+            onChanged: (String? value) {
+              if (value == null) {
+                return;
+              }
+              setState(() {
+                _stayPaidPlan = _stayPaidPlan.copyWith(chargeUnit: value);
+              });
+            },
+          ),
+        TextField(
+          keyboardType: TextInputType.number,
+          controller: TextEditingController(text: '${plan.price}')
+            ..selection = TextSelection.collapsed(offset: '${plan.price}'.length),
+          decoration: InputDecoration(
+            labelText: daycare ? '每筆價格' : '價格',
+          ),
+          onChanged: (String value) {
+            final int price = int.tryParse(value) ?? 0;
+            setState(() {
+              if (daycare) {
+                _daycarePaidPlan = _daycarePaidPlan.copyWith(price: price);
+              } else {
+                _stayPaidPlan = _stayPaidPlan.copyWith(price: price);
+              }
+            });
+          },
+        ),
+        DropdownButtonFormField<int>(
+          initialValue: plan.reports,
+          decoration: InputDecoration(
+            labelText: daycare ? '每筆回報幾場' : '每日回報幾場',
+          ),
+          items: const <DropdownMenuItem<int>>[
+            DropdownMenuItem<int>(value: 1, child: Text('1 場')),
+            DropdownMenuItem<int>(value: 2, child: Text('2 場')),
+            DropdownMenuItem<int>(value: 3, child: Text('3 場')),
+          ],
+          onChanged: (int? value) {
+            if (value == null) {
+              return;
+            }
+            setState(() {
+              if (daycare) {
+                _daycarePaidPlan = _daycarePaidPlan.copyWith(reports: value);
+              } else {
+                _stayPaidPlan = _stayPaidPlan.copyWith(reports: value);
+              }
+            });
+          },
+        ),
+        ..._sessionNameFields(
+          plan.reports,
+          daycare ? _daycareLabelControllers : _sessionLabelControllers,
+        ),
+      ],
+    );
+  }
+
+  Widget _roomTypeQuotaEditor({bool daycare = false}) {
+    return FutureBuilder<List<Map<String, dynamic>>>(
+      future: ShopRoomService.instance.getRoomTypes(widget.shopId),
+      builder: (BuildContext context, AsyncSnapshot<List<Map<String, dynamic>>> snap) {
+        final List<Map<String, dynamic>> types =
+            snap.data ?? const <Map<String, dynamic>>[];
+        if (types.isEmpty) {
+          return const Padding(
+            padding: EdgeInsets.only(top: 8),
+            child: Text('尚未設定房型'),
+          );
+        }
+        return Column(
+          children: types.map((Map<String, dynamic> type) {
+            final String id = (type['id'] ?? type['roomTypeId'] ?? '').toString();
+            final String name = (type['name'] ?? id).toString();
+            final DailyCareOfferQuota? quota = daycare
+                ? _daycareOfferQuotas[id]
+                : _stayOfferQuotas[id];
+            return ListTile(
+              contentPadding: EdgeInsets.zero,
+              title: Text(name),
+              subtitle: Text(
+                quota == null || !quota.configured
+                    ? '尚未設定場次，下單時無法使用此房型照護回報'
+                    : '每天 ${quota.reports} 場：${quota.resolvedLabels().join('、')}',
+              ),
+              trailing: IconButton(
+                icon: const Icon(Icons.edit_outlined),
+                onPressed: () async {
+                  int reports = quota?.reports ?? 1;
+                  final List<TextEditingController> names =
+                      List<TextEditingController>.generate(
+                    3,
+                    (int index) => TextEditingController(
+                      text: quota != null && index < quota.sessionLabels.length
+                          ? quota.sessionLabels[index]
+                          : '',
+                    ),
+                  );
+                  final bool? ok = await showDialog<bool>(
+                    context: context,
+                    builder: (BuildContext context) {
+                      return AlertDialog(
+                        title: Text('$name 場次'),
+                        content: StatefulBuilder(
+                          builder: (BuildContext context, StateSetter setLocal) {
+                            return Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: <Widget>[
+                                DropdownButtonFormField<int>(
+                                  initialValue: reports,
+                                  decoration: const InputDecoration(
+                                    labelText: '每天回報幾場',
+                                  ),
+                                  items: const <DropdownMenuItem<int>>[
+                                    DropdownMenuItem<int>(
+                                      value: 1,
+                                      child: Text('1 場'),
+                                    ),
+                                    DropdownMenuItem<int>(
+                                      value: 2,
+                                      child: Text('2 場'),
+                                    ),
+                                    DropdownMenuItem<int>(
+                                      value: 3,
+                                      child: Text('3 場'),
+                                    ),
+                                  ],
+                                  onChanged: (int? value) {
+                                    setLocal(() {
+                                      reports = value ?? 1;
+                                    });
+                                  },
+                                ),
+                                for (int i = 0; i < reports; i++)
+                                  TextField(
+                                    controller: names[i],
+                                    decoration: InputDecoration(
+                                      labelText: '第 ${i + 1} 場名稱',
+                                    ),
+                                  ),
+                              ],
+                            );
+                          },
+                        ),
+                        actions: <Widget>[
+                          TextButton(
+                            onPressed: () => Navigator.pop(context, false),
+                            child: const Text('取消'),
+                          ),
+                          FilledButton(
+                            onPressed: () => Navigator.pop(context, true),
+                            child: const Text('套用草稿'),
+                          ),
+                        ],
+                      );
+                    },
+                  );
+                  if (ok == true) {
+                    setState(() {
+                      final DailyCareOfferQuota next = DailyCareOfferQuota(
+                        configured: true,
+                        reports: reports,
+                        sessionLabels: List<String>.generate(
+                          reports,
+                          (int i) => names[i].text.trim(),
+                        ),
+                      );
+                      if (daycare) {
+                        _daycareOfferQuotas[id] = next;
+                      } else {
+                        _stayOfferQuotas[id] = next;
+                      }
+                    });
+                  }
+                },
+              ),
+            );
+          }).toList(),
+        );
+      },
+    );
+  }
+
+  Widget _buildDaycareRuleCard() {
+    return _SettingCard(
+      title: '安親回報規則',
+      subtitle: '顯示為每筆安親回報次數。全店安親關閉時會隱藏此區，不會清除資料。',
+      child: Column(
+        children: <Widget>[
+          SwitchListTile(
+            contentPadding: EdgeInsets.zero,
+            title: const Text('啟用安親照護回報'),
+            value: _daycareEnabled,
+            onChanged: (bool value) {
+              setState(() {
+                _daycareEnabled = value;
+              });
+            },
+          ),
+          _modeSelector(
+            value: _daycareReportMode,
+            onChanged: (String value) {
+              setState(() {
+                _daycareReportMode = value;
+              });
+            },
+            daycare: true,
+          ),
+          if (_daycareReportMode == DailyCareReportMode.includedFixed) ...<Widget>[
+            DropdownButtonFormField<int>(
+              initialValue: _daycareSessionCount,
+              decoration: const InputDecoration(labelText: '每筆回報幾場'),
+              items: const <DropdownMenuItem<int>>[
+                DropdownMenuItem<int>(value: 1, child: Text('1 場')),
+                DropdownMenuItem<int>(value: 2, child: Text('2 場')),
+                DropdownMenuItem<int>(value: 3, child: Text('3 場')),
+              ],
+              onChanged: (int? value) {
+                if (value == null) {
+                  return;
+                }
+                setState(() {
+                  _daycareSessionCount = value;
+                  _syncDaycareLabelControllers(_daycareSessionCount);
+                });
+              },
+            ),
+            ..._sessionNameFields(
+              _daycareSessionCount,
+              _daycareLabelControllers,
+            ),
+          ],
+          if (_daycareReportMode == DailyCareReportMode.includedByOffer)
+            _roomTypeQuotaEditor(daycare: true),
+          if (_daycareReportMode == DailyCareReportMode.paidAddon)
+            _paidPlanEditor(daycare: true),
+        ],
+      ),
     );
   }
 
@@ -946,12 +1946,12 @@ class _DailyCareSettingPageState extends State<DailyCareSettingPage> {
       child: SwitchListTile(
         contentPadding: EdgeInsets.zero,
         title: const Text(
-          '啟用每日照護紀錄',
+          '啟用住宿照護回報',
           style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
         ),
         subtitle: const Padding(
           padding: EdgeInsets.only(top: 6),
-          child: Text('開啟後，入住中的房間才會在房務管理出現照護紀錄填寫入口。'),
+          child: Text('開啟後，入住中的房間才會出現住宿照護紀錄填寫入口。此開關不控制安親。'),
         ),
         value: _enabled,
         onChanged: (bool value) {
@@ -1808,7 +2808,7 @@ class _DailyCareSettingPageState extends State<DailyCareSettingPage> {
           ),
           const Divider(),
           const Text(
-            '照片數量限制由平台統一控制，店家無法自行增加上限。',
+            '每房每天最多 6 張（不乘寵物數、不乘場次）。同房寵物共用額度。',
             style: TextStyle(fontSize: 13, color: Colors.black54, height: 1.4),
           ),
         ],
@@ -1818,28 +2818,10 @@ class _DailyCareSettingPageState extends State<DailyCareSettingPage> {
 
   Widget _buildDownloadCard() {
     return _SettingCard(
-      title: '退房後下載期限',
-      subtitle: '退房後客戶可在期限內下載住宿紀錄與照片；到期後照片將關閉並進入自動清除流程。',
-      child: DropdownButtonFormField<int>(
-        initialValue: _downloadHours,
-        decoration: const InputDecoration(
-          labelText: '下載期限',
-          border: OutlineInputBorder(),
-        ),
-        items: const <DropdownMenuItem<int>>[
-          DropdownMenuItem<int>(value: 12, child: Text('12 小時')),
-          DropdownMenuItem<int>(value: 24, child: Text('24 小時')),
-          DropdownMenuItem<int>(value: 48, child: Text('48 小時')),
-          DropdownMenuItem<int>(value: 72, child: Text('72 小時')),
-        ],
-        onChanged: (int? value) {
-          if (value == null) return;
-
-          setState(() {
-            _downloadHours = value;
-          });
-        },
-      ),
+      title: '實際結束後下載期限',
+      subtitle:
+          '住宿以實際退房、安親以實際結束起算 24 小時。不從上傳或預定時間起算，補退款也不延長。檔案由後續排程清除，不保證第 24 小時整點已全部刪除。',
+      child: const Text('固定保留 24 小時，此期限由平台統一，確認儲存時仍會一併寫入設定。'),
     );
   }
 }

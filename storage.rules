@@ -220,7 +220,56 @@ match /platform_contact_requests/{requestId}/{fileName} {
         ).data.shopId
       )
     );
-}
+    }
+
+    function dailyCareBooking(bookingId) {
+      return firestore.get(
+        /databases/(default)/documents/bookings/$(bookingId)
+      ).data;
+    }
+
+    function dailyCareWritable(shopId, bookingId) {
+      return firestore.exists(
+          /databases/(default)/documents/bookings/$(bookingId)
+        )
+        && dailyCareBooking(bookingId).shopId == shopId
+        && (
+          (
+            (dailyCareBooking(bookingId).bookingKind == 'daycare'
+              || dailyCareBooking(bookingId).serviceType == 'daycare')
+            && dailyCareBooking(bookingId).status != 'cancelled'
+          )
+          || dailyCareBooking(bookingId).status == 'checked_in'
+        );
+    }
+
+    function dailyCareCustomerCanRead(shopId, bookingId, photoId) {
+      return firestore.exists(
+          /databases/(default)/documents/bookings/$(bookingId)
+        )
+        && dailyCareBooking(bookingId).shopId == shopId
+        && dailyCareBooking(bookingId).userId is string
+        && dailyCareBooking(bookingId).userId.size() > 0
+        && dailyCareBooking(bookingId).userId == request.auth.uid
+        && (
+          !firestore.exists(
+            /databases/(default)/documents/daily_care_photos/$(photoId)
+          )
+          ||
+          !('expiresAt' in firestore.get(
+            /databases/(default)/documents/daily_care_photos/$(photoId)
+          ).data)
+          ||
+          firestore.get(
+            /databases/(default)/documents/daily_care_photos/$(photoId)
+          ).data.expiresAt == null
+          ||
+          request.time < firestore.get(
+            /databases/(default)/documents/daily_care_photos/$(photoId)
+          ).data.expiresAt
+        );
+    }
+
     // ✅ 店家認證／平台公開申請照片
     match /shop_verify_requests/{shopId}/{folderName}/{fileName} {
       allow read: if signedIn()
@@ -265,17 +314,7 @@ match /daily_care_photos/{shopId}/{bookingId}/{roomId}/{dateKey}/{sessionIndex}/
       isShopMember(shopId)
       ||
       (
-        firestore.exists(
-          /databases/(default)/documents/bookings/$(bookingId)
-        )
-        &&
-        firestore.get(
-          /databases/(default)/documents/bookings/$(bookingId)
-        ).data.userId == request.auth.uid
-        &&
-        firestore.get(
-          /databases/(default)/documents/bookings/$(bookingId)
-        ).data.shopId == shopId
+        dailyCareCustomerCanRead(shopId, bookingId, photoId)
       )
     );
 
@@ -284,15 +323,7 @@ match /daily_care_photos/{shopId}/{bookingId}/{roomId}/{dateKey}/{sessionIndex}/
       isRootAdmin()
       || isShopMember(shopId)
     )
-    && firestore.exists(
-      /databases/(default)/documents/bookings/$(bookingId)
-    )
-    && firestore.get(
-      /databases/(default)/documents/bookings/$(bookingId)
-    ).data.shopId == shopId
-    && firestore.get(
-      /databases/(default)/documents/bookings/$(bookingId)
-    ).data.status == 'checked_in'
+    && dailyCareWritable(shopId, bookingId)
     && isImage()
     && isUnder5MB();
 
@@ -315,21 +346,7 @@ allow read: if signedIn()
   isShopMember(shopId)
   ||
   (
-    firestore.exists(
-      /databases/(default)/documents/bookings/$(bookingId)
-    )
-    &&
-    firestore.get(
-      /databases/(default)/documents/bookings/$(bookingId)
-    ).data.userId == request.auth.uid
-    &&
-    firestore.get(
-      /databases/(default)/documents/bookings/$(bookingId)
-    ).data.shopId == shopId
-    &&
-    firestore.get(
-      /databases/(default)/documents/bookings/$(bookingId)
-    ).data.status == 'completed'
+    dailyCareCustomerCanRead(shopId, bookingId, photoId)
     &&
     firestore.exists(
       /databases/(default)/documents/daily_care_photo_downloads/$(photoId)
@@ -342,15 +359,6 @@ allow read: if signedIn()
     firestore.get(
       /databases/(default)/documents/daily_care_photo_downloads/$(photoId)
     ).data.shopId == shopId
-    &&
-    firestore.get(
-      /databases/(default)/documents/daily_care_photo_downloads/$(photoId)
-    ).data.expiresAt is timestamp
-    &&
-    request.time
-      < firestore.get(
-          /databases/(default)/documents/daily_care_photo_downloads/$(photoId)
-        ).data.expiresAt
   )
 );
   allow create, update: if signedIn()
@@ -358,15 +366,7 @@ allow read: if signedIn()
       isRootAdmin()
       || isShopMember(shopId)
     )
-    && firestore.exists(
-      /databases/(default)/documents/bookings/$(bookingId)
-    )
-    && firestore.get(
-      /databases/(default)/documents/bookings/$(bookingId)
-    ).data.shopId == shopId
-    && firestore.get(
-      /databases/(default)/documents/bookings/$(bookingId)
-    ).data.status == 'checked_in'
+    && dailyCareWritable(shopId, bookingId)
     && isImage()
     && isUnder5MB();
 

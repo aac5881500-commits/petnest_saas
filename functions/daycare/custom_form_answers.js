@@ -143,14 +143,12 @@ function collectEnabledQuestions(form) {
   return result;
 }
 
-function validateAndNormalizeBookingSubmitAnswers({
+function validateAndNormalizeAnswers({
   form,
   payloadAnswers,
-  source,
+  formType,
+  errorMessage,
 }) {
-  if (source === "admin") {
-    return {snapshot: null, error: null};
-  }
   if (!form || form.enabled !== true) {
     return {snapshot: null, error: null};
   }
@@ -183,10 +181,10 @@ function validateAndNormalizeBookingSubmitAnswers({
       required ? undefined : null
     );
     if (normalized && normalized.error) {
-      return {snapshot: null, error: "請完成送出訂單表單"};
+      return {snapshot: null, error: errorMessage};
     }
     if (required && !hasRequiredAnswer(question, normalized)) {
-      return {snapshot: null, error: "請完成送出訂單表單"};
+      return {snapshot: null, error: errorMessage};
     }
     if (!raw && !required) {
       continue;
@@ -206,15 +204,44 @@ function validateAndNormalizeBookingSubmitAnswers({
   return {
     error: null,
     snapshot: {
-      formId: asString(form.id) || "booking_submit",
-      formType: "booking_submit",
+      formId: asString(form.id) || formType,
+      formType,
       formVersion: Number(form.version || 0),
-      formTitle: asString(form.title) || "送出訂單表單",
+      formTitle: asString(form.title) || errorMessage,
       answers,
     },
   };
 }
 
+function validateAndNormalizeBookingSubmitAnswers({
+  form,
+  payloadAnswers,
+  source,
+}) {
+  if (source === "admin") {
+    return {snapshot: null, error: null};
+  }
+  return validateAndNormalizeAnswers({
+    form,
+    payloadAnswers,
+    formType: "booking_submit",
+    errorMessage: "請完成送出訂單表單",
+  });
+}
+
+function validateAndNormalizeAdminCreateAnswers({
+  form,
+  payloadAnswers,
+}) {
+  return validateAndNormalizeAnswers({
+    form,
+    payloadAnswers,
+    formType: "admin_create",
+    errorMessage: "請完成手動訂單表單必填題",
+  });
+}
+
 module.exports = {
   validateAndNormalizeBookingSubmitAnswers,
+  validateAndNormalizeAdminCreateAnswers,
 };

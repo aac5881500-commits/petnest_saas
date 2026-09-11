@@ -271,15 +271,19 @@ async function hasShopPermission(shopId, uid, permissionKey) {
     return true;
   }
   const member = await getShopMember(shopId, uid);
-  if (!member) {
-    return false;
+  if (member) {
+    if (normalizeString(member.role) === "owner") {
+      return true;
+    }
+    const permissions = member.permissions && typeof member.permissions ===
+      "object" ? member.permissions : {};
+    if (permissions[permissionKey] === true) {
+      return true;
+    }
   }
-  if (normalizeString(member.role) === "owner") {
-    return true;
-  }
-  const permissions = member.permissions && typeof member.permissions ===
-    "object" ? member.permissions : {};
-  return permissions[permissionKey] === true;
+  const shopSnap = await admin.firestore().collection("shops").doc(shopId).get();
+  return shopSnap.exists &&
+    normalizeString((shopSnap.data() || {}).ownerUid) === uid;
 }
 
 /**
@@ -578,7 +582,7 @@ async function writeActionLog(params) {
     action: params.action || "",
     type: params.action || "",
     bookingId: params.targetId || "",
-    bookingKind: BOOKING_KIND_DAYCARE,
+    bookingKind: params.bookingKind || BOOKING_KIND_DAYCARE,
     operatorUid: uid,
     operatorEmail: email,
     operatorDisplayName: displayName,

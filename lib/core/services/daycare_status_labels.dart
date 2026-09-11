@@ -111,17 +111,18 @@ class DaycareStatusLabels {
         asDate(data['scheduledEndAt']) ?? asDate(data['endDate']);
     switch (filter) {
       case 'pending':
-        return status == 'pending' ||
-            status == 'pending_confirmation' ||
-            status == 'unpaid';
+        return !isHistory(data) &&
+            (status == 'pending' ||
+                status == 'pending_confirmation' ||
+                status == 'unpaid');
       case 'depositReview':
         return isDepositReview(data);
       case 'confirmed':
-        return status == 'confirmed';
+        return !isHistory(data) && status == 'confirmed';
       case 'awaitingRoom':
         return isAwaitingRoom(data);
       case 'checked_in':
-        return status == 'checked_in';
+        return !isHistory(data) && status == 'checked_in';
       case 'todayDropOff':
         return !isHistory(data) &&
             start != null &&
@@ -199,7 +200,7 @@ class DaycareStatusLabels {
       case 'daycare_cancel':
         return '取消訂單';
       case 'daycare_noShow':
-        return '標記未到店';
+        return '舊版取消紀錄';
       case 'daycare_assign_room':
         return '分配房間';
       case 'daycare_extend':

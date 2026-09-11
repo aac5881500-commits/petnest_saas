@@ -14,6 +14,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:petnest_saas/core/constants/shop_modules.dart';
 import 'package:petnest_saas/core/constants/shop_roles.dart';
 import 'package:petnest_saas/core/services/shop_service.dart';
+import 'package:petnest_saas/core/services/shop_member_permission_service.dart';
 import 'package:petnest_saas/core/services/shop_chat_service.dart';
 import 'package:petnest_saas/core/models/shop_task_item.dart';
 import 'package:petnest_saas/core/models/daycare_settings_model.dart';
@@ -122,6 +123,9 @@ class _ShopDashboardPageState extends State<ShopDashboardPage> {
     }
 
     try {
+      await ShopMemberPermissionService.instance.syncOwnerMembershipForShop(
+        widget.shopId,
+      );
       final memberData = await ShopService.instance.getUserMemberInShop(
         shopId: widget.shopId,
         uid: user.uid,

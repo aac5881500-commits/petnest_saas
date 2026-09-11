@@ -51,25 +51,40 @@ class DailyCareDateHelper {
         '${day.day.toString().padLeft(2, '0')}';
   }
 
-  /// 可填寫／可顯示的照護日期（不含退房日）
+  /// 可填寫／可顯示的照護日期。
+  /// 預設入住日提供、退房日不提供；同一日期只出現一次。
   static List<DateTime> careDates({
     required DateTime? checkIn,
     required DateTime? checkOut,
+    bool includeCheckInDay = true,
+    bool includeCheckOutDay = false,
   }) {
     if (checkIn == null || checkOut == null) {
       return const <DateTime>[];
     }
 
     final DateTime start = calendarDateInTaipei(checkIn);
-    final DateTime endExclusive = calendarDateInTaipei(checkOut);
-    if (!endExclusive.isAfter(start)) {
+    final DateTime end = calendarDateInTaipei(checkOut);
+    if (end.isBefore(start)) {
       return const <DateTime>[];
     }
 
     final List<DateTime> dates = <DateTime>[];
     DateTime cursor = start;
-    while (cursor.isBefore(endExclusive)) {
-      dates.add(cursor);
+    while (!cursor.isAfter(end)) {
+      final bool isStart = cursor == start;
+      final bool isEnd = cursor == end;
+      bool include = true;
+      if (isStart && isEnd) {
+        include = includeCheckInDay || includeCheckOutDay;
+      } else if (isStart) {
+        include = includeCheckInDay;
+      } else if (isEnd) {
+        include = includeCheckOutDay;
+      }
+      if (include) {
+        dates.add(cursor);
+      }
       cursor = cursor.add(const Duration(days: 1));
     }
     return dates;

@@ -57,11 +57,13 @@ class PetSnapshot {
       'breed': breed,
       'gender': (pet['gender'] ?? '').toString(),
       'age': (pet['age'] ?? '').toString(),
-      'birthday': (pet['birthday'] ?? '').toString(),
-      'weight': pet['weight'],
-      'isNeutered': pet.containsKey('isNeutered') ? pet['isNeutered'] : null,
-      'canSocial': pet['canSocial'],
-      'canMedicate': pet['canMedicate'],
+      'birthday': _jsonScalar(pet['birthday'])?.toString() ?? '',
+      'weight': _jsonScalar(pet['weight']),
+      'isNeutered': pet.containsKey('isNeutered')
+          ? _jsonScalar(pet['isNeutered'])
+          : null,
+      'canSocial': _jsonScalar(pet['canSocial']),
+      'canMedicate': _jsonScalar(pet['canMedicate']),
       'medicalStatus': (pet['medicalStatus'] ?? pet['vaccine'] ?? '')
           .toString(),
       'vaccine': (pet['vaccine'] ?? pet['medicalStatus'] ?? '').toString(),
@@ -188,6 +190,13 @@ class PetSnapshot {
       }
     }
     return '';
+  }
+
+  static Object? _jsonScalar(Object? value) {
+    if (value == null || value is bool || value is num || value is String) {
+      return value;
+    }
+    return value.toString();
   }
 
   static bool _isBlank(dynamic value) {

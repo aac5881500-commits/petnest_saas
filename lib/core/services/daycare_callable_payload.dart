@@ -66,7 +66,10 @@ class DaycareCallablePayload {
     if (rawSlots is Iterable) {
       for (final Object? item in rawSlots) {
         if (item is Map) {
-          slots.add(Map<String, dynamic>.from(item));
+          slots.add(<String, dynamic>{
+            'id': (item['id'] ?? item['label'] ?? '').toString(),
+            'label': (item['label'] ?? item['id'] ?? '').toString(),
+          });
         } else {
           final String label = item.toString().trim();
           if (label.isNotEmpty) {
@@ -86,6 +89,68 @@ class DaycareCallablePayload {
       'amount': amount,
       'selectedPetIds': petIds,
       'selectedTimeSlots': slots,
+    };
+  }
+
+  static Map<String, dynamic> adminCreateBookingData({
+    required String shopId,
+    required String userId,
+    required String customerName,
+    required String customerPhone,
+    required String scheduledStartAt,
+    required String scheduledEndAt,
+    required List<String> petIds,
+    required List<Map<String, dynamic>> pets,
+    required String pricingMode,
+    required String daycarePlanId,
+    required String daycarePlanName,
+    required Map<String, dynamic> daycarePlanPriceSnapshot,
+    required String requestedRoomTypeId,
+    required String requestedRoomTypeName,
+    required Map<String, dynamic> requestedRoomTypePriceSnapshot,
+    required List<Map<String, dynamic>> addons,
+    required int manualAdjust,
+    required int policyVersion,
+    required String policyKind,
+    required String policySignMethod,
+    required String paymentMethod,
+    required String termsType,
+    required String note,
+    String adminOrderSource = '',
+    Map<String, dynamic>? adminCustomFormAnswers,
+    required String requestId,
+    String dailyCareAddonId = '',
+  }) {
+    return <String, dynamic>{
+      'shopId': shopId,
+      'source': 'admin',
+      'userId': userId,
+      'customerName': customerName,
+      'customerPhone': customerPhone,
+      'scheduledStartAt': scheduledStartAt,
+      'scheduledEndAt': scheduledEndAt,
+      'petIds': List<String>.from(petIds),
+      'pets': pets.map(petSnapshot).toList(),
+      'pricingMode': pricingMode,
+      'daycarePlanId': daycarePlanId,
+      'daycarePlanName': daycarePlanName,
+      'daycarePlanPriceSnapshot': daycarePlanPriceSnapshot,
+      'requestedRoomTypeId': requestedRoomTypeId,
+      'requestedRoomTypeName': requestedRoomTypeName,
+      'requestedRoomTypePriceSnapshot': requestedRoomTypePriceSnapshot,
+      'dailyCareAddonId': dailyCareAddonId,
+      'addons': addons,
+      'manualAdjust': manualAdjust,
+      'policyVersion': policyVersion,
+      'policyKind': policyKind,
+      'policySignMethod': policySignMethod,
+      'paymentMethod': paymentMethod,
+      'termsType': termsType,
+      'note': note,
+      'adminOrderSource': adminOrderSource,
+      if (adminCustomFormAnswers != null)
+        'adminCustomFormAnswers': adminCustomFormAnswers,
+      'requestId': requestId,
     };
   }
 }

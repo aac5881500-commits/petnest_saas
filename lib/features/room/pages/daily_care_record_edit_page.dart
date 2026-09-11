@@ -5,12 +5,14 @@
 // 其他照護項目依店主「每日照護紀錄設定」決定是否顯示。
 
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import '../../../core/models/daily_care_setting_model.dart';
 import '../../../core/models/daily_care_record_model.dart';
 import '../../../core/services/daily_care_record_service.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../../core/models/daily_care_photo_model.dart';
+import '../../../core/services/daily_care_photo_function_service.dart';
 import '../../../core/services/daily_care_photo_service.dart';
 import '../../../core/services/daily_care_photo_upload_service.dart';
 
@@ -59,6 +61,8 @@ class _DailyCareRecordEditPageState extends State<DailyCareRecordEditPage> {
   bool _saving = false;
 
   bool _uploadingPhoto = false;
+  bool _photosLocked = false;
+  final List<Uint8List> _pendingPhotos = <Uint8List>[];
 
   final ImagePicker _imagePicker = ImagePicker();
 
@@ -146,6 +150,7 @@ class _DailyCareRecordEditPageState extends State<DailyCareRecordEditPage> {
         );
 
     if (record == null) return;
+    _photosLocked = record.photosLocked;
 
     for (final MapEntry<String, dynamic> entry in record.values.entries) {
       switch (entry.key) {
@@ -223,69 +228,35 @@ class _DailyCareRecordEditPageState extends State<DailyCareRecordEditPage> {
     }
   }
 
-  Future<void> _pickAndUploadPhoto() async {
-    if (_uploadingPhoto) return;
+  Future<void> _pickPendingPhoto(int uploadedCount) async {
+    if (_uploadingPhoto || _photosLocked) return;
+    final int remaining =
+        DailyCarePhotoService.maxPhotosPerSession -
+        uploadedCount -
+        _pendingPhotos.length;
+    if (remaining <= 0) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('此場最多 3 張照片')));
+      return;
+    }
 
     try {
-      final int remaining = await DailyCarePhotoService.instance
-          .remainingPhotoCount(
-            shopId: widget.shopId,
-            bookingId: widget.bookingId,
-            roomId: widget.roomId,
-            recordDate: widget.recordDate,
-          );
-      if (remaining <= 0) {
-        if (!mounted) return;
-
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('此房今日照片已達上限')));
-        return;
-      }
-
       final XFile? file = await _imagePicker.pickImage(
         source: ImageSource.gallery,
         imageQuality: 100,
       );
-
       if (file == null) return;
-
-      final bytes = await file.readAsBytes();
-
+      final Uint8List bytes = await file.readAsBytes();
       if (!mounted) return;
-
       setState(() {
-        _uploadingPhoto = true;
+        _pendingPhotos.add(bytes);
       });
-
-      await DailyCarePhotoUploadService.instance.uploadPhoto(
-        originalBytes: bytes,
-        shopId: widget.shopId,
-        bookingId: widget.bookingId,
-        roomId: widget.roomId,
-        roomName: widget.roomName,
-        recordDate: widget.recordDate,
-        sessionIndex: widget.sessionIndex,
-        sessionName: widget.sessionName,
-      );
-
-      if (!mounted) return;
-
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('照護照片上傳完成')));
     } catch (e) {
       if (!mounted) return;
-
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(SnackBar(content: Text('照片上傳失敗：$e')));
-    } finally {
-      if (mounted) {
-        setState(() {
-          _uploadingPhoto = false;
-        });
-      }
+      ).showSnackBar(SnackBar(content: Text('選擇照片失敗：$e')));
     }
   }
 
@@ -320,6 +291,33 @@ class _DailyCareRecordEditPageState extends State<DailyCareRecordEditPage> {
         context,
       ).showSnackBar(const SnackBar(content: Text('室內濕度請輸入 0～100')));
       return;
+    }
+
+    if (!_photosLocked) {
+      final bool? confirmed = await showDialog<bool>(
+        context: context,
+        builder: (BuildContext context) {
+          return AlertDialog(
+            title: const Text('確認送出此場回報'),
+            content: const Text(
+              '送出後照片不可追加或更換，請確認照片正確。沒有照片也能送出文字回報。',
+            ),
+            actions: <Widget>[
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('再檢查'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(context, true),
+                child: const Text('確認送出'),
+              ),
+            ],
+          );
+        },
+      );
+      if (confirmed != true) {
+        return;
+      }
     }
 
     setState(() {
@@ -382,6 +380,32 @@ class _DailyCareRecordEditPageState extends State<DailyCareRecordEditPage> {
         serviceType: widget.serviceType,
         petIds: widget.petIds,
       );
+
+      if (!_photosLocked) {
+        setState(() {
+          _uploadingPhoto = true;
+        });
+        for (final Uint8List bytes in List<Uint8List>.from(_pendingPhotos)) {
+          await DailyCarePhotoUploadService.instance.uploadPhoto(
+            originalBytes: bytes,
+            shopId: widget.shopId,
+            bookingId: widget.bookingId,
+            roomId: widget.roomId,
+            roomName: widget.roomName,
+            recordDate: widget.recordDate,
+            sessionIndex: widget.sessionIndex,
+            sessionName: widget.sessionName,
+          );
+        }
+        await DailyCarePhotoFunctionService.instance.lockSession(
+          shopId: widget.shopId,
+          bookingId: widget.bookingId,
+          recordDate: widget.recordDate,
+          sessionIndex: widget.sessionIndex,
+        );
+        _pendingPhotos.clear();
+        _photosLocked = true;
+      }
 
       if (!mounted) return;
 
@@ -732,12 +756,17 @@ class _DailyCareRecordEditPageState extends State<DailyCareRecordEditPage> {
       ),
       builder: (context, snapshot) {
         final List<DailyCarePhotoModel> photos =
-            snapshot.data ?? <DailyCarePhotoModel>[];
+            (snapshot.data ?? <DailyCarePhotoModel>[])
+                .where(
+                  (DailyCarePhotoModel photo) =>
+                      photo.sessionIndex == widget.sessionIndex,
+                )
+                .toList();
 
-        final int currentCount = photos.length;
-        final int maxCount = DailyCarePhotoService.maxPhotosPerRoomPerDay;
+        final int currentCount = photos.length + _pendingPhotos.length;
+        final int maxCount = DailyCarePhotoService.maxPhotosPerSession;
 
-        final bool reachedLimit = currentCount >= maxCount;
+        final bool reachedLimit = currentCount >= maxCount || _photosLocked;
 
         return Container(
           width: double.infinity,
@@ -764,7 +793,9 @@ class _DailyCareRecordEditPageState extends State<DailyCareRecordEditPage> {
                   ),
                   const Spacer(),
                   Text(
-                    '$currentCount / $maxCount 張',
+                    _photosLocked
+                        ? '此場照片已鎖定 $currentCount／$maxCount 張'
+                        : '此場 $currentCount／$maxCount 張',
                     style: TextStyle(
                       fontSize: 12,
                       color: reachedLimit ? Colors.red : Colors.grey.shade600,
@@ -777,7 +808,9 @@ class _DailyCareRecordEditPageState extends State<DailyCareRecordEditPage> {
               const SizedBox(height: 6),
 
               Text(
-                '照片為整個房間當日共用，每房每天最多 $maxCount 張。',
+                _photosLocked
+                    ? '此場照片已鎖定，不可追加、更換或由一般員工刪除。修改文字不會解除鎖定。'
+                    : '每場可附最多 3 張照片，不強制上傳。送出後不可追加或更換。同場多隻寵物共用 3 張。',
                 style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
               ),
 
@@ -823,7 +856,9 @@ class _DailyCareRecordEditPageState extends State<DailyCareRecordEditPage> {
                         Positioned(
                           top: 4,
                           right: 4,
-                          child: Material(
+                          child: _photosLocked
+                              ? const SizedBox.shrink()
+                              : Material(
                             color: Colors.black.withValues(alpha: 0.55),
                             shape: const CircleBorder(),
                             child: InkWell(
@@ -847,6 +882,50 @@ class _DailyCareRecordEditPageState extends State<DailyCareRecordEditPage> {
                   },
                 ),
               ],
+              if (_pendingPhotos.isNotEmpty) ...<Widget>[
+                const SizedBox(height: 10),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: List<Widget>.generate(_pendingPhotos.length, (
+                    int index,
+                  ) {
+                    return Stack(
+                      children: <Widget>[
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(10),
+                          child: Image.memory(
+                            _pendingPhotos[index],
+                            width: 96,
+                            height: 96,
+                            fit: BoxFit.cover,
+                          ),
+                        ),
+                        Positioned(
+                          top: 4,
+                          right: 4,
+                          child: InkWell(
+                            onTap: () {
+                              setState(() {
+                                _pendingPhotos.removeAt(index);
+                              });
+                            },
+                            child: const CircleAvatar(
+                              radius: 12,
+                              backgroundColor: Colors.black54,
+                              child: Icon(
+                                Icons.close,
+                                size: 14,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    );
+                  }),
+                ),
+              ],
 
               const SizedBox(height: 14),
 
@@ -855,7 +934,7 @@ class _DailyCareRecordEditPageState extends State<DailyCareRecordEditPage> {
                 child: FilledButton.icon(
                   onPressed: reachedLimit || _uploadingPhoto
                       ? null
-                      : _pickAndUploadPhoto,
+                      : () => _pickPendingPhoto(photos.length),
                   icon: _uploadingPhoto
                       ? const SizedBox(
                           width: 18,
@@ -866,9 +945,11 @@ class _DailyCareRecordEditPageState extends State<DailyCareRecordEditPage> {
                   label: Text(
                     _uploadingPhoto
                         ? '上傳中...'
+                        : _photosLocked
+                        ? '照片已鎖定'
                         : reachedLimit
-                        ? '今日照片已達上限'
-                        : '選擇照片上傳',
+                        ? '此場照片已達上限'
+                        : '本機選擇照片',
                   ),
                 ),
               ),

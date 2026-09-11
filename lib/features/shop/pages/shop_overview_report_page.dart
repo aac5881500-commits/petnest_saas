@@ -77,6 +77,10 @@ class _ShopOverviewReportPageState extends State<ShopOverviewReportPage> {
                   return Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: <Widget>[
+                      if (!bundle.summariesReady)
+                        const ReportNote(
+                          '統計資料準備中。請由平台管理員依店家與月份手動重建摘要，系統不會掃描全部歷史訂單。',
+                        ),
                       ReportKpiGrid(
                         items: <ReportKpiItem>[
                           ReportKpiItem(

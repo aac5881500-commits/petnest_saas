@@ -12,6 +12,7 @@ import 'package:flutter/material.dart';
 import '../../../core/constants/shop_permission_keys.dart';
 import '../../../core/models/booking_kind.dart';
 import '../../../core/models/daily_care_date_helper.dart';
+import '../../../core/models/daily_care_entitlement.dart';
 import '../../../core/models/daily_care_photo_model.dart';
 import '../../../core/models/daily_care_record_model.dart';
 import '../../../core/models/daily_care_setting_model.dart';
@@ -303,9 +304,19 @@ class _CustomerDailyCarePageState extends State<CustomerDailyCarePage> {
                       .map(DailyCareDateHelper.parseDateKey)
                       .whereType<DateTime>()
                       .toList();
-            final int sessionCount = isDaycare
-                ? setting.daycareSessionCount
-                : setting.sessionCount;
+            final DailyCareEntitlement entitlement =
+                DailyCareEntitlement.fromMap(
+                  bookingData['dailyCareEntitlement'] is Map
+                      ? Map<String, dynamic>.from(
+                          bookingData['dailyCareEntitlement'] as Map,
+                        )
+                      : null,
+                );
+            final int sessionCount = entitlement.finalReports > 0
+                ? entitlement.finalReports
+                : (isDaycare
+                      ? setting.daycareSessionCount
+                      : setting.sessionCount);
 
             return StreamBuilder<List<DailyCareRecordModel>>(
               stream: DailyCareRecordService.instance.streamBookingRecords(
@@ -371,6 +382,7 @@ class _CustomerDailyCarePageState extends State<CustomerDailyCarePage> {
                   setting: setting,
                   records: selectedDateRecords,
                   sessionCount: sessionCount,
+                  sessionLabels: entitlement.sessionLabels,
                 );
                 final int selectedSessionIndex = _resolveSelectedSessionIndex(
                   sessionTabs,
@@ -394,9 +406,16 @@ class _CustomerDailyCarePageState extends State<CustomerDailyCarePage> {
                           setting: setting,
                           stay: stay,
                           selectedDateKey: selectedDateKey,
-                          sessionName: setting.sessionLabel(
-                            selectedSessionIndex,
-                          ),
+                          sessionName: sessionTabs.isEmpty
+                              ? setting.sessionLabel(selectedSessionIndex)
+                              : sessionTabs
+                                    .firstWhere(
+                                      (_SessionTab tab) =>
+                                          tab.sessionIndex ==
+                                          selectedSessionIndex,
+                                      orElse: () => sessionTabs.first,
+                                    )
+                                    .sessionName,
                           filled: record != null,
                         ),
                       ),
@@ -591,6 +610,7 @@ class _CustomerDailyCarePageState extends State<CustomerDailyCarePage> {
     required DailyCareSettingModel setting,
     required List<DailyCareRecordModel> records,
     int? sessionCount,
+    List<String> sessionLabels = const <String>[],
   }) {
     int tabCount = sessionCount ?? setting.sessionCount;
     if (records.isNotEmpty) {
@@ -609,7 +629,10 @@ class _CustomerDailyCarePageState extends State<CustomerDailyCarePage> {
     return List<_SessionTab>.generate(tabCount, (int index) {
       return _SessionTab(
         sessionIndex: index,
-        sessionName: setting.sessionLabel(index),
+        sessionName: index < sessionLabels.length &&
+                sessionLabels[index].trim().isNotEmpty
+            ? sessionLabels[index]
+            : setting.sessionLabel(index),
       );
     });
   }

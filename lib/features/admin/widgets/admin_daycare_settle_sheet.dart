@@ -4,25 +4,32 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:petnest_saas/core/models/policy_applicable_service.dart';
 import 'package:petnest_saas/core/models/shop_frontend_theme.dart';
+import 'package:petnest_saas/core/services/booking_settlement_math.dart';
 import 'package:petnest_saas/core/services/daycare_function_service.dart';
 import 'package:petnest_saas/core/services/daycare_time_helper.dart';
+import 'package:petnest_saas/core/services/shop_payment_methods.dart';
 import 'package:petnest_saas/core/utils/safe_parse.dart';
 
 class AdminDaycareSettleResult {
   const AdminDaycareSettleResult({
     required this.actualEndAt,
-    required this.completeMode,
+    required this.waiveOvertime,
     required this.waiveReason,
     required this.manualAdjust,
     required this.manualAdjustReason,
+    required this.topUpMethod,
+    required this.lockIfClear,
   });
 
   final DateTime actualEndAt;
-  final String completeMode;
+  final bool waiveOvertime;
   final String waiveReason;
   final int manualAdjust;
   final String manualAdjustReason;
+  final String topUpMethod;
+  final bool lockIfClear;
 }
 
 Future<AdminDaycareSettleResult?> showAdminDaycareSettleSheet({
@@ -64,7 +71,9 @@ class AdminDaycareSettleSheet extends StatefulWidget {
 
 class _AdminDaycareSettleSheetState extends State<AdminDaycareSettleSheet> {
   late DateTime _actualEnd;
-  String _mode = 'cash';
+  late bool _freezeActualEnd;
+  bool _waiveOvertime = false;
+  String _topUpMethod = '';
   bool _loadingPreview = true;
   String? _previewError;
   Map<String, dynamic> _preview = <String, dynamic>{};
@@ -79,7 +88,17 @@ class _AdminDaycareSettleSheetState extends State<AdminDaycareSettleSheet> {
   @override
   void initState() {
     super.initState();
-    _actualEnd = DateTime.now();
+    _freezeActualEnd = BookingSettlementMath.isSettlementConfirmed(
+      widget.booking,
+    );
+    _actualEnd = _ts(widget.booking['actualEndAt']) ?? DateTime.now();
+    _waiveOvertime = widget.booking['waivedOvertime'] == true;
+    _manualAdjust.text = '${SafeParse.parseMoney(widget.booking['manualAdjust'])}';
+    _manualReason.text =
+        (widget.booking['lastManualAdjustReason'] ??
+                widget.booking['manualAdjustmentReason'] ??
+                '')
+            .toString();
     _reloadPreview();
   }
 
@@ -131,7 +150,7 @@ class _AdminDaycareSettleSheetState extends State<AdminDaycareSettleSheet> {
   );
 
   int get _overtime {
-    if (_mode == 'waive') {
+    if (_waiveOvertime) {
       return 0;
     }
     return SafeParse.parseMoney(
@@ -139,9 +158,10 @@ class _AdminDaycareSettleSheetState extends State<AdminDaycareSettleSheet> {
     );
   }
 
-  int get _paid => SafeParse.parseMoney(
-    _preview['paidAmount'] ?? widget.booking['paidAmount'],
-  );
+  int get _paid => BookingSettlementMath.paidAmount(<String, dynamic>{
+    ...widget.booking,
+    ..._preview,
+  });
 
   int get _manual {
     return int.tryParse(_manualAdjust.text.trim()) ?? 0;
@@ -153,11 +173,19 @@ class _AdminDaycareSettleSheetState extends State<AdminDaycareSettleSheet> {
   }
 
   int get _remaining {
-    final int left = _finalReceivable - _paid;
-    return left < 0 ? 0 : left;
+    final int net = _paid - BookingSettlementMath.refundedAmount(widget.booking);
+    return _finalReceivable > net ? _finalReceivable - net : 0;
+  }
+
+  int get _refundDue {
+    final int net = _paid - BookingSettlementMath.refundedAmount(widget.booking);
+    return net > _finalReceivable ? net - _finalReceivable : 0;
   }
 
   Future<void> _pickActualEnd() async {
+    if (_freezeActualEnd) {
+      return;
+    }
     final DateTime firstDate = _scheduledStart ?? DateTime(2020);
     final DateTime lastDate = DateTime.now().add(const Duration(days: 2));
     final DateTime? date = await showDatePicker(
@@ -188,8 +216,8 @@ class _AdminDaycareSettleSheetState extends State<AdminDaycareSettleSheet> {
     await _reloadPreview();
   }
 
-  void _confirm() {
-    if (_mode == 'waive' && _waiveReason.text.trim().isEmpty) {
+  Future<void> _confirm() async {
+    if (_waiveOvertime && _waiveReason.text.trim().isEmpty) {
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(const SnackBar(content: Text('請填寫免收原因')));
@@ -201,14 +229,51 @@ class _AdminDaycareSettleSheetState extends State<AdminDaycareSettleSheet> {
       ).showSnackBar(const SnackBar(content: Text('請填寫手動調整原因')));
       return;
     }
+    if (_remaining > 0 && _topUpMethod.isEmpty) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('請選擇補款方式，或先至付款設定開啟可用方式')));
+      return;
+    }
+    bool lockIfClear = false;
+    if (_remaining <= 0 && _refundDue <= 0) {
+      final bool? ok = await showDialog<bool>(
+        context: context,
+        builder: (BuildContext context) {
+          return AlertDialog(
+            title: const Text('確認鎖定訂單'),
+            content: const Text('完成後訂單將鎖定，無法再修改，請確認金額與資料正確。'),
+            actions: <Widget>[
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('取消'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(context, true),
+                child: const Text('確認鎖定'),
+              ),
+            ],
+          );
+        },
+      );
+      if (ok != true) {
+        return;
+      }
+      lockIfClear = true;
+    }
+    if (!mounted) {
+      return;
+    }
     Navigator.pop(
       context,
       AdminDaycareSettleResult(
         actualEndAt: _actualEnd,
-        completeMode: _mode,
+        waiveOvertime: _waiveOvertime,
         waiveReason: _waiveReason.text.trim(),
         manualAdjust: _manual,
         manualAdjustReason: _manualReason.text.trim(),
+        topUpMethod: _topUpMethod,
+        lockIfClear: lockIfClear,
       ),
     );
   }
@@ -305,10 +370,12 @@ class _AdminDaycareSettleSheetState extends State<AdminDaycareSettleSheet> {
                                 DaycareTimeHelper.formatDateTime(_actualEnd),
                               ],
                             ],
-                            trailing: TextButton(
-                              onPressed: _pickActualEnd,
-                              child: const Text('調整接回時間'),
-                            ),
+                            trailing: _freezeActualEnd
+                                ? const Text('以首次結算時間為準')
+                                : TextButton(
+                                    onPressed: _pickActualEnd,
+                                    child: const Text('調整接回時間'),
+                                  ),
                           ),
                           const SizedBox(height: 14),
                           if (_loadingPreview)
@@ -325,28 +392,22 @@ class _AdminDaycareSettleSheetState extends State<AdminDaycareSettleSheet> {
                             _feeSection(theme),
                           const SizedBox(height: 14),
                           Text(
-                            '收款方式',
+                            '費用調整',
                             style: TextStyle(
                               fontWeight: FontWeight.w700,
                               color: theme.titleColor,
                             ),
                           ),
-                          const SizedBox(height: 8),
-                          _modeTile(
-                            theme,
-                            value: 'cash',
-                            title: '已到店收款並完成安親',
-                            subtitle: '現場收齊尚待金額後結案',
+                          CheckboxListTile(
+                            contentPadding: EdgeInsets.zero,
+                            value: _waiveOvertime,
+                            onChanged: (bool? value) {
+                              setState(() => _waiveOvertime = value == true);
+                            },
+                            title: const Text('免收本次超時費'),
+                            subtitle: const Text('不代表免除原本尾款，也不代表已收款。'),
                           ),
-                          const SizedBox(height: 8),
-                          _modeTile(
-                            theme,
-                            value: 'waive',
-                            title: '免收本次逾時費並完成安親',
-                            subtitle: '方案時間費用仍計入，僅免收晚接回加收',
-                          ),
-                          if (_mode == 'waive') ...<Widget>[
-                            const SizedBox(height: 8),
+                          if (_waiveOvertime)
                             TextField(
                               controller: _waiveReason,
                               decoration: const InputDecoration(
@@ -354,7 +415,6 @@ class _AdminDaycareSettleSheetState extends State<AdminDaycareSettleSheet> {
                                 border: OutlineInputBorder(),
                               ),
                             ),
-                          ],
                           const SizedBox(height: 14),
                           Text(
                             '手動調整金額',
@@ -387,6 +447,60 @@ class _AdminDaycareSettleSheetState extends State<AdminDaycareSettleSheet> {
                               labelText: '調整原因（金額不為 0 時必填）',
                               border: OutlineInputBorder(),
                             ),
+                          ),
+                          const SizedBox(height: 14),
+                          Text(
+                            '補款方式',
+                            style: TextStyle(
+                              fontWeight: FontWeight.w700,
+                              color: theme.titleColor,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+                            stream: FirebaseFirestore.instance
+                                .collection('shops')
+                                .doc(widget.shopId)
+                                .snapshots(),
+                            builder:
+                                (
+                                  BuildContext context,
+                                  AsyncSnapshot<
+                                    DocumentSnapshot<Map<String, dynamic>>
+                                  >
+                                  snapshot,
+                                ) {
+                                  final ShopPaymentCatalog catalog =
+                                      ShopPaymentMethods.settlementTopUpCatalog(
+                                        shopData:
+                                            snapshot.data?.data() ??
+                                            const <String, dynamic>{},
+                                        serviceType:
+                                            PolicyApplicableService.daycare,
+                                      );
+                                  if (catalog.methods.isEmpty) {
+                                    return const Text(
+                                      '目前沒有可用補款方式，請先至店家付款設定開啟。待補款不可標成已結清。',
+                                    );
+                                  }
+                                  return Column(
+                                    children: catalog.methods.map((
+                                      ShopPaymentMethodOption item,
+                                    ) {
+                                      return RadioListTile<String>(
+                                        value: item.id,
+                                        groupValue: _topUpMethod,
+                                        title: Text(item.title),
+                                        subtitle: Text(item.subtitle),
+                                        onChanged: (String? value) {
+                                          setState(
+                                            () => _topUpMethod = value ?? '',
+                                          );
+                                        },
+                                      );
+                                    }).toList(),
+                                  );
+                                },
                           ),
                           const SizedBox(height: 16),
                           Container(
@@ -494,11 +608,12 @@ class _AdminDaycareSettleSheetState extends State<AdminDaycareSettleSheet> {
           _moneyRow(theme, '預約費用', _quoted),
           _moneyRow(theme, '晚接回逾時加收', _overtime),
           _moneyRow(theme, '手動調整', _manual),
-          if (_mode == 'waive') _infoLine('調整內容', '免收本次晚接回逾時費'),
+          if (_waiveOvertime) _infoLine('調整內容', '免收本次晚接回逾時費'),
           if (capAdjustment != 0) _moneyRow(theme, '上限調整', capAdjustment),
           _moneyRow(theme, '最終應收', _finalReceivable, emphasize: true),
-          _moneyRow(theme, '已付款', _paid),
-          _moneyRow(theme, '尚待收款', _remaining),
+          _moneyRow(theme, '成功收款總額', _paid),
+          _moneyRow(theme, '待補款', _remaining),
+          _moneyRow(theme, '待退款', _refundDue),
         ],
       ),
     );
@@ -552,58 +667,6 @@ class _AdminDaycareSettleSheetState extends State<AdminDaycareSettleSheet> {
             const SizedBox(height: 6),
           ],
         ],
-      ),
-    );
-  }
-
-  Widget _modeTile(
-    ShopFrontendTheme theme, {
-    required String value,
-    required String title,
-    required String subtitle,
-  }) {
-    final bool selected = _mode == value;
-    return InkWell(
-      onTap: () => setState(() => _mode = value),
-      borderRadius: BorderRadius.circular(14),
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: selected ? theme.primarySoft : theme.cardColor,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(
-            color: selected ? theme.primaryColor : theme.borderColor,
-            width: selected ? 1.6 : 1,
-          ),
-        ),
-        child: Row(
-          children: <Widget>[
-            Icon(
-              selected ? Icons.check_circle : Icons.circle_outlined,
-              color: selected ? theme.primaryColor : theme.subtitleColor,
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: <Widget>[
-                  Text(
-                    title,
-                    style: TextStyle(
-                      fontWeight: FontWeight.w700,
-                      color: theme.titleColor,
-                    ),
-                  ),
-                  Text(
-                    subtitle,
-                    style: TextStyle(fontSize: 12, color: theme.subtitleColor),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
       ),
     );
   }

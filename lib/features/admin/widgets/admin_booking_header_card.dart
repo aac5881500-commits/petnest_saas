@@ -153,7 +153,7 @@ class AdminBookingHeaderCard extends StatelessWidget {
                     ),
                   ),
                 if ((data['note'] ?? '').toString().trim().isNotEmpty)
-                  _meta(theme, '店主備註', (data['note'] ?? '').toString()),
+                  _meta(theme, '客戶備註', (data['note'] ?? '').toString()),
               ],
               _meta(
                 theme,

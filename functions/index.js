@@ -853,3 +853,39 @@ exports.assignDaycareRoom =
 exports.convertDaycareToAccommodation =
   require("./daycare/convert_daycare_to_accommodation")
       .convertDaycareToAccommodation;
+
+/**
+ * 住宿／安親結算調整、店內收退款、App 補款標記
+ */
+exports.adjustBookingSettlement =
+  require("./bookings/adjust_booking_settlement").adjustBookingSettlement;
+
+exports.quoteDailyCareAddon =
+  require("./daily_care/quote_daily_care").quoteDailyCareAddon;
+exports.reserveDailyCarePhoto =
+  require("./daily_care/daily_care_photo_ops").reserveDailyCarePhoto;
+exports.completeDailyCarePhotoUpload =
+  require("./daily_care/daily_care_photo_ops").completeDailyCarePhotoUpload;
+exports.releaseDailyCarePhotoReservation =
+  require("./daily_care/daily_care_photo_ops")
+      .releaseDailyCarePhotoReservation;
+exports.deleteDailyCarePhoto =
+  require("./daily_care/daily_care_photo_ops").deleteDailyCarePhoto;
+exports.lockDailyCareSessionPhotos =
+  require("./daily_care/daily_care_photo_ops").lockDailyCareSessionPhotos;
+exports.cleanupExpiredDailyCarePhotos =
+  require("./daily_care/cleanup_expired_daily_care_photos")
+      .cleanupExpiredDailyCarePhotos;
+exports.stampDailyCarePhotoExpiryOnBooking =
+  require("./daily_care/cleanup_expired_daily_care_photos")
+      .stampDailyCarePhotoExpiryOnBooking;
+exports.inspectDailyCarePhotos =
+  require("./daily_care/cleanup_expired_daily_care_photos")
+      .inspectDailyCarePhotos;
+
+exports.rebuildShopReportSummary =
+  require("./reports/shop_report_summary").rebuildShopReportSummary;
+exports.backfillBookingSearchFields =
+  require("./reports/shop_report_summary").backfillBookingSearchFields;
+exports.backfillMemberSearchFields =
+  require("./reports/shop_report_summary").backfillMemberSearchFields;

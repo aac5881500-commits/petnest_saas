@@ -10,7 +10,9 @@ import 'package:petnest_saas/core/models/policy_applicable_service.dart';
 import 'package:petnest_saas/core/navigation/admin_booking_route.dart';
 import 'package:petnest_saas/core/services/daycare_addon_catalog.dart';
 import 'package:petnest_saas/core/services/daycare_addon_line.dart';
+import 'package:petnest_saas/core/services/daycare_addon_pet_guard.dart';
 import 'package:petnest_saas/core/services/daycare_calendar_helper.dart';
+import 'package:petnest_saas/core/services/daycare_callable_payload.dart';
 import 'package:petnest_saas/core/services/daycare_enabled.dart';
 import 'package:petnest_saas/core/services/daycare_function_service.dart';
 import 'package:petnest_saas/core/services/daycare_pricing_service.dart';
@@ -18,15 +20,28 @@ import 'package:petnest_saas/core/services/daycare_room_type_option.dart';
 import 'package:petnest_saas/core/services/daycare_settings_service.dart';
 import 'package:petnest_saas/core/services/daycare_time_helper.dart';
 import 'package:petnest_saas/core/services/home_banner_service.dart';
+import 'package:petnest_saas/core/services/shop_member_kind.dart';
 import 'package:petnest_saas/core/services/shop_payment_methods.dart';
 import 'package:petnest_saas/core/services/shop_policy_service.dart';
 import 'package:petnest_saas/core/services/shop_service.dart';
 import 'package:petnest_saas/features/admin/widgets/admin_create_flow_scaffold.dart';
+import 'package:petnest_saas/features/admin/widgets/admin_create_custom_form_section.dart';
+import 'package:petnest_saas/features/admin/widgets/admin_order_source_note_fields.dart';
+import 'package:petnest_saas/core/models/custom_form_answer_model.dart';
+import 'package:petnest_saas/core/models/custom_form_model.dart';
+import 'package:petnest_saas/core/services/custom_form_service.dart';
+import 'package:petnest_saas/core/models/daily_care_addon_plan.dart';
+import 'package:petnest_saas/core/models/daily_care_entitlement.dart';
+import 'package:petnest_saas/core/models/daily_care_setting_model.dart';
+import 'package:petnest_saas/core/services/daily_care_addon_service.dart';
+import 'package:petnest_saas/core/services/daily_care_entitlement_math.dart';
+import 'package:petnest_saas/core/services/daily_care_setting_service.dart';
+import 'package:petnest_saas/features/shop/widgets/booking/daily_care_upgrade_card.dart';
+import 'package:petnest_saas/features/admin/widgets/admin_create_payment_section.dart';
 import 'package:petnest_saas/features/admin/widgets/admin_member_search_section.dart';
 import 'package:petnest_saas/features/admin/widgets/admin_quick_create_member_dialog.dart';
 import 'package:petnest_saas/features/admin/widgets/admin_quick_create_pet_dialog.dart';
 import 'package:petnest_saas/features/admin/widgets/admin_selected_member_card.dart';
-import 'package:petnest_saas/features/booking/widgets/shop_payment_method_cards.dart';
 import 'package:petnest_saas/features/shop/widgets/booking/booking_calendar_dialog.dart';
 import 'package:petnest_saas/features/shop/widgets/booking/booking_step_widgets.dart';
 import 'package:petnest_saas/features/shop/widgets/booking/daycare_addon_selector.dart';
@@ -69,17 +84,30 @@ class _AdminCreateDaycareBookingPageState
   final Set<String> _selectedAddonIds = <String>{};
   final Map<String, Set<String>> _addonPetIds = <String, Set<String>>{};
   final Map<String, Set<String>> _addonSlotKeys = <String, Set<String>>{};
+  final Map<String, GlobalKey> _addonKeys = <String, GlobalKey>{};
+  Set<String> _addonPetErrors = <String>{};
   bool _submitting = false;
+  String? _submitRequestId;
   final int _manualAdjust = 0;
   bool _policyRequired = false;
   int _policyVersion = 0;
   String? _policySignMethod;
+  bool _policyError = false;
+  final GlobalKey _policyKey = GlobalKey();
+  final ScrollController _scrollController = ScrollController();
   ShopPaymentCatalog _paymentCatalog = const ShopPaymentCatalog(
     methods: <ShopPaymentMethodOption>[],
     isDepositMode: false,
     serviceType: PolicyApplicableService.daycare,
   );
   String? _paymentMethod;
+  String _adminOrderSource = '電話預約';
+  CustomFormModel? _adminForm;
+  Map<String, dynamic> _adminFormAnswers = <String, dynamic>{};
+  String? _timeSlotError;
+  DailyCareSettingModel _dailyCareSetting = const DailyCareSettingModel();
+  List<DailyCareAddonPlan> _dailyCarePlans = <DailyCareAddonPlan>[];
+  String? _selectedDailyCareAddonId;
 
   @override
   void initState() {
@@ -91,6 +119,7 @@ class _AdminCreateDaycareBookingPageState
   void dispose() {
     _keyword.dispose();
     _note.dispose();
+    _scrollController.dispose();
     super.dispose();
   }
 
@@ -106,6 +135,50 @@ class _AdminCreateDaycareBookingPageState
       return null;
     }
     return DaycareTimeHelper.combineDateAndTime(_date!, _pickUp!);
+  }
+
+  bool _slotOk(String slot, {String? after}) {
+    if (_date == null) {
+      return false;
+    }
+    return DaycareTimeHelper.isSlotSelectable(
+      slot: slot,
+      date: _date!,
+      now: DateTime.now(),
+      afterSlot: after,
+    );
+  }
+
+  void _revalidateSlots() {
+    final DaycareSettingsModel? settings = _settings;
+    if (_date == null || settings == null) {
+      _timeSlotError = null;
+      return;
+    }
+    final List<String> slots = DaycareTimeHelper.slots(
+      start: settings.earliestDropOff,
+      end: settings.latestPickUp,
+      stepMinutes: settings.slotMinutes,
+    );
+    final bool anyDrop = slots.any(_slotOk);
+    if (!anyDrop) {
+      _dropOff = null;
+      _pickUp = null;
+      _timeSlotError = '今天已無有效可預約時段，請改選其他日期';
+      return;
+    }
+    if (_dropOff != null && !_slotOk(_dropOff!)) {
+      _dropOff = null;
+      _pickUp = null;
+      _timeSlotError = '送達時間已過期，請重新選擇';
+      return;
+    }
+    if (_pickUp != null && !_slotOk(_pickUp!, after: _dropOff)) {
+      _pickUp = null;
+      _timeSlotError = '接回時間已失效，請重新選擇';
+      return;
+    }
+    _timeSlotError = null;
   }
 
   Future<void> _bootstrap() async {
@@ -155,6 +228,23 @@ class _AdminCreateDaycareBookingPageState
     if (!mounted) {
       return;
     }
+    final CustomFormModel adminForm = await CustomFormService.instance.getForm(
+      shopId: widget.shopId,
+      formType: CustomFormType.adminCreate,
+    );
+    DailyCareSettingModel careSetting = const DailyCareSettingModel();
+    List<DailyCareAddonPlan> carePlans = <DailyCareAddonPlan>[];
+    try {
+      careSetting = await DailyCareSettingService.instance.getSetting(
+        widget.shopId,
+      );
+      carePlans = await DailyCareAddonService.instance.listPlans(
+        widget.shopId,
+      );
+    } catch (_) {}
+    if (!mounted) {
+      return;
+    }
     setState(() {
       _settings = settings;
       _shop = shop ?? const <String, dynamic>{};
@@ -162,9 +252,13 @@ class _AdminCreateDaycareBookingPageState
       _policyRequired = required;
       _policyVersion = version;
       _paymentCatalog = catalog;
-      _paymentMethod = catalog.methodIds.isEmpty
-          ? null
-          : catalog.methodIds.first;
+      _adminForm = adminForm;
+      _dailyCareSetting = careSetting;
+      _dailyCarePlans = carePlans;
+      _paymentMethod = ShopPaymentMethods.coerceAdminCreateMethod(
+        catalog: catalog,
+        selected: _paymentMethod,
+      );
       if (settings.isRoomBased) {
         _plan = null;
       } else {
@@ -307,6 +401,7 @@ class _AdminCreateDaycareBookingPageState
                             _date = tempDate;
                             _dropOff = null;
                             _pickUp = null;
+                            _revalidateSlots();
                           });
                           _refreshRoomOptions();
                         }
@@ -319,6 +414,46 @@ class _AdminCreateDaycareBookingPageState
         );
       },
     );
+  }
+
+  DailyCareEntitlement? _dailyCareQuote() {
+    try {
+      return DailyCareEntitlementMath.resolve(
+        setting: _dailyCareSetting,
+        isDaycare: true,
+        shopDaycareOn: true,
+        offerId: (_settings?.isRoomBased ?? false)
+            ? (_selectedRoomTypeId ?? '')
+            : (_plan?.id ?? ''),
+        offerName: (_settings?.isRoomBased ?? false) ? '' : (_plan?.name ?? ''),
+        purchaseAddon: _selectedDailyCareAddonId != null &&
+            _selectedDailyCareAddonId!.isNotEmpty,
+        nights: 1,
+        startDate: _startAt,
+        endDate: _endAt ?? _startAt,
+      );
+    } catch (_) {
+      return null;
+    }
+  }
+
+  List<Map<String, dynamic>> get _selectedAddonMaps {
+    return _addons
+        .where(
+          (Map<String, dynamic> e) =>
+              _selectedAddonIds.contains((e['id'] ?? '').toString()),
+        )
+        .map((Map<String, dynamic> addon) {
+          final String id = (addon['id'] ?? '').toString();
+          return <String, dynamic>{
+            ...addon,
+            'selectedPetIds': (_addonPetIds[id] ?? <String>{}).toList(),
+            'selectedTimeSlots': (_addonSlotKeys[id] ?? <String>{})
+                .map((String key) => <String, dynamic>{'id': key, 'label': key})
+                .toList(),
+          };
+        })
+        .toList();
   }
 
   DaycareQuote? get _quote {
@@ -351,6 +486,8 @@ class _AdminCreateDaycareBookingPageState
         addonAmount += resolved.amount;
       }
     }
+    final int careAmount = _dailyCareQuote()?.amount ?? 0;
+    addonAmount += careAmount;
     final int petCount = _petIds.isEmpty ? 1 : _petIds.length;
     if (settings.isRoomBased) {
       if (_selectedRoomTypeId == null) {
@@ -402,14 +539,43 @@ class _AdminCreateDaycareBookingPageState
     final String userId =
         (_member!['userId'] ?? _member!['uid'] ?? _member!['id'] ?? '')
             .toString();
-    final DocumentReference<Map<String, dynamic>> ref = FirebaseFirestore
-        .instance
+    if (userId.isEmpty) {
+      return;
+    }
+    final String petId = FirebaseFirestore.instance
         .collection('user_profiles')
         .doc(userId)
         .collection('pets')
-        .doc();
-    await ref.set(created);
-    await _loadPets(userId);
+        .doc()
+        .id;
+    final Map<String, dynamic> pet = <String, dynamic>{
+      ...created,
+      'id': petId,
+      'petId': petId,
+    };
+    if (_member!['isTempAdminMember'] != true) {
+      await FirebaseFirestore.instance
+          .collection('user_profiles')
+          .doc(userId)
+          .collection('pets')
+          .doc(petId)
+          .set(<String, dynamic>{
+            ...created,
+            'petId': petId,
+            'shopId': widget.shopId,
+            'createdFrom': 'admin',
+            'createdAt': FieldValue.serverTimestamp(),
+            'updatedAt': FieldValue.serverTimestamp(),
+          });
+    }
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _pets.add(pet);
+      _petIds.add(petId);
+    });
+    await _refreshRoomOptions();
   }
 
   Future<void> _quickCreateMember() async {
@@ -421,19 +587,25 @@ class _AdminCreateDaycareBookingPageState
       return;
     }
     setState(() {
+      final String userId = FirebaseFirestore.instance
+          .collection('user_profiles')
+          .doc()
+          .id;
       _member = <String, dynamic>{
-        'userId': FirebaseFirestore.instance
-            .collection('user_profiles')
-            .doc()
-            .id,
-        'id': '',
+        'userId': userId,
+        'id': userId,
         'isTempAdminMember': true,
+        'source': ShopMemberKind.adminSource,
         'name': result['name'],
         'phone': result['phone'],
         'email': '',
       };
       _pets = <Map<String, dynamic>>[];
       _petIds.clear();
+      _paymentMethod = ShopPaymentMethods.coerceAdminCreateMethod(
+        catalog: _paymentCatalog,
+        selected: _paymentMethod,
+      );
     });
   }
 
@@ -461,6 +633,9 @@ class _AdminCreateDaycareBookingPageState
           !_startAt!.isBefore(_endAt!)) {
         return '請選擇有效的接回時間';
       }
+      if (_timeSlotError != null) {
+        return _timeSlotError!;
+      }
       return '';
     }
     if (_step == 2) {
@@ -476,21 +651,89 @@ class _AdminCreateDaycareBookingPageState
       return '';
     }
     if (_step == 3) {
-      if (_paymentMethod == null) {
+      if (_paymentMethod == null ||
+          !ShopPaymentMethods.isAdminCreateSelectable(_paymentMethod!)) {
         return '請選擇付款方式';
-      }
-      if (_policyRequired &&
-          (_policySignMethod == null || _policySignMethod!.isEmpty)) {
-        return '請記錄安親條款簽署方式';
       }
       return '';
     }
     return '';
   }
 
-  Future<void> _advance() async {
-    if (_submitting || _hint.isNotEmpty) {
+  bool get _policyMissing =>
+      _policyRequired &&
+      (_policySignMethod == null || _policySignMethod!.isEmpty);
+
+  Future<void> _scrollToPolicy() async {
+    final BuildContext? target = _policyKey.currentContext;
+    if (target == null) {
       return;
+    }
+    await Scrollable.ensureVisible(
+      target,
+      duration: const Duration(milliseconds: 280),
+      alignment: 0.12,
+      curve: Curves.easeOut,
+    );
+  }
+
+  Future<void> _advance() async {
+    if (_submitting) {
+      return;
+    }
+    if (_hint.isNotEmpty) {
+      return;
+    }
+    if (_step == 3 && _policyMissing) {
+      setState(() => _policyError = true);
+      await _scrollToPolicy();
+      return;
+    }
+    if (_step == 3 && _adminForm?.shouldCollectAnswers == true) {
+      final CustomFormValidationResult result =
+          CustomFormAnswerSnapshot.validate(
+            form: _adminForm!,
+            answersByQuestionId: _adminFormAnswers,
+          );
+      if (!result.isValid) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              result.message.isEmpty ? '請完成手動訂單表單必填題' : result.message,
+            ),
+          ),
+        );
+        return;
+      }
+    }
+    if (_step == 1) {
+      _revalidateSlots();
+      if (_timeSlotError != null) {
+        return;
+      }
+    }
+    if (_step == 2) {
+      final List<String> missing = DaycareAddonPetGuard.addonIdsMissingPets(
+        selectedAddons: _selectedAddonMaps,
+        addonPetIds: _addonPetIds,
+      );
+      setState(() => _addonPetErrors = missing.toSet());
+      if (missing.isNotEmpty) {
+        final GlobalKey key = _addonKeys.putIfAbsent(
+          missing.first,
+          GlobalKey.new,
+        );
+        final BuildContext? target = key.currentContext;
+        if (target != null) {
+          await Scrollable.ensureVisible(
+            target,
+            duration: const Duration(milliseconds: 280),
+            alignment: 0.12,
+            curve: Curves.easeOut,
+          );
+        }
+        return;
+      }
     }
     if (_step < 4) {
       setState(() => _step += 1);
@@ -500,6 +743,83 @@ class _AdminCreateDaycareBookingPageState
       return;
     }
     await _submit();
+  }
+
+  Future<String> _ensureMemberUserId(Map<String, dynamic> member) async {
+    final String userId =
+        (member['userId'] ?? member['uid'] ?? member['id'] ?? '').toString();
+    if (userId.isEmpty) {
+      throw const DaycareFunctionException('找不到會員資料');
+    }
+    if (member['isTempAdminMember'] != true) {
+      return userId;
+    }
+    final DocumentReference<Map<String, dynamic>> memberRef = FirebaseFirestore
+        .instance
+        .collection('user_profiles')
+        .doc(userId);
+    final DocumentReference<Map<String, dynamic>> shopMemberRef =
+        FirebaseFirestore.instance
+            .collection('shops')
+            .doc(widget.shopId)
+            .collection('members')
+            .doc(userId);
+    final WriteBatch batch = FirebaseFirestore.instance.batch();
+    batch.set(memberRef, <String, dynamic>{
+      'name': member['name'],
+      'phone': member['phone'],
+      'email': '',
+      'shopIds': <String>[widget.shopId],
+      'createdFrom': 'admin',
+      'source': ShopMemberKind.adminSource,
+      'createdAt': FieldValue.serverTimestamp(),
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+    batch.set(shopMemberRef, <String, dynamic>{
+      'userId': userId,
+      'name': member['name'] ?? '',
+      'phone': member['phone'] ?? '',
+      'email': '',
+      'createdFrom': 'admin',
+      'source': ShopMemberKind.adminSource,
+      'shopId': widget.shopId,
+      'petCount': _pets.length,
+      'bookingCount': 0,
+      'tags': <String>[],
+      'blacklisted': false,
+      'blacklistReason': '',
+      'createdAt': FieldValue.serverTimestamp(),
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+    for (final Map<String, dynamic> pet in _pets) {
+      final String petId = (pet['petId'] ?? pet['id'] ?? '').toString();
+      if (petId.isEmpty) {
+        continue;
+      }
+      final Map<String, dynamic> petData = <String, dynamic>{
+        'petId': petId,
+        'name': pet['name'] ?? '',
+        'type': pet['type'] ?? '',
+        'breed': pet['breed'] ?? '',
+        'gender': pet['gender'] ?? '',
+        'age': pet['age'] ?? '',
+        'isNeutered': pet['isNeutered'] ?? false,
+        'vaccine': pet['vaccine'] ?? '',
+        'litterType': pet['litterType'] ?? '',
+        'note': pet['note'] ?? '',
+        'shopId': widget.shopId,
+        'createdFrom': 'admin',
+        'createdAt': FieldValue.serverTimestamp(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      };
+      batch.set(memberRef.collection('pets').doc(petId), petData);
+      batch.set(shopMemberRef.collection('pets').doc(petId), petData);
+    }
+    await batch.commit();
+    member['isTempAdminMember'] = false;
+    member['source'] = ShopMemberKind.adminSource;
+    member['userId'] = userId;
+    return userId;
   }
 
   Future<void> _submit() async {
@@ -524,30 +844,47 @@ class _AdminCreateDaycareBookingPageState
     if (!roomBased && _plan == null) {
       return;
     }
+    if (_policyMissing) {
+      setState(() => _policyError = true);
+      await _scrollToPolicy();
+      return;
+    }
+    _revalidateSlots();
+    if (_timeSlotError != null) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(_timeSlotError!)));
+      return;
+    }
+    final String? paymentMethod = ShopPaymentMethods.coerceAdminCreateMethod(
+      catalog: _paymentCatalog,
+      selected: _paymentMethod,
+    );
+    if (paymentMethod == null) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('請選擇到店付款或銀行轉帳')));
+      return;
+    }
     setState(() => _submitting = true);
     try {
-      final List<Map<String, dynamic>> selectedAddons = _addons
-          .where(
-            (Map<String, dynamic> e) =>
-                _selectedAddonIds.contains((e['id'] ?? '').toString()),
-          )
-          .map((Map<String, dynamic> addon) {
-            final String id = (addon['id'] ?? '').toString();
-            return <String, dynamic>{
-              ...addon,
-              'selectedPetIds': (_addonPetIds[id] ?? <String>{}).toList(),
-              'selectedTimeSlots': (_addonSlotKeys[id] ?? <String>{})
-                  .map(
-                    (String key) => <String, dynamic>{'id': key, 'label': key},
-                  )
-                  .toList(),
-            };
-          })
-          .toList();
-      for (final Map<String, dynamic> addon in selectedAddons) {
+      final String userId = await _ensureMemberUserId(member);
+      final List<Map<String, dynamic>> addonSnaps = <Map<String, dynamic>>[];
+      for (final Map<String, dynamic> addon in _addons) {
+        final String id = (addon['id'] ?? '').toString();
+        if (!_selectedAddonIds.contains(id)) {
+          continue;
+        }
+        final Map<String, dynamic> requested = <String, dynamic>{
+          ...addon,
+          'selectedPetIds': (_addonPetIds[id] ?? <String>{}).toList(),
+          'selectedTimeSlots': (_addonSlotKeys[id] ?? <String>{})
+              .map((String key) => <String, dynamic>{'id': key, 'label': key})
+              .toList(),
+        };
         final DaycareAddonLineResult resolved = DaycareAddonLine.resolve(
           live: addon,
-          requested: addon,
+          requested: requested,
           orderPetIds: _petIds.toList(),
           allowedAddonIds: settings.allowedAddonIds,
           scheduledStartAt: _startAt!,
@@ -563,6 +900,12 @@ class _AdminCreateDaycareBookingPageState
           setState(() => _submitting = false);
           return;
         }
+        addonSnaps.add(
+          DaycareCallablePayload.addonSnapshot(
+            resolved.line,
+            amount: resolved.amount,
+          ),
+        );
       }
       final DaycareRoomTypeSetting? roomSetting = roomBased
           ? settings.roomTypeSetting(_selectedRoomTypeId ?? '')
@@ -573,48 +916,58 @@ class _AdminCreateDaycareBookingPageState
           )
           .map((DaycareRoomTypeOption e) => e.name)
           .firstWhere((String name) => name.isNotEmpty, orElse: () => '');
-      final Map<String, dynamic> created = await DaycareFunctionService.instance
-          .createBooking(<String, dynamic>{
-            'shopId': widget.shopId,
-            'source': 'admin',
-            'userId': (member['userId'] ?? member['uid'] ?? member['id'] ?? '')
+      _submitRequestId ??= FirebaseFirestore.instance
+          .collection('bookings')
+          .doc()
+          .id;
+      final Map<String, dynamic> payload =
+          DaycareCallablePayload.adminCreateBookingData(
+            shopId: widget.shopId,
+            userId: userId,
+            customerName: (member['name'] ?? member['displayName'] ?? '')
                 .toString(),
-            'customerName': (member['name'] ?? member['displayName'] ?? '')
-                .toString(),
-            'customerPhone': (member['phone'] ?? '').toString(),
-            'scheduledStartAt': _startAt!.toUtc().toIso8601String(),
-            'scheduledEndAt': _endAt!.toUtc().toIso8601String(),
-            'petIds': _petIds.toList(),
-            'pets': _pets
+            customerPhone: (member['phone'] ?? '').toString(),
+            scheduledStartAt: _startAt!.toUtc().toIso8601String(),
+            scheduledEndAt: _endAt!.toUtc().toIso8601String(),
+            petIds: _petIds.toList(),
+            pets: _pets
                 .where(
                   (Map<String, dynamic> e) => _petIds.contains(
                     (e['id'] ?? e['petId'] ?? '').toString(),
                   ),
                 )
                 .toList(),
-            'pricingMode': DaycarePricingModes.persist(settings.pricingMode),
-            'daycarePlanId': roomBased ? '' : (_plan?.id ?? ''),
-            'daycarePlanName': roomBased ? '' : (_plan?.name ?? ''),
-            'daycarePlanPriceSnapshot': roomBased
+            pricingMode: DaycarePricingModes.persist(settings.pricingMode),
+            daycarePlanId: roomBased ? '' : (_plan?.id ?? ''),
+            daycarePlanName: roomBased ? '' : (_plan?.name ?? ''),
+            daycarePlanPriceSnapshot: roomBased
                 ? <String, dynamic>{}
                 : (_plan?.toCallableSnapshot() ?? <String, dynamic>{}),
-            'requestedRoomTypeId': roomBased ? (_selectedRoomTypeId ?? '') : '',
-            'requestedRoomTypeName': roomBased ? roomName : '',
-            'requestedRoomTypePriceSnapshot': roomBased
+            requestedRoomTypeId: roomBased ? (_selectedRoomTypeId ?? '') : '',
+            requestedRoomTypeName: roomBased ? roomName : '',
+            requestedRoomTypePriceSnapshot: roomBased
                 ? (roomSetting?.toCallableSnapshot() ?? <String, dynamic>{})
                 : <String, dynamic>{},
-            'addons': selectedAddons,
-            'manualAdjust': _manualAdjust,
-            'policyVersion': _policyVersion,
-            'policyKind': PolicyApplicableService.daycare,
-            'policySignMethod': _policyRequired
-                ? (_policySignMethod ?? PolicySignMethods.staffWitness)
-                : '',
-            'paymentMethod': _paymentMethod,
-            'termsType': PolicyApplicableService.daycare,
-            'note': _note.text.trim(),
-            'requestId': 'admin_dc_${DateTime.now().millisecondsSinceEpoch}',
-          });
+            addons: addonSnaps,
+            manualAdjust: _manualAdjust,
+            policyVersion: _policyVersion,
+            policyKind: PolicyApplicableService.daycare,
+            policySignMethod: _policyRequired ? (_policySignMethod ?? '') : '',
+            paymentMethod: paymentMethod,
+            termsType: PolicyApplicableService.daycare,
+            note: _note.text.trim(),
+            adminOrderSource: _adminOrderSource,
+            adminCustomFormAnswers: _adminForm?.shouldCollectAnswers == true
+                ? CustomFormAnswerSnapshot.build(
+                    form: _adminForm!,
+                    answersByQuestionId: _adminFormAnswers,
+                  ).toCallableMap()
+                : null,
+            requestId: _submitRequestId!,
+            dailyCareAddonId: _selectedDailyCareAddonId ?? '',
+          );
+      final Map<String, dynamic> created = await DaycareFunctionService.instance
+          .createBooking(payload);
       if (!mounted) {
         return;
       }
@@ -639,6 +992,13 @@ class _AdminCreateDaycareBookingPageState
           ),
         ),
       );
+    } on DaycareFunctionException catch (error) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(error.message)));
     } catch (error) {
       if (!mounted) {
         return;
@@ -688,6 +1048,8 @@ class _AdminCreateDaycareBookingPageState
       primaryLabel: _step == 4 ? '建立訂單' : '下一步',
       primaryEnabled: _hint.isEmpty && !_submitting,
       hint: _hint,
+      actionHint: (_step == 3 && _policyMissing) ? '請先選擇安親條款確認方式' : '',
+      onActionHint: (_step == 3 && _policyMissing) ? _scrollToPolicy : null,
       busy: _submitting,
       onBackStep: _step == 0 ? null : () => setState(() => _step -= 1),
       onPrimary: _advance,
@@ -708,7 +1070,8 @@ class _AdminCreateDaycareBookingPageState
             : DaycarePlanModel.moneyLabel(quote.totalAmount),
       ),
       body: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+        controller: _scrollController,
+        padding: EdgeInsets.fromLTRB(16, 8, 16, _step == 3 ? 140 : 24),
         children: <Widget>[
           if (_step > 0 && _member != null) ...<Widget>[
             AdminSelectedMemberCard(member: _member!, shopId: widget.shopId),
@@ -782,6 +1145,10 @@ class _AdminCreateDaycareBookingPageState
               'userId': userId,
               ...data,
             };
+            _paymentMethod = ShopPaymentMethods.coerceAdminCreateMethod(
+              catalog: _paymentCatalog,
+              selected: _paymentMethod,
+            );
           });
           _loadPets(userId);
         },
@@ -866,6 +1233,14 @@ class _AdminCreateDaycareBookingPageState
             const SizedBox(height: 10),
             DaycareDateCard(date: _date, onTap: _openCalendar),
             const SizedBox(height: 12),
+            if (_timeSlotError != null)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Text(
+                  _timeSlotError!,
+                  style: TextStyle(color: theme.primaryColor, fontSize: 13),
+                ),
+              ),
             DropdownButtonFormField<String>(
               key: ValueKey<String>('drop-$_date-$_dropOff'),
               initialValue: _dropOff,
@@ -878,8 +1253,18 @@ class _AdminCreateDaycareBookingPageState
               ),
               items: slots
                   .map(
-                    (String t) =>
-                        DropdownMenuItem<String>(value: t, child: Text(t)),
+                    (String t) => DropdownMenuItem<String>(
+                      value: t,
+                      enabled: _date != null && _slotOk(t),
+                      child: Text(
+                        t,
+                        style: TextStyle(
+                          color: _date != null && _slotOk(t)
+                              ? null
+                              : Colors.grey,
+                        ),
+                      ),
+                    ),
                   )
                   .toList(),
               onChanged: _date == null
@@ -888,6 +1273,7 @@ class _AdminCreateDaycareBookingPageState
                       setState(() {
                         _dropOff = value;
                         _pickUp = null;
+                        _revalidateSlots();
                       });
                       _refreshRoomOptions();
                     },
@@ -907,14 +1293,27 @@ class _AdminCreateDaycareBookingPageState
               ),
               items: slots
                   .map(
-                    (String t) =>
-                        DropdownMenuItem<String>(value: t, child: Text(t)),
+                    (String t) => DropdownMenuItem<String>(
+                      value: t,
+                      enabled: _dropOff != null && _slotOk(t, after: _dropOff),
+                      child: Text(
+                        t,
+                        style: TextStyle(
+                          color: _dropOff != null && _slotOk(t, after: _dropOff)
+                              ? null
+                              : Colors.grey,
+                        ),
+                      ),
+                    ),
                   )
                   .toList(),
               onChanged: _dropOff == null
                   ? null
                   : (String? value) {
-                      setState(() => _pickUp = value);
+                      setState(() {
+                        _pickUp = value;
+                        _revalidateSlots();
+                      });
                       _refreshRoomOptions();
                     },
             ),
@@ -979,8 +1378,10 @@ class _AdminCreateDaycareBookingPageState
             selected: _selectedRoomTypeId == option.roomTypeId,
             enabled: option.selectable,
             blockedReason: option.blockedReason,
-            onTap: () =>
-                setState(() => _selectedRoomTypeId = option.roomTypeId),
+            onTap: () => setState(() {
+              _selectedRoomTypeId = option.roomTypeId;
+              _selectedDailyCareAddonId = null;
+            }),
           );
         }),
       ] else
@@ -1001,7 +1402,10 @@ class _AdminCreateDaycareBookingPageState
             ),
             selected: _plan?.id == plan.id,
             enabled: plan.enabled,
-            onTap: () => setState(() => _plan = plan),
+            onTap: () => setState(() {
+              _plan = plan;
+              _selectedDailyCareAddonId = null;
+            }),
           );
         }),
       if (_addons.isNotEmpty && _startAt != null && _endAt != null) ...<Widget>[
@@ -1019,6 +1423,8 @@ class _AdminCreateDaycareBookingPageState
           addonSubtotal: _quote?.addonAmount ?? 0,
           estimateTotal: _quote?.totalAmount ?? 0,
           showFeeSummary: true,
+          errorAddonIds: _addonPetErrors,
+          addonKeys: _addonKeys,
           onToggleAddon: (String id) {
             setState(() {
               if (_selectedAddonIds.contains(id)) {
@@ -1054,6 +1460,24 @@ class _AdminCreateDaycareBookingPageState
           },
         ),
       ],
+      DailyCareUpgradeCard(
+        setting: _dailyCareSetting,
+        isDaycare: true,
+        shopDaycareOn: true,
+        offerId: settings.isRoomBased
+            ? (_selectedRoomTypeId ?? '')
+            : (_plan?.id ?? ''),
+        offerName: settings.isRoomBased ? '' : (_plan?.name ?? ''),
+        nights: 1,
+        startDate: _startAt,
+        endDate: _endAt ?? _startAt,
+        selectedPlanId: _selectedDailyCareAddonId,
+        onChanged: (String? id) {
+          setState(() {
+            _selectedDailyCareAddonId = id;
+          });
+        },
+      ),
     ];
   }
 
@@ -1083,8 +1507,23 @@ class _AdminCreateDaycareBookingPageState
                 Text(
                   '多寵物加價：${DaycarePlanModel.moneyLabel(quote.extraPetAmount)}',
                 ),
-              if (quote.addonAmount > 0)
-                Text('加購：${DaycarePlanModel.moneyLabel(quote.addonAmount)}'),
+              if (quote.addonAmount - (_dailyCareQuote()?.amount ?? 0) > 0)
+                Text(
+                  '加購：${DaycarePlanModel.moneyLabel(quote.addonAmount - (_dailyCareQuote()?.amount ?? 0))}',
+                ),
+              if ((_dailyCareQuote()?.amount ?? 0) > 0)
+                Text(
+                  '照護加購：${DaycarePlanModel.moneyLabel(_dailyCareQuote()!.amount)}',
+                ),
+              if (_dailyCareQuote() != null) ...<Widget>[
+                const SizedBox(height: 6),
+                Text(
+                  '照護基本包含每天 ${_dailyCareQuote()!.baseReports} 次、'
+                  '${_dailyCareQuote()!.basePhotos} 張；升級後每天 '
+                  '${_dailyCareQuote()!.finalReports} 次、'
+                  '${_dailyCareQuote()!.finalPhotos} 張',
+                ),
+              ],
               const SizedBox(height: 6),
               Text(
                 '合計 ${DaycarePlanModel.moneyLabel(quote.totalAmount)}',
@@ -1100,46 +1539,58 @@ class _AdminCreateDaycareBookingPageState
       const SizedBox(height: 12),
       BookingThemedCard(
         theme: theme,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: <Widget>[
-            Text(
-              '付款方式',
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w800,
-                color: theme.textColor,
-              ),
-            ),
-            ShopPaymentMethodCards(
-              catalog: _paymentCatalog,
-              selectedMethod: _paymentMethod,
-              onSelected: (String id) => setState(() => _paymentMethod = id),
-            ),
-          ],
+        child: AdminOrderSourceNoteFields(
+          adminOrderSource: _adminOrderSource,
+          noteController: _note,
+          onOrderSourceChanged: (String value) {
+            setState(() => _adminOrderSource = value);
+          },
         ),
       ),
       const SizedBox(height: 12),
       BookingThemedCard(
         theme: theme,
-        child: TextField(
-          controller: _note,
-          maxLines: 3,
-          decoration: InputDecoration(
-            labelText: '店主備註',
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
-          ),
+        child: AdminCreatePaymentSection(
+          catalog: _paymentCatalog,
+          selectedMethod: _paymentMethod,
+          isManualMember: ShopMemberKind.isManualMember(_member),
+          theme: theme,
+          onSelected: (String id) {
+            if (!ShopPaymentMethods.isAdminCreateSelectable(id)) {
+              return;
+            }
+            setState(() => _paymentMethod = id);
+          },
         ),
       ),
-      if (_policyRequired) ...<Widget>[
-        const SizedBox(height: 12),
-        PolicySignMethodField(
-          value: _policySignMethod,
-          title: '安親條款簽署方式',
-          onChanged: (String value) =>
-              setState(() => _policySignMethod = value),
+      const SizedBox(height: 12),
+      AdminCreateCustomFormSection(
+        form: _adminForm,
+        answers: _adminFormAnswers,
+        theme: theme,
+        onChanged: (Map<String, dynamic> next) {
+          setState(() => _adminFormAnswers = next);
+        },
+      ),
+      const SizedBox(height: 12),
+      if (_policyRequired)
+        KeyedSubtree(
+          key: _policyKey,
+          child: PolicySignMethodField(
+            value: _policySignMethod,
+            title: '安親條款簽署方式',
+            serviceLabel: '安親條款',
+            showError: _policyError,
+            theme: theme,
+            onChanged: (String value) {
+              setState(() {
+                _policySignMethod = value;
+                _policyError = false;
+              });
+            },
+          ),
         ),
-      ],
+      if (_policyRequired) const SizedBox(height: 72),
     ];
   }
 

@@ -3,8 +3,11 @@
 // ✅ 後台手動新增訂單：確認資料區塊
 
 import 'package:flutter/material.dart';
+import 'package:petnest_saas/core/models/daily_care_entitlement.dart';
 import 'package:petnest_saas/core/services/shop_payment_methods.dart';
-import 'package:petnest_saas/features/booking/widgets/shop_payment_method_cards.dart';
+import 'package:petnest_saas/core/services/shop_report_format.dart';
+import 'package:petnest_saas/features/admin/widgets/admin_create_payment_section.dart';
+import 'package:petnest_saas/features/admin/widgets/admin_order_source_note_fields.dart';
 
 class AdminCreateBookingConfirmSection extends StatelessWidget {
   const AdminCreateBookingConfirmSection({
@@ -18,6 +21,8 @@ class AdminCreateBookingConfirmSection extends StatelessWidget {
     required this.selectedValueServices,
     required this.selectedCustomServices,
     required this.selectedDailyTimedServices,
+    this.dailyCareAmount = 0,
+    this.dailyCareEntitlement,
     required this.pets,
     required this.addonData,
     required this.adminOrderSource,
@@ -31,6 +36,7 @@ class AdminCreateBookingConfirmSection extends StatelessWidget {
     required this.payAmountType,
     required this.paymentMethod,
     required this.paymentCatalog,
+    this.isManualMember = false,
     required this.onPayAmountTypeChanged,
     required this.onPaymentMethodChanged,
 
@@ -54,6 +60,9 @@ class AdminCreateBookingConfirmSection extends StatelessWidget {
   final Map<String, Map<String, Map<String, List<String>>>>
   selectedDailyTimedServices;
 
+  final int dailyCareAmount;
+  final DailyCareEntitlement? dailyCareEntitlement;
+
   final List<Map<String, dynamic>> pets;
 
   final Map<String, dynamic>? addonData;
@@ -73,6 +82,7 @@ class AdminCreateBookingConfirmSection extends StatelessWidget {
   final String? paymentMethod;
 
   final ShopPaymentCatalog paymentCatalog;
+  final bool isManualMember;
 
   final ValueChanged<String> onPayAmountTypeChanged;
 
@@ -168,7 +178,8 @@ class AdminCreateBookingConfirmSection extends StatelessWidget {
         timeAddonTotal +
         customAddonTotal +
         dailyTimedAddonTotal;
-    final totalPrice = (price * nights) + extraPetTotal + addonTotal;
+    final totalPrice =
+        (price * nights) + extraPetTotal + addonTotal + dailyCareAmount;
     final finalTotal = discountInfo != null
         ? ((discountInfo!['finalTotal'] ?? totalPrice) as num).toInt()
         : totalPrice;
@@ -207,33 +218,10 @@ class AdminCreateBookingConfirmSection extends StatelessWidget {
 
         const SizedBox(height: 16),
 
-        DropdownButtonFormField<String>(
-          value: adminOrderSource,
-          decoration: InputDecoration(
-            labelText: '下單方式',
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
-          ),
-          items: const [
-            DropdownMenuItem(value: '電話預約', child: Text('電話預約')),
-            DropdownMenuItem(value: 'LINE 預約', child: Text('LINE 預約')),
-            DropdownMenuItem(value: '現場預約', child: Text('現場預約')),
-            DropdownMenuItem(value: '其他', child: Text('其他')),
-          ],
-          onChanged: (value) {
-            onOrderSourceChanged(value ?? '電話預約');
-          },
-        ),
-
-        const SizedBox(height: 12),
-
-        TextField(
-          controller: noteController,
-          maxLines: 3,
-          decoration: InputDecoration(
-            labelText: '訂單備註',
-            hintText: '例如：電話預約、LINE 預約、已口頭確認、特殊照顧事項',
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
-          ),
+        AdminOrderSourceNoteFields(
+          adminOrderSource: adminOrderSource,
+          noteController: noteController,
+          onOrderSourceChanged: onOrderSourceChanged,
         ),
 
         const SizedBox(height: 16),
@@ -291,13 +279,16 @@ class AdminCreateBookingConfirmSection extends StatelessWidget {
 
               const Divider(height: 24),
 
-              const Text('付款方式', style: TextStyle(fontWeight: FontWeight.w800)),
-
-              ShopPaymentMethodCards(
+              AdminCreatePaymentSection(
                 catalog: paymentCatalog,
                 selectedMethod: paymentMethod,
-                onSelected: (String id) => onPaymentMethodChanged(id),
-                emptyMessage: ShopPaymentMethods.noMethodsMessage,
+                isManualMember: isManualMember,
+                onSelected: (String id) {
+                  if (!ShopPaymentMethods.isAdminCreateSelectable(id)) {
+                    return;
+                  }
+                  onPaymentMethodChanged(id);
+                },
               ),
 
               const Divider(height: 24),
@@ -523,6 +514,23 @@ class AdminCreateBookingConfirmSection extends StatelessWidget {
                 }),
 
               if (addonTotal > 0) _confirmRow('加值服務小計', 'NT\$ $addonTotal'),
+              if (dailyCareEntitlement != null) ...<Widget>[
+                _confirmRow(
+                  '照護回報',
+                  dailyCareEntitlement!.finalReports > 0
+                      ? '${dailyCareEntitlement!.finalReports} 場／'
+                            '${dailyCareEntitlement!.sessionLabels.join('、')}'
+                      : '未包含',
+                ),
+                if (dailyCareEntitlement!.addonId.isNotEmpty)
+                  _confirmRow(
+                    '照護加購',
+                    '${dailyCareEntitlement!.addonName}／'
+                    '單價 ${ShopReportFormat.money(dailyCareEntitlement!.unitPrice)}'
+                    ' × ${dailyCareEntitlement!.quantity}／'
+                    '${ShopReportFormat.money(dailyCareAmount)}',
+                  ),
+              ],
 
               if (discountInfo != null &&
                   ((discountInfo!['discountAmount'] ?? 0) as int) > 0) ...[

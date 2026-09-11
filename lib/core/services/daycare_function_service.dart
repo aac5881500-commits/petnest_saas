@@ -3,6 +3,7 @@
 
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:flutter/foundation.dart';
+import 'package:petnest_saas/core/debug/chat_error_probe.dart';
 import 'package:petnest_saas/core/utils/callable_payload.dart';
 
 class DaycareFunctionException implements Exception {
@@ -13,10 +14,10 @@ class DaycareFunctionException implements Exception {
   String toString() => message;
 
   static String from(Object error) {
-    if (error is FirebaseFunctionsException) {
-      return (error.message ?? '操作失敗').trim();
+    if (error is DaycareFunctionException) {
+      return error.message;
     }
-    return error.toString();
+    return ChatErrorProbe.describe(error);
   }
 }
 
@@ -47,7 +48,14 @@ class DaycareFunctionService {
         return Map<String, dynamic>.from(raw);
       }
       return <String, dynamic>{'ok': true};
-    } catch (error) {
+    } catch (error, stack) {
+      debugPrint(ChatErrorProbe.describe(error));
+      ChatErrorProbe.dump(
+        'DaycareFunctionService._call',
+        error,
+        stack,
+        operation: name,
+      );
       throw DaycareFunctionException(DaycareFunctionException.from(error));
     }
   }

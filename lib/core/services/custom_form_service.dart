@@ -1,6 +1,6 @@
 // 檔案名稱：lib/core/services/custom_form_service.dart
 // 功能說明：店家自訂表單 Firestore Service
-// 路徑：shops/{shopId}/custom_forms/{pet_profile|booking_submit}
+// 路徑：shops/{shopId}/custom_forms/{pet_profile|booking_submit|admin_create}
 
 import 'dart:convert';
 import 'package:petnest_saas/core/models/custom_form_default_templates.dart';
@@ -26,6 +26,34 @@ class CustomFormService {
   }
 
   /// 讀取表單。文件不存在時回傳預設空表單，不丟錯。
+  Stream<CustomFormModel> streamForm({
+    required String shopId,
+    required CustomFormType formType,
+  }) {
+    final String normalizedShopId = shopId.trim();
+    if (normalizedShopId.isEmpty) {
+      return Stream<CustomFormModel>.value(
+        CustomFormModel.empty(shopId: '', formType: formType),
+      );
+    }
+    return _formRef(shopId: normalizedShopId, formType: formType).snapshots().map(
+      (DocumentSnapshot<Map<String, dynamic>> snapshot) {
+        if (!snapshot.exists || snapshot.data() == null) {
+          return CustomFormModel.empty(
+            shopId: normalizedShopId,
+            formType: formType,
+          );
+        }
+        return CustomFormModel.fromMap(
+          shopId: normalizedShopId,
+          formType: formType,
+          id: snapshot.id,
+          data: snapshot.data(),
+        );
+      },
+    );
+  }
+
   Future<CustomFormModel> getForm({
     required String shopId,
     required CustomFormType formType,

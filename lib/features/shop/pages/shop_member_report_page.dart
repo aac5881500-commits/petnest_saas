@@ -185,6 +185,10 @@ class _ShopMemberReportPageState extends State<ShopMemberReportPage> {
                   final List<MemberRow> rows = _sorted(snap.data!.members);
                   return Column(
                     children: <Widget>[
+                      if (!snap.data!.summariesReady)
+                        const ReportNote(
+                          '統計資料準備中。請由平台管理員依店家與月份手動重建摘要。',
+                        ),
                       ReportKpiGrid(
                         items: <ReportKpiItem>[
                           ReportKpiItem(

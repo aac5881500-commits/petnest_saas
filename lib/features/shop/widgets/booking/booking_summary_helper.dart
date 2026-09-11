@@ -26,6 +26,7 @@ class BookingSummaryHelper {
         const {},
 
     required Map<String, dynamic>? addonData,
+    int dailyCareAmount = 0,
   }) {
     final basePrice = ((selectedRoomType['price'] ?? 0) as num).toInt();
     final extraPrice = ((selectedRoomType['extraPrice'] ?? 0) as num).toInt();
@@ -111,6 +112,8 @@ class BookingSummaryHelper {
       addonTotal += selectedCount * servicePrice;
     }
 
+    addonTotal += dailyCareAmount;
+
     return {
       'roomTotal': roomTotal,
       'petTotal': petTotal,
@@ -136,6 +139,7 @@ class BookingSummaryHelper {
         const {},
 
     required Map<String, dynamic>? addonData,
+    int dailyCareAmount = 0,
   }) {
     final parts = calculatePriceParts(
       selectedRoomType: selectedRoomType,
@@ -146,6 +150,7 @@ class BookingSummaryHelper {
       selectedCustomServices: selectedCustomServices,
       selectedDailyTimedServices: selectedDailyTimedServices,
       addonData: addonData,
+      dailyCareAmount: dailyCareAmount,
     );
 
     return parts['subtotal'] ?? 0;

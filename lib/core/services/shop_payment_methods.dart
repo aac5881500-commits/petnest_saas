@@ -390,4 +390,92 @@ class ShopPaymentMethods {
       serviceType: serviceType,
     );
   }
+
+  static bool isSettlementTopUpMethod(String paymentMethod) {
+    final String id = normalizeMethodId(paymentMethod);
+    return id == PaymentMethodType.cash ||
+        id == PaymentMethodType.bankTransfer ||
+        id == PaymentMethodType.creditCard ||
+        id == PaymentMethodType.atm;
+  }
+
+  static ShopPaymentCatalog settlementTopUpCatalog({
+    required Map<String, dynamic> shopData,
+    required String serviceType,
+  }) {
+    final ShopPaymentCatalog full = resolve(
+      shopData: shopData,
+      serviceType: serviceType,
+    );
+    return ShopPaymentCatalog(
+      methods: full.methods
+          .where(
+            (ShopPaymentMethodOption item) =>
+                isSettlementTopUpMethod(item.id),
+          )
+          .map((ShopPaymentMethodOption item) {
+            if (item.id == PaymentMethodType.cash) {
+              return const ShopPaymentMethodOption(
+                id: PaymentMethodType.cash,
+                title: '店內付款',
+                subtitle: '店員確認已收到款項後才入帳，選擇此方式不代表已收款。',
+              );
+            }
+            return item;
+          })
+          .toList(),
+      isDepositMode: false,
+      serviceType: serviceType,
+    );
+  }
+
+  static bool isAdminCreateSelectable(String paymentMethod) {
+    final String id = normalizeMethodId(paymentMethod);
+    return id == PaymentMethodType.cash || id == PaymentMethodType.bankTransfer;
+  }
+
+  static ShopPaymentCatalog adminCreateSelectableCatalog(
+    ShopPaymentCatalog catalog,
+  ) {
+    return ShopPaymentCatalog(
+      methods: catalog.methods
+          .where(
+            (ShopPaymentMethodOption item) => isAdminCreateSelectable(item.id),
+          )
+          .toList(),
+      isDepositMode: catalog.isDepositMode,
+      serviceType: catalog.serviceType,
+    );
+  }
+
+  static ShopPaymentCatalog adminCreateOnlineInfoCatalog(
+    ShopPaymentCatalog catalog,
+  ) {
+    return ShopPaymentCatalog(
+      methods: catalog.methods
+          .where(
+            (ShopPaymentMethodOption item) =>
+                PaymentMethodType.isOnlinePayment(item.id),
+          )
+          .toList(),
+      isDepositMode: catalog.isDepositMode,
+      serviceType: catalog.serviceType,
+    );
+  }
+
+  static String? firstAdminCreateMethod(ShopPaymentCatalog catalog) {
+    final List<String> ids = adminCreateSelectableCatalog(catalog).methodIds;
+    return ids.isEmpty ? null : ids.first;
+  }
+
+  static String? coerceAdminCreateMethod({
+    required ShopPaymentCatalog catalog,
+    required String? selected,
+  }) {
+    final ShopPaymentCatalog selectable = adminCreateSelectableCatalog(catalog);
+    if (selected != null && selectable.isEnabled(selected)) {
+      return selected;
+    }
+    return firstAdminCreateMethod(catalog);
+  }
 }

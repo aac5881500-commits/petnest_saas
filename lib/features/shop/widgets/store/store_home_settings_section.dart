@@ -86,6 +86,7 @@ class _StoreHomeSettingsSectionState extends State<StoreHomeSettingsSection> {
         imageUrl: result.imageUrl,
         imageStoragePath: result.imageStoragePath,
         sortOrder: widget.draft.banners.length,
+        contentMode: StoreBannerContentModes.imageOnly,
         createdAt: DateTime.now(),
       );
       if (!mounted) {

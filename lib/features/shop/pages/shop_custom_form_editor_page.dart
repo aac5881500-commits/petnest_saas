@@ -1,11 +1,14 @@
 // 檔案名稱：lib/features/shop/pages/shop_custom_form_editor_page.dart
 // 功能說明：店家自訂表單編輯頁：寵物表單與訂單表單共用。
 
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
-import 'package:petnest_saas/core/models/custom_form_model.dart';
 import 'package:petnest_saas/core/models/custom_form_default_templates.dart';
+import 'package:petnest_saas/core/models/custom_form_model.dart';
+import 'package:petnest_saas/core/models/home_theme_model.dart';
 import 'package:petnest_saas/core/services/custom_form_service.dart';
 import 'package:petnest_saas/core/widgets/shop_task_center_button.dart';
+import 'package:petnest_saas/features/custom_form/widgets/custom_form_response_fields.dart';
 import 'package:petnest_saas/features/shop/widgets/custom_form/custom_form_question_editor.dart';
 
 class ShopCustomFormEditorPage extends StatefulWidget {
@@ -70,6 +73,16 @@ class _ShopCustomFormEditorPageState extends State<ShopCustomFormEditorPage> {
         _loading = false;
         _dirty = false;
         _error = null;
+      });
+    } on FirebaseException catch (error) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _loading = false;
+        _error =
+            '讀取表單失敗：[${error.plugin}/${error.code}] ${error.message ?? ''}\n'
+            '路徑：shops/${widget.shopId}/custom_forms/${widget.formType.storageId}';
       });
     } catch (error) {
       if (!mounted) {
@@ -262,41 +275,126 @@ class _ShopCustomFormEditorPageState extends State<ShopCustomFormEditorPage> {
     return leave == true;
   }
 
-  Future<void> _applyDefaultTemplate() async {
-    final bool? confirmed = await showDialog<bool>(
+  Future<void> _previewForm() async {
+    await showModalBottomSheet<void>(
       context: context,
+      isScrollControlled: true,
       builder: (BuildContext context) {
-        return AlertDialog(
-          title: const Text('套用建議範本'),
-          content: const Text('套用後會取代目前畫面中的所有分類與問題，但必須再按「儲存設定」才會正式保存。'),
-          actions: <Widget>[
-            TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: const Text('取消'),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.pop(context, true),
-              child: const Text('確認套用'),
-            ),
-          ],
+        Map<String, dynamic> answers = <String, dynamic>{};
+        return StatefulBuilder(
+          builder: (BuildContext context, StateSetter setModal) {
+            return SafeArea(
+              child: Padding(
+                padding: EdgeInsets.only(
+                  left: 16,
+                  right: 16,
+                  top: 16,
+                  bottom: MediaQuery.viewInsetsOf(context).bottom + 16,
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: <Widget>[
+                    Text(
+                      widget.formType == CustomFormType.adminCreate
+                          ? '填寫預覽（店員實際看到的表單）'
+                          : '填寫預覽（客戶實際看到的表單）',
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Expanded(
+                      child: ListView(
+                        children: <Widget>[
+                          if (!_form.shouldCollectAnswers)
+                            const Text('此表單尚未啟用或沒有可填題目，客戶／店員目前不會看到。')
+                          else
+                            CustomFormResponseFields(
+                              form: _form.copyWith(enabled: true),
+                              answers: answers,
+                              onChanged: (Map<String, dynamic> next) {
+                                setModal(() => answers = next);
+                              },
+                              theme: HomeThemeModel.classicDefault,
+                            ),
+                        ],
+                      ),
+                    ),
+                    FilledButton(
+                      onPressed: () => Navigator.pop(context),
+                      child: const Text('關閉預覽'),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
         );
       },
     );
+  }
 
-    if (confirmed != true || !mounted) {
+  Future<void> _applyRecommended({required bool replace}) async {
+    if (replace && _form.hasCustomQuestions) {
+      final bool? confirmed = await showDialog<bool>(
+        context: context,
+        builder: (BuildContext context) {
+          return AlertDialog(
+            title: const Text('取代目前表單？'),
+            content: const Text(
+              '會清除畫面中現有分類與問題，改成推薦初版。必須再按「儲存設定」才會正式保存。',
+            ),
+            actions: <Widget>[
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('取消'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(context, true),
+                child: const Text('確認取代'),
+              ),
+            ],
+          );
+        },
+      );
+      if (confirmed != true) {
+        return;
+      }
+    }
+    final CustomFormModel next = replace
+        ? CustomFormDefaultTemplates.replaceWithRecommended(_form)
+        : CustomFormDefaultTemplates.mergeMissingModules(
+            current: _form,
+            moduleIds: CustomFormDefaultTemplates.modulesFor(
+              widget.formType,
+            ).map((CustomFormSection item) => item.id),
+          );
+    _markDirty(next);
+    if (!mounted) {
       return;
     }
-
-    final CustomFormModel template = CustomFormDefaultTemplates.create(
-      shopId: widget.shopId,
-      formType: widget.formType,
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          _form.enabled
+              ? '已套用推薦初版，確認內容後請按儲存設定'
+              : '已套用推薦初版。儲存後才會生效；目前尚未啟用，客戶／店員尚不會看到此表單。',
+        ),
+      ),
     );
+  }
 
-    _markDirty(_form.copyWith(sections: template.sections));
-
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text('已套用建議範本，確認內容後請按儲存設定')));
+  void _addModule(CustomFormSection module) {
+    if (CustomFormDefaultTemplates.hasModule(_form, module.id)) {
+      return;
+    }
+    _markDirty(
+      CustomFormDefaultTemplates.mergeMissingModules(
+        current: _form,
+        moduleIds: <String>[module.id],
+      ),
+    );
   }
 
   Future<void> _save() async {
@@ -327,9 +425,15 @@ class _ShopCustomFormEditorPageState extends State<ShopCustomFormEditorPage> {
         _saving = false;
         _dirty = false;
       });
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('已儲存表單設定')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            saved.enabled
+                ? '已儲存表單設定'
+                : '已儲存。目前尚未啟用，客戶／店員尚不會看到此表單。',
+          ),
+        ),
+      );
     } catch (error) {
       if (!mounted) {
         return;
@@ -384,11 +488,7 @@ class _ShopCustomFormEditorPageState extends State<ShopCustomFormEditorPage> {
                       children: <Widget>[
                         _buildFormMetaCard(colors),
                         const SizedBox(height: 12),
-                        OutlinedButton.icon(
-                          onPressed: _saving ? null : _applyDefaultTemplate,
-                          icon: const Icon(Icons.auto_awesome_outlined),
-                          label: const Text('套用建議範本'),
-                        ),
+                        _buildQuickApplyCard(colors),
                         const SizedBox(height: 12),
                         ..._form.sections.asMap().entries.map((
                           MapEntry<int, CustomFormSection> entry,
@@ -482,6 +582,9 @@ class _ShopCustomFormEditorPageState extends State<ShopCustomFormEditorPage> {
           SwitchListTile(
             contentPadding: EdgeInsets.zero,
             title: const Text('啟用此表單', style: TextStyle(fontSize: 14)),
+            subtitle: _form.enabled
+                ? null
+                : const Text('尚未啟用時，客戶／店員尚不會看到此表單'),
             value: _form.enabled,
             onChanged: (bool value) {
               _markDirty(_form.copyWith(enabled: value));
@@ -524,6 +627,95 @@ class _ShopCustomFormEditorPageState extends State<ShopCustomFormEditorPage> {
     );
   }
 
+  Widget _buildQuickApplyCard(ColorScheme colors) {
+    final List<CustomFormSection> modules =
+        CustomFormDefaultTemplates.modulesFor(widget.formType);
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: colors.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: colors.outlineVariant),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          const Text(
+            '快速套用內容',
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            '先套用推薦初版，也可只加入還沒有的模組。套用後請按儲存才會正式生效。',
+            style: TextStyle(
+              fontSize: 12,
+              height: 1.45,
+              color: colors.onSurface.withValues(alpha: 0.7),
+            ),
+          ),
+          const SizedBox(height: 10),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: <Widget>[
+              FilledButton.icon(
+                onPressed: _saving
+                    ? null
+                    : () => _applyRecommended(replace: false),
+                icon: const Icon(Icons.auto_awesome_outlined),
+                label: const Text('一鍵套用推薦初版'),
+              ),
+              OutlinedButton.icon(
+                onPressed: _saving ? null : _previewForm,
+                icon: const Icon(Icons.visibility_outlined),
+                label: const Text('填寫預覽'),
+              ),
+              if (_form.hasCustomQuestions)
+                TextButton(
+                  onPressed: _saving
+                      ? null
+                      : () => _applyRecommended(replace: true),
+                  child: const Text('改為取代目前表單'),
+                ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          const Text(
+            '可單獨加入的模組',
+            style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
+          ),
+          const SizedBox(height: 6),
+          ...modules.map((CustomFormSection module) {
+            final bool added = CustomFormDefaultTemplates.hasModule(
+              _form,
+              module.id,
+            );
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 6),
+              child: Row(
+                children: <Widget>[
+                  Expanded(
+                    child: Text(
+                      '${module.title}（${module.questionCount} 題）',
+                      style: const TextStyle(fontSize: 13),
+                    ),
+                  ),
+                  FilledButton.tonal(
+                    onPressed: added || _saving
+                        ? null
+                        : () => _addModule(module),
+                    child: Text(added ? '已加入' : '加入'),
+                  ),
+                ],
+              ),
+            );
+          }),
+        ],
+      ),
+    );
+  }
+
   Widget _buildSectionCard(int sectionIndex, CustomFormSection section) {
     final ColorScheme colors = Theme.of(context).colorScheme;
 
@@ -541,12 +733,24 @@ class _ShopCustomFormEditorPageState extends State<ShopCustomFormEditorPage> {
           Row(
             children: <Widget>[
               Expanded(
-                child: Text(
-                  section.title.isEmpty ? '未命名分類' : section.title,
-                  style: const TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w700,
-                  ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Text(
+                      section.title.isEmpty ? '未命名分類' : section.title,
+                      style: const TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    Text(
+                      '題目 ${section.questionCount}　必填 ${section.requiredCount}　${section.enabled ? '已啟用' : '未啟用'}',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: colors.onSurface.withValues(alpha: 0.65),
+                      ),
+                    ),
+                  ],
                 ),
               ),
               Switch(
@@ -628,7 +832,7 @@ class _ShopCustomFormEditorPageState extends State<ShopCustomFormEditorPage> {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    '${question.type.label}　${question.required ? '必填' : '選填'}　${question.enabled ? '啟用' : '停用'}',
+                    '${question.type.labelWithHint}　${question.required ? '必填' : '選填'}　${question.enabled ? '啟用' : '停用'}',
                     style: TextStyle(
                       fontSize: 12,
                       color: colors.onSurface.withValues(alpha: 0.7),

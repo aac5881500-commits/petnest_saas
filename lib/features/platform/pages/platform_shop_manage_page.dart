@@ -3,8 +3,10 @@
 // 🏪 平台店家管理頁
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import '../../../core/constants/platform_permission_keys.dart';
+import '../../../core/constants/platform_root_admin.dart';
 import '../../../core/services/platform_admin_service.dart';
 import 'package:petnest_saas/features/platform/widgets/platform_shop_stat_card.dart';
 import 'package:petnest_saas/features/platform/widgets/platform_shop_status_pill.dart';
@@ -14,6 +16,7 @@ import 'package:petnest_saas/features/shop/pages/shop_public_page.dart';
 import 'package:petnest_saas/features/platform/pages/platform_send_shop_notification_page.dart';
 import 'package:petnest_saas/features/platform/widgets/shop_plan_manage_dialog.dart';
 import 'package:petnest_saas/features/platform/pages/platform_shop_device_manage_page.dart';
+import 'package:petnest_saas/features/platform/widgets/platform_transfer_shop_owner_dialog.dart';
 
 class PlatformShopManagePage extends StatelessWidget {
   const PlatformShopManagePage({super.key});
@@ -361,6 +364,37 @@ class PlatformShopManagePage extends StatelessWidget {
                                           color: Colors.grey.shade500,
                                         ),
                                       ),
+                                      Text(
+                                        'ownerUid：${ownerUid.isEmpty ? '未設定' : ownerUid}',
+                                        maxLines: 2,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: TextStyle(
+                                          fontSize: 11,
+                                          color: Colors.grey.shade500,
+                                        ),
+                                      ),
+                                      if (PlatformRootAdmin.isRoot(
+                                        FirebaseAuth.instance.currentUser?.uid,
+                                      ))
+                                        TextButton(
+                                          onPressed: () {
+                                            showDialog<bool>(
+                                              context: context,
+                                              builder: (_) {
+                                                return PlatformTransferShopOwnerDialog(
+                                                  shopId: doc.id,
+                                                  shopName: name,
+                                                  currentOwnerUid: ownerUid,
+                                                  previousOwnerUid:
+                                                      (data['previousOwnerUid'] ??
+                                                              '')
+                                                          .toString(),
+                                                );
+                                              },
+                                            );
+                                          },
+                                          child: const Text('轉移店主'),
+                                        ),
                                     ],
                                   ),
                                 ),

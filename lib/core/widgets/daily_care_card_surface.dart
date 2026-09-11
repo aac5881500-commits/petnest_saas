@@ -14,12 +14,14 @@ class DailyCareCardSurface extends StatelessWidget {
     required this.child,
     this.padding = const EdgeInsets.fromLTRB(12, 12, 12, 10),
     this.longText = false,
+    this.imageOverride,
   });
 
   final DailyCareSettingModel setting;
   final Widget child;
   final EdgeInsetsGeometry padding;
   final bool longText;
+  final ImageProvider? imageOverride;
 
   static const double radius = 16;
 
@@ -28,16 +30,19 @@ class DailyCareCardSurface extends StatelessWidget {
     final ColorScheme colors = Theme.of(context).colorScheme;
 
     return ClipRRect(
-      borderRadius: BorderRadius.circular(radius),
+      borderRadius: BorderRadius.circular(setting.cardRadius),
       child: Stack(
         fit: StackFit.passthrough,
         children: <Widget>[
           const Positioned.fill(child: ColoredBox(color: Color(0xFFFFFDFB))),
-          if (setting.hasCardBackgroundVisual)
+          if (setting.hasCardBackgroundVisual || imageOverride != null)
             Positioned.fill(
-              child: DailyCareCardBackgroundFill(setting: setting),
+              child: DailyCareCardBackgroundFill(
+                setting: setting,
+                imageOverride: imageOverride,
+              ),
             ),
-          if (setting.hasCardBackgroundVisual)
+          if (setting.hasCardBackgroundVisual || imageOverride != null)
             Positioned.fill(
               child: IgnorePointer(
                 child: ColoredBox(
@@ -66,9 +71,14 @@ class DailyCareCardSurface extends StatelessWidget {
 
 /// 依「這一張卡片」的寬高鋪滿背景圖，不跟其他卡片共用同一張畫布。
 class DailyCareCardBackgroundFill extends StatelessWidget {
-  const DailyCareCardBackgroundFill({super.key, required this.setting});
+  const DailyCareCardBackgroundFill({
+    super.key,
+    required this.setting,
+    this.imageOverride,
+  });
 
   final DailyCareSettingModel setting;
+  final ImageProvider? imageOverride;
 
   @override
   Widget build(BuildContext context) {
@@ -90,6 +100,13 @@ class DailyCareCardBackgroundFill extends StatelessWidget {
   }
 
   Widget _fill({required double width, required double height}) {
+    if (imageOverride != null) {
+      return _providerFill(
+        imageOverride!,
+        repeat:
+            setting.cardBackgroundImageFit == DailyCareJournalTheme.fitContain,
+      );
+    }
     if (setting.hasCustomCardBackgroundImage) {
       return _networkFill(
         url: setting.cardBackgroundImageUrl,
@@ -114,18 +131,22 @@ class DailyCareCardBackgroundFill extends StatelessWidget {
     );
   }
 
-  Widget _networkFill({required String url, required bool repeat}) {
+  Widget _providerFill(ImageProvider image, {required bool repeat}) {
     return DecoratedBox(
       decoration: BoxDecoration(
         image: DecorationImage(
-          image: NetworkImage(url),
+          image: image,
           fit: repeat ? BoxFit.contain : BoxFit.cover,
           repeat: repeat ? ImageRepeat.repeat : ImageRepeat.noRepeat,
           alignment: Alignment.center,
-          onError: (error, stackTrace) {},
+          onError: (Object error, StackTrace? stackTrace) {},
         ),
       ),
     );
+  }
+
+  Widget _networkFill({required String url, required bool repeat}) {
+    return _providerFill(NetworkImage(url), repeat: repeat);
   }
 
   Widget _assetFill({
@@ -154,13 +175,23 @@ class DailyCareCardBackgroundFill extends StatelessWidget {
 
 /// 整頁日誌背景，與卡片背景分開控制。
 class DailyCareJournalPageBackground extends StatelessWidget {
-  const DailyCareJournalPageBackground({super.key, required this.setting});
+  const DailyCareJournalPageBackground({
+    super.key,
+    required this.setting,
+    this.imageOverride,
+  });
 
   final DailyCareSettingModel setting;
+  final ImageProvider? imageOverride;
 
   @override
   Widget build(BuildContext context) {
-    if (!setting.hasCustomBackgroundImage) {
+    final ImageProvider? image =
+        imageOverride ??
+        (setting.hasCustomBackgroundImage
+            ? NetworkImage(setting.backgroundImageUrl)
+            : null);
+    if (image == null) {
       return ColoredBox(color: setting.resolvedPageColor());
     }
 
@@ -174,7 +205,7 @@ class DailyCareJournalPageBackground extends StatelessWidget {
         DecoratedBox(
           decoration: BoxDecoration(
             image: DecorationImage(
-              image: NetworkImage(setting.backgroundImageUrl),
+              image: image,
               fit: contain ? BoxFit.contain : BoxFit.cover,
               repeat: contain ? ImageRepeat.repeat : ImageRepeat.noRepeat,
               alignment: Alignment.center,

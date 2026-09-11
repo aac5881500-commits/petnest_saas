@@ -209,11 +209,18 @@ class _ShopPublicPageState extends State<ShopPublicPage> {
             : _currentIndex.clamp(0, banners.length - 1);
 
         WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (!mounted) return;
-
-          for (final StoreBannerModel banner in banners) {
-            if (!banner.hasImage) continue;
-            final String url = banner.imageUrl;
+          if (!mounted || banners.isEmpty) return;
+          final List<int> indexes = <int>{
+            bannerIndex,
+            (bannerIndex - 1 + banners.length) % banners.length,
+            (bannerIndex + 1) % banners.length,
+          }.toList();
+          for (final int i in indexes) {
+            final StoreBannerModel banner = banners[i];
+            final String url = banner.hasRenderedImage
+                ? banner.renderedImageUrl
+                : banner.imageUrl;
+            if (url.isEmpty) continue;
             precacheImage(NetworkImage(url), context).catchError((
               Object e,
               StackTrace st,
@@ -290,7 +297,10 @@ class _ShopPublicPageState extends State<ShopPublicPage> {
                       children: [
                         /// 🔥 Banner（Stack版本，100%正常）
                         if (banners.isNotEmpty)
-                          AspectRatio(
+                          Center(
+                            child: ConstrainedBox(
+                              constraints: const BoxConstraints(maxWidth: 960),
+                              child: AspectRatio(
                             aspectRatio: homeBannerFrame.aspectRatio,
                             child: ClipRRect(
                               borderRadius: BorderRadius.circular(16),
@@ -373,6 +383,8 @@ class _ShopPublicPageState extends State<ShopPublicPage> {
                                     ),
                                 ],
                               ),
+                            ),
+                          ),
                             ),
                           ),
 

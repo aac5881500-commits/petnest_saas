@@ -26,9 +26,9 @@ const {
 } = require("../store/store_inventory");
 
 const {
-  buildSuccessfulEcpayBookingPaymentUpdates,
-  resolvePaymentBookingId,
-} = require("./apply_booking_payment");
+  applyBookingReport,
+  applyPaymentReport,
+} = require("../reports/shop_report_summary");
 
 /**
  * 回覆綠界通知結果
@@ -532,6 +532,8 @@ exports.ecpayPaymentCallback = onRequest(
               delete bookingUpdate.markPaidAt;
               delete bookingUpdate.markDepositPaidAt;
               delete bookingUpdate.markConfirmedAt;
+              delete bookingUpdate.markSettlementLockedAt;
+              delete bookingUpdate.settlementExceptionAt;
 
               if (outcome.bookingUpdate.markPaidAt) {
                 bookingUpdate.paidAt = now;
@@ -542,6 +544,12 @@ exports.ecpayPaymentCallback = onRequest(
               if (outcome.bookingUpdate.markConfirmedAt) {
                 bookingUpdate.confirmedAt = now;
               }
+              if (outcome.bookingUpdate.markSettlementLockedAt) {
+                bookingUpdate.settlementLockedAt = now;
+              }
+              if (outcome.bookingUpdate.settlementExceptionAt) {
+                bookingUpdate.settlementExceptionAt = now;
+              }
 
               transaction.set(
                   bookingRef,
@@ -550,6 +558,25 @@ exports.ecpayPaymentCallback = onRequest(
               );
             },
         );
+
+        try {
+          const paidSnap = await paymentRef.get();
+          await applyPaymentReport(
+              firestore,
+              paymentId,
+              paidSnap.data() || {},
+          );
+          const bookedSnap = await bookingRef.get();
+          if (bookedSnap.exists) {
+            await applyBookingReport(
+                firestore,
+                bookingRef.id,
+                bookedSnap.data() || {},
+            );
+          }
+        } catch (reportError) {
+          console.error("營運摘要更新失敗", reportError);
+        }
 
         sendCallbackResponse(
             res,

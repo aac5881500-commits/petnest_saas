@@ -6,7 +6,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 
 enum CustomFormType {
   petProfile,
-  bookingSubmit;
+  bookingSubmit,
+  adminCreate;
 
   String get storageId {
     switch (this) {
@@ -14,6 +15,8 @@ enum CustomFormType {
         return 'pet_profile';
       case CustomFormType.bookingSubmit:
         return 'booking_submit';
+      case CustomFormType.adminCreate:
+        return 'admin_create';
     }
   }
 
@@ -23,21 +26,62 @@ enum CustomFormType {
         return '新增寵物表單';
       case CustomFormType.bookingSubmit:
         return '送出訂單表單';
+      case CustomFormType.adminCreate:
+        return '手動訂單表單';
     }
   }
 
   String get defaultDescription {
     switch (this) {
       case CustomFormType.petProfile:
-        return '會員新增寵物時填寫，答案會保存在寵物資料中。';
+        return '會員新增或編輯寵物時填寫。答案歸屬於該隻寵物，作為店家照護資料。';
       case CustomFormType.bookingSubmit:
-        return '會員每次送出預約前填寫，答案會保存在該筆訂單中。';
+        return '只有 APP 會員從客戶端自己送出住宿／安親預約時填寫。答案只歸屬該筆訂單。';
+      case CustomFormType.adminCreate:
+        return '只有店家後台手動建立住宿／安親訂單時填寫。幫 APP 會員或非會員建立皆使用此表單。僅店家內部使用，客戶端永遠看不到。';
+    }
+  }
+
+  String get whenToUse {
+    switch (this) {
+      case CustomFormType.petProfile:
+        return '會員新增或編輯寵物資料時';
+      case CustomFormType.bookingSubmit:
+        return 'APP 會員從客戶端自行送出住宿／安親預約時';
+      case CustomFormType.adminCreate:
+        return '店家後台手動建立住宿／安親訂單時';
+    }
+  }
+
+  String get whoFills {
+    switch (this) {
+      case CustomFormType.petProfile:
+        return '會員（飼主）';
+      case CustomFormType.bookingSubmit:
+        return 'APP 會員（客戶端自助下單）';
+      case CustomFormType.adminCreate:
+        return '店員／店主（後台）';
+    }
+  }
+
+  String get answerLocation {
+    switch (this) {
+      case CustomFormType.petProfile:
+        return '歸屬於該隻寵物，作為店家照護資料';
+      case CustomFormType.bookingSubmit:
+        return '只歸屬該筆訂單';
+      case CustomFormType.adminCreate:
+        return '只歸屬該筆訂單，且僅店家後台可見';
     }
   }
 
   static CustomFormType fromStorage(String? value) {
-    if ((value ?? '').trim() == CustomFormType.bookingSubmit.storageId) {
+    final String id = (value ?? '').trim();
+    if (id == CustomFormType.bookingSubmit.storageId) {
       return CustomFormType.bookingSubmit;
+    }
+    if (id == CustomFormType.adminCreate.storageId) {
+      return CustomFormType.adminCreate;
     }
     return CustomFormType.petProfile;
   }
@@ -99,6 +143,29 @@ enum CustomFormQuestionType {
         return '數字';
     }
   }
+
+  String get hint {
+    switch (this) {
+      case CustomFormQuestionType.singleChoice:
+        return '只能選一個';
+      case CustomFormQuestionType.multipleChoice:
+        return '可選多個';
+      case CustomFormQuestionType.yesNo:
+        return '簡單判斷';
+      case CustomFormQuestionType.shortText:
+        return '輸入內容';
+      case CustomFormQuestionType.longText:
+        return '輸入內容';
+      case CustomFormQuestionType.date:
+      case CustomFormQuestionType.yearMonth:
+      case CustomFormQuestionType.number:
+        return '固定格式';
+      case CustomFormQuestionType.dropdown:
+        return '只能選一個';
+    }
+  }
+
+  String get labelWithHint => '$label（$hint）';
 
   bool get hasOptions {
     return this == CustomFormQuestionType.singleChoice ||
@@ -282,6 +349,11 @@ class CustomFormSection {
     };
   }
 
+  int get questionCount => questions.length;
+
+  int get requiredCount =>
+      questions.where((CustomFormQuestion item) => item.required).length;
+
   CustomFormSection copyWith({
     String? id,
     String? title,
@@ -415,6 +487,20 @@ class CustomFormModel {
   }
 
   bool get hasEnabledQuestions => enabledQuestionEntries.isNotEmpty;
+
+  int get sectionCount => sections.length;
+
+  int get questionCount => sections.fold<int>(
+    0,
+    (int sum, CustomFormSection section) => sum + section.questionCount,
+  );
+
+  int get requiredQuestionCount => sections.fold<int>(
+    0,
+    (int sum, CustomFormSection section) => sum + section.requiredCount,
+  );
+
+  bool get hasCustomQuestions => questionCount > 0;
 
   /// 表單已開啟且至少有一題可填時，前台才顯示。
   bool get shouldCollectAnswers => enabled && hasEnabledQuestions;

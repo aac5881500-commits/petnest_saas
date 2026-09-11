@@ -603,10 +603,14 @@ class _MemberActionButtons extends StatelessWidget {
       tags.remove('vip');
     } else {
       tags.add('vip');
+      tags.remove('blacklist');
     }
 
     await ref.set({
       'tags': tags,
+      'isVip': !wasVip,
+      if (!wasVip) 'blacklisted': false,
+      if (!wasVip) 'isBlacklisted': false,
       'updatedAt': FieldValue.serverTimestamp(),
     }, SetOptions(merge: true));
   }
@@ -625,6 +629,7 @@ class _MemberActionButtons extends StatelessWidget {
     if (isBlacklisted) {
       await ref.set({
         'blacklisted': false,
+        'isBlacklisted': false,
         'blacklistReason': FieldValue.delete(),
         'blacklistedAt': FieldValue.delete(),
         'blacklistRemovedAt': FieldValue.serverTimestamp(),
@@ -686,6 +691,10 @@ class _MemberActionButtons extends StatelessWidget {
       'shopId': shopId,
       'userId': userId,
       'blacklisted': true,
+      'isBlacklisted': true,
+      'isVip': false,
+      'tags': (List<String>.from(memberData['tags'] ?? [])
+        ..remove('vip')),
       'blacklistReason': reason,
       'blacklistedAt': FieldValue.serverTimestamp(),
       'updatedAt': FieldValue.serverTimestamp(),
@@ -758,6 +767,7 @@ class _ArchiveButton extends StatelessWidget {
                 .doc(userId)
                 .update({
                   'status': 'archived',
+                  'isArchived': true,
                   'archivedAt': FieldValue.serverTimestamp(),
                   'updatedAt': FieldValue.serverTimestamp(),
                 });

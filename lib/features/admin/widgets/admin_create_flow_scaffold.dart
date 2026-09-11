@@ -17,6 +17,9 @@ class AdminCreateFlowScaffold extends StatelessWidget {
     required this.theme,
     this.summary,
     this.hint = '',
+    this.actionHint = '',
+    this.actionHintLabel = '前往填寫',
+    this.onActionHint,
     this.primaryEnabled = true,
     this.busy = false,
     this.onBackStep,
@@ -28,6 +31,9 @@ class AdminCreateFlowScaffold extends StatelessWidget {
   final Widget body;
   final Widget? summary;
   final String hint;
+  final String actionHint;
+  final String actionHintLabel;
+  final VoidCallback? onActionHint;
   final String primaryLabel;
   final VoidCallback onPrimary;
   final bool primaryEnabled;
@@ -83,6 +89,28 @@ class AdminCreateFlowScaffold extends StatelessWidget {
                     summary!,
                     const SizedBox(height: 10),
                   ],
+                  if (actionHint.isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: Row(
+                        children: <Widget>[
+                          Expanded(
+                            child: Text(
+                              actionHint,
+                              style: TextStyle(
+                                color: Colors.red.shade700,
+                                fontWeight: FontWeight.w700,
+                                fontSize: 13,
+                              ),
+                            ),
+                          ),
+                          TextButton(
+                            onPressed: onActionHint,
+                            child: Text(actionHintLabel),
+                          ),
+                        ],
+                      ),
+                    ),
                   if (hint.isNotEmpty)
                     Padding(
                       padding: const EdgeInsets.only(bottom: 8),

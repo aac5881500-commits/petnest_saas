@@ -43,6 +43,7 @@ class CustomerDailyCareDownloadPage extends StatefulWidget {
 class _CustomerDailyCareDownloadPageState
     extends State<CustomerDailyCareDownloadPage> {
   bool _generating = false;
+  DateTime? _zipCooldownUntil;
 
   String get shopId => widget.shopId;
   String get bookingId => widget.bookingId;
@@ -80,8 +81,6 @@ class _CustomerDailyCareDownloadPageState
         final Map<String, dynamic> data =
             bookingSnapshot.data!.data() ?? <String, dynamic>{};
 
-        final String status = (data['status'] ?? '').toString().trim();
-
         final dynamic rawCheckOutAt = data['checkOutAt'];
 
         DateTime? checkOutAt;
@@ -94,27 +93,33 @@ class _CustomerDailyCareDownloadPageState
           checkOutAt = DateTime.tryParse(rawCheckOutAt);
         }
 
-        /// 必須是真正完成退房，
-        /// 而且 Firestore 中具有實際退房時間。
-        if (status != 'completed' || checkOutAt == null) {
+        /// 已連結 App 的訂單會員，照片 metadata 齊備後即可下載。
+        /// 沒有 userId 的手動會員不會開放公開下載。
+        final String userId = (data['userId'] ?? '').toString().trim();
+        if (userId.isEmpty) {
           return Scaffold(
-            appBar: AppBar(title: const Text('退房照護資料')),
-            body: const SafeArea(
-              child: Center(
-                child: Padding(
-                  padding: EdgeInsets.all(24),
-                  child: Text(
-                    '此訂單尚未完成退房，暫時不能使用退房下載功能。',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
-                  ),
+            appBar: AppBar(title: const Text('照護照片下載')),
+            body: const Center(
+              child: Padding(
+                padding: EdgeInsets.all(24),
+                child: Text(
+                  '此訂單沒有連結的 App 會員，無法提供下載。',
+                  textAlign: TextAlign.center,
                 ),
               ),
             ),
           );
         }
 
-        final DateTime confirmedCheckOutAt = checkOutAt;
+        DateTime? serviceEnd = checkOutAt;
+        if (serviceEnd == null) {
+          final dynamic rawActual = data['actualEndAt'] ?? data['completedAt'];
+          if (rawActual is Timestamp) {
+            serviceEnd = rawActual.toDate();
+          } else if (rawActual is DateTime) {
+            serviceEnd = rawActual;
+          }
+        }
 
         return FutureBuilder<List<Object?>>(
           future: Future.wait<Object?>(<Future<Object?>>[
@@ -165,13 +170,12 @@ class _CustomerDailyCareDownloadPageState
             /// checkOutAt
             /// +
             /// 店主設定 downloadHoursAfterCheckout
-            final DateTime actualDownloadDeadline = confirmedCheckOutAt.add(
-              Duration(hours: setting.downloadHoursAfterCheckout),
+            final DateTime? actualDownloadDeadline = serviceEnd?.add(
+              const Duration(hours: 24),
             );
 
-            final bool isExpired = !DateTime.now().isBefore(
-              actualDownloadDeadline,
-            );
+            final bool isExpired = actualDownloadDeadline != null &&
+                !DateTime.now().isBefore(actualDownloadDeadline);
 
             return Scaffold(
               appBar: AppBar(title: const Text('退房照護資料')),
@@ -207,13 +211,18 @@ class _CustomerDailyCareDownloadPageState
                     ],
                     const SizedBox(height: 8),
 
-                    Text(isExpired ? '照護資料下載期限已結束' : '退房後可在期限內下載本次住宿的照護紀錄與照片。'),
+                    Text(
+                      isExpired
+                          ? '照護資料下載期限已結束'
+                          : '照片上傳完成即可下載。期限自實際結束起算 24 小時，檔案稍後才由排程清除。',
+                    ),
 
                     const SizedBox(height: 8),
 
                     Text(
-                      '退房時間：'
-                      '${_formatDateTime(confirmedCheckOutAt)}',
+                      serviceEnd == null
+                          ? '服務尚未實際結束，目前可持續下載。'
+                          : '實際結束時間：${_formatDateTime(serviceEnd)}',
                       style: TextStyle(
                         fontSize: 13,
                         color: Colors.grey.shade700,
@@ -224,8 +233,9 @@ class _CustomerDailyCareDownloadPageState
                     const SizedBox(height: 4),
 
                     Text(
-                      '下載截止時間：'
-                      '${_formatDateTime(actualDownloadDeadline)}',
+                      actualDownloadDeadline == null
+                          ? '下載截止時間：服務結束後 24 小時'
+                          : '下載截止時間：${_formatDateTime(actualDownloadDeadline)}',
                       style: TextStyle(
                         fontSize: 13,
                         color: isExpired
@@ -591,9 +601,19 @@ class _CustomerDailyCareDownloadPageState
     required BuildContext context,
     required List<DailyCarePhotoDownloadModel> photos,
   }) async {
-    if (photos.isEmpty) {
+    if (_generating) {
       return;
     }
+    if (_zipCooldownUntil != null &&
+        DateTime.now().isBefore(_zipCooldownUntil!)) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('全部下載冷卻中，請稍候再試（約 60 秒）。')),
+        );
+      }
+      return;
+    }
+    _zipCooldownUntil = DateTime.now().add(const Duration(seconds: 60));
 
     try {
       if (kIsWeb) {

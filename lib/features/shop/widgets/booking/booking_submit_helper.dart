@@ -139,6 +139,7 @@ class BookingSubmitHelper {
     required String requestId,
     TermsConsentSnapshot? termsConsent,
     CustomFormAnswerSnapshot? customFormAnswers,
+    Map<String, dynamic>? dailyCareEntitlement,
   }) async {
     await MemberService.instance.ensureMember(
       shopId: shopId,
@@ -255,6 +256,7 @@ class BookingSubmitHelper {
       paymentMethod: paymentMethod,
       payAmountType: payAmountType,
       addons: addons,
+      dailyCareEntitlement: dailyCareEntitlement,
       policyVersion: policyVersion,
       policyTitle: policyTitle,
       policyAcceptedAt: policyAcceptedAt,

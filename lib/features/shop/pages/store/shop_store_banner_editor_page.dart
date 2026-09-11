@@ -8,7 +8,6 @@ import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/constants/store_constants.dart';
 import 'package:petnest_saas/core/models/fixed_image_spec.dart';
 import 'package:petnest_saas/core/models/home_theme_model.dart';
-import 'package:petnest_saas/core/models/modern_banner_frame_setting.dart';
 import 'package:petnest_saas/core/models/store_appearance_model.dart';
 import 'package:petnest_saas/core/models/store_banner_templates.dart';
 import 'package:petnest_saas/core/models/store_category_model.dart';
@@ -16,7 +15,7 @@ import 'package:petnest_saas/core/models/store_product_model.dart';
 import 'package:petnest_saas/core/models/store_promotion_model.dart';
 import 'package:petnest_saas/core/services/home_banner_service.dart';
 import 'package:petnest_saas/core/services/inventory_image_service.dart';
-import 'package:petnest_saas/core/services/shop_service.dart';
+import 'package:petnest_saas/core/services/store_banner_render_service.dart';
 import 'package:petnest_saas/core/services/store_category_service.dart';
 import 'package:petnest_saas/core/services/store_product_service.dart';
 import 'package:petnest_saas/core/services/store_promotion_service.dart';
@@ -75,11 +74,16 @@ class _ShopStoreBannerEditorPageState extends State<ShopStoreBannerEditorPage>
   bool _saving = false;
   bool _saved = false;
   bool _uploading = false;
+  bool _dirty = false;
+  final GlobalKey _captureKey = GlobalKey();
 
   @override
   void initState() {
     super.initState();
     _draft = widget.banner.hydrateLegacyForEditor();
+    if (widget.isNew && _draft.contentMode.isEmpty) {
+      _draft = _draft.copyWith(contentMode: StoreBannerContentModes.imageOnly);
+    }
     _tabs = TabController(length: 5, vsync: this);
     _tabs.addListener(() {
       if (!_tabs.indexIsChanging) {
@@ -109,6 +113,9 @@ class _ShopStoreBannerEditorPageState extends State<ShopStoreBannerEditorPage>
   }
 
   StoreBannerInteractMode get _interactMode {
+    if (_draft.isImageOnly || _draft.usesSafeTemplateOverlay) {
+      return StoreBannerInteractMode.none;
+    }
     switch (_tabs.index) {
       case 0:
         return StoreBannerInteractMode.image;
@@ -241,7 +248,7 @@ class _ShopStoreBannerEditorPageState extends State<ShopStoreBannerEditorPage>
     }
     setState(() => _saving = true);
     final DateTime now = DateTime.now();
-    final StoreBannerModel next = _draft.copyWith(
+    StoreBannerModel next = _draft.copyWith(
       ctaText: _cta.text,
       createdAt: _draft.createdAt ?? now,
       updatedAt: now,
@@ -253,21 +260,47 @@ class _ShopStoreBannerEditorPageState extends State<ShopStoreBannerEditorPage>
       ).showSnackBar(const SnackBar(content: Text('請先上傳海報圖片')));
       return;
     }
-    final List<StoreBannerModel> all = List<StoreBannerModel>.from(
-      widget.existingBanners,
-    );
-    final int index = all.indexWhere(
-      (StoreBannerModel item) => item.id == next.id,
-    );
-    if (index >= 0) {
-      all[index] = next;
-    } else {
-      all.add(next);
-    }
-    for (int i = 0; i < all.length; i++) {
-      all[i] = all[i].copyWith(sortOrder: i);
-    }
+    String uploadedUrl = '';
+    String uploadedPath = '';
+    final String oldRenderedUrl = next.renderedImageUrl;
+    final String oldRenderedPath = next.renderedImageStoragePath;
     try {
+      await WidgetsBinding.instance.endOfFrame;
+      final bytes = await StoreBannerRenderService.instance.captureJpeg(
+        _captureKey,
+      );
+      final int version =
+          DateTime.now().millisecondsSinceEpoch;
+      final InventoryImageUploadResult rendered =
+          await StoreBannerRenderService.instance.uploadRendered(
+            shopId: widget.shopId,
+            bannerId: next.id,
+            bytes: bytes,
+            version: version,
+            scope: widget.scope,
+          );
+      uploadedUrl = rendered.imageUrl;
+      uploadedPath = rendered.imageStoragePath;
+      next = next.copyWith(
+        renderedImageUrl: uploadedUrl,
+        renderedImageStoragePath: uploadedPath,
+        renderedAt: now,
+        renderVersion: version,
+      );
+      final List<StoreBannerModel> all = List<StoreBannerModel>.from(
+        widget.existingBanners,
+      );
+      final int index = all.indexWhere(
+        (StoreBannerModel item) => item.id == next.id,
+      );
+      if (index >= 0) {
+        all[index] = next;
+      } else {
+        all.add(next);
+      }
+      for (int i = 0; i < all.length; i++) {
+        all[i] = all[i].copyWith(sortOrder: i);
+      }
       final Future<void> Function(List<StoreBannerModel> banners) persist =
           widget.persistBanners ??
           (List<StoreBannerModel> banners) {
@@ -277,6 +310,12 @@ class _ShopStoreBannerEditorPageState extends State<ShopStoreBannerEditorPage>
             );
           };
       await persist(all);
+      if (oldRenderedPath.isNotEmpty || oldRenderedUrl.isNotEmpty) {
+        await InventoryImageService.instance.tryDeleteImage(
+          imageUrl: oldRenderedUrl,
+          imageStoragePath: oldRenderedPath,
+        );
+      }
       if (_retiredPath.isNotEmpty || _retiredUrl.isNotEmpty) {
         if (widget.isHomeScope) {
           await HomeBannerService.instance.deleteBannerImage(
@@ -297,12 +336,18 @@ class _ShopStoreBannerEditorPageState extends State<ShopStoreBannerEditorPage>
       }
       Navigator.pop(context, all);
     } catch (error) {
+      if (uploadedPath.isNotEmpty || uploadedUrl.isNotEmpty) {
+        await InventoryImageService.instance.tryDeleteImage(
+          imageUrl: uploadedUrl,
+          imageStoragePath: uploadedPath,
+        );
+      }
       if (!mounted) {
         return;
       }
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(SnackBar(content: Text('儲存失敗：$error')));
+      ).showSnackBar(SnackBar(content: Text('發布失敗，目前已發布海報未變更：$error')));
     } finally {
       if (mounted) {
         setState(() => _saving = false);
@@ -428,20 +473,7 @@ class _ShopStoreBannerEditorPageState extends State<ShopStoreBannerEditorPage>
     final String title =
         widget.pageTitle ?? (widget.isHomeScope ? '編輯首頁海報' : '編輯商城海報');
     if (widget.isHomeScope) {
-      return StreamBuilder<Map<String, dynamic>?>(
-        stream: ShopService.instance.streamShop(widget.shopId),
-        builder:
-            (
-              BuildContext context,
-              AsyncSnapshot<Map<String, dynamic>?> snapshot,
-            ) {
-              return _buildScaffold(
-                title: title,
-                theme: widget.shopTheme,
-                homeCanvas: ModernBannerFrameSetting.fromShop(snapshot.data),
-              );
-            },
-      );
+      return _buildScaffold(title: title, theme: widget.shopTheme);
     }
     return StreamBuilder<Map<String, dynamic>>(
       stream: StoreSettingsService.instance.streamSettings(widget.shopId),
@@ -460,23 +492,55 @@ class _ShopStoreBannerEditorPageState extends State<ShopStoreBannerEditorPage>
   Widget _buildScaffold({
     required String title,
     required HomeThemeModel theme,
-    ModernBannerFrameSetting? homeCanvas,
   }) {
-    return Scaffold(
+    final StoreBannerModel captureBanner = _draft.copyWith(ctaText: _cta.text);
+    return PopScope(
+      canPop: _saved || !_dirty,
+      onPopInvokedWithResult: (bool didPop, Object? result) async {
+        if (didPop || _saved || !_dirty) {
+          return;
+        }
+        final bool? leave = await showDialog<bool>(
+          context: context,
+          builder: (BuildContext context) {
+            return AlertDialog(
+              title: const Text('放棄未發布的修改？'),
+              content: const Text('目前調整尚未確認並發布，離開後不會寫入店家海報。'),
+              actions: <Widget>[
+                TextButton(
+                  onPressed: () => Navigator.pop(context, false),
+                  child: const Text('繼續編輯'),
+                ),
+                FilledButton(
+                  onPressed: () => Navigator.pop(context, true),
+                  child: const Text('放棄變更'),
+                ),
+              ],
+            );
+          },
+        );
+        if (leave == true && mounted) {
+          _dirty = false;
+          Navigator.of(context).pop();
+        }
+      },
+      child: Scaffold(
       appBar: AppBar(title: Text(title)),
-      body: LayoutBuilder(
+      body: Stack(
+        children: <Widget>[
+          LayoutBuilder(
         builder: (BuildContext context, BoxConstraints constraints) {
           final bool wide = constraints.maxWidth >= 900;
           final Widget preview = _PreviewBlock(
             banner: _draft.copyWith(ctaText: _cta.text),
             theme: theme,
             scope: widget.scope,
-            canvasAspectRatio: homeCanvas?.aspectRatio,
             interactMode: _interactMode,
             selectedTextId: _interactMode == StoreBannerInteractMode.text
                 ? _selectedTextId
                 : null,
             onChanged: (StoreBannerModel value) {
+              _dirty = true;
               setState(() => _draft = value);
             },
             onTextSelected: (String? id) {
@@ -495,6 +559,7 @@ class _ShopStoreBannerEditorPageState extends State<ShopStoreBannerEditorPage>
             ctaController: _cta,
             selected: _selected,
             onDraft: (StoreBannerModel value) {
+              _dirty = true;
               setState(() => _draft = value);
             },
             onPickImage: _pickImage,
@@ -529,16 +594,41 @@ class _ShopStoreBannerEditorPageState extends State<ShopStoreBannerEditorPage>
             ],
           );
         },
+          ),
+          Positioned(
+            left: -4000,
+            top: 0,
+            child: IgnorePointer(
+              child: SizedBox(
+                width: 1600,
+                child: AspectRatio(
+                  aspectRatio: StoreBannerSafeLayout.aspectRatio,
+                  child: RepaintBoundary(
+                    key: _captureKey,
+                    child: StoreBannerView(
+                      banner: captureBanner,
+                      theme: theme,
+                      scope: widget.scope,
+                      composeLive: true,
+                      borderRadius: 0,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
       bottomNavigationBar: SafeArea(
         child: Padding(
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
           child: FilledButton(
             onPressed: _saving ? null : _save,
-            child: Text(_saving ? '儲存中…' : '儲存海報'),
+            child: Text(_saving ? '發布中…' : '確認並發布'),
           ),
         ),
       ),
+    ),
     );
   }
 }
@@ -548,7 +638,6 @@ class _PreviewBlock extends StatelessWidget {
     required this.banner,
     required this.theme,
     required this.scope,
-    this.canvasAspectRatio,
     required this.interactMode,
     required this.selectedTextId,
     required this.onChanged,
@@ -559,7 +648,6 @@ class _PreviewBlock extends StatelessWidget {
   final StoreBannerModel banner;
   final HomeThemeModel theme;
   final PetNestBannerScope scope;
-  final double? canvasAspectRatio;
   final StoreBannerInteractMode interactMode;
   final String? selectedTextId;
   final ValueChanged<StoreBannerModel> onChanged;
@@ -576,35 +664,32 @@ class _PreviewBlock extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: <Widget>[
-            if (canvasAspectRatio == null)
-              StoreBannerView(
-                banner: banner,
-                theme: theme,
-                scope: scope,
-                interactMode: interactMode,
-                selectedTextId: selectedTextId,
-                onChanged: onChanged,
-                onTextSelected: onTextSelected,
-              )
-            else
-              AspectRatio(
-                aspectRatio: canvasAspectRatio!,
-                child: StoreBannerView(
-                  banner: banner,
-                  theme: theme,
-                  scope: scope,
-                  interactMode: interactMode,
-                  selectedTextId: selectedTextId,
-                  onChanged: onChanged,
-                  onTextSelected: onTextSelected,
+            Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 420),
+                child: AspectRatio(
+                  aspectRatio: StoreBannerSafeLayout.aspectRatio,
+                  child: StoreBannerView(
+                    banner: banner,
+                    theme: theme,
+                    scope: scope,
+                    interactMode: interactMode,
+                    selectedTextId: selectedTextId,
+                    onChanged: onChanged,
+                    onTextSelected: onTextSelected,
+                  ),
                 ),
               ),
+            ),
             const SizedBox(height: 8),
             Text(switch (interactMode) {
               StoreBannerInteractMode.image => '在預覽中拖曳圖片，調整實際顯示範圍',
               StoreBannerInteractMode.cta => '拖曳按鈕調整位置',
               StoreBannerInteractMode.text => '直接拖曳海報文字調整位置',
-              StoreBannerInteractMode.none => '切到「圖片」分頁可拖曳調整顯示位置',
+              StoreBannerInteractMode.none =>
+                banner.usesSafeTemplateOverlay || banner.isImageOnly
+                    ? '預覽與前台使用同一套 16:9 海報 renderer'
+                    : '切到「圖片」分頁可拖曳調整顯示位置',
             }, style: TextStyle(fontSize: 12, color: Colors.grey.shade700)),
             const SizedBox(height: 8),
             const Text('快速版型', style: TextStyle(fontWeight: FontWeight.w700)),
@@ -708,6 +793,7 @@ class _EditorColumn extends StatelessWidget {
                 scope: scope,
                 textController: textController,
                 selected: selected,
+                onDraft: onDraft,
                 onAddText: onAddText,
                 onSelectText: onSelectText,
                 onReplaceText: onReplaceText,
@@ -761,6 +847,29 @@ class _ImagePanel extends StatelessWidget {
           spec: scope == PetNestBannerScope.home
               ? FixedImageSpec.homeBanner
               : FixedImageSpec.storeBanner,
+        ),
+        const SizedBox(height: 8),
+        const Text('內容來源模式', style: TextStyle(fontWeight: FontWeight.w700)),
+        const SizedBox(height: 8),
+        _ChipRow(
+          values: StoreBannerContentModes.all,
+          selected: draft.contentMode.isEmpty
+              ? draft.resolvedContentMode
+              : draft.contentMode,
+          labelOf: StoreBannerContentModes.label,
+          onSelected: (String value) {
+            onDraft(
+              draft.copyWith(
+                contentMode: value,
+                overlayMode: value == StoreBannerContentModes.templateOverlay
+                    ? StoreBannerAlignX.overlayModeFor(draft.resolvedTextAlignH)
+                    : StoreBannerOverlayModes.none,
+                textAlignH: draft.resolvedTextAlignH,
+                textAlignV: draft.resolvedTextAlignV,
+                fontScale: draft.resolvedFontScale,
+              ),
+            );
+          },
         ),
         const SizedBox(height: 8),
         Wrap(
@@ -961,6 +1070,7 @@ class _TextPanel extends StatelessWidget {
     required this.scope,
     required this.textController,
     required this.selected,
+    required this.onDraft,
     required this.onAddText,
     required this.onSelectText,
     required this.onReplaceText,
@@ -973,6 +1083,7 @@ class _TextPanel extends StatelessWidget {
   final PetNestBannerScope scope;
   final TextEditingController textController;
   final StoreBannerTextElement? selected;
+  final ValueChanged<StoreBannerModel> onDraft;
   final VoidCallback onAddText;
   final ValueChanged<String> onSelectText;
   final ValueChanged<StoreBannerTextElement> onReplaceText;
@@ -981,6 +1092,74 @@ class _TextPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (draft.isImageOnly) {
+      return const Padding(
+        padding: EdgeInsets.all(16),
+        child: Text('此模式只顯示上傳圖片。請改為「後台套版渲染」才可設定標題、副標題與按鈕。'),
+      );
+    }
+    if (draft.usesSafeTemplateOverlay) {
+      return ListView(
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 28),
+        children: <Widget>[
+          TextFormField(
+            key: ValueKey<String>('ed_title_${draft.id}'),
+            initialValue: draft.title,
+            maxLength: StoreBannerSafeLayout.titleMaxChars,
+            decoration: const InputDecoration(
+              labelText: '標題',
+              helperText: '最多 2 行，過長會省略',
+            ),
+            onChanged: (String value) => onDraft(draft.copyWith(title: value)),
+          ),
+          TextFormField(
+            key: ValueKey<String>('ed_sub_${draft.id}'),
+            initialValue: draft.subtitle,
+            maxLength: StoreBannerSafeLayout.subtitleMaxChars,
+            decoration: const InputDecoration(
+              labelText: '副標題',
+              helperText: '最多 2 行，過長會省略',
+            ),
+            onChanged: (String value) =>
+                onDraft(draft.copyWith(subtitle: value)),
+          ),
+          const Text('文字水平位置'),
+          _ChipRow(
+            values: StoreBannerAlignX.all,
+            selected: draft.resolvedTextAlignH,
+            labelOf: StoreBannerAlignX.label,
+            onSelected: (String value) {
+              onDraft(
+                draft.copyWith(
+                  textAlignH: value,
+                  overlayMode: StoreBannerAlignX.overlayModeFor(value),
+                ),
+              );
+            },
+          ),
+          const SizedBox(height: 8),
+          const Text('文字垂直位置'),
+          _ChipRow(
+            values: StoreBannerAlignY.all,
+            selected: draft.resolvedTextAlignV,
+            labelOf: StoreBannerAlignY.label,
+            onSelected: (String value) {
+              onDraft(draft.copyWith(textAlignV: value));
+            },
+          ),
+          const SizedBox(height: 8),
+          const Text('字體大小'),
+          _ChipRow(
+            values: StoreBannerFontScale.all,
+            selected: draft.resolvedFontScale,
+            labelOf: StoreBannerFontScale.label,
+            onSelected: (String value) {
+              onDraft(draft.copyWith(fontScale: value));
+            },
+          ),
+        ],
+      );
+    }
     final List<StoreBannerTextElement> items = draft.resolvedTextElements;
     final StoreBannerTextElement? current = selected;
     final double canvasHeight = StoreBannerSizePresets.heightForWidth(

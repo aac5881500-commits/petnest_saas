@@ -38,6 +38,10 @@ const {
   prepareReservationForPayment,
 } = require("../store/store_inventory");
 
+const {
+  isSettlementConfirmed,
+} = require("../bookings/booking_settlement_math");
+
 /**
  * 建立綠界付款
  *
@@ -151,6 +155,8 @@ exports.createEcpayPayment = onCall(
       const allowedAmountTypes = [
         "deposit",
         "full",
+        "balance",
+        "additional",
       ];
 
       if (!allowedAmountTypes.includes(amountType)) {
@@ -230,9 +236,23 @@ exports.createEcpayPayment = onCall(
           expectedShopId: shopId,
         });
 
+        if (isSettlementConfirmed(verifiedBooking.booking) &&
+            paymentMethod === "cvs_code") {
+          throw new HttpsError(
+              "failed-precondition",
+              "結算補款不支援超商代碼或超商條碼。",
+          );
+        }
+
+        const settlementTopUp = isSettlementConfirmed(verifiedBooking.booking);
+        const effectiveAmountType = settlementTopUp ||
+          amountType === "balance" ||
+          amountType === "additional" ?
+          "full" : amountType;
+
         paymentAmount = resolveRequestedPaymentAmount({
           booking: verifiedBooking.booking,
-          amountType,
+          amountType: effectiveAmountType,
         });
 
         resolveDepositAmount(verifiedBooking.booking);
@@ -242,6 +262,10 @@ exports.createEcpayPayment = onCall(
         totalAmount = verifiedBooking.totalAmount;
         paidAmount = verifiedBooking.paidAmount;
         resolvedBookingId = verifiedBooking.bookingId;
+        if (settlementTopUp) {
+          resolvedAmountType = "balance";
+          resolvedPaymentPurpose = "additional";
+        }
       }
 
       await verifyPaymentSettings({

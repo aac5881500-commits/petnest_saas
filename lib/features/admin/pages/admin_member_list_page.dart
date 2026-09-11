@@ -4,6 +4,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/models/shop_frontend_theme.dart';
+import 'package:petnest_saas/core/services/member_list_query_service.dart';
 import 'package:petnest_saas/core/widgets/member_avatar.dart';
 import 'package:petnest_saas/core/widgets/shop_frontend_theme_scope.dart';
 import 'package:petnest_saas/features/admin/pages/admin_member_detail_page.dart';
@@ -22,10 +23,12 @@ class _AdminMemberListPageState extends State<AdminMemberListPage> {
   String keyword = '';
   String memberFilter = 'activeAll';
   final List<Map<String, String>> memberFilters = const [
-    {'key': 'activeAll', 'label': '全部'},
+    {'key': 'activeAll', 'label': '全部有效會員'},
     {'key': 'app', 'label': '店家會員'},
-    {'key': 'admin', 'label': '手動新增'},
-    {'key': 'archived', 'label': '封存'},
+    {'key': 'admin', 'label': '手動新增會員'},
+    {'key': 'archived', 'label': '封存會員'},
+    {'key': 'blacklisted', 'label': '黑名單'},
+    {'key': 'vip', 'label': '常客'},
   ];
 
   @override
@@ -103,115 +106,10 @@ class _AdminMemberListPageState extends State<AdminMemberListPage> {
                 ),
               ),
               Expanded(
-                child: StreamBuilder<QuerySnapshot>(
-                  stream: FirebaseFirestore.instance
-                      .collection('shops')
-                      .doc(widget.shopId)
-                      .collection('members')
-                      .snapshots(),
-                  builder: (context, snapshot) {
-                    if (snapshot.hasError) {
-                      return Center(
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const Text('會員資料讀取失敗'),
-                            TextButton(
-                              onPressed: () => setState(() {}),
-                              child: const Text('重試'),
-                            ),
-                          ],
-                        ),
-                      );
-                    }
-                    if (!snapshot.hasData) {
-                      return const Center(child: CircularProgressIndicator());
-                    }
-                    final docs = snapshot.data!.docs.map((doc) {
-                      final data = doc.data() as Map<String, dynamic>;
-                      return {
-                        ...data,
-                        'userId': doc.id,
-                        'bookingCount': data['bookingCount'] ?? 0,
-                        'tags': data['tags'] ?? [],
-                      };
-                    }).toList();
-                    if (docs.isEmpty) {
-                      return const Center(child: Text('尚無會員'));
-                    }
-                    final List<Map<String, dynamic>> visibleDocs =
-                        _filterMembersWithProfile(docs);
-                    final _MemberStats stats = _statsFrom(docs);
-                    return Column(
-                      children: [
-                        Padding(
-                          padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
-                          child: _statsBar(theme, stats),
-                        ),
-                        Expanded(
-                          child: visibleDocs.isEmpty
-                              ? Center(
-                                  child: Text(
-                                    keyword.isEmpty ? '尚無會員' : '沒有符合搜尋的會員',
-                                  ),
-                                )
-                              : LayoutBuilder(
-                                  builder: (context, constraints) {
-                                    final int columns =
-                                        constraints.maxWidth >= 720 ? 2 : 1;
-                                    return ListView.builder(
-                                      padding: const EdgeInsets.fromLTRB(
-                                        12,
-                                        4,
-                                        12,
-                                        16,
-                                      ),
-                                      itemCount: (visibleDocs.length / columns)
-                                          .ceil(),
-                                      itemBuilder: (context, rowIndex) {
-                                        final int start = rowIndex * columns;
-                                        return Padding(
-                                          padding: const EdgeInsets.only(
-                                            bottom: 10,
-                                          ),
-                                          child: Row(
-                                            crossAxisAlignment:
-                                                CrossAxisAlignment.start,
-                                            children: List<Widget>.generate(
-                                              columns,
-                                              (int col) {
-                                                final int index = start + col;
-                                                if (index >=
-                                                    visibleDocs.length) {
-                                                  return const Expanded(
-                                                    child: SizedBox.shrink(),
-                                                  );
-                                                }
-                                                return Expanded(
-                                                  child: Padding(
-                                                    padding: EdgeInsets.only(
-                                                      right: col == columns - 1
-                                                          ? 0
-                                                          : 10,
-                                                    ),
-                                                    child: AdminMemberListCard(
-                                                      shopId: widget.shopId,
-                                                      data: visibleDocs[index],
-                                                    ),
-                                                  ),
-                                                );
-                                              },
-                                            ),
-                                          ),
-                                        );
-                                      },
-                                    );
-                                  },
-                                ),
-                        ),
-                      ],
-                    );
-                  },
+                child: _MemberPagedBody(
+                  shopId: widget.shopId,
+                  keyword: keyword,
+                  memberFilter: memberFilter,
                 ),
               ),
             ],
@@ -220,145 +118,254 @@ class _AdminMemberListPageState extends State<AdminMemberListPage> {
       },
     );
   }
+}
 
-  Widget _statsBar(ShopFrontendTheme theme, _MemberStats stats) {
-    Widget item(String label, String value) {
-      return Expanded(
-        child: Column(
-          children: [
-            Text(
-              value,
-              style: TextStyle(
-                fontWeight: FontWeight.w800,
-                color: theme.titleColor,
+class _MemberPagedBody extends StatefulWidget {
+  const _MemberPagedBody({
+    required this.shopId,
+    required this.keyword,
+    required this.memberFilter,
+  });
+
+  final String shopId;
+  final String keyword;
+  final String memberFilter;
+
+  @override
+  State<_MemberPagedBody> createState() => _MemberPagedBodyState();
+}
+
+class _MemberPagedBodyState extends State<_MemberPagedBody> {
+  final List<QueryDocumentSnapshot<Map<String, dynamic>>> _docs =
+      <QueryDocumentSnapshot<Map<String, dynamic>>>[];
+  QueryDocumentSnapshot<Map<String, dynamic>>? _cursor;
+  bool _hasMore = false;
+  bool _loading = true;
+  bool _loadingMore = false;
+  String? _error;
+  MemberListStats _stats = const MemberListStats(
+    total: 0,
+    blacklisted: 0,
+    vip: 0,
+    newThisMonth: 0,
+  );
+
+  @override
+  void initState() {
+    super.initState();
+    _reload();
+  }
+
+  @override
+  void didUpdateWidget(covariant _MemberPagedBody oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.keyword != widget.keyword ||
+        oldWidget.memberFilter != widget.memberFilter) {
+      _reload();
+    }
+  }
+
+  Future<void> _reload() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+      _docs.clear();
+      _cursor = null;
+    });
+    try {
+      final MemberListPageResult page = await MemberListQueryService.instance
+          .loadPage(
+            shopId: widget.shopId,
+            filter: widget.memberFilter,
+            keyword: widget.keyword,
+          );
+      final MemberListStats stats = await MemberListQueryService.instance
+          .loadStats(widget.shopId);
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _docs
+          ..clear()
+          ..addAll(page.docs);
+        _cursor = page.cursor;
+        _hasMore = page.hasMore;
+        _stats = stats;
+        _loading = false;
+      });
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _error = error.toString();
+        _loading = false;
+      });
+    }
+  }
+
+  Future<void> _loadMore() async {
+    if (!_hasMore || _loadingMore || _cursor == null) {
+      return;
+    }
+    setState(() => _loadingMore = true);
+    try {
+      final MemberListPageResult page = await MemberListQueryService.instance
+          .loadPage(
+            shopId: widget.shopId,
+            filter: widget.memberFilter,
+            keyword: widget.keyword,
+            cursor: _cursor,
+          );
+      if (!mounted) {
+        return;
+      }
+      final Set<String> seen = _docs.map((d) => d.id).toSet();
+      setState(() {
+        for (final QueryDocumentSnapshot<Map<String, dynamic>> doc
+            in page.docs) {
+          if (seen.add(doc.id)) {
+            _docs.add(doc);
+          }
+        }
+        _cursor = page.cursor;
+        _hasMore = page.hasMore;
+        _loadingMore = false;
+      });
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _loadingMore = false;
+        _error = error.toString();
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final ShopFrontendTheme theme = ShopFrontendTheme.of(context);
+    final List<Map<String, dynamic>> visibleDocs = _docs.map((doc) {
+      final Map<String, dynamic> data = doc.data();
+      return <String, dynamic>{
+        ...data,
+        'userId': doc.id,
+        'bookingCount': data['bookingCount'] ?? 0,
+        'tags': data['tags'] ?? [],
+      };
+    }).toList();
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
+          child: Container(
+            padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 6),
+            decoration: BoxDecoration(
+              color: theme.cardColor,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: theme.borderColor.withValues(alpha: 0.6),
               ),
             ),
-            Text(
-              label,
-              style: TextStyle(fontSize: 11, color: theme.subtitleColor),
+            child: Row(
+              children: [
+                _statItem(theme, '會員', '${_stats.total}'),
+                _statItem(theme, '黑名單', '${_stats.blacklisted}'),
+                _statItem(theme, '常客', '${_stats.vip}'),
+                _statItem(theme, '本月新增', '${_stats.newThisMonth}'),
+              ],
             ),
-          ],
+          ),
         ),
-      );
-    }
+        Expanded(
+          child: _loading
+              ? const Center(child: CircularProgressIndicator())
+              : _error != null
+              ? Center(child: Text('會員資料讀取失敗'))
+              : visibleDocs.isEmpty
+              ? Center(
+                  child: Text(
+                    widget.keyword.isEmpty ? '尚無會員' : '沒有符合搜尋的會員',
+                  ),
+                )
+              : RefreshIndicator(
+                  onRefresh: _reload,
+                  child: LayoutBuilder(
+                    builder: (context, constraints) {
+                      final int columns = constraints.maxWidth >= 720 ? 2 : 1;
+                      return ListView.builder(
+                        padding: const EdgeInsets.fromLTRB(12, 4, 12, 16),
+                        itemCount:
+                            (visibleDocs.length / columns).ceil() +
+                            (_hasMore ? 1 : 0),
+                        itemBuilder: (context, rowIndex) {
+                          final int rowCount =
+                              (visibleDocs.length / columns).ceil();
+                          if (rowIndex >= rowCount) {
+                            return Padding(
+                              padding: const EdgeInsets.only(top: 8),
+                              child: OutlinedButton(
+                                onPressed: _loadingMore ? null : _loadMore,
+                                child: Text(_loadingMore ? '載入中…' : '載入更多'),
+                              ),
+                            );
+                          }
+                          final int start = rowIndex * columns;
+                          return Padding(
+                            padding: const EdgeInsets.only(bottom: 10),
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: List<Widget>.generate(columns, (
+                                int col,
+                              ) {
+                                final int index = start + col;
+                                if (index >= visibleDocs.length) {
+                                  return const Expanded(child: SizedBox.shrink());
+                                }
+                                return Expanded(
+                                  child: Padding(
+                                    padding: EdgeInsets.only(
+                                      right: col == columns - 1 ? 0 : 10,
+                                    ),
+                                    child: AdminMemberListCard(
+                                      shopId: widget.shopId,
+                                      data: visibleDocs[index],
+                                    ),
+                                  ),
+                                );
+                              }),
+                            ),
+                          );
+                        },
+                      );
+                    },
+                  ),
+                ),
+        ),
+      ],
+    );
+  }
 
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 6),
-      decoration: BoxDecoration(
-        color: theme.cardColor,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: theme.borderColor.withValues(alpha: 0.6)),
-      ),
-      child: Row(
+  Widget _statItem(ShopFrontendTheme theme, String label, String value) {
+    return Expanded(
+      child: Column(
         children: [
-          item('會員', '${stats.total}'),
-          item('黑名單', '${stats.blacklisted}'),
-          item('常客', '${stats.vip}'),
-          item('本月新增', '${stats.newThisMonth}'),
+          Text(
+            value,
+            style: TextStyle(
+              fontWeight: FontWeight.w800,
+              color: theme.titleColor,
+            ),
+          ),
+          Text(
+            label,
+            style: TextStyle(fontSize: 11, color: theme.subtitleColor),
+          ),
         ],
       ),
     );
   }
-
-  _MemberStats _statsFrom(List<Map<String, dynamic>> docs) {
-    int total = 0;
-    int blacklisted = 0;
-    int vip = 0;
-    int newThisMonth = 0;
-    final DateTime now = DateTime.now();
-    for (final Map<String, dynamic> data in docs) {
-      if ((data['status'] ?? '').toString() == 'merged') {
-        continue;
-      }
-      if ((data['status'] ?? '').toString() == 'archived') {
-        continue;
-      }
-      total += 1;
-      if (data['blacklisted'] == true || data['isBlocked'] == true) {
-        blacklisted += 1;
-      }
-      final tags = List<String>.from(data['tags'] ?? []);
-      if (tags.contains('vip')) {
-        vip += 1;
-      }
-      final created = data['createdAt'];
-      if (created is Timestamp) {
-        final DateTime d = created.toDate();
-        if (d.year == now.year && d.month == now.month) {
-          newThisMonth += 1;
-        }
-      }
-    }
-    return _MemberStats(
-      total: total,
-      blacklisted: blacklisted,
-      vip: vip,
-      newThisMonth: newThisMonth,
-    );
-  }
-
-  String _normalizePhoneForSearch(String value) {
-    String digits = value.replaceAll(RegExp(r'[^0-9]'), '');
-    if (digits.startsWith('09')) {
-      digits = digits.substring(2);
-    }
-    return digits;
-  }
-
-  List<Map<String, dynamic>> _filterMembersWithProfile(
-    List<Map<String, dynamic>> docs,
-  ) {
-    return docs.where((data) {
-      final status = data['status']?.toString() ?? '';
-      final source = data['source']?.toString().trim().isNotEmpty == true
-          ? data['source'].toString()
-          : 'app';
-      final name = data['name']?.toString().toLowerCase() ?? '';
-      final phone = data['phone']?.toString().toLowerCase() ?? '';
-      final normalizedPhone = _normalizePhoneForSearch(phone);
-      final email = data['email']?.toString().toLowerCase() ?? '';
-      final searchText = keyword.toLowerCase();
-      final normalizedSearchText = _normalizePhoneForSearch(searchText);
-      if (status == 'merged') {
-        return false;
-      }
-      if (memberFilter == 'archived') {
-        if (status != 'archived') return false;
-      } else {
-        if (status == 'archived') return false;
-      }
-      if (memberFilter == 'app' && source != 'app') {
-        return false;
-      }
-      if (memberFilter == 'admin' && source != 'admin') {
-        return false;
-      }
-      if (searchText.isNotEmpty &&
-          !name.contains(searchText) &&
-          !phone
-              .replaceAll(RegExp(r'[^0-9]'), '')
-              .contains(searchText.replaceAll(RegExp(r'[^0-9]'), '')) &&
-          !normalizedPhone.contains(normalizedSearchText) &&
-          !email.contains(searchText)) {
-        return false;
-      }
-      return true;
-    }).toList();
-  }
-}
-
-class _MemberStats {
-  const _MemberStats({
-    required this.total,
-    required this.blacklisted,
-    required this.vip,
-    required this.newThisMonth,
-  });
-
-  final int total;
-  final int blacklisted;
-  final int vip;
-  final int newThisMonth;
 }
 
 class AdminMemberListCard extends StatelessWidget {

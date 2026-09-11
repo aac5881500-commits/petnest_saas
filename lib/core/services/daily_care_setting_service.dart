@@ -72,10 +72,12 @@ class DailyCareSettingService {
     return DailyCareSettingModel.fromMap(Map<String, dynamic>.from(rawSetting));
   }
 
-  /// 儲存每日照護紀錄設定
+  /// 儲存每日照護紀錄設定（確認後才寫入；帶 revision 避免無提示覆蓋）
   Future<void> saveSetting({
     required String shopId,
     required DailyCareSettingModel setting,
+    int? expectedRevision,
+    DailyCareSettingSection section = DailyCareSettingSection.all,
   }) async {
     final String normalizedShopId = shopId.trim();
 
@@ -83,9 +85,97 @@ class DailyCareSettingService {
       throw ArgumentError('缺少店家 ID');
     }
 
-    await _shopReference(normalizedShopId).set(<String, dynamic>{
-      'dailyCareSetting': setting.toMap(),
-      'updatedAt': FieldValue.serverTimestamp(),
-    }, SetOptions(merge: true));
+    await _firestore.runTransaction((Transaction transaction) async {
+      final DocumentSnapshot<Map<String, dynamic>> snapshot = await transaction
+          .get(_shopReference(normalizedShopId));
+      final Object? raw = snapshot.data()?['dailyCareSetting'];
+      int currentRevision = 0;
+      if (raw is Map && raw['revision'] is num) {
+        currentRevision = (raw['revision'] as num).round();
+      }
+      if (expectedRevision != null && expectedRevision != currentRevision) {
+        throw StateError('其他員工已更新照護設定，請重新載入後再儲存。');
+      }
+      final DailyCareSettingModel current = raw is Map
+          ? DailyCareSettingModel.fromMap(Map<String, dynamic>.from(raw))
+          : const DailyCareSettingModel();
+      final DailyCareSettingModel merged = _mergeSection(
+        current: current,
+        incoming: setting,
+        section: section,
+      );
+      final DailyCareSettingModel next = merged.copyWith(
+        revision: currentRevision + 1,
+      );
+      transaction.set(_shopReference(normalizedShopId), <String, dynamic>{
+        'dailyCareSetting': next.toMap(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+    });
+  }
+
+  DailyCareSettingModel _mergeSection({
+    required DailyCareSettingModel current,
+    required DailyCareSettingModel incoming,
+    required DailyCareSettingSection section,
+  }) {
+    switch (section) {
+      case DailyCareSettingSection.rules:
+        return current.copyWith(
+          enabled: incoming.enabled,
+          sessionCount: incoming.sessionCount,
+          sessionLabels: incoming.sessionLabels,
+          stayReportMode: incoming.stayReportMode,
+          stayOfferQuotas: incoming.stayOfferQuotas,
+          includeCheckInDay: incoming.includeCheckInDay,
+          includeCheckOutDay: incoming.includeCheckOutDay,
+          stayPaidPlan: incoming.stayPaidPlan,
+          daycareEnabled: incoming.daycareEnabled,
+          daycareSessionCount: incoming.daycareSessionCount,
+          daycareSessionLabels: incoming.daycareSessionLabels,
+          daycareReportMode: incoming.daycareReportMode,
+          daycareOfferQuotas: incoming.daycareOfferQuotas,
+          daycarePaidPlan: incoming.daycarePaidPlan,
+        );
+      case DailyCareSettingSection.content:
+        return current.copyWith(
+          enabledFields: incoming.enabledFields,
+          customFields: incoming.customFields,
+        );
+      case DailyCareSettingSection.appearance:
+        return current.copyWith(
+          logoVisible: incoming.logoVisible,
+          logoAlign: incoming.logoAlign,
+          logoSize: incoming.logoSize,
+          titleFontSize: incoming.titleFontSize,
+          bodyFontSize: incoming.bodyFontSize,
+          textColorKey: incoming.textColorKey,
+          accentColorKey: incoming.accentColorKey,
+          iconSize: incoming.iconSize,
+          iconColorKey: incoming.iconColorKey,
+          categoryIcons: incoming.categoryIcons,
+          cardRadius: incoming.cardRadius,
+          cardPadding: incoming.cardPadding,
+          cardGap: incoming.cardGap,
+          showCardBorder: incoming.showCardBorder,
+          photoRadius: incoming.photoRadius,
+          backgroundType: incoming.backgroundType,
+          backgroundColorKey: incoming.backgroundColorKey,
+          backgroundImageUrl: incoming.backgroundImageUrl,
+          backgroundImagePath: incoming.backgroundImagePath,
+          backgroundImageFit: incoming.backgroundImageFit,
+          backgroundImageFade: incoming.backgroundImageFade,
+          cardBackgroundType: incoming.cardBackgroundType,
+          cardBackgroundPreset: incoming.cardBackgroundPreset,
+          cardBackgroundImageUrl: incoming.cardBackgroundImageUrl,
+          cardBackgroundImagePath: incoming.cardBackgroundImagePath,
+          cardBackgroundImageFit: incoming.cardBackgroundImageFit,
+          cardBackgroundImageFade: incoming.cardBackgroundImageFade,
+        );
+      case DailyCareSettingSection.all:
+        return incoming;
+    }
   }
 }
+
+enum DailyCareSettingSection { rules, content, appearance, all }

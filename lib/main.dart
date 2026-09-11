@@ -24,23 +24,39 @@ Future<void> main() async {
 
   if (kDebugMode) {
     FlutterError.onError = (FlutterErrorDetails details) {
-      FlutterError.presentError(details);
-      print('[GLOBAL FlutterError]');
-      print(details.exceptionAsString());
-      print(details.stack);
-      ChatErrorProbe.dump(
-        'GLOBAL FlutterError',
-        details.exception,
-        details.stack ?? StackTrace.empty,
-      );
+      try {
+        FlutterError.presentError(details);
+      } catch (_) {}
+      try {
+        print('[GLOBAL FlutterError]');
+        print(ChatErrorProbe.describe(details.exception));
+        print(details.exceptionAsString());
+        print(details.stack);
+        ChatErrorProbe.dump(
+          'GLOBAL FlutterError',
+          details.exception,
+          details.stack ?? StackTrace.empty,
+        );
+      } catch (error, stack) {
+        print('[GLOBAL FlutterError] probe failed');
+        print(error);
+        print(stack);
+      }
     };
     WidgetsBinding.instance.platformDispatcher.onError =
         (Object error, StackTrace stack) {
-          print('[GLOBAL PlatformError]');
-          print('type=${error.runtimeType}');
-          print(error);
-          print(stack);
-          ChatErrorProbe.dump('GLOBAL PlatformError', error, stack);
+          try {
+            print('[GLOBAL PlatformError]');
+            print('type=${error.runtimeType}');
+            print(ChatErrorProbe.describe(error));
+            print(error);
+            print(stack);
+            ChatErrorProbe.dump('GLOBAL PlatformError', error, stack);
+          } catch (probeError, probeStack) {
+            print('[GLOBAL PlatformError] probe failed');
+            print(probeError);
+            print(probeStack);
+          }
           return false;
         };
   }

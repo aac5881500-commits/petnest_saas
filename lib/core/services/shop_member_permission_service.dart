@@ -4,8 +4,10 @@
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:petnest_saas/core/constants/platform_root_admin.dart';
 import 'package:petnest_saas/core/constants/shop_permission_keys.dart';
 import 'package:petnest_saas/core/constants/shop_roles.dart';
+import 'package:petnest_saas/core/models/shop_staff_identity_snapshot.dart';
 import 'package:petnest_saas/core/services/action_log_service.dart';
 
 class ShopMemberPermissionService {
@@ -391,5 +393,234 @@ class ShopMemberPermissionService {
         operatorRole: invite['role'],
       );
     }
+  }
+
+  Future<Map<String, dynamic>?> getUserMemberInShop({
+    required String shopId,
+    required String uid,
+  }) async {
+    if (shopId.isEmpty || uid.isEmpty) return null;
+
+    final DocumentSnapshot<Map<String, dynamic>> canonical = await _shopMembers
+        .doc(ShopOwnerIdentity.memberDocId(shopId, uid))
+        .get();
+    if (canonical.exists) {
+      return {'id': canonical.id, ...?canonical.data()};
+    }
+
+    final QuerySnapshot<Map<String, dynamic>> snapshot = await _shopMembers
+        .where('shopId', isEqualTo: shopId)
+        .where('uid', isEqualTo: uid)
+        .limit(5)
+        .get();
+    if (snapshot.docs.isEmpty) return null;
+    final QueryDocumentSnapshot<Map<String, dynamic>> doc = snapshot.docs.first;
+    return {'id': doc.id, ...doc.data()};
+  }
+
+  Future<ShopStaffIdentitySnapshot> inspectShopIdentity({
+    required String shopId,
+    String bookingShopId = '',
+    bool settlementLocked = false,
+  }) async {
+    final String uid = _currentUser?.uid ?? '';
+    final DocumentSnapshot<Map<String, dynamic>> shopSnap = await _firestore
+        .collection('shops')
+        .doc(shopId)
+        .get();
+    final Map<String, dynamic> shop = shopSnap.data() ?? <String, dynamic>{};
+    final String ownerUid = (shop['ownerUid'] ?? '').toString();
+    final String previousOwnerUid = (shop['previousOwnerUid'] ?? '').toString();
+    bool canonicalExists = false;
+    String canonicalRole = '';
+    List<String> fieldMemberDocIds = const <String>[];
+    if (uid.isNotEmpty) {
+      final DocumentSnapshot<Map<String, dynamic>> canonical =
+          await _shopMembers
+              .doc(ShopOwnerIdentity.memberDocId(shopId, uid))
+              .get();
+      canonicalExists = canonical.exists;
+      canonicalRole = (canonical.data()?['role'] ?? '').toString();
+      final QuerySnapshot<Map<String, dynamic>> fieldMembers = await _shopMembers
+          .where('shopId', isEqualTo: shopId)
+          .where('uid', isEqualTo: uid)
+          .limit(10)
+          .get();
+      fieldMemberDocIds = fieldMembers.docs.map((d) => d.id).toList();
+    }
+
+    return ShopStaffIdentitySnapshot(
+      currentUid: uid,
+      shopId: shopId,
+      bookingShopId: bookingShopId.isEmpty ? shopId : bookingShopId,
+      ownerUid: ownerUid,
+      isRoot: PlatformRootAdmin.isRoot(uid),
+      canonicalMemberExists: canonicalExists,
+      canonicalMemberRole: canonicalRole,
+      fieldMemberDocIds: fieldMemberDocIds,
+      settlementLocked: settlementLocked,
+      previousOwnerUid: previousOwnerUid,
+    );
+  }
+
+  /// 目前登入者若已是 shops.ownerUid，補齊規則路徑 shop_members/{shopId}_{uid}。
+  Future<void> syncOwnerMembershipForCurrentUser() async {
+    final User? user = _currentUser;
+    if (user == null) return;
+
+    final QuerySnapshot<Map<String, dynamic>> owned = await _firestore
+        .collection('shops')
+        .where('ownerUid', isEqualTo: user.uid)
+        .get();
+    for (final QueryDocumentSnapshot<Map<String, dynamic>> shop in owned.docs) {
+      await ensureCanonicalOwnerMember(
+        shopId: shop.id,
+        ownerUid: user.uid,
+        email: user.email ?? '',
+      );
+    }
+  }
+
+  Future<void> syncOwnerMembershipForShop(String shopId) async {
+    final User? user = _currentUser;
+    if (user == null || shopId.trim().isEmpty) return;
+    final DocumentSnapshot<Map<String, dynamic>> shopSnap = await _firestore
+        .collection('shops')
+        .doc(shopId)
+        .get();
+    final String ownerUid = (shopSnap.data()?['ownerUid'] ?? '').toString();
+    if (ownerUid != user.uid) return;
+    await ensureCanonicalOwnerMember(
+      shopId: shopId,
+      ownerUid: user.uid,
+      email: user.email ?? '',
+    );
+  }
+
+  Future<void> ensureCanonicalOwnerMember({
+    required String shopId,
+    required String ownerUid,
+    required String email,
+  }) async {
+    final String canonicalId = ShopOwnerIdentity.memberDocId(shopId, ownerUid);
+    final QuerySnapshot<Map<String, dynamic>> existing = await _shopMembers
+        .where('shopId', isEqualTo: shopId)
+        .get();
+    final List<Map<String, dynamic>> members = existing.docs
+        .map((QueryDocumentSnapshot<Map<String, dynamic>> doc) {
+          return <String, dynamic>{'id': doc.id, ...doc.data()};
+        })
+        .toList();
+
+    Map<String, dynamic> seed = <String, dynamic>{};
+    for (final Map<String, dynamic> member in members) {
+      if ((member['uid'] ?? '').toString() == ownerUid) {
+        seed = member;
+        break;
+      }
+    }
+
+    final String emailKey = normalizeEmail(
+      email.isNotEmpty ? email : (seed['email'] ?? '').toString(),
+    );
+    final Map<String, bool> permissions = normalizePermissions(
+      seed['permissions'],
+      role: ShopRoles.owner,
+    );
+
+    await _shopMembers.doc(canonicalId).set({
+      'shopId': shopId,
+      'uid': ownerUid,
+      'email': emailKey,
+      'emailKey': emailKey,
+      'role': ShopRoles.owner,
+      'permissions': permissions,
+      'status': 'active',
+      'createdAt': seed['createdAt'] ?? FieldValue.serverTimestamp(),
+      'updatedAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
+
+    for (final String duplicateId in ShopOwnerIdentity.duplicateMemberDocIds(
+      shopId: shopId,
+      uid: ownerUid,
+      members: members,
+    )) {
+      await _shopMembers.doc(duplicateId).delete();
+    }
+  }
+
+  /// 平台根管理員轉移唯一店主：更新 ownerUid，並把其他 owner 降為 staff。
+  Future<void> transferShopOwner({
+    required String shopId,
+    required String newOwnerUid,
+  }) async {
+    final User? operator = _currentUser;
+    if (!PlatformRootAdmin.isRoot(operator?.uid)) {
+      throw Exception('只有平台最高管理員可以轉移店主');
+    }
+    final String nextUid = newOwnerUid.trim();
+    if (shopId.trim().isEmpty || nextUid.isEmpty) {
+      throw Exception('店家與新店主 UID 不可為空');
+    }
+
+    final DocumentReference<Map<String, dynamic>> shopRef = _firestore
+        .collection('shops')
+        .doc(shopId);
+    final DocumentSnapshot<Map<String, dynamic>> shopSnap = await shopRef.get();
+    if (!shopSnap.exists) {
+      throw Exception('找不到店家');
+    }
+    final Map<String, dynamic> shop = shopSnap.data() ?? <String, dynamic>{};
+    final String previousUid = (shop['ownerUid'] ?? '').toString();
+
+    final DocumentSnapshot<Map<String, dynamic>> userSnap = await _firestore
+        .collection('users')
+        .doc(nextUid)
+        .get();
+    final String email = (userSnap.data()?['email'] ?? '').toString();
+
+    await ensureCanonicalOwnerMember(
+      shopId: shopId,
+      ownerUid: nextUid,
+      email: email,
+    );
+
+    await shopRef.set({
+      'ownerUid': nextUid,
+      'previousOwnerUid': previousUid == nextUid
+          ? (shop['previousOwnerUid'] ?? '')
+          : previousUid,
+      'ownerTransferredAt': FieldValue.serverTimestamp(),
+      'ownerTransferredBy': operator!.uid,
+      'updatedAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
+
+    final QuerySnapshot<Map<String, dynamic>> members = await _shopMembers
+        .where('shopId', isEqualTo: shopId)
+        .get();
+    for (final QueryDocumentSnapshot<Map<String, dynamic>> doc
+        in members.docs) {
+      final Map<String, dynamic> data = doc.data();
+      final String uid = (data['uid'] ?? '').toString();
+      final String role = (data['role'] ?? '').toString();
+      if (uid == nextUid || role != ShopRoles.owner) continue;
+      await doc.reference.update({
+        'role': ShopRoles.staff,
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+    }
+
+    await ActionLogService.instance.logAction(
+      shopId: shopId,
+      targetType: 'shop',
+      targetId: shopId,
+      action: 'transfer_shop_owner',
+      operatorUid: operator.uid,
+      operatorRole: 'root',
+      payload: {
+        'previousOwnerUid': previousUid,
+        'newOwnerUid': nextUid,
+      },
+    );
   }
 }

@@ -20,6 +20,7 @@ import 'package:petnest_saas/features/admin/widgets/admin_booking_date_section.d
 import 'package:petnest_saas/features/admin/widgets/admin_booking_room_type_section.dart';
 import 'package:petnest_saas/core/models/policy_applicable_service.dart';
 import 'package:petnest_saas/core/services/shop_payment_methods.dart';
+import 'package:petnest_saas/core/services/shop_member_kind.dart';
 import 'package:petnest_saas/core/services/shop_plan_service.dart';
 import 'package:petnest_saas/core/services/shop_permission_service.dart';
 import 'package:petnest_saas/core/models/discount_campaign_model.dart';
@@ -33,8 +34,20 @@ import 'package:petnest_saas/core/services/shop_policy_service.dart';
 import 'package:petnest_saas/core/models/home_theme_model.dart';
 import 'package:petnest_saas/core/services/home_banner_service.dart';
 import 'package:petnest_saas/features/admin/widgets/admin_create_flow_scaffold.dart';
+import 'package:petnest_saas/features/admin/widgets/admin_create_custom_form_section.dart';
+import 'package:petnest_saas/core/models/custom_form_answer_model.dart';
+import 'package:petnest_saas/core/models/custom_form_model.dart';
+import 'package:petnest_saas/core/services/custom_form_service.dart';
 import 'package:petnest_saas/features/shop/widgets/booking/booking_step_widgets.dart';
 import 'package:petnest_saas/features/shop/widgets/booking/policy_sign_method_field.dart';
+import 'package:petnest_saas/core/models/daily_care_addon_plan.dart';
+import 'package:petnest_saas/core/models/daily_care_entitlement.dart';
+import 'package:petnest_saas/core/models/daily_care_setting_model.dart';
+import 'package:petnest_saas/core/services/daily_care_addon_service.dart';
+import 'package:petnest_saas/core/services/daily_care_entitlement_math.dart';
+import 'package:petnest_saas/core/services/daily_care_photo_function_service.dart';
+import 'package:petnest_saas/core/services/daily_care_setting_service.dart';
+import 'package:petnest_saas/features/shop/widgets/booking/daily_care_upgrade_card.dart';
 
 class AdminCreateBookingPage extends StatefulWidget {
   const AdminCreateBookingPage({super.key, required this.shopId});
@@ -63,6 +76,9 @@ class _AdminCreateBookingPageState extends State<AdminCreateBookingPage> {
 
   String _rangeMessage = '';
   String _adminOrderSource = '電話預約';
+  CustomFormModel? _adminForm;
+  Map<String, dynamic> _adminFormAnswers = <String, dynamic>{};
+  final Map<String, GlobalKey> _adminFormKeys = <String, GlobalKey>{};
   Map<String, dynamic>? _selectedRoomType;
   bool _applyLongStayDiscount = true;
 
@@ -86,6 +102,9 @@ class _AdminCreateBookingPageState extends State<AdminCreateBookingPage> {
   bool _policyRequired = false;
   int _policyVersion = 0;
   String? _policySignMethod;
+  bool _policyError = false;
+  final GlobalKey _policyKey = GlobalKey();
+  final ScrollController _scrollController = ScrollController();
   bool _addonLoading = true;
   Map<String, dynamic>? _addonData;
   bool _campaignsLoading = true;
@@ -107,6 +126,9 @@ class _AdminCreateBookingPageState extends State<AdminCreateBookingPage> {
   bool _isFirstBooking = false;
   bool _firstBookingLoading = false;
   Map<String, dynamic>? _selectedTimeAddon;
+  DailyCareSettingModel _dailyCareSetting = const DailyCareSettingModel();
+  List<DailyCareAddonPlan> _dailyCarePlans = <DailyCareAddonPlan>[];
+  String? _selectedDailyCareAddonId;
   final List<Map<String, dynamic>> _selectedValueServices = [];
   final Set<String> _selectedAddonNames = <String>{};
   final Map<String, List<String>> _selectedCustomServices = {};
@@ -125,6 +147,18 @@ class _AdminCreateBookingPageState extends State<AdminCreateBookingPage> {
     _loadSpecialDateSurcharges();
     _loadShopPaymentSettings();
     _loadPolicy();
+    _loadAdminForm();
+  }
+
+  Future<void> _loadAdminForm() async {
+    final CustomFormModel form = await CustomFormService.instance.getForm(
+      shopId: widget.shopId,
+      formType: CustomFormType.adminCreate,
+    );
+    if (!mounted) {
+      return;
+    }
+    setState(() => _adminForm = form);
   }
 
   Future<void> _loadPolicy() async {
@@ -178,12 +212,31 @@ class _AdminCreateBookingPageState extends State<AdminCreateBookingPage> {
       return;
     }
     if (_step == 3) {
-      if (_policyRequired &&
-          (_policySignMethod == null || _policySignMethod!.isEmpty)) {
-        return;
-      }
       if (_paymentMethod == null) {
         return;
+      }
+      if (_policyRequired &&
+          (_policySignMethod == null || _policySignMethod!.isEmpty)) {
+        setState(() => _policyError = true);
+        await _scrollToPolicy();
+        return;
+      }
+      if (_adminForm?.shouldCollectAnswers == true) {
+        final CustomFormValidationResult result =
+            CustomFormAnswerSnapshot.validate(
+              form: _adminForm!,
+              answersByQuestionId: _adminFormAnswers,
+            );
+        if (!result.isValid) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                result.message.isEmpty ? '請完成手動訂單表單必填題' : result.message,
+              ),
+            ),
+          );
+          return;
+        }
       }
       setState(() => _step = 4);
       return;
@@ -193,10 +246,24 @@ class _AdminCreateBookingPageState extends State<AdminCreateBookingPage> {
     }
   }
 
+  Future<void> _scrollToPolicy() async {
+    final BuildContext? target = _policyKey.currentContext;
+    if (target == null) {
+      return;
+    }
+    await Scrollable.ensureVisible(
+      target,
+      duration: const Duration(milliseconds: 280),
+      alignment: 0.12,
+      curve: Curves.easeOut,
+    );
+  }
+
   @override
   void dispose() {
     _keywordController.dispose();
     _noteController.dispose();
+    _scrollController.dispose();
     super.dispose();
   }
 
@@ -214,6 +281,45 @@ class _AdminCreateBookingPageState extends State<AdminCreateBookingPage> {
       _addonData = data;
       _addonLoading = false;
     });
+    try {
+      final DailyCareSettingModel setting = await DailyCareSettingService
+          .instance
+          .getSetting(widget.shopId);
+      final List<DailyCareAddonPlan> plans = await DailyCareAddonService
+          .instance
+          .listPlans(widget.shopId);
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _dailyCareSetting = setting;
+        _dailyCarePlans = plans;
+      });
+    } catch (_) {}
+  }
+
+  DailyCareEntitlement? _dailyCareQuote() {
+    try {
+      return DailyCareEntitlementMath.resolve(
+        setting: _dailyCareSetting,
+        isDaycare: false,
+        shopDaycareOn: true,
+        offerId: (_selectedRoomType?['roomTypeId'] ??
+                _selectedRoomType?['id'] ??
+                '')
+            .toString(),
+        offerName: (_selectedRoomType?['name'] ?? '').toString(),
+        purchaseAddon: _selectedDailyCareAddonId != null &&
+            _selectedDailyCareAddonId!.isNotEmpty,
+        nights: _startDate != null && _endDate != null
+            ? _endDate!.difference(_startDate!).inDays
+            : 1,
+        startDate: _startDate,
+        endDate: _endDate,
+      );
+    } catch (_) {
+      return null;
+    }
   }
 
   /// 讀取店家訂金與付款方式設定。
@@ -242,10 +348,6 @@ class _AdminCreateBookingPageState extends State<AdminCreateBookingPage> {
         serviceType: PolicyApplicableService.accommodation,
       );
 
-      String? defaultPaymentMethod = catalog.methodIds.isEmpty
-          ? null
-          : catalog.methodIds.first;
-
       setState(() {
         _depositEnabled = data['depositEnabled'] == true;
         _depositBase = (data['depositBase'] ?? 'room').toString();
@@ -259,7 +361,10 @@ class _AdminCreateBookingPageState extends State<AdminCreateBookingPage> {
         }
 
         _paymentCatalog = catalog;
-        _paymentMethod = defaultPaymentMethod;
+        _paymentMethod = ShopPaymentMethods.coerceAdminCreateMethod(
+          catalog: catalog,
+          selected: _paymentMethod,
+        );
 
         if (!_depositEnabled) {
           _payAmountType = 'full';
@@ -351,17 +456,18 @@ class _AdminCreateBookingPageState extends State<AdminCreateBookingPage> {
       return '';
     }
     if (_step == 3) {
-      if (_paymentMethod == null) {
+      if (_paymentMethod == null ||
+          !ShopPaymentMethods.isAdminCreateSelectable(_paymentMethod!)) {
         return '請選擇付款方式';
-      }
-      if (_policyRequired &&
-          (_policySignMethod == null || _policySignMethod!.isEmpty)) {
-        return '請記錄住宿條款簽署方式';
       }
       return '';
     }
     return '';
   }
+
+  bool get _policyMissing =>
+      _policyRequired &&
+      (_policySignMethod == null || _policySignMethod!.isEmpty);
 
   bool get _stayCanAdvance => _stayHint.isEmpty && !_submitting;
 
@@ -401,6 +507,10 @@ class _AdminCreateBookingPageState extends State<AdminCreateBookingPage> {
               primaryLabel: _step == 4 ? '建立訂單' : '下一步',
               primaryEnabled: _stayCanAdvance,
               hint: _stayHint,
+              actionHint: (_step == 3 && _policyMissing) ? '請先選擇住宿條款確認方式' : '',
+              onActionHint: (_step == 3 && _policyMissing)
+                  ? _scrollToPolicy
+                  : null,
               busy: _submitting,
               onBackStep: _step == 0 ? null : () => setState(() => _step -= 1),
               onPrimary: _advanceStep,
@@ -419,7 +529,8 @@ class _AdminCreateBookingPageState extends State<AdminCreateBookingPage> {
                 totalAmount: totalText,
               ),
               body: ListView(
-                padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+                controller: _scrollController,
+                padding: EdgeInsets.fromLTRB(16, 8, 16, _step == 3 ? 140 : 24),
                 children: <Widget>[
                   if (_step > 0 && _selectedMember != null) ...<Widget>[
                     _selectedMemberCard(),
@@ -501,18 +612,62 @@ class _AdminCreateBookingPageState extends State<AdminCreateBookingPage> {
                     _roomTypeSection(),
                     const SizedBox(height: 12),
                     _addonSection(),
+                    if (_selectedRoomType != null)
+                      DailyCareUpgradeCard(
+                        setting: _dailyCareSetting,
+                        isDaycare: false,
+                        shopDaycareOn: true,
+                        offerId:
+                            (_selectedRoomType!['roomTypeId'] ??
+                                    _selectedRoomType!['id'] ??
+                                    '')
+                                .toString(),
+                        offerName: (_selectedRoomType!['name'] ?? '')
+                            .toString(),
+                        nights: _startDate != null && _endDate != null
+                            ? _endDate!.difference(_startDate!).inDays
+                            : 1,
+                        startDate: _startDate,
+                        endDate: _endDate,
+                        selectedPlanId: _selectedDailyCareAddonId,
+                        onChanged: (String? id) {
+                          setState(() {
+                            _selectedDailyCareAddonId = id;
+                          });
+                        },
+                      ),
                   ],
                   if (_step == 3) ...<Widget>[
                     _confirmSection(),
                     const SizedBox(height: 12),
+                    AdminCreateCustomFormSection(
+                      form: _adminForm,
+                      answers: _adminFormAnswers,
+                      theme: theme,
+                      fieldKeys: _adminFormKeys,
+                      onChanged: (Map<String, dynamic> next) {
+                        setState(() => _adminFormAnswers = next);
+                      },
+                    ),
+                    const SizedBox(height: 12),
                     if (_policyRequired)
-                      PolicySignMethodField(
-                        value: _policySignMethod,
-                        title: '住宿條款簽署方式',
-                        onChanged: (String value) {
-                          setState(() => _policySignMethod = value);
-                        },
+                      KeyedSubtree(
+                        key: _policyKey,
+                        child: PolicySignMethodField(
+                          value: _policySignMethod,
+                          title: '住宿條款簽署方式',
+                          serviceLabel: '住宿條款',
+                          showError: _policyError,
+                          theme: theme,
+                          onChanged: (String value) {
+                            setState(() {
+                              _policySignMethod = value;
+                              _policyError = false;
+                            });
+                          },
+                        ),
                       ),
+                    if (_policyRequired) const SizedBox(height: 72),
                   ],
                   if (_step == 4)
                     BookingThemedCard(
@@ -623,6 +778,7 @@ class _AdminCreateBookingPageState extends State<AdminCreateBookingPage> {
             .doc()
             .id,
         'isTempAdminMember': true,
+        'source': ShopMemberKind.adminSource,
         'name': result['name'],
         'phone': result['phone'],
         'email': '',
@@ -645,6 +801,10 @@ class _AdminCreateBookingPageState extends State<AdminCreateBookingPage> {
       _memberCampaignUsedNights = <String, int>{};
       _isFirstBooking = true;
       _firstBookingLoading = false;
+      _paymentMethod = ShopPaymentMethods.coerceAdminCreateMethod(
+        catalog: _paymentCatalog,
+        selected: _paymentMethod,
+      );
     });
 
     if (!mounted) return;
@@ -783,6 +943,10 @@ class _AdminCreateBookingPageState extends State<AdminCreateBookingPage> {
           _memberCampaignUsedNights = <String, int>{};
           _isFirstBooking = false;
           _firstBookingLoading = true;
+          _paymentMethod = ShopPaymentMethods.coerceAdminCreateMethod(
+            catalog: _paymentCatalog,
+            selected: _paymentMethod,
+          );
 
           _step = 0;
         });
@@ -1064,17 +1228,27 @@ class _AdminCreateBookingPageState extends State<AdminCreateBookingPage> {
   }
 
   Widget _roomTypeSection() {
-    return AdminBookingRoomTypeSection(
-      shopId: widget.shopId,
-      startDate: _startDate,
-      endDate: _endDate,
-      selectedPetIds: _selectedPetIds.toList(),
-      selectedRoomType: _selectedRoomType,
-      onSelectRoomType: (roomType) {
-        setState(() {
-          _selectedRoomType = roomType;
-        });
-      },
+    return StreamBuilder<Map<String, dynamic>?>(
+      stream: ShopService.instance.streamShop(widget.shopId),
+      builder:
+          (BuildContext context, AsyncSnapshot<Map<String, dynamic>?> snap) {
+            final HomeThemeModel theme = HomeBannerService.instance
+                .themeFromShop(snap.data);
+            return AdminBookingRoomTypeSection(
+              shopId: widget.shopId,
+              startDate: _startDate,
+              endDate: _endDate,
+              selectedPetIds: _selectedPetIds.toList(),
+              selectedRoomType: _selectedRoomType,
+              theme: theme,
+              onSelectRoomType: (roomType) {
+                setState(() {
+                  _selectedRoomType = roomType;
+                  _selectedDailyCareAddonId = null;
+                });
+              },
+            );
+          },
     );
   }
 
@@ -1438,6 +1612,7 @@ class _AdminCreateBookingPageState extends State<AdminCreateBookingPage> {
     });
 
     final dailyTimedTotal = _calculateDailyTimedTotal();
+    final int dailyCareTotal = _dailyCareQuote()?.amount ?? 0;
 
     final originalTotal =
         roomTotal +
@@ -1445,7 +1620,8 @@ class _AdminCreateBookingPageState extends State<AdminCreateBookingPage> {
         timeTotal +
         valueTotal +
         customTotal +
-        dailyTimedTotal;
+        dailyTimedTotal +
+        dailyCareTotal;
     if (_applyLongStayDiscount &&
         !campaignBlockedBySpecialDate &&
         !_campaignsLoading &&
@@ -1457,7 +1633,11 @@ class _AdminCreateBookingPageState extends State<AdminCreateBookingPage> {
           .toString();
 
       final int extraServiceTotal =
-          timeTotal + valueTotal + customTotal + dailyTimedTotal;
+          timeTotal +
+          valueTotal +
+          customTotal +
+          dailyTimedTotal +
+          dailyCareTotal;
 
       final DiscountCampaignCalculationResult? bestCampaign =
           DiscountCampaignCalculator.findBestCampaign(
@@ -1690,6 +1870,13 @@ class _AdminCreateBookingPageState extends State<AdminCreateBookingPage> {
 
         return;
       }
+      if (!ShopPaymentMethods.isAdminCreateSelectable(_paymentMethod!)) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('手動建單請選擇到店付款或銀行轉帳')));
+        return;
+      }
 
       String finalUserId = member['userId'] ?? '';
 
@@ -1815,6 +2002,33 @@ class _AdminCreateBookingPageState extends State<AdminCreateBookingPage> {
           : calculatedDepositAmount;
 
       final bookingPaymentMethod = _paymentMethod ?? '';
+      final Map<String, dynamic> quotedCare =
+          await DailyCarePhotoFunctionService.instance.quoteAddon(
+            shopId: widget.shopId,
+            isDaycare: false,
+            offerId: (roomType['roomTypeId'] ?? roomType['id'] ?? '')
+                .toString(),
+            offerName: (roomType['name'] ?? '').toString(),
+            nights: nights,
+            addonId: _selectedDailyCareAddonId ?? '',
+          );
+      final Map<String, dynamic> careEntitlement =
+          quotedCare['entitlement'] is Map
+          ? Map<String, dynamic>.from(quotedCare['entitlement'] as Map)
+          : <String, dynamic>{};
+      final int quotedCareAmount = ((quotedCare['amount'] ?? 0) as num)
+          .toInt();
+      if (quotedCareAmount != (_dailyCareQuote()?.amount ?? 0)) {
+        throw Exception('照護加購金額與後端核對不一致，請重新選擇後再送出');
+      }
+      final List<Map<String, dynamic>> bookingAddons = _buildAdminAddons();
+      if (quotedCare['addonLine'] is Map) {
+        final Map<String, dynamic> line = Map<String, dynamic>.from(
+          quotedCare['addonLine'] as Map,
+        );
+        line['total'] = quotedCareAmount;
+        bookingAddons.add(line);
+      }
 
       final String bookingId = await BookingService.instance.createAdminBooking(
         shopId: widget.shopId,
@@ -1888,10 +2102,18 @@ class _AdminCreateBookingPageState extends State<AdminCreateBookingPage> {
 
         allowCouponTogether: discountInfo['allowCouponTogether'] == true,
         pets: _pets,
-        addons: _buildAdminAddons(),
+        addons: bookingAddons,
+        dailyCareEntitlement: careEntitlement,
         policyVersion: _policyVersion,
         policySignMethod: _policyRequired ? (_policySignMethod ?? '') : '',
         policyServiceType: PolicyApplicableService.accommodation,
+        adminOrderSource: _adminOrderSource,
+        adminCustomFormAnswers: _adminForm?.shouldCollectAnswers == true
+            ? CustomFormAnswerSnapshot.build(
+                form: _adminForm!,
+                answersByQuestionId: _adminFormAnswers,
+              ).toFirestoreMap()
+            : null,
         note:
             '手動新增訂單｜$_adminOrderSource'
             '${_noteController.text.trim().isEmpty ? '' : '｜${_noteController.text.trim()}'}',
@@ -1974,6 +2196,8 @@ class _AdminCreateBookingPageState extends State<AdminCreateBookingPage> {
           selectedValueServices: _selectedValueServices,
           selectedCustomServices: _selectedCustomServices,
           selectedDailyTimedServices: _selectedDailyTimedServices,
+          dailyCareAmount: _dailyCareQuote()?.amount ?? 0,
+          dailyCareEntitlement: _dailyCareQuote(),
           pets: _pets,
           addonData: _addonData,
           adminOrderSource: _adminOrderSource,
@@ -2000,6 +2224,7 @@ class _AdminCreateBookingPageState extends State<AdminCreateBookingPage> {
           paymentMethod: _paymentMethod,
 
           paymentCatalog: _paymentCatalog,
+          isManualMember: ShopMemberKind.isManualMember(_selectedMember),
 
           onPayAmountTypeChanged: (value) {
             setState(() {

@@ -7,10 +7,12 @@ import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/models/home_theme_model.dart';
 import 'package:petnest_saas/core/models/petnest_banner_scope.dart';
 import 'package:petnest_saas/core/models/store_banner_text_element.dart';
+import 'package:petnest_saas/core/models/store_banner_content.dart';
 
 export 'package:petnest_saas/core/models/petnest_banner_scope.dart';
 export 'package:petnest_saas/core/models/store_banner_placement.dart';
 export 'package:petnest_saas/core/models/store_banner_text_element.dart';
+export 'package:petnest_saas/core/models/store_banner_content.dart';
 
 class StoreBannerActionTypes {
   static const String none = 'none';
@@ -570,6 +572,10 @@ class StoreBannerModel {
     required this.id,
     this.imageUrl = '',
     this.imageStoragePath = '',
+    this.renderedImageUrl = '',
+    this.renderedImageStoragePath = '',
+    this.renderedAt,
+    this.renderVersion = 0,
     this.enabled = true,
     this.sortOrder = 0,
     this.sizePreset = StoreBannerSizePresets.standard,
@@ -605,6 +611,10 @@ class StoreBannerModel {
     this.ctaStyle = StoreBannerCtaStyles.primary,
     this.actionType = StoreBannerActionTypes.none,
     this.actionTargetId = '',
+    this.contentMode = '',
+    this.textAlignH = '',
+    this.textAlignV = '',
+    this.fontScale = '',
     this.createdAt,
     this.updatedAt,
   });
@@ -612,6 +622,10 @@ class StoreBannerModel {
   final String id;
   final String imageUrl;
   final String imageStoragePath;
+  final String renderedImageUrl;
+  final String renderedImageStoragePath;
+  final DateTime? renderedAt;
+  final int renderVersion;
   final bool enabled;
   final int sortOrder;
   final String sizePreset;
@@ -647,10 +661,16 @@ class StoreBannerModel {
   final String ctaStyle;
   final String actionType;
   final String actionTargetId;
+  final String contentMode;
+  final String textAlignH;
+  final String textAlignV;
+  final String fontScale;
   final DateTime? createdAt;
   final DateTime? updatedAt;
 
   bool get hasImage => imageUrl.trim().isNotEmpty;
+
+  bool get hasRenderedImage => renderedImageUrl.trim().isNotEmpty;
 
   bool get hasLegacyCopy =>
       eyebrow.trim().isNotEmpty ||
@@ -663,6 +683,66 @@ class StoreBannerModel {
   bool get hasCopy =>
       resolvedTextElements.any((StoreBannerTextElement item) => item.hasText) ||
       showsCta;
+
+  String get resolvedContentMode {
+    return StoreBannerContentModes.infer(
+      stored: contentMode,
+      hasTextOrCta: hasCopy,
+    );
+  }
+
+  bool get isImageOnly {
+    if (contentMode == StoreBannerContentModes.imageOnly) {
+      return true;
+    }
+    if (contentMode == StoreBannerContentModes.templateOverlay) {
+      return false;
+    }
+    return !hasCopy && overlayMode == StoreBannerOverlayModes.none;
+  }
+
+  bool get usesSafeTemplateOverlay =>
+      contentMode == StoreBannerContentModes.templateOverlay;
+
+  String get resolvedTextAlignH {
+    if (StoreBannerAlignX.all.contains(textAlignH)) {
+      return textAlignH;
+    }
+    if (textAlign == StoreBannerTextAligns.center) {
+      return StoreBannerAlignX.center;
+    }
+    if (textAlign == StoreBannerTextAligns.right) {
+      return StoreBannerAlignX.right;
+    }
+    return StoreBannerAlignX.left;
+  }
+
+  String get resolvedTextAlignV {
+    if (StoreBannerAlignY.all.contains(textAlignV)) {
+      return textAlignV;
+    }
+    if (textPositionY <= 0.33) {
+      return StoreBannerAlignY.top;
+    }
+    if (textPositionY >= 0.66) {
+      return StoreBannerAlignY.bottom;
+    }
+    return StoreBannerAlignY.center;
+  }
+
+  String get resolvedFontScale {
+    if (StoreBannerFontScale.all.contains(fontScale)) {
+      return fontScale;
+    }
+    switch (titleSize) {
+      case StoreBannerTitleSizes.small:
+        return StoreBannerFontScale.small;
+      case StoreBannerTitleSizes.large:
+        return StoreBannerFontScale.large;
+      default:
+        return StoreBannerFontScale.medium;
+    }
+  }
 
   /// 已有文字、按鈕或漸層時，套用快速版型前需確認。
   bool get hasLayoutToPreserve =>
@@ -818,8 +898,16 @@ class StoreBannerModel {
 
     return StoreBannerModel(
       id: (data['id'] ?? '').toString().trim(),
-      imageUrl: (data['imageUrl'] ?? '').toString().trim(),
+      imageUrl: (data['imageUrl'] ?? data['croppedImageUrl'] ?? '')
+          .toString()
+          .trim(),
       imageStoragePath: (data['imageStoragePath'] ?? '').toString().trim(),
+      renderedImageUrl: (data['renderedImageUrl'] ?? '').toString().trim(),
+      renderedImageStoragePath: (data['renderedImageStoragePath'] ?? '')
+          .toString()
+          .trim(),
+      renderedAt: _dateOf(data['renderedAt']),
+      renderVersion: _intOf(data['renderVersion']),
       enabled: data['enabled'] is bool
           ? data['enabled'] as bool
           : data['isActive'] != false,
@@ -922,6 +1010,10 @@ class StoreBannerModel {
         StoreBannerActionTypes.none,
       ),
       actionTargetId: (data['actionTargetId'] ?? '').toString().trim(),
+      contentMode: pick(StoreBannerContentModes.all, data['contentMode'], ''),
+      textAlignH: pick(StoreBannerAlignX.all, data['textAlignH'], ''),
+      textAlignV: pick(StoreBannerAlignY.all, data['textAlignV'], ''),
+      fontScale: pick(StoreBannerFontScale.all, data['fontScale'], ''),
       createdAt: _dateOf(data['createdAt']),
       updatedAt: _dateOf(data['updatedAt']),
     );
@@ -932,6 +1024,10 @@ class StoreBannerModel {
       'id': id,
       'imageUrl': imageUrl.trim(),
       'imageStoragePath': imageStoragePath.trim(),
+      'renderedImageUrl': renderedImageUrl.trim(),
+      'renderedImageStoragePath': renderedImageStoragePath.trim(),
+      'renderVersion': renderVersion,
+      if (renderedAt != null) 'renderedAt': Timestamp.fromDate(renderedAt!),
       'enabled': enabled,
       'isActive': enabled,
       'sortOrder': sortOrder,
@@ -970,6 +1066,10 @@ class StoreBannerModel {
       'ctaStyle': ctaStyle,
       'actionType': actionType,
       'actionTargetId': actionTargetId.trim(),
+      if (contentMode.trim().isNotEmpty) 'contentMode': contentMode,
+      if (textAlignH.trim().isNotEmpty) 'textAlignH': textAlignH,
+      if (textAlignV.trim().isNotEmpty) 'textAlignV': textAlignV,
+      if (fontScale.trim().isNotEmpty) 'fontScale': fontScale,
       'createdAt': createdAt == null ? null : Timestamp.fromDate(createdAt!),
       'updatedAt': updatedAt == null ? null : Timestamp.fromDate(updatedAt!),
     };
@@ -978,6 +1078,10 @@ class StoreBannerModel {
   StoreBannerModel copyWith({
     String? imageUrl,
     String? imageStoragePath,
+    String? renderedImageUrl,
+    String? renderedImageStoragePath,
+    DateTime? renderedAt,
+    int? renderVersion,
     bool? enabled,
     int? sortOrder,
     String? sizePreset,
@@ -1015,6 +1119,10 @@ class StoreBannerModel {
     String? ctaStyle,
     String? actionType,
     String? actionTargetId,
+    String? contentMode,
+    String? textAlignH,
+    String? textAlignV,
+    String? fontScale,
     DateTime? createdAt,
     DateTime? updatedAt,
   }) {
@@ -1022,6 +1130,11 @@ class StoreBannerModel {
       id: id,
       imageUrl: imageUrl ?? this.imageUrl,
       imageStoragePath: imageStoragePath ?? this.imageStoragePath,
+      renderedImageUrl: renderedImageUrl ?? this.renderedImageUrl,
+      renderedImageStoragePath:
+          renderedImageStoragePath ?? this.renderedImageStoragePath,
+      renderedAt: renderedAt ?? this.renderedAt,
+      renderVersion: renderVersion ?? this.renderVersion,
       enabled: enabled ?? this.enabled,
       sortOrder: sortOrder ?? this.sortOrder,
       sizePreset: sizePreset ?? this.sizePreset,
@@ -1061,6 +1174,10 @@ class StoreBannerModel {
       ctaStyle: ctaStyle ?? this.ctaStyle,
       actionType: actionType ?? this.actionType,
       actionTargetId: actionTargetId ?? this.actionTargetId,
+      contentMode: contentMode ?? this.contentMode,
+      textAlignH: textAlignH ?? this.textAlignH,
+      textAlignV: textAlignV ?? this.textAlignV,
+      fontScale: fontScale ?? this.fontScale,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
     );

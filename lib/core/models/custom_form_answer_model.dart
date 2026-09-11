@@ -150,6 +150,52 @@ class CustomFormAnswerSnapshot {
 
   bool get isEmpty => answers.isEmpty;
 
+  CustomFormModel toEditableForm({required String shopId}) {
+    final Map<String, List<CustomFormQuestion>> grouped =
+        <String, List<CustomFormQuestion>>{};
+    final Map<String, String> titles = <String, String>{};
+    for (final CustomFormAnswerItem item in answers) {
+      final String sectionId = item.sectionId.trim().isEmpty
+          ? 'section'
+          : item.sectionId;
+      titles[sectionId] = item.sectionTitle;
+      grouped
+          .putIfAbsent(sectionId, () => <CustomFormQuestion>[])
+          .add(
+            CustomFormQuestion(
+              id: item.questionId,
+              label: item.questionLabel,
+              type: item.questionType,
+              required: item.required,
+            ),
+          );
+    }
+    int order = 0;
+    final List<CustomFormSection> sections = grouped.entries.map((
+      MapEntry<String, List<CustomFormQuestion>> entry,
+    ) {
+      final CustomFormSection section = CustomFormSection(
+        id: entry.key,
+        title: titles[entry.key] ?? formTitle,
+        sortOrder: order,
+        questions: entry.value,
+      );
+      order += 1;
+      return section;
+    }).toList();
+    return CustomFormModel(
+      id: formId.isEmpty
+          ? CustomFormType.fromStorage(formType).storageId
+          : formId,
+      shopId: shopId,
+      formType: CustomFormType.fromStorage(formType),
+      title: formTitle,
+      enabled: true,
+      version: formVersion,
+      sections: sections,
+    );
+  }
+
   factory CustomFormAnswerSnapshot.build({
     required CustomFormModel form,
     required Map<String, dynamic> answersByQuestionId,

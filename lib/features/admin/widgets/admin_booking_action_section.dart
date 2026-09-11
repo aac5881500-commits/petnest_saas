@@ -40,7 +40,10 @@ class AdminBookingActionSection extends StatelessWidget {
         data['assignStatus']?.toString() ?? 'unassigned';
 
     final bool isAssigned = assignStatus == 'assigned';
-    final bool isPending = status == 'pending';
+    final bool isPending =
+        status == 'pending' ||
+        status == 'pending_confirmation' ||
+        status == 'unpaid';
     final bool isConfirmed = status == 'confirmed';
     final bool isCheckedIn = status == 'checked_in';
     final bool canOperate = status != 'cancelled' && status != 'completed';

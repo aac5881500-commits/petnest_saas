@@ -1,6 +1,10 @@
 // 檔案名稱：functions/daycare/sync_shop_member.js
 // 功能說明：安親訂單成立後，把會員與寵物快取同步到店家會員資料（不覆蓋店家維護欄位）
 
+const {
+  memberSearchFields,
+} = require("../search/normalize_fields");
+
 const SHOP_OWNED_FIELDS = [
   "tags",
   "blacklisted",
@@ -215,6 +219,12 @@ async function syncShopMemberCache(params) {
   }
 
   payload.petCount = petDocs.length;
+  Object.assign(payload, memberSearchFields({
+    ...existing,
+    ...payload,
+    source: existing.source || existing.memberSource ||
+      (payload.source || "app"),
+  }));
   writes.push(memberRef.set(payload, {merge: true}));
   await Promise.all(writes);
 

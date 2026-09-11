@@ -218,6 +218,30 @@ function isCustomerMethodAvailable(shop, paymentMethod) {
   return effectiveMethodIds(shop).includes(id);
 }
 
+/**
+ * 手動建單可提交的方式：到店付款、銀行轉帳。
+ * @param {string} paymentMethod
+ * @return {boolean}
+ */
+function isAdminCreateSelectable(paymentMethod) {
+  const id = normalizeMethodId(paymentMethod);
+  return id === "cash" || id === "transfer";
+}
+
+function isSettlementTopUpMethod(paymentMethod) {
+  const id = normalizeMethodId(paymentMethod);
+  return id === "cash" ||
+    id === "transfer" ||
+    id === "credit_card" ||
+    id === "atm";
+}
+
+function isSettlementTopUpMethodAvailable(shop, paymentMethod) {
+  const id = normalizeMethodId(paymentMethod);
+  return isSettlementTopUpMethod(id) &&
+    effectiveMethodIds(shop).includes(id);
+}
+
 module.exports = {
   KEEP_ONE_MESSAGE,
   BANK_INCOMPLETE_MESSAGE,
@@ -228,4 +252,7 @@ module.exports = {
   validateOperationSettings,
   normalizeMethodId,
   isCustomerMethodAvailable,
+  isAdminCreateSelectable,
+  isSettlementTopUpMethod,
+  isSettlementTopUpMethodAvailable,
 };

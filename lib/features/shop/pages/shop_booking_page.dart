@@ -17,6 +17,13 @@ import 'package:petnest_saas/core/widgets/app_drawer.dart';
 import 'package:petnest_saas/features/shop/widgets/modern_home/modern_app_drawer.dart';
 import 'package:petnest_saas/features/shop/widgets/booking/booking_room_type_section.dart';
 import 'package:petnest_saas/features/shop/widgets/booking/booking_addon_section.dart';
+import 'package:petnest_saas/core/models/daily_care_addon_plan.dart';
+import 'package:petnest_saas/core/models/daily_care_entitlement.dart';
+import 'package:petnest_saas/core/models/daily_care_setting_model.dart';
+import 'package:petnest_saas/core/services/daily_care_addon_service.dart';
+import 'package:petnest_saas/core/services/daily_care_entitlement_math.dart';
+import 'package:petnest_saas/core/services/daily_care_setting_service.dart';
+import 'package:petnest_saas/features/shop/widgets/booking/daily_care_upgrade_card.dart';
 import 'package:petnest_saas/features/shop/widgets/booking/booking_pet_section.dart';
 import 'package:petnest_saas/features/shop/widgets/booking/booking_summary_helper.dart';
 import 'package:petnest_saas/features/shop/widgets/booking/booking_date_section.dart';
@@ -137,6 +144,9 @@ class _ShopBookingPageState extends State<ShopBookingPage> {
   Map<String, dynamic>? _selectedTimeAddon;
   Map<String, dynamic>? _addonData;
   bool _addonLoading = true;
+  DailyCareSettingModel _dailyCareSetting = const DailyCareSettingModel();
+  List<DailyCareAddonPlan> _dailyCarePlans = <DailyCareAddonPlan>[];
+  String? _selectedDailyCareAddonId;
 
   bool _rangeChecked = false;
   bool _rangeBookable = false;
@@ -201,6 +211,21 @@ class _ShopBookingPageState extends State<ShopBookingPage> {
       _addonData = doc.data();
       _addonLoading = false;
     });
+    try {
+      final DailyCareSettingModel setting = await DailyCareSettingService
+          .instance
+          .getSetting(widget.shopId);
+      final List<DailyCareAddonPlan> plans = await DailyCareAddonService
+          .instance
+          .listPlans(widget.shopId);
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _dailyCareSetting = setting;
+        _dailyCarePlans = plans;
+      });
+    } catch (_) {}
   }
 
   Future<void> _loadDiscountCampaigns() async {
@@ -467,8 +492,28 @@ class _ShopBookingPageState extends State<ShopBookingPage> {
       selectedCustomServices: _selectedCustomServices,
       selectedDailyTimedServices: _selectedDailyTimedServices,
       addonData: _addonData,
+      dailyCareAmount: _dailyCareQuote()?.amount ?? 0,
     );
     return parts['addonTotal'] ?? 0;
+  }
+
+  DailyCareEntitlement? _dailyCareQuote() {
+    try {
+      return DailyCareEntitlementMath.resolve(
+        setting: _dailyCareSetting,
+        isDaycare: false,
+        shopDaycareOn: true,
+        offerId: (_selectedRoomType?['id'] ?? '').toString(),
+        offerName: (_selectedRoomType?['name'] ?? '').toString(),
+        purchaseAddon: _selectedDailyCareAddonId != null &&
+            _selectedDailyCareAddonId!.isNotEmpty,
+        nights: _nights,
+        startDate: _startDate,
+        endDate: _endDate,
+      );
+    } catch (_) {
+      return null;
+    }
   }
 
   int _estimatedTotal(Map<String, dynamic> shop) {
@@ -863,6 +908,23 @@ class _ShopBookingPageState extends State<ShopBookingPage> {
               });
             },
           ),
+          if (_selectedRoomType != null)
+            DailyCareUpgradeCard(
+              setting: _dailyCareSetting,
+              isDaycare: false,
+              shopDaycareOn: true,
+              offerId: (_selectedRoomType!['id'] ?? '').toString(),
+              offerName: (_selectedRoomType!['name'] ?? '').toString(),
+              nights: _nights,
+              startDate: _startDate,
+              endDate: _endDate,
+              selectedPlanId: _selectedDailyCareAddonId,
+              onChanged: (String? id) {
+                setState(() {
+                  _selectedDailyCareAddonId = id;
+                });
+              },
+            ),
         ],
       );
     }
@@ -1520,6 +1582,7 @@ class _ShopBookingPageState extends State<ShopBookingPage> {
             .toInt(),
 
         addons: _buildAddonsData(),
+        dailyCareEntitlement: _dailyCareQuote()?.toMap(),
         address: address,
         emergencyName: emergencyName,
         emergencyPhone: emergencyPhone,
@@ -2375,7 +2438,7 @@ class _ShopBookingPageState extends State<ShopBookingPage> {
   }
 
   List<Map<String, dynamic>> _buildAddonsData() {
-    return BookingAddonsHelper.buildAddonsData(
+    final List<Map<String, dynamic>> addons = BookingAddonsHelper.buildAddonsData(
       selectedTimeAddon: _selectedTimeAddon,
       selectedValueServices: _selectedValueServices,
       selectedCustomServices: _selectedCustomServices,
@@ -2384,5 +2447,11 @@ class _ShopBookingPageState extends State<ShopBookingPage> {
       selectedPetIds: _selectedPetIds,
       pets: _pets,
     );
+    final DailyCareEntitlement? care = _dailyCareQuote();
+    final Map<String, dynamic>? line = care?.toAddonLine();
+    if (line != null) {
+      addons.add(line);
+    }
+    return addons;
   }
 }

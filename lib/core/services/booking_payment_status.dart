@@ -3,6 +3,7 @@
 
 import 'package:petnest_saas/core/models/booking_kind.dart';
 import 'package:petnest_saas/core/models/daycare_settings_model.dart';
+import 'package:petnest_saas/core/services/booking_settlement_math.dart';
 import 'package:petnest_saas/core/utils/safe_parse.dart';
 
 class BookingPaymentStatus {
@@ -30,28 +31,7 @@ class BookingPaymentStatus {
   }
 
   static int resolvePaid(Map<String, dynamic> data) {
-    int paid = SafeParse.parseMoney(data['paidAmount']);
-    if (!isDepositConfirmed(data)) {
-      return paid;
-    }
-    int credit = SafeParse.parseMoney(data['depositAmount']);
-    final String payAmountType = (data['payAmountType'] ?? '').toString();
-    final String depositType = daycareDepositType(data);
-    if (payAmountType == 'full' || depositType == DaycareDepositTypes.full) {
-      final int total = _firstPositive(<dynamic>[
-        data['totalPayableAmount'],
-        data['totalAmount'],
-        data['totalPrice'],
-        data['quotedTotalPrice'],
-      ]);
-      if (total > credit) {
-        credit = total;
-      }
-    }
-    if (paid < credit) {
-      paid = credit;
-    }
-    return paid;
+    return BookingSettlementMath.paidAmount(data);
   }
 
   static int resolveDepositAmount(Map<String, dynamic> data) {
@@ -59,6 +39,7 @@ class BookingPaymentStatus {
   }
 
   static int resolveDueNow(Map<String, dynamic> data) {
+    final int topUp = BookingSettlementMath.balanceDelta(data: data);
     final int paid = resolvePaid(data);
     final int deposit = resolveDepositAmount(data);
     final String payAmountType = (data['payAmountType'] ?? '').toString();
@@ -66,17 +47,13 @@ class BookingPaymentStatus {
       final int due = deposit - paid;
       return due < 0 ? 0 : due;
     }
+    if (topUp > 0) {
+      return topUp;
+    }
     if (isDaycare(data) && !requiresUpfrontPayment(data)) {
       return 0;
     }
-    final int total = _firstPositive(<dynamic>[
-      data['totalPayableAmount'],
-      data['totalAmount'],
-      data['totalPrice'],
-      data['quotedTotalPrice'],
-    ]);
-    final int left = total - paid;
-    return left < 0 ? 0 : left;
+    return topUp < 0 ? 0 : topUp;
   }
 
   static int resolveRemaining({required int total, required int paid}) {
@@ -84,8 +61,15 @@ class BookingPaymentStatus {
     return left < 0 ? 0 : left;
   }
 
-  /// 客戶可改付款方式／金額：未付款，或已送資料但店主尚未確認。
+  /// 客戶可改付款方式：未付訂金／預約款，或結算後仍有待補款且未鎖單。
   static bool canChangePaymentChoice(Map<String, dynamic> data) {
+    if (BookingSettlementMath.isSettlementLocked(data)) {
+      return false;
+    }
+    if (BookingSettlementMath.isSettlementConfirmed(data) &&
+        BookingSettlementMath.remainingDue(data: data) > 0) {
+      return (data['userId'] ?? '').toString().trim().isNotEmpty;
+    }
     final String status = (data['status'] ?? '').toString();
     if (status == 'cancelled' ||
         status == 'completed' ||

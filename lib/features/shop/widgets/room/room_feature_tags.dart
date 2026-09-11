@@ -111,8 +111,8 @@ class RoomFeatureCard extends StatelessWidget {
           Container(
             width: 30,
             height: 30,
-            decoration: const BoxDecoration(
-              color: Color(0xFFFFF1DD),
+            decoration: BoxDecoration(
+              color: primaryColor.withValues(alpha: 0.14),
               shape: BoxShape.circle,
             ),
             child: icon != null

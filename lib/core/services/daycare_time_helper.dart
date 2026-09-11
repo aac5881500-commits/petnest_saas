@@ -131,19 +131,24 @@ class DaycareTimeHelper {
     return !clock.isBefore(latest);
   }
 
-  /// 今日時段必須嚴格晚於現在；接回必須晚於送達。
+  /// 僅「今天」（台灣時區）會關閉已過時段；未來日期不受現在時刻影響。
   static bool isSlotSelectable({
     required String slot,
     required DateTime date,
     required DateTime now,
     String? afterSlot,
   }) {
-    final DateTime slotAt = combineDateAndTime(
-      DateTime(date.year, date.month, date.day),
-      slot,
-    );
-    if (isSameLocalDay(date, now) && !slotAt.isAfter(now)) {
+    final DateTime nowTw = toTaiwan(now);
+    final DateTime selectedDay = DateTime(date.year, date.month, date.day);
+    final DateTime todayTw = DateTime(nowTw.year, nowTw.month, nowTw.day);
+    if (selectedDay.isBefore(todayTw)) {
       return false;
+    }
+    if (selectedDay == todayTw) {
+      final int nowMinutes = nowTw.hour * 60 + nowTw.minute;
+      if (minutesOf(slot) <= nowMinutes) {
+        return false;
+      }
     }
     if (afterSlot != null && afterSlot.isNotEmpty) {
       if (minutesOf(slot) <= minutesOf(afterSlot)) {
@@ -151,5 +156,21 @@ class DaycareTimeHelper {
       }
     }
     return true;
+  }
+
+  static bool hasSelectableSlot({
+    required List<String> slots,
+    required DateTime date,
+    required DateTime now,
+    String? afterSlot,
+  }) {
+    return slots.any(
+      (String slot) => isSlotSelectable(
+        slot: slot,
+        date: date,
+        now: now,
+        afterSlot: afterSlot,
+      ),
+    );
   }
 }

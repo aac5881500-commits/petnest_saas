@@ -4,10 +4,10 @@
 // 並負責刪除 Firestore 紀錄與 Firebase Storage 圖片。
 
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/foundation.dart';
 
 import '../models/daily_care_photo_model.dart';
+import 'daily_care_photo_function_service.dart';
 
 class DailyCarePhotoService {
   DailyCarePhotoService._();
@@ -15,10 +15,10 @@ class DailyCarePhotoService {
   static final DailyCarePhotoService instance = DailyCarePhotoService._();
 
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-  final FirebaseStorage _storage = FirebaseStorage.instance;
 
   /// 📷 平台固定：
   /// 每房每天最多上傳 6 張照護照片。
+  static const int maxPhotosPerSession = 3;
   static const int maxPhotosPerRoomPerDay = 6;
 
   CollectionReference<Map<String, dynamic>> get _collection {
@@ -239,16 +239,31 @@ class DailyCarePhotoService {
     required String bookingId,
     required String roomId,
     required DateTime recordDate,
+    int sessionIndex = 0,
+    bool perSession = true,
   }) async {
+    if (perSession) {
+      final List<DailyCarePhotoModel> photos = await streamRoomDayPhotos(
+        shopId: shopId,
+        bookingId: bookingId,
+        roomId: roomId,
+        recordDate: recordDate,
+      ).first;
+      final int used = photos
+          .where(
+            (DailyCarePhotoModel photo) => photo.sessionIndex == sessionIndex,
+          )
+          .length;
+      final int remaining = maxPhotosPerSession - used;
+      return remaining < 0 ? 0 : remaining;
+    }
     final int currentCount = await getRoomDayPhotoCount(
       shopId: shopId,
       bookingId: bookingId,
       roomId: roomId,
       recordDate: recordDate,
     );
-
     final int remaining = maxPhotosPerRoomPerDay - currentCount;
-
     return remaining < 0 ? 0 : remaining;
   }
 
@@ -408,31 +423,7 @@ class DailyCarePhotoService {
   /// 3. 刪 Firestore 一般照片 metadata
   /// 4. 刪 Firestore 高清下載 metadata
   Future<void> deletePhoto(DailyCarePhotoModel photo) async {
-    final DocumentReference<Map<String, dynamic>> downloadRef = _firestore
-        .collection('daily_care_photo_downloads')
-        .doc(photo.id);
-
-    final DocumentSnapshot<Map<String, dynamic>> downloadSnapshot =
-        await downloadRef.get();
-
-    final Map<String, dynamic>? downloadData = downloadSnapshot.data();
-
-    final String downloadStoragePath =
-        (downloadData?['downloadStoragePath'] ?? '').toString().trim();
-
-    // 1. 刪除 Preview 圖片
-    await _deleteStorageFile(photo.previewStoragePath);
-
-    // 2. 刪除高清 Download 圖片
-    await _deleteStorageFile(downloadStoragePath);
-
-    // 3. 刪除一般照片 metadata
-    await _collection.doc(photo.id).delete();
-
-    // 4. 刪除高清下載 metadata
-    if (downloadSnapshot.exists) {
-      await downloadRef.delete();
-    }
+    await DailyCarePhotoFunctionService.instance.deletePhoto(photo.id);
   }
 
   /// 刪除某次住宿的所有照護照片。
@@ -457,25 +448,6 @@ class DailyCarePhotoService {
       );
 
       await deletePhoto(photo);
-    }
-  }
-
-  /// 刪除 Firebase Storage 檔案。
-  Future<void> _deleteStorageFile(String storagePath) async {
-    final String normalizedPath = storagePath.trim();
-
-    if (normalizedPath.isEmpty) {
-      return;
-    }
-
-    try {
-      await _storage.ref(normalizedPath).delete();
-    } on FirebaseException catch (e) {
-      // 圖片已經不存在時，
-      // 不需要阻擋後續 Firestore 清除。
-      if (e.code != 'object-not-found') {
-        rethrow;
-      }
     }
   }
 }

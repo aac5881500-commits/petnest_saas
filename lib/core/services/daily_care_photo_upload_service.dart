@@ -4,12 +4,11 @@
 // 上傳 Firebase Storage，並建立 Firestore 照片紀錄。
 // 不保存手機原始超大照片。
 
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_image_compress/flutter_image_compress.dart';
 
-import 'daily_care_photo_service.dart';
+import 'daily_care_photo_function_service.dart';
 
 class DailyCarePhotoUploadService {
   DailyCarePhotoUploadService._();
@@ -67,26 +66,26 @@ class DailyCarePhotoUploadService {
     }
 
     debugPrint(
-      '🔎 UploadService 準備檢查照片數量：'
+      '🔎 UploadService 準備預留照片名額：'
       'shopId=$normalizedShopId, '
       'bookingId=$normalizedBookingId, '
       'roomId=$normalizedRoomId',
     );
 
-    final bool allowed = await DailyCarePhotoService.instance.canUploadPhoto(
-      shopId: normalizedShopId,
-      bookingId: normalizedBookingId,
-      roomId: normalizedRoomId,
-      recordDate: recordDate,
-    );
-
-    debugPrint('✅ UploadService 照片數量檢查成功：allowed=$allowed');
-
-    if (!allowed) {
-      throw StateError(
-        '此房今日照片已達上限 '
-        '${DailyCarePhotoService.maxPhotosPerRoomPerDay} 張',
-      );
+    final Map<String, dynamic> reserved = await DailyCarePhotoFunctionService
+        .instance
+        .reserve(
+          shopId: normalizedShopId,
+          bookingId: normalizedBookingId,
+          roomId: normalizedRoomId,
+          recordDate: recordDate,
+          sessionIndex: sessionIndex,
+        );
+    final String reservationId = (reserved['reservationId'] ?? '').toString();
+    final String photoId = (reserved['photoId'] ?? '').toString();
+    final String dateKey = (reserved['dateKey'] ?? '').toString();
+    if (reservationId.isEmpty || photoId.isEmpty || dateKey.isEmpty) {
+      throw StateError('無法預留照片名額，請重試');
     }
 
     final Uint8List previewBytes = await _compressImage(
@@ -100,13 +99,6 @@ class DailyCarePhotoUploadService {
       maxSize: downloadMaxSize,
       quality: downloadQuality,
     );
-
-    final String dateKey =
-        '${recordDate.year.toString().padLeft(4, '0')}'
-        '${recordDate.month.toString().padLeft(2, '0')}'
-        '${recordDate.day.toString().padLeft(2, '0')}';
-
-    final String photoId = '${DateTime.now().microsecondsSinceEpoch}';
 
     final String basePath =
         'daily_care_photos/'
@@ -133,7 +125,7 @@ class DailyCarePhotoUploadService {
         previewBytes,
         SettableMetadata(
           contentType: 'image/jpeg',
-          cacheControl: 'public,max-age=31536000',
+          cacheControl: 'private, max-age=3600',
         ),
       );
 
@@ -153,7 +145,7 @@ class DailyCarePhotoUploadService {
         downloadBytes,
         SettableMetadata(
           contentType: 'image/jpeg',
-          cacheControl: 'public,max-age=31536000',
+          cacheControl: 'private, max-age=3600',
         ),
       );
 
@@ -166,34 +158,20 @@ class DailyCarePhotoUploadService {
       // 透過 Firebase Storage SDK 存取，
       // 讓 Storage Rules 即時驗證權限。
 
-      final User? user = FirebaseAuth.instance.currentUser;
-
-      final String? uploadedByName =
-          user?.displayName?.trim().isNotEmpty == true
-          ? user!.displayName!.trim()
-          : user?.email?.trim();
-
       debugPrint(
-        '📝 準備建立 Firestore 照片紀錄：'
+        '📝 準備確認照片紀錄：'
         'photoId=$photoId',
       );
 
-      await DailyCarePhotoService.instance.createPhotoRecord(
-        shopId: normalizedShopId,
-        bookingId: normalizedBookingId,
-        photoId: photoId,
-        roomId: normalizedRoomId,
-        roomName: roomName,
-        recordDate: recordDate,
-        sessionIndex: sessionIndex,
-        sessionName: sessionName,
-        previewUrl: previewUrl,
+      await DailyCarePhotoFunctionService.instance.complete(
+        reservationId: reservationId,
         previewStoragePath: previewStoragePath,
         downloadStoragePath: downloadStoragePath,
+        previewUrl: previewUrl,
+        roomName: roomName,
+        sessionName: sessionName,
         previewBytes: previewBytes.length,
         downloadBytes: downloadBytes.length,
-        uploadedByUid: user?.uid,
-        uploadedByName: uploadedByName,
       );
 
       debugPrint(
@@ -215,6 +193,8 @@ class DailyCarePhotoUploadService {
       if (uploadedDownloadPath != null) {
         await _safeDelete(uploadedDownloadPath);
       }
+
+      await DailyCarePhotoFunctionService.instance.release(reservationId);
 
       rethrow;
     }

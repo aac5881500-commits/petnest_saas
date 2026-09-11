@@ -8,6 +8,8 @@ const {
   resolvePaidAmount,
   resolveTotalAmount,
 } = require("./payment_verify");
+const {settlementFields, canLock, isSettlementLocked} =
+  require("../bookings/booking_settlement_math");
 
 /**
  * 是否為可更新 bookings 的付款來源。
@@ -112,12 +114,16 @@ function buildSuccessfulEcpayBookingPaymentUpdates(params) {
 
   const currentPaidAmount = resolvePaidAmount(booking);
   const newPaidAmount = currentPaidAmount + callbackAmount;
-  const safePaidAmount = Math.min(newPaidAmount, bookingTotalAmount);
-  const remainingAmount = Math.max(bookingTotalAmount - safePaidAmount, 0);
+  const next = settlementFields({
+    ...booking,
+    paidAmount: newPaidAmount,
+  });
+  const remainingAmount = next.remainingAmount;
   const daycare = isDaycareBooking(booking);
-  const paymentStatus = remainingAmount <= 0 ?
-    "paid" :
-    (daycare ? "partial" : "partially_paid");
+  const paymentStatus = next.paymentStatus === "unpaid" && newPaidAmount > 0 ?
+    (daycare ? "partial" : "partially_paid") :
+    (next.paymentStatus === "partial" && !daycare ?
+      "partially_paid" : next.paymentStatus);
 
   const lastPaymentMethod = normalizeString(payment.paymentMethod);
   const lastPaymentPurpose = normalizeString(payment.paymentPurpose);
@@ -132,8 +138,9 @@ function buildSuccessfulEcpayBookingPaymentUpdates(params) {
   };
 
   const bookingUpdate = {
-    paidAmount: safePaidAmount,
+    paidAmount: newPaidAmount,
     remainingAmount,
+    refundDueAmount: next.refundDueAmount,
     paymentStatus,
     lastPaymentId: paymentId,
     lastMerchantTradeNo: merchantTradeNo,
@@ -147,8 +154,30 @@ function buildSuccessfulEcpayBookingPaymentUpdates(params) {
     bookingUpdate.markPaidAt = true;
   }
 
+  if (isSettlementLocked(booking) && callbackAmount > 0) {
+    bookingUpdate.settlementException = {
+      type: "payment_after_lock",
+      amount: callbackAmount,
+      paymentId,
+      merchantTradeNo,
+      remainingAmount: next.remainingAmount,
+      refundDueAmount: next.refundDueAmount,
+    };
+    bookingUpdate.settlementExceptionAt = true;
+  } else if (canLock({
+    ...booking,
+    paidAmount: newPaidAmount,
+    remainingAmount,
+    refundDueAmount: next.refundDueAmount,
+  })) {
+    bookingUpdate.settlementLocked = true;
+    bookingUpdate.settlementLockedBy = "system";
+    bookingUpdate.settlementLockedReason = "ecpay_top_up_cleared";
+    bookingUpdate.markSettlementLockedAt = true;
+  }
+
   const depositAmount = resolveDepositAmount(booking);
-  const reachedDeposit = depositAmount > 0 && safePaidAmount >= depositAmount;
+  const reachedDeposit = depositAmount > 0 && newPaidAmount >= depositAmount;
   const confirmDeposit = reachedDeposit && (
     isDepositPaymentRecord(payment) ||
     (daycare && (

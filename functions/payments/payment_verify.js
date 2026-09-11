@@ -5,6 +5,8 @@
 
 const {HttpsError} = require("firebase-functions/v2/https");
 const admin = require("firebase-admin");
+const {remainingDue, paidAmount: settlementPaidAmount, isSettlementLocked} =
+  require("../bookings/booking_settlement_math");
 
 /**
  * 將未知資料安全轉成字串
@@ -45,13 +47,7 @@ function normalizeInteger(value) {
  * @return {number}
  */
 function resolvePaidAmount(booking) {
-  const paidAmount = normalizeInteger(booking.paidAmount);
-
-  if (paidAmount > 0) {
-    return paidAmount;
-  }
-
-  return normalizeInteger(booking.paymentPaidAmount);
+  return settlementPaidAmount(booking);
 }
 
 /**
@@ -162,12 +158,7 @@ function resolveRequestedPaymentAmount({
   ).toLowerCase();
 
   const totalAmount = resolveTotalAmount(booking);
-  const paidAmount = resolvePaidAmount(booking);
-
-  const remainingAmount = Math.max(
-      totalAmount - paidAmount,
-      0,
-  );
+  const remainingAmount = remainingDue(booking);
 
   if (totalAmount <= 0) {
     throw new HttpsError(
@@ -204,7 +195,7 @@ function resolveRequestedPaymentAmount({
   }
 
   const remainingDepositAmount = Math.max(
-      depositAmount - paidAmount,
+      depositAmount - resolvePaidAmount(booking),
       0,
   );
 
@@ -228,22 +219,10 @@ function resolveRequestedPaymentAmount({
  * @return {boolean}
  */
 function isBookingFullyPaid(booking) {
-  const paymentStatus = normalizeString(
-      booking.paymentStatus,
-  ).toLowerCase();
-
-  if (
-    paymentStatus === "paid" ||
-    paymentStatus === "fully_paid" ||
-    paymentStatus === "completed"
-  ) {
-    return true;
-  }
-
-  const totalAmount = resolveTotalAmount(booking);
-  const paidAmount = resolvePaidAmount(booking);
-
-  return totalAmount > 0 && paidAmount >= totalAmount;
+  return remainingDue(booking) <= 0 &&
+    (normalizeInteger(booking.totalPrice) > 0 ||
+      normalizeInteger(booking.totalPayableAmount) > 0 ||
+      normalizeInteger(booking.totalAmount) > 0);
 }
 
 /**
@@ -339,10 +318,10 @@ async function verifyBookingForPayment({
     );
   }
 
-  if (bookingStatus === "completed") {
+  if (isSettlementLocked(booking)) {
     throw new HttpsError(
         "failed-precondition",
-        "這筆訂單已完成，無法再建立付款。",
+        "訂單已鎖定，無法建立新的付款交易。",
     );
   }
 
@@ -356,10 +335,7 @@ async function verifyBookingForPayment({
   const totalAmount = resolveTotalAmount(booking);
   const paidAmount = resolvePaidAmount(booking);
 
-  const remainingAmount = Math.max(
-      totalAmount - paidAmount,
-      0,
-  );
+  const remainingAmount = remainingDue(booking);
 
   if (totalAmount <= 0) {
     throw new HttpsError(

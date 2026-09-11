@@ -160,6 +160,8 @@ class MemberMergeService {
 
     batch.set(manualMemberRef, {
       'status': 'merged',
+      'isMerged': true,
+      'isArchived': true,
       'mergedToUserId': appUserId,
       'mergedAt': FieldValue.serverTimestamp(),
       'updatedAt': FieldValue.serverTimestamp(),

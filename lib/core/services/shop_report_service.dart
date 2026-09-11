@@ -65,17 +65,23 @@ class ShopReportService {
         .map(_docMap)
         .toList();
     List<Map<String, dynamic>> members = const <Map<String, dynamic>>[];
+    bool summariesReady = true;
     if (includeMembers) {
-      members = (await _members(id)).docs.map(_docMap).toList();
+      final DocumentSnapshot<Map<String, dynamic>> summary = await _db
+          .collection('shops')
+          .doc(id)
+          .collection('report_summaries')
+          .doc(
+            '${start.year.toString().padLeft(4, '0')}-'
+            '${start.month.toString().padLeft(2, '0')}',
+          )
+          .get();
+      summariesReady = summary.exists;
     }
 
     List<Map<String, dynamic>> lifetimeBookings = bookings.values.toList();
     if (includeMembers) {
-      final QuerySnapshot<Map<String, dynamic>> all = await _db
-          .collection('bookings')
-          .where('shopId', isEqualTo: id)
-          .get();
-      lifetimeBookings = all.docs.map(_docMap).toList();
+      members = const <Map<String, dynamic>>[];
     }
 
     return _build(
@@ -87,6 +93,7 @@ class ShopReportService {
       members: members,
       includeTrend: includeTrend,
       trendStart: trendStart,
+      summariesReady: summariesReady,
     );
   }
 
@@ -147,10 +154,6 @@ class ShopReportService {
         .get();
   }
 
-  Future<QuerySnapshot<Map<String, dynamic>>> _members(String shopId) {
-    return _db.collection('shops').doc(shopId).collection('members').get();
-  }
-
   ShopReportBundle _build({
     required ReportRange range,
     required List<Map<String, dynamic>> bookings,
@@ -160,6 +163,7 @@ class ShopReportService {
     required List<Map<String, dynamic>> members,
     required bool includeTrend,
     required DateTime trendStart,
+    bool summariesReady = true,
   }) {
     final DateTime start = range.startDate;
     final DateTime end = range.endDate;
@@ -573,6 +577,7 @@ class ShopReportService {
           )
           .toList(),
       monthTrend: trend,
+      summariesReady: summariesReady,
     );
   }
 

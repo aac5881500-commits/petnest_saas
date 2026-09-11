@@ -154,7 +154,7 @@ void main() {
         'status': 'cancelled',
         'noShow': true,
       }),
-      '未到店',
+      '已取消',
     );
     expect(
       DaycareStatusLabels.primary(<String, dynamic>{'status': 'assigned'}),

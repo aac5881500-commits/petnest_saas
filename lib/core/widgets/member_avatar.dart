@@ -9,6 +9,7 @@
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:petnest_saas/core/widgets/petnest_cached_image.dart';
 
 String? resolveMemberAvatarUrl({
   String? customAvatarUrl,
@@ -221,29 +222,15 @@ class MemberAvatar extends StatelessWidget {
     }
 
     final int cachePx = (size * 3).round().clamp(64, 512);
-    return Image.network(
-      url,
+    return PetNestCachedImage(
+      imageUrl: url,
       width: size,
       height: size,
       fit: BoxFit.cover,
-      alignment: Alignment.center,
-      gaplessPlayback: true,
-      cacheWidth: cachePx,
-      cacheHeight: cachePx,
-      loadingBuilder:
-          (
-            BuildContext context,
-            Widget child,
-            ImageChunkEvent? loadingProgress,
-          ) {
-            if (loadingProgress == null) {
-              return child;
-            }
-            return ColoredBox(color: wash.withValues(alpha: 0.35));
-          },
-      errorBuilder: (BuildContext context, Object error, StackTrace? stack) {
-        return _initials(wash);
-      },
+      memCacheWidth: cachePx,
+      memCacheHeight: cachePx,
+      errorWidget: _initials(wash),
+      placeholder: ColoredBox(color: wash.withValues(alpha: 0.35)),
     );
   }
 

@@ -28,6 +28,8 @@ class DaycareAddonSelector extends StatelessWidget {
     this.addonSubtotal = 0,
     this.estimateTotal = 0,
     this.showFeeSummary = false,
+    this.errorAddonIds = const <String>{},
+    this.addonKeys,
   });
 
   final List<Map<String, dynamic>> addons;
@@ -45,6 +47,8 @@ class DaycareAddonSelector extends StatelessWidget {
   final int addonSubtotal;
   final int estimateTotal;
   final bool showFeeSummary;
+  final Set<String> errorAddonIds;
+  final Map<String, GlobalKey>? addonKeys;
 
   String _petId(Map<String, dynamic> pet) {
     return (pet['petId'] ?? pet['id'] ?? '').toString();
@@ -172,8 +176,22 @@ class DaycareAddonSelector extends StatelessWidget {
           '${DaycarePlanModel.moneyLabel(price)} × ${petsForAddon.length} 隻 × '
           '${slotsForAddon.length} 個時段 = ${DaycarePlanModel.moneyLabel(price * qty)}';
     }
+    final bool error = errorAddonIds.contains(id);
 
-    return Column(
+    return KeyedSubtree(
+      key: addonKeys?[id],
+      child: Container(
+        width: double.infinity,
+        margin: const EdgeInsets.only(bottom: 8),
+        padding: error ? const EdgeInsets.all(8) : EdgeInsets.zero,
+        decoration: error
+            ? BoxDecoration(
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.red.shade400, width: 1.5),
+                color: Colors.red.shade50,
+              )
+            : null,
+        child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
         InkWell(
@@ -336,7 +354,21 @@ class DaycareAddonSelector extends StatelessWidget {
               ],
             ),
           ),
+        if (error)
+          const Padding(
+            padding: EdgeInsets.fromLTRB(4, 0, 4, 6),
+            child: Text(
+              '請選擇要使用此服務的寵物',
+              style: TextStyle(
+                color: Color(0xFFC62828),
+                fontWeight: FontWeight.w700,
+                fontSize: 13,
+              ),
+            ),
+          ),
       ],
+    ),
+      ),
     );
   }
 }

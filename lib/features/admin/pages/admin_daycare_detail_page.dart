@@ -3,10 +3,13 @@
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
-import 'package:petnest_saas/core/models/home_theme_model.dart';
-import 'package:petnest_saas/features/custom_form/widgets/custom_form_answer_view.dart';
+import 'package:petnest_saas/features/admin/widgets/admin_booking_form_answers_section.dart';
+import 'package:petnest_saas/features/admin/widgets/admin_booking_settlement_panel.dart';
+import 'package:petnest_saas/features/admin/widgets/admin_internal_handover_card.dart';
+import 'package:petnest_saas/core/debug/chat_error_probe.dart';
 import 'package:petnest_saas/core/services/booking_inventory_function_service.dart';
 import 'package:petnest_saas/core/services/booking_payment_status.dart';
+import 'package:petnest_saas/core/services/booking_settlement_math.dart';
 import 'package:petnest_saas/core/services/daycare_assign_room_rules.dart';
 import 'package:petnest_saas/core/services/daycare_function_service.dart';
 import 'package:petnest_saas/core/services/daycare_payment_display.dart';
@@ -20,6 +23,7 @@ import 'package:petnest_saas/features/admin/widgets/admin_booking_detail_layout.
 import 'package:petnest_saas/features/admin/widgets/admin_booking_detail_payment_aside.dart';
 import 'package:petnest_saas/features/admin/widgets/admin_booking_detail_policy_card.dart';
 import 'package:petnest_saas/features/admin/widgets/admin_booking_header_card.dart';
+import 'package:petnest_saas/features/admin/widgets/admin_shop_identity_debug_card.dart';
 import 'package:petnest_saas/features/admin/widgets/admin_booking_note_section.dart';
 import 'package:petnest_saas/features/admin/widgets/admin_booking_pet_strip.dart';
 import 'package:petnest_saas/features/admin/widgets/admin_booking_price_section.dart';
@@ -29,7 +33,6 @@ import 'package:petnest_saas/features/booking/widgets/booking_detail/booking_det
 import 'package:petnest_saas/features/admin/widgets/admin_daycare_assign_room_dialog.dart';
 import 'package:petnest_saas/features/admin/widgets/admin_daycare_care_report_section.dart';
 import 'package:petnest_saas/features/admin/widgets/admin_daycare_settle_sheet.dart';
-import 'package:petnest_saas/features/booking/pages/booking_detail_page.dart';
 
 class AdminDaycareDetailPage extends StatelessWidget {
   const AdminDaycareDetailPage({
@@ -103,6 +106,7 @@ class _DaycareDetailBodyState extends State<_DaycareDetailBody> {
     if (confirm.isNotEmpty) {
       final bool? ok = await showDialog<bool>(
         context: context,
+        barrierDismissible: false,
         builder: (BuildContext context) => AlertDialog(
           title: const Text('確認操作'),
           content: Text(confirm),
@@ -118,10 +122,23 @@ class _DaycareDetailBodyState extends State<_DaycareDetailBody> {
           ],
         ),
       );
-      if (ok != true) {
+      if (ok != true || !mounted) {
         return;
       }
     }
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) => const AlertDialog(
+        content: Row(
+          children: <Widget>[
+            CircularProgressIndicator(),
+            SizedBox(width: 16),
+            Expanded(child: Text('處理中…')),
+          ],
+        ),
+      ),
+    );
     setState(() => _busy = true);
     try {
       final Map<String, dynamic>
@@ -143,7 +160,7 @@ class _DaycareDetailBodyState extends State<_DaycareDetailBody> {
         if (mounted) {
           ScaffoldMessenger.of(
             context,
-          ).showSnackBar(const SnackBar(content: Text('已確認訂金')));
+          ).showSnackBar(const SnackBar(content: Text('訂金已確認')));
         }
       }
       if (action == 'cancel') {
@@ -154,14 +171,21 @@ class _DaycareDetailBodyState extends State<_DaycareDetailBody> {
           );
         } catch (_) {}
       }
-    } catch (error) {
+    } catch (error, stack) {
+      ChatErrorProbe.dump(
+        'AdminDaycareDetail $action',
+        error,
+        stack,
+        operation: 'manageDaycareBooking bookings/${widget.bookingId}',
+      );
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(error.toString())));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(ChatErrorProbe.describe(error))),
+        );
       }
     } finally {
       if (mounted) {
+        Navigator.of(context, rootNavigator: true).pop();
         setState(() => _busy = false);
       }
     }
@@ -190,11 +214,12 @@ class _DaycareDetailBodyState extends State<_DaycareDetailBody> {
       'settle',
       extra: <String, dynamic>{
         'actualEndAt': choice.actualEndAt.toIso8601String(),
-        'completeMode': choice.completeMode,
-        'waiveOvertime': choice.completeMode == 'waive',
+        'waiveOvertime': choice.waiveOvertime,
         'waiveReason': choice.waiveReason,
         'manualAdjust': choice.manualAdjust,
         'manualAdjustReason': choice.manualAdjustReason,
+        'settlementTopUpMethod': choice.topUpMethod,
+        'lockIfClear': choice.lockIfClear,
       },
     );
   }
@@ -216,7 +241,9 @@ class _DaycareDetailBodyState extends State<_DaycareDetailBody> {
               .map((Map e) => Map<String, dynamic>.from(e))
               .toList()
         : <Map<String, dynamic>>[];
-    final bool locked = status == 'cancelled' || status == 'completed';
+    final bool settlementLocked = BookingSettlementMath.isSettlementLocked(data);
+    final bool cancelled = status == 'cancelled';
+    final bool locked = cancelled || settlementLocked;
     final bool roomBased = DaycareAssignRoomRules.isRoomBased(data);
     final int durationMinutes = start != null && end != null
         ? end.difference(start).inMinutes
@@ -278,13 +305,21 @@ class _DaycareDetailBodyState extends State<_DaycareDetailBody> {
             icon: const Icon(Icons.swap_horiz),
             label: const Text('換房'),
           ),
-        if (!locked && status == 'checked_in')
+        if (!settlementLocked && status == 'checked_in')
           FilledButton(
             style: FilledButton.styleFrom(minimumSize: const Size(48, 44)),
             onPressed: _busy ? null : _openSettlement,
             child: const Text('結算安親／退房'),
           ),
-        if (!locked)
+        if (!settlementLocked &&
+            status == 'completed' &&
+            BookingSettlementMath.isSettlementConfirmed(data))
+          OutlinedButton(
+            style: OutlinedButton.styleFrom(minimumSize: const Size(48, 44)),
+            onPressed: _busy ? null : _openSettlement,
+            child: const Text('重新調整'),
+          ),
+        if (!cancelled && !settlementLocked && status != 'completed')
           OutlinedButton(
             style: OutlinedButton.styleFrom(
               minimumSize: const Size(48, 44),
@@ -305,20 +340,18 @@ class _DaycareDetailBodyState extends State<_DaycareDetailBody> {
         return AdminBookingDetailScaffold(
           title: '訂單詳細',
           bookingCode: (data['bookingCode'] ?? '').toString(),
-          appBarActions: <Widget>[
-            TextButton(
-              onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute<void>(
-                    builder: (_) =>
-                        BookingDetailPage(data: data, docId: widget.bookingId),
-                  ),
-                );
-              },
-              child: const Text('聊天／會員視角'),
+          banners: <Widget>[
+            AdminShopIdentityDebugCard(
+              shopId: widget.shopId,
+              bookingShopId: (data['shopId'] ?? widget.shopId).toString(),
+              settlementLocked: settlementLocked,
             ),
           ],
+          handover: AdminInternalHandoverCard(
+            shopId: widget.shopId,
+            bookingId: widget.bookingId,
+            readOnly: settlementLocked,
+          ),
           overview: AdminBookingHeaderCard(
             data: data,
             bookingId: widget.bookingId,
@@ -419,35 +452,40 @@ class _DaycareDetailBodyState extends State<_DaycareDetailBody> {
               ),
             ),
             AdminBookingDetailSection(
-              title: '照護回報',
+              title: '價格與加值服務',
+              child: AdminBookingPriceSection(
+                data: data,
+                pets: pets,
+                lineItemsOnly: true,
+                bookingId: widget.bookingId,
+              ),
+            ),
+            AdminBookingDetailSection(
+              title: '每日照護摘要',
               child: AdminDaycareCareReportSection(
                 shopId: widget.shopId,
                 bookingId: widget.bookingId,
                 booking: data,
               ),
             ),
-            CustomFormAnswerView(
-              raw:
-                  data['customFormAnswers'] ??
-                  data['bookingFormAnswers'] ??
-                  data['formAnswers'],
-              title: '本次照護交代',
-              theme: HomeThemeModel.classicDefault,
-              collapsible: true,
+          ],
+          forms: <Widget>[
+            AdminBookingFormAnswersSection(
+              shopId: widget.shopId,
+              bookingId: widget.bookingId,
+              data: data,
             ),
+          ],
+          communication: <Widget>[
             AdminBookingDetailSection(
-              title: '價格與加值服務',
-              child: AdminBookingPriceSection(
-                data: data,
-                pets: pets,
-                lineItemsOnly: true,
-              ),
-            ),
-            AdminBookingDetailSection(
-              title: '訂單備註',
+              title: '客戶備註',
               collapsible: true,
               initiallyExpanded: false,
-              child: AdminBookingNoteSection(data: data),
+              child: AdminBookingNoteSection(
+                data: data,
+                shopId: widget.shopId,
+                bookingId: widget.bookingId,
+              ),
             ),
             AdminBookingDetailSection(
               title: '訂單留言',
@@ -461,6 +499,15 @@ class _DaycareDetailBodyState extends State<_DaycareDetailBody> {
             ),
           ],
           right: <Widget>[
+            AdminBookingSettlementPanel(
+              shopId: widget.shopId,
+              bookingId: widget.bookingId,
+              data: data,
+              onReadjust: settlementLocked ||
+                      !BookingSettlementMath.isSettlementConfirmed(data)
+                  ? null
+                  : _openSettlement,
+            ),
             AdminBookingDetailPaymentAside(
               data: data,
               bookingId: widget.bookingId,

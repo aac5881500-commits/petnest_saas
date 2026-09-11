@@ -22,6 +22,7 @@ class StoreBannerView extends StatelessWidget {
     this.borderRadius = 18,
     this.scope = PetNestBannerScope.store,
     this.sizePresetOverride,
+    this.composeLive,
   });
 
   final StoreBannerModel banner;
@@ -34,6 +35,7 @@ class StoreBannerView extends StatelessWidget {
   final double borderRadius;
   final PetNestBannerScope scope;
   final String? sizePresetOverride;
+  final bool? composeLive;
 
   @override
   Widget build(BuildContext context) {
@@ -71,6 +73,10 @@ class StoreBannerView extends StatelessWidget {
                 onChanged: onChanged,
                 onTextSelected: onTextSelected,
                 onTap: onTap,
+                composeLive:
+                    composeLive ??
+                    (interactMode != StoreBannerInteractMode.none ||
+                        !banner.hasRenderedImage),
               ),
             ),
           );
@@ -91,6 +97,7 @@ class _BannerStage extends StatelessWidget {
     required this.onChanged,
     required this.onTextSelected,
     required this.onTap,
+    required this.composeLive,
   });
 
   final StoreBannerModel banner;
@@ -102,13 +109,35 @@ class _BannerStage extends StatelessWidget {
   final ValueChanged<StoreBannerModel>? onChanged;
   final ValueChanged<String?>? onTextSelected;
   final VoidCallback? onTap;
+  final bool composeLive;
 
   bool get _editing => interactMode != StoreBannerInteractMode.none;
 
   @override
   Widget build(BuildContext context) {
     final Size bannerSize = Size(width, height);
-    final Widget image = _BannerImage(banner: banner, theme: theme);
+    final Widget image = _BannerImage(
+      banner: banner,
+      theme: theme,
+      useRendered: !composeLive && banner.hasRenderedImage,
+    );
+    if (!composeLive && banner.hasRenderedImage) {
+      return _wrapFrontTap(image);
+    }
+    if (banner.isImageOnly) {
+      return _wrapFrontTap(image);
+    }
+    if (banner.usesSafeTemplateOverlay) {
+      return _wrapFrontTap(
+        _SafeTemplateOverlay(
+          banner: banner,
+          theme: theme,
+          width: width,
+          height: height,
+          image: image,
+        ),
+      );
+    }
     final List<StoreBannerTextElement> texts = banner.resolvedTextElements;
     final Widget stack = Stack(
       fit: StackFit.expand,
@@ -195,6 +224,16 @@ class _BannerStage extends StatelessWidget {
     );
   }
 
+  Widget _wrapFrontTap(Widget child) {
+    if (_editing || onTap == null) {
+      return child;
+    }
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(onTap: onTap, child: child),
+    );
+  }
+
   Widget _wrapFrontPointer({required Widget child}) {
     if (_editing) {
       return child;
@@ -243,11 +282,190 @@ class _BannerStage extends StatelessWidget {
   }
 }
 
-class _BannerImage extends StatelessWidget {
-  const _BannerImage({required this.banner, required this.theme});
+class _SafeTemplateOverlay extends StatelessWidget {
+  const _SafeTemplateOverlay({
+    required this.banner,
+    required this.theme,
+    required this.width,
+    required this.height,
+    required this.image,
+  });
 
   final StoreBannerModel banner;
   final HomeThemeModel theme;
+  final double width;
+  final double height;
+  final Widget image;
+
+  String get _title {
+    if (banner.title.trim().isNotEmpty) {
+      return banner.title.trim();
+    }
+    for (final StoreBannerTextElement item in banner.resolvedTextElements) {
+      if (item.hasText) {
+        return item.text.trim();
+      }
+    }
+    return '';
+  }
+
+  String get _subtitle {
+    if (banner.subtitle.trim().isNotEmpty) {
+      return banner.subtitle.trim();
+    }
+    final List<StoreBannerTextElement> items = banner.resolvedTextElements
+        .where((StoreBannerTextElement item) => item.hasText)
+        .toList();
+    if (items.length >= 2) {
+      return items[1].text.trim();
+    }
+    return '';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final String alignX = banner.resolvedTextAlignH;
+    final String alignY = banner.resolvedTextAlignV;
+    final String scale = banner.resolvedFontScale;
+    final String overlayMode =
+        banner.overlayMode == StoreBannerOverlayModes.none
+        ? StoreBannerAlignX.overlayModeFor(alignX)
+        : banner.overlayMode;
+    final CrossAxisAlignment cross = switch (alignX) {
+      StoreBannerAlignX.center => CrossAxisAlignment.center,
+      StoreBannerAlignX.right => CrossAxisAlignment.end,
+      _ => CrossAxisAlignment.start,
+    };
+    final MainAxisAlignment main = switch (alignY) {
+      StoreBannerAlignY.center => MainAxisAlignment.center,
+      StoreBannerAlignY.bottom => MainAxisAlignment.end,
+      _ => MainAxisAlignment.start,
+    };
+    final TextAlign textAlign = switch (alignX) {
+      StoreBannerAlignX.center => TextAlign.center,
+      StoreBannerAlignX.right => TextAlign.right,
+      _ => TextAlign.left,
+    };
+    final Color textColor = banner.copyColor(theme);
+    return Stack(
+      fit: StackFit.expand,
+      children: <Widget>[
+        image,
+        IgnorePointer(
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              gradient: StoreBannerGradientSpec.gradient(
+                mode: overlayMode,
+                extent: banner.overlayExtent,
+                strength: banner.overlayStrength,
+                color: banner.overlayColor(theme),
+              ),
+            ),
+          ),
+        ),
+        Padding(
+          padding: EdgeInsets.symmetric(
+            horizontal: width * StoreBannerSafeLayout.insetX,
+            vertical: height * StoreBannerSafeLayout.insetY,
+          ),
+          child: Column(
+            mainAxisAlignment: main,
+            crossAxisAlignment: cross,
+            children: <Widget>[
+              if (_title.isNotEmpty)
+                Text(
+                  _title,
+                  maxLines: StoreBannerSafeLayout.titleMaxLines,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: textAlign,
+                  style: TextStyle(
+                    color: textColor,
+                    fontWeight: FontWeight.w800,
+                    height: 1.15,
+                    fontSize:
+                        height * StoreBannerSafeLayout.titleHeightRatio(scale),
+                    shadows: const <Shadow>[
+                      Shadow(
+                        color: Color(0x99000000),
+                        blurRadius: 8,
+                        offset: Offset(0, 1),
+                      ),
+                    ],
+                  ),
+                ),
+              if (_subtitle.isNotEmpty) ...<Widget>[
+                SizedBox(height: height * 0.02),
+                Text(
+                  _subtitle,
+                  maxLines: StoreBannerSafeLayout.subtitleMaxLines,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: textAlign,
+                  style: TextStyle(
+                    color: textColor.withValues(alpha: 0.92),
+                    fontWeight: FontWeight.w500,
+                    height: 1.2,
+                    fontSize:
+                        height *
+                        StoreBannerSafeLayout.subtitleHeightRatio(scale),
+                    shadows: const <Shadow>[
+                      Shadow(
+                        color: Color(0x99000000),
+                        blurRadius: 6,
+                        offset: Offset(0, 1),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+              if (banner.showsCta) ...<Widget>[
+                SizedBox(height: height * 0.03),
+                ConstrainedBox(
+                  constraints: BoxConstraints(maxWidth: width * 0.62),
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      color: theme.primaryColor,
+                      borderRadius: BorderRadius.circular(height * 0.08),
+                    ),
+                    child: Padding(
+                      padding: EdgeInsets.symmetric(
+                        horizontal: width * 0.04,
+                        vertical: height * 0.018,
+                      ),
+                      child: Text(
+                        banner.ctaText.trim(),
+                        maxLines: StoreBannerSafeLayout.ctaMaxLines,
+                        overflow: TextOverflow.ellipsis,
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w800,
+                          fontSize:
+                              height *
+                              StoreBannerSafeLayout.ctaHeightRatio(scale),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _BannerImage extends StatelessWidget {
+  const _BannerImage({
+    required this.banner,
+    required this.theme,
+    this.useRendered = false,
+  });
+
+  final StoreBannerModel banner;
+  final HomeThemeModel theme;
+  final bool useRendered;
 
   @override
   Widget build(BuildContext context) {
@@ -261,10 +479,12 @@ class _BannerImage extends StatelessWidget {
       color: theme.cardColor,
       child: ClipRect(
         child: Transform.scale(
-          scale: banner.imageScale.clamp(1.0, 2.5),
-          alignment: banner.imageAlignment,
+          scale: useRendered ? 1 : banner.imageScale.clamp(1.0, 2.5),
+          alignment: useRendered
+              ? Alignment.center
+              : banner.imageAlignment,
           child: Image.network(
-            banner.imageUrl,
+            useRendered ? banner.renderedImageUrl : banner.imageUrl,
             fit: BoxFit.cover,
             alignment: banner.imageAlignment,
             width: double.infinity,

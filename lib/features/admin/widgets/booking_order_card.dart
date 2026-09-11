@@ -78,7 +78,6 @@ class _BookingOrderCardState extends State<BookingOrderCard> {
     final depositPaid =
         data['depositPaid'] == true || data['depositStatus'] == 'confirmed';
 
-    final depositStatus = (data['depositStatus'] ?? '').toString();
     final shopUnreadMessageCount = (data['shopUnreadMessageCount'] ?? 0) as int;
 
     final hasUnreadMessage = shopUnreadMessageCount > 0;
@@ -87,7 +86,8 @@ class _BookingOrderCardState extends State<BookingOrderCard> {
     final discountMinNights = (data['discountMinNights'] ?? 0) as num;
     final hasDiscount = discountAmount > 0;
 
-    final isDepositReview = depositStatus == 'pending_review';
+    final isDepositReview = DaycareStatusLabels.isDepositReview(data);
+    final bool isHistory = DaycareStatusLabels.isHistory(data);
 
     final paymentMethod = _paymentMethodText(data['paymentMethod']);
     final createdAtText = _formatDateTime(data['createdAt']);
@@ -444,13 +444,13 @@ class _BookingOrderCardState extends State<BookingOrderCard> {
 
                     const SizedBox(height: 10),
 
-                    if (BookingPaymentProof.shouldShow(data))
+                    if (!isHistory && BookingPaymentProof.shouldShow(data))
                       Align(
                         alignment: Alignment.centerLeft,
                         child: BookingPaymentProofButton(data: data),
                       ),
 
-                    if (BookingPaymentProof.shouldShow(data))
+                    if (!isHistory && BookingPaymentProof.shouldShow(data))
                       const SizedBox(height: 10),
 
                     Row(
@@ -815,8 +815,6 @@ class _BookingOrderCardState extends State<BookingOrderCard> {
         case '已完成':
           return _StatusInfo(text, Colors.grey);
         case '已取消':
-        case '未到店':
-        case 'No-show':
           return _StatusInfo(text, Colors.red);
         default:
           return _StatusInfo(text, Colors.orange);

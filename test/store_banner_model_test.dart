@@ -403,4 +403,51 @@ void main() {
       closeTo(width / (3 / 2), 0.01),
     );
   });
+
+  test('舊海報只有圖片視為 image_only，有文字視為 template_overlay 且不覆寫原圖欄位', () {
+    final StoreBannerModel imageOnly =
+        StoreBannerModel.fromMap(const <String, dynamic>{
+          'id': 'old_img',
+          'imageUrl': 'https://example.com/a.jpg',
+          'enabled': true,
+          'sortOrder': 2,
+        });
+    expect(imageOnly.resolvedContentMode, StoreBannerContentModes.imageOnly);
+    expect(imageOnly.isImageOnly, isTrue);
+    expect(imageOnly.toMap()['imageUrl'], 'https://example.com/a.jpg');
+    expect(imageOnly.toMap()['sortOrder'], 2);
+    expect(imageOnly.toMap().containsKey('contentMode'), isFalse);
+
+    final StoreBannerModel withText =
+        StoreBannerModel.fromMap(const <String, dynamic>{
+          'id': 'old_text',
+          'imageUrl': 'https://example.com/b.jpg',
+          'title': '春季優惠',
+          'ctaEnabled': true,
+          'ctaText': '立即預約',
+        });
+    expect(
+      withText.resolvedContentMode,
+      StoreBannerContentModes.templateOverlay,
+    );
+    expect(withText.isImageOnly, isFalse);
+    expect(withText.usesSafeTemplateOverlay, isFalse);
+  });
+
+  test('明確寫入 contentMode 後走安全套版且不覆蓋圖片', () {
+    final StoreBannerModel banner =
+        StoreBannerModel.fromMap(const <String, dynamic>{
+          'id': 'safe',
+          'imageUrl': 'https://example.com/c.jpg',
+          'contentMode': 'template_overlay',
+          'title': '標題',
+          'textAlignH': 'center',
+          'textAlignV': 'top',
+          'fontScale': 'large',
+        });
+    expect(banner.usesSafeTemplateOverlay, isTrue);
+    expect(banner.resolvedTextAlignH, StoreBannerAlignX.center);
+    expect(banner.toMap()['imageUrl'], 'https://example.com/c.jpg');
+    expect(banner.toMap()['contentMode'], 'template_overlay');
+  });
 }

@@ -143,6 +143,16 @@ void main() {
     ]);
   });
 
+  test('結算補款不含超商', () {
+    final ShopPaymentCatalog catalog = ShopPaymentMethods.settlementTopUpCatalog(
+      shopData: _shop(),
+      serviceType: PolicyApplicableService.accommodation,
+    );
+    expect(catalog.methodIds.contains(PaymentMethodType.convenienceStoreCode), isFalse);
+    expect(catalog.methodIds.contains(PaymentMethodType.cash), isTrue);
+    expect(catalog.methodIds.contains(PaymentMethodType.creditCard), isTrue);
+  });
+
   test('變更付款方式與填寫頁使用同一 resolver 結果', () {
     final Map<String, dynamic> shop = _shop(cash: false, cvs: false);
     final List<String> form = ShopPaymentMethods.resolve(
@@ -223,5 +233,41 @@ void main() {
     expect(ShopPaymentMethods.isManualBankTransferPayment(''), isFalse);
     expect(ShopPaymentMethods.isManualBankTransferPayment(null), isFalse);
     expect(ShopPaymentMethods.isManualBankTransferPayment('銀行轉帳'), isFalse);
+  });
+
+  test('手動建單可提交僅到店與轉帳，並清掉綠界選取值', () {
+    final ShopPaymentCatalog catalog = ShopPaymentMethods.resolve(
+      shopData: _shop(),
+      serviceType: PolicyApplicableService.accommodation,
+    );
+    expect(
+      ShopPaymentMethods.isAdminCreateSelectable(PaymentMethodType.cash),
+      isTrue,
+    );
+    expect(
+      ShopPaymentMethods.isAdminCreateSelectable(
+        PaymentMethodType.bankTransfer,
+      ),
+      isTrue,
+    );
+    expect(
+      ShopPaymentMethods.isAdminCreateSelectable(PaymentMethodType.creditCard),
+      isFalse,
+    );
+    expect(
+      ShopPaymentMethods.adminCreateOnlineInfoCatalog(catalog).methodIds,
+      containsAll(<String>[
+        PaymentMethodType.creditCard,
+        PaymentMethodType.atm,
+        PaymentMethodType.convenienceStoreCode,
+      ]),
+    );
+    expect(
+      ShopPaymentMethods.coerceAdminCreateMethod(
+        catalog: catalog,
+        selected: PaymentMethodType.creditCard,
+      ),
+      PaymentMethodType.cash,
+    );
   });
 }

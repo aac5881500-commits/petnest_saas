@@ -6,6 +6,7 @@ import 'package:petnest_saas/core/models/booking_fee_line_item.dart';
 import 'package:petnest_saas/core/models/daycare_settings_model.dart';
 import 'package:petnest_saas/core/models/payment_gateway_status.dart';
 import 'package:petnest_saas/core/services/booking_payment_status.dart';
+import 'package:petnest_saas/core/services/booking_settlement_math.dart';
 import 'package:petnest_saas/core/services/daycare_pricing_service.dart';
 import 'package:petnest_saas/core/services/daycare_time_helper.dart';
 import 'package:petnest_saas/core/services/shop_payment_methods.dart';
@@ -103,11 +104,35 @@ class BookingDetailViewData {
 
   String get status => BookingDetailParse.parseString(raw['status']);
 
-  String get depositStatus =>
-      BookingDetailParse.parseString(raw['depositStatus']);
+  String get depositStatus {
+    if (isSettlementTopUp) {
+      final String status = BookingDetailParse.parseString(
+        raw['settlementTopUpStatus'],
+      );
+      if (status == 'pending_review') {
+        return 'pending_review';
+      }
+    }
+    return BookingDetailParse.parseString(raw['depositStatus']);
+  }
 
-  String get paymentMethod =>
-      BookingDetailParse.parseString(raw['paymentMethod']);
+  String get paymentMethod {
+    if (isSettlementTopUp) {
+      final String top = BookingDetailParse.parseString(
+        raw['settlementTopUpMethod'],
+      );
+      if (top.isNotEmpty) {
+        return top;
+      }
+    }
+    return BookingDetailParse.parseString(raw['paymentMethod']);
+  }
+
+  bool get isSettlementTopUp =>
+      BookingSettlementMath.isSettlementConfirmed(raw) &&
+      remainingAmount > 0 &&
+      !BookingSettlementMath.isSettlementLocked(raw) &&
+      BookingDetailParse.parseString(raw['userId']).isNotEmpty;
 
   String get payAmountType {
     final String type = BookingDetailParse.parseString(raw['payAmountType']);
@@ -368,7 +393,13 @@ class BookingDetailViewData {
   }
 
   bool get _needsPaymentAction {
-    if (status == 'cancelled' || status == 'completed') {
+    if (status == 'cancelled') {
+      return false;
+    }
+    if (BookingSettlementMath.balanceDelta(data: raw) > 0) {
+      return true;
+    }
+    if (status == 'completed') {
       return false;
     }
     if (remainingAmount > 0 &&
@@ -393,6 +424,9 @@ class BookingDetailViewData {
       return '此訂單已取消。';
     }
     if (status == 'completed') {
+      if (BookingSettlementMath.balanceDelta(data: raw) > 0) {
+        return '尚有待補款，請完成付款。';
+      }
       return isDaycare ? '本次安親已完成，感謝您的預約。' : '本次住宿已完成，感謝您的預約。';
     }
     if (status == 'checked_in') {
@@ -440,11 +474,20 @@ class BookingDetailViewData {
   int get paidAmount => BookingPaymentStatus.resolvePaid(raw);
 
   int get remainingAmount {
-    final int remain = totalAmount - paidAmount;
+    final int remain = BookingSettlementMath.balanceDelta(data: raw);
     return remain < 0 ? 0 : remain;
   }
 
-  int get dueNowAmount => BookingPaymentStatus.resolveDueNow(raw);
+  int get dueNowAmount {
+    final int topUp = BookingSettlementMath.balanceDelta(data: raw);
+    if (topUp > 0 &&
+        (status == 'completed' ||
+            status == 'checked_in' ||
+            BookingPaymentStatus.isDepositConfirmed(raw))) {
+      return topUp;
+    }
+    return BookingPaymentStatus.resolveDueNow(raw);
+  }
 
   int get depositAmount => BookingPaymentStatus.resolveDepositAmount(raw);
 
@@ -537,7 +580,14 @@ class BookingDetailViewData {
     if (!isBankTransfer) {
       return false;
     }
-    if (status == 'cancelled' || status == 'completed') {
+    if (status == 'cancelled' ||
+        BookingSettlementMath.isSettlementLocked(raw)) {
+      return false;
+    }
+    if (isSettlementTopUp) {
+      return depositStatus != 'pending_review';
+    }
+    if (status == 'completed') {
       return false;
     }
     if (depositStatus == 'pending_review' || depositStatus == 'confirmed') {
@@ -548,9 +598,22 @@ class BookingDetailViewData {
   }
 
   bool get canCreateOnlinePaymentCandidate {
-    return remainingAmount > 0 &&
-        status != 'cancelled' &&
-        status != 'completed';
+    if (BookingSettlementMath.isSettlementLocked(raw) || status == 'cancelled') {
+      return false;
+    }
+    if (BookingDetailParse.parseString(raw['userId']).isEmpty) {
+      return false;
+    }
+    return remainingAmount > 0;
+  }
+
+  String get transferProofUrl {
+    if (isSettlementTopUp) {
+      return BookingDetailParse.parseString(
+        raw['settlementTopUpTransferImageUrl'],
+      );
+    }
+    return BookingDetailParse.parseString(raw['transferImageUrl']);
   }
 
   String get customerName =>
@@ -897,10 +960,14 @@ class BookingDetailViewData {
         group = '客製服務';
       } else if (type == 'daily_timed') {
         group = '每日分時段服務';
+      } else if (type == 'daily_care') {
+        group = '照護加購';
       }
       addLine(
         label: name.isEmpty ? group : name,
-        amount: total,
+        amount: total > 0
+            ? total
+            : BookingDetailParse.parseMoney(addon['amount']),
         subtitle: _addonSubtitle(addon, count),
       );
     }

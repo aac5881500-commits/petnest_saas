@@ -66,6 +66,17 @@ function hasPlatformPermission(permission) {
         && exists(/databases/$(database)/documents/shops/$(shopId))
         && get(/databases/$(database)/documents/shops/$(shopId)).data.ownerUid == request.auth.uid;
     }
+
+    function canManageShop(shopId) {
+      return isRootAdmin() || isShopMember(shopId) || isShopOwnerUid(shopId);
+    }
+
+    function canWriteInternalHandover(shopId, bookingId) {
+      return canManageShop(shopId)
+        && exists(/databases/$(database)/documents/bookings/$(bookingId))
+        && get(/databases/$(database)/documents/bookings/$(bookingId)).data.shopId == shopId
+        && get(/databases/$(database)/documents/bookings/$(bookingId)).data.settlementLocked != true;
+    }
  // 🎁 是否可以管理實體商品核銷
 function canManagePointRedemptions(shopId) {
   return signedIn()
@@ -548,6 +559,15 @@ allow update: if signedIn() &&
         }
       }
 
+    match /report_summaries/{monthId} {
+      allow read: if signedIn() && (isShopMember(shopId) || isRootAdmin());
+      allow write: if false;
+    }
+    match /report_contributions/{sourceId} {
+      allow read: if signedIn() && isRootAdmin();
+      allow write: if false;
+    }
+
    // 👤 店家會員
 match /members/{uid} {
 
@@ -671,28 +691,36 @@ match /room_calendar/{calendarId} {
         allow create, update, delete: if isShopMember(shopId) || isRootAdmin();
       }
 
+      match /daily_care_addons/{addonId} {
+        allow read: if true;
+        allow create, update, delete: if isShopMember(shopId) || isRootAdmin();
+      }
+
 // 📝 店家自訂表單
 // pet_profile：新增寵物表單
 // booking_submit：送出預約表單
+// admin_create：手動訂單表單（僅後台）
 match /custom_forms/{formId} {
 
-  // 店家成員可以查看全部設定。
-  // 一般登入會員只能讀取已啟用的表單。
-  allow read: if
-    formId in ['pet_profile', 'booking_submit']
-    && (
-      isRootAdmin()
-      || isShopMember(shopId)
-      || isShopOwnerUid(shopId)
-      || (
-        signedIn()
-        && resource.data.enabled == true
-      )
+  // 文件不存在時不可讀 resource.data，否則整條 allow 會失敗。
+  allow get: if
+    isRootAdmin()
+    || isShopMember(shopId)
+    || isShopOwnerUid(shopId)
+    || (
+      formId in ['pet_profile', 'booking_submit']
+      && signedIn()
+      && exists(/databases/$(database)/documents/shops/$(shopId)/custom_forms/$(formId))
+      && get(/databases/$(database)/documents/shops/$(shopId)/custom_forms/$(formId)).data.enabled == true
     );
 
-  // 只有店主或具有預約設定權限的人可以建立
+  allow list: if
+    isRootAdmin()
+    || isShopMember(shopId)
+    || isShopOwnerUid(shopId);
+
   allow create: if
-    formId in ['pet_profile', 'booking_submit']
+    formId in ['pet_profile', 'booking_submit', 'admin_create']
     && (
       isRootAdmin()
       || isShopOwner(shopId)
@@ -710,9 +738,8 @@ match /custom_forms/{formId} {
     && request.resource.data.createdAt is timestamp
     && request.resource.data.updatedAt is timestamp;
 
-  // 不允許改變文件身分、店家及建立時間
   allow update: if
-    formId in ['pet_profile', 'booking_submit']
+    formId in ['pet_profile', 'booking_submit', 'admin_create']
     && (
       isRootAdmin()
       || isShopOwner(shopId)
@@ -735,6 +762,23 @@ match /custom_forms/{formId} {
 
   allow delete: if false;
 }
+
+      // 內部交接備註：僅店家成員／ownerUid 後援店主／平台管理員可讀寫，客戶不可讀
+      match /internal_handover_notes/{bookingId} {
+        allow read: if canManageShop(shopId);
+        allow create, update: if canWriteInternalHandover(shopId, bookingId);
+        allow delete: if false;
+
+        match /history/{logId} {
+          allow read: if canManageShop(shopId);
+          allow create: if canWriteInternalHandover(shopId, bookingId);
+          allow update, delete: if false;
+        }
+      }
+
+      match /settlement_ops/{opId} {
+        allow read, write: if false;
+      }
 
       // 🔺 特殊日期加價
 // 功能：
@@ -2363,12 +2407,14 @@ match /action_logs/{logId} {
   allow read: if signedIn() &&
     (
       isShopMember(resource.data.shopId) ||
+      isShopOwnerUid(resource.data.shopId) ||
       isRootAdmin()
     );
 
   allow create: if signedIn() &&
     (
       isShopMember(request.resource.data.shopId) ||
+      isShopOwnerUid(request.resource.data.shopId) ||
       isRootAdmin() ||
 
       (
@@ -2539,9 +2585,6 @@ allow create: if signedIn()
 
 allow update: if signedIn() &&
   (
-    isShopMember(resource.data.shopId) ||
-    isRootAdmin() ||
-
     (
       resource.data.userId == request.auth.uid &&
       resource.data.status == 'completed' &&
@@ -2553,29 +2596,43 @@ allow update: if signedIn() &&
         'reviewId',
         'updatedAt'
       ])
-    ) ||
-
-  (
-  resource.data.userId == request.auth.uid
-  &&
-  request.resource.data.diff(resource.data).changedKeys().hasOnly([
-    'status',
-    'cancelReason',
-    'cancelBy',
-    'cancelledAt',
-    'updatedAt',
-    'transferImageUrl',
-    'transferImagePath',
-    'transferLast5',
-    'depositStatus',
-    'depositSubmittedAt',
-    'depositExpired',
-    'assignStatus',
-    'payAmountType',
-    'paymentMethod',
-    'paymentChoiceChangedAt'
-  ])
-)
+    )
+    ||
+    (
+      resource.data.settlementLocked != true
+      && (
+        isShopMember(resource.data.shopId) ||
+        isShopOwnerUid(resource.data.shopId) ||
+        isRootAdmin() ||
+        (
+          resource.data.userId == request.auth.uid
+          &&
+          request.resource.data.diff(resource.data).changedKeys().hasOnly([
+            'status',
+            'cancelReason',
+            'cancelBy',
+            'cancelledAt',
+            'updatedAt',
+            'transferImageUrl',
+            'transferImagePath',
+            'transferLast5',
+            'depositStatus',
+            'depositSubmittedAt',
+            'depositExpired',
+            'assignStatus',
+            'payAmountType',
+            'paymentMethod',
+            'paymentChoiceChangedAt',
+            'settlementTopUpMethod',
+            'settlementTopUpStatus',
+            'settlementTopUpTransferImageUrl',
+            'settlementTopUpTransferImagePath',
+            'settlementTopUpTransferLast5',
+            'settlementTopUpSubmittedAt'
+          ])
+        )
+      )
+    )
   );
 
 allow delete: if signedIn() &&
@@ -2871,6 +2928,20 @@ allow update: if
     request.resource.data.createdAt == resource.data.createdAt
   );
 }
+    function dailyCareCustomerOwner(bookingId, shopId) {
+      return exists(/databases/$(database)/documents/bookings/$(bookingId))
+        && get(/databases/$(database)/documents/bookings/$(bookingId)).data.shopId == shopId
+        && get(/databases/$(database)/documents/bookings/$(bookingId)).data.userId is string
+        && get(/databases/$(database)/documents/bookings/$(bookingId)).data.userId.size() > 0
+        && get(/databases/$(database)/documents/bookings/$(bookingId)).data.userId == request.auth.uid;
+    }
+
+    function dailyCareNotExpired(data) {
+      return !('expiresAt' in data)
+        || data.expiresAt == null
+        || request.time < data.expiresAt;
+    }
+
     function dailyCareBookingData(bookingId) {
       return get(
         /databases/$(database)/documents/bookings/$(bookingId)
@@ -2926,12 +2997,8 @@ match /daily_care_records/{recordId} {
 
       (
         resource.data.bookingId is string
-        && exists(
-          /databases/$(database)/documents/bookings/$(resource.data.bookingId)
-        )
-        && get(
-          /databases/$(database)/documents/bookings/$(resource.data.bookingId)
-        ).data.userId == request.auth.uid
+        && resource.data.shopId is string
+        && dailyCareCustomerOwner(resource.data.bookingId, resource.data.shopId)
       )
     );
 
@@ -2968,7 +3035,11 @@ match /daily_care_records/{recordId} {
     && request.resource.data.bookingId == resource.data.bookingId
     && request.resource.data.roomId == resource.data.roomId
     && request.resource.data.recordDate == resource.data.recordDate
-    && request.resource.data.sessionIndex == resource.data.sessionIndex;
+    && request.resource.data.sessionIndex == resource.data.sessionIndex
+    && (
+      !resource.data.photosLocked
+      || request.resource.data.photosLocked == true
+    );
 
   // 照護紀錄保留作為住宿紀錄，不由 App 直接刪除
   allow delete: if false;
@@ -2998,12 +3069,10 @@ match /daily_care_photos/{photoId} {
 
       (
         resource.data.bookingId is string
-        && exists(
-          /databases/$(database)/documents/bookings/$(resource.data.bookingId)
-        )
-        && get(
-          /databases/$(database)/documents/bookings/$(resource.data.bookingId)
-        ).data.userId == request.auth.uid
+        && resource.data.shopId is string
+        && dailyCareCustomerOwner(resource.data.bookingId, resource.data.shopId)
+        && dailyCareNotExpired(resource.data)
+        && (!('published' in resource.data) || resource.data.published == true)
       )
     );
 
@@ -3065,26 +3134,10 @@ allow read: if signedIn()
 
     (
       resource.data.bookingId is string
-
-      && resource.data.expiresAt is timestamp
-
-      && exists(
-        /databases/$(database)/documents/bookings/$(resource.data.bookingId)
-      )
-
-      && get(
-        /databases/$(database)/documents/bookings/$(resource.data.bookingId)
-      ).data.userId == request.auth.uid
-
-      && get(
-        /databases/$(database)/documents/bookings/$(resource.data.bookingId)
-      ).data.status == 'completed'
-
-      && get(
-  /databases/$(database)/documents/bookings/$(resource.data.bookingId)
-).data.shopId == resource.data.shopId
-
-      && request.time < resource.data.expiresAt
+      && resource.data.shopId is string
+      && dailyCareCustomerOwner(resource.data.bookingId, resource.data.shopId)
+      && dailyCareNotExpired(resource.data)
+      && (!('published' in resource.data) || resource.data.published == true)
     )
   );
 
@@ -3119,7 +3172,10 @@ allow read: if signedIn()
       || request.resource.data.downloadBytes is int
     )
 
-    && request.resource.data.expiresAt == null
+    && (
+      request.resource.data.expiresAt == null
+      || request.resource.data.expiresAt is timestamp
+    )
 
     && exists(
       /databases/$(database)/documents/bookings/$(request.resource.data.bookingId)
@@ -3129,9 +3185,10 @@ allow read: if signedIn()
       /databases/$(database)/documents/bookings/$(request.resource.data.bookingId)
     ).data.shopId == request.resource.data.shopId
 
-    && get(
-      /databases/$(database)/documents/bookings/$(request.resource.data.bookingId)
-    ).data.status == 'checked_in'
+    && canWriteDailyCareRecord(
+      request.resource.data.bookingId,
+      request.resource.data.shopId
+    )
 
     && (
       isRootAdmin()

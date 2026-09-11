@@ -159,4 +159,65 @@ void main() {
     );
     expect(quote.depositAmount, 1000);
   });
+
+  test('後台原始寵物與加購 Timestamp 必須先 snapshot 才能送出', () {
+    final Map<String, dynamic> rawPet = <String, dynamic>{
+      'id': 'p1',
+      'name': '小白',
+      'createdAt': Timestamp.fromDate(DateTime(2026, 1, 1)),
+    };
+    expect(
+      CallablePayload.firstInvalidPath(<String, dynamic>{
+        'pets': <Map<String, dynamic>>[rawPet],
+      }),
+      'data.pets[0].createdAt',
+    );
+    final Map<String, dynamic> payload =
+        DaycareCallablePayload.adminCreateBookingData(
+          shopId: 'SHOP0001',
+          userId: 'member_1',
+          customerName: '測試',
+          customerPhone: '0911111111',
+          scheduledStartAt: DateTime.utc(2026, 9, 5, 1).toIso8601String(),
+          scheduledEndAt: DateTime.utc(2026, 9, 5, 8).toIso8601String(),
+          petIds: const <String>['p1'],
+          pets: <Map<String, dynamic>>[rawPet],
+          pricingMode: 'room_type',
+          daycarePlanId: '',
+          daycarePlanName: '',
+          daycarePlanPriceSnapshot: const <String, dynamic>{},
+          requestedRoomTypeId: 'vip',
+          requestedRoomTypeName: 'VIP',
+          requestedRoomTypePriceSnapshot: const <String, dynamic>{
+            'roomTypeId': 'vip',
+            'enabled': true,
+            'includedMinutes': 300,
+            'basePrice': 880,
+            'extraBillingMinutes': 60,
+            'extraBillingPrice': 100,
+            'extraPetPrice': 100,
+            'maxBaseCharge': 1500,
+            'maxPets': 2,
+          },
+          addons: <Map<String, dynamic>>[
+            DaycareCallablePayload.addonSnapshot(<String, dynamic>{
+              'id': 'a1',
+              'name': '分開放風',
+              'price': 200,
+              'createdAt': Timestamp.fromDate(DateTime(2026, 1, 1)),
+            }, amount: 200),
+          ],
+          manualAdjust: 0,
+          policyVersion: 1,
+          policyKind: 'daycare',
+          policySignMethod: 'staff_witness',
+          paymentMethod: 'cash',
+          termsType: 'daycare',
+          note: '',
+          requestId: 'req1',
+        );
+    expect(payload['source'], 'admin');
+    expect(payload['userId'], 'member_1');
+    CallablePayload.assertValid(payload);
+  });
 }

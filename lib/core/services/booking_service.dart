@@ -5,6 +5,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:petnest_saas/core/models/policy_applicable_service.dart';
 import 'package:petnest_saas/core/models/terms_consent_snapshot.dart';
+import 'package:petnest_saas/core/services/booking_search_fields.dart';
 import 'package:petnest_saas/core/services/shop_payment_methods.dart';
 import 'package:petnest_saas/core/services/shop_service.dart';
 import 'package:petnest_saas/core/services/member_coupon_service.dart';
@@ -114,6 +115,7 @@ class BookingService {
     /// 🔒 同一次送出請求的唯一識別碼，用來避免網路重送建立兩筆訂單
     String requestId = '',
     Map<String, dynamic>? customFormAnswers,
+    Map<String, dynamic>? dailyCareEntitlement,
   }) async {
     final user = _currentUser;
 
@@ -222,6 +224,8 @@ class BookingService {
       transaction.set(doc, {
         'requestId': normalizedRequestId,
         'addons': (addons ?? []).isNotEmpty ? addons : [],
+        if (dailyCareEntitlement != null)
+          'dailyCareEntitlement': dailyCareEntitlement,
         'bookingId': doc.id,
         'bookingCode': bookingCode,
         'shopId': shopId,
@@ -345,6 +349,12 @@ class BookingService {
         'updatedAt': FieldValue.serverTimestamp(),
         if (customFormAnswers != null && customFormAnswers.isNotEmpty)
           'customFormAnswers': customFormAnswers,
+        ...BookingSearchFields.fromBooking(<String, dynamic>{
+          'customerName': customerName.trim(),
+          'customerPhone': customerPhone.trim(),
+          'bookingCode': bookingCode,
+          'pets': finalPets,
+        }),
       });
 
       debugPrint('BOOKING_IDEMPOTENCY: 建立成功 ${doc.id}');
@@ -412,6 +422,9 @@ class BookingService {
     int policyVersion = 0,
     String policySignMethod = '',
     String policyServiceType = PolicyApplicableService.accommodation,
+    Map<String, dynamic>? adminCustomFormAnswers,
+    String adminOrderSource = '',
+    Map<String, dynamic>? dailyCareEntitlement,
   }) async {
     final operator = _currentUser;
     final doc = _bookings.doc();
@@ -441,6 +454,9 @@ class BookingService {
     }
     if (!paymentCatalog.isEnabled(normalizedPaymentMethod)) {
       throw Exception('請選擇有效的付款方式');
+    }
+    if (!ShopPaymentMethods.isAdminCreateSelectable(normalizedPaymentMethod)) {
+      throw Exception('手動建單請選擇到店付款或銀行轉帳');
     }
 
     final bankName = shopData['bankName'] ?? '';
@@ -473,6 +489,8 @@ class BookingService {
 
     await doc.set({
       'addons': (addons ?? []).isNotEmpty ? addons : [],
+      if (dailyCareEntitlement != null)
+        'dailyCareEntitlement': dailyCareEntitlement,
       'bookingId': doc.id,
       'bookingCode': bookingCode,
       'shopId': shopId,
@@ -524,10 +542,12 @@ class BookingService {
       'status': 'pending', // pending / confirmed / completed / cancelled
       /// 備註
       'note': note.trim(),
+      'adminOrderSource': adminOrderSource.trim(),
 
       /// 價格欄位
       'totalPrice': totalPrice,
       'originalTotal': originalTotal,
+      'quotedTotalPrice': totalPrice,
 
       /// 📅 特殊日期加價快照
       'specialDateSurchargeAmount': specialDateSurchargeAmount,
@@ -588,6 +608,14 @@ class BookingService {
       /// 系統欄位
       'createdAt': FieldValue.serverTimestamp(),
       'updatedAt': FieldValue.serverTimestamp(),
+      if (adminCustomFormAnswers != null && adminCustomFormAnswers.isNotEmpty)
+        'adminCustomFormAnswers': adminCustomFormAnswers,
+      ...BookingSearchFields.fromBooking(<String, dynamic>{
+        'customerName': customerName.trim(),
+        'customerPhone': customerPhone.trim(),
+        'bookingCode': bookingCode,
+        'pets': finalPets,
+      }),
     });
 
     debugPrint('ADMIN_BOOKING_STEP 4: booking 寫入完成');

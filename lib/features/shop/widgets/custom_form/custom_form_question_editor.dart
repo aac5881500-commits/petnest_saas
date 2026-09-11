@@ -230,7 +230,7 @@ class _CustomFormQuestionEditorState extends State<CustomFormQuestionEditor> {
                             DropdownMenuItem<CustomFormQuestionType>(
                               value: type,
                               child: Text(
-                                type.label,
+                                type.labelWithHint,
                                 style: const TextStyle(fontSize: 14),
                               ),
                             ),

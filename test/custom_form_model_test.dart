@@ -33,9 +33,14 @@ void main() {
       shopId: 'shop1',
       formType: CustomFormType.bookingSubmit,
     );
+    final CustomFormModel admin = CustomFormModel.empty(
+      shopId: 'shop1',
+      formType: CustomFormType.adminCreate,
+    );
     expect(pet.id, 'pet_profile');
     expect(booking.id, 'booking_submit');
-    expect(pet.enabled, isFalse);
+    expect(admin.id, 'admin_create');
+    expect(admin.enabled, isFalse);
     expect(pet.sections, isEmpty);
   });
 

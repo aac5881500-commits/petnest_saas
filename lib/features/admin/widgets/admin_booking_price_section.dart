@@ -10,6 +10,8 @@ import 'package:petnest_saas/core/services/daycare_pricing_service.dart';
 import 'package:petnest_saas/core/widgets/booking_payment_deadline_banner.dart';
 import 'package:petnest_saas/features/admin/widgets/admin_booking_date_helpers.dart';
 import 'package:petnest_saas/features/admin/widgets/admin_booking_text_helpers.dart';
+import 'package:petnest_saas/features/admin/widgets/admin_daily_care_report_shortcut.dart';
+import 'package:petnest_saas/features/booking/widgets/booking_detail/daily_care_entitlement_snapshot.dart';
 
 class AdminBookingPriceSection extends StatelessWidget {
   const AdminBookingPriceSection({
@@ -17,11 +19,13 @@ class AdminBookingPriceSection extends StatelessWidget {
     required this.data,
     required this.pets,
     this.lineItemsOnly = false,
+    this.bookingId = '',
   });
 
   final Map<String, dynamic> data;
   final List<Map<String, dynamic>> pets;
   final bool lineItemsOnly;
+  final String bookingId;
 
   @override
   Widget build(BuildContext context) {
@@ -29,6 +33,7 @@ class AdminBookingPriceSection extends StatelessWidget {
       return _DaycareAdminPriceSection(
         data: data,
         lineItemsOnly: lineItemsOnly,
+        bookingId: bookingId,
       );
     }
     return _stayPrice(context);
@@ -172,6 +177,12 @@ class AdminBookingPriceSection extends StatelessWidget {
         ),
 
         const SizedBox(height: 10),
+        DailyCareEntitlementSnapshot(booking: data),
+        AdminDailyCareReportShortcut(
+          shopId: (data['shopId'] ?? '').toString(),
+          bookingId: bookingId,
+          booking: data,
+        ),
 
         if ((data['addons'] ?? []).isNotEmpty)
           Theme(
@@ -844,10 +855,12 @@ class _DaycareAdminPriceSection extends StatelessWidget {
   const _DaycareAdminPriceSection({
     required this.data,
     this.lineItemsOnly = false,
+    this.bookingId = '',
   });
 
   final Map<String, dynamic> data;
   final bool lineItemsOnly;
+  final String bookingId;
 
   @override
   Widget build(BuildContext context) {
@@ -973,6 +986,12 @@ class _DaycareAdminPriceSection extends StatelessWidget {
               ],
             ],
           ),
+        ),
+        DailyCareEntitlementSnapshot(booking: data),
+        AdminDailyCareReportShortcut(
+          shopId: (data['shopId'] ?? '').toString(),
+          bookingId: bookingId,
+          booking: data,
         ),
         if (addons.isNotEmpty) ...<Widget>[
           const SizedBox(height: 10),

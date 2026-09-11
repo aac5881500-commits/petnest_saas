@@ -81,6 +81,10 @@ class AdminBookingDetailScaffold extends StatelessWidget {
     this.actions,
     this.banners = const <Widget>[],
     this.appBarActions = const <Widget>[],
+    this.handover,
+    this.handoverHasContent = false,
+    this.forms = const <Widget>[],
+    this.communication = const <Widget>[],
   });
 
   final String title;
@@ -91,6 +95,10 @@ class AdminBookingDetailScaffold extends StatelessWidget {
   final List<Widget> left;
   final List<Widget> right;
   final List<Widget> appBarActions;
+  final Widget? handover;
+  final bool handoverHasContent;
+  final List<Widget> forms;
+  final List<Widget> communication;
 
   @override
   Widget build(BuildContext context) {
@@ -129,39 +137,18 @@ class AdminBookingDetailScaffold extends StatelessWidget {
                 ...appBarActions,
               ],
             ),
-            body: CustomScrollView(
-              slivers: <Widget>[
-                SliverPadding(
-                  padding: AdminBookingDetailMetrics.pagePadding(mode),
-                  sliver: SliverList(
-                    delegate: SliverChildListDelegate(<Widget>[
-                      if (mode != AdminBookingDetailMode.phone)
-                        Padding(
-                          padding: const EdgeInsets.only(bottom: 10),
-                          child: Text(
-                            '訂單管理  >  訂單詳細',
-                            style: TextStyle(
-                              color: theme.muted,
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ),
-                      ...banners,
-                      overview,
-                      if (actions != null) ...<Widget>[
-                        const SizedBox(height: 12),
-                        actions!,
-                      ],
-                      const SizedBox(height: 16),
-                      if (AdminBookingDetailMetrics.useTwoColumns(width))
-                        _TwoColumn(left: left, right: right)
-                      else
-                        _SingleColumn(leading: left, trailing: right),
-                    ]),
-                  ),
-                ),
-              ],
+            body: _DetailBody(
+              mode: mode,
+              width: width,
+              banners: banners,
+              overview: overview,
+              actions: actions,
+              left: left,
+              right: right,
+              handover: handover,
+              handoverHasContent: handoverHasContent,
+              forms: forms,
+              communication: communication,
             ),
           ),
         );
@@ -176,6 +163,167 @@ class AdminBookingDetailScaffold extends StatelessWidget {
           0.55,
         ) ??
         const Color(0xFFF7F4EF);
+  }
+}
+
+class _DetailBody extends StatefulWidget {
+  const _DetailBody({
+    required this.mode,
+    required this.width,
+    required this.banners,
+    required this.overview,
+    required this.actions,
+    required this.left,
+    required this.right,
+    required this.handover,
+    required this.handoverHasContent,
+    required this.forms,
+    required this.communication,
+  });
+
+  final AdminBookingDetailMode mode;
+  final double width;
+  final List<Widget> banners;
+  final Widget overview;
+  final Widget? actions;
+  final List<Widget> left;
+  final List<Widget> right;
+  final Widget? handover;
+  final bool handoverHasContent;
+  final List<Widget> forms;
+  final List<Widget> communication;
+
+  @override
+  State<_DetailBody> createState() => _DetailBodyState();
+}
+
+class _DetailBodyState extends State<_DetailBody> {
+  int _tab = 0;
+
+  @override
+  Widget build(BuildContext context) {
+    final ShopFrontendTheme theme = ShopFrontendTheme.of(context);
+    final bool phone = widget.mode == AdminBookingDetailMode.phone;
+    final List<Widget> comm = <Widget>[
+      if (widget.handover != null) widget.handover!,
+      ...widget.communication,
+    ];
+    final Widget orderScroll = CustomScrollView(
+      slivers: <Widget>[
+        SliverPadding(
+          padding: AdminBookingDetailMetrics.pagePadding(widget.mode),
+          sliver: SliverList(
+            delegate: SliverChildListDelegate(<Widget>[
+              if (!phone)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 10),
+                  child: Text(
+                    '訂單管理  >  訂單詳細',
+                    style: TextStyle(
+                      color: theme.muted,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ...widget.banners,
+              widget.overview,
+              if (widget.actions != null) ...<Widget>[
+                const SizedBox(height: 12),
+                widget.actions!,
+              ],
+              const SizedBox(height: 16),
+              if (AdminBookingDetailMetrics.useTwoColumns(widget.width))
+                _TwoColumn(left: widget.left, right: widget.right)
+              else
+                _SingleColumn(leading: widget.left, trailing: widget.right),
+              if (!phone && widget.forms.isNotEmpty) ...<Widget>[
+                const SizedBox(height: 20),
+                Text(
+                  '表單資料',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w800,
+                    color: theme.titleColor,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                ..._withGaps(widget.forms),
+              ],
+              if (!phone && comm.isNotEmpty) ...<Widget>[
+                const SizedBox(height: 20),
+                Text(
+                  '交接與溝通',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w800,
+                    color: theme.titleColor,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                ..._withGaps(comm),
+              ],
+            ]),
+          ),
+        ),
+      ],
+    );
+    if (!phone) {
+      return orderScroll;
+    }
+    return Column(
+      children: <Widget>[
+        Padding(
+          padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+          child: SegmentedButton<int>(
+            segments: <ButtonSegment<int>>[
+              const ButtonSegment<int>(value: 0, label: Text('訂單資料')),
+              const ButtonSegment<int>(value: 1, label: Text('表單資料')),
+              ButtonSegment<int>(
+                value: 2,
+                label: Text(
+                  widget.handoverHasContent ? '交接與溝通・有內容' : '交接與溝通',
+                ),
+              ),
+            ],
+            selected: <int>{_tab},
+            onSelectionChanged: (Set<int> next) {
+              setState(() => _tab = next.first);
+            },
+          ),
+        ),
+        Expanded(
+          child: IndexedStack(
+            index: _tab,
+            children: <Widget>[
+              orderScroll,
+              ListView(
+                padding: AdminBookingDetailMetrics.pagePadding(widget.mode),
+                children: widget.forms.isEmpty
+                    ? <Widget>[
+                        const Padding(
+                          padding: EdgeInsets.only(top: 24),
+                          child: Text('此訂單目前沒有可顯示的表單資料'),
+                        ),
+                      ]
+                    : _withGaps(widget.forms),
+              ),
+              ListView(
+                padding: AdminBookingDetailMetrics.pagePadding(widget.mode),
+                children: comm.isEmpty
+                    ? <Widget>[
+                        const Padding(
+                          padding: EdgeInsets.only(top: 24),
+                          child: Text('目前沒有交接或溝通內容'),
+                        ),
+                      ]
+                    : _withGaps(comm),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
   }
 }
 

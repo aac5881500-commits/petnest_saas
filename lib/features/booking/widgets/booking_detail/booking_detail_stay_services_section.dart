@@ -102,9 +102,9 @@ class BookingDetailStayServicesSection extends StatelessWidget {
         BookingDetailEntryRow(
           icon: Icons.photo_library_outlined,
           title: '照護照片',
-          subtitle: deadline != null && view.status == 'completed'
-              ? '下載期限：${view.formatDateTime(deadline)}'
-              : '查看照護照片',
+          subtitle: deadline != null
+              ? '可查看至 ${view.formatDateTime(deadline)}（實際結束後 24 小時）'
+              : '上傳完成即可查看與下載預覽／高清版',
           onTap: () {
             Navigator.push(
               context,
@@ -117,24 +117,25 @@ class BookingDetailStayServicesSection extends StatelessWidget {
             );
           },
         ),
-        if (view.status == 'completed' && deadline != null)
-          BookingDetailEntryRow(
-            icon: Icons.download_outlined,
-            title: '退房下載區',
-            subtitle: '下載期限：${view.formatDateTime(deadline)}',
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute<void>(
-                  builder: (_) => CustomerDailyCareDownloadPage(
-                    shopId: shopId,
-                    bookingId: bookingId,
-                    roomName: roomName,
-                  ),
+        BookingDetailEntryRow(
+          icon: Icons.download_outlined,
+          title: '全部下載',
+          subtitle: deadline != null
+              ? '實際結束後仍可下載至 ${view.formatDateTime(deadline)}'
+              : '不限次數；短時間內請避免重複點擊',
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute<void>(
+                builder: (_) => CustomerDailyCareDownloadPage(
+                  shopId: shopId,
+                  bookingId: bookingId,
+                  roomName: roomName,
                 ),
-              );
-            },
-          ),
+              ),
+            );
+          },
+        ),
         if (view.showCamera) _CameraEntry(view: view),
       ],
     );

@@ -294,6 +294,7 @@ class ShopReportBundle {
     required this.topRooms,
     required this.topAddons,
     required this.monthTrend,
+    this.summariesReady = true,
   });
 
   final ReportRange range;
@@ -310,4 +311,5 @@ class ShopReportBundle {
   final List<NamedMoneyRow> topRooms;
   final List<NamedMoneyRow> topAddons;
   final List<MonthTrendRow> monthTrend;
+  final bool summariesReady;
 }

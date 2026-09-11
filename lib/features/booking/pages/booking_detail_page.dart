@@ -17,6 +17,7 @@ import 'package:petnest_saas/core/models/payment_gateway_status.dart';
 import 'package:petnest_saas/core/models/policy_applicable_service.dart';
 import 'package:petnest_saas/core/models/pre_arrival_guide_model.dart';
 import 'package:petnest_saas/core/services/booking_payment_status.dart';
+import 'package:petnest_saas/core/services/booking_settlement_math.dart';
 import 'package:petnest_saas/core/services/booking_service.dart';
 import 'package:petnest_saas/core/services/daily_care_setting_service.dart';
 import 'package:petnest_saas/core/services/payment_function_service.dart';
@@ -325,16 +326,25 @@ class _BookingDetailPageState extends State<_BookingDetailBody> {
                             final Map<String, dynamic> shopData =
                                 SafeParse.parseMap(shopSnapshot.data?.data());
                             final ShopPaymentCatalog catalog =
-                                ShopPaymentMethods.resolve(
-                                  shopData: shopData,
-                                  serviceType: view.isDaycare
-                                      ? PolicyApplicableService.daycare
-                                      : PolicyApplicableService.accommodation,
-                                  daycareDepositType: SafeParse.parseString(
-                                    view.raw['daycareDepositType'] ??
-                                        view.raw['depositType'],
-                                  ),
-                                );
+                                BookingSettlementMath.isSettlementConfirmed(
+                                  view.raw,
+                                )
+                                ? ShopPaymentMethods.settlementTopUpCatalog(
+                                    shopData: shopData,
+                                    serviceType: view.isDaycare
+                                        ? PolicyApplicableService.daycare
+                                        : PolicyApplicableService.accommodation,
+                                  )
+                                : ShopPaymentMethods.resolve(
+                                    shopData: shopData,
+                                    serviceType: view.isDaycare
+                                        ? PolicyApplicableService.daycare
+                                        : PolicyApplicableService.accommodation,
+                                    daycareDepositType: SafeParse.parseString(
+                                      view.raw['daycareDepositType'] ??
+                                          view.raw['depositType'],
+                                    ),
+                                  );
                             final BookingDetailShopPaymentFlags flags =
                                 BookingDetailShopPaymentFlags(
                                   catalog: catalog,
@@ -808,6 +818,27 @@ class _BookingDetailPageState extends State<_BookingDetailBody> {
       setState(() {
         _loading = true;
       });
+      if (BookingSettlementMath.isSettlementConfirmed(booking)) {
+        await FirebaseFirestore.instance
+            .collection('bookings')
+            .doc(widget.docId)
+            .update(<String, dynamic>{
+              'settlementTopUpMethod': paymentMethod,
+              'settlementTopUpStatus':
+                  paymentMethod == PaymentMethodType.bankTransfer
+                  ? 'awaiting_proof'
+                  : 'selected',
+              'updatedAt': FieldValue.serverTimestamp(),
+              'paymentChoiceChangedAt': FieldValue.serverTimestamp(),
+            });
+        if (!mounted) {
+          return;
+        }
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('已更新補款方式')));
+        return;
+      }
       await FirebaseFirestore.instance
           .collection('bookings')
           .doc(widget.docId)
@@ -922,7 +953,9 @@ class _BookingDetailPageState extends State<_BookingDetailBody> {
         : PaymentAmountType.full;
     final String paymentPurpose = payDeposit
         ? PaymentPurpose.deposit
-        : (view.paidAmount > 0 ? PaymentPurpose.balance : PaymentPurpose.full);
+        : (view.paidAmount > 0 || view.status == 'completed'
+              ? PaymentPurpose.additional
+              : PaymentPurpose.full);
     final String paymentRequestId = FirebaseFirestore.instance
         .collection('payments')
         .doc()
@@ -1108,11 +1141,19 @@ class _BookingDetailPageState extends State<_BookingDetailBody> {
       await FirebaseFirestore.instance
           .collection('bookings')
           .doc(widget.docId)
-          .update(<String, dynamic>{
-            'transferLast5': last5,
-            'depositStatus': 'pending_review',
-            'depositSubmittedAt': FieldValue.serverTimestamp(),
-          });
+          .update(
+            BookingSettlementMath.isSettlementConfirmed(bookingData)
+                ? <String, dynamic>{
+                    'settlementTopUpTransferLast5': last5,
+                    'settlementTopUpStatus': 'pending_review',
+                    'settlementTopUpSubmittedAt': FieldValue.serverTimestamp(),
+                  }
+                : <String, dynamic>{
+                    'transferLast5': last5,
+                    'depositStatus': 'pending_review',
+                    'depositSubmittedAt': FieldValue.serverTimestamp(),
+                  },
+          );
       if (!mounted) {
         return;
       }
@@ -1175,10 +1216,25 @@ class _BookingDetailPageState extends State<_BookingDetailBody> {
       await FirebaseFirestore.instance
           .collection('bookings')
           .doc(widget.docId)
-          .update(<String, dynamic>{
-            'transferImageUrl': url,
-            'transferImagePath': ref.fullPath,
-          });
+          .update(
+            BookingSettlementMath.isSettlementConfirmed(
+                  SafeParse.parseMap(
+                    (await FirebaseFirestore.instance
+                            .collection('bookings')
+                            .doc(widget.docId)
+                            .get())
+                        .data(),
+                  ),
+                )
+                ? <String, dynamic>{
+                    'settlementTopUpTransferImageUrl': url,
+                    'settlementTopUpTransferImagePath': ref.fullPath,
+                  }
+                : <String, dynamic>{
+                    'transferImageUrl': url,
+                    'transferImagePath': ref.fullPath,
+                  },
+          );
       if (!mounted) {
         return;
       }

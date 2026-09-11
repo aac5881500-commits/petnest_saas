@@ -212,6 +212,8 @@ class InventoryImageService {
     String imageType = 'inventory_cover',
     String idMetadataKey = 'inventoryItemId',
     String contentType = 'image/jpeg',
+    String cacheControl = 'public, max-age=31536000, immutable',
+    String storagePathOverride = '',
   }) async {
     final String normalizedShopId = shopId.trim();
     final String normalizedItemId = itemId.trim();
@@ -227,16 +229,19 @@ class InventoryImageService {
     if (bytes.length > InventoryConstants.originalImageMaxBytes) {
       throw const InventoryException('圖片大小不可超過 5MB');
     }
-    final String path = storagePath(
-      shopId: normalizedShopId,
-      itemId: normalizedItemId,
-      folder: folder,
-    );
+    final String path = storagePathOverride.trim().isNotEmpty
+        ? storagePathOverride.trim()
+        : storagePath(
+            shopId: normalizedShopId,
+            itemId: normalizedItemId,
+            folder: folder,
+          );
     final Reference imageReference = _storage.ref(path);
     await imageReference.putData(
       bytes,
       SettableMetadata(
         contentType: contentType,
+        cacheControl: cacheControl,
         customMetadata: <String, String>{
           'shopId': normalizedShopId,
           idMetadataKey: normalizedItemId,

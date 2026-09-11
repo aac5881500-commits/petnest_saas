@@ -8,7 +8,7 @@
     "start": "npm run shell",
     "deploy": "firebase deploy --only functions",
     "logs": "firebase functions:log",
-    "test": "node --test ./daycare/custom_form_answers.test.js ./daycare/sync_shop_member.test.js ./daycare/occupancy_overlap.test.js ./daycare/special_date_surcharge.test.js ./daycare/daycare_points.test.js ./daycare/daycare_addon.test.js ./daycare/policy_version.test.js ./daycare/quote_time_charge.test.js ./daycare/pricing_mode.test.js ./payments/shop_payment_methods.test.js ./payments/apply_booking_payment.test.js"
+    "test": "node --test ./daycare/custom_form_answers.test.js ./daycare/sync_shop_member.test.js ./daycare/occupancy_overlap.test.js ./daycare/special_date_surcharge.test.js ./daycare/daycare_points.test.js ./daycare/daycare_addon.test.js ./daycare/policy_version.test.js ./daycare/quote_time_charge.test.js ./daycare/pricing_mode.test.js ./payments/shop_payment_methods.test.js ./payments/apply_booking_payment.test.js ./bookings/booking_settlement_math.test.js ./daily_care/daily_care_entitlement.test.js ./daily_care/daily_care_expiry.test.js ./reports/shop_report_summary.test.js"
   },
   "engines": {
     "node": "22"

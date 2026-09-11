@@ -198,13 +198,17 @@ class _BookingRoomTypeSectionState extends State<BookingRoomTypeSection> {
                       margin: const EdgeInsets.only(bottom: 10),
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
-                        color: isFull ? theme.backgroundColor : theme.cardColor,
+                        color: isFull
+                            ? theme.backgroundColor
+                            : (isSelected
+                                  ? theme.primaryColor.withValues(alpha: 0.08)
+                                  : theme.cardColor),
                         borderRadius: BorderRadius.circular(16),
                         border: Border.all(
                           color: isSelected
-                              ? const Color(0xFF2E8B47)
+                              ? theme.primaryColor
                               : theme.cardBorderColor,
-                          width: isSelected ? 1.5 : 1,
+                          width: isSelected ? 1.6 : 1,
                         ),
                       ),
                       child: Row(
@@ -289,7 +293,7 @@ class _BookingRoomTypeSectionState extends State<BookingRoomTypeSection> {
                                     style: TextStyle(
                                       fontSize: 16,
                                       fontWeight: FontWeight.w700,
-                                      color: theme.textColor,
+                                      color: theme.primaryColor,
                                     ),
                                   ),
                                   if (extraCount > 0 && extraPrice > 0)

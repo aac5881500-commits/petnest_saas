@@ -369,6 +369,9 @@ class ShopService {
     final user = _currentUser;
     if (user == null) throw Exception('未登入');
 
+    await ShopMemberPermissionService.instance
+        .syncOwnerMembershipForCurrentUser();
+
     final memberSnapshot = await _shopMembers
         .where('uid', isEqualTo: user.uid)
         .get();
@@ -463,17 +466,10 @@ class ShopService {
     required String shopId,
     required String uid,
   }) async {
-    final snapshot = await _shopMembers
-        .where('shopId', isEqualTo: shopId)
-        .where('uid', isEqualTo: uid)
-        .limit(1)
-        .get();
-
-    if (snapshot.docs.isEmpty) return null;
-
-    final doc = snapshot.docs.first;
-
-    return {'id': doc.id, ...doc.data()};
+    return ShopMemberPermissionService.instance.getUserMemberInShop(
+      shopId: shopId,
+      uid: uid,
+    );
   }
 
   /// 是否有管理店家權限
@@ -952,6 +948,11 @@ class ShopService {
   Future<void> syncPendingInvitesForCurrentUser() async {
     return ShopMemberPermissionService.instance
         .syncPendingInvitesForCurrentUser();
+  }
+
+  Future<void> syncOwnerMembershipForCurrentUser() async {
+    return ShopMemberPermissionService.instance
+        .syncOwnerMembershipForCurrentUser();
   }
 
   // ===============================

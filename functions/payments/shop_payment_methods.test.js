@@ -7,6 +7,8 @@ const {
   effectiveMethodIds,
   validateOperationSettings,
   isCustomerMethodAvailable,
+  isAdminCreateSelectable,
+  isSettlementTopUpMethodAvailable,
 } = require("./shop_payment_methods");
 
 /**
@@ -87,4 +89,21 @@ test("customer method check follows operation settings", () => {
   data.paymentSetting.operationSettings.creditCardEnabled = false;
   assert.equal(isCustomerMethodAvailable(data, "credit_card"), false);
   assert.equal(isCustomerMethodAvailable(data, "cash"), true);
+});
+
+test("admin create selectable excludes ecpay methods", () => {
+  assert.equal(isAdminCreateSelectable("cash"), true);
+  assert.equal(isAdminCreateSelectable("transfer"), true);
+  assert.equal(isAdminCreateSelectable("bank_transfer"), true);
+  assert.equal(isAdminCreateSelectable("credit_card"), false);
+  assert.equal(isAdminCreateSelectable("atm"), false);
+  assert.equal(isAdminCreateSelectable("cvs_code"), false);
+});
+
+test("settlement top-up excludes cvs", () => {
+  const data = shop();
+  assert.equal(isSettlementTopUpMethodAvailable(data, "cash"), true);
+  assert.equal(isSettlementTopUpMethodAvailable(data, "credit_card"), true);
+  assert.equal(isSettlementTopUpMethodAvailable(data, "atm"), true);
+  assert.equal(isSettlementTopUpMethodAvailable(data, "cvs_code"), false);
 });

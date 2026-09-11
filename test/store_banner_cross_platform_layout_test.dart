@@ -49,10 +49,13 @@ Widget _wrap({
         body: Center(
           child: SizedBox(
             width: width,
-            child: StoreBannerView(
-              banner: banner,
-              theme: HomeThemeModel.modernDefault,
-              scope: scope,
+            child: AspectRatio(
+              aspectRatio: StoreBannerSafeLayout.aspectRatio,
+              child: StoreBannerView(
+                banner: banner,
+                theme: HomeThemeModel.modernDefault,
+                scope: scope,
+              ),
             ),
           ),
         ),
@@ -119,5 +122,57 @@ void main() {
 
     expect(sizeA, sizeB);
     expect(titleA, titleB);
+  });
+
+  testWidgets('image_only 不顯示套版文字', (WidgetTester tester) async {
+    final StoreBannerModel banner = StoreBannerModel(
+      id: 'img',
+      title: '不該出現',
+      contentMode: StoreBannerContentModes.imageOnly,
+    );
+    await tester.pumpWidget(
+      _wrap(banner: banner, width: 390, textScaler: TextScaler.noScaling),
+    );
+    expect(find.text('不該出現'), findsNothing);
+  });
+
+  testWidgets('template_overlay 文字在不同寬度維持 16:9 且不超出安全區', (
+    WidgetTester tester,
+  ) async {
+    final StoreBannerModel banner = StoreBannerModel(
+      id: 'safe',
+      title: '安全標題',
+      subtitle: '安全副標',
+      contentMode: StoreBannerContentModes.templateOverlay,
+      textAlignH: StoreBannerAlignX.left,
+      textAlignV: StoreBannerAlignY.top,
+      fontScale: StoreBannerFontScale.medium,
+      overlayMode: StoreBannerOverlayModes.left,
+    );
+    await tester.pumpWidget(
+      _wrap(
+        banner: banner,
+        width: 390,
+        textScaler: TextScaler.noScaling,
+        scope: PetNestBannerScope.home,
+      ),
+    );
+    await tester.pumpAndSettle();
+    final Size phone = tester.getSize(find.byType(StoreBannerView));
+    expect(phone.width / phone.height, closeTo(16 / 9, 0.08));
+    expect(find.text('安全標題'), findsOneWidget);
+
+    await tester.pumpWidget(
+      _wrap(
+        banner: banner,
+        width: 840,
+        textScaler: TextScaler.noScaling,
+        scope: PetNestBannerScope.home,
+      ),
+    );
+    await tester.pumpAndSettle();
+    final Size desk = tester.getSize(find.byType(StoreBannerView));
+    expect(desk.width / desk.height, closeTo(16 / 9, 0.08));
+    expect(find.text('安全標題'), findsOneWidget);
   });
 }

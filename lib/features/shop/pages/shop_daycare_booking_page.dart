@@ -14,7 +14,13 @@ import 'package:petnest_saas/core/models/payment_gateway_status.dart';
 import 'package:petnest_saas/core/models/policy_applicable_service.dart';
 import 'package:petnest_saas/core/models/terms_consent_snapshot.dart';
 import 'package:petnest_saas/core/services/daycare_addon_catalog.dart';
+import 'package:petnest_saas/core/models/daily_care_addon_plan.dart';
+import 'package:petnest_saas/core/models/daily_care_setting_model.dart';
+import 'package:petnest_saas/core/services/daily_care_addon_service.dart';
+import 'package:petnest_saas/core/services/daily_care_setting_service.dart';
+import 'package:petnest_saas/features/shop/widgets/booking/daily_care_upgrade_card.dart';
 import 'package:petnest_saas/core/services/daycare_addon_line.dart';
+import 'package:petnest_saas/core/services/daycare_addon_pet_guard.dart';
 import 'package:petnest_saas/core/services/daycare_booking_validator.dart';
 import 'package:petnest_saas/core/services/daycare_calendar_helper.dart';
 import 'package:petnest_saas/core/services/daycare_callable_payload.dart';
@@ -105,9 +111,14 @@ class _ShopDaycareBookingPageState extends State<ShopDaycareBookingPage> {
   String? _selectedRoomTypeId;
   List<DaycareRoomTypeOption> _roomOptions = const <DaycareRoomTypeOption>[];
   List<Map<String, dynamic>> _addons = <Map<String, dynamic>>[];
+  DailyCareSettingModel _dailyCareSetting = const DailyCareSettingModel();
+  List<DailyCareAddonPlan> _dailyCarePlans = <DailyCareAddonPlan>[];
+  String? _selectedDailyCareAddonId;
   final Set<String> _selectedAddonIds = <String>{};
   final Map<String, Set<String>> _addonPetIds = <String, Set<String>>{};
   final Map<String, Set<String>> _addonSlotKeys = <String, Set<String>>{};
+  final Map<String, GlobalKey> _addonKeys = <String, GlobalKey>{};
+  Set<String> _addonPetErrors = <String>{};
   bool _submitting = false;
   int? _remaining;
   bool _isBlacklisted = false;
@@ -302,6 +313,19 @@ class _ShopDaycareBookingPageState extends State<ShopDaycareBookingPage> {
           (String id) =>
               !addons.any((Map<String, dynamic> e) => e['id'].toString() == id),
         );
+      });
+      final DailyCareSettingModel setting = await DailyCareSettingService
+          .instance
+          .getSetting(widget.shopId);
+      final List<DailyCareAddonPlan> plans = await DailyCareAddonService
+          .instance
+          .listPlans(widget.shopId);
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _dailyCareSetting = setting;
+        _dailyCarePlans = plans;
       });
     } catch (_) {}
   }
@@ -1092,6 +1116,7 @@ class _ShopDaycareBookingPageState extends State<ShopDaycareBookingPage> {
           'scheduledEndAt': _endAt!.toUtc().toIso8601String(),
         },
         'addons': _addonLines,
+        'dailyCareAddonId': _selectedDailyCareAddonId ?? '',
         'customerName': _name.text.trim(),
         'customerPhone': _phone.text.trim(),
         'address': address,
@@ -1347,8 +1372,12 @@ class _ShopDaycareBookingPageState extends State<ShopDaycareBookingPage> {
                               ? '處理中...'
                               : (_step < 3 ? '下一步' : '下一步：填寫資料'),
                           onPressed: canAdvance
-                              ? () {
+                              ? () async {
                                   if (_step < 3) {
+                                    if (_step == 2 &&
+                                        !await _validateAddonPets()) {
+                                      return;
+                                    }
                                     setState(() => _step += 1);
                                     if (_step == 3) {
                                       _loadCoupons();
@@ -1394,6 +1423,30 @@ class _ShopDaycareBookingPageState extends State<ShopDaycareBookingPage> {
       return '';
     }
     return _submitHint;
+  }
+
+  Future<bool> _validateAddonPets() async {
+    final List<String> missing = DaycareAddonPetGuard.addonIdsMissingPets(
+      selectedAddons: _selectedAddonMaps,
+      addonPetIds: _addonPetIds,
+    );
+    setState(() {
+      _addonPetErrors = missing.toSet();
+    });
+    if (missing.isEmpty) {
+      return true;
+    }
+    final GlobalKey key = _addonKeys.putIfAbsent(missing.first, GlobalKey.new);
+    final BuildContext? target = key.currentContext;
+    if (target != null) {
+      await Scrollable.ensureVisible(
+        target,
+        duration: const Duration(milliseconds: 280),
+        alignment: 0.12,
+        curve: Curves.easeOut,
+      );
+    }
+    return false;
   }
 
   List<Widget> _stepDatePets(HomeThemeModel theme, List<String> slots) {
@@ -1816,6 +1869,8 @@ class _ShopDaycareBookingPageState extends State<ShopDaycareBookingPage> {
           addonSubtotal: _quote?.addonAmount ?? 0,
           estimateTotal: _quote?.totalAmount ?? 0,
           showFeeSummary: true,
+          errorAddonIds: _addonPetErrors,
+          addonKeys: _addonKeys,
           onToggleAddon: (String id) {
             setState(() {
               if (_selectedAddonIds.contains(id)) {
@@ -1851,6 +1906,26 @@ class _ShopDaycareBookingPageState extends State<ShopDaycareBookingPage> {
           },
         ),
       ],
+      DailyCareUpgradeCard(
+        setting: _dailyCareSetting,
+        isDaycare: true,
+        shopDaycareOn: true,
+        offerId: widget.settings.isRoomBased
+            ? (_selectedRoomTypeId ?? '')
+            : (_plan?.id ?? ''),
+        offerName: widget.settings.isRoomBased
+            ? ''
+            : (_plan?.name ?? ''),
+        nights: 1,
+        startDate: _startAt,
+        endDate: _endAt ?? _startAt,
+        selectedPlanId: _selectedDailyCareAddonId,
+        onChanged: (String? id) {
+          setState(() {
+            _selectedDailyCareAddonId = id;
+          });
+        },
+      ),
     ];
   }
 

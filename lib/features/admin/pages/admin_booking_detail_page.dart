@@ -11,11 +11,15 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:petnest_saas/core/models/home_theme_model.dart';
-import 'package:petnest_saas/features/custom_form/widgets/custom_form_answer_view.dart';
+import 'package:petnest_saas/features/admin/widgets/admin_booking_form_answers_section.dart';
+import 'package:petnest_saas/features/admin/widgets/admin_booking_settlement_panel.dart';
+import 'package:petnest_saas/features/admin/widgets/admin_internal_handover_card.dart';
+import 'package:petnest_saas/core/services/booking_payment_status.dart';
+import 'package:petnest_saas/core/debug/chat_error_probe.dart';
+import 'package:petnest_saas/core/services/admin_manual_deposit_confirm.dart';
+import 'package:petnest_saas/core/services/booking_settlement_math.dart';
+import 'package:petnest_saas/core/services/internal_handover_note_service.dart';
 import 'package:petnest_saas/core/services/booking_service.dart';
-import 'package:petnest_saas/core/services/daycare_payment_display.dart';
-import 'package:petnest_saas/core/utils/safe_parse.dart';
 import 'package:petnest_saas/core/exceptions/inventory_exception.dart';
 import 'package:petnest_saas/core/services/member_point_service.dart';
 import 'package:petnest_saas/core/services/member_coupon_service.dart';
@@ -34,6 +38,7 @@ import 'package:petnest_saas/features/admin/widgets/admin_booking_detail_policy_
 import 'package:petnest_saas/features/admin/widgets/admin_booking_dialogs.dart';
 import 'package:petnest_saas/features/admin/widgets/admin_booking_extra_charge_section.dart';
 import 'package:petnest_saas/features/admin/widgets/admin_booking_header_card.dart';
+import 'package:petnest_saas/features/admin/widgets/admin_shop_identity_debug_card.dart';
 import 'package:petnest_saas/features/admin/widgets/admin_booking_note_section.dart';
 import 'package:petnest_saas/features/admin/widgets/admin_booking_pet_strip.dart';
 import 'package:petnest_saas/features/admin/widgets/admin_booking_price_section.dart';
@@ -90,7 +95,6 @@ class AdminBookingDetailPage extends StatelessWidget {
           data['emergencyContact'] ?? {},
         );
 
-        final depositPaid = data['depositPaid'] == true;
         final depositAmount = data['depositAmount'] ?? 0;
         final depositRequired = data['depositRequired'] == true;
         final String shopId = (data['shopId'] ?? '').toString();
@@ -101,226 +105,281 @@ class AdminBookingDetailPage extends StatelessWidget {
         return ShopFrontendThemeScope(
           shopId: shopId,
           builder: (BuildContext context) {
-            return AdminBookingDetailScaffold(
-              title: '訂單詳細',
-              bookingCode: bookingCode.isEmpty
-                  ? (bookingId.length >= 8
-                        ? bookingId.substring(0, 8)
-                        : bookingId)
-                  : bookingCode,
-              banners: <Widget>[
-                if (data['source'] == 'admin' &&
-                    (data['note'] ?? '').toString().trim().isNotEmpty)
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 12),
-                    child: AdminBookingDetailCard(
-                      child: Text(
-                        '代客建立備註：${data['note']}',
-                        style: const TextStyle(height: 1.4),
-                      ),
-                    ),
-                  ),
-              ],
-              overview: AdminBookingHeaderCard(
-                data: data,
+            return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+              stream: InternalHandoverNoteService.instance.stream(
+                shopId: shopId,
                 bookingId: bookingId,
               ),
-              actions: canEdit
-                  ? AdminBookingDetailCard(
-                      child: AdminBookingActionSection(
-                        data: data,
-                        status: status,
-                        depositAmount: depositAmount,
-                        depositPaid: depositPaid,
-                        onAssignRoom: () async {
-                          await showAdminAssignRoomDialog(
-                            context: context,
-                            bookingId: bookingId,
-                            data: data,
-                          );
-                        },
-                        onChangeRoom: () async {
-                          await showAdminChangeRoomDialog(
-                            context: context,
-                            bookingId: bookingId,
-                            data: data,
-                          );
-                        },
-                        onConfirmBooking: () async {
-                          await _updateStatus('confirmed');
-                        },
-                        onConfirmDeposit: () async {
-                          await _confirmDepositAndBooking();
-                        },
-                        onCancelBooking: () async {
-                          await showAdminCancelBookingDialog(
-                            context: context,
-                            bookingId: bookingId,
-                          );
-                        },
-                        onCheckIn: () async {
-                          if (data['assignStatus'] != 'assigned' ||
-                              data['roomId'] == null ||
-                              data['roomName'] == null) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text('此訂單尚未分房，不能辦理入住')),
-                            );
-                            return;
-                          }
-                          try {
-                            await BookingService.instance.checkInBooking(
-                              bookingId: bookingId,
-                            );
-                            await FirebaseFirestore.instance
-                                .collection('action_logs')
-                                .add({
-                                  'type': 'booking_status_update',
-                                  'bookingId': bookingId,
-                                  'bookingShortId': bookingId.substring(0, 8),
-                                  'shopId': data['shopId'],
-                                  'roomId': data['roomId'],
-                                  'roomName': data['roomName'],
-                                  'roomTypeName': data['roomTypeName'],
-                                  'fromStatus': status,
-                                  'toStatus': 'checked_in',
-                                  'operatorUid':
-                                      FirebaseAuth.instance.currentUser?.uid,
-                                  'operatorRole': 'staff',
-                                  'operatorEmail':
-                                      FirebaseAuth.instance.currentUser?.email,
-                                  'createdAt': FieldValue.serverTimestamp(),
-                                });
-                          } catch (error) {
-                            if (!context.mounted) {
-                              return;
-                            }
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text(
-                                  InventoryException.userMessage(error),
-                                ),
+              builder:
+                  (
+                    BuildContext context,
+                    AsyncSnapshot<DocumentSnapshot<Map<String, dynamic>>>
+                    handoverSnap,
+                  ) {
+                    final bool handoverHasContent =
+                        ((handoverSnap.data?.data()?['text'] ?? '')
+                                .toString()
+                                .trim())
+                            .isNotEmpty;
+                    return AdminBookingDetailScaffold(
+                      title: '訂單詳細',
+                      bookingCode: bookingCode.isEmpty
+                          ? (bookingId.length >= 8
+                                ? bookingId.substring(0, 8)
+                                : bookingId)
+                          : bookingCode,
+                      banners: <Widget>[
+                        AdminShopIdentityDebugCard(
+                          shopId: shopId,
+                          bookingShopId: shopId,
+                          settlementLocked:
+                              BookingSettlementMath.isSettlementLocked(data),
+                        ),
+                        if (data['source'] == 'admin' &&
+                            (data['note'] ?? '').toString().trim().isNotEmpty)
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: 12),
+                            child: AdminBookingDetailCard(
+                              child: Text(
+                                '代客建立備註：${data['note']}',
+                                style: const TextStyle(height: 1.4),
                               ),
-                            );
-                          }
-                        },
-                        onCheckOut: () async {
-                          await _handleCheckOut(context: context, data: data);
-                        },
+                            ),
+                          ),
+                      ],
+                      overview: AdminBookingHeaderCard(
+                        data: data,
+                        bookingId: bookingId,
                       ),
-                    )
-                  : null,
-              left: <Widget>[
-                AdminBookingDetailSection(
-                  title: '顧客資訊',
-                  child: AdminBookingCustomerSection(
-                    data: data,
-                    emergency: emergency,
-                    shopId: shopId,
-                  ),
-                ),
-                _buildMemberAdminNote(data),
-                AdminBookingDetailSection(
-                  title: '寵物資訊（${pets.length}隻）',
-                  child: AdminBookingPetStrip(
-                    pets: pets,
-                    shopId: shopId,
-                    userId: (data['userId'] ?? '').toString(),
-                  ),
-                ),
-                AdminBookingDetailSection(
-                  title: '價格與加值服務',
-                  child: AdminBookingPriceSection(
-                    data: data,
-                    pets: pets,
-                    lineItemsOnly: true,
-                  ),
-                ),
-                if (data['extraCharges'] is List &&
-                    (data['extraCharges'] as List).isNotEmpty)
-                  AdminBookingDetailSection(
-                    title: '退房額外費用',
-                    collapsible: true,
-                    initiallyExpanded: false,
-                    child: AdminBookingExtraChargeSection(data: data),
-                  ),
-                CustomFormAnswerView(
-                  raw:
-                      data['customFormAnswers'] ??
-                      data['bookingFormAnswers'] ??
-                      data['formAnswers'],
-                  title: '本次照護交代',
-                  theme: HomeThemeModel.classicDefault,
-                  collapsible: true,
-                ),
-                AdminBookingDetailSection(
-                  title: '訂單備註',
-                  collapsible: true,
-                  initiallyExpanded: false,
-                  child: AdminBookingNoteSection(data: data),
-                ),
-                AdminBookingDetailSection(
-                  title: '訂單留言',
-                  collapsible: true,
-                  initiallyExpanded: false,
-                  child: BookingDetailMessageSection(
-                    bookingId: bookingId,
-                    senderType: 'shop',
-                    bookingStatus: status.toString(),
-                  ),
-                ),
-              ],
-              right: <Widget>[
-                AdminBookingDetailPaymentAside(
-                  data: data,
-                  bookingId: bookingId,
-                ),
-                AdminBookingDetailPolicyCard(data: data),
-                AdminBookingDetailSection(
-                  title: '訂單時間軸',
-                  collapsible: true,
-                  child: AdminBookingTimeline(
-                    data: data,
-                    status: status,
-                    depositRequired: depositRequired,
-                  ),
-                ),
-                AdminBookingDetailSection(
-                  title: '狀態',
-                  collapsible: true,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: <Widget>[
-                      AdminBookingStatusChip(status: status.toString()),
-                      if (status == 'cancelled') ...<Widget>[
-                        const SizedBox(height: 10),
-                        Text(
-                          '取消原因：${data['cancelReason'] ?? '未填寫'}',
-                          style: const TextStyle(
-                            color: Colors.red,
-                            fontWeight: FontWeight.bold,
+                      actions: canEdit &&
+                              !BookingSettlementMath.isSettlementLocked(data)
+                          ? AdminBookingDetailCard(
+                              child: AdminBookingActionSection(
+                                data: data,
+                                status: status,
+                                depositAmount: depositAmount,
+                                depositPaid: BookingPaymentStatus.isDepositConfirmed(
+                                  data,
+                                ),
+                                onAssignRoom: () async {
+                                  await showAdminAssignRoomDialog(
+                                    context: context,
+                                    bookingId: bookingId,
+                                    data: data,
+                                  );
+                                },
+                                onChangeRoom: () async {
+                                  await showAdminChangeRoomDialog(
+                                    context: context,
+                                    bookingId: bookingId,
+                                    data: data,
+                                  );
+                                },
+                                onConfirmBooking: () async {
+                                  await _updateStatus('confirmed');
+                                },
+                                onConfirmDeposit: () async {
+                                  await _confirmDepositAndBooking(context);
+                                },
+                                onCancelBooking: () async {
+                                  await showAdminCancelBookingDialog(
+                                    context: context,
+                                    bookingId: bookingId,
+                                  );
+                                },
+                                onCheckIn: () async {
+                                  if (data['assignStatus'] != 'assigned' ||
+                                      data['roomId'] == null ||
+                                      data['roomName'] == null) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                        content: Text('此訂單尚未分房，不能辦理入住'),
+                                      ),
+                                    );
+                                    return;
+                                  }
+                                  try {
+                                    await BookingService.instance
+                                        .checkInBooking(bookingId: bookingId);
+                                    await FirebaseFirestore.instance
+                                        .collection('action_logs')
+                                        .add({
+                                          'type': 'booking_status_update',
+                                          'bookingId': bookingId,
+                                          'bookingShortId': bookingId.substring(
+                                            0,
+                                            8,
+                                          ),
+                                          'shopId': data['shopId'],
+                                          'roomId': data['roomId'],
+                                          'roomName': data['roomName'],
+                                          'roomTypeName': data['roomTypeName'],
+                                          'fromStatus': status,
+                                          'toStatus': 'checked_in',
+                                          'operatorUid': FirebaseAuth
+                                              .instance
+                                              .currentUser
+                                              ?.uid,
+                                          'operatorRole': 'staff',
+                                          'operatorEmail': FirebaseAuth
+                                              .instance
+                                              .currentUser
+                                              ?.email,
+                                          'createdAt':
+                                              FieldValue.serverTimestamp(),
+                                        });
+                                  } catch (error) {
+                                    if (!context.mounted) {
+                                      return;
+                                    }
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: Text(
+                                          InventoryException.userMessage(error),
+                                        ),
+                                      ),
+                                    );
+                                  }
+                                },
+                                onCheckOut: () async {
+                                  await _handleCheckOut(
+                                    context: context,
+                                    data: data,
+                                  );
+                                },
+                              ),
+                            )
+                          : null,
+                      left: <Widget>[
+                        AdminBookingDetailSection(
+                          title: '顧客資訊',
+                          child: AdminBookingCustomerSection(
+                            data: data,
+                            emergency: emergency,
+                            shopId: shopId,
                           ),
                         ),
-                        Text(
-                          '取消來源：${adminBookingCancelByText(data['cancelBy'])}',
-                          style: TextStyle(
-                            color: Colors.red.shade700,
-                            fontSize: 13,
+                        AdminBookingDetailSection(
+                          title: '寵物資訊（${pets.length}隻）',
+                          child: AdminBookingPetStrip(
+                            pets: pets,
+                            shopId: shopId,
+                            userId: (data['userId'] ?? '').toString(),
+                          ),
+                        ),
+                        AdminBookingDetailSection(
+                          title: '價格與加值服務',
+                          child: AdminBookingPriceSection(
+                            data: data,
+                            pets: pets,
+                            lineItemsOnly: true,
+                            bookingId: bookingId,
+                          ),
+                        ),
+                        if (data['extraCharges'] is List &&
+                            (data['extraCharges'] as List).isNotEmpty)
+                          AdminBookingDetailSection(
+                            title: '退房額外費用',
+                            collapsible: true,
+                            initiallyExpanded: false,
+                            child: AdminBookingExtraChargeSection(data: data),
+                          ),
+                      ],
+                      forms: <Widget>[
+                        AdminBookingFormAnswersSection(
+                          shopId: shopId,
+                          bookingId: bookingId,
+                          data: data,
+                        ),
+                      ],
+                      communication: <Widget>[
+                        _buildMemberAdminNote(data),
+                        AdminBookingDetailSection(
+                          title: '客戶備註',
+                          collapsible: true,
+                          initiallyExpanded: false,
+                          child: AdminBookingNoteSection(
+                            data: data,
+                            shopId: shopId,
+                            bookingId: bookingId,
+                          ),
+                        ),
+                        AdminBookingDetailSection(
+                          title: '訂單留言',
+                          collapsible: true,
+                          initiallyExpanded: false,
+                          child: BookingDetailMessageSection(
+                            bookingId: bookingId,
+                            senderType: 'shop',
+                            bookingStatus: status.toString(),
                           ),
                         ),
                       ],
-                    ],
-                  ),
-                ),
-                AdminBookingDetailSection(
-                  title: '操作紀錄',
-                  collapsible: true,
-                  initiallyExpanded: false,
-                  child: AdminBookingActionLogSection(
-                    shopId: shopId,
-                    bookingId: bookingId,
-                  ),
-                ),
-              ],
+                      right: <Widget>[
+                        AdminBookingSettlementPanel(
+                          shopId: shopId,
+                          bookingId: bookingId,
+                          data: data,
+                        ),
+                        AdminBookingDetailPaymentAside(
+                          data: data,
+                          bookingId: bookingId,
+                        ),
+                        AdminBookingDetailPolicyCard(data: data),
+                        AdminBookingDetailSection(
+                          title: '訂單時間軸',
+                          collapsible: true,
+                          child: AdminBookingTimeline(
+                            data: data,
+                            status: status,
+                            depositRequired: depositRequired,
+                          ),
+                        ),
+                        AdminBookingDetailSection(
+                          title: '狀態',
+                          collapsible: true,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: <Widget>[
+                              AdminBookingStatusChip(status: status.toString()),
+                              if (status == 'cancelled') ...<Widget>[
+                                const SizedBox(height: 10),
+                                Text(
+                                  '取消原因：${data['cancelReason'] ?? '未填寫'}',
+                                  style: const TextStyle(
+                                    color: Colors.red,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                                Text(
+                                  '取消來源：${adminBookingCancelByText(data['cancelBy'])}',
+                                  style: TextStyle(
+                                    color: Colors.red.shade700,
+                                    fontSize: 13,
+                                  ),
+                                ),
+                              ],
+                            ],
+                          ),
+                        ),
+                        AdminBookingDetailSection(
+                          title: '操作紀錄',
+                          collapsible: true,
+                          initiallyExpanded: false,
+                          child: AdminBookingActionLogSection(
+                            shopId: shopId,
+                            bookingId: bookingId,
+                          ),
+                        ),
+                      ],
+                      handover: AdminInternalHandoverCard(
+                        shopId: shopId,
+                        bookingId: bookingId,
+                        readOnly: BookingSettlementMath.isSettlementLocked(data),
+                      ),
+                      handoverHasContent: handoverHasContent,
+                    );
+                  },
             );
           },
         );
@@ -582,7 +641,44 @@ class AdminBookingDetailPage extends StatelessWidget {
     }
 
     final now = FieldValue.serverTimestamp();
-
+    final Map<String, dynamic> settled = <String, dynamic>{
+      ...data,
+      'extraFee': extraFee,
+      'extraCharges': <dynamic>[
+        ...((data['extraCharges'] is List)
+            ? data['extraCharges'] as List
+            : <dynamic>[]),
+        ...extraCharges,
+      ],
+    };
+    final int expected = BookingSettlementMath.expectedTotal(data: settled);
+    final int delta = BookingSettlementMath.balanceDelta(data: settled);
+    final int remain = delta > 0 ? delta : 0;
+    final int refundDue = delta < 0 ? -delta : 0;
+    bool lockIfClear = false;
+    if (remain <= 0 && refundDue <= 0) {
+      final bool? lockOk = await showDialog<bool>(
+        context: context,
+        builder: (BuildContext context) {
+          return AlertDialog(
+            title: const Text('確認鎖定訂單'),
+            content: const Text('完成後訂單將鎖定，無法再修改，請確認金額與資料正確。'),
+            actions: <Widget>[
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('稍後鎖定'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(context, true),
+                child: const Text('確認鎖定'),
+              ),
+            ],
+          );
+        },
+      );
+      lockIfClear = lockOk == true;
+    }
+    final User? operator = FirebaseAuth.instance.currentUser;
     await FirebaseFirestore.instance
         .collection('bookings')
         .doc(bookingId)
@@ -592,6 +688,18 @@ class AdminBookingDetailPage extends StatelessWidget {
           'extraCharges': FieldValue.arrayUnion(extraCharges),
           'status': 'completed',
           'updatedAt': now,
+          'quotedTotalPrice': BookingSettlementMath.quotedTotal(data),
+          'totalPrice': expected,
+          'totalPayableAmount': expected,
+          'remainingAmount': remain,
+          'refundDueAmount': refundDue,
+          'settlementConfirmed': true,
+          'settledAt': now,
+          'settledBy': operator?.uid ?? '',
+          if (lockIfClear) 'settlementLocked': true,
+          if (lockIfClear) 'settlementLockedAt': now,
+          if (lockIfClear) 'settlementLockedBy': operator?.uid ?? '',
+          if (lockIfClear) 'settlementLockedReason': 'settlement_cleared',
         });
     try {
       final String checkoutShopId = (data['shopId'] ?? '').toString().trim();
@@ -849,74 +957,66 @@ class AdminBookingDetailPage extends StatelessWidget {
   }
 
   /// UI 小工具
-  Future<void> _confirmDepositAndBooking() async {
-    final user = FirebaseAuth.instance.currentUser;
-    final DocumentSnapshot<Map<String, dynamic>> current =
-        await FirebaseFirestore.instance
-            .collection('bookings')
-            .doc(bookingId)
-            .get();
-    final Map<String, dynamic> before = current.data() ?? <String, dynamic>{};
-    if (before['depositPaid'] == true ||
-        (before['depositStatus'] ?? '').toString() == 'confirmed') {
+  Future<void> _confirmDepositAndBooking(BuildContext context) async {
+    final bool? ok = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext dialogContext) {
+        return AlertDialog(
+          title: const Text('確認收到訂金'),
+          content: const Text('確認已收到訂金？此操作不可重複執行。'),
+          actions: <Widget>[
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: const Text('取消'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(dialogContext, true),
+              child: const Text('確認'),
+            ),
+          ],
+        );
+      },
+    );
+    if (ok != true || !context.mounted) {
       return;
     }
-    final int totalAmount = DaycarePaymentDisplay.resolveTotal(before);
-    final int depositAmount = SafeParse.parseMoney(before['depositAmount']);
-    final int existingPaid = SafeParse.parseMoney(before['paidAmount']);
-    final int paid = existingPaid > depositAmount
-        ? existingPaid
-        : depositAmount;
-    final int remaining = totalAmount - paid < 0 ? 0 : totalAmount - paid;
-    final String paymentStatus = paid >= totalAmount && totalAmount > 0
-        ? 'paid'
-        : (paid > 0 ? 'partial' : 'unpaid');
-
-    await FirebaseFirestore.instance
-        .collection('bookings')
-        .doc(bookingId)
-        .update({
-          'depositPaid': true,
-          'depositStatus': 'confirmed',
-          'depositPaidAt': FieldValue.serverTimestamp(),
-          'confirmedAt': FieldValue.serverTimestamp(),
-          'status': 'confirmed',
-          'paidAmount': paid,
-          'remainingAmount': remaining,
-          'paymentStatus': paymentStatus,
-          'updatedAt': FieldValue.serverTimestamp(),
-        });
-
-    final doc = await FirebaseFirestore.instance
-        .collection('bookings')
-        .doc(bookingId)
-        .get();
-
-    final data = doc.data() ?? {};
-
-    await FirebaseFirestore.instance.collection('action_logs').add({
-      'type': 'deposit_confirmed',
-
-      /// 訂單資訊
-      'bookingId': bookingId,
-      'bookingShortId': bookingId.substring(0, 8),
-      'shopId': data['shopId'],
-      'roomId': data['roomId'],
-      'roomName': data['roomName'],
-      'roomTypeName': data['roomTypeName'],
-
-      /// 訂金資訊
-      'depositAmount': data['depositAmount'] ?? 0,
-      'paymentMethod': data['paymentMethod'],
-      'transferLast5': data['transferLast5'],
-
-      /// 操作者
-      'operatorUid': user?.uid,
-      'operatorRole': 'staff',
-      'operatorEmail': user?.email,
-
-      /// 時間
-      'createdAt': FieldValue.serverTimestamp(),
-    });
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext dialogContext) {
+        return const AlertDialog(
+          content: Row(
+            children: <Widget>[
+              CircularProgressIndicator(),
+              SizedBox(width: 16),
+              Expanded(child: Text('正在確認訂金…')),
+            ],
+          ),
+        );
+      },
+    );
+    try {
+      await AdminManualDepositConfirm.confirmStayBooking(bookingId: bookingId);
+      if (context.mounted) {
+        Navigator.of(context, rootNavigator: true).pop();
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('訂金已確認')));
+      }
+    } catch (error, stack) {
+      ChatErrorProbe.dump(
+        'AdminBookingDetail confirmDeposit',
+        error,
+        stack,
+        operation: 'bookings/$bookingId confirmStayBooking',
+      );
+      if (context.mounted) {
+        Navigator.of(context, rootNavigator: true).pop();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(ChatErrorProbe.describe(error))),
+        );
+      }
+    }
   }
 }

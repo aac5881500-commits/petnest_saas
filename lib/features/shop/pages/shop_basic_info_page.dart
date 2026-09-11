@@ -5,6 +5,7 @@
 // ✅ LINE 移動
 // ✅ 移除介紹
 
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/services/shop_service.dart';
 import 'package:petnest_saas/core/widgets/shop_task_center_button.dart';
@@ -44,6 +45,7 @@ class _ShopBasicInfoPageState extends State<ShopBasicInfoPage> {
   bool _licenseVerified = false;
   bool _taxIdVerified = false;
   bool _isPublic = false;
+  String _verifyRequestStatus = '';
 
   bool _isInitialSetup = false;
 
@@ -81,6 +83,7 @@ class _ShopBasicInfoPageState extends State<ShopBasicInfoPage> {
     _licenseVerified = shop?['licenseVerified'] == true;
     _taxIdVerified = shop?['taxIdVerified'] == true;
     _isPublic = shop?['isPublic'] == true;
+    _verifyRequestStatus = await _loadVerifyRequestStatus();
 
     final rawBusinessType = shop?['businessType']?.toString() ?? 'cat_hotel';
 
@@ -103,6 +106,85 @@ class _ShopBasicInfoPageState extends State<ShopBasicInfoPage> {
     if (!mounted) return;
 
     setState(() => _loading = false);
+  }
+
+  Future<String> _loadVerifyRequestStatus() async {
+    try {
+      final QuerySnapshot<Map<String, dynamic>> pending =
+          await FirebaseFirestore.instance
+              .collection('shop_change_requests')
+              .where('shopId', isEqualTo: widget.shopId)
+              .where('requestType', isEqualTo: 'fullVerify')
+              .where('status', isEqualTo: 'pending')
+              .limit(1)
+              .get();
+      if (pending.docs.isNotEmpty) {
+        return 'pending';
+      }
+      final QuerySnapshot<Map<String, dynamic>> rejected =
+          await FirebaseFirestore.instance
+              .collection('shop_change_requests')
+              .where('shopId', isEqualTo: widget.shopId)
+              .where('requestType', isEqualTo: 'fullVerify')
+              .where('status', isEqualTo: 'rejected')
+              .limit(1)
+              .get();
+      if (rejected.docs.isNotEmpty) {
+        return 'rejected';
+      }
+    } catch (_) {}
+    return '';
+  }
+
+  Future<void> _openImportantNotes() async {
+    const String body =
+        '為保障店家與消費者權益，避免冒用、詐騙與資料異常，重要資料修改需經平台人工審核。\n\n'
+        '店名、電話、縣市、區域、地址、特寵字號、統編及 LINE／Instagram／Facebook 等重要公開資訊，依現有規則申請修改。\n\n'
+        '申請送出不代表正式資料已更新，平台確認後才更新。\n\n'
+        '店家類型於建立後不可修改，也不能申請修改。';
+    final bool compact = MediaQuery.sizeOf(context).width < 720;
+    if (compact) {
+      await showModalBottomSheet<void>(
+        context: context,
+        isScrollControlled: true,
+        showDragHandle: true,
+        builder: (BuildContext context) {
+          return Padding(
+            padding: const EdgeInsets.fromLTRB(20, 8, 20, 28),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                const Text(
+                  '重要資料修改說明',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
+                ),
+                const SizedBox(height: 12),
+                Text(body, style: const TextStyle(height: 1.5, fontSize: 14)),
+              ],
+            ),
+          );
+        },
+      );
+      return;
+    }
+    await showDialog<void>(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('重要資料修改說明'),
+          content: const SingleChildScrollView(
+            child: Text(body, style: TextStyle(height: 1.5)),
+          ),
+          actions: <Widget>[
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('關閉'),
+            ),
+          ],
+        );
+      },
+    );
   }
 
   Future<void> _save() async {
@@ -157,13 +239,6 @@ class _ShopBasicInfoPageState extends State<ShopBasicInfoPage> {
     }
   }
 
-  InputDecoration _input(String label) {
-    return InputDecoration(
-      labelText: label,
-      border: const OutlineInputBorder(),
-    );
-  }
-
   String? _validateSocialUrl({required String? value, required String type}) {
     final text = value?.trim() ?? '';
 
@@ -208,64 +283,12 @@ class _ShopBasicInfoPageState extends State<ShopBasicInfoPage> {
   void _openVerifyRequest() {
     Navigator.push(
       context,
-      MaterialPageRoute(
+      MaterialPageRoute<void>(
         builder: (_) => ShopVerifyRequestPage(
           shopId: widget.shopId,
           shopName: _nameController.text,
           currentLicenseNumber: _licenseController.text,
           currentTaxId: _taxIdController.text,
-        ),
-      ),
-    );
-  }
-
-  Widget _verifyStatusCard() {
-    final verified = _licenseVerified && _taxIdVerified && _isPublic;
-
-    return InkWell(
-      borderRadius: BorderRadius.circular(12),
-      onTap: _openVerifyRequest,
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 16),
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: verified ? Colors.green.shade50 : Colors.orange.shade50,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: verified ? Colors.green.shade200 : Colors.orange.shade200,
-          ),
-        ),
-        child: Row(
-          children: [
-            Icon(
-              verified ? Icons.verified : Icons.verified_user_outlined,
-              color: verified ? Colors.green : Colors.orange,
-              size: 32,
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    '店家認證狀態',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    verified ? '已完成認證，店家目前已公開於平台' : '尚未完成認證，點擊送出認證申請',
-                    style: TextStyle(
-                      color: verified
-                          ? Colors.green.shade800
-                          : Colors.orange.shade800,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const Icon(Icons.chevron_right),
-          ],
         ),
       ),
     );
@@ -287,9 +310,120 @@ class _ShopBasicInfoPageState extends State<ShopBasicInfoPage> {
     super.dispose();
   }
 
+  void _openChangeRequest() {
+    Navigator.push(
+      context,
+      MaterialPageRoute<void>(
+        builder: (_) => ShopChangeRequestPage(
+          shopId: widget.shopId,
+          shopName: _nameController.text,
+          currentCity: _cityController.text,
+          currentDistrict: _districtController.text,
+          currentPhone: _phoneController.text,
+          currentAddress: _addressController.text,
+          currentLicenseNumber: _licenseController.text,
+          currentTaxId: _taxIdController.text,
+          currentLineUrl: _lineUrlController.text,
+          currentIgUrl: _igUrlController.text,
+          currentFbUrl: _fbUrlController.text,
+        ),
+      ),
+    );
+  }
+
+  InputDecoration _fieldDecoration({
+    required String label,
+    required bool locked,
+    required bool firstSetup,
+  }) {
+    return InputDecoration(
+      labelText: label,
+      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+      filled: true,
+      fillColor: locked ? const Color(0xFFF4F1EC) : Colors.white,
+      suffixIcon: locked
+          ? const Icon(Icons.lock_outline, size: 18)
+          : (firstSetup ? const Icon(Icons.edit_outlined, size: 18) : null),
+      helperText: locked ? '需申請修改' : (firstSetup ? '首次設定後將鎖定' : null),
+      helperMaxLines: 1,
+    );
+  }
+
+  Widget _lockedField({
+    required String label,
+    required TextEditingController controller,
+    required bool locked,
+    bool firstSetup = false,
+    String? Function(String?)? validator,
+    TextInputType? keyboardType,
+  }) {
+    return TextFormField(
+      controller: controller,
+      readOnly: locked,
+      validator: validator,
+      keyboardType: keyboardType,
+      decoration: _fieldDecoration(
+        label: label,
+        locked: locked,
+        firstSetup: firstSetup,
+      ),
+    );
+  }
+
+  Widget _sectionCard({
+    required String title,
+    required List<Widget> children,
+    Widget? footer,
+  }) {
+    return Card(
+      elevation: 0,
+      color: Colors.white,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(color: Colors.brown.shade100),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: <Widget>[
+            Text(
+              title,
+              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
+            ),
+            const SizedBox(height: 14),
+            ...children,
+            if (footer != null) ...<Widget>[const SizedBox(height: 12), footer],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _twoCol({
+    required bool split,
+    required Widget left,
+    required Widget right,
+  }) {
+    if (!split) {
+      return Column(
+        children: <Widget>[left, const SizedBox(height: 12), right],
+      );
+    }
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        Expanded(child: left),
+        const SizedBox(width: 12),
+        Expanded(child: right),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: const Color(0xFFF7F4F0),
       appBar: AppBar(
         title: const Text('店家基本資料'),
         actions: <Widget>[ShopTaskCenterButton(shopId: widget.shopId)],
@@ -298,345 +432,350 @@ class _ShopBasicInfoPageState extends State<ShopBasicInfoPage> {
           ? const Center(child: CircularProgressIndicator())
           : Form(
               key: _formKey,
-              child: ListView(
-                padding: const EdgeInsets.all(16),
-                children: [
-                  Container(
-                    margin: const EdgeInsets.only(bottom: 16),
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: Colors.orange.shade50,
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: Colors.orange.shade300),
-                    ),
-                    child: const Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Icon(Icons.warning_amber_rounded, color: Colors.orange),
-                        SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            '為保障店家與消費者權益，店名、店家類型、電話、縣市、區域、地址、特寵字號、統編等重要資料若需修改，需由平台人工審核後協助處理，以避免冒用、詐騙或資料異常情形。\n\n'
-                            '店名、電話、地址、特寵字號、統編、LINE、IG、FB 等重要公開資訊，若需修改皆需由平台審核後更新。',
-                            style: TextStyle(fontSize: 13, height: 1.5),
+              child: LayoutBuilder(
+                builder: (BuildContext context, BoxConstraints constraints) {
+                  final double width = constraints.maxWidth;
+                  final bool tablet = width >= 720;
+                  final bool desktop = width >= 980;
+                  return ListView(
+                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 28),
+                    children: <Widget>[
+                      Center(
+                        child: ConstrainedBox(
+                          constraints: BoxConstraints(
+                            maxWidth: desktop ? 920 : 720,
+                          ),
+                          child: Column(
+                            children: <Widget>[
+                              _introCard(),
+                              const SizedBox(height: 10),
+                              _verifyStatusRow(),
+                              const SizedBox(height: 12),
+                              _sectionCard(
+                                title: '基本資料',
+                                children: <Widget>[
+                                  _twoCol(
+                                    split: tablet,
+                                    left: _lockedField(
+                                      label: '店名',
+                                      controller: _nameController,
+                                      locked: true,
+                                    ),
+                                    right: DropdownButtonFormField<String>(
+                                      initialValue: _businessType,
+                                      decoration: _fieldDecoration(
+                                        label: '店家類型',
+                                        locked: true,
+                                        firstSetup: false,
+                                      ),
+                                      items: const <DropdownMenuItem<String>>[
+                                        DropdownMenuItem(
+                                          value: 'cat_hotel',
+                                          child: Text('貓咪旅店'),
+                                        ),
+                                        DropdownMenuItem(
+                                          value: 'dog_hotel',
+                                          child: Text('狗狗旅店'),
+                                        ),
+                                        DropdownMenuItem(
+                                          value: 'grooming',
+                                          child: Text('美容功能'),
+                                        ),
+                                        DropdownMenuItem(
+                                          value: 'hospital',
+                                          child: Text('動物醫院'),
+                                        ),
+                                        DropdownMenuItem(
+                                          value: 'shop',
+                                          child: Text('賣場功能'),
+                                        ),
+                                      ],
+                                      onChanged: null,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 12),
+                                  _lockedField(
+                                    label: '電話',
+                                    controller: _phoneController,
+                                    locked: !_isInitialSetup,
+                                    firstSetup: _isInitialSetup,
+                                    keyboardType: TextInputType.phone,
+                                  ),
+                                ],
+                                footer: _applyEditButton(),
+                              ),
+                              const SizedBox(height: 12),
+                              _sectionCard(
+                                title: '店址資料',
+                                children: <Widget>[
+                                  _twoCol(
+                                    split: tablet,
+                                    left: _lockedField(
+                                      label: '縣市',
+                                      controller: _cityController,
+                                      locked: true,
+                                    ),
+                                    right: _lockedField(
+                                      label: '區域',
+                                      controller: _districtController,
+                                      locked: true,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 12),
+                                  _lockedField(
+                                    label: '地址',
+                                    controller: _addressController,
+                                    locked: !_isInitialSetup,
+                                    firstSetup: _isInitialSetup,
+                                  ),
+                                ],
+                                footer: _applyEditButton(),
+                              ),
+                              const SizedBox(height: 12),
+                              _sectionCard(
+                                title: '商業與公開資訊',
+                                children: <Widget>[
+                                  _twoCol(
+                                    split: tablet,
+                                    left: _lockedField(
+                                      label: '特寵字號',
+                                      controller: _licenseController,
+                                      locked: !_licenseInitialSetup,
+                                      firstSetup: _licenseInitialSetup,
+                                    ),
+                                    right: _lockedField(
+                                      label: '統編',
+                                      controller: _taxIdController,
+                                      locked: !_taxIdInitialSetup,
+                                      firstSetup: _taxIdInitialSetup,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Text(
+                                    '相關資料須經平台確認，公開資格依審核結果為準。',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      height: 1.4,
+                                      color: Colors.brown.shade600,
+                                    ),
+                                  ),
+                                  SwitchListTile(
+                                    contentPadding: EdgeInsets.zero,
+                                    value: _showTaxId,
+                                    title: const Text('前台顯示統編'),
+                                    onChanged: (bool v) =>
+                                        setState(() => _showTaxId = v),
+                                  ),
+                                  Text(
+                                    '統編是否公開仍以平台審核設定為準',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      height: 1.4,
+                                      color: Colors.brown.shade600,
+                                    ),
+                                  ),
+                                ],
+                                footer: _applyEditButton(),
+                              ),
+                              const SizedBox(height: 12),
+                              _sectionCard(
+                                title: '聯絡與社群',
+                                children: <Widget>[
+                                  _lockedField(
+                                    label: 'LINE',
+                                    controller: _lineUrlController,
+                                    locked: !_lineInitialSetup,
+                                    firstSetup: _lineInitialSetup,
+                                    validator: (String? value) =>
+                                        _validateSocialUrl(
+                                          value: value,
+                                          type: 'line',
+                                        ),
+                                  ),
+                                  const SizedBox(height: 12),
+                                  _lockedField(
+                                    label: 'Instagram',
+                                    controller: _igUrlController,
+                                    locked: !_igInitialSetup,
+                                    firstSetup: _igInitialSetup,
+                                    validator: (String? value) =>
+                                        _validateSocialUrl(
+                                          value: value,
+                                          type: 'ig',
+                                        ),
+                                  ),
+                                  const SizedBox(height: 12),
+                                  _lockedField(
+                                    label: 'Facebook',
+                                    controller: _fbUrlController,
+                                    locked: !_fbInitialSetup,
+                                    firstSetup: _fbInitialSetup,
+                                    validator: (String? value) =>
+                                        _validateSocialUrl(
+                                          value: value,
+                                          type: 'fb',
+                                        ),
+                                  ),
+                                ],
+                                footer: _applyEditButton(),
+                              ),
+                              const SizedBox(height: 16),
+                              FilledButton(
+                                onPressed: _saving ? null : _save,
+                                style: FilledButton.styleFrom(
+                                  minimumSize: const Size.fromHeight(48),
+                                ),
+                                child: Text(_saving ? '儲存中' : '儲存顯示設定'),
+                              ),
+                              const SizedBox(height: 8),
+                              OutlinedButton.icon(
+                                onPressed: _openVerifyRequest,
+                                icon: const Icon(Icons.verified_user_outlined),
+                                label: const Text('申請認證／平台公開'),
+                              ),
+                              const SizedBox(height: 8),
+                              TextButton.icon(
+                                onPressed: () {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute<void>(
+                                      builder: (_) => ShopRequestCenterPage(
+                                        shopId: widget.shopId,
+                                      ),
+                                    ),
+                                  );
+                                },
+                                icon: const Icon(Icons.history),
+                                label: const Text('查看申請紀錄'),
+                              ),
+                            ],
                           ),
                         ),
-                      ],
-                    ),
-                  ),
-                  Container(
-                    margin: const EdgeInsets.only(bottom: 16),
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: Colors.red.shade50,
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: Colors.red.shade200),
-                    ),
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Icon(Icons.lock_outline, color: Colors.red),
-                        SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            _isInitialSetup
-                                ? '請先完成店家基本資料設定，完成後重要資料將鎖定並改為申請修改模式。'
-                                : '重要資料需透過申請修改流程處理，平台確認資料正確後才會更新正式資料。',
-                            style: TextStyle(
-                              color: Colors.red,
-                              fontSize: 13,
-                              height: 1.5,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  _verifyStatusCard(),
-                  TextFormField(
-                    controller: _nameController,
-                    readOnly: true,
-                    decoration: _input(
-                      '店名（需申請修改）',
-                    ).copyWith(filled: true, fillColor: Colors.grey.shade100),
-                  ),
-                  const SizedBox(height: 16),
-
-                  DropdownButtonFormField<String>(
-                    value: _businessType,
-                    decoration: _input(
-                      '類型（建立後不可修改）',
-                    ).copyWith(filled: true, fillColor: Colors.grey.shade100),
-                    items: const [
-                      DropdownMenuItem(value: 'cat_hotel', child: Text('貓咪旅店')),
-                      DropdownMenuItem(value: 'dog_hotel', child: Text('狗狗旅店')),
-                      DropdownMenuItem(value: 'grooming', child: Text('美容功能')),
-                      DropdownMenuItem(value: 'hospital', child: Text('動物醫院')),
-                      DropdownMenuItem(value: 'shop', child: Text('賣場功能')),
+                      ),
                     ],
-                    onChanged: null,
-                  ),
-
-                  const SizedBox(height: 16),
-
-                  TextFormField(
-                    controller: _phoneController,
-                    readOnly: !_isInitialSetup,
-                    decoration: _input(
-                      _isInitialSetup ? '電話（首次設定）' : '電話（需申請修改）',
-                    ).copyWith(filled: true, fillColor: Colors.grey.shade100),
-                  ),
-
-                  const SizedBox(height: 16),
-
-                  /// 🔥 縣市
-                  TextFormField(
-                    controller: _cityController,
-                    readOnly: true,
-                    decoration: _input(
-                      '縣市（需申請修改）',
-                    ).copyWith(filled: true, fillColor: Colors.grey.shade100),
-                  ),
-                  const SizedBox(height: 16),
-
-                  /// 🔥 區域
-                  TextFormField(
-                    controller: _districtController,
-                    readOnly: true,
-                    decoration: _input(
-                      '區域（需申請修改）',
-                    ).copyWith(filled: true, fillColor: Colors.grey.shade100),
-                  ),
-                  const SizedBox(height: 16),
-
-                  TextFormField(
-                    controller: _addressController,
-                    readOnly: !_isInitialSetup,
-                    decoration: _input(
-                      _isInitialSetup ? '地址（首次設定）' : '地址（需申請修改）',
-                    ).copyWith(filled: true, fillColor: Colors.grey.shade100),
-                  ),
-
-                  const SizedBox(height: 24),
-
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: Colors.orange.shade50,
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: Colors.orange.shade200),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          '特寵字號認證',
-                          style: TextStyle(fontWeight: FontWeight.bold),
-                        ),
-                        const SizedBox(height: 8),
-                        TextFormField(
-                          controller: _licenseController,
-                          readOnly: !_licenseInitialSetup,
-                          decoration:
-                              _input(
-                                _licenseInitialSetup
-                                    ? '特寵字號（首次設定）'
-                                    : '特寵字號（需申請修改）',
-                              ).copyWith(
-                                filled: true,
-                                fillColor: _licenseInitialSetup
-                                    ? Colors.white
-                                    : Colors.grey.shade100,
-                              ),
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          '此資料需平台確認後，店家才能在平台前台公開曝光。',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: Colors.orange.shade800,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-
-                  const SizedBox(height: 16),
-
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: Colors.blue.shade50,
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: Colors.blue.shade200),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          '統編認證',
-                          style: TextStyle(fontWeight: FontWeight.bold),
-                        ),
-                        const SizedBox(height: 8),
-                        TextFormField(
-                          controller: _taxIdController,
-                          readOnly: !_taxIdInitialSetup,
-                          decoration:
-                              _input(
-                                _taxIdInitialSetup ? '統編（首次設定）' : '統編（需申請修改）',
-                              ).copyWith(
-                                filled: true,
-                                fillColor: _taxIdInitialSetup
-                                    ? Colors.white
-                                    : Colors.grey.shade100,
-                              ),
-                        ),
-                        SwitchListTile(
-                          contentPadding: EdgeInsets.zero,
-                          value: _showTaxId,
-                          title: const Text('前台顯示統編'),
-                          onChanged: (v) => setState(() => _showTaxId = v),
-                        ),
-                        Text(
-                          '統編可選擇是否顯示，但是否能平台公開仍需平台認證。',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: Colors.blue.shade800,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-
-                  const SizedBox(height: 16),
-
-                  /// 🔥 LINE / IG / FB
-                  TextFormField(
-                    controller: _lineUrlController,
-                    validator: (value) =>
-                        _validateSocialUrl(value: value, type: 'line'),
-                    readOnly: !_lineInitialSetup,
-                    decoration: _input(
-                      _lineInitialSetup ? 'LINE（首次設定）' : 'LINE（需申請修改）',
-                    ).copyWith(filled: true, fillColor: Colors.grey.shade100),
-                  ),
-                  const SizedBox(height: 16),
-
-                  TextFormField(
-                    controller: _igUrlController,
-                    validator: (value) =>
-                        _validateSocialUrl(value: value, type: 'ig'),
-                    readOnly: !_igInitialSetup,
-                    decoration: _input(
-                      _igInitialSetup ? 'IG（首次設定）' : 'IG（需申請修改）',
-                    ).copyWith(filled: true, fillColor: Colors.grey.shade100),
-                  ),
-                  const SizedBox(height: 16),
-
-                  TextFormField(
-                    controller: _fbUrlController,
-                    validator: (value) =>
-                        _validateSocialUrl(value: value, type: 'fb'),
-                    readOnly: !_fbInitialSetup,
-                    decoration: _input(
-                      _fbInitialSetup ? 'FB（首次設定）' : 'FB（需申請修改）',
-                    ).copyWith(filled: true, fillColor: Colors.grey.shade100),
-                  ),
-
-                  const SizedBox(height: 24),
-
-                  ElevatedButton(
-                    onPressed: _saving ? null : _save,
-                    child: Text(_saving ? '儲存中' : '儲存顯示設定'),
-                  ),
-                  const SizedBox(height: 12),
-
-                  OutlinedButton.icon(
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: Colors.red,
-                      side: const BorderSide(color: Colors.red),
-                    ),
-                    onPressed: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => ShopChangeRequestPage(
-                            shopId: widget.shopId,
-                            shopName: _nameController.text,
-                            currentCity: _cityController.text,
-                            currentDistrict: _districtController.text,
-                            currentPhone: _phoneController.text,
-                            currentAddress: _addressController.text,
-                            currentLicenseNumber: _licenseController.text,
-                            currentTaxId: _taxIdController.text,
-                            currentLineUrl: _lineUrlController.text,
-                            currentIgUrl: _igUrlController.text,
-                            currentFbUrl: _fbUrlController.text,
-                          ),
-                        ),
-                      );
-                    },
-                    icon: const Icon(Icons.edit_note),
-                    label: const Text('申請修改重要資料'),
-                  ),
-
-                  const SizedBox(height: 8),
-
-                  OutlinedButton.icon(
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: Colors.green,
-                      side: const BorderSide(color: Colors.green),
-                    ),
-                    onPressed: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => ShopVerifyRequestPage(
-                            shopId: widget.shopId,
-                            shopName: _nameController.text,
-                            currentLicenseNumber: _licenseController.text,
-                            currentTaxId: _taxIdController.text,
-                          ),
-                        ),
-                      );
-                    },
-                    icon: const Icon(Icons.verified_user_outlined),
-                    label: const Text('申請認證／平台公開'),
-                  ),
-
-                  const SizedBox(height: 8),
-
-                  OutlinedButton.icon(
-                    onPressed: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) =>
-                              ShopRequestCenterPage(shopId: widget.shopId),
-                        ),
-                      );
-                    },
-                    icon: const Icon(Icons.history),
-                    label: const Text('查看申請紀錄'),
-                  ),
-
-                  const SizedBox(height: 8),
-                  Text(
-                    '重要資料、特寵字號、統編與平台公開皆透過此申請流程。\n'
-                    '平台審核通過後才會正式更新或開放公開。',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: Colors.grey,
-                      height: 1.5,
-                    ),
-                  ),
-                ],
+                  );
+                },
               ),
             ),
+    );
+  }
+
+  Widget _introCard() {
+    return Card(
+      elevation: 0,
+      color: Colors.white,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(color: Colors.brown.shade100),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            const Text(
+              '店家基本資料',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
+            ),
+            const SizedBox(height: 6),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Expanded(
+                  child: Text(
+                    '重要公開資料如需修改，請提出申請，由平台審核後更新。',
+                    style: TextStyle(
+                      fontSize: 13,
+                      height: 1.45,
+                      color: Colors.brown.shade700,
+                    ),
+                  ),
+                ),
+                IconButton(
+                  tooltip: '完整說明',
+                  onPressed: _openImportantNotes,
+                  icon: Icon(Icons.help_outline, color: Colors.brown.shade700),
+                ),
+              ],
+            ),
+            if (_isInitialSetup) ...<Widget>[
+              const SizedBox(height: 4),
+              Text(
+                '請先完成電話與地址等首次設定。',
+                style: TextStyle(
+                  fontSize: 12,
+                  height: 1.4,
+                  color: Colors.brown.shade600,
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _verifyStatusRow() {
+    final bool certified = _licenseVerified && _taxIdVerified;
+    String certifyText = '未認證';
+    IconData icon = Icons.verified_user_outlined;
+    Color iconColor = Colors.grey.shade600;
+    Color background = const Color(0xFFF3F1EE);
+    if (certified) {
+      certifyText = '已認證';
+      icon = Icons.verified;
+      iconColor = const Color(0xFF2E7D4F);
+      background = const Color(0xFFEAF6EC);
+    } else if (_verifyRequestStatus == 'pending') {
+      certifyText = '審核中';
+      icon = Icons.hourglass_top_outlined;
+      iconColor = const Color(0xFFC47B1A);
+      background = const Color(0xFFFFF6E8);
+    } else if (_verifyRequestStatus == 'rejected') {
+      certifyText = '退件';
+      icon = Icons.error_outline;
+      iconColor = Colors.red.shade700;
+      background = const Color(0xFFFDECEC);
+    }
+    return Container(
+      decoration: BoxDecoration(
+        color: background,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+      child: Row(
+        children: <Widget>[
+          Icon(icon, size: 20, color: iconColor),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Text(
+                  certifyText,
+                  style: const TextStyle(fontWeight: FontWeight.w800),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  _isPublic ? '平台公開：已公開' : '平台公開：未公開',
+                  style: TextStyle(fontSize: 12, color: Colors.brown.shade700),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _applyEditButton() {
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: TextButton.icon(
+        onPressed: _openChangeRequest,
+        icon: const Icon(Icons.edit_note, size: 18),
+        label: const Text('申請修改店家資料'),
+      ),
     );
   }
 }

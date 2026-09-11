@@ -10,6 +10,9 @@ const {
   returnStoreOrderStock,
   expireRelatedHeldReservations,
 } = require("./store_inventory");
+const {
+  applyReportContribution,
+} = require("../reports/shop_report_summary");
 
 /**
  * @param {string} value
@@ -74,6 +77,7 @@ exports.updateStoreOrderStatus = onCall(
           .collection("store_orders")
           .doc(orderId);
       const member = await getShopMember(shopId, uid);
+      let completedOrder = null;
 
       await firestore.runTransaction(async (transaction) => {
         const orderSnapshot = await transaction.get(orderRef);
@@ -159,6 +163,7 @@ exports.updateStoreOrderStatus = onCall(
           }
           update.status = "completed";
           update.completedAt = now;
+          completedOrder = order;
         } else if (action === "touch") {
           if (!isOwner && !canView) {
             throw new HttpsError("permission-denied", "沒有權限。");
@@ -197,6 +202,32 @@ exports.updateStoreOrderStatus = onCall(
 
         transaction.set(orderRef, update, {merge: true});
       });
+
+      if (completedOrder) {
+        try {
+          await applyReportContribution(admin.firestore(), {
+            shopId,
+            sourceId: `store_${orderId}`,
+            next: {
+              stayOrderCount: 0,
+              daycareOrderCount: 0,
+              storeOrderCount: 1,
+              stayRevenue: 0,
+              daycareRevenue: 0,
+              storeRevenue: Number(completedOrder.totalAmount || 0),
+              refundAmount: 0,
+              discountAmount: 0,
+              addonRevenue: 0,
+              newMemberCount: 0,
+              cancelledOrderCount: 0,
+              completedCount: 0,
+              confirmedCount: 0,
+            },
+          });
+        } catch (reportError) {
+          console.error("商城營運摘要更新失敗", reportError);
+        }
+      }
 
       return {ok: true};
     },

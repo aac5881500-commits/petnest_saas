@@ -29,6 +29,14 @@ const {
   buildDaycareAddonDeductLines,
 } = require("./daycare_addon");
 const {
+  bookingSearchFields,
+} = require("../search/normalize_fields");
+const {
+  resolveDailyCareEntitlement,
+  filterNonDailyCareAddons,
+  requestedAddonId,
+} = require("../daily_care/daily_care_entitlement");
+const {
   bookingAddonDeductId,
   prepareMergedDeduct,
   commitPreparedConsumption,
@@ -48,12 +56,14 @@ const {
 } = require("./daycare_occupancy");
 const {
   validateAndNormalizeBookingSubmitAnswers,
+  validateAndNormalizeAdminCreateAnswers,
 } = require("./custom_form_answers");
 const {calculateDaycareSurcharge} = require("./special_date_surcharge");
 const {capSpendAmount, canSpend} = require("./daycare_points");
 const {
   effectiveMethodIds,
   isCustomerMethodAvailable,
+  isAdminCreateSelectable,
 } = require("../payments/shop_payment_methods");
 const {
   syncShopMemberCache,
@@ -355,7 +365,16 @@ exports.createDaycareBooking = onCall(
       }
 
       const userId = source === "admin" ?
-        (normalizeString(data.userId) || uid) : uid;
+        normalizeString(data.userId) : uid;
+      if (source === "admin" && !userId) {
+        throw new HttpsError("invalid-argument", "找不到會員資料");
+      }
+      if (source === "admin" && !isAdminCreateSelectable(paymentMethod)) {
+        throw new HttpsError(
+            "failed-precondition",
+            "手動建單請選擇到店付款或銀行轉帳",
+        );
+      }
 
       const memberSnap = await firestore.collection("shops").doc(shopId)
           .collection("members").doc(userId).get();
@@ -427,14 +446,38 @@ exports.createDaycareBooking = onCall(
       const minutes = Math.round((endAt - startAt) / 60000);
       const resolvedAddons = resolveDaycareAddons({
         catalogDoc,
-        requestedAddons: addons,
+        requestedAddons: filterNonDailyCareAddons(addons),
         orderPetIds: petIds,
         allowedAddonIds,
         startAt,
         endAt,
       });
-      const addonSnapshot = resolvedAddons.addonSnapshot;
-      const addonAmount = resolvedAddons.addonAmount;
+      let addonSnapshot = resolvedAddons.addonSnapshot;
+      let addonAmount = resolvedAddons.addonAmount;
+      let dailyCareEntitlement = {};
+      try {
+        const dailyCare = resolveDailyCareEntitlement({
+          setting: shopData.dailyCareSetting || {},
+          isDaycare: true,
+          shopDaycareOn: true,
+          offerId: roomBased ? requestedRoomTypeId : planId,
+          offerName: roomBased ? "" : (normalizeString(plan.name) || ""),
+          addonId: normalizeString(data.dailyCareAddonId) ||
+            requestedAddonId(addons),
+          startDate: startAt,
+          endDate: endAt || startAt,
+        });
+        dailyCareEntitlement = dailyCare.entitlement;
+        if (dailyCare.addonLine) {
+          addonSnapshot = addonSnapshot.concat([dailyCare.addonLine]);
+          addonAmount += dailyCare.amount;
+        }
+      } catch (error) {
+        throw new HttpsError(
+            "failed-precondition",
+            error && error.message ? error.message : "照護加購無法使用",
+        );
+      }
 
       const surSnap = await firestore.collection("shops").doc(shopId)
           .collection("special_date_surcharges")
@@ -673,6 +716,21 @@ exports.createDaycareBooking = onCall(
             customFormChecked.error,
         );
       }
+      let adminCustomFormChecked = {snapshot: null, error: null};
+      if (source === "admin") {
+        const adminFormSnap = await firestore.collection("shops").doc(shopId)
+            .collection("custom_forms").doc("admin_create").get();
+        adminCustomFormChecked = validateAndNormalizeAdminCreateAnswers({
+          form: adminFormSnap.exists ? adminFormSnap.data() : null,
+          payloadAnswers: data.adminCustomFormAnswers,
+        });
+        if (adminCustomFormChecked.error) {
+          throw new HttpsError(
+              "failed-precondition",
+              adminCustomFormChecked.error,
+          );
+        }
+      }
 
       const status = "pending";
 
@@ -862,10 +920,19 @@ exports.createDaycareBooking = onCall(
           occupancyMode,
           cleaningRequired: true,
           addons: addonSnapshot,
+          dailyCareEntitlement,
           note: normalizeString(data.note),
+          adminOrderSource: source === "admin" ?
+            (normalizeString(data.adminOrderSource) || "電話預約") : "",
           ...(customFormChecked.snapshot ? {
             customFormAnswers: {
               ...customFormChecked.snapshot,
+              submittedAt: admin.firestore.FieldValue.serverTimestamp(),
+            },
+          } : {}),
+          ...(adminCustomFormChecked.snapshot ? {
+            adminCustomFormAnswers: {
+              ...adminCustomFormChecked.snapshot,
               submittedAt: admin.firestore.FieldValue.serverTimestamp(),
             },
           } : {}),
@@ -941,6 +1008,12 @@ exports.createDaycareBooking = onCall(
           accountNumber: shopData.accountNumber || "",
           createdAt: admin.firestore.FieldValue.serverTimestamp(),
           updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+          ...bookingSearchFields({
+            customerName,
+            customerPhone,
+            bookingCode,
+            pets: hydratedPets,
+          }),
         });
         if (!preparedInv.skip) {
           commitPreparedConsumption(transaction, preparedInv, uid);

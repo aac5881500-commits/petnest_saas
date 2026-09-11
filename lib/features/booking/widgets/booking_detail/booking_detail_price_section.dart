@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/models/booking_fee_line_item.dart';
 import 'package:petnest_saas/core/models/booking_kind.dart';
 import 'package:petnest_saas/core/services/daycare_pricing_service.dart';
+import 'package:petnest_saas/features/booking/widgets/booking_detail/daily_care_entitlement_snapshot.dart';
 
 class BookingDetailPriceSection extends StatelessWidget {
   const BookingDetailPriceSection({
@@ -181,6 +182,8 @@ class BookingDetailPriceSection extends StatelessWidget {
           ),
         ),
 
+        DailyCareEntitlementSnapshot(booking: data),
+
         if ((data['addons'] ?? []).isNotEmpty)
           _sectionCard(
             title: '加值服務',
@@ -205,7 +208,10 @@ class BookingDetailPriceSection extends StatelessWidget {
 
                 final price = (item['price'] ?? 0) as num;
                 final count = (item['count'] ?? 1) as num;
-                final total = (item['total'] ?? (price * count)) as num;
+                final total =
+                    (item['total'] ??
+                        item['amount'] ??
+                        (price * count)) as num;
 
                 return Container(
                   margin: const EdgeInsets.only(bottom: 10),

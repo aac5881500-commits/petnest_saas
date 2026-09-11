@@ -51,6 +51,7 @@ class AuthService {
 
         // 🔥 同步店家邀請
         await ShopService.instance.syncPendingInvitesForCurrentUser();
+        await ShopService.instance.syncOwnerMembershipForCurrentUser();
       }
 
       return userCredential;
@@ -150,8 +151,9 @@ class AuthService {
 
     await _ensureUserBaseData(user);
 
-    // 🔥 同步店家邀請
+    // 🔥 同步店家邀請與店主成員文件
     await ShopService.instance.syncPendingInvitesForCurrentUser();
+    await ShopService.instance.syncOwnerMembershipForCurrentUser();
 
     return credential;
   }
@@ -174,8 +176,9 @@ class AuthService {
       await _ensureUserBaseData(user);
     }
 
-    // 🔥 同步店家邀請
+    // 🔥 同步店家邀請與店主成員文件
     await ShopService.instance.syncPendingInvitesForCurrentUser();
+    await ShopService.instance.syncOwnerMembershipForCurrentUser();
 
     return credential;
   }

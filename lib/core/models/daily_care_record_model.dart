@@ -37,6 +37,7 @@ class DailyCareRecordModel {
     this.petIds = const <String>[],
     this.serviceDate = '',
     this.recordIndex,
+    this.photosLocked = false,
   });
 
   /// 紀錄 ID
@@ -75,6 +76,9 @@ class DailyCareRecordModel {
 
   /// YYYY-MM-DD 相容欄位，讀取仍以 recordDate 為準
   final String serviceDate;
+
+  /// 確認送出後鎖定該場照片，文字修改不可解鎖。
+  final bool photosLocked;
 
   /// 當時顯示名稱快照（僅顯示用，讀取仍靠 sessionIndex）
   final String sessionName;
@@ -146,6 +150,7 @@ class DailyCareRecordModel {
       recordIndex: map.containsKey('recordIndex')
           ? _readInt(map['recordIndex'])
           : null,
+      photosLocked: map['photosLocked'] == true,
     );
   }
 

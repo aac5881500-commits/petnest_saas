@@ -79,6 +79,15 @@ class SafeParse {
         return DateTime.fromMillisecondsSinceEpoch(value * 1000);
       }
     }
+    if (value is Map) {
+      final Object? seconds = value['seconds'] ?? value['_seconds'];
+      if (seconds is num) {
+        final int ms = seconds.round() * 1000;
+        final Object? nanos = value['nanoseconds'] ?? value['_nanoseconds'];
+        final int extra = nanos is num ? (nanos.round() ~/ 1000000) : 0;
+        return DateTime.fromMillisecondsSinceEpoch(ms + extra);
+      }
+    }
     return null;
   }
 

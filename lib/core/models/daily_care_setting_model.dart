@@ -5,6 +5,10 @@
 
 import 'package:flutter/material.dart';
 
+import 'daily_care_offer_quota.dart';
+import 'daily_care_paid_plan.dart';
+import 'daily_care_report_mode.dart';
+
 /// 🧩 店家自訂照護欄位
 ///
 /// 店家可以依自己的照護流程新增欄位，
@@ -206,8 +210,39 @@ class DailyCareSettingModel {
     ],
     this.customFields = const <DailyCareCustomField>[],
     this.photoEnabled = true,
+    this.stayReportMode = DailyCareReportMode.includedFixed,
+    this.stayPhotosIncluded = 3,
+    this.stayAddonUpgradeEnabled = false,
+    this.stayOfferQuotas = const <String, DailyCareOfferQuota>{},
+    this.includeCheckInDay = true,
+    this.includeCheckOutDay = false,
+    this.stayPaidPlan = const DailyCarePaidPlan(),
+    this.daycarePaidPlan = const DailyCarePaidPlan(
+      chargeUnit: DailyCareReportMode.chargePerVisit,
+    ),
+    this.logoVisible = true,
+    this.logoAlign = 'left',
+    this.logoSize = 36,
+    this.titleFontSize = 18,
+    this.bodyFontSize = 14,
+    this.textColorKey = 'ink',
+    this.accentColorKey = 'brown',
+    this.iconSize = 18,
+    this.iconColorKey = 'brown',
+    this.categoryIcons = const <String, String>{},
+    this.cardRadius = 16,
+    this.cardPadding = 12,
+    this.cardGap = 12,
+    this.showCardBorder = true,
+    this.photoRadius = 10,
     this.daycareEnabled = false,
     this.daycareSessionCount = 1,
+    this.daycareSessionLabels = const <String>[],
+    this.daycareReportMode = DailyCareReportMode.includedFixed,
+    this.daycarePhotosIncluded = 3,
+    this.daycareAddonUpgradeEnabled = false,
+    this.daycareOfferQuotas = const <String, DailyCareOfferQuota>{},
+    this.revision = 0,
     this.downloadHoursAfterCheckout = 24,
     this.backgroundType = DailyCareJournalTheme.typeSystem,
     this.backgroundColorKey = DailyCareJournalTheme.colorDefault,
@@ -288,11 +323,64 @@ class DailyCareSettingModel {
   /// 是否啟用照護照片
   final bool photoEnabled;
 
-  /// 是否對安親訂單啟用照護回報（舊店家預設關閉）
+  /// 住宿回報模式：固定／依房型／付費加購。舊資料預設固定提供。
+  final String stayReportMode;
+
+  /// 住宿每天基本包含照片張數（不含加購；仍受平台每房每日 6 張上限）
+  final int stayPhotosIncluded;
+
+  /// 固定或依房型模式是否另提供加購升級
+  final bool stayAddonUpgradeEnabled;
+
+  final Map<String, DailyCareOfferQuota> stayOfferQuotas;
+
+  /// 住宿服務日期：入住日是否提供回報。
+  final bool includeCheckInDay;
+
+  /// 住宿服務日期：退房日是否提供回報。
+  final bool includeCheckOutDay;
+
+  final DailyCarePaidPlan stayPaidPlan;
+  final DailyCarePaidPlan daycarePaidPlan;
+
+  final bool logoVisible;
+  final String logoAlign;
+  final double logoSize;
+  final double titleFontSize;
+  final double bodyFontSize;
+  final String textColorKey;
+  final String accentColorKey;
+  final double iconSize;
+  final String iconColorKey;
+  final Map<String, String> categoryIcons;
+  final double cardRadius;
+  final double cardPadding;
+  final double cardGap;
+  final bool showCardBorder;
+  final double photoRadius;
+
+  /// 是否對安親訂單啟用照護回報（與住宿 enabled 完全獨立）。
   final bool daycareEnabled;
 
   /// 每筆安親回報次數（1 / 2 / 3），名稱共用 sessionLabels 第 1～3 個
   final int daycareSessionCount;
+
+  /// 安親場次名稱；空白時沿用住宿 sessionLabels
+  final List<String> daycareSessionLabels;
+
+  /// 安親回報模式
+  final String daycareReportMode;
+
+  /// 每筆安親基本包含照片張數
+  final int daycarePhotosIncluded;
+
+  final bool daycareAddonUpgradeEnabled;
+
+  /// 安親房型或方案 ID → 額度
+  final Map<String, DailyCareOfferQuota> daycareOfferQuotas;
+
+  /// 樂觀鎖：避免無提示覆蓋其他員工剛儲存的設定
+  final int revision;
 
   /// 退房後可下載紀錄與照片的時間
   final int downloadHoursAfterCheckout;
@@ -358,8 +446,61 @@ class DailyCareSettingModel {
       photoEnabled: map['photoEnabled'] is bool
           ? map['photoEnabled'] as bool
           : true,
+      stayReportMode: DailyCareReportMode.normalize(
+        map['stayReportMode']?.toString(),
+      ),
+      stayPhotosIncluded: _readPhotoQuota(
+        map['stayPhotosIncluded'],
+        fallback: 3,
+      ),
+      stayAddonUpgradeEnabled: map['stayAddonUpgradeEnabled'] == true,
+      stayOfferQuotas: DailyCareOfferQuota.mapFrom(map['stayOfferQuotas']),
+      includeCheckInDay: map['includeCheckInDay'] != false,
+      includeCheckOutDay: map['includeCheckOutDay'] == true,
+      stayPaidPlan: DailyCarePaidPlan.fromMap(
+        map['stayPaidPlan'] is Map
+            ? Map<String, dynamic>.from(map['stayPaidPlan'] as Map)
+            : null,
+      ),
+      daycarePaidPlan: DailyCarePaidPlan.fromMap(
+        map['daycarePaidPlan'] is Map
+            ? Map<String, dynamic>.from(map['daycarePaidPlan'] as Map)
+            : <String, dynamic>{
+                'chargeUnit': DailyCareReportMode.chargePerVisit,
+              },
+      ),
+      logoVisible: map['logoVisible'] != false,
+      logoAlign: _readAlign(map['logoAlign']),
+      logoSize: _readDouble(map['logoSize'], 36, min: 20, max: 72),
+      titleFontSize: _readDouble(map['titleFontSize'], 18, min: 14, max: 28),
+      bodyFontSize: _readDouble(map['bodyFontSize'], 14, min: 12, max: 20),
+      textColorKey: (map['textColorKey'] ?? 'ink').toString(),
+      accentColorKey: (map['accentColorKey'] ?? 'brown').toString(),
+      iconSize: _readDouble(map['iconSize'], 18, min: 14, max: 28),
+      iconColorKey: (map['iconColorKey'] ?? 'brown').toString(),
+      categoryIcons: _readStringMap(map['categoryIcons']),
+      cardRadius: _readDouble(map['cardRadius'], 16, min: 8, max: 28),
+      cardPadding: _readDouble(map['cardPadding'], 12, min: 8, max: 24),
+      cardGap: _readDouble(map['cardGap'], 12, min: 4, max: 24),
+      showCardBorder: map['showCardBorder'] != false,
+      photoRadius: _readDouble(map['photoRadius'], 10, min: 0, max: 20),
       daycareEnabled: map['daycareEnabled'] == true,
       daycareSessionCount: daycareSessionCount,
+      daycareSessionLabels: _readStoredSessionLabels(
+        map['daycareSessionLabels'],
+      ),
+      daycareReportMode: DailyCareReportMode.normalize(
+        map['daycareReportMode']?.toString(),
+      ),
+      daycarePhotosIncluded: _readPhotoQuota(
+        map['daycarePhotosIncluded'],
+        fallback: 3,
+      ),
+      daycareAddonUpgradeEnabled: map['daycareAddonUpgradeEnabled'] == true,
+      daycareOfferQuotas: DailyCareOfferQuota.mapFrom(
+        map['daycareOfferQuotas'],
+      ),
+      revision: map['revision'] is num ? (map['revision'] as num).round() : 0,
 
       downloadHoursAfterCheckout: _readDownloadHours(
         map['downloadHoursAfterCheckout'],
@@ -390,8 +531,42 @@ class DailyCareSettingModel {
           .map((DailyCareCustomField field) => field.toMap())
           .toList(),
       'photoEnabled': photoEnabled,
+      'stayReportMode': stayReportMode,
+      'stayPhotosIncluded': stayPhotosIncluded,
+      'stayAddonUpgradeEnabled': stayAddonUpgradeEnabled,
+      'stayOfferQuotas': DailyCareOfferQuota.mapToFirestore(stayOfferQuotas),
+      'includeCheckInDay': includeCheckInDay,
+      'includeCheckOutDay': includeCheckOutDay,
+      'stayPaidPlan': stayPaidPlan.toMap(),
+      'daycarePaidPlan': daycarePaidPlan.toMap(),
+      'logoVisible': logoVisible,
+      'logoAlign': logoAlign,
+      'logoSize': logoSize,
+      'titleFontSize': titleFontSize,
+      'bodyFontSize': bodyFontSize,
+      'textColorKey': textColorKey,
+      'accentColorKey': accentColorKey,
+      'iconSize': iconSize,
+      'iconColorKey': iconColorKey,
+      'categoryIcons': categoryIcons,
+      'cardRadius': cardRadius,
+      'cardPadding': cardPadding,
+      'cardGap': cardGap,
+      'showCardBorder': showCardBorder,
+      'photoRadius': photoRadius,
       'daycareEnabled': daycareEnabled,
       'daycareSessionCount': daycareSessionCount,
+      'daycareSessionLabels': List<String>.generate(
+        3,
+        daycareSessionLabelAt,
+      ),
+      'daycareReportMode': daycareReportMode,
+      'daycarePhotosIncluded': daycarePhotosIncluded,
+      'daycareAddonUpgradeEnabled': daycareAddonUpgradeEnabled,
+      'daycareOfferQuotas': DailyCareOfferQuota.mapToFirestore(
+        daycareOfferQuotas,
+      ),
+      'revision': revision,
       'downloadHoursAfterCheckout': downloadHoursAfterCheckout,
     };
   }
@@ -404,8 +579,37 @@ class DailyCareSettingModel {
     List<String>? enabledFields,
     List<DailyCareCustomField>? customFields,
     bool? photoEnabled,
+    String? stayReportMode,
+    int? stayPhotosIncluded,
+    bool? stayAddonUpgradeEnabled,
+    Map<String, DailyCareOfferQuota>? stayOfferQuotas,
+    bool? includeCheckInDay,
+    bool? includeCheckOutDay,
+    DailyCarePaidPlan? stayPaidPlan,
+    DailyCarePaidPlan? daycarePaidPlan,
+    bool? logoVisible,
+    String? logoAlign,
+    double? logoSize,
+    double? titleFontSize,
+    double? bodyFontSize,
+    String? textColorKey,
+    String? accentColorKey,
+    double? iconSize,
+    String? iconColorKey,
+    Map<String, String>? categoryIcons,
+    double? cardRadius,
+    double? cardPadding,
+    double? cardGap,
+    bool? showCardBorder,
+    double? photoRadius,
     bool? daycareEnabled,
     int? daycareSessionCount,
+    List<String>? daycareSessionLabels,
+    String? daycareReportMode,
+    int? daycarePhotosIncluded,
+    bool? daycareAddonUpgradeEnabled,
+    Map<String, DailyCareOfferQuota>? daycareOfferQuotas,
+    int? revision,
     int? downloadHoursAfterCheckout,
     String? backgroundType,
     String? backgroundColorKey,
@@ -427,8 +631,40 @@ class DailyCareSettingModel {
       enabledFields: enabledFields ?? this.enabledFields,
       customFields: customFields ?? this.customFields,
       photoEnabled: photoEnabled ?? this.photoEnabled,
+      stayReportMode: stayReportMode ?? this.stayReportMode,
+      stayPhotosIncluded: stayPhotosIncluded ?? this.stayPhotosIncluded,
+      stayAddonUpgradeEnabled:
+          stayAddonUpgradeEnabled ?? this.stayAddonUpgradeEnabled,
+      stayOfferQuotas: stayOfferQuotas ?? this.stayOfferQuotas,
+      includeCheckInDay: includeCheckInDay ?? this.includeCheckInDay,
+      includeCheckOutDay: includeCheckOutDay ?? this.includeCheckOutDay,
+      stayPaidPlan: stayPaidPlan ?? this.stayPaidPlan,
+      daycarePaidPlan: daycarePaidPlan ?? this.daycarePaidPlan,
+      logoVisible: logoVisible ?? this.logoVisible,
+      logoAlign: logoAlign ?? this.logoAlign,
+      logoSize: logoSize ?? this.logoSize,
+      titleFontSize: titleFontSize ?? this.titleFontSize,
+      bodyFontSize: bodyFontSize ?? this.bodyFontSize,
+      textColorKey: textColorKey ?? this.textColorKey,
+      accentColorKey: accentColorKey ?? this.accentColorKey,
+      iconSize: iconSize ?? this.iconSize,
+      iconColorKey: iconColorKey ?? this.iconColorKey,
+      categoryIcons: categoryIcons ?? this.categoryIcons,
+      cardRadius: cardRadius ?? this.cardRadius,
+      cardPadding: cardPadding ?? this.cardPadding,
+      cardGap: cardGap ?? this.cardGap,
+      showCardBorder: showCardBorder ?? this.showCardBorder,
+      photoRadius: photoRadius ?? this.photoRadius,
       daycareEnabled: daycareEnabled ?? this.daycareEnabled,
       daycareSessionCount: daycareSessionCount ?? this.daycareSessionCount,
+      daycareSessionLabels: daycareSessionLabels ?? this.daycareSessionLabels,
+      daycareReportMode: daycareReportMode ?? this.daycareReportMode,
+      daycarePhotosIncluded:
+          daycarePhotosIncluded ?? this.daycarePhotosIncluded,
+      daycareAddonUpgradeEnabled:
+          daycareAddonUpgradeEnabled ?? this.daycareAddonUpgradeEnabled,
+      daycareOfferQuotas: daycareOfferQuotas ?? this.daycareOfferQuotas,
+      revision: revision ?? this.revision,
       downloadHoursAfterCheckout:
           downloadHoursAfterCheckout ?? this.downloadHoursAfterCheckout,
       backgroundType: backgroundType ?? this.backgroundType,
@@ -455,9 +691,29 @@ class DailyCareSettingModel {
     return List<String>.generate(sessionCount, sessionLabelAt);
   }
 
-  /// 安親回報名稱：共用照護紀錄名稱第 1、2、3 個
+  /// 安親回報名稱：優先用安親專用名稱，否則共用住宿場次名稱
   List<String> resolvedDaycareSessionLabels() {
-    return List<String>.generate(daycareSessionCount, sessionLabelAt);
+    return List<String>.generate(daycareSessionCount, daycareSessionLabelAt);
+  }
+
+  List<String> resolvedStaySessionLabelsForCount(int count) {
+    final int n = count < 1 ? 0 : (count > 3 ? 3 : count);
+    return List<String>.generate(n, sessionLabelAt);
+  }
+
+  List<String> resolvedDaycareSessionLabelsForCount(int count) {
+    final int n = count < 1 ? 0 : (count > 3 ? 3 : count);
+    return List<String>.generate(n, daycareSessionLabelAt);
+  }
+
+  String daycareSessionLabelAt(int sessionIndex) {
+    if (sessionIndex >= 0 && sessionIndex < daycareSessionLabels.length) {
+      final String label = daycareSessionLabels[sessionIndex].trim();
+      if (label.isNotEmpty) {
+        return label;
+      }
+    }
+    return sessionLabelAt(sessionIndex);
   }
 
   /// 以 index 取顯示名稱，不受住宿每天次數截斷，安親可共用第 3 個名稱
@@ -634,6 +890,17 @@ class DailyCareSettingModel {
     return 1;
   }
 
+  static int _readPhotoQuota(Object? value, {int fallback = 3}) {
+    if (value is num) {
+      final int result = value.round();
+      if (result >= 0 &&
+          result <= DailyCareReportMode.legacyMaxPhotosPerRoomPerDay) {
+        return result;
+      }
+    }
+    return fallback;
+  }
+
   static String _readBackgroundType(Object? value) {
     final String type = _readString(value);
     if (type == DailyCareJournalTheme.typeColor ||
@@ -691,5 +958,37 @@ class DailyCareSettingModel {
       return key;
     }
     return DailyCareJournalTheme.cardPresetNone;
+  }
+
+  static String _readAlign(Object? value) {
+    return _readString(value) == 'center' ? 'center' : 'left';
+  }
+
+  static double _readDouble(
+    Object? value,
+    double fallback, {
+    required double min,
+    required double max,
+  }) {
+    final double parsed = value is num
+        ? value.toDouble()
+        : double.tryParse('$value') ?? fallback;
+    if (parsed < min) {
+      return min;
+    }
+    if (parsed > max) {
+      return max;
+    }
+    return parsed;
+  }
+
+  static Map<String, String> _readStringMap(Object? raw) {
+    if (raw is! Map) {
+      return const <String, String>{};
+    }
+    return raw.map(
+      (Object? key, Object? value) =>
+          MapEntry<String, String>(key.toString(), value.toString()),
+    );
   }
 }
