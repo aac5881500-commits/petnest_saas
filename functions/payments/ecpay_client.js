@@ -261,14 +261,8 @@ function createEcpayPaymentHtml({
     paymentMethod: ecpayPaymentMethod,
     returnUrl: normalizedReturnUrl,
     hasClientBackUrl: Boolean(normalizedClientBackUrl),
+    hasCustomField1: Boolean(normalizeString(customField1)),
   });
-
-  console.log("========== ECPAY HTML ==========");
-  console.log(paymentHtml);
-  console.log("=========================================");
-  console.log("===== ECPAY HTML START =====");
-  console.log(paymentHtml);
-  console.log("===== ECPAY HTML END =====");
 
   if (!normalizeString(paymentHtml)) {
     throw new HttpsError(

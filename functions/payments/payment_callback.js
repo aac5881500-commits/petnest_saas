@@ -30,6 +30,15 @@ const {
   applyPaymentReport,
 } = require("../reports/shop_report_summary");
 
+const {
+  buildSuccessfulEcpayBookingPaymentUpdates,
+  resolvePaymentBookingId,
+} = require("./apply_booking_payment");
+
+const {
+  findPaymentForEcpayCallback,
+} = require("./payment_record");
+
 /**
  * 回覆綠界通知結果
  *
@@ -73,7 +82,7 @@ exports.ecpayPaymentCallback = onRequest(
 
         const callbackData = req.body || {};
 
-        const paymentId = normalizeString(
+        const paymentIdFromCallback = normalizeString(
             callbackData.CustomField1,
         );
 
@@ -81,56 +90,36 @@ exports.ecpayPaymentCallback = onRequest(
             callbackData.MerchantTradeNo,
         );
 
-        if (!paymentId) {
-          console.error(
-              "ECPay Callback 缺少 CustomField1",
-          );
-
-          sendCallbackResponse(
-              res,
-              "0|MissingPaymentId",
-          );
-          return;
-        }
-
-        if (!merchantTradeNo) {
-          console.error(
-              "ECPay Callback 缺少 MerchantTradeNo",
-              {
-                paymentId,
-              },
-          );
-
-          sendCallbackResponse(
-              res,
-              "0|MissingTradeNo",
-          );
+        if (!merchantTradeNo && !paymentIdFromCallback) {
+          console.error("ECPay Callback 缺少 MerchantTradeNo 與 CustomField1");
+          sendCallbackResponse(res, "0|MissingTradeNo");
           return;
         }
 
         const firestore = admin.firestore();
+        const paymentSnapshot = await findPaymentForEcpayCallback(firestore, {
+          paymentId: paymentIdFromCallback,
+          merchantTradeNo,
+        });
 
-        const paymentRef = firestore
-            .collection("payments")
-            .doc(paymentId);
-
-        const paymentSnapshot = await paymentRef.get();
-
-        if (!paymentSnapshot.exists) {
-          console.error(
-              "ECPay Callback 找不到付款紀錄",
-              {
-                paymentId,
-                merchantTradeNo,
-              },
-          );
-
-          sendCallbackResponse(
-              res,
-              "0|PaymentNotFound",
-          );
+        if (!paymentSnapshot || !paymentSnapshot.exists) {
+          console.error("ECPay Callback 找不到付款紀錄", {
+            merchantTradeNo,
+            paymentId: paymentIdFromCallback || "",
+            lookup: paymentIdFromCallback ?
+              "paymentId_miss_then_merchantTradeNo" :
+              "merchantTradeNo",
+          });
+          sendCallbackResponse(res, "0|PaymentNotFound");
           return;
         }
+
+        const paymentRef = paymentSnapshot.ref;
+        const paymentId = paymentSnapshot.id;
+        console.info("ECPay Callback received", {
+          merchantTradeNo,
+          paymentId,
+        });
 
         const payment = paymentSnapshot.data() || {};
 
@@ -187,6 +176,14 @@ exports.ecpayPaymentCallback = onRequest(
           hashKey: credentials.hashKey,
           hashIv: credentials.hashIv,
         });
+
+        if (checkMacValueValid) {
+          console.info("ECPay Callback verified", {
+            merchantTradeNo,
+            paymentId,
+            rtnCode: normalizeString(callbackData.RtnCode),
+          });
+        }
 
         if (!checkMacValueValid) {
           console.error(
@@ -577,6 +574,11 @@ exports.ecpayPaymentCallback = onRequest(
         } catch (reportError) {
           console.error("營運摘要更新失敗", reportError);
         }
+
+        console.info("ECPay Callback write ok", {
+          merchantTradeNo,
+          paymentId,
+        });
 
         sendCallbackResponse(
             res,

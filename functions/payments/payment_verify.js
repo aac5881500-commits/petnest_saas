@@ -5,7 +5,7 @@
 
 const {HttpsError} = require("firebase-functions/v2/https");
 const admin = require("firebase-admin");
-const {remainingDue, paidAmount: settlementPaidAmount, isSettlementLocked} =
+const {remainingDue, paidAmount: settlementPaidAmount, isSettlementLocked, isSettlementConfirmed} =
   require("../bookings/booking_settlement_math");
 
 /**
@@ -142,7 +142,7 @@ function resolveDepositAmount(booking) {
  *
  * amountType：
  * deposit：支付尚未付清的訂金
- * full：支付訂單剩餘全部金額
+ * full／balance／additional：支付目前剩餘待付（結算後為結算尾款）
  *
  * @param {Object} params 計算參數
  * @param {Object} params.booking 訂單資料
@@ -174,7 +174,11 @@ function resolveRequestedPaymentAmount({
     );
   }
 
-  if (normalizedAmountType === "full") {
+  if (
+    normalizedAmountType === "full" ||
+    normalizedAmountType === "balance" ||
+    normalizedAmountType === "additional"
+  ) {
     return remainingAmount;
   }
 
@@ -210,6 +214,51 @@ function resolveRequestedPaymentAmount({
       remainingDepositAmount,
       remainingAmount,
   );
+}
+
+/**
+ * 後端決定本次綠界／線上付款的計算類型與用途。
+ * 結算後一律收取當下 remainingDue，用途為結算尾款。
+ *
+ * @param {Object} params
+ * @param {Object} params.booking
+ * @param {string} params.amountType
+ * @param {string} params.paymentPurpose
+ * @return {Object}
+ */
+function resolveBookingPaymentIntent({
+  booking,
+  amountType,
+  paymentPurpose,
+}) {
+  const requestedType = normalizeString(amountType).toLowerCase();
+  const requestedPurpose = normalizeString(paymentPurpose).toLowerCase();
+  const settled = isSettlementConfirmed(booking);
+  const paid = resolvePaidAmount(booking);
+
+  if (settled) {
+    return {
+      chargeType: "full",
+      amountType: "full",
+      paymentPurpose: "balance",
+    };
+  }
+
+  const wantsDeposit = requestedType === "deposit" ||
+    requestedPurpose === "deposit";
+  if (wantsDeposit) {
+    return {
+      chargeType: "deposit",
+      amountType: "deposit",
+      paymentPurpose: "deposit",
+    };
+  }
+
+  return {
+    chargeType: "full",
+    amountType: "full",
+    paymentPurpose: paid > 0 ? "balance" : "full",
+  };
 }
 
 /**
@@ -449,6 +498,7 @@ module.exports = {
   resolveTotalAmount,
   resolveDepositAmount,
   resolveRequestedPaymentAmount,
+  resolveBookingPaymentIntent,
   isBookingFullyPaid,
   verifyBookingForPayment,
   verifyStoreOrderForPayment,

@@ -63,6 +63,25 @@ void main() {
       ).any((MapEntry<String, String> e) => e.key == '疾病／醫療'),
       isTrue,
     );
+    expect(
+      PetSnapshot.safetyRows(
+        pet,
+      ).any((MapEntry<String, String> e) => e.key == '餵藥'),
+      isFalse,
+    );
+    expect(PetSnapshot.hasDiseaseAlert(pet), isTrue);
+  });
+
+  test('可餵藥不顯示疾病提醒', () {
+    final Map<String, dynamic> pet = PetSnapshot.fromPet(<String, dynamic>{
+      'name': '咪',
+      'canMedicate': true,
+    });
+    expect(PetSnapshot.hasDiseaseAlert(pet), isFalse);
+    expect(
+      PetSnapshot.safetyRows(pet).any((MapEntry<String, String> e) => e.key == '餵藥'),
+      isFalse,
+    );
   });
 
   test('找不到寵物時仍可顯示空摘要', () {

@@ -6,6 +6,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/models/payment_model.dart';
+import '../../../core/models/payment_gateway_status.dart';
 import '../../../core/services/payment_service.dart';
 import 'admin_payment_detail_page.dart';
 import '../../../core/widgets/shop_task_center_button.dart';
@@ -287,7 +288,7 @@ class _AdminPaymentCenterPageState extends State<AdminPaymentCenterPage> {
             '會員：'
             '${payment.customerName.isEmpty ? '未提供' : payment.customerName}\n'
             '用途：'
-            '${_purposeLabel(payment.paymentPurpose)}\n'
+            '${_purposeLabel(payment.paymentPurpose, amountType: payment.amountType)}\n'
             '方式：'
             '${_methodLabel(payment.paymentMethod)}\n'
             '狀態：'
@@ -324,23 +325,8 @@ class _AdminPaymentCenterPageState extends State<AdminPaymentCenterPage> {
     }
   }
 
-  String _purposeLabel(String value) {
-    switch (value) {
-      case 'deposit':
-        return '訂金';
-
-      case 'balance':
-        return '尾款';
-
-      case 'full':
-        return '全額付款';
-
-      case 'additional':
-        return '補款／加購';
-
-      default:
-        return '其他';
-    }
+  String _purposeLabel(String value, {String amountType = ''}) {
+    return PaymentPurpose.displayLabel(value, amountType: amountType);
   }
 
   String _methodLabel(String value) {
@@ -382,6 +368,9 @@ class _AdminPaymentCenterPageState extends State<AdminPaymentCenterPage> {
 
       case 'expired':
         return '已逾期';
+
+      case 'superseded':
+        return '已失效（結算金額已更新）';
 
       case 'refunded':
         return '已退款';

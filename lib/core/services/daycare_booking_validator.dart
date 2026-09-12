@@ -87,9 +87,7 @@ class DaycareBookingValidator {
     required bool missingVaccine,
     required bool blacklisted,
   }) {
-    if (settings.maxPets > 0 && petCount > settings.maxPets) {
-      return const DaycareValidationResult.error('寵物數量不符合安親限制');
-    }
+    // 可預約上限以房型 capacity 為準，不再讀安親設定 maxPets。
     if (petCount < settings.minPets) {
       return const DaycareValidationResult.error('寵物數量不符合安親限制');
     }

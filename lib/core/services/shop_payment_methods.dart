@@ -153,6 +153,31 @@ class ShopPaymentMethods {
     return id == PaymentMethodType.bankTransfer;
   }
 
+  static String bookingPaymentMethodId(Map<String, dynamic> data) {
+    return normalizeMethodId(
+      (data['lastPaymentMethod'] ?? data['paymentMethod'] ?? '').toString(),
+    );
+  }
+
+  /// 手機版「查看完整交易」：僅第三方金流（信用卡／ATM／超商）才有綠界交易可看。
+  static bool hasThirdPartyGatewayTransaction(Map<String, dynamic> data) {
+    if (isManualBankTransferPayment(data['paymentMethod']) ||
+        isManualBankTransferPayment(data['lastPaymentMethod'])) {
+      return false;
+    }
+    final String method = bookingPaymentMethodId(data);
+    if (PaymentMethodType.isOnlinePayment(method)) {
+      return true;
+    }
+    final String tradeNo = (data['merchantTradeNo'] ??
+            data['ecpayTradeNo'] ??
+            data['TradeNo'] ??
+            '')
+        .toString()
+        .trim();
+    return tradeNo.isNotEmpty;
+  }
+
   static String normalizeMethodId(String paymentMethod) {
     switch (paymentMethod.trim().toLowerCase()) {
       case 'pay_at_store':

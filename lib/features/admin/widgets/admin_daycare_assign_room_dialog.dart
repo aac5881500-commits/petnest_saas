@@ -9,7 +9,7 @@ import 'package:petnest_saas/core/services/daycare_function_service.dart';
 import 'package:petnest_saas/core/services/daycare_occupancy_service.dart';
 import 'package:petnest_saas/core/services/daycare_settings_service.dart';
 import 'package:petnest_saas/core/services/daycare_time_helper.dart';
-import 'package:collection/collection.dart';
+import 'package:petnest_saas/core/utils/natural_sort.dart';
 
 Future<void> showDaycareAssignRoomDialog({
   required BuildContext context,
@@ -90,18 +90,9 @@ class _AssignRoomDialogState extends State<_AssignRoomDialog> {
       if (!mounted) {
         return;
       }
-      List<DaycareAssignableRoom> rooms =
-          List<DaycareAssignableRoom>.from(listed)
-            ..sort((DaycareAssignableRoom a, DaycareAssignableRoom b) {
-              final int typeCompare = compareNatural(
-                a.roomTypeName,
-                b.roomTypeName,
-              );
-              if (typeCompare != 0) {
-                return typeCompare;
-              }
-              return compareNatural(a.roomName, b.roomName);
-            });
+      List<DaycareAssignableRoom> rooms = List<DaycareAssignableRoom>.from(
+        listed,
+      );
       if (_roomTypeLocked) {
         final DaycareSettingsModel settings = await DaycareSettingsService
             .instance
@@ -133,6 +124,7 @@ class _AssignRoomDialogState extends State<_AssignRoomDialog> {
             )
             .toList();
       }
+      _sortAssignableRooms(rooms);
       setState(() {
         _rooms = rooms;
         _selectedTypeId = _roomTypeLocked
@@ -209,6 +201,7 @@ class _AssignRoomDialogState extends State<_AssignRoomDialog> {
               _selectedTypeId == null || room.roomTypeId == _selectedTypeId,
         )
         .toList();
+    _sortAssignableRooms(filtered);
     DaycareAssignableRoom? selectedRoom;
     for (final DaycareAssignableRoom room in filtered) {
       if (room.roomId == _selectedRoomId) {
@@ -344,6 +337,17 @@ class _AssignRoomDialogState extends State<_AssignRoomDialog> {
       }
     }
     return _requestedTypeId;
+  }
+
+  static void _sortAssignableRooms(List<DaycareAssignableRoom> rooms) {
+    rooms.sort((DaycareAssignableRoom a, DaycareAssignableRoom b) {
+      return compareRoomCodes(
+        a.roomCode.trim().isEmpty ? a.roomName : a.roomCode,
+        b.roomCode.trim().isEmpty ? b.roomName : b.roomCode,
+        tieA: a.roomId,
+        tieB: b.roomId,
+      );
+    });
   }
 
   static DateTime? _ts(dynamic raw) {

@@ -2,6 +2,7 @@
 // 功能說明：安親訂單狀態中文顯示（資料庫原始值不改）
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:petnest_saas/core/services/booking_settlement_math.dart';
 
 class DaycareStatusLabels {
   DaycareStatusLabels._();
@@ -19,10 +20,17 @@ class DaycareStatusLabels {
 
   static bool isHistory(Map<String, dynamic> data) {
     final String status = (data['status'] ?? '').toString();
-    return status == 'completed' ||
-        status == 'cancelled' ||
-        status == 'no_show' ||
-        isNoShow(data);
+    if (status == 'cancelled' || status == 'no_show' || isNoShow(data)) {
+      return true;
+    }
+    if (status == 'completed') {
+      if (BookingSettlementMath.isDaycare(data) &&
+          BookingSettlementMath.isDaycareAwaitingClear(data)) {
+        return false;
+      }
+      return true;
+    }
+    return false;
   }
 
   static bool isAwaitingRoom(Map<String, dynamic> data) {
@@ -73,9 +81,9 @@ class DaycareStatusLabels {
       case 'assigned':
         return '已分房';
       case 'checked_in':
-        return '安親中';
+        return _settledPrimary(data, '安親中');
       case 'completed':
-        return '已完成';
+        return _settledPrimary(data, '已完成');
       case 'cancelled':
       case 'no_show':
         return '已取消';
@@ -85,6 +93,22 @@ class DaycareStatusLabels {
         }
         return assignLabel(data);
     }
+  }
+
+  static String _settledPrimary(Map<String, dynamic> data, String fallback) {
+    if (!BookingSettlementMath.isSettlementConfirmed(data)) {
+      return fallback;
+    }
+    if (BookingSettlementMath.isOrderComplete(data)) {
+      return '已完成';
+    }
+    if (BookingSettlementMath.remainingDue(data: data) > 0) {
+      return '待補款';
+    }
+    if (BookingSettlementMath.refundDue(data: data) > 0) {
+      return '待退款';
+    }
+    return fallback;
   }
 
   static bool matchesFilter(Map<String, dynamic> data, String filter) {
@@ -122,7 +146,9 @@ class DaycareStatusLabels {
       case 'awaitingRoom':
         return isAwaitingRoom(data);
       case 'checked_in':
-        return !isHistory(data) && status == 'checked_in';
+        return !isHistory(data) &&
+            (status == 'checked_in' ||
+                BookingSettlementMath.isDaycareAwaitingClear(data));
       case 'todayDropOff':
         return !isHistory(data) &&
             start != null &&

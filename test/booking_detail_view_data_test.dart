@@ -28,13 +28,42 @@ void main() {
   });
 
   group('BookingDetailViewData', () {
-    test('住宿訂單顯示住宿詳細', () {
+    test('客戶端永不顯示手動訂單表單', () {
       final BookingDetailViewData view = BookingDetailViewData.fromBooking(
-        data: <String, dynamic>{'bookingKind': 'accommodation'},
-        docId: 'abc123456',
+        data: <String, dynamic>{
+          'source': 'admin',
+          'adminCustomFormAnswers': <String, dynamic>{
+            'answers': <Map<String, dynamic>>[
+              <String, dynamic>{'displayValue': '內部'},
+            ],
+          },
+        },
+        docId: 'b1',
       );
-      expect(view.pageTitle, '住宿詳細');
-      expect(view.pageTitle.contains('臨托'), isFalse);
+      expect(view.showAdminCreateFormOnCustomerPage, isFalse);
+    });
+
+    test('客戶自助訂單才顯示客戶送單表單', () {
+      expect(
+        BookingDetailViewData.fromBooking(
+          data: <String, dynamic>{
+            'source': 'app',
+            'customFormAnswers': <String, dynamic>{'q1': '是'},
+          },
+          docId: 'b1',
+        ).showCustomerSubmitFormOnCustomerPage,
+        isTrue,
+      );
+      expect(
+        BookingDetailViewData.fromBooking(
+          data: <String, dynamic>{
+            'source': 'admin',
+            'customFormAnswers': <String, dynamic>{'q1': '是'},
+          },
+          docId: 'b1',
+        ).showCustomerSubmitFormOnCustomerPage,
+        isFalse,
+      );
     });
 
     test('安親訂單顯示安親詳細，不顯示臨托', () {
@@ -294,6 +323,56 @@ void main() {
       expect(view.bookingCode, 'short');
       expect(view.feeLines, isNotEmpty);
       expect(view.roomAssignmentLabel.contains('---'), isFalse);
+    });
+
+    test('安親結算手動加收顯示店家調整說明，沒原因不捏造', () {
+      final BookingDetailViewData withReason = BookingDetailViewData.fromBooking(
+        data: <String, dynamic>{
+          'bookingKind': 'daycare',
+          'settlementConfirmed': true,
+          'quotedTotalPrice': 1000,
+          'overtimeAmount': 0,
+          'manualAdjust': 500,
+          'manualAdjustmentReason': '測試',
+        },
+        docId: 'id',
+      );
+      final BookingDetailFeeLine add = withReason.feeLines.firstWhere(
+        (BookingDetailFeeLine line) => line.label == '手動加收',
+      );
+      expect(add.amount, 500);
+      expect(add.subtitle, '店家調整說明：測試');
+
+      final BookingDetailViewData discount = BookingDetailViewData.fromBooking(
+        data: <String, dynamic>{
+          'bookingKind': 'daycare',
+          'settlementConfirmed': true,
+          'quotedTotalPrice': 1000,
+          'overtimeAmount': 0,
+          'manualAdjust': -300,
+          'manualAdjustReason': '提早接回',
+        },
+        docId: 'id',
+      );
+      final BookingDetailFeeLine minus = discount.feeLines.firstWhere(
+        (BookingDetailFeeLine line) => line.label == '手動減免',
+      );
+      expect(minus.amount, 300);
+      expect(minus.subtitle, '店家調整說明：提早接回');
+
+      final BookingDetailViewData legacy = BookingDetailViewData.fromBooking(
+        data: <String, dynamic>{
+          'bookingKind': 'daycare',
+          'settlementConfirmed': true,
+          'quotedTotalPrice': 1000,
+          'manualAdjust': 500,
+        },
+        docId: 'id',
+      );
+      final BookingDetailFeeLine noReason = legacy.feeLines.firstWhere(
+        (BookingDetailFeeLine line) => line.label == '手動加收',
+      );
+      expect(noReason.subtitle, '');
     });
 
     test('店家內部備註不會出現在客戶備註', () {

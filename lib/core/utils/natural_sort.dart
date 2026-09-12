@@ -5,8 +5,8 @@ class NaturalSort {
   NaturalSort._();
 
   static int compare(String a, String b) {
-    final List<Object> left = _parts(a);
-    final List<Object> right = _parts(b);
+    final List<Object> left = _parts(a.trim());
+    final List<Object> right = _parts(b.trim());
     final int length = left.length < right.length ? left.length : right.length;
     for (int i = 0; i < length; i++) {
       final Object l = left[i];
@@ -44,3 +44,12 @@ class NaturalSort {
 }
 
 int naturalCompare(String a, String b) => NaturalSort.compare(a, b);
+
+/// 房號自然排序：忽略空白與大小寫；相同時用穩定第二鍵。
+int compareRoomCodes(String a, String b, {String tieA = '', String tieB = ''}) {
+  final int primary = NaturalSort.compare(a, b);
+  if (primary != 0) {
+    return primary;
+  }
+  return tieA.trim().toLowerCase().compareTo(tieB.trim().toLowerCase());
+}

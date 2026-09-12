@@ -34,6 +34,7 @@ const {
   refundDue,
   settlementFields,
   isSettlementLocked,
+  stampDaycareClearStatus,
 } = require("../bookings/booking_settlement_math");
 const {
   isSettlementTopUpMethodAvailable,
@@ -248,12 +249,14 @@ exports.manageDaycareBooking = onCall(
       } else if (action === "previewSettle" || action === "complete" ||
           action === "settle") {
         await requirePerm(uid, shopId, "manage_daycare_bookings");
-        const alreadySettled = booking.status === "completed" &&
-          (booking.settlementConfirmed === true || booking.settledAt != null);
+        const alreadySettled = booking.settlementConfirmed === true ||
+          booking.settledAt != null;
         if (isSettlementLocked(booking) && action !== "previewSettle") {
           throw new HttpsError("failed-precondition", "訂單已鎖定，無法再修改");
         }
-        if (booking.status !== "checked_in" && !alreadySettled) {
+        if (booking.status !== "checked_in" &&
+            booking.status !== "completed" &&
+            !alreadySettled) {
           throw new HttpsError("failed-precondition", "僅安親中訂單可結算");
         }
         const scheduledStart = toDate(booking.scheduledStartAt);
@@ -356,7 +359,6 @@ exports.manageDaycareBooking = onCall(
               payload.settlementTopUpMethod || payload.topUpMethod || "",
           );
           const bookingUpdate = {
-            status: "completed",
             overtimeMinutes: alreadySettled ?
               toInt(booking.overtimeMinutes, overtimeMinutes) : overtimeMinutes,
             overtimeAmount: overtimeAmt,
@@ -388,11 +390,20 @@ exports.manageDaycareBooking = onCall(
               originalOvertime,
             updatedAt: now,
           };
+          stampDaycareClearStatus(booking, {
+            remainingAmount: remaining,
+            refundDueAmount,
+          }, bookingUpdate);
           if (!alreadySettled) {
             bookingUpdate.actualEndAt =
               admin.firestore.Timestamp.fromDate(actualEnd);
             bookingUpdate.checkedOutAt =
               admin.firestore.Timestamp.fromDate(actualEnd);
+            if (bookingUpdate.status === "completed") {
+              bookingUpdate.completedAt = now;
+            }
+          } else if (bookingUpdate.status === "completed" &&
+              !booking.completedAt) {
             bookingUpdate.completedAt = now;
           }
           if (remaining > 0 && topUpMethod) {
@@ -442,7 +453,7 @@ exports.manageDaycareBooking = onCall(
                 addons: booking.addons,
                 overtimeAmount: overtimeAmt,
                 specialDateSurchargeAmount: booking.specialDateSurchargeAmount,
-                status: "completed",
+                status: bookingUpdate.status || booking.status,
               },
               mode: "issue",
             });

@@ -158,4 +158,18 @@ void main() {
       isFalse,
     );
   });
+
+  test('安親設定 maxPets 不再限制可預約寵物數', () {
+    expect(
+      DaycareBookingValidator.validatePets(
+        settings: const DaycareSettingsModel(maxPets: 1, minPets: 1),
+        petCount: 2,
+        petTypes: const <String>['cat'],
+        anyUnneutered: false,
+        missingVaccine: false,
+        blacklisted: false,
+      ).isOk,
+      isTrue,
+    );
+  });
 }

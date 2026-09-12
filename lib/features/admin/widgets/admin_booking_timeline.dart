@@ -3,6 +3,7 @@
 // 🕒 後台訂單詳細頁：訂單時間軸
 
 import 'package:flutter/material.dart';
+import 'package:petnest_saas/core/services/booking_settlement_math.dart';
 import 'package:petnest_saas/features/admin/widgets/admin_booking_date_helpers.dart';
 
 class AdminBookingTimeline extends StatelessWidget {
@@ -95,8 +96,12 @@ class AdminBookingTimeline extends StatelessWidget {
           else
             _timelineItem(
               title: '訂單完成',
-              time: adminBookingFormatDateTime(data['checkOutAt']),
-              active: status == 'completed',
+              time: adminBookingFormatDateTime(
+                data['completedAt'] ?? data['checkOutAt'],
+              ),
+              active: daycare
+                  ? BookingSettlementMath.isOrderComplete(data)
+                  : status == 'completed',
               isLast: true,
             ),
         ],

@@ -1829,7 +1829,7 @@ class _ShopDaycareBookingPageState extends State<ShopDaycareBookingPage> {
               extraBillingPrice: setting.extraBillingPrice,
               maxBaseCharge: setting.maxBaseCharge,
               extraPetPrice: setting.extraPetPrice,
-              maxPets: setting.maxPets,
+              maxPets: option.capacity,
               enabled: setting.enabled,
               roomBased: true,
               remainingRooms: option.remainingRooms,

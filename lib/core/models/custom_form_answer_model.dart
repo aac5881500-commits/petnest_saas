@@ -150,6 +150,10 @@ class CustomFormAnswerSnapshot {
 
   bool get isEmpty => answers.isEmpty;
 
+  int get filledCount => answers
+      .where((CustomFormAnswerItem item) => item.displayValue.trim().isNotEmpty)
+      .length;
+
   CustomFormModel toEditableForm({required String shopId}) {
     final Map<String, List<CustomFormQuestion>> grouped =
         <String, List<CustomFormQuestion>>{};

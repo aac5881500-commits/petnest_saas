@@ -176,10 +176,20 @@ class PetSnapshot {
       _firstNonEmpty(<dynamic>[pet['medicalStatus'], pet['vaccine']]),
     );
     add('藥物', pet['medication']);
-    add('餵藥', pet['canMedicate'] == true ? '可餵藥' : '');
     add('緊張或攻擊行為', pet['emergencyBehavior']);
     add('不喜歡', pet['dislikes']);
     return rows;
+  }
+
+  /// 卡片紅色標籤：僅在有疾病／醫療／需特別注意的安全資訊時顯示。
+  static bool hasDiseaseAlert(Map<String, dynamic> pet) {
+    return _firstNonEmpty(<dynamic>[
+      pet['medicalStatus'],
+      pet['vaccine'],
+      pet['allergy'],
+      pet['medication'],
+      pet['emergencyBehavior'],
+    ]).isNotEmpty;
   }
 
   static String _firstNonEmpty(List<dynamic> values) {

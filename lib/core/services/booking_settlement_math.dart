@@ -134,4 +134,25 @@ class BookingSettlementMath {
   static bool isDaycare(Map<String, dynamic> data) {
     return BookingKind.isDaycare(data);
   }
+
+  /// 安親：結算且款項結清才算訂單完成。住宿仍看 status。
+  static bool isOrderComplete(Map<String, dynamic> data) {
+    final String status = (data['status'] ?? '').toString();
+    if (status == 'cancelled' || status == 'no_show') {
+      return false;
+    }
+    if (!isDaycare(data)) {
+      return status == 'completed';
+    }
+    if (!isSettlementConfirmed(data)) {
+      return false;
+    }
+    return remainingDue(data: data) <= 0 && refundDue(data: data) <= 0;
+  }
+
+  static bool isDaycareAwaitingClear(Map<String, dynamic> data) {
+    return isDaycare(data) &&
+        isSettlementConfirmed(data) &&
+        !isOrderComplete(data);
+  }
 }

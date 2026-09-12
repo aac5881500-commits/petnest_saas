@@ -104,6 +104,9 @@ abstract final class PaymentTransactionStatus {
   /// 已全額退款
   static const String refunded = 'refunded';
 
+  /// 結算金額已更新，這筆待付款已失效（真實收款 callback 仍可入帳）
+  static const String superseded = 'superseded';
+
   static bool isPaid(String status) {
     return status == paid;
   }
@@ -184,6 +187,20 @@ abstract final class PaymentPurpose {
 
   static bool isValid(String value) {
     return values.contains(value);
+  }
+
+  /// 顯示用途。舊 additional 視為結算尾款；amountType=deposit 優先顯示訂金。
+  static String displayLabel(String purpose, {String amountType = ''}) {
+    if (purpose == deposit || amountType == PaymentAmountType.deposit) {
+      return '訂金';
+    }
+    if (purpose == balance || purpose == additional) {
+      return '結算尾款';
+    }
+    if (purpose == full || amountType == PaymentAmountType.full) {
+      return '全額付款';
+    }
+    return '付款';
   }
 }
 

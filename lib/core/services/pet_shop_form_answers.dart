@@ -50,7 +50,34 @@ class PetShopFormAnswers {
     return data;
   }
 
-  /// 優先使用子集合文件；沒有時才讀舊欄位 customFormAnswersByShop[shopId]。
+  static String petIdOf(Map<String, dynamic>? pet) {
+    if (pet == null) {
+      return '';
+    }
+    return (pet['petId'] ?? pet['id'] ?? '').toString().trim();
+  }
+
+  static String bookingUserId(Map<String, dynamic> booking) {
+    return (booking['userId'] ??
+            booking['customerUid'] ??
+            booking['memberId'] ??
+            '')
+        .toString()
+        .trim();
+  }
+
+  static Map<String, dynamic>? _asAnswerMap(dynamic raw) {
+    if (raw is! Map) {
+      return null;
+    }
+    final Map<String, dynamic> map = Map<String, dynamic>.from(raw);
+    if (map.isEmpty) {
+      return null;
+    }
+    return map;
+  }
+
+  /// 優先子集合文件，再讀 shopFormAnswers、舊 nested map、單店 customFormAnswers。
   static Map<String, dynamic>? resolve({
     required String shopId,
     Map<String, dynamic>? subcollectionData,
@@ -60,17 +87,40 @@ class PetShopFormAnswers {
     if (id.isEmpty) {
       return null;
     }
-    if (subcollectionData != null && subcollectionData.isNotEmpty) {
-      return Map<String, dynamic>.from(subcollectionData);
+    final Map<String, dynamic>? sub = _asAnswerMap(subcollectionData);
+    if (sub != null && (sub['answers'] != null || sub['formId'] != null)) {
+      return sub;
     }
-    final dynamic legacy = petData?['customFormAnswersByShop'];
-    if (legacy is! Map) {
-      return null;
+    if (petData == null || petData.isEmpty) {
+      return sub;
     }
-    final dynamic shopAnswers = Map<dynamic, dynamic>.from(legacy)[id];
-    if (shopAnswers is Map) {
-      return Map<String, dynamic>.from(shopAnswers);
+    final Map<String, dynamic>? shopForm = _asAnswerMap(
+      petData['shopFormAnswers'],
+    );
+    if (shopForm != null) {
+      if (shopForm['answers'] != null || shopForm['formId'] != null) {
+        return shopForm;
+      }
+      final Map<String, dynamic>? keyed = _asAnswerMap(shopForm[id]);
+      if (keyed != null) {
+        return keyed;
+      }
     }
-    return null;
+    final Map<String, dynamic>? legacy = _asAnswerMap(
+      petData['customFormAnswersByShop'],
+    );
+    if (legacy != null) {
+      final Map<String, dynamic>? shopAnswers = _asAnswerMap(legacy[id]);
+      if (shopAnswers != null) {
+        return shopAnswers;
+      }
+    }
+    final Map<String, dynamic>? single = _asAnswerMap(
+      petData['customFormAnswers'],
+    );
+    if (single != null) {
+      return single;
+    }
+    return sub;
   }
 }

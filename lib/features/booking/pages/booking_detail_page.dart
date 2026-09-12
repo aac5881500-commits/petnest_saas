@@ -6,6 +6,7 @@ import 'dart:async';
 
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
@@ -16,6 +17,7 @@ import 'package:petnest_saas/core/models/booking_kind.dart';
 import 'package:petnest_saas/core/models/payment_gateway_status.dart';
 import 'package:petnest_saas/core/models/policy_applicable_service.dart';
 import 'package:petnest_saas/core/models/pre_arrival_guide_model.dart';
+import 'package:petnest_saas/core/services/booking_payment_proof_function_service.dart';
 import 'package:petnest_saas/core/services/booking_payment_status.dart';
 import 'package:petnest_saas/core/services/booking_settlement_math.dart';
 import 'package:petnest_saas/core/services/booking_service.dart';
@@ -282,14 +284,12 @@ class _BookingDetailPageState extends State<_BookingDetailBody> {
                             );
                           },
                     ),
-                    CustomFormAnswerView(
-                      raw:
-                          view.raw['customFormAnswers'] ??
-                          view.raw['bookingFormAnswers'] ??
-                          view.raw['formAnswers'],
-                      title: '本次照護交代',
-                      theme: ShopFrontendTheme.of(context).home,
-                    ),
+                    if (view.showCustomerSubmitFormOnCustomerPage)
+                      CustomFormAnswerView(
+                        raw: view.customerSubmitFormRaw,
+                        title: '本次照護交代',
+                        theme: ShopFrontendTheme.of(context).home,
+                      ),
                     FutureBuilder<DailyCareSettingModel>(
                       future: _dailyCareSettingFuture,
                       builder:
@@ -945,17 +945,23 @@ class _BookingDetailPageState extends State<_BookingDetailBody> {
       return;
     }
     final bool payDeposit =
+        !BookingSettlementMath.isSettlementConfirmed(view.raw) &&
         view.payAmountType != 'full' &&
         view.depositAmount > 0 &&
         !BookingPaymentStatus.isDepositConfirmed(view.raw);
     final String amountType = payDeposit
         ? PaymentAmountType.deposit
         : PaymentAmountType.full;
-    final String paymentPurpose = payDeposit
-        ? PaymentPurpose.deposit
-        : (view.paidAmount > 0 || view.status == 'completed'
-              ? PaymentPurpose.additional
-              : PaymentPurpose.full);
+    final String paymentPurpose;
+    if (BookingSettlementMath.isSettlementConfirmed(view.raw)) {
+      paymentPurpose = PaymentPurpose.balance;
+    } else if (payDeposit) {
+      paymentPurpose = PaymentPurpose.deposit;
+    } else if (view.paidAmount > 0) {
+      paymentPurpose = PaymentPurpose.balance;
+    } else {
+      paymentPurpose = PaymentPurpose.full;
+    }
     final String paymentRequestId = FirebaseFirestore.instance
         .collection('payments')
         .doc()
@@ -1138,35 +1144,45 @@ class _BookingDetailPageState extends State<_BookingDetailBody> {
       setState(() {
         _loading = true;
       });
-      await FirebaseFirestore.instance
-          .collection('bookings')
-          .doc(widget.docId)
-          .update(
-            BookingSettlementMath.isSettlementConfirmed(bookingData)
-                ? <String, dynamic>{
-                    'settlementTopUpTransferLast5': last5,
-                    'settlementTopUpStatus': 'pending_review',
-                    'settlementTopUpSubmittedAt': FieldValue.serverTimestamp(),
-                  }
-                : <String, dynamic>{
-                    'transferLast5': last5,
-                    'depositStatus': 'pending_review',
-                    'depositSubmittedAt': FieldValue.serverTimestamp(),
-                  },
-          );
+      if (BookingSettlementMath.isSettlementConfirmed(bookingData)) {
+        await BookingPaymentProofFunctionService.instance.append(
+          bookingId: widget.docId,
+          imageUrl: '',
+          storagePath: '',
+          purpose: 'top_up',
+          last5: last5,
+          amount: BookingSettlementMath.remainingDue(data: bookingData),
+        );
+      } else {
+        await FirebaseFirestore.instance
+            .collection('bookings')
+            .doc(widget.docId)
+            .update(<String, dynamic>{
+              'transferLast5': last5,
+              'depositStatus': 'pending_review',
+              'depositSubmittedAt': FieldValue.serverTimestamp(),
+            });
+      }
       if (!mounted) {
         return;
       }
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(const SnackBar(content: Text('訂金已送出')));
-    } catch (error) {
+      ).showSnackBar(const SnackBar(content: Text('付款資料已送出')));
+    } catch (error, stack) {
+      BookingPaymentProofFunctionService.debugFail(
+        error,
+        stack,
+        stage: 'submitLast5',
+      );
       if (!mounted) {
         return;
       }
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('錯誤：$error')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(BookingPaymentProofFunctionService.userMessage(error)),
+        ),
+      );
     } finally {
       if (mounted) {
         setState(() {
@@ -1206,48 +1222,81 @@ class _BookingDetailPageState extends State<_BookingDetailBody> {
         });
         return;
       }
+      final Map<String, dynamic> bookingData = SafeParse.parseMap(
+        (await FirebaseFirestore.instance
+                .collection('bookings')
+                .doc(widget.docId)
+                .get())
+            .data(),
+      );
+      final bool settled = BookingSettlementMath.isSettlementConfirmed(
+        bookingData,
+      );
+      final String purpose = settled
+          ? (BookingSettlementMath.remainingDue(data: bookingData) > 0
+                ? 'top_up'
+                : 'balance')
+          : 'deposit';
+      final int amount = purpose == 'deposit'
+          ? BookingPaymentStatus.resolveDepositAmount(bookingData)
+          : BookingSettlementMath.remainingDue(data: bookingData);
+      final String stamp = DateTime.now().millisecondsSinceEpoch.toString();
+      final String proofId = '${purpose}_$stamp';
       final ref = FirebaseStorage.instance
           .ref()
           .child('booking_images')
           .child(widget.docId)
-          .child('${DateTime.now().millisecondsSinceEpoch}.jpg');
+          .child('$stamp.jpg');
+      if (kDebugMode) {
+        debugPrint('[paymentProof] uploading path=${ref.fullPath}');
+      }
       await ref.putData(bytes, SettableMetadata(contentType: 'image/jpeg'));
       final String url = await ref.getDownloadURL();
       await FirebaseFirestore.instance
           .collection('bookings')
           .doc(widget.docId)
-          .update(
-            BookingSettlementMath.isSettlementConfirmed(
-                  SafeParse.parseMap(
-                    (await FirebaseFirestore.instance
-                            .collection('bookings')
-                            .doc(widget.docId)
-                            .get())
-                        .data(),
-                  ),
-                )
-                ? <String, dynamic>{
-                    'settlementTopUpTransferImageUrl': url,
-                    'settlementTopUpTransferImagePath': ref.fullPath,
-                  }
-                : <String, dynamic>{
-                    'transferImageUrl': url,
-                    'transferImagePath': ref.fullPath,
-                  },
-          );
+          .update(<String, dynamic>{
+            'transferImageUrl': url,
+            'transferImagePath': ref.fullPath,
+          });
+      try {
+        await BookingPaymentProofFunctionService.instance.append(
+          bookingId: widget.docId,
+          imageUrl: url,
+          storagePath: ref.fullPath,
+          purpose: purpose,
+          amount: amount,
+          last5: _last5Controller.text.trim(),
+          proofId: proofId,
+        );
+      } catch (error, stack) {
+        BookingPaymentProofFunctionService.debugFail(
+          error,
+          stack,
+          storagePath: ref.fullPath,
+          stage: 'append-after-storage',
+        );
+      }
       if (!mounted) {
         return;
       }
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(const SnackBar(content: Text('圖片上傳成功')));
-    } catch (error) {
+    } catch (error, stack) {
+      BookingPaymentProofFunctionService.debugFail(
+        error,
+        stack,
+        stage: 'upload',
+      );
       if (!mounted) {
         return;
       }
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('上傳失敗：$error')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(BookingPaymentProofFunctionService.userMessage(error)),
+        ),
+      );
     } finally {
       if (mounted) {
         setState(() {

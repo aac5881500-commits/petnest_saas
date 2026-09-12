@@ -3,6 +3,7 @@
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:petnest_saas/core/services/pet_shop_form_answers.dart';
+import 'package:petnest_saas/features/admin/widgets/admin_booking_form_answers_section.dart';
 
 void main() {
   test('答案路徑依 shopId 獨立，不用固定店家', () {
@@ -74,6 +75,53 @@ void main() {
     );
     expect(fromSub?['formId'], 'sub-a');
     expect(fromSub?['shopId'], 'shop-a');
+  });
+
+  test('訂單 pets 與 petIds 合併且不重複', () {
+    final List<Map<String, dynamic>> pets = AdminBookingFormAnswersSection.petsOf(
+      <String, dynamic>{
+        'pets': <Map<String, dynamic>>[
+          <String, dynamic>{'petId': 'p1', 'name': '咪'},
+        ],
+        'petIds': <String>['p1', 'p2'],
+      },
+    );
+    expect(pets.length, 2);
+    expect(pets.map((Map<String, dynamic> e) => e['petId']).toList(), <String>[
+      'p1',
+      'p2',
+    ]);
+  });
+
+  test('相容 shopFormAnswers 本體與舊 customFormAnswers', () {
+    expect(
+      PetShopFormAnswers.resolve(
+        shopId: 'shop-a',
+        petData: <String, dynamic>{
+          'shopFormAnswers': <String, dynamic>{
+            'formId': 'direct',
+            'answers': <Map<String, dynamic>>[
+              <String, dynamic>{'displayValue': '有'},
+            ],
+          },
+        },
+      )?['formId'],
+      'direct',
+    );
+    expect(
+      PetShopFormAnswers.resolve(
+        shopId: 'shop-a',
+        petData: <String, dynamic>{
+          'customFormAnswers': <String, dynamic>{
+            'formId': 'single',
+            'answers': <Map<String, dynamic>>[
+              <String, dynamic>{'displayValue': '舊'},
+            ],
+          },
+        },
+      )?['formId'],
+      'single',
+    );
   });
 
   test('寫入文件帶目前 shopId，不把其他店答案放在同一 map', () {

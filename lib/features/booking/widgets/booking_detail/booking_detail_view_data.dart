@@ -5,11 +5,13 @@ import 'package:petnest_saas/core/models/booking_kind.dart';
 import 'package:petnest_saas/core/models/booking_fee_line_item.dart';
 import 'package:petnest_saas/core/models/daycare_settings_model.dart';
 import 'package:petnest_saas/core/models/payment_gateway_status.dart';
+import 'package:petnest_saas/core/services/booking_form_visibility.dart';
 import 'package:petnest_saas/core/services/booking_payment_status.dart';
 import 'package:petnest_saas/core/services/booking_settlement_math.dart';
 import 'package:petnest_saas/core/services/daycare_pricing_service.dart';
 import 'package:petnest_saas/core/services/daycare_time_helper.dart';
 import 'package:petnest_saas/core/services/shop_payment_methods.dart';
+import 'package:petnest_saas/core/services/settlement_adjust_display.dart';
 import 'package:petnest_saas/features/booking/widgets/booking_detail/booking_detail_parse.dart';
 
 enum BookingDetailTermsState { confirmed, unconfirmed, needsReconfirm }
@@ -263,6 +265,29 @@ class BookingDetailViewData {
   List<Map<String, dynamic>> get pets =>
       BookingDetailParse.parseMapList(raw['pets']);
 
+  dynamic get customerSubmitFormRaw =>
+      raw['customFormAnswers'] ??
+      raw['bookingFormAnswers'] ??
+      raw['formAnswers'];
+
+  bool get showCustomerSubmitFormOnCustomerPage {
+    final dynamic rawAnswers = customerSubmitFormRaw;
+    final bool hasAnswers = rawAnswers is Map
+        ? rawAnswers.isNotEmpty
+        : rawAnswers is List && rawAnswers.isNotEmpty;
+    return BookingFormVisibility.showCustomerSubmitForm(
+      data: raw,
+      hasAnswers: hasAnswers,
+    );
+  }
+
+  bool get showAdminCreateFormOnCustomerPage =>
+      BookingFormVisibility.showAdminCreateForm(
+        data: raw,
+        isShopView: false,
+        hasAnswers: true,
+      );
+
   String get petNames {
     final List<String> names = pets
         .map(
@@ -349,6 +374,15 @@ class BookingDetailViewData {
     if (status == 'cancelled') {
       return '已取消';
     }
+    if (isDaycare && BookingSettlementMath.isOrderComplete(raw)) {
+      return '已完成';
+    }
+    if (isDaycare && BookingSettlementMath.isDaycareAwaitingClear(raw)) {
+      if (BookingSettlementMath.refundDue(data: raw) > 0) {
+        return '等待店家退款';
+      }
+      return '待支付結算尾款';
+    }
     if (status == 'completed') {
       return '已完成';
     }
@@ -423,7 +457,18 @@ class BookingDetailViewData {
     if (status == 'cancelled') {
       return '此訂單已取消。';
     }
-    if (status == 'completed') {
+    if (isDaycare && BookingSettlementMath.isDaycareAwaitingClear(raw)) {
+      final int remain = BookingSettlementMath.remainingDue(data: raw);
+      final int refund = BookingSettlementMath.refundDue(data: raw);
+      if (remain > 0) {
+        return '服務已結束，待支付結算尾款 NT\$$remain。';
+      }
+      if (refund > 0) {
+        return '服務已結束，等待店家退款 NT\$$refund。';
+      }
+    }
+    if (status == 'completed' ||
+        (isDaycare && BookingSettlementMath.isOrderComplete(raw))) {
       if (BookingSettlementMath.balanceDelta(data: raw) > 0) {
         return '尚有待補款，請完成付款。';
       }
@@ -501,13 +546,19 @@ class BookingDetailViewData {
   bool get canChangePaymentChoice =>
       BookingPaymentStatus.canChangePaymentChoice(raw);
 
-  bool get isPaidInFull => remainingAmount <= 0 && totalAmount > 0;
+  bool get isPaidInFull {
+    if (isDaycare) {
+      return BookingSettlementMath.isOrderComplete(raw);
+    }
+    return remainingAmount <= 0 && totalAmount > 0;
+  }
 
   bool get showEstimateLabel {
     if (!isDaycare) {
       return false;
     }
-    if (status == 'completed') {
+    if (BookingSettlementMath.isSettlementConfirmed(raw) ||
+        status == 'completed') {
       return false;
     }
     if (BookingDetailParse.parseBool(raw['priceQuoteLocked'])) {
@@ -557,6 +608,9 @@ class BookingDetailViewData {
     if (status == 'cancelled') {
       return '已取消';
     }
+    if (isDaycare) {
+      return daycarePaymentStatusLabel;
+    }
     if (isPaidInFull) {
       return '已付清';
     }
@@ -572,6 +626,65 @@ class BookingDetailViewData {
     return '未付款';
   }
 
+  String get daycareDepositProgressLabel {
+    if (depositAmount <= 0 &&
+        !BookingPaymentStatus.requiresUpfrontPayment(raw)) {
+      return '不需訂金';
+    }
+    if (BookingPaymentStatus.isDepositConfirmed(raw)) {
+      return '訂金已付 NT\$$depositAmount';
+    }
+    if (depositAmount > 0) {
+      return '待付訂金 NT\$$depositAmount';
+    }
+    return '不需訂金';
+  }
+
+  String get daycareBalanceProgressLabel {
+    if (!BookingSettlementMath.isSettlementConfirmed(raw)) {
+      return '服務完成後結算尾款';
+    }
+    final int remain = BookingSettlementMath.remainingDue(data: raw);
+    final int refund = BookingSettlementMath.refundDue(data: raw);
+    if (remain > 0) {
+      return '待支付結算尾款 NT\$$remain';
+    }
+    if (refund > 0) {
+      return '等待店家退款 NT\$$refund';
+    }
+    final int expected = BookingSettlementMath.expectedTotal(data: raw);
+    final int deposit = BookingPaymentStatus.isDepositConfirmed(raw)
+        ? depositAmount
+        : 0;
+    final int balancePaid = expected - deposit;
+    if (balancePaid <= 0) {
+      return '無結算尾款';
+    }
+    return '結算尾款已付 NT\$$balancePaid';
+  }
+
+  String get daycarePaymentStatusLabel {
+    if (BookingSettlementMath.isOrderComplete(raw)) {
+      return '已付清';
+    }
+    if (BookingSettlementMath.isDaycareAwaitingClear(raw)) {
+      if (BookingSettlementMath.refundDue(data: raw) > 0) {
+        return '等待店家退款';
+      }
+      return '待支付結算尾款';
+    }
+    if (depositStatus == 'pending_review') {
+      return '付款資料審核中';
+    }
+    if (BookingPaymentStatus.isDepositConfirmed(raw)) {
+      return '訂金已付';
+    }
+    if (depositAmount > 0) {
+      return '待付訂金';
+    }
+    return '服務完成後結算尾款';
+  }
+
   bool get isBankTransfer {
     return ShopPaymentMethods.isManualBankTransferPayment(paymentMethod);
   }
@@ -585,9 +698,12 @@ class BookingDetailViewData {
       return false;
     }
     if (isSettlementTopUp) {
-      return depositStatus != 'pending_review';
+      return true;
     }
-    if (status == 'completed') {
+    if (isDaycare && BookingSettlementMath.isOrderComplete(raw)) {
+      return false;
+    }
+    if (status == 'completed' && !isDaycare) {
       return false;
     }
     if (depositStatus == 'pending_review' || depositStatus == 'confirmed') {
@@ -703,11 +819,17 @@ class BookingDetailViewData {
         raw['earnedPoints'],
   );
 
-  bool get showEarnedPoints => status == 'completed' && earnedPoints > 0;
+  bool get showEarnedPoints =>
+      (isDaycare
+          ? BookingSettlementMath.isOrderComplete(raw)
+          : status == 'completed') &&
+      earnedPoints > 0;
+
+  bool get showReview => isDaycare
+      ? BookingSettlementMath.isOrderComplete(raw)
+      : status == 'completed';
 
   bool get reviewed => BookingDetailParse.parseBool(raw['reviewed']);
-
-  bool get showReview => status == 'completed';
 
   String get reviewLabel => isDaycare ? '安親評價' : '住宿評價';
 
@@ -924,6 +1046,40 @@ class BookingDetailViewData {
           isDiscount: line.kind == BookingFeeLineKind.discount,
         );
       }
+      if (BookingSettlementMath.isSettlementConfirmed(raw)) {
+        final int quoted = BookingSettlementMath.quotedTotal(raw);
+        final int depositPaid = BookingPaymentStatus.isDepositConfirmed(raw)
+            ? depositAmount
+            : 0;
+        int estimatedBalance = quoted - depositPaid;
+        if (estimatedBalance < 0) {
+          estimatedBalance = 0;
+        }
+        addLine(label: '原預估尾款', amount: estimatedBalance, force: true);
+        final int quotedForManual = quoted;
+        final int extra = BookingSettlementMath.extraChargeSum(raw);
+        final int overtime = BookingDetailParse.parseMoney(raw['overtimeAmount']);
+        addLine(label: '超時加收', amount: overtime);
+        final int manual = BookingSettlementMath.expectedTotal(data: raw) -
+            quotedForManual -
+            extra -
+            overtime;
+        if (manual != 0) {
+          final String note = SettlementAdjustDisplay.customerNoteOf(raw);
+          addLine(
+            label: manual > 0 ? '手動加收' : '手動減免',
+            amount: manual.abs(),
+            subtitle: note,
+            isDiscount: manual < 0,
+            force: true,
+          );
+        }
+        addLine(
+          label: '最終結算應付',
+          amount: BookingSettlementMath.expectedTotal(data: raw),
+          force: true,
+        );
+      }
     } else {
       final int room = BookingDetailParse.parseMoney(raw['roomSubtotal']);
       final int base = BookingDetailParse.parseMoney(raw['basePrice']);
@@ -1063,16 +1219,37 @@ class BookingDetailViewData {
       BookingDetailTimelineItem(
         title: isDaycare ? '安親開始' : '已入住',
         time: checkInAt ?? actualStartAt,
-        active: status == 'checked_in' || status == 'completed',
+        active: status == 'checked_in' ||
+            status == 'completed' ||
+            BookingSettlementMath.isSettlementConfirmed(raw),
       ),
     );
-    items.add(
-      BookingDetailTimelineItem(
-        title: '已完成',
-        time: checkOutAt ?? actualEndAt,
-        active: status == 'completed',
-      ),
-    );
+    if (isDaycare) {
+      items.add(
+        BookingDetailTimelineItem(
+          title: '接回／結算完成',
+          time: checkOutAt ?? actualEndAt,
+          active: BookingSettlementMath.isSettlementConfirmed(raw),
+        ),
+      );
+      items.add(
+        BookingDetailTimelineItem(
+          title: '訂單完成',
+          time: BookingDetailParse.parseDate(raw['completedAt']) ??
+              checkOutAt ??
+              actualEndAt,
+          active: BookingSettlementMath.isOrderComplete(raw),
+        ),
+      );
+    } else {
+      items.add(
+        BookingDetailTimelineItem(
+          title: '已完成',
+          time: checkOutAt ?? actualEndAt,
+          active: status == 'completed',
+        ),
+      );
+    }
     if (status == 'cancelled') {
       items.add(
         BookingDetailTimelineItem(
@@ -1155,19 +1332,11 @@ class BookingDetailViewData {
     return a.year == b.year && a.month == b.month && a.day == b.day;
   }
 
-  static String paymentPurposeLabel(String purpose) {
-    switch (purpose) {
-      case PaymentPurpose.deposit:
-        return '訂金';
-      case PaymentPurpose.balance:
-        return '尾款';
-      case PaymentPurpose.full:
-        return '全額';
-      case PaymentPurpose.additional:
-        return '補款';
-      default:
-        return '付款';
-    }
+  static String paymentPurposeLabel(
+    String purpose, {
+    String amountType = '',
+  }) {
+    return PaymentPurpose.displayLabel(purpose, amountType: amountType);
   }
 
   static String paymentRecordStatusLabel(String status) {
@@ -1176,6 +1345,7 @@ class BookingDetailViewData {
         return '已付款';
       case PaymentTransactionStatus.awaitingPayment:
       case PaymentTransactionStatus.pending:
+      case PaymentTransactionStatus.creating:
         return '待付款';
       case PaymentTransactionStatus.processing:
         return '處理中';
@@ -1185,6 +1355,8 @@ class BookingDetailViewData {
         return '已逾期';
       case PaymentTransactionStatus.cancelled:
         return '已取消';
+      case PaymentTransactionStatus.superseded:
+        return '已失效（結算金額已更新）';
       default:
         return status;
     }

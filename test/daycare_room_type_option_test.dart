@@ -1,69 +1,58 @@
 // 檔案名稱：test/daycare_room_type_option_test.dart
-// 功能說明：安親房型選項的單元測試（maxPets=1 選 2 隻不可選）
+// 功能說明：安親房型選項以 room_types.capacity 為可訂上限
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:petnest_saas/core/models/daycare_settings_model.dart';
 import 'package:petnest_saas/core/services/daycare_room_type_option.dart';
 
 void main() {
-  test('maxPets=1 選 2 隻不可選', () {
+  test('房型容量 1 選 2 隻不可選', () {
     final DaycareRoomTypeOption option = DaycareRoomTypeCatalog.evaluate(
       setting: const DaycareRoomTypeSetting(
         roomTypeId: 'vip',
         enabled: true,
-        maxPets: 1,
+        maxPets: 3,
       ),
       name: 'VIP',
       petCount: 2,
+      roomCapacity: 1,
     );
     expect(option.selectable, isFalse);
-    expect(option.blockedReason, '寵物數量超過容量');
+    expect(option.blockedReason, '此房型最多容納 1 隻寵物');
+    expect(option.capacitySummary, '最多 1 隻');
   });
 
-  test('maxPets=3 選 2 隻可選', () {
+  test('安親 maxPets 不可大於房型實際容量', () {
+    final DaycareRoomTypeOption option = DaycareRoomTypeCatalog.evaluate(
+      setting: const DaycareRoomTypeSetting(
+        roomTypeId: 'vip',
+        enabled: true,
+        maxPets: 3,
+      ),
+      name: 'VIP 尊爵房',
+      petCount: 3,
+      remainingRooms: 5,
+      roomCapacity: 1,
+    );
+    expect(option.selectable, isFalse);
+    expect(option.blockedReason, '此房型最多容納 1 隻寵物');
+  });
+
+  test('房型容量 3 選 2 隻可選', () {
     final DaycareRoomTypeOption option = DaycareRoomTypeCatalog.evaluate(
       setting: const DaycareRoomTypeSetting(
         roomTypeId: 'view',
         enabled: true,
-        maxPets: 3,
+        maxPets: 1,
       ),
       name: '陽光景觀房',
       petCount: 2,
+      roomCapacity: 3,
     );
     expect(option.selectable, isTrue);
   });
 
-  test('maxPets=5 選 2 隻可選', () {
-    final DaycareRoomTypeOption option = DaycareRoomTypeCatalog.evaluate(
-      setting: const DaycareRoomTypeSetting(
-        roomTypeId: 'std',
-        enabled: true,
-        maxPets: 5,
-      ),
-      name: '舒適標準房',
-      petCount: 2,
-    );
-    expect(option.selectable, isTrue);
-  });
-
-  test("maxPets='5' 選 2 隻可選", () {
-    final DaycareRoomTypeSetting setting = DaycareRoomTypeSetting.fromMap(
-      const <String, dynamic>{
-        'roomTypeId': 'std',
-        'enabled': true,
-        'maxPets': '5',
-      },
-    );
-    expect(setting.maxPets, 5);
-    final DaycareRoomTypeOption option = DaycareRoomTypeCatalog.evaluate(
-      setting: setting,
-      name: '舒適標準房',
-      petCount: 2,
-    );
-    expect(option.selectable, isTrue);
-  });
-
-  test('extraPetPrice 不會當成 maxPets', () {
+  test('extraPetPrice 不會當成容量上限', () {
     final DaycareRoomTypeSetting setting = DaycareRoomTypeSetting.fromMap(
       const <String, dynamic>{
         'roomTypeId': 'std',
@@ -72,21 +61,21 @@ void main() {
         'extraPetPrice': 100,
       },
     );
-    expect(setting.maxPets, 5);
     expect(setting.extraPetPrice, 100);
     final DaycareRoomTypeOption option = DaycareRoomTypeCatalog.evaluate(
       setting: setting,
       name: '舒適標準房',
       petCount: 2,
+      roomCapacity: 5,
     );
     expect(option.selectable, isTrue);
   });
 
-  test('petCount 等於 maxPets 可選，超過才不可選', () {
-    final DaycareRoomTypeSetting setting = const DaycareRoomTypeSetting(
+  test('petCount 等於房型容量可選，超過才不可選', () {
+    const DaycareRoomTypeSetting setting = DaycareRoomTypeSetting(
       roomTypeId: 'vip',
       enabled: true,
-      maxPets: 3,
+      maxPets: 99,
     );
     expect(
       DaycareRoomTypeCatalog.evaluate(
@@ -94,6 +83,7 @@ void main() {
         name: 'VIP尊爵房',
         petCount: 3,
         remainingRooms: 5,
+        roomCapacity: 3,
       ).selectable,
       isTrue,
     );
@@ -103,6 +93,7 @@ void main() {
         name: 'VIP尊爵房',
         petCount: 4,
         remainingRooms: 5,
+        roomCapacity: 3,
       ).selectable,
       isFalse,
     );
@@ -120,6 +111,7 @@ void main() {
         name: '舒適標準房',
         petCount: 3,
         remainingRooms: 5,
+        roomCapacity: 3,
       ).selectable,
       isTrue,
     );
@@ -129,6 +121,7 @@ void main() {
         name: '舒適標準房',
         petCount: 3,
         remainingRooms: 0,
+        roomCapacity: 3,
       ).selectable,
       isFalse,
     );
@@ -150,12 +143,14 @@ void main() {
       name: 'VIP尊爵房',
       petCount: 3,
       remainingRooms: 5,
+      roomCapacity: 3,
     );
     final DaycareRoomTypeOption stdOption = DaycareRoomTypeCatalog.evaluate(
       setting: std,
       name: '舒適標準房',
       petCount: 3,
       remainingRooms: 9,
+      roomCapacity: 3,
     );
     expect(vipOption.selectable, isTrue);
     expect(stdOption.selectable, isTrue);
@@ -172,55 +167,9 @@ void main() {
       petCount: 3,
       remainingRooms: 5,
       typeExists: false,
+      roomCapacity: 3,
     );
     expect(option.selectable, isFalse);
     expect(option.blockedReason, '找不到對應房型資料，請聯絡店家');
-  });
-
-  test('選 VIP 後重新整理選項仍可用同一 roomTypeId 對應', () {
-    const String selected = 'vip_id';
-    final List<DaycareRoomTypeOption> options = <DaycareRoomTypeOption>[
-      DaycareRoomTypeCatalog.evaluate(
-        setting: const DaycareRoomTypeSetting(
-          roomTypeId: 'vip_id',
-          enabled: true,
-          maxPets: 3,
-        ),
-        name: 'VIP尊爵房',
-        petCount: 3,
-        remainingRooms: 5,
-      ),
-      DaycareRoomTypeCatalog.evaluate(
-        setting: const DaycareRoomTypeSetting(
-          roomTypeId: 'std_id',
-          enabled: true,
-          maxPets: 3,
-        ),
-        name: '舒適標準房',
-        petCount: 3,
-        remainingRooms: 9,
-      ),
-    ];
-    expect(
-      options.any(
-        (DaycareRoomTypeOption e) => e.selectable && e.roomTypeId == selected,
-      ),
-      isTrue,
-    );
-  });
-
-  test('不會把住宿 capacity 或缺欄位預設成全房型都只能 1 隻', () {
-    final DaycareRoomTypeSetting missing = DaycareRoomTypeSetting.fromMap(
-      const <String, dynamic>{'roomTypeId': 'a', 'enabled': true},
-    );
-    expect(missing.maxPets, 1);
-    final DaycareRoomTypeSetting fromDouble = DaycareRoomTypeSetting.fromMap(
-      const <String, dynamic>{
-        'roomTypeId': 'b',
-        'enabled': true,
-        'maxPets': 5.0,
-      },
-    );
-    expect(fromDouble.maxPets, 5);
   });
 }

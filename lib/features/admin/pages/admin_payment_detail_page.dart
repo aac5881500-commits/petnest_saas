@@ -6,6 +6,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/models/payment_model.dart';
+import '../../../core/models/payment_gateway_status.dart';
 
 class AdminPaymentDetailPage extends StatelessWidget {
   const AdminPaymentDetailPage({super.key, required this.payment});
@@ -26,7 +27,10 @@ class AdminPaymentDetailPage extends StatelessWidget {
               _DetailRow(label: '付款金額', value: 'NT\$ ${payment.amount}'),
               _DetailRow(
                 label: '付款用途',
-                value: _purposeLabel(payment.paymentPurpose),
+                value: _purposeLabel(
+                  payment.paymentPurpose,
+                  amountType: payment.amountType,
+                ),
               ),
               _DetailRow(
                 label: '付款方式',
@@ -77,19 +81,8 @@ class AdminPaymentDetailPage extends StatelessWidget {
     );
   }
 
-  String _purposeLabel(String value) {
-    switch (value) {
-      case 'deposit':
-        return '訂金';
-      case 'balance':
-        return '尾款';
-      case 'full':
-        return '全額付款';
-      case 'additional':
-        return '補款／加購';
-      default:
-        return '其他';
-    }
+  String _purposeLabel(String value, {String amountType = ''}) {
+    return PaymentPurpose.displayLabel(value, amountType: amountType);
   }
 
   String _methodLabel(String value) {
@@ -122,6 +115,8 @@ class AdminPaymentDetailPage extends StatelessWidget {
         return '已取消';
       case 'expired':
         return '已逾期';
+      case 'superseded':
+        return '已失效（結算金額已更新）';
       case 'refunded':
         return '已退款';
       default:

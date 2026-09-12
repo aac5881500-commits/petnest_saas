@@ -17,6 +17,7 @@ const {
   isSettlementConfirmed,
   canLock,
   toInt,
+  stampDaycareClearStatus,
 } = require("./booking_settlement_math");
 const {
   isSettlementTopUpMethodAvailable,
@@ -228,7 +229,7 @@ exports.adjustBookingSettlement = onCall(
             refundDueAmount: next.refundDueAmount,
             paymentStatus: next.paymentStatus,
             lastPaymentMethod: method,
-            lastPaymentPurpose: "additional",
+            lastPaymentPurpose: "balance",
             lastPaymentAmount: amount,
             paymentUpdatedAt: now,
             settlementTopUpStatus: next.remainingAmount > 0 ?
@@ -250,7 +251,7 @@ exports.adjustBookingSettlement = onCall(
               amount,
               status: "paid",
               paymentMethod: method,
-              paymentPurpose: "additional",
+              paymentPurpose: "balance",
               amountType: "balance",
               channel: "in_shop",
               requestId,
@@ -397,7 +398,7 @@ exports.adjustBookingSettlement = onCall(
               refundDueAmount: next.refundDueAmount,
               paymentStatus: next.paymentStatus,
               lastPaymentMethod: "transfer",
-              lastPaymentPurpose: "additional",
+              lastPaymentPurpose: "balance",
               lastPaymentAmount: amount,
               settlementTopUpStatus: "collected",
               paymentUpdatedAt: now,
@@ -415,7 +416,7 @@ exports.adjustBookingSettlement = onCall(
                 amount,
                 status: "paid",
                 paymentMethod: "transfer",
-                paymentPurpose: "additional",
+                paymentPurpose: "balance",
                 amountType: "balance",
                 channel: "bank_transfer",
                 requestId,
@@ -469,6 +470,14 @@ exports.adjustBookingSettlement = onCall(
           throw new HttpsError("invalid-argument", `不支援的操作：${action}`);
         }
 
+        stampDaycareClearStatus(
+            booking,
+            settlementFields({...booking, ...bookingUpdate}),
+            bookingUpdate,
+        );
+        if (bookingUpdate.status === "completed" && !booking.completedAt) {
+          bookingUpdate.completedAt = now;
+        }
         transaction.update(bookingRef, bookingUpdate);
         if (paymentWrite) {
           transaction.set(paymentWrite.ref, paymentWrite.data);

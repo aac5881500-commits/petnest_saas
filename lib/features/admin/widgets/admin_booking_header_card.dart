@@ -58,6 +58,7 @@ class AdminBookingHeaderCard extends StatelessWidget {
                 daycare: daycare,
                 paymentPending: _paymentPending(data),
                 depositConfirmed: BookingPaymentStatus.isDepositConfirmed(data),
+                data: data,
               ),
               _pill(daycare ? '安親' : '住宿', theme.primaryColor),
               if ((data['source'] ?? '').toString() == 'admin')

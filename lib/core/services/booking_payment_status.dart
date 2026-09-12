@@ -47,6 +47,11 @@ class BookingPaymentStatus {
       final int due = deposit - paid;
       return due < 0 ? 0 : due;
     }
+    if (isDaycare(data) &&
+        !requiresUpfrontPayment(data) &&
+        !BookingSettlementMath.isSettlementConfirmed(data)) {
+      return 0;
+    }
     if (topUp > 0) {
       return topUp;
     }

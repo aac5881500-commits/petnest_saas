@@ -46,7 +46,12 @@ import 'package:petnest_saas/features/admin/widgets/admin_booking_status_chip.da
 import 'package:petnest_saas/features/admin/widgets/admin_booking_text_helpers.dart';
 import 'package:petnest_saas/features/admin/widgets/admin_booking_timeline.dart';
 import 'package:petnest_saas/features/booking/widgets/booking_detail/booking_detail_message_section.dart';
+import 'package:petnest_saas/core/services/pet_shop_form_answers.dart';
+import 'package:petnest_saas/core/services/booking_pet_care_form_loader.dart';
 import 'package:petnest_saas/core/services/daily_care_setting_service.dart';
+import 'package:petnest_saas/features/admin/widgets/admin_booking_form_summary_card.dart';
+import 'package:petnest_saas/features/admin/widgets/admin_booking_stay_meta_section.dart';
+import 'package:petnest_saas/features/admin/widgets/admin_daily_care_report_shortcut.dart';
 
 class AdminBookingDetailPage extends StatelessWidget {
   const AdminBookingDetailPage({
@@ -83,11 +88,8 @@ class AdminBookingDetailPage extends StatelessWidget {
 
         final data = doc.data() as Map<String, dynamic>;
 
-        final rawPets = data['pets'];
-
-        final List<Map<String, dynamic>> pets = rawPets is List
-            ? rawPets.map((e) => Map<String, dynamic>.from(e as Map)).toList()
-            : <Map<String, dynamic>>[];
+        final List<Map<String, dynamic>> pets =
+            AdminBookingFormAnswersSection.petsOf(data);
 
         final status = data['status'] ?? 'pending';
 
@@ -121,6 +123,13 @@ class AdminBookingDetailPage extends StatelessWidget {
                                 .toString()
                                 .trim())
                             .isNotEmpty;
+                    AdminShopIdentityLog.logOnce(
+                      bookingId: bookingId,
+                      shopId: shopId,
+                      bookingShopId: shopId,
+                      settlementLocked:
+                          BookingSettlementMath.isSettlementLocked(data),
+                    );
                     return AdminBookingDetailScaffold(
                       title: '訂單詳細',
                       bookingCode: bookingCode.isEmpty
@@ -129,12 +138,6 @@ class AdminBookingDetailPage extends StatelessWidget {
                                 : bookingId)
                           : bookingCode,
                       banners: <Widget>[
-                        AdminShopIdentityDebugCard(
-                          shopId: shopId,
-                          bookingShopId: shopId,
-                          settlementLocked:
-                              BookingSettlementMath.isSettlementLocked(data),
-                        ),
                         if (data['source'] == 'admin' &&
                             (data['note'] ?? '').toString().trim().isNotEmpty)
                           Padding(
@@ -264,11 +267,15 @@ class AdminBookingDetailPage extends StatelessWidget {
                           child: AdminBookingPetStrip(
                             pets: pets,
                             shopId: shopId,
-                            userId: (data['userId'] ?? '').toString(),
+                            userId: PetShopFormAnswers.bookingUserId(data),
                           ),
                         ),
                         AdminBookingDetailSection(
-                          title: '價格與加值服務',
+                          title: '日期／房型／房間',
+                          child: AdminBookingStayMetaSection(data: data),
+                        ),
+                        AdminBookingDetailSection(
+                          title: '服務與費用明細',
                           child: AdminBookingPriceSection(
                             data: data,
                             pets: pets,
@@ -284,7 +291,55 @@ class AdminBookingDetailPage extends StatelessWidget {
                             initiallyExpanded: false,
                             child: AdminBookingExtraChargeSection(data: data),
                           ),
+                        if (AdminDailyCareReportShortcut.shouldShow(data))
+                          AdminBookingDetailSection(
+                            title: '每日照護摘要',
+                            child: AdminDailyCareReportShortcut(
+                              shopId: shopId,
+                              bookingId: bookingId,
+                              booking: data,
+                            ),
+                          ),
                       ],
+                      progress: AdminBookingDetailSection(
+                          title: '訂單進度',
+                          collapsible: true,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: <Widget>[
+                              AdminBookingStatusChip(status: status.toString()),
+                              const SizedBox(height: 10),
+                              AdminBookingTimeline(
+                                data: data,
+                                status: status,
+                                depositRequired: depositRequired,
+                              ),
+                              if (status == 'cancelled') ...<Widget>[
+                                const SizedBox(height: 10),
+                                Text(
+                                  '取消原因：${data['cancelReason'] ?? '未填寫'}',
+                                  style: const TextStyle(
+                                    color: Colors.red,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                                Text(
+                                  '取消來源：${adminBookingCancelByText(data['cancelBy'])}',
+                                  style: TextStyle(
+                                    color: Colors.red.shade700,
+                                    fontSize: 13,
+                                  ),
+                                ),
+                              ],
+                            ],
+                          ),
+                        ),
+                      petCareFuture: BookingPetCareFormLoader.load(
+                        shopId: shopId,
+                        userId: PetShopFormAnswers.bookingUserId(data),
+                        pets: pets,
+                        bookingId: bookingId,
+                      ),
                       forms: <Widget>[
                         AdminBookingFormAnswersSection(
                           shopId: shopId,
@@ -292,6 +347,11 @@ class AdminBookingDetailPage extends StatelessWidget {
                           data: data,
                         ),
                       ],
+                      formSummary: AdminBookingFormSummaryCard(
+                        shopId: shopId,
+                        bookingId: bookingId,
+                        data: data,
+                      ),
                       communication: <Widget>[
                         _buildMemberAdminNote(data),
                         AdminBookingDetailSection(
@@ -324,44 +384,22 @@ class AdminBookingDetailPage extends StatelessWidget {
                         AdminBookingDetailPaymentAside(
                           data: data,
                           bookingId: bookingId,
+                          onConfirmDeposit: canEdit &&
+                                  !BookingSettlementMath.isSettlementLocked(
+                                    data,
+                                  ) &&
+                                  (status == 'pending' ||
+                                      status == 'pending_confirmation' ||
+                                      status == 'unpaid') &&
+                                  BookingPaymentStatus.resolveDepositAmount(
+                                        data,
+                                      ) >
+                                      0 &&
+                                  !BookingPaymentStatus.isDepositConfirmed(data)
+                              ? () => _applyConfirmDeposit()
+                              : null,
                         ),
                         AdminBookingDetailPolicyCard(data: data),
-                        AdminBookingDetailSection(
-                          title: '訂單時間軸',
-                          collapsible: true,
-                          child: AdminBookingTimeline(
-                            data: data,
-                            status: status,
-                            depositRequired: depositRequired,
-                          ),
-                        ),
-                        AdminBookingDetailSection(
-                          title: '狀態',
-                          collapsible: true,
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: <Widget>[
-                              AdminBookingStatusChip(status: status.toString()),
-                              if (status == 'cancelled') ...<Widget>[
-                                const SizedBox(height: 10),
-                                Text(
-                                  '取消原因：${data['cancelReason'] ?? '未填寫'}',
-                                  style: const TextStyle(
-                                    color: Colors.red,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                                Text(
-                                  '取消來源：${adminBookingCancelByText(data['cancelBy'])}',
-                                  style: TextStyle(
-                                    color: Colors.red.shade700,
-                                    fontSize: 13,
-                                  ),
-                                ),
-                              ],
-                            ],
-                          ),
-                        ),
                         AdminBookingDetailSection(
                           title: '操作紀錄',
                           collapsible: true,
@@ -957,6 +995,10 @@ class AdminBookingDetailPage extends StatelessWidget {
   }
 
   /// UI 小工具
+  Future<void> _applyConfirmDeposit() {
+    return AdminManualDepositConfirm.confirmStayBooking(bookingId: bookingId);
+  }
+
   Future<void> _confirmDepositAndBooking(BuildContext context) async {
     final bool? ok = await showDialog<bool>(
       context: context,
@@ -997,7 +1039,7 @@ class AdminBookingDetailPage extends StatelessWidget {
       },
     );
     try {
-      await AdminManualDepositConfirm.confirmStayBooking(bookingId: bookingId);
+      await _applyConfirmDeposit();
       if (context.mounted) {
         Navigator.of(context, rootNavigator: true).pop();
         ScaffoldMessenger.of(

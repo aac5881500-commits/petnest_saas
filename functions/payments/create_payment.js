@@ -14,6 +14,7 @@ const {
   normalizeString,
   resolveDepositAmount,
   resolveRequestedPaymentAmount,
+  resolveBookingPaymentIntent,
   verifyBookingForPayment,
   verifyStoreOrderForPayment,
 } = require("./payment_verify");
@@ -244,15 +245,15 @@ exports.createEcpayPayment = onCall(
           );
         }
 
-        const settlementTopUp = isSettlementConfirmed(verifiedBooking.booking);
-        const effectiveAmountType = settlementTopUp ||
-          amountType === "balance" ||
-          amountType === "additional" ?
-          "full" : amountType;
+        const intent = resolveBookingPaymentIntent({
+          booking: verifiedBooking.booking,
+          amountType,
+          paymentPurpose,
+        });
 
         paymentAmount = resolveRequestedPaymentAmount({
           booking: verifiedBooking.booking,
-          amountType: effectiveAmountType,
+          amountType: intent.chargeType,
         });
 
         resolveDepositAmount(verifiedBooking.booking);
@@ -262,10 +263,8 @@ exports.createEcpayPayment = onCall(
         totalAmount = verifiedBooking.totalAmount;
         paidAmount = verifiedBooking.paidAmount;
         resolvedBookingId = verifiedBooking.bookingId;
-        if (settlementTopUp) {
-          resolvedAmountType = "balance";
-          resolvedPaymentPurpose = "additional";
-        }
+        resolvedAmountType = intent.amountType;
+        resolvedPaymentPurpose = intent.paymentPurpose;
       }
 
       await verifyPaymentSettings({
@@ -309,13 +308,17 @@ exports.createEcpayPayment = onCall(
         );
       }
 
+      const htmlAmount = paymentRecord.isExisting ?
+        (Number(savedPayment.amount) || paymentAmount) :
+        paymentAmount;
+
       const paymentHtmlResult = createEcpayPaymentHtml({
         merchantId: credentials.merchantId,
         hashKey: credentials.hashKey,
         hashIv: credentials.hashIv,
         isProduction: credentials.isProduction,
         merchantTradeNo,
-        amount: paymentAmount,
+        amount: htmlAmount,
         paymentMethod,
         // 🟢 綠界付款完成後的背景通知網址
         // 使用目前 Firebase 專案 petnest-saas 的正式 Function 網址

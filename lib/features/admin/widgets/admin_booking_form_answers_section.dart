@@ -1,5 +1,5 @@
 // 檔案名稱：lib/features/admin/widgets/admin_booking_form_answers_section.dart
-// 功能說明：後台顯示／編輯客戶送單表單與手動訂單表單答案（僅該筆訂單）。
+// 功能說明：後台表單資料：寵物照護／客戶送單唯讀，僅手動訂單表單可編輯。
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -10,7 +10,10 @@ import 'package:petnest_saas/core/models/home_theme_model.dart';
 import 'package:petnest_saas/core/services/action_log_service.dart';
 import 'package:petnest_saas/core/services/booking_form_visibility.dart';
 import 'package:petnest_saas/core/services/booking_settlement_math.dart';
+import 'package:petnest_saas/core/services/custom_form_service.dart';
+import 'package:petnest_saas/core/services/pet_shop_form_answers.dart';
 import 'package:petnest_saas/features/admin/widgets/admin_booking_detail_layout.dart';
+import 'package:petnest_saas/features/admin/widgets/admin_booking_form_focus.dart';
 import 'package:petnest_saas/features/admin/widgets/admin_booking_pet_care_forms.dart';
 import 'package:petnest_saas/features/custom_form/widgets/custom_form_answer_view.dart';
 import 'package:petnest_saas/features/custom_form/widgets/custom_form_response_fields.dart';
@@ -27,14 +30,51 @@ class AdminBookingFormAnswersSection extends StatelessWidget {
   final String bookingId;
   final Map<String, dynamic> data;
 
+  static List<Map<String, dynamic>> petsOf(Map<String, dynamic> data) {
+    final List<Map<String, dynamic>> out = <Map<String, dynamic>>[];
+    final Set<String> seen = <String>{};
+    void add(Map<String, dynamic> pet) {
+      final String id = PetShopFormAnswers.petIdOf(pet);
+      if (id.isNotEmpty) {
+        if (seen.contains(id)) {
+          return;
+        }
+        seen.add(id);
+      }
+      out.add(pet);
+    }
+
+    if (data['pets'] is List) {
+      for (final Object? item in data['pets'] as List) {
+        if (item is Map) {
+          add(Map<String, dynamic>.from(item));
+        }
+      }
+    }
+    final Object? ids = data['petIds'];
+    if (ids is List) {
+      for (final Object? id in ids) {
+        final String petId = id.toString().trim();
+        if (petId.isEmpty || seen.contains(petId)) {
+          continue;
+        }
+        add(<String, dynamic>{'petId': petId});
+      }
+    }
+    return out;
+  }
+
+  static bool hasVisibleAnswers(dynamic raw) {
+    return (CustomFormAnswerSnapshot.tryParse(raw)?.filledCount ?? 0) > 0;
+  }
+
+  static int filledCount(dynamic raw) {
+    return CustomFormAnswerSnapshot.tryParse(raw)?.filledCount ?? 0;
+  }
+
   @override
   Widget build(BuildContext context) {
-    final List<Map<String, dynamic>> pets = data['pets'] is List
-        ? (data['pets'] as List)
-              .whereType<Map>()
-              .map((Map item) => Map<String, dynamic>.from(item))
-              .toList()
-        : <Map<String, dynamic>>[];
+    final List<Map<String, dynamic>> pets = petsOf(data);
     final dynamic customerRaw =
         data['customFormAnswers'] ??
         data['bookingFormAnswers'] ??
@@ -42,49 +82,64 @@ class AdminBookingFormAnswersSection extends StatelessWidget {
     final dynamic adminRaw = data['adminCustomFormAnswers'];
     final bool showCustomer = BookingFormVisibility.showCustomerSubmitForm(
       data: data,
-      hasAnswers: _hasVisibleAnswers(customerRaw),
+      hasAnswers: hasVisibleAnswers(customerRaw),
     );
     final bool showAdmin = BookingFormVisibility.showAdminCreateForm(
       data: data,
       isShopView: true,
-      hasAnswers: _hasVisibleAnswers(adminRaw),
+      hasAnswers: hasVisibleAnswers(adminRaw),
     );
     return Column(
       children: <Widget>[
-        AdminBookingPetCareForms(
-          shopId: shopId,
-          userId: (data['userId'] ?? '').toString(),
-          pets: pets,
+        KeyedSubtree(
+          key:
+              AdminBookingFormFocusScope.maybeOf(
+                context,
+              )?.anchorKeys[AdminBookingFormAnchor.petCare] ??
+              const ValueKey<String>('form-anchor-petCare'),
+          child: AdminBookingPetCareForms(
+            shopId: shopId,
+            userId: PetShopFormAnswers.bookingUserId(data),
+            bookingId: bookingId,
+            pets: pets,
+          ),
         ),
         if (showCustomer)
-          _FormBlock(
-            shopId: shopId,
-            bookingId: bookingId,
-            field: 'customFormAnswers',
-            title: '客戶送單表單',
-            fallback: data['bookingFormAnswers'] ?? data['formAnswers'],
-            data: data,
+          KeyedSubtree(
+            key:
+                AdminBookingFormFocusScope.maybeOf(
+                  context,
+                )?.anchorKeys[AdminBookingFormAnchor.customerSubmit] ??
+                const ValueKey<String>('form-anchor-customerSubmit'),
+            child: _FormBlock(
+              shopId: shopId,
+              bookingId: bookingId,
+              field: 'customFormAnswers',
+              title: '客戶送單表單',
+              fallback: data['bookingFormAnswers'] ?? data['formAnswers'],
+              data: data,
+              editable: false,
+              anchor: AdminBookingFormAnchor.customerSubmit,
+            ),
           ),
         if (showAdmin)
-          _FormBlock(
-            shopId: shopId,
-            bookingId: bookingId,
-            field: 'adminCustomFormAnswers',
-            title: '手動訂單表單',
-            data: data,
+          KeyedSubtree(
+            key:
+                AdminBookingFormFocusScope.maybeOf(
+                  context,
+                )?.anchorKeys[AdminBookingFormAnchor.adminCreate] ??
+                const ValueKey<String>('form-anchor-adminCreate'),
+            child: _FormBlock(
+              shopId: shopId,
+              bookingId: bookingId,
+              field: 'adminCustomFormAnswers',
+              title: '手動訂單表單',
+              data: data,
+              editable: true,
+              anchor: AdminBookingFormAnchor.adminCreate,
+            ),
           ),
       ],
-    );
-  }
-
-  static bool _hasVisibleAnswers(dynamic raw) {
-    final CustomFormAnswerSnapshot? snapshot =
-        CustomFormAnswerSnapshot.tryParse(raw);
-    if (snapshot == null) {
-      return false;
-    }
-    return snapshot.answers.any(
-      (CustomFormAnswerItem item) => item.displayValue.trim().isNotEmpty,
     );
   }
 }
@@ -96,6 +151,8 @@ class _FormBlock extends StatelessWidget {
     required this.field,
     required this.title,
     required this.data,
+    required this.editable,
+    required this.anchor,
     this.fallback,
   });
 
@@ -104,6 +161,8 @@ class _FormBlock extends StatelessWidget {
   final String field;
   final String title;
   final Map<String, dynamic> data;
+  final bool editable;
+  final AdminBookingFormAnchor anchor;
   final dynamic fallback;
 
   @override
@@ -111,9 +170,13 @@ class _FormBlock extends StatelessWidget {
     final dynamic raw = data[field] ?? fallback;
     final CustomFormAnswerSnapshot? snapshot =
         CustomFormAnswerSnapshot.tryParse(raw);
+    final AdminBookingFormFocusScope? focus =
+        AdminBookingFormFocusScope.maybeOf(context);
+    final bool expanded = focus?.isExpanded(anchor) ?? true;
     return AdminBookingDetailSection(
       title: title,
       collapsible: true,
+      initiallyExpanded: expanded,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: <Widget>[
@@ -122,8 +185,7 @@ class _FormBlock extends StatelessWidget {
             title: title,
             theme: HomeThemeModel.classicDefault,
           ),
-          if (snapshot != null &&
-              !snapshot.isEmpty &&
+          if (editable &&
               !BookingSettlementMath.isSettlementLocked(data))
             Align(
               alignment: Alignment.centerRight,
@@ -139,10 +201,23 @@ class _FormBlock extends StatelessWidget {
 
   Future<void> _edit(
     BuildContext context,
-    CustomFormAnswerSnapshot snapshot,
+    CustomFormAnswerSnapshot? snapshot,
   ) async {
-    final CustomFormModel form = snapshot.toEditableForm(shopId: shopId);
-    Map<String, dynamic> answers = snapshot.toValueMap();
+    CustomFormModel form;
+    Map<String, dynamic> answers;
+    if (snapshot != null && !snapshot.isEmpty) {
+      form = snapshot.toEditableForm(shopId: shopId);
+      answers = snapshot.toValueMap();
+    } else {
+      form = await CustomFormService.instance.getForm(
+        shopId: shopId,
+        formType: CustomFormType.adminCreate,
+      );
+      answers = <String, dynamic>{};
+    }
+    if (!context.mounted) {
+      return;
+    }
     final bool? saved = await showModalBottomSheet<bool>(
       context: context,
       isScrollControlled: true,
@@ -236,7 +311,7 @@ class _FormBlock extends StatelessWidget {
       operatorRole: 'staff',
       payload: <String, dynamic>{
         'field': field,
-        'before': snapshot.toCallableMap(),
+        'before': snapshot?.toCallableMap(),
         'after': next.toCallableMap(),
         'operatorEmail': (user?.email ?? '').trim(),
       },

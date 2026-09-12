@@ -10,6 +10,7 @@ import 'package:petnest_saas/core/services/booking_settlement_math.dart';
 import 'package:petnest_saas/core/services/daycare_function_service.dart';
 import 'package:petnest_saas/core/services/daycare_time_helper.dart';
 import 'package:petnest_saas/core/services/shop_payment_methods.dart';
+import 'package:petnest_saas/core/services/settlement_adjust_display.dart';
 import 'package:petnest_saas/core/utils/safe_parse.dart';
 import 'package:petnest_saas/features/admin/widgets/admin_booking_detail_layout.dart';
 
@@ -154,7 +155,24 @@ class AdminBookingSettlementPanel extends StatelessWidget {
       Text('實際接回：${_fmt(data['actualEndAt'])}'),
       _kv('預約費用', BookingSettlementMath.quotedTotal(data)),
       _kv('超時費用', SafeParse.parseMoney(data['overtimeAmount'])),
-      _kv('手動調整', SafeParse.parseMoney(data['manualAdjust'])),
+      if (SettlementAdjustDisplay.amountOf(data) != 0) ...<Widget>[
+        Padding(
+          padding: const EdgeInsets.only(bottom: 4),
+          child: Text(
+            SettlementAdjustDisplay.shopAmountLine(
+              SettlementAdjustDisplay.amountOf(data),
+            ),
+            style: const TextStyle(fontWeight: FontWeight.w700),
+          ),
+        ),
+        if (SettlementAdjustDisplay.reasonOf(data).isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 4),
+            child: Text(
+              '調整原因：${SettlementAdjustDisplay.reasonOf(data)}',
+            ),
+          ),
+      ],
     ];
   }
 

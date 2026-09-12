@@ -22,9 +22,9 @@ class BookingFormVisibility {
   static bool showAdminCreateForm({
     required Map<String, dynamic> data,
     required bool isShopView,
-    required bool hasAnswers,
+    bool hasAnswers = false,
   }) {
-    return isShopView && isAdminCreated(data) && hasAnswers;
+    return isShopView && isAdminCreated(data);
   }
 
   static bool showInternalHandover({required bool isShopView}) {

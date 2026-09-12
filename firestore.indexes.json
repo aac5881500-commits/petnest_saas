@@ -582,6 +582,28 @@
   "fields": [
     { "fieldPath": "shopId", "order": "ASCENDING" },
     { "fieldPath": "bookingKind", "order": "ASCENDING" },
+    { "fieldPath": "startDate", "order": "DESCENDING" },
+    { "fieldPath": "__name__", "order": "DESCENDING" }
+  ],
+  "density": "SPARSE_ALL"
+},
+{
+  "collectionGroup": "bookings",
+  "queryScope": "COLLECTION",
+  "fields": [
+    { "fieldPath": "shopId", "order": "ASCENDING" },
+    { "fieldPath": "bookingKind", "order": "ASCENDING" },
+    { "fieldPath": "endDate", "order": "DESCENDING" },
+    { "fieldPath": "__name__", "order": "DESCENDING" }
+  ],
+  "density": "SPARSE_ALL"
+},
+{
+  "collectionGroup": "bookings",
+  "queryScope": "COLLECTION",
+  "fields": [
+    { "fieldPath": "shopId", "order": "ASCENDING" },
+    { "fieldPath": "bookingKind", "order": "ASCENDING" },
     { "fieldPath": "endDate", "order": "ASCENDING" },
     { "fieldPath": "__name__", "order": "ASCENDING" }
   ],

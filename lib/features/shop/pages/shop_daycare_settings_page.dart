@@ -1034,7 +1034,7 @@ class _RoomPricingEditor extends StatelessWidget {
                     title: Text(name),
                     subtitle: Text(
                       current.enabled
-                          ? 'NT\$${current.basePrice}　最多 ${current.maxPets} 隻'
+                          ? 'NT\$${current.basePrice}　${stayCapacity > 0 ? '房型容納上限：$stayCapacity 隻（依房型設定）' : '依房型設定'}'
                           : '未開放安親',
                     ),
                     children: <Widget>[
@@ -1090,9 +1090,14 @@ class _RoomPricingEditor extends StatelessWidget {
                       ) {
                         _upsert(current.copyWith(maxBaseCharge: v));
                       }),
-                      _numTile('最多容納寵物數（0 不限）', current.maxPets, (int v) {
-                        _upsert(current.copyWith(maxPets: v.clamp(0, 99)));
-                      }),
+                      ListTile(
+                        title: const Text('房型容納上限'),
+                        subtitle: Text(
+                          stayCapacity > 0
+                              ? '房型容納上限：$stayCapacity 隻（依房型設定）'
+                              : '房型容納上限：尚未設定（依房型設定）',
+                        ),
+                      ),
                     ],
                   ),
                 );

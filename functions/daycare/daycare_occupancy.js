@@ -21,6 +21,31 @@ const {
  * @param {Date} slotEnd
  * @return {boolean}
  */
+function occupiesInventory(data) {
+  const status = normalizeString(data.status);
+  if (status === "cancelled" || status === "no_show" || status === "completed") {
+    return false;
+  }
+  if (!ACTIVE_STATUSES.includes(status)) {
+    return false;
+  }
+  if (resolveBookingKind(data) === BOOKING_KIND_DAYCARE) {
+    if (data.settlementConfirmed === true || data.settledAt) {
+      return false;
+    }
+  }
+  if (data.depositExpired === true) {
+    return false;
+  }
+  const expire = toDate(data.depositExpireAt);
+  const depositPaid = data.depositPaid === true ||
+    normalizeString(data.depositStatus) === "confirmed";
+  if (expire && Date.now() > expire.getTime() && !depositPaid) {
+    return false;
+  }
+  return true;
+}
+
 function stayConflictsSlot(stayStart, stayEnd, slotStart, slotEnd) {
   const stayStartDay = new Date(Date.UTC(
       stayStart.getFullYear(), stayStart.getMonth(), stayStart.getDate(),
@@ -62,6 +87,9 @@ async function assertAvailable(firestore, params) {
       continue;
     }
     const data = doc.data() || {};
+    if (!occupiesInventory(data)) {
+      continue;
+    }
     const kind = resolveBookingKind(data);
     const otherPets = Array.isArray(data.petIds) ?
       data.petIds.map((id) => String(id)) : [];
@@ -210,10 +238,16 @@ async function assertRoomTypeCapacity(firestore, params) {
       continue;
     }
     const data = doc.data() || {};
+    if (!occupiesInventory(data)) {
+      continue;
+    }
     if (resolveBookingKind(data) !== BOOKING_KIND_DAYCARE) {
       continue;
     }
-    if (normalizeString(data.roomTypeId) !== roomTypeId) {
+    const heldType = normalizeString(
+        data.requestedRoomTypeId || data.roomTypeId,
+    );
+    if (heldType !== roomTypeId) {
       continue;
     }
     if (normalizeString(data.roomId)) {
@@ -385,6 +419,7 @@ async function releaseOccupancies(firestore, transaction, shopId, bookingId) {
 }
 
 module.exports = {
+  occupiesInventory,
   stayConflictsSlot,
   assertAvailable,
   assertRoomTypeCapacity,

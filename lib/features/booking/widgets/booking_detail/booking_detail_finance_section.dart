@@ -7,6 +7,7 @@ import 'package:petnest_saas/core/models/payment_gateway_status.dart';
 import 'package:petnest_saas/core/models/payment_model.dart';
 import 'package:petnest_saas/core/services/booking_settlement_math.dart';
 import 'package:petnest_saas/core/services/payment_service.dart';
+import 'package:petnest_saas/core/services/settlement_adjust_display.dart';
 import 'package:petnest_saas/core/services/shop_payment_methods.dart';
 import 'package:petnest_saas/core/utils/safe_parse.dart';
 import 'package:petnest_saas/core/widgets/booking_payment_deadline_banner.dart';
@@ -112,8 +113,37 @@ class _BookingDetailFinanceSectionState
               'NT\$ ${view.depositAmount}',
               valueColor: BookingDetailUi.of(context).primary,
             ),
+          if (view.isDaycare) ...<Widget>[
+            const SizedBox(height: 8),
+            Text(
+              '付款進度',
+              style: TextStyle(
+                fontSize: BookingDetailUi.bodySize,
+                fontWeight: FontWeight.w700,
+                color: BookingDetailUi.of(context).text,
+              ),
+            ),
+            const SizedBox(height: 8),
+            _kv('訂金', view.daycareDepositProgressLabel),
+            _kv('結算尾款', view.daycareBalanceProgressLabel),
+            const SizedBox(height: 4),
+          ],
           _kv('已付款', 'NT\$ ${view.paidAmount}'),
-          if (BookingSettlementMath.isSettlementConfirmed(view.raw)) ...<Widget>[
+          if (BookingSettlementMath.isSettlementConfirmed(view.raw) &&
+              !view.isDaycare) ...<Widget>[
+            if (view.isDaycare &&
+                SettlementAdjustDisplay.shouldShow(view.raw)) ...<Widget>[
+              _kv(
+                '費用調整',
+                SettlementAdjustDisplay.signedLabel(
+                  SettlementAdjustDisplay.amountOf(view.raw),
+                ),
+              ),
+              _kv(
+                '調整說明',
+                SettlementAdjustDisplay.reasonOf(view.raw),
+              ),
+            ],
             _kv(
               '已完成退款',
               'NT\$ ${BookingSettlementMath.refundedAmount(view.raw)}',
@@ -441,7 +471,6 @@ class _BookingDetailFinanceSectionState
     final String accountNumber = SafeParse.parseString(
       view.raw['accountNumber'],
     );
-    final String imageUrl = view.transferProofUrl;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -473,7 +502,7 @@ class _BookingDetailFinanceSectionState
           ),
         ),
         const SizedBox(height: 10),
-        if (imageUrl.isEmpty)
+        if (BookingPaymentProof.records(view.raw).isEmpty)
           OutlinedButton.icon(
             onPressed: widget.loading ? null : widget.onUploadImage,
             icon: const Icon(Icons.upload_file_outlined),
@@ -487,13 +516,7 @@ class _BookingDetailFinanceSectionState
               BookingPaymentProofButton(data: view.raw),
               OutlinedButton(
                 onPressed: widget.loading ? null : widget.onUploadImage,
-                child: const Text('更換照片'),
-              ),
-              TextButton(
-                onPressed: widget.loading
-                    ? null
-                    : () => widget.onDeleteTransferImage(imageUrl),
-                child: const Text('刪除照片'),
+                child: const Text('新增付款回傳照片'),
               ),
             ],
           ),
@@ -589,23 +612,22 @@ class _BookingDetailFinanceSectionState
         }
         return Column(
           children: payments.map((PaymentModel payment) {
+            final String purpose = PaymentPurpose.displayLabel(
+              payment.paymentPurpose,
+              amountType: payment.amountType,
+            );
+            final DateTime at = payment.paidAt ?? payment.createdAt;
+            final String when = _shortDate(at);
             return Padding(
               padding: const EdgeInsets.only(bottom: 8),
-              child: Row(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
-                  Expanded(
-                    child: Text(
-                      '${BookingDetailViewData.paymentPurposeLabel(payment.paymentPurpose)}・${_method(payment.paymentMethod)}',
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                  Text('NT\$ ${payment.amount}'),
-                  const SizedBox(width: 8),
                   Text(
-                    BookingDetailViewData.paymentRecordStatusLabel(
-                      payment.status,
-                    ),
+                    '$purpose｜${_method(payment.paymentMethod)}｜NT\$${payment.amount}｜${BookingDetailViewData.paymentRecordStatusLabel(payment.status)}',
+                  ),
+                  Text(
+                    when,
                     style: TextStyle(
                       fontSize: BookingDetailUi.captionSize,
                       color: BookingDetailUi.of(context).muted,
@@ -618,6 +640,12 @@ class _BookingDetailFinanceSectionState
         );
       },
     );
+  }
+
+  String _shortDate(DateTime value) {
+    final DateTime local = value.toLocal();
+    String two(int n) => n.toString().padLeft(2, '0');
+    return '${local.year}/${two(local.month)}/${two(local.day)} ${two(local.hour)}:${two(local.minute)}';
   }
 
   String _method(String method) {

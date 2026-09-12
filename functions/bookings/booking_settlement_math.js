@@ -110,6 +110,37 @@ function refundDue(booking, manualAdjustOverride) {
   );
 }
 
+function isDaycareBooking(booking) {
+  const kind = String(booking.bookingKind || "").trim();
+  const service = String(booking.serviceType || "").trim();
+  return kind === "daycare" || service === "daycare";
+}
+
+/** 安親：款項結清才 completed；有待補／待退維持 checked_in。住宿不改。 */
+function stampDaycareClearStatus(booking, fields, bookingUpdate) {
+  if (!isDaycareBooking(booking)) {
+    return;
+  }
+  const confirmed = bookingUpdate.settlementConfirmed === true ||
+    booking.settlementConfirmed === true ||
+    booking.settledAt != null;
+  if (!confirmed) {
+    return;
+  }
+  const remain = toInt(
+      bookingUpdate.remainingAmount != null ?
+        bookingUpdate.remainingAmount : fields.remainingAmount,
+      0,
+  );
+  const refund = toInt(
+      bookingUpdate.refundDueAmount != null ?
+        bookingUpdate.refundDueAmount : fields.refundDueAmount,
+      0,
+  );
+  bookingUpdate.status = remain <= 0 && refund <= 0 ?
+    "completed" : "checked_in";
+}
+
 function paymentStatusOf(expected, net) {
   const remain = Math.max(0, expected - net);
   const refund = Math.max(0, net - expected);
@@ -157,4 +188,6 @@ module.exports = {
   isSettlementConfirmed,
   isSettlementLocked,
   canLock,
+  isDaycareBooking,
+  stampDaycareClearStatus,
 };

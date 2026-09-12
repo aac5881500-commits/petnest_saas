@@ -85,6 +85,39 @@ function resolvePaymentPurpose(payment) {
  * @param {Object} payment Payment 資料
  * @return {boolean}
  */
+function isDepositFamily(payment) {
+  const data = payment && typeof payment === "object" ? payment : {};
+  return resolvePaymentPurpose(data) === "deposit" ||
+    normalizeString(data.amountType).toLowerCase() === "deposit";
+}
+
+/**
+ * 將過期的 pending 結算尾款標為 superseded，不刪除。
+ *
+ * @param {FirebaseFirestore.Transaction} transaction
+ * @param {Array} docs
+ * @return {void}
+ */
+function supersedeStalePendingPayments(transaction, docs) {
+  const now = admin.firestore.FieldValue.serverTimestamp();
+  docs.forEach((doc) => {
+    transaction.set(doc.ref, {
+      status: "superseded",
+      gatewayStatus: "superseded_amount_changed",
+      supersededReason: "settlement_amount_updated",
+      supersededReasonLabel: "已失效（結算金額已更新）",
+      supersededAt: now,
+      updatedAt: now,
+    }, {merge: true});
+  });
+}
+
+/**
+ * 判斷 Payment 是否仍屬於未完成付款。
+ *
+ * @param {Object} payment Payment 資料
+ * @return {boolean}
+ */
 function isActivePayment(payment) {
   const status = normalizeString(
       payment.status,
@@ -310,50 +343,48 @@ async function createOrGetPendingPayment({
       )
       .get();
 
-  const existingActivePayment =
-    activePaymentsSnapshot.docs.find((doc) => {
-      const payment = doc.data() || {};
+  const activeDocs = activePaymentsSnapshot.docs.filter((doc) => {
+    const payment = doc.data() || {};
+    return isActivePayment(payment) &&
+      normalizeString(payment.gateway).toLowerCase() === "ecpay";
+  });
 
-      if (!isActivePayment(payment)) {
-        return false;
-      }
+  const creatingDeposit = normalizedPaymentPurpose === "deposit" ||
+    normalizedAmountType === "deposit";
 
-      const sameGateway =
-        normalizeString(payment.gateway)
-            .toLowerCase() === "ecpay";
+  const familyDocs = activeDocs.filter((doc) => {
+    const payment = doc.data() || {};
+    const depositFamily = isDepositFamily(payment);
+    return creatingDeposit ? depositFamily : !depositFamily;
+  });
 
-      const samePaymentMethod =
-        normalizeString(payment.paymentMethod)
-            .toLowerCase() ===
-        normalizedPaymentMethod;
+  const reusableDoc = familyDocs.find((doc) => {
+    const payment = doc.data() || {};
+    return normalizeString(payment.paymentMethod).toLowerCase() ===
+        normalizedPaymentMethod &&
+      normalizeInteger(payment.amount) === normalizedAmount;
+  });
 
-      const samePaymentPurpose =
-        resolvePaymentPurpose(payment) ===
-        normalizedPaymentPurpose;
+  if (reusableDoc) {
+    return {
+      paymentId: reusableDoc.id,
+      paymentRef: reusableDoc.ref,
+      payment: reusableDoc.data() || {},
+      isExisting: true,
+    };
+  }
 
-      return (
-        sameGateway &&
-        samePaymentMethod &&
-        samePaymentPurpose
-      );
-    });
-
-  if (existingActivePayment) {
-    const existingPayment =
-      existingActivePayment.data() || {};
-
+  const staleDocs = familyDocs;
+  if (staleDocs.length > 0 && normalizedSourceType === "store_order") {
+    const existingPayment = staleDocs[0].data() || {};
     throw new HttpsError(
         "already-exists",
         "此訂單已有一筆尚未完成的付款，請先確認原付款結果。",
         {
-          paymentId: existingActivePayment.id,
+          paymentId: staleDocs[0].id,
           bookingId: normalizedBookingId,
-          merchantTradeNo: normalizeString(
-              existingPayment.merchantTradeNo,
-          ),
-          status: normalizeString(
-              existingPayment.status,
-          ),
+          merchantTradeNo: normalizeString(existingPayment.merchantTradeNo),
+          status: normalizeString(existingPayment.status),
         },
     );
   }
@@ -425,6 +456,21 @@ async function createOrGetPendingPayment({
         const paymentSnapshot =
           await transaction.get(paymentRef);
 
+        for (const stale of staleDocs) {
+          const staleSnap = await transaction.get(stale.ref);
+          if (!staleSnap.exists) {
+            continue;
+          }
+          const stalePayment = staleSnap.data() || {};
+          if (normalizeString(stalePayment.status).toLowerCase() === "paid") {
+            continue;
+          }
+          if (!isActivePayment(stalePayment)) {
+            continue;
+          }
+          supersedeStalePendingPayments(transaction, [stale]);
+        }
+
         if (paymentSnapshot.exists) {
           const existingPayment =
             paymentSnapshot.data() || {};
@@ -459,8 +505,43 @@ async function createOrGetPendingPayment({
   return transactionResult;
 }
 
+/**
+ * 以 CustomField1（paymentId）或 MerchantTradeNo 找到付款紀錄。
+ *
+ * @param {FirebaseFirestore.Firestore} firestore
+ * @param {Object} params
+ * @param {string} params.paymentId
+ * @param {string} params.merchantTradeNo
+ * @return {Promise<FirebaseFirestore.DocumentSnapshot|null>}
+ */
+async function findPaymentForEcpayCallback(firestore, {
+  paymentId,
+  merchantTradeNo,
+}) {
+  const id = normalizeString(paymentId);
+  const tradeNo = normalizeString(merchantTradeNo);
+  if (id) {
+    const byId = await firestore.collection("payments").doc(id).get();
+    if (byId.exists) {
+      return byId;
+    }
+  }
+  if (!tradeNo) {
+    return null;
+  }
+  const byTrade = await firestore.collection("payments")
+      .where("merchantTradeNo", "==", tradeNo)
+      .limit(1)
+      .get();
+  if (byTrade.empty) {
+    return null;
+  }
+  return byTrade.docs[0];
+}
+
 module.exports = {
   createPaymentId,
   verifyExistingPaymentRequest,
   createOrGetPendingPayment,
+  findPaymentForEcpayCallback,
 };

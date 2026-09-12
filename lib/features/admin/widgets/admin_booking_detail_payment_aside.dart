@@ -7,6 +7,7 @@ import 'package:petnest_saas/core/services/booking_payment_status.dart';
 import 'package:petnest_saas/core/services/daycare_payment_display.dart';
 import 'package:petnest_saas/core/widgets/booking_payment_deadline_banner.dart';
 import 'package:petnest_saas/core/widgets/booking_payment_proof_button.dart';
+import 'package:petnest_saas/core/services/shop_payment_methods.dart';
 import 'package:petnest_saas/features/admin/pages/admin_payment_center_page.dart';
 import 'package:petnest_saas/features/admin/widgets/admin_booking_detail_layout.dart';
 
@@ -16,15 +17,18 @@ class AdminBookingDetailPaymentAside extends StatelessWidget {
     required this.data,
     required this.bookingId,
     this.onViewTransactions,
+    this.onConfirmDeposit,
   });
 
   final Map<String, dynamic> data;
   final String bookingId;
   final VoidCallback? onViewTransactions;
+  final Future<void> Function()? onConfirmDeposit;
 
   @override
   Widget build(BuildContext context) {
     final ShopFrontendTheme theme = ShopFrontendTheme.of(context);
+    final bool phone = AdminBookingDetailScope.of(context).isPhone;
     final int total = DaycarePaymentDisplay.resolveTotal(data);
     final int paid = BookingPaymentStatus.resolvePaid(data);
     final int remaining = BookingPaymentStatus.resolveRemaining(
@@ -109,42 +113,48 @@ class AdminBookingDetailPaymentAside extends StatelessWidget {
           if (BookingPaymentProof.shouldShow(data))
             Align(
               alignment: Alignment.centerLeft,
-              child: BookingPaymentProofButton(data: data),
-            ),
-          const SizedBox(height: 12),
-          SizedBox(
-            width: double.infinity,
-            height: 44,
-            child: FilledButton.icon(
-              onPressed:
-                  onViewTransactions ??
-                  () {
-                    final String shopId = (data['shopId'] ?? '').toString();
-                    if (shopId.isEmpty) {
-                      ScaffoldMessenger.of(
-                        context,
-                      ).showSnackBar(const SnackBar(content: Text('找不到店家資料')));
-                      return;
-                    }
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute<void>(
-                        builder: (_) => AdminPaymentCenterPage(
-                          shopId: shopId,
-                          bookingId: bookingId,
-                          bookingCode: (data['bookingCode'] ?? '').toString(),
-                        ),
-                      ),
-                    );
-                  },
-              icon: const Icon(Icons.receipt_long_outlined, size: 18),
-              label: const Text('查看完整交易'),
-              style: FilledButton.styleFrom(
-                backgroundColor: theme.primaryColor,
-                foregroundColor: theme.onPrimaryColor,
+              child: BookingPaymentProofButton(
+                data: data,
+                onConfirmDeposit: phone ? onConfirmDeposit : null,
               ),
             ),
-          ),
+          if (!phone ||
+              ShopPaymentMethods.hasThirdPartyGatewayTransaction(data)) ...<Widget>[
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              height: 44,
+              child: FilledButton.icon(
+                onPressed:
+                    onViewTransactions ??
+                    () {
+                      final String shopId = (data['shopId'] ?? '').toString();
+                      if (shopId.isEmpty) {
+                        ScaffoldMessenger.of(
+                          context,
+                        ).showSnackBar(const SnackBar(content: Text('找不到店家資料')));
+                        return;
+                      }
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute<void>(
+                          builder: (_) => AdminPaymentCenterPage(
+                            shopId: shopId,
+                            bookingId: bookingId,
+                            bookingCode: (data['bookingCode'] ?? '').toString(),
+                          ),
+                        ),
+                      );
+                    },
+                icon: const Icon(Icons.receipt_long_outlined, size: 18),
+                label: const Text('查看完整交易'),
+                style: FilledButton.styleFrom(
+                  backgroundColor: theme.primaryColor,
+                  foregroundColor: theme.onPrimaryColor,
+                ),
+              ),
+            ),
+          ],
         ],
       ),
     );

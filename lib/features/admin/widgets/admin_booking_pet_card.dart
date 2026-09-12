@@ -9,6 +9,7 @@ import 'package:petnest_saas/core/models/pet_snapshot.dart';
 import 'package:petnest_saas/core/widgets/member_avatar.dart';
 import 'package:petnest_saas/core/models/shop_frontend_theme.dart';
 import 'package:petnest_saas/core/services/pet_shop_form_answers.dart';
+import 'package:petnest_saas/features/admin/widgets/admin_booking_pet_care_scope.dart';
 import 'package:petnest_saas/features/custom_form/widgets/custom_form_answer_view.dart';
 
 class AdminBookingPetCard extends StatelessWidget {
@@ -27,6 +28,40 @@ class AdminBookingPetCard extends StatelessWidget {
   final String userId;
   final bool compact;
 
+  /// 與 bottom sheet 同一套解析：訂單快照 + 會員寵物 fallback + 子集合。
+  static Map<String, dynamic>? resolveShopCareForm({
+    required String shopId,
+    required Map<String, dynamic> pet,
+    Map<String, dynamic>? fallback,
+    Map<String, dynamic>? subcollectionData,
+  }) {
+    final Map<String, dynamic> merged = PetSnapshot.merge(
+      snapshot: pet,
+      fallback: fallback,
+    );
+    Map<String, dynamic>? nested;
+    for (final Map<String, dynamic>? source in <Map<String, dynamic>?>[
+      merged,
+      pet,
+      fallback,
+    ]) {
+      final Object? raw = source?['shopFormAnswers'];
+      if (raw is Map) {
+        nested = Map<String, dynamic>.from(raw);
+        break;
+      }
+    }
+    return PetShopFormAnswers.resolve(
+      shopId: shopId,
+      subcollectionData: subcollectionData ?? nested,
+      petData: <String, dynamic>{
+        if (fallback != null) ...fallback,
+        ...pet,
+        ...merged,
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final Map<String, dynamic> merged = PetSnapshot.merge(
@@ -40,30 +75,19 @@ class AdminBookingPetCard extends StatelessWidget {
     final List<MapEntry<String, String>> safety = PetSnapshot.safetyRows(
       merged,
     );
-    final Map<String, dynamic>? formRaw = PetShopFormAnswers.resolve(
+    final String petId = (merged['petId'] ?? pet['petId'] ?? pet['id'] ?? '')
+        .toString();
+    final int careFilled =
+        AdminBookingPetCareScope.maybeOf(context)?.itemOf(petId)?.filledCount ??
+        0;
+    final Map<String, dynamic>? formRaw = resolveShopCareForm(
       shopId: shopId,
-      subcollectionData: merged['shopFormAnswers'] is Map
-          ? Map<String, dynamic>.from(merged['shopFormAnswers'] as Map)
-          : (pet['shopFormAnswers'] is Map
-                ? Map<String, dynamic>.from(pet['shopFormAnswers'] as Map)
-                : (fallback != null && fallback!['shopFormAnswers'] is Map
-                      ? Map<String, dynamic>.from(
-                          fallback!['shopFormAnswers'] as Map,
-                        )
-                      : null)),
-      petData: fallback ?? pet,
+      pet: pet,
+      fallback: fallback,
     );
     final CustomFormAnswerSnapshot? form = CustomFormAnswerSnapshot.tryParse(
       formRaw,
     );
-    final int filled = form == null
-        ? 0
-        : form.answers
-              .where(
-                (CustomFormAnswerItem item) =>
-                    item.displayValue.trim().isNotEmpty,
-              )
-              .length;
     final String summary = rows
         .take(3)
         .map((MapEntry<String, String> e) => e.value)
@@ -78,59 +102,77 @@ class AdminBookingPetCard extends StatelessWidget {
         .trim();
 
     if (compact) {
+      void openPet() {
+        _openDetail(
+          context,
+          name: name,
+          photoUrl: photoUrl,
+          rows: rows,
+          safety: safety,
+          formRaw: formRaw,
+          petId: petId,
+        );
+      }
+
       return Material(
         color: Color.alphaBlend(accent.withValues(alpha: 0.06), Colors.white),
         borderRadius: BorderRadius.circular(16),
         child: InkWell(
           borderRadius: BorderRadius.circular(16),
-          onTap: () => _openDetail(
-            context,
-            name: name,
-            photoUrl: photoUrl,
-            rows: rows,
-            safety: safety,
-            formRaw: formRaw,
-            petId: (merged['petId'] ?? pet['petId'] ?? pet['id'] ?? '')
-                .toString(),
-          ),
+          onTap: openPet,
           child: Padding(
             padding: const EdgeInsets.all(12),
-            child: Row(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
-                _petPhoto(photoUrl, name),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: <Widget>[
-                      Text(
-                        name.isEmpty ? '未命名寵物' : name,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(fontWeight: FontWeight.w800),
-                      ),
-                      if (summary.isNotEmpty)
-                        Text(
-                          summary,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(fontSize: 12),
-                        ),
-                      const SizedBox(height: 6),
-                      Wrap(
-                        spacing: 4,
-                        runSpacing: 4,
+                Row(
+                  children: <Widget>[
+                    _petPhoto(photoUrl, name),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: <Widget>[
-                          if (gender.isNotEmpty) _petChip(gender, accent),
-                          if (breed.isNotEmpty) _petChip(breed, accent),
-                          for (final MapEntry<String, String> row
-                              in safety.take(2))
-                            _petChip(row.key, Colors.red),
+                          Text(
+                            name.isEmpty ? '未命名寵物' : name,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(fontWeight: FontWeight.w800),
+                          ),
+                          if (summary.isNotEmpty)
+                            Text(
+                              summary,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(fontSize: 12),
+                            ),
+                          const SizedBox(height: 6),
+                          Wrap(
+                            spacing: 4,
+                            runSpacing: 4,
+                            children: <Widget>[
+                              if (gender.isNotEmpty) _petChip(gender, accent),
+                              if (breed.isNotEmpty) _petChip(breed, accent),
+                              if (PetSnapshot.hasDiseaseAlert(merged))
+                                _petChip('疾病提醒', Colors.red),
+                            ],
+                          ),
                         ],
                       ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
+                if (careFilled > 0) ...<Widget>[
+                  const SizedBox(height: 8),
+                  Text(
+                    '查看照護表單（已填 $careFilled 題） ›',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w800,
+                      color: accent,
+                    ),
+                  ),
+                ],
               ],
             ),
           ),
@@ -162,8 +204,8 @@ class AdminBookingPetCard extends StatelessWidget {
                 if (type.isNotEmpty) _petChip(type, accent),
                 if (breed.isNotEmpty) _petChip(breed, accent),
                 if (gender.isNotEmpty) _petChip(gender, accent),
-                for (final MapEntry<String, String> row in safety.take(3))
-                  _petChip(row.key, Colors.red),
+                if (PetSnapshot.hasDiseaseAlert(merged))
+                  _petChip('疾病提醒', Colors.red),
               ],
             ),
           ],
@@ -215,10 +257,10 @@ class AdminBookingPetCard extends StatelessWidget {
               ),
             ),
           ],
-          if (form != null && filled > 0)
+          if (form != null && careFilled > 0)
             CustomFormAnswerView(
               raw: formRaw,
-              title: '店家照護資料・已填 $filled 題',
+              title: '店家照護資料・已填 $careFilled 題',
               theme: HomeThemeModel.classicDefault,
               collapsible: true,
             ),
@@ -286,10 +328,11 @@ class AdminBookingPetCard extends StatelessWidget {
                     ) {
                       final Map<String, dynamic>? live = snap.data?.data();
                       return formView(
-                        PetShopFormAnswers.resolve(
+                        resolveShopCareForm(
                               shopId: sid,
+                              pet: pet,
+                              fallback: fallback,
                               subcollectionData: live,
-                              petData: fallback ?? pet,
                             ) ??
                             formRaw,
                       );

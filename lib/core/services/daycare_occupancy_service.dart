@@ -4,6 +4,8 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:petnest_saas/core/models/booking_kind.dart';
 import 'package:petnest_saas/core/models/daycare_settings_model.dart';
+import 'package:petnest_saas/core/services/booking_payment_status.dart';
+import 'package:petnest_saas/core/services/booking_settlement_math.dart';
 import 'package:petnest_saas/core/services/daycare_time_helper.dart';
 import 'package:petnest_saas/core/utils/natural_sort.dart';
 
@@ -15,6 +17,7 @@ class DaycareAssignableRoom {
     required this.roomTypeName,
     required this.capacity,
     required this.status,
+    this.roomCode = '',
     this.overlappingSummaries = const <String>[],
     this.available = true,
     this.blockedReason = '',
@@ -26,6 +29,7 @@ class DaycareAssignableRoom {
   final String roomTypeName;
   final int capacity;
   final String status;
+  final String roomCode;
   final List<String> overlappingSummaries;
   final bool available;
   final String blockedReason;
@@ -41,6 +45,30 @@ class DaycareOccupancyService {
     'confirmed',
     'checked_in',
   ];
+
+  /// 取消、過期未付、安親結算後（已接回）不佔實體房間。
+  static bool occupiesInventory(Map<String, dynamic> data) {
+    final String status = (data['status'] ?? '').toString();
+    if (status == 'cancelled' || status == 'no_show' || status == 'completed') {
+      return false;
+    }
+    if (!activeStatuses.contains(status)) {
+      return false;
+    }
+    if (BookingKind.isDaycare(data)) {
+      if (BookingSettlementMath.isSettlementConfirmed(data)) {
+        return false;
+      }
+    }
+    if (data['depositExpired'] == true) {
+      return false;
+    }
+    if (BookingPaymentStatus.isDeadlineOverdue(data) &&
+        !BookingPaymentStatus.isDepositConfirmed(data)) {
+      return false;
+    }
+    return true;
+  }
 
   CollectionReference<Map<String, dynamic>> _bookings() {
     return FirebaseFirestore.instance.collection('bookings');
@@ -71,7 +99,7 @@ class DaycareOccupancyService {
         continue;
       }
       final Map<String, dynamic> data = doc.data();
-      if (!activeStatuses.contains((data['status'] ?? '').toString())) {
+      if (!occupiesInventory(data)) {
         continue;
       }
       final List<dynamic> pets = data['petIds'] is List
@@ -100,7 +128,7 @@ class DaycareOccupancyService {
     final Map<String, int> used = <String, int>{};
     for (final QueryDocumentSnapshot<Map<String, dynamic>> doc in snap.docs) {
       final Map<String, dynamic> data = doc.data();
-      if (!activeStatuses.contains((data['status'] ?? '').toString())) {
+      if (!occupiesInventory(data)) {
         continue;
       }
       final String date = (data['serviceDate'] ?? '').toString();
@@ -134,6 +162,9 @@ class DaycareOccupancyService {
         continue;
       }
       final Map<String, dynamic> data = doc.data();
+      if (!occupiesInventory(data)) {
+        continue;
+      }
       final List<String> otherPets = ((data['petIds'] as List?) ?? const [])
           .map((dynamic e) => e.toString())
           .toList();
@@ -268,6 +299,9 @@ class DaycareOccupancyService {
           continue;
         }
         final Map<String, dynamic> booking = bookingDoc.data();
+        if (!occupiesInventory(booking)) {
+          continue;
+        }
         if ((booking['roomId'] ?? '').toString() != doc.id) {
           continue;
         }
@@ -300,11 +334,19 @@ class DaycareOccupancyService {
           }
         }
       }
+      final String roomName = (room['name'] ?? doc.id).toString();
+      final String roomCode =
+          (room['roomCode'] ??
+                  room['number'] ??
+                  room['roomNumber'] ??
+                  roomName)
+              .toString();
       if (busy) {
         result.add(
           DaycareAssignableRoom(
             roomId: doc.id,
-            roomName: (room['name'] ?? doc.id).toString(),
+            roomName: roomName,
+            roomCode: roomCode,
             roomTypeId: roomTypeId,
             roomTypeName: (type['name'] ?? roomTypeId).toString(),
             capacity: capacity,
@@ -319,7 +361,8 @@ class DaycareOccupancyService {
       result.add(
         DaycareAssignableRoom(
           roomId: doc.id,
-          roomName: (room['name'] ?? doc.id).toString(),
+          roomName: roomName,
+          roomCode: roomCode,
           roomTypeId: roomTypeId,
           roomTypeName: (type['name'] ?? roomTypeId).toString(),
           capacity: capacity,
@@ -333,7 +376,12 @@ class DaycareOccupancyService {
       if (typeCmp != 0) {
         return typeCmp;
       }
-      return NaturalSort.compare(a.roomName, b.roomName);
+      return compareRoomCodes(
+        a.roomCode.isEmpty ? a.roomName : a.roomCode,
+        b.roomCode.isEmpty ? b.roomName : b.roomCode,
+        tieA: a.roomId,
+        tieB: b.roomId,
+      );
     });
     return result;
   }
@@ -345,7 +393,14 @@ class DaycareOccupancyService {
     required DateTime startAt,
     required DateTime endAt,
     String excludeBookingId = '',
+    int petCount = 0,
+    int roomTypeCapacity = 0,
   }) {
+    if (petCount > 0 &&
+        roomTypeCapacity > 0 &&
+        petCount > roomTypeCapacity) {
+      return 0;
+    }
     int free = 0;
     for (final Map<String, dynamic> room in rooms) {
       if ((room['roomTypeId'] ?? '').toString().trim() != roomTypeId.trim()) {
@@ -354,13 +409,19 @@ class DaycareOccupancyService {
       if (_roomUnavailable(room)) {
         continue;
       }
+      final int roomCap = ((room['capacity'] as num?)?.toInt() ?? 0) > 0
+          ? (room['capacity'] as num).toInt()
+          : roomTypeCapacity;
+      if (petCount > 0 && roomCap > 0 && petCount > roomCap) {
+        continue;
+      }
       final String roomId = (room['id'] ?? '').toString();
       bool busy = false;
       for (final Map<String, dynamic> booking in bookings) {
         if ((booking['id'] ?? '').toString() == excludeBookingId) {
           continue;
         }
-        if (!activeStatuses.contains((booking['status'] ?? '').toString())) {
+        if (!occupiesInventory(booking)) {
           continue;
         }
         if ((booking['roomId'] ?? '').toString() != roomId) {
@@ -400,7 +461,7 @@ class DaycareOccupancyService {
       if ((booking['id'] ?? '').toString() == excludeBookingId) {
         continue;
       }
-      if (!activeStatuses.contains((booking['status'] ?? '').toString())) {
+      if (!occupiesInventory(booking)) {
         continue;
       }
       if (!BookingKind.isDaycare(booking)) {

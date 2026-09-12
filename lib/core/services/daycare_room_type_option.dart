@@ -46,7 +46,8 @@ class DaycareRoomTypeOption {
     return '每多 1 隻 +NT\$${setting.extraPetPrice}';
   }
 
-  String get capacitySummary => '最多 ${setting.maxPets} 隻';
+  String get capacitySummary =>
+      capacity > 0 ? '最多 $capacity 隻' : '請確認房型容納數';
 }
 
 class DaycareRoomTypeCatalog {
@@ -62,14 +63,16 @@ class DaycareRoomTypeCatalog {
     String overtimeSummary = '',
     bool typeExists = true,
     bool isRoomBased = true,
+    int roomCapacity = 0,
   }) {
+    final int capacity = roomCapacity > 0 ? roomCapacity : 0;
     String? reason;
     if (!setting.enabled) {
       reason = '房型未啟用';
     } else if (!typeExists) {
       reason = '找不到對應房型資料，請聯絡店家';
-    } else if (petCount > 0 && petCount > setting.maxPets) {
-      reason = '寵物數量超過容量';
+    } else if (petCount > 0 && capacity > 0 && petCount > capacity) {
+      reason = '此房型最多容納 $capacity 隻寵物';
     } else if (dailyRemaining != null &&
         dailyRemaining >= 0 &&
         petCount > 0 &&
@@ -82,7 +85,7 @@ class DaycareRoomTypeCatalog {
       roomTypeId: setting.roomTypeId,
       name: name,
       setting: setting,
-      capacity: setting.maxPets,
+      capacity: capacity,
       selectable: reason == null,
       blockedReason: reason,
       remainingRooms: remainingRooms,
@@ -176,6 +179,8 @@ class DaycareRoomTypeCatalog {
           roomTypeId: id,
           startAt: startAt,
           endAt: endAt,
+          petCount: petCount,
+          roomTypeCapacity: roomCapacityOf(type, rooms, id),
         );
       }
       out.add(
@@ -189,6 +194,7 @@ class DaycareRoomTypeCatalog {
           overtimeSummary: overtimeSummary,
           typeExists: type != null || hasRooms,
           isRoomBased: settings.isRoomBased,
+          roomCapacity: roomCapacityOf(type, rooms, id),
         ),
       );
     }
@@ -223,5 +229,27 @@ class DaycareRoomTypeCatalog {
       }
     }
     return null;
+  }
+
+  static int roomCapacityOf(
+    Map<String, dynamic>? type,
+    List<Map<String, dynamic>> rooms,
+    String roomTypeId,
+  ) {
+    final int fromType = ((type?['capacity'] as num?)?.toInt() ?? 0);
+    if (fromType > 0) {
+      return fromType;
+    }
+    int maxRoom = 0;
+    for (final Map<String, dynamic> room in rooms) {
+      if ((room['roomTypeId'] ?? '').toString().trim() != roomTypeId.trim()) {
+        continue;
+      }
+      final int cap = (room['capacity'] as num?)?.toInt() ?? 0;
+      if (cap > maxRoom) {
+        maxRoom = cap;
+      }
+    }
+    return maxRoom;
   }
 }

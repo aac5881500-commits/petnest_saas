@@ -178,3 +178,31 @@ test("住宿全額付款不因安親規則改寫既有訂金確認條件", () =>
   assert.equal(result.bookingUpdate.depositPaid, undefined);
   assert.equal(result.bookingUpdate.status, undefined);
 });
+
+test("已 superseded 的交易仍可入帳且不重複加款於 paid", () => {
+  const pending = buildSuccessfulEcpayBookingPaymentUpdates({
+    payment: payment({
+      status: "superseded",
+      amount: 1000,
+      paymentPurpose: "additional",
+      amountType: "full",
+    }),
+    booking: daycareBooking({
+      settlementConfirmed: true,
+      quotedTotalPrice: 1000,
+      manualAdjust: 800,
+      totalPrice: 1800,
+      totalPayableAmount: 1800,
+      finalSettlementAmount: 1800,
+      paidAmount: 500,
+    }),
+    paymentId: "old-1000",
+    merchantTradeNo: "TN123",
+    gatewayTradeNo: "G9",
+    callbackAmount: 1000,
+  });
+  assert.equal(pending.alreadyPaid, false);
+  assert.equal(pending.paymentUpdate.status, "paid");
+  assert.equal(pending.bookingUpdate.paidAmount, 1500);
+  assert.equal(pending.bookingUpdate.remainingAmount, 300);
+});

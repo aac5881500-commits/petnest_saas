@@ -12,12 +12,14 @@ class AdminBookingStatusChip extends StatelessWidget {
     this.daycare = false,
     this.paymentPending = false,
     this.depositConfirmed = false,
+    this.data,
   });
 
   final String status;
   final bool daycare;
   final bool paymentPending;
   final bool depositConfirmed;
+  final Map<String, dynamic>? data;
 
   @override
   Widget build(BuildContext context) {
@@ -42,6 +44,20 @@ class AdminBookingStatusChip extends StatelessWidget {
   _ChipStyle _resolve() {
     if (status == 'cancelled') {
       return const _ChipStyle('已取消', ShopFrontendTheme.errorColor);
+    }
+    if (daycare && data != null) {
+      final String text = DaycareStatusLabels.primary(data!);
+      Color color = ShopFrontendTheme.warningColor;
+      if (text == '已完成' || text == '訂金已確認' || text == '已確認') {
+        color = ShopFrontendTheme.successColor;
+      } else if (text == '待補款' || text == '待退款') {
+        color = ShopFrontendTheme.errorColor;
+      } else if (status == 'checked_in') {
+        color = Colors.blue.shade700;
+      } else if (status == 'confirmed') {
+        color = ShopFrontendTheme.successColor;
+      }
+      return _ChipStyle(text, color);
     }
     if (status == 'completed') {
       return const _ChipStyle('已完成', ShopFrontendTheme.successColor);

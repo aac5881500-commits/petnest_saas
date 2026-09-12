@@ -860,6 +860,9 @@ exports.convertDaycareToAccommodation =
 exports.adjustBookingSettlement =
   require("./bookings/adjust_booking_settlement").adjustBookingSettlement;
 
+exports.appendBookingPaymentProof =
+  require("./bookings/append_booking_payment_proof").appendBookingPaymentProof;
+
 exports.quoteDailyCareAddon =
   require("./daily_care/quote_daily_care").quoteDailyCareAddon;
 exports.reserveDailyCarePhoto =

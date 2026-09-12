@@ -17,6 +17,29 @@ void main() {
     expect(BookingPaymentProof.urls(<String, dynamic>{}), isEmpty);
   });
 
+  test('paymentProofs 與 legacy 單張並存且不覆蓋', () {
+    final List<BookingPaymentProofRecord> items = BookingPaymentProof.records(
+      <String, dynamic>{
+        'transferImageUrl': 'https://a/old.jpg',
+        'transferLast5': '11111',
+        'depositAmount': 500,
+        'paymentProofs': <Map<String, dynamic>>[
+          <String, dynamic>{
+            'proofId': 'p2',
+            'imageUrl': 'https://b/new.jpg',
+            'purpose': 'top_up',
+            'amount': 300,
+            'last5': '22222',
+          },
+        ],
+      },
+    );
+    expect(items.map((BookingPaymentProofRecord e) => e.imageUrl).toList(),
+        <String>['https://b/new.jpg', 'https://a/old.jpg']);
+    expect(items.first.purposeLabel, '補款');
+    expect(items.last.purposeLabel, '訂金');
+  });
+
   test('只有銀行轉帳才顯示付款回傳照片按鈕', () {
     expect(
       BookingPaymentProof.shouldShow(<String, dynamic>{

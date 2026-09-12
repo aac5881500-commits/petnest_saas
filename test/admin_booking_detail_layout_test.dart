@@ -98,6 +98,9 @@ void main() {
       await tester.pump();
       expect(tester.takeException(), isNull);
       expect(find.text('訂單詳細'), findsWidgets);
+      if (width >= 1024) {
+        expect(find.byType(Scrollbar), findsNWidgets(2));
+      }
       expect(find.textContaining('SHOP0001-B000105'), findsWidgets);
     }
 
