@@ -87,3 +87,10 @@ test("安親結清才 completed，待補／待退維持 checked_in", () => {
   }, {remainingAmount: 0, refundDueAmount: 0}, stayClear);
   assert.equal(stayClear.status, "completed");
 });
+
+test("original 3200 paid 1600 discount 500 remaining 1100", () => {
+  const booking = {quotedTotalPrice: 3200, paidAmount: 1600};
+  assert.equal(expectedTotal(booking, -500), 2700);
+  assert.equal(remainingDue(booking, -500), 1100);
+  assert.equal(refundDue(booking, -500), 0);
+});

@@ -4,6 +4,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:petnest_saas/core/services/daycare_occupancy_service.dart';
 import 'package:petnest_saas/core/services/shop_service.dart';
 import 'package:petnest_saas/features/auth/pages/room_calendar_page.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -348,29 +349,28 @@ class _RoomDashboardPageState extends State<RoomDashboardPage> {
                                 }
                               }
 
-                              final roomId = (room['id'] ?? '').toString();
-                              final roomStatus =
-                                  roomCalendarStatus['$roomId|$dateStr'];
-
-                              if (roomStatus == 'closed') {
-                                return '今日關閉';
-                              }
-
-                              if (roomStatus == 'blocked' ||
-                                  roomStatus == 'maintenance' ||
-                                  roomStatus == 'unavailable') {
-                                return '維修中';
-                              }
-
-                              if (roomStatus == 'cleaning') {
-                                return '清潔中';
-                              }
-
-                              return _getRoomStatusText(todayBooking);
+                              return _housekeepingLabelFor(
+                                room: room,
+                                dateKey: dateStr,
+                                roomCalendarStatus: roomCalendarStatus,
+                                booking: todayBooking,
+                              );
                             }).toList();
 
                             final emptyCount = roomStatusList
-                                .where((status) => status == '空房')
+                                .where(
+                                  (status) =>
+                                      status ==
+                                      DaycareOccupancyService.vacantLabel,
+                                )
+                                .length;
+
+                            final disabledCount = roomStatusList
+                                .where(
+                                  (status) =>
+                                      status ==
+                                      DaycareOccupancyService.disabledLabel,
+                                )
                                 .length;
 
                             final usingCount = roomStatusList.where((status) {
@@ -659,6 +659,14 @@ class _RoomDashboardPageState extends State<RoomDashboardPage> {
                                             emptyCount,
                                             Colors.green,
                                           ),
+                                          if (disabledCount > 0) ...[
+                                            const SizedBox(width: 6),
+                                            _buildSummaryCard(
+                                              '未啟用',
+                                              disabledCount,
+                                              Colors.blueGrey,
+                                            ),
+                                          ],
                                           const SizedBox(width: 6),
                                           _buildSummaryCard(
                                             '使用中',
@@ -724,20 +732,20 @@ class _RoomDashboardPageState extends State<RoomDashboardPage> {
                                         }
                                       }
 
-                                      final roomId = (room['id'] ?? '')
-                                          .toString();
-                                      final manualStatus =
-                                          roomCalendarStatus['$roomId|$dateStr'];
-                                      final RoomStatusPresentation tone =
-                                          RoomStatusPresentation.of(
-                                            roomStatus:
-                                                (manualStatus ??
-                                                        room['status'] ??
-                                                        '')
-                                                    .toString(),
+                                      final String roomId =
+                                          (room['id'] ?? '').toString();
+                                      final String statusLabel =
+                                          _housekeepingLabelFor(
+                                            room: room,
+                                            dateKey: dateStr,
+                                            roomCalendarStatus:
+                                                roomCalendarStatus,
                                             booking: todayBooking,
                                           );
-                                      final Color color = tone.color;
+                                      final Color color =
+                                          _colorForHousekeepingLabel(
+                                            statusLabel,
+                                          );
                                       return InkWell(
                                         onTap: () async {
                                           String roomTypeName = '未設定房型';
@@ -890,9 +898,9 @@ class _RoomDashboardPageState extends State<RoomDashboardPage> {
                                                       ),
                                                       const SizedBox(height: 6),
                                                     ] else ...[
-                                                      const Text(
-                                                        '空房',
-                                                        style: TextStyle(
+                                                      Text(
+                                                        statusLabel,
+                                                        style: const TextStyle(
                                                           fontSize: 13,
                                                           color: Colors.grey,
                                                         ),
@@ -933,119 +941,77 @@ class _RoomDashboardPageState extends State<RoomDashboardPage> {
                                                                 DateFormat(
                                                                   'yyyy-MM-dd',
                                                                 ).format(day);
-                                                            final roomId =
-                                                                (room['id'] ??
-                                                                        '')
-                                                                    .toString();
-
-                                                            Color dotColor =
-                                                                Colors.green;
-
-                                                            final manualStatus =
-                                                                roomCalendarStatus['$roomId|$dayKey'];
-
-                                                            final bool
-                                                            hasManualStatus =
-                                                                manualStatus ==
-                                                                    'closed' ||
-                                                                manualStatus ==
-                                                                    'blocked' ||
-                                                                manualStatus ==
-                                                                    'maintenance' ||
-                                                                manualStatus ==
-                                                                    'unavailable' ||
-                                                                manualStatus ==
-                                                                    'cleaning';
-
-                                                            if (manualStatus ==
-                                                                'closed') {
-                                                              dotColor =
-                                                                  const Color(
-                                                                    0xFF6D4C41,
-                                                                  );
-                                                            } else if (manualStatus ==
-                                                                    'blocked' ||
-                                                                manualStatus ==
-                                                                    'maintenance' ||
-                                                                manualStatus ==
-                                                                    'unavailable') {
-                                                              dotColor =
-                                                                  Colors.black;
-                                                            } else if (manualStatus ==
-                                                                'cleaning') {
-                                                              dotColor =
-                                                                  Colors.orange;
-                                                            }
-
-                                                            if (!hasManualStatus) {
-                                                              Map<
-                                                                String,
-                                                                dynamic
-                                                              >?
-                                                              dayBooking;
-                                                              for (var doc
-                                                                  in bookings) {
-                                                                final data =
-                                                                    doc.data()
-                                                                        as Map<
-                                                                          String,
-                                                                          dynamic
-                                                                        >;
-                                                                if (data['roomId'] !=
-                                                                    room['id']) {
-                                                                  continue;
-                                                                }
-                                                                final start =
-                                                                    (data['startDate']
-                                                                            as Timestamp)
-                                                                        .toDate();
-                                                                final end =
-                                                                    (data['endDate']
-                                                                            as Timestamp)
-                                                                        .toDate();
-                                                                final dayOnly =
-                                                                    DateTime(
-                                                                      day.year,
-                                                                      day.month,
-                                                                      day.day,
-                                                                    );
-                                                                final startOnly =
-                                                                    DateTime(
-                                                                      start
-                                                                          .year,
-                                                                      start
-                                                                          .month,
-                                                                      start.day,
-                                                                    );
-                                                                final endOnly =
-                                                                    DateTime(
-                                                                      end.year,
-                                                                      end.month,
-                                                                      end.day,
-                                                                    );
-                                                                if (!dayOnly.isBefore(
-                                                                      startOnly,
-                                                                    ) &&
-                                                                    dayOnly
-                                                                        .isBefore(
-                                                                          endOnly,
-                                                                        )) {
-                                                                  dayBooking =
-                                                                      data;
-                                                                  break;
-                                                                }
+                                                            Map<
+                                                              String,
+                                                              dynamic
+                                                            >?
+                                                            dayBooking;
+                                                            for (var doc
+                                                                in bookings) {
+                                                              final data =
+                                                                  doc.data()
+                                                                      as Map<
+                                                                        String,
+                                                                        dynamic
+                                                                      >;
+                                                              if (data['roomId'] !=
+                                                                  room['id']) {
+                                                                continue;
                                                               }
-                                                              dotColor =
-                                                                  RoomStatusPresentation.of(
-                                                                    roomStatus:
-                                                                        '',
-                                                                    booking:
-                                                                        dayBooking,
-                                                                  ).color;
+                                                              final start =
+                                                                  (data['startDate']
+                                                                          as Timestamp)
+                                                                      .toDate();
+                                                              final end =
+                                                                  (data['endDate']
+                                                                          as Timestamp)
+                                                                      .toDate();
+                                                              final dayOnly =
+                                                                  DateTime(
+                                                                    day.year,
+                                                                    day.month,
+                                                                    day.day,
+                                                                  );
+                                                              final startOnly =
+                                                                  DateTime(
+                                                                    start.year,
+                                                                    start.month,
+                                                                    start.day,
+                                                                  );
+                                                              final endOnly =
+                                                                  DateTime(
+                                                                    end.year,
+                                                                    end.month,
+                                                                    end.day,
+                                                                  );
+                                                              if (!dayOnly
+                                                                      .isBefore(
+                                                                        startOnly,
+                                                                      ) &&
+                                                                  dayOnly
+                                                                      .isBefore(
+                                                                        endOnly,
+                                                                      )) {
+                                                                dayBooking =
+                                                                    data;
+                                                                break;
+                                                              }
                                                             }
-
+                                                            final String
+                                                            dayLabel =
+                                                                _housekeepingLabelFor(
+                                                                  room: room,
+                                                                  dateKey:
+                                                                      dayKey,
+                                                                  roomCalendarStatus:
+                                                                      roomCalendarStatus,
+                                                                  booking:
+                                                                      dayBooking,
+                                                                );
                                                             return _buildDot(
-                                                              dotColor,
+                                                              _colorForHousekeepingLabel(
+                                                                dayLabel,
+                                                              ),
                                                             );
                                                           }),
                                                         ),
@@ -1072,34 +1038,41 @@ class _RoomDashboardPageState extends State<RoomDashboardPage> {
                                                   ),
                                                 ),
 
+                                              if (statusLabel ==
+                                                  DaycareOccupancyService
+                                                      .disabledLabel)
+                                                Tooltip(
+                                                  message: '啟用此房間',
+                                                  child: GestureDetector(
+                                                    onTap: () {},
+                                                    behavior:
+                                                        HitTestBehavior
+                                                            .deferToChild,
+                                                    child: Switch(
+                                                      value: false,
+                                                      materialTapTargetSize:
+                                                          MaterialTapTargetSize
+                                                              .shrinkWrap,
+                                                      onChanged: (bool value) {
+                                                        if (!value) {
+                                                          return;
+                                                        }
+                                                        ShopService.instance
+                                                            .updateRoomStatus(
+                                                              shopId:
+                                                                  widget.shopId,
+                                                              roomId: roomId,
+                                                              enabled: true,
+                                                            );
+                                                      },
+                                                    ),
+                                                  ),
+                                                ),
+
                                               /// 右邊狀態
                                               _buildStatusChip(
-                                                color: manualStatus == 'closed'
-                                                    ? const Color(0xFF6D4C41)
-                                                    : manualStatus ==
-                                                              'blocked' ||
-                                                          manualStatus ==
-                                                              'maintenance' ||
-                                                          manualStatus ==
-                                                              'unavailable'
-                                                    ? Colors.black
-                                                    : manualStatus == 'cleaning'
-                                                    ? Colors.orange
-                                                    : color,
-                                                text: manualStatus == 'closed'
-                                                    ? '今日關閉'
-                                                    : manualStatus ==
-                                                              'blocked' ||
-                                                          manualStatus ==
-                                                              'maintenance' ||
-                                                          manualStatus ==
-                                                              'unavailable'
-                                                    ? '維修中'
-                                                    : manualStatus == 'cleaning'
-                                                    ? '清潔中'
-                                                    : _getRoomStatusText(
-                                                        todayBooking,
-                                                      ),
+                                                color: color,
+                                                text: statusLabel,
                                               ),
                                               const SizedBox(width: 4),
 
@@ -1155,26 +1128,38 @@ class _RoomDashboardPageState extends State<RoomDashboardPage> {
     );
   }
 
-  String _getRoomStatusText(Map<String, dynamic>? booking) {
-    if (booking == null) {
-      return '空房';
-    }
+  String _housekeepingLabelFor({
+    required Map room,
+    required String dateKey,
+    required Map<String, String> roomCalendarStatus,
+    Map<String, dynamic>? booking,
+  }) {
+    return DaycareOccupancyService.housekeepingLabel(
+      room: Map<String, dynamic>.from(room),
+      calendarStatus:
+          (roomCalendarStatus['${room['id']}|$dateKey'] ?? '').toString(),
+      stayBooking: booking,
+    );
+  }
 
-    final status = booking['status'] ?? '';
-
-    switch (status) {
-      case 'pending':
-      case 'confirmed':
-        return '已訂';
-
-      case 'checked_in':
-        return '入住中';
-
-      case 'completed':
-        return '已完成';
-
+  Color _colorForHousekeepingLabel(String label) {
+    switch (label) {
+      case DaycareOccupancyService.disabledLabel:
+        return Colors.blueGrey;
+      case DaycareOccupancyService.closedLabel:
+        return const Color(0xFF6D4C41);
+      case DaycareOccupancyService.maintenanceLabel:
+        return Colors.black;
+      case DaycareOccupancyService.cleaningLabel:
+        return Colors.orange;
+      case '入住中':
+        return RoomStatusPresentation.checkedInColor;
+      case '已訂':
+        return RoomStatusPresentation.stayColor;
+      case '已完成':
+        return RoomStatusPresentation.completedColor;
       default:
-        return '空房';
+        return RoomStatusPresentation.availableColor;
     }
   }
 

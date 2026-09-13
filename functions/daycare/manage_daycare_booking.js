@@ -21,8 +21,13 @@ const {
 } = require("./daycare_pricing");
 const {
   assertAvailable,
+  applyHoldReleaseFromSnap,
+  holdIdentity,
+  holdRefForBooking,
+  listHoldEntries,
   loadActiveOccupancies,
   releaseOccupancyDocs,
+  writeHoldEntries,
 } = require("./daycare_occupancy");
 const {computeEarnPoints} = require("./daycare_points");
 const {
@@ -40,6 +45,10 @@ const {
   isSettlementTopUpMethodAvailable,
   normalizeMethodId,
 } = require("../payments/shop_payment_methods");
+const {
+  applySettlementPaymentDirection,
+  assertRefundMethod,
+} = require("../bookings/settlement_payment_direction");
 const {
   isActivePayment,
   isBalanceFamily,
@@ -375,9 +384,6 @@ exports.manageDaycareBooking = onCall(
           if (remaining > 0) {
             nextPaymentStatus = "awaiting_supplement";
           }
-          const topUpMethod = normalizeMethodId(
-              payload.settlementTopUpMethod || payload.topUpMethod || "",
-          );
           const bookingUpdate = {
             overtimeMinutes: alreadySettled ?
               toInt(booking.overtimeMinutes, overtimeMinutes) : overtimeMinutes,
@@ -413,6 +419,62 @@ exports.manageDaycareBooking = onCall(
             remainingAmount: remaining,
             refundDueAmount,
           }, bookingUpdate);
+          const shopSnap = await firestore.collection("shops").doc(shopId).get();
+          const shopData = shopSnap.data() || {};
+          const dir = applySettlementPaymentDirection({
+            remainingAmount: remaining,
+            refundDueAmount,
+            topUpMethod: normalizeMethodId(
+                payload.settlementTopUpMethod || payload.topUpMethod || "",
+            ),
+            refundMethod: normalizeString(
+                payload.settlementRefundMethod || payload.refundMethod ||
+                  booking.settlementRefundMethod || "",
+            ) || (refundDueAmount > 0 && remaining <= 0 ? "cash" : ""),
+            refundNote: normalizeString(
+                payload.settlementRefundNote || payload.refundNote ||
+                  booking.settlementRefundNote || "",
+            ),
+          });
+          bookingUpdate.appTopUpRequested = dir.appTopUpRequested;
+          if (dir.showTopUp) {
+            if (dir.settlementTopUpMethod) {
+              if (!isSettlementTopUpMethodAvailable(
+                  shopData, dir.settlementTopUpMethod,
+              )) {
+                throw new HttpsError(
+                    "failed-precondition",
+                    "店家尚未啟用此補款方式，請先至付款設定開啟。",
+                );
+              }
+              bookingUpdate.settlementTopUpMethod = dir.settlementTopUpMethod;
+              bookingUpdate.settlementTopUpStatus = dir.settlementTopUpStatus ||
+                (dir.settlementTopUpMethod === "transfer" ?
+                  "awaiting_proof" : "selected");
+            }
+            bookingUpdate.settlementRefundMethod = "";
+            bookingUpdate.settlementRefundNote = "";
+          } else if (dir.showRefund) {
+            try {
+              assertRefundMethod(
+                  dir.settlementRefundMethod, dir.settlementRefundNote,
+              );
+            } catch (error) {
+              throw new HttpsError(
+                  error.code || "invalid-argument",
+                  error.message || "請選擇退款方式",
+              );
+            }
+            bookingUpdate.settlementTopUpMethod = "";
+            bookingUpdate.settlementTopUpStatus = "none";
+            bookingUpdate.settlementRefundMethod = dir.settlementRefundMethod;
+            bookingUpdate.settlementRefundNote = dir.settlementRefundNote;
+          } else {
+            bookingUpdate.settlementTopUpMethod = "";
+            bookingUpdate.settlementTopUpStatus = "none";
+            bookingUpdate.settlementRefundMethod = "";
+            bookingUpdate.settlementRefundNote = "";
+          }
           if (!alreadySettled) {
             bookingUpdate.actualEndAt =
               admin.firestore.Timestamp.fromDate(actualEnd);
@@ -424,21 +486,6 @@ exports.manageDaycareBooking = onCall(
           } else if (bookingUpdate.status === "completed" &&
               !booking.completedAt) {
             bookingUpdate.completedAt = now;
-          }
-          if (remaining > 0 && topUpMethod) {
-            const shopSnap = await firestore.collection("shops").doc(shopId).get();
-            if (!isSettlementTopUpMethodAvailable(
-                shopSnap.data() || {}, topUpMethod,
-            )) {
-              throw new HttpsError(
-                  "failed-precondition",
-                  "店家尚未啟用此補款方式，請先至付款設定開啟。",
-              );
-            }
-            bookingUpdate.settlementTopUpMethod = topUpMethod;
-            bookingUpdate.settlementTopUpStatus = topUpMethod === "transfer" ?
-              "awaiting_proof" : "selected";
-            bookingUpdate.appTopUpRequested = topUpMethod !== "cash";
           }
           if (remaining <= 0 && refundDueAmount <= 0 &&
               payload.lockIfClear !== false) {
@@ -457,11 +504,18 @@ exports.manageDaycareBooking = onCall(
             const payQuery = firestore.collection("payments")
                 .where("bookingId", "==", bookingId);
             await firestore.runTransaction(async (transaction) => {
+              const holdBooking = holdIdentity(booking, bookingId, shopId);
+              const holdRef = holdRefForBooking(firestore, holdBooking);
+              const holdSnap = holdRef ?
+                await transaction.get(holdRef) : null;
               for (const doc of occSnap.docs) {
                 await transaction.get(doc.ref);
               }
               const paySnap = await transaction.get(payQuery);
               releaseOccupancyDocs(transaction, occSnap.docs);
+              applyHoldReleaseFromSnap(
+                  transaction, holdRef, holdSnap, holdBooking,
+              );
               paySnap.docs.forEach((doc) => {
                 const payment = doc.data() || {};
                 if (!isActivePayment(payment) || isDepositFamily(payment)) {
@@ -562,10 +616,16 @@ exports.manageDaycareBooking = onCall(
             firestore, shopId, bookingId,
         );
         await firestore.runTransaction(async (transaction) => {
+          const holdBooking = holdIdentity(booking, bookingId, shopId);
+          const holdRef = holdRefForBooking(firestore, holdBooking);
+          const holdSnap = holdRef ? await transaction.get(holdRef) : null;
           for (const doc of occSnap.docs) {
             await transaction.get(doc.ref);
           }
           releaseOccupancyDocs(transaction, occSnap.docs);
+          applyHoldReleaseFromSnap(
+              transaction, holdRef, holdSnap, holdBooking,
+          );
           transaction.update(bookingRef, cancelUpdates);
         });
         await restoreDaycareSpend(firestore, {
@@ -635,10 +695,34 @@ exports.manageDaycareBooking = onCall(
             firestore, shopId, bookingId,
         );
         await firestore.runTransaction(async (transaction) => {
+          const holdBooking = holdIdentity(booking, bookingId, shopId);
+          const holdRef = holdRefForBooking(firestore, holdBooking);
+          const holdSnap = holdRef ? await transaction.get(holdRef) : null;
           for (const doc of occSnap.docs) {
             await transaction.get(doc.ref);
           }
           releaseOccupancyDocs(transaction, occSnap.docs);
+          if (!normalizeString(booking.roomId) && holdRef && holdSnap &&
+              holdSnap.exists) {
+            const next = listHoldEntries(holdSnap.data()).map((item) => {
+              if (normalizeString(item.bookingId) !== bookingId) {
+                return item;
+              }
+              return {
+                ...item,
+                startAt: startAt.toISOString(),
+                endAt: newEnd.toISOString(),
+              };
+            });
+            writeHoldEntries(
+                transaction,
+                holdRef,
+                shopId,
+                holdBooking.requestedRoomTypeId || holdBooking.roomTypeId,
+                booking.serviceDate || "",
+                next,
+            );
+          }
           if (normalizeString(booking.roomId)) {
             const occRef = firestore.collection("shops").doc(shopId)
                 .collection("room_occupancies").doc();

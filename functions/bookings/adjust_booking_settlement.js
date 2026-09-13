@@ -29,11 +29,15 @@ const {
 const {
   isActivePayment,
   isBalanceFamily,
+  isDepositFamily,
   supersedeStalePendingPayments,
 } = require("../payments/payment_record");
+const {
+  applySettlementPaymentDirection,
+  assertRefundMethod,
+} = require("./settlement_payment_direction");
 
 const ALLOWED_COLLECT = ["cash", "transfer"];
-const ALLOWED_REFUND = ["cash", "transfer", "other"];
 
 async function requireBookingPerm(uid, shopId, booking) {
   const daycare = normalizeString(booking.bookingKind) === "daycare" ||
@@ -227,6 +231,58 @@ function stayDateKeys(booking) {
   return keys;
 }
 
+function applyDirectionFields(bookingUpdate, fields, data, shop, booking) {
+  const topUpMethod = normalizeMethodId(
+      data.settlementTopUpMethod || data.topUpMethod || "",
+  );
+  const refundMethod = normalizeString(
+      data.settlementRefundMethod || data.refundMethod ||
+        (booking && booking.settlementRefundMethod) || "",
+  ) || (fields.refundDueAmount > 0 &&
+    fields.remainingAmount <= 0 ? "cash" : "");
+  const refundNote = normalizeString(
+      data.settlementRefundNote || data.refundNote ||
+        (booking && booking.settlementRefundNote) || "",
+  );
+  const dir = applySettlementPaymentDirection({
+    remainingAmount: fields.remainingAmount,
+    refundDueAmount: fields.refundDueAmount,
+    topUpMethod,
+    refundMethod,
+    refundNote,
+  });
+  bookingUpdate.appTopUpRequested = dir.appTopUpRequested;
+  if (dir.showTopUp) {
+    if (dir.settlementTopUpMethod) {
+      assertTopUpMethod(shop, dir.settlementTopUpMethod);
+      bookingUpdate.settlementTopUpMethod = dir.settlementTopUpMethod;
+      bookingUpdate.settlementTopUpStatus = dir.settlementTopUpStatus ||
+        (dir.settlementTopUpMethod === "transfer" ?
+          "awaiting_proof" : "selected");
+    }
+    bookingUpdate.settlementRefundMethod = "";
+    bookingUpdate.settlementRefundNote = "";
+  } else if (dir.showRefund) {
+    try {
+      assertRefundMethod(dir.settlementRefundMethod, dir.settlementRefundNote);
+    } catch (error) {
+      throw new HttpsError(
+          error.code || "invalid-argument",
+          error.message || "請選擇退款方式",
+      );
+    }
+    bookingUpdate.settlementTopUpMethod = "";
+    bookingUpdate.settlementTopUpStatus = "none";
+    bookingUpdate.settlementRefundMethod = dir.settlementRefundMethod;
+    bookingUpdate.settlementRefundNote = dir.settlementRefundNote;
+  } else {
+    bookingUpdate.settlementTopUpMethod = "";
+    bookingUpdate.settlementTopUpStatus = "none";
+    bookingUpdate.settlementRefundMethod = "";
+    bookingUpdate.settlementRefundNote = "";
+  }
+}
+
 function uniqueImageUrls(values) {
   const out = [];
   const seen = new Set();
@@ -376,9 +432,6 @@ exports.adjustBookingSettlement = onCall(
             operatorUid: uid,
             createdAt: new Date().toISOString(),
           });
-          const topUpMethod = normalizeMethodId(
-              data.settlementTopUpMethod || data.topUpMethod || "",
-          );
           bookingUpdate = {
             manualAdjust,
             lastManualAdjustReason: reason,
@@ -393,7 +446,6 @@ exports.adjustBookingSettlement = onCall(
             refundDueAmount: fields.refundDueAmount,
             paymentStatus: fields.remainingAmount > 0 ?
               "awaiting_supplement" : fields.paymentStatus,
-            appTopUpRequested: fields.remainingAmount > 0,
             settlementConfirmed: true,
             settlementConfirmedAt: alreadyEnded ?
               (booking.settlementConfirmedAt || now) : now,
@@ -405,15 +457,7 @@ exports.adjustBookingSettlement = onCall(
             bookingUpdate.checkOutAt = now;
             bookingUpdate.checkedOutAt = now;
           }
-          if (fields.remainingAmount <= 0) {
-            bookingUpdate.settlementTopUpStatus = "none";
-          } else if (topUpMethod) {
-            assertTopUpMethod(shop, topUpMethod);
-            bookingUpdate.settlementTopUpMethod = topUpMethod;
-            bookingUpdate.settlementTopUpStatus = topUpMethod === "transfer" ?
-              "awaiting_proof" : "selected";
-            bookingUpdate.appTopUpRequested = topUpMethod !== "cash";
-          }
+          applyDirectionFields(bookingUpdate, fields, data, shop, booking);
           if (evidenceUrls.length > 0) {
             bookingUpdate.settlementEvidenceUrls =
               admin.firestore.FieldValue.arrayUnion(...evidenceUrls);
@@ -481,13 +525,10 @@ exports.adjustBookingSettlement = onCall(
             remainingAmount: fields.remainingAmount,
             refundDueAmount: fields.refundDueAmount,
             paymentStatus: fields.paymentStatus,
-            appTopUpRequested: fields.remainingAmount > 0,
             settlementConfirmed: true,
             updatedAt: now,
           };
-          if (fields.remainingAmount <= 0) {
-            bookingUpdate.settlementTopUpStatus = "none";
-          }
+          applyDirectionFields(bookingUpdate, fields, data, shop, booking);
           payload = {
             before,
             after: fields.expectedTotal,
@@ -575,8 +616,17 @@ exports.adjustBookingSettlement = onCall(
           if (amount <= 0) {
             throw new HttpsError("invalid-argument", "請輸入退款金額");
           }
-          if (!ALLOWED_REFUND.includes(method)) {
-            throw new HttpsError("invalid-argument", "不支援的退款方式");
+          const refundNote = normalizeString(
+              data.refundNote || data.reason || data.settlementRefundNote,
+          );
+          let refundMethod;
+          try {
+            refundMethod = assertRefundMethod(method, refundNote);
+          } catch (error) {
+            throw new HttpsError(
+                error.code || "invalid-argument",
+                error.message || "請選擇退款方式",
+            );
           }
           if (!isSettlementConfirmed(booking)) {
             throw new HttpsError("failed-precondition", "請先完成結算確認");
@@ -595,9 +645,14 @@ exports.adjustBookingSettlement = onCall(
             remainingAmount: next.remainingAmount,
             refundDueAmount: next.refundDueAmount,
             paymentStatus: next.paymentStatus,
-            lastRefundMethod: method,
+            lastRefundMethod: refundMethod,
             lastRefundAmount: amount,
+            lastRefundReason: refundNote,
+            lastRefundBy: uid,
+            lastRefundAt: now,
             lastRefundChannel: "manual_in_shop",
+            settlementRefundMethod: refundMethod,
+            settlementRefundNote: refundMethod === "other" ? refundNote : "",
             updatedAt: now,
           };
           paymentWrite = {
@@ -611,11 +666,13 @@ exports.adjustBookingSettlement = onCall(
               sourceId: bookingId,
               amount,
               status: "refunded",
-              paymentMethod: method,
+              paymentMethod: refundMethod,
               paymentPurpose: "refund",
               amountType: "refund",
               channel: "in_shop",
               refundChannel: "manual_in_shop",
+              refundNote,
+              refundReason: refundNote,
               autoRefund: false,
               requestId,
               createdAt: now,
@@ -660,6 +717,84 @@ exports.adjustBookingSettlement = onCall(
             updatedAt: now,
           };
           payload = {remainingAmount: fields.remainingAmount, method};
+        } else if (action === "confirmStaffVerifiedTransfer") {
+          if (!isSettlementConfirmed(booking)) {
+            throw new HttpsError("failed-precondition", "請先完成結算確認");
+          }
+          if (normalizeMethodId(booking.settlementTopUpMethod) !== "transfer") {
+            throw new HttpsError("failed-precondition", "目前不是銀行轉帳補款");
+          }
+          const note = normalizeString(
+              data.transferVerificationNote || data.note,
+          );
+          if (!note) {
+            throw new HttpsError("invalid-argument", "請填寫現場核對註記");
+          }
+          const amount = settlementFields(booking).remainingAmount;
+          if (amount <= 0) {
+            throw new HttpsError("failed-precondition", "目前沒有待補款");
+          }
+          const paid = toInt(booking.paidAmount, 0) + amount;
+          const next = settlementFields({...booking, paidAmount: paid});
+          bookingUpdate = {
+            paidAmount: paid,
+            remainingAmount: next.remainingAmount,
+            refundDueAmount: next.refundDueAmount,
+            paymentStatus: next.paymentStatus,
+            lastPaymentMethod: "transfer",
+            lastPaymentPurpose: "balance",
+            lastPaymentAmount: amount,
+            settlementTopUpMethod: "transfer",
+            settlementTopUpStatus: "collected",
+            settlementTopUpCollectedAt: now,
+            settlementTopUpCollectedBy: uid,
+            paymentVerificationMode: "staff_verified_no_image",
+            transferVerifiedAt: now,
+            transferVerifiedBy: uid,
+            transferVerificationNote: note,
+            paymentUpdatedAt: now,
+            updatedAt: now,
+          };
+          if (next.remainingAmount <= 0) {
+            bookingUpdate.paidAt = now;
+          }
+          paymentWrite = {
+            ref: firestore.collection("payments").doc(),
+            data: {
+              shopId,
+              bookingId,
+              userId: normalizeString(booking.userId),
+              bookingCode: normalizeString(booking.bookingCode),
+              sourceType: "booking",
+              sourceId: bookingId,
+              amount,
+              status: "paid",
+              paymentMethod: "transfer",
+              paymentPurpose: "balance",
+              amountType: "full",
+              channel: "bank_transfer",
+              paymentVerificationMode: "staff_verified_no_image",
+              transferVerificationNote: note,
+              note: "店員現場核對轉帳，未上傳照片",
+              requestId,
+              createdAt: now,
+              paidAt: now,
+              recordedByUid: uid,
+            },
+          };
+          maybeLock(
+              {...booking, paidAmount: paid},
+              bookingUpdate,
+              uid,
+              "staff_verified_transfer",
+          );
+          payload = {
+            amount,
+            method: "transfer",
+            remainingAmount: next.remainingAmount,
+            locked: bookingUpdate.settlementLocked === true,
+            paymentVerificationMode: "staff_verified_no_image",
+          };
         } else if (action === "confirmTransferTopUp") {
           if (!isSettlementConfirmed(booking)) {
             throw new HttpsError("failed-precondition", "請先完成結算確認");

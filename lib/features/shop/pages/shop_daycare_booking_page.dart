@@ -1832,13 +1832,17 @@ class _ShopDaycareBookingPageState extends State<ShopDaycareBookingPage> {
               maxPets: option.capacity,
               enabled: setting.enabled,
               roomBased: true,
-              remainingRooms: option.remainingRooms,
+              remainingRooms:
+                  option.timesComplete &&
+                      option.remainingRooms != null &&
+                      option.remainingRooms! > 0
+                  ? option.remainingRooms
+                  : null,
             ),
             selected: selected,
             enabled: canPick,
-            blockedReason: petsReady && !canPick
-                ? (option.blockedReason ?? '目前不可選')
-                : (setting.enabled ? null : '方案未啟用'),
+            blockedReason: option.blockedReason ??
+                (!petsReady ? null : '目前不可選'),
             onTap: () {
               if (!canPick) {
                 return;

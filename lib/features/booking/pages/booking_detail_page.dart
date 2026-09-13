@@ -20,8 +20,10 @@ import 'package:petnest_saas/core/models/pre_arrival_guide_model.dart';
 import 'package:petnest_saas/core/widgets/booking_payment_proof_button.dart';
 import 'package:petnest_saas/core/services/booking_payment_proof_function_service.dart';
 import 'package:petnest_saas/core/services/booking_payment_status.dart';
+import 'package:petnest_saas/core/services/booking_settlement_function_service.dart';
 import 'package:petnest_saas/core/services/booking_settlement_math.dart';
 import 'package:petnest_saas/core/services/booking_service.dart';
+import 'package:petnest_saas/core/services/daycare_function_service.dart';
 import 'package:petnest_saas/core/services/daily_care_setting_service.dart';
 import 'package:petnest_saas/core/services/payment_function_service.dart';
 import 'package:petnest_saas/core/services/pre_arrival_guide_service.dart';
@@ -860,87 +862,49 @@ class _BookingDetailPageState extends State<_BookingDetailBody> {
       );
       return;
     }
-    final String uid = FirebaseAuth.instance.currentUser?.uid ?? '';
     final String shopId = SafeParse.parseString(booking['shopId']);
-    final String previousMethod = SafeParse.parseString(
-      booking['paymentMethod'],
-    );
-    final String previousAmountType = SafeParse.parseString(
-      booking['payAmountType'],
-    );
     try {
       setState(() {
         _loading = true;
       });
-      if (BookingSettlementMath.isSettlementConfirmed(booking)) {
-        await FirebaseFirestore.instance
-            .collection('bookings')
-            .doc(widget.docId)
-            .update(<String, dynamic>{
-              ...BookingPaymentChoicePatch.settlementTopUpFields(
+      await BookingSettlementFunctionService.instance
+          .changeCustomerPaymentMethod(
+                shopId: shopId,
+                bookingId: widget.docId,
                 paymentMethod: paymentMethod,
-              ),
-              'updatedAt': FieldValue.serverTimestamp(),
-              'paymentChoiceChangedAt': FieldValue.serverTimestamp(),
-            });
-        if (!mounted) {
-          return;
-        }
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('已更新補款方式')));
-        return;
-      }
-      await FirebaseFirestore.instance
-          .collection('bookings')
-          .doc(widget.docId)
-          .update(<String, dynamic>{
-            ...BookingPaymentChoicePatch.depositFields(
-              payAmountType: payAmountType,
-              paymentMethod: paymentMethod,
-            ),
-            'updatedAt': FieldValue.serverTimestamp(),
-            'paymentChoiceChangedAt': FieldValue.serverTimestamp(),
-          });
-      if (uid.isNotEmpty && shopId.isNotEmpty) {
-        try {
-          await FirebaseFirestore.instance.collection('action_logs').add(
-            <String, dynamic>{
-              'shopId': shopId,
-              'targetType': 'booking',
-              'targetId': widget.docId,
-              'action': 'payment_choice_changed',
-              'type': 'payment_choice_changed',
-              'operatorUid': uid,
-              'operatorRole': 'customer',
-              'payload': <String, dynamic>{
-                'previousPaymentMethod': previousMethod,
-                'paymentMethod': paymentMethod,
-                'previousPayAmountType': previousAmountType,
-                'payAmountType': payAmountType,
-              },
-              'createdAt': FieldValue.serverTimestamp(),
-            },
-          );
-        } catch (_) {}
-      }
+                payAmountType: BookingSettlementMath.isSettlementConfirmed(
+                  booking,
+                )
+                    ? ''
+                    : payAmountType,
+              );
       if (!mounted) {
         return;
       }
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('已更新付款方式／付款金額')));
+      final bool settlementTopUp =
+          BookingSettlementMath.isSettlementConfirmed(booking);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(settlementTopUp ? '已更新補款方式' : '已更新付款方式／付款金額'),
+        ),
+      );
       if (PaymentMethodType.isOnlinePayment(paymentMethod)) {
         final Map<String, dynamic> next =
             BookingPaymentChoicePatch.applyToBooking(
               booking: booking,
-              patch: BookingPaymentChoicePatch.depositFields(
-                payAmountType: payAmountType,
-                paymentMethod: paymentMethod,
-              ),
+              patch: settlementTopUp
+                  ? BookingPaymentChoicePatch.settlementTopUpFields(
+                      paymentMethod: paymentMethod,
+                    )
+                  : BookingPaymentChoicePatch.depositFields(
+                      payAmountType: payAmountType,
+                      paymentMethod: paymentMethod,
+                    ),
             );
-        final BookingDetailViewData nextView =
-            BookingDetailViewData.fromBooking(data: next, docId: widget.docId);
+        final BookingDetailViewData nextView = BookingDetailViewData.fromBooking(
+          data: next,
+          docId: widget.docId,
+        );
         if (nextView.dueNowAmount > 0) {
           await _createRemainingPayment(
             booking: next,
@@ -948,13 +912,20 @@ class _BookingDetailPageState extends State<_BookingDetailBody> {
           );
         }
       }
-    } catch (error) {
+    } on DaycareFunctionException catch (error) {
       if (!mounted) {
         return;
       }
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(SnackBar(content: Text('變更付款失敗：$error')));
+      ).showSnackBar(SnackBar(content: Text(error.message)));
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(DaycareFunctionException.from(error))),
+      );
     } finally {
       if (mounted) {
         setState(() {

@@ -3,10 +3,13 @@
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:petnest_saas/core/models/booking_kind.dart';
 import 'package:petnest_saas/core/models/pet_snapshot.dart';
 import 'package:petnest_saas/core/models/policy_applicable_service.dart';
 import 'package:petnest_saas/core/models/terms_consent_snapshot.dart';
 import 'package:petnest_saas/core/services/booking_search_fields.dart';
+import 'package:petnest_saas/core/services/daycare_occupancy_service.dart';
+import 'package:petnest_saas/core/services/daycare_time_helper.dart';
 import 'package:petnest_saas/core/services/shop_payment_methods.dart';
 import 'package:petnest_saas/core/services/shop_service.dart';
 import 'package:petnest_saas/core/services/member_coupon_service.dart';
@@ -1159,6 +1162,35 @@ class BookingService {
       if (status == 'cancelled' || status == 'completed') continue;
 
       if (booking['roomId'] != roomId) continue;
+
+      if (BookingKind.isDaycare(booking)) {
+        if (!DaycareOccupancyService.occupiesInventory(booking)) {
+          continue;
+        }
+        final DateTime? otherStart = _timestampToDate(
+          booking['scheduledStartAt'],
+        );
+        final DateTime? otherEnd = _timestampToDate(
+          booking['scheduledEndAt'],
+        );
+        if (otherStart == null || otherEnd == null) {
+          continue;
+        }
+        for (final DateTime date in stayDates) {
+          final DateTime slotStart = DateTime(date.year, date.month, date.day);
+          final DateTime slotEnd = slotStart.add(const Duration(days: 1));
+          if (DaycareTimeHelper.overlaps(
+            slotStart,
+            slotEnd,
+            otherStart,
+            otherEnd,
+          )) {
+            return false;
+          }
+        }
+        continue;
+      }
+
       final bStart = _timestampToDate(booking['startDate']);
       final bEnd = _timestampToDate(booking['endDate']);
 
@@ -1168,6 +1200,129 @@ class BookingService {
 
       if (overlap) {
         return false;
+      }
+    }
+
+    final QuerySnapshot<Map<String, dynamic>> occSnap = await _firestore
+        .collection('shops')
+        .doc(shopId)
+        .collection('room_occupancies')
+        .where('roomId', isEqualTo: roomId)
+        .where('status', isEqualTo: 'active')
+        .get();
+    for (final QueryDocumentSnapshot<Map<String, dynamic>> doc in occSnap.docs) {
+      final Map<String, dynamic> occ = doc.data();
+      final DateTime? occStart = _timestampToDate(occ['startAt']);
+      final DateTime? occEnd = _timestampToDate(occ['endAt']);
+      if (occStart == null || occEnd == null) {
+        continue;
+      }
+      for (final DateTime date in stayDates) {
+        final DateTime slotStart = DateTime(date.year, date.month, date.day);
+        final DateTime slotEnd = slotStart.add(const Duration(days: 1));
+        if ((occ['occupancyMode'] ?? 'slot').toString() == 'full_day') {
+          if (DaycareOccupancyService.dateKeyOf(occStart) ==
+              ShopService.instance.formatDateKey(date)) {
+            return false;
+          }
+        } else if (DaycareTimeHelper.overlaps(
+          slotStart,
+          slotEnd,
+          occStart,
+          occEnd,
+        )) {
+          return false;
+        }
+      }
+    }
+
+    final DocumentSnapshot<Map<String, dynamic>> roomSnap = await _firestore
+        .collection('shops')
+        .doc(shopId)
+        .collection('rooms')
+        .doc(roomId)
+        .get();
+    final String roomTypeId =
+        (roomSnap.data()?['roomTypeId'] ?? '').toString().trim();
+    if (roomTypeId.isNotEmpty) {
+      final QuerySnapshot<Map<String, dynamic>> roomTypeSnap = await _firestore
+          .collection('shops')
+          .doc(shopId)
+          .collection('rooms')
+          .where('roomTypeId', isEqualTo: roomTypeId)
+          .get();
+      final List<Map<String, dynamic>> typeRooms = roomTypeSnap.docs
+          .map(
+            (QueryDocumentSnapshot<Map<String, dynamic>> doc) =>
+                <String, dynamic>{'id': doc.id, ...doc.data()},
+          )
+          .toList();
+      final QuerySnapshot<Map<String, dynamic>> typeOccSnap = await _firestore
+          .collection('shops')
+          .doc(shopId)
+          .collection('room_occupancies')
+          .where('status', isEqualTo: 'active')
+          .get();
+      final List<Map<String, dynamic>> occupancies = typeOccSnap.docs
+          .map(
+            (QueryDocumentSnapshot<Map<String, dynamic>> doc) =>
+                doc.data(),
+          )
+          .toList();
+      final List<Map<String, dynamic>> bookingMaps = bookings
+          .map(
+            (Map<String, dynamic> booking) => <String, dynamic>{
+              'id': (booking['bookingId'] ?? booking['id'] ?? '').toString(),
+              ...booking,
+            },
+          )
+          .toList();
+      for (final DateTime date in stayDates) {
+        final String dateKey = ShopService.instance.formatDateKey(date);
+        if (bookingMaps.every((Map<String, dynamic> booking) {
+          if (!BookingKind.isDaycare(booking)) {
+            return true;
+          }
+          if (!DaycareOccupancyService.occupiesInventory(booking)) {
+            return true;
+          }
+          if ((booking['roomId'] ?? '').toString().trim().isNotEmpty) {
+            return true;
+          }
+          final String held =
+              ((booking['requestedRoomTypeId'] ??
+                          booking['roomTypeId'] ??
+                          '')
+                      .toString())
+                  .trim();
+          return held != roomTypeId;
+        })) {
+          continue;
+        }
+        final List<Map<String, dynamic>> calendarEntries =
+            <Map<String, dynamic>>[
+              <String, dynamic>{
+                'roomId': roomId,
+                'date': dateKey,
+                'status': 'booked',
+              },
+            ];
+        final DateTime slotStart = DateTime(date.year, date.month, date.day, 0);
+        final DateTime slotEnd = DateTime(date.year, date.month, date.day, 23, 59);
+        final DaycareRoomRemaining computed =
+            DaycareOccupancyService.remainingRoomsResultFromData(
+              rooms: typeRooms,
+              bookings: bookingMaps,
+              occupancies: occupancies,
+              calendarEntries: calendarEntries,
+              roomTypeId: roomTypeId,
+              startAt: slotStart,
+              endAt: slotEnd,
+              dateKey: dateKey,
+            );
+        if (computed.oversold) {
+          return false;
+        }
       }
     }
 

@@ -566,6 +566,8 @@ class AdminBookingDetailPage extends StatelessWidget {
           'manualAdjust': result.manualAdjust,
           'reason': result.manualAdjustReason,
           'settlementTopUpMethod': result.topUpMethod,
+          'settlementRefundMethod': result.refundMethod,
+          'settlementRefundNote': result.refundNote,
           'lockIfClear': result.lockIfClear,
           'evidenceImageUrls': evidenceImageUrls,
         },

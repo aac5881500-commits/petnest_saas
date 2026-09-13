@@ -860,6 +860,10 @@ exports.convertDaycareToAccommodation =
 exports.adjustBookingSettlement =
   require("./bookings/adjust_booking_settlement").adjustBookingSettlement;
 
+exports.changeBookingPaymentMethod =
+  require("./bookings/change_booking_payment_method")
+      .changeBookingPaymentMethod;
+
 exports.appendBookingPaymentProof =
   require("./bookings/append_booking_payment_proof").appendBookingPaymentProof;
 

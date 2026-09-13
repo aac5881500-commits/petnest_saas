@@ -11,6 +11,7 @@ import 'package:petnest_saas/core/services/daycare_function_service.dart';
 import 'package:petnest_saas/core/services/daycare_time_helper.dart';
 import 'package:petnest_saas/core/services/settlement_adjust_display.dart';
 import 'package:petnest_saas/core/services/shop_payment_methods.dart';
+import 'package:petnest_saas/features/admin/widgets/settlement_refund_method_picker.dart';
 import 'package:petnest_saas/core/utils/safe_parse.dart';
 
 class AdminDaycareSettleResult {
@@ -19,6 +20,8 @@ class AdminDaycareSettleResult {
     required this.manualAdjust,
     required this.manualAdjustReason,
     required this.topUpMethod,
+    this.refundMethod = '',
+    this.refundNote = '',
     required this.lockIfClear,
   });
 
@@ -26,6 +29,8 @@ class AdminDaycareSettleResult {
   final int manualAdjust;
   final String manualAdjustReason;
   final String topUpMethod;
+  final String refundMethod;
+  final String refundNote;
   final bool lockIfClear;
 }
 
@@ -75,12 +80,13 @@ class _AdminDaycareSettleSheetState extends State<AdminDaycareSettleSheet> {
   Map<String, dynamic> _preview = <String, dynamic>{};
   final TextEditingController _unsignedAdjust = TextEditingController();
   final TextEditingController _manualReason = TextEditingController();
+  final TextEditingController _refundNote = TextEditingController();
   final ScrollController _sheetScroll = ScrollController();
   final FocusNode _reasonFocus = FocusNode();
   final GlobalKey _reasonFieldKey = GlobalKey();
   DaycareManualAdjustKind _adjustKind = DaycareManualAdjustKind.none;
   bool _reasonError = false;
-  String _refundMethod = '';
+  String _refundMethod = SettlementAdjustDisplay.inStoreRefundMethod;
 
   DateTime? get _scheduledStart => _ts(widget.booking['scheduledStartAt']);
   DateTime? get _scheduledEnd => _ts(widget.booking['scheduledEndAt']);
@@ -93,14 +99,20 @@ class _AdminDaycareSettleSheetState extends State<AdminDaycareSettleSheet> {
       widget.booking,
     );
     _actualEnd = _ts(widget.booking['actualEndAt']) ?? DateTime.now();
-    final DaycareManualAdjustInput existing = DaycareManualAdjustInput.fromSigned(
-      SafeParse.parseMoney(widget.booking['manualAdjust']),
-    );
+    final DaycareManualAdjustInput existing =
+        DaycareManualAdjustInput.fromSigned(
+          SafeParse.parseMoney(widget.booking['manualAdjust']),
+        );
     _adjustKind = existing.kind;
     if (existing.unsignedAmount > 0) {
       _unsignedAdjust.text = '${existing.unsignedAmount}';
     }
     _manualReason.text = SettlementAdjustDisplay.reasonOf(widget.booking);
+    _unsignedAdjust.addListener(() {
+      if (mounted) {
+        setState(() {});
+      }
+    });
     _reloadPreview();
   }
 
@@ -108,6 +120,7 @@ class _AdminDaycareSettleSheetState extends State<AdminDaycareSettleSheet> {
   void dispose() {
     _unsignedAdjust.dispose();
     _manualReason.dispose();
+    _refundNote.dispose();
     _sheetScroll.dispose();
     _reasonFocus.dispose();
     super.dispose();
@@ -125,7 +138,7 @@ class _AdminDaycareSettleSheetState extends State<AdminDaycareSettleSheet> {
             bookingId: widget.bookingId,
             action: 'previewSettle',
             extra: <String, dynamic>{
-              'actualEndAt': _actualEnd.toIso8601String(),
+              'actualEndAt': DaycareTimeHelper.callableInstant(_actualEnd),
             },
           );
       if (!mounted) {
@@ -182,14 +195,32 @@ class _AdminDaycareSettleSheetState extends State<AdminDaycareSettleSheet> {
   }
 
   int get _remaining {
-    final int net = _paid - BookingSettlementMath.refundedAmount(widget.booking);
-    return _finalReceivable > net ? _finalReceivable - net : 0;
+    return BookingSettlementMath.remainingDue(
+      data: <String, dynamic>{
+        ...widget.booking,
+        ..._preview,
+        'overtimeAmount': _overtime,
+      },
+      manualAdjustOverride: _manual,
+    );
   }
 
   int get _refundDue {
-    final int net = _paid - BookingSettlementMath.refundedAmount(widget.booking);
-    return net > _finalReceivable ? net - _finalReceivable : 0;
+    return BookingSettlementMath.refundDue(
+      data: <String, dynamic>{
+        ...widget.booking,
+        ..._preview,
+        'overtimeAmount': _overtime,
+      },
+      manualAdjustOverride: _manual,
+    );
   }
+
+  bool get _showTopUp =>
+      SettlementAdjustDisplay.showTopUp(_remaining, _refundDue);
+
+  bool get _showRefund =>
+      SettlementAdjustDisplay.showRefund(_remaining, _refundDue);
 
   bool get _showReasonError {
     return _reasonError &&
@@ -272,11 +303,23 @@ class _AdminDaycareSettleSheetState extends State<AdminDaycareSettleSheet> {
       });
       return;
     }
-    if (_remaining > 0 && _topUpMethod.isEmpty) {
+    if (_showTopUp && _topUpMethod.isEmpty) {
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(const SnackBar(content: Text('請選擇補款方式，或先至付款設定開啟可用方式')));
       return;
+    }
+    if (_showRefund) {
+      if (_refundMethod.isEmpty) {
+        _refundMethod = SettlementAdjustDisplay.inStoreRefundMethod;
+      }
+      if (_refundMethod == SettlementAdjustDisplay.otherRefundMethod &&
+          _refundNote.text.trim().isEmpty) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('其他退款請填寫註記')));
+        return;
+      }
     }
     final String? timeError = DaycareTimeHelper.actualTimesError(
       actualStartAt: _actualStart,
@@ -288,8 +331,12 @@ class _AdminDaycareSettleSheetState extends State<AdminDaycareSettleSheet> {
       ).showSnackBar(SnackBar(content: Text(timeError)));
       return;
     }
-    if (_refundDue > 0) {
-      _refundMethod = SettlementAdjustDisplay.inStoreRefundMethod;
+    if (_showRefund) {
+      if (_refundMethod.isEmpty) {
+        _refundMethod = SettlementAdjustDisplay.inStoreRefundMethod;
+      }
+    } else {
+      _refundMethod = '';
     }
     bool lockIfClear = false;
     if (_remaining <= 0 && _refundDue <= 0) {
@@ -326,7 +373,13 @@ class _AdminDaycareSettleSheetState extends State<AdminDaycareSettleSheet> {
         actualEndAt: _actualEnd,
         manualAdjust: _manual,
         manualAdjustReason: _manualReason.text.trim(),
-        topUpMethod: _remaining > 0 ? _topUpMethod : '',
+        topUpMethod: _showTopUp ? _topUpMethod : '',
+        refundMethod: _showRefund ? _refundMethod : '',
+        refundNote:
+            _showRefund &&
+                _refundMethod == SettlementAdjustDisplay.otherRefundMethod
+            ? _refundNote.text.trim()
+            : '',
         lockIfClear: lockIfClear,
       ),
     );
@@ -496,7 +549,8 @@ class _AdminDaycareSettleSheetState extends State<AdminDaycareSettleSheet> {
                               ),
                             ],
                           ),
-                          if (_adjustKind != DaycareManualAdjustKind.none) ...<Widget>[
+                          if (_adjustKind !=
+                              DaycareManualAdjustKind.none) ...<Widget>[
                             const SizedBox(height: 8),
                             TextField(
                               controller: _unsignedAdjust,
@@ -583,7 +637,7 @@ class _AdminDaycareSettleSheetState extends State<AdminDaycareSettleSheet> {
                             ),
                           ],
                           const SizedBox(height: 14),
-                          if (_remaining > 0) ...<Widget>[
+                          if (_showTopUp) ...<Widget>[
                             Text(
                               '補款方式',
                               style: TextStyle(
@@ -592,7 +646,9 @@ class _AdminDaycareSettleSheetState extends State<AdminDaycareSettleSheet> {
                               ),
                             ),
                             const SizedBox(height: 8),
-                            StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+                            StreamBuilder<
+                              DocumentSnapshot<Map<String, dynamic>>
+                            >(
                               stream: FirebaseFirestore.instance
                                   .collection('shops')
                                   .doc(widget.shopId)
@@ -637,7 +693,7 @@ class _AdminDaycareSettleSheetState extends State<AdminDaycareSettleSheet> {
                                     );
                                   },
                             ),
-                          ] else if (_refundDue > 0) ...<Widget>[
+                          ] else if (_showRefund) ...<Widget>[
                             Text(
                               '退款方式',
                               style: TextStyle(
@@ -645,20 +701,11 @@ class _AdminDaycareSettleSheetState extends State<AdminDaycareSettleSheet> {
                                 color: theme.titleColor,
                               ),
                             ),
-                            RadioListTile<String>(
-                              value: SettlementAdjustDisplay.inStoreRefundMethod,
-                              groupValue:
-                                  _refundMethod.isEmpty
-                                  ? SettlementAdjustDisplay.inStoreRefundMethod
-                                  : _refundMethod,
-                              title: const Text('店內退款'),
-                              subtitle: const Text(
-                                '店員實際完成退款後再於結算結果確認，不會自動退刷或匯款。',
-                              ),
-                              onChanged: (String? value) {
-                                setState(
-                                  () => _refundMethod = value ?? '',
-                                );
+                            SettlementRefundMethodPicker(
+                              value: _refundMethod,
+                              noteController: _refundNote,
+                              onChanged: (String value) {
+                                setState(() => _refundMethod = value);
                               },
                             ),
                           ],
@@ -691,9 +738,7 @@ class _AdminDaycareSettleSheetState extends State<AdminDaycareSettleSheet> {
                                 ),
                                 if (_manual != 0 &&
                                     _manualReason.text.trim().isNotEmpty)
-                                  Text(
-                                    '調整原因：${_manualReason.text.trim()}',
-                                  ),
+                                  Text('調整原因：${_manualReason.text.trim()}'),
                                 Text(
                                   '最終應收 NT\$$_finalReceivable',
                                   style: const TextStyle(
@@ -701,17 +746,18 @@ class _AdminDaycareSettleSheetState extends State<AdminDaycareSettleSheet> {
                                   ),
                                 ),
                                 Text('已收款 NT\$$_paid'),
-                                if (_remaining > 0)
-                                  Text('待補款 NT\$$_remaining'),
-                                if (_refundDue > 0)
-                                  Text('待退款 NT\$$_refundDue'),
-                                if (_remaining <= 0 && _refundDue <= 0)
+                                if (_showTopUp) Text('待補款 NT\$$_remaining'),
+                                if (_showRefund) Text('待退款 NT\$$_refundDue'),
+                                if (!_showTopUp && !_showRefund)
                                   const Text('待補款／待退款 NT\$0'),
-                                if (_remaining > 0 && _topUpMethod.isNotEmpty)
+                                if (_showTopUp && _topUpMethod.isNotEmpty)
                                   Text(
                                     '補款方式 ${ShopPaymentMethods.historyLabel(_topUpMethod)}',
                                   ),
-                                if (_refundDue > 0) const Text('退款方式 店內退款'),
+                                if (_showRefund)
+                                  Text(
+                                    '退款方式 ${SettlementAdjustDisplay.refundMethodLabel(_refundMethod.isEmpty ? SettlementAdjustDisplay.inStoreRefundMethod : _refundMethod)}',
+                                  ),
                               ],
                             ),
                           ),

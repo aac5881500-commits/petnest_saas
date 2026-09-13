@@ -8,14 +8,20 @@ const {
   hasShopPermission,
   normalizeString,
   resolveBookingKind,
+  serviceDateKey,
   toDate,
   toInt,
   writeActionLog,
 } = require("./daycare_utils");
 const {
   assertAvailable,
-  releaseOccupancyDocs,
+  applyHoldReleaseFromSnap,
+  calendarBlocksRoom,
   hasOverlappingOccupancy,
+  holdIdentity,
+  holdRefForBooking,
+  releaseOccupancyDocs,
+  roomUnavailable,
 } = require("./daycare_occupancy");
 const {
   isRoomBased,
@@ -160,11 +166,38 @@ exports.assignDaycareRoom = onCall(
       }
 
       const now = admin.firestore.FieldValue.serverTimestamp();
+      const dateKey = normalizeString(booking.serviceDate) ||
+        serviceDateKey(startAt);
       try {
         await firestore.runTransaction(async (transaction) => {
           const roomRef = firestore.collection("shops").doc(shopId)
               .collection("rooms").doc(roomId);
-          await transaction.get(roomRef);
+          const roomTx = await transaction.get(roomRef);
+          if (!roomTx.exists) {
+            throw new HttpsError("not-found", "找不到房間");
+          }
+          const roomInTx = roomTx.data() || {};
+          if (roomInTx.enabled === false || roomUnavailable(roomInTx)) {
+            throw new HttpsError("failed-precondition", "此房間目前不可分配");
+          }
+          if (normalizeString(roomInTx.roomTypeId) !== actualRoomTypeId) {
+            throw new HttpsError("failed-precondition", "房間不屬於指定房型");
+          }
+          if (roomBased && requestedRoomTypeId &&
+              normalizeString(roomInTx.roomTypeId) !== requestedRoomTypeId) {
+            throw new HttpsError(
+                "failed-precondition",
+                "不可更換客戶選擇的房型",
+            );
+          }
+          const calSnap = await transaction.get(
+              firestore.collection("shops").doc(shopId)
+                  .collection("room_calendar")
+                  .doc(`${roomId}_${dateKey}`),
+          );
+          const holdBooking = holdIdentity(booking, bookingId, shopId);
+          const holdRef = holdRefForBooking(firestore, holdBooking);
+          const holdSnap = holdRef ? await transaction.get(holdRef) : null;
           const occSnap = await transaction.get(
               firestore.collection("shops").doc(shopId)
                   .collection("room_occupancies")
@@ -177,6 +210,13 @@ exports.assignDaycareRoom = onCall(
                   .where("bookingId", "==", bookingId)
                   .where("status", "==", "active"),
           );
+          if (calSnap.exists &&
+              calendarBlocksRoom((calSnap.data() || {}).status)) {
+            throw new HttpsError(
+                "failed-precondition",
+                "此房間已被住宿訂單占用",
+            );
+          }
           const occupancies = occSnap.docs.map((doc) => doc.data() || {});
           if (hasOverlappingOccupancy(
               occupancies, startAt, endAt, bookingId, "slot",
@@ -196,7 +236,7 @@ exports.assignDaycareRoom = onCall(
             startAt: booking.scheduledStartAt,
             endAt: booking.scheduledEndAt,
             occupancyMode: "slot",
-            serviceDate: booking.serviceDate || "",
+            serviceDate: dateKey,
             status: "active",
             createdAt: now,
             updatedAt: now,
@@ -213,6 +253,9 @@ exports.assignDaycareRoom = onCall(
             assignedBy: uid,
             updatedAt: now,
           });
+          applyHoldReleaseFromSnap(
+              transaction, holdRef, holdSnap, holdBooking,
+          );
         });
       } catch (error) {
         if (error instanceof HttpsError) {

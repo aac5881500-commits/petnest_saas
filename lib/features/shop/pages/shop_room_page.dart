@@ -502,8 +502,8 @@ class _ShopRoomPageState extends State<ShopRoomPage> {
                                           title: Text(room['name'] ?? ''),
                                           subtitle: Text(
                                             (room['enabled'] ?? true)
-                                                ? '開啟中'
-                                                : '已關閉',
+                                                ? '已啟用'
+                                                : '未啟用',
                                             style: TextStyle(
                                               color: (room['enabled'] ?? true)
                                                   ? Colors.green
@@ -513,16 +513,20 @@ class _ShopRoomPageState extends State<ShopRoomPage> {
                                           trailing: Row(
                                             mainAxisSize: MainAxisSize.min,
                                             children: [
-                                              Switch(
-                                                value: room['enabled'] ?? true,
-                                                onChanged: (value) {
-                                                  ShopService.instance
-                                                      .updateRoomStatus(
-                                                        shopId: widget.shopId,
-                                                        roomId: room['id'],
-                                                        enabled: value,
-                                                      );
-                                                },
+                                              Tooltip(
+                                                message: '啟用此房間',
+                                                child: Switch(
+                                                  value:
+                                                      room['enabled'] ?? true,
+                                                  onChanged: (value) {
+                                                    ShopService.instance
+                                                        .updateRoomStatus(
+                                                          shopId: widget.shopId,
+                                                          roomId: room['id'],
+                                                          enabled: value,
+                                                        );
+                                                  },
+                                                ),
                                               ),
                                               IconButton(
                                                 icon: const Icon(

@@ -82,6 +82,16 @@ function toDate(value) {
   if (typeof value === "number") {
     return new Date(value);
   }
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d{1,9})?)?$/.test(
+        trimmed,
+    )) {
+      return new Date(`${trimmed}+08:00`);
+    }
+    const parsed = new Date(trimmed);
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+  }
   const parsed = new Date(value);
   return Number.isNaN(parsed.getTime()) ? null : parsed;
 }

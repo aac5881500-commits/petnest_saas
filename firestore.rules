@@ -679,7 +679,7 @@ match /custom_forms/{formId} {
   // 店家成員可以查看全部設定。
   // 一般登入會員只能讀取已啟用的表單。
   allow read: if
-    formId in ['pet_profile', 'booking_submit']
+    formId in ['pet_profile', 'booking_submit', 'admin_create']
     && (
       isRootAdmin()
       || isShopMember(shopId)
@@ -692,7 +692,7 @@ match /custom_forms/{formId} {
 
   // 只有店主或具有預約設定權限的人可以建立
   allow create: if
-    formId in ['pet_profile', 'booking_submit']
+    formId in ['pet_profile', 'booking_submit', 'admin_create']
     && (
       isRootAdmin()
       || isShopOwner(shopId)
@@ -712,7 +712,7 @@ match /custom_forms/{formId} {
 
   // 不允許改變文件身分、店家及建立時間
   allow update: if
-    formId in ['pet_profile', 'booking_submit']
+    formId in ['pet_profile', 'booking_submit', 'admin_create']
     && (
       isRootAdmin()
       || isShopOwner(shopId)

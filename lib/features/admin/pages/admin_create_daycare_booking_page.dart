@@ -308,7 +308,7 @@ class _AdminCreateDaycareBookingPageState
       return;
     }
     if (_startAt == null || _endAt == null) {
-      return;
+      // 仍載入房型卡片，但剩餘要等完整時間才計算。
     }
     final List<DaycareRoomTypeOption> options =
         await DaycareRoomTypeCatalog.load(
@@ -1373,7 +1373,12 @@ class _AdminCreateDaycareBookingPageState
               maxPets: option.capacity,
               enabled: setting.enabled,
               roomBased: true,
-              remainingRooms: option.remainingRooms,
+              remainingRooms:
+                  option.timesComplete &&
+                      option.remainingRooms != null &&
+                      option.remainingRooms! > 0
+                  ? option.remainingRooms
+                  : null,
             ),
             selected: _selectedRoomTypeId == option.roomTypeId,
             enabled: option.selectable,

@@ -53,6 +53,9 @@ const {
 } = require("./daycare_pricing");
 const {
   assertAvailable,
+  assertRoomTypeCapacity,
+  loadRoomTypeHoldState,
+  commitRoomTypeHold,
 } = require("./daycare_occupancy");
 const {
   validateAndNormalizeBookingSubmitAnswers,
@@ -432,7 +435,6 @@ exports.createDaycareBooking = onCall(
           throw new HttpsError("failed-precondition", "請選擇可用的安親房型");
         }
       }
-      const roomTypeId = "";
       const occupancyMode = "slot";
       const requiresRoom = true;
       const allowedAddonIds = Array.isArray(settings.allowedAddonIds) ?
@@ -673,13 +675,27 @@ exports.createDaycareBooking = onCall(
         endAt,
         petIds,
         roomId: "",
-        roomTypeId,
+        roomTypeId: "",
         occupancyMode,
         dailyMaxPets: 0,
         blockUntilCleaned: true,
       });
       if (!availability.ok) {
         throw new HttpsError("failed-precondition", availability.reason);
+      }
+      if (roomBased) {
+        const typeCapacity = await assertRoomTypeCapacity(firestore, {
+          shopId,
+          roomTypeId: requestedRoomTypeId,
+          startAt,
+          endAt,
+          petIds,
+          petCount: petIds.length,
+          excludeBookingId: requestId || "",
+        });
+        if (!typeCapacity.ok) {
+          throw new HttpsError("failed-precondition", typeCapacity.reason);
+        }
       }
 
       const bookingRef = requestId ?
@@ -806,227 +822,253 @@ exports.createDaycareBooking = onCall(
           normalizeString((typeSnap.data() || {}).name) || requestedRoomTypeId;
       }
 
-      await firestore.runTransaction(async (transaction) => {
-        const again = await transaction.get(bookingRef);
-        if (again.exists) {
-          return;
-        }
-        if (couponRef) {
-          const couponInTx = await transaction.get(couponRef);
-          if (!couponInTx.exists) {
-            throw new HttpsError("failed-precondition", "找不到優惠券");
+      try {
+        await firestore.runTransaction(async (transaction) => {
+          const again = await transaction.get(bookingRef);
+          if (again.exists) {
+            return;
           }
-        }
-        let spendLogRef = null;
-        let currentPoints = 0;
-        if (pointAmount > 0 && pointRef) {
-          const pointInTx = await transaction.get(pointRef);
-          currentPoints = toInt(
+          if (couponRef) {
+            const couponInTx = await transaction.get(couponRef);
+            if (!couponInTx.exists) {
+              throw new HttpsError("failed-precondition", "找不到優惠券");
+            }
+          }
+          let spendLogRef = null;
+          let currentPoints = 0;
+          if (pointAmount > 0 && pointRef) {
+            const pointInTx = await transaction.get(pointRef);
+            currentPoints = toInt(
               pointInTx.exists ? pointInTx.data().points : 0, 0,
-          );
-          if (currentPoints < pointAmount) {
-            throw new HttpsError("failed-precondition", "點數餘額不足");
+            );
+            if (currentPoints < pointAmount) {
+              throw new HttpsError("failed-precondition", "點數餘額不足");
+            }
+            spendLogRef = firestore.collection("shops").doc(shopId)
+                .collection("member_point_logs")
+                .doc(`spend_booking_${bookingRef.id}`);
+            const spendSnap = await transaction.get(spendLogRef);
+            if (spendSnap.exists) {
+              throw new HttpsError("already-exists", "此訂單已折抵點數");
+            }
           }
-          spendLogRef = firestore.collection("shops").doc(shopId)
-              .collection("member_point_logs")
-              .doc(`spend_booking_${bookingRef.id}`);
-          const spendSnap = await transaction.get(spendLogRef);
-          if (spendSnap.exists) {
-            throw new HttpsError("already-exists", "此訂單已折抵點數");
+          let holdState = null;
+          if (roomBased) {
+            holdState = await loadRoomTypeHoldState(transaction, firestore, {
+              shopId,
+              roomTypeId: requestedRoomTypeId,
+              startAt,
+              endAt,
+              bookingId: bookingRef.id,
+              petCount: petIds.length,
+            });
           }
-        }
-        const preparedInv = await prepareMergedDeduct(transaction, {
-          shopId,
-          consumptionId: bookingAddonDeductId(bookingRef.id),
-          sourceType: "addon",
-          sourceId: bookingRef.id,
-          movementType: "addon",
-          note: "預約加購扣庫存",
-          lines: buildDaycareAddonDeductLines(addonSnapshot, catalogDoc),
-        });
-        if (pointAmount > 0 && pointRef) {
-          transaction.set(pointRef, {
-            points: currentPoints - pointAmount,
-            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-          }, {merge: true});
-          transaction.set(spendLogRef, {
+          const preparedInv = await prepareMergedDeduct(transaction, {
             shopId,
-            userId,
-            bookingId: bookingRef.id,
-            type: "spend",
-            source: "daycare_booking",
-            pointsChange: -pointAmount,
-            amount: pointAmount,
-            snapshot: {
-              pointAmount,
-              totalAmount: computed.totalAmount,
-            },
-            createdAt: admin.firestore.FieldValue.serverTimestamp(),
+            consumptionId: bookingAddonDeductId(bookingRef.id),
+            sourceType: "addon",
+            sourceId: bookingRef.id,
+            movementType: "addon",
+            note: "預約加購扣庫存",
+            lines: buildDaycareAddonDeductLines(addonSnapshot, catalogDoc),
           });
-        }
-        const bookingCode = await generateBookingCode(transaction, shopId);
-        transaction.set(bookingRef, {
-          requestId: requestId || bookingRef.id,
-          bookingId: bookingRef.id,
-          bookingCode,
-          bookingKind: BOOKING_KIND_DAYCARE,
-          shopId,
-          shopName: shopData.name || "",
-          userId,
-          source,
-          customerName,
-          customerPhone,
-          address: normalizeString(data.address),
-          emergencyContact: {
-            name: normalizeString(data.emergencyName),
-            phone: normalizeString(data.emergencyPhone),
-            relation: normalizeString(data.relation),
-            address: normalizeString(data.emergencyAddress),
-            phone2: normalizeString(data.phone2),
-          },
-          petIds,
-          pets: hydratedPets,
-          serviceType: BOOKING_KIND_DAYCARE,
-          serviceDate: serviceDateKey(startAt),
-          scheduledStartAt: admin.firestore.Timestamp.fromDate(startAt),
-          scheduledEndAt: admin.firestore.Timestamp.fromDate(endAt),
-          startDate: admin.firestore.Timestamp.fromDate(startAt),
-          endDate: admin.firestore.Timestamp.fromDate(endAt),
-          nights: 0,
-          actualStartAt: null,
-          actualEndAt: null,
-          daycarePlanId: roomBased ? "" : (plan.id || ""),
-          daycarePlanSnapshot: roomBased ? {} : plan,
-          daycarePlanName: roomBased ? "" : (normalizeString(plan.name) || ""),
-          daycarePricingSnapshot: computed,
-          pricingMode: persistPricingMode(settings),
-          estimateTotalPrice,
-          quotedTotalPrice: computed.totalAmount,
-          totalAmount: computed.totalAmount,
-          priceQuoteLocked: true,
-          priceConfirmedAt: admin.firestore.FieldValue.serverTimestamp(),
-          roomTypeId: "",
-          roomTypeName: "",
-          roomTypeNameSnapshot: "",
-          requestedRoomTypeId,
-          requestedRoomTypeName,
-          requestedRoomTypePriceSnapshot: roomBased ?
-            (requestedRoomSetting || {}) : {},
-          roomId: null,
-          roomName: null,
-          roomNumberSnapshot: "",
-          assignStatus: "unassigned",
-          requiresRoom,
-          occupancyMode,
-          cleaningRequired: true,
-          addons: addonSnapshot,
-          dailyCareEntitlement,
-          note: normalizeString(data.note),
-          adminOrderSource: source === "admin" ?
+          if (pointAmount > 0 && pointRef) {
+            transaction.set(pointRef, {
+              points: currentPoints - pointAmount,
+              updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+            }, {merge: true});
+            transaction.set(spendLogRef, {
+              shopId,
+              userId,
+              bookingId: bookingRef.id,
+              type: "spend",
+              source: "daycare_booking",
+              pointsChange: -pointAmount,
+              amount: pointAmount,
+              snapshot: {
+                pointAmount,
+                totalAmount: computed.totalAmount,
+              },
+              createdAt: admin.firestore.FieldValue.serverTimestamp(),
+            });
+          }
+          const bookingCode = await generateBookingCode(transaction, shopId);
+          if (holdState) {
+            commitRoomTypeHold(transaction, holdState);
+          }
+          transaction.set(bookingRef, {
+            requestId: requestId || bookingRef.id,
+            bookingId: bookingRef.id,
+            bookingCode,
+            bookingKind: BOOKING_KIND_DAYCARE,
+            shopId,
+            shopName: shopData.name || "",
+            userId,
+            source,
+            customerName,
+            customerPhone,
+            address: normalizeString(data.address),
+            emergencyContact: {
+              name: normalizeString(data.emergencyName),
+              phone: normalizeString(data.emergencyPhone),
+              relation: normalizeString(data.relation),
+              address: normalizeString(data.emergencyAddress),
+              phone2: normalizeString(data.phone2),
+            },
+            petIds,
+            pets: hydratedPets,
+            serviceType: BOOKING_KIND_DAYCARE,
+            serviceDate: serviceDateKey(startAt),
+            scheduledStartAt: admin.firestore.Timestamp.fromDate(startAt),
+            scheduledEndAt: admin.firestore.Timestamp.fromDate(endAt),
+            startDate: admin.firestore.Timestamp.fromDate(startAt),
+            endDate: admin.firestore.Timestamp.fromDate(endAt),
+            nights: 0,
+            actualStartAt: null,
+            actualEndAt: null,
+            daycarePlanId: roomBased ? "" : (plan.id || ""),
+            daycarePlanSnapshot: roomBased ? {} : plan,
+            daycarePlanName: roomBased ?
+              "" : (normalizeString(plan.name) || ""),
+            daycarePricingSnapshot: computed,
+            pricingMode: persistPricingMode(settings),
+            estimateTotalPrice,
+            quotedTotalPrice: computed.totalAmount,
+            totalAmount: computed.totalAmount,
+            priceQuoteLocked: true,
+            priceConfirmedAt: admin.firestore.FieldValue.serverTimestamp(),
+            roomTypeId: "",
+            roomTypeName: "",
+            roomTypeNameSnapshot: "",
+            requestedRoomTypeId,
+            requestedRoomTypeName,
+            requestedRoomTypePriceSnapshot: roomBased ?
+              (requestedRoomSetting || {}) : {},
+            roomId: null,
+            roomName: null,
+            roomNumberSnapshot: "",
+            assignStatus: "unassigned",
+            requiresRoom,
+            occupancyMode,
+            cleaningRequired: true,
+            addons: addonSnapshot,
+            dailyCareEntitlement,
+            note: normalizeString(data.note),
+            adminOrderSource: source === "admin" ?
             (normalizeString(data.adminOrderSource) || "電話預約") : "",
-          ...(customFormChecked.snapshot ? {
-            customFormAnswers: {
-              ...customFormChecked.snapshot,
-              submittedAt: admin.firestore.FieldValue.serverTimestamp(),
-            },
-          } : {}),
-          ...(adminCustomFormChecked.snapshot ? {
-            adminCustomFormAnswers: {
-              ...adminCustomFormChecked.snapshot,
-              submittedAt: admin.firestore.FieldValue.serverTimestamp(),
-            },
-          } : {}),
-          totalPrice: computed.totalAmount,
-          originalTotal: computed.baseAmount + computed.extraPetAmount +
+            ...(customFormChecked.snapshot ? {
+              customFormAnswers: {
+                ...customFormChecked.snapshot,
+                submittedAt: admin.firestore.FieldValue.serverTimestamp(),
+              },
+            } : {}),
+            ...(adminCustomFormChecked.snapshot ? {
+              adminCustomFormAnswers: {
+                ...adminCustomFormChecked.snapshot,
+                submittedAt: admin.firestore.FieldValue.serverTimestamp(),
+              },
+            } : {}),
+            totalPrice: computed.totalAmount,
+            originalTotal: computed.baseAmount + computed.extraPetAmount +
             computed.roomTypeExtra + computed.addonAmount +
             computed.surchargeAmount,
-          specialDateSurchargeAmount: computed.surchargeAmount,
-          specialDateSurchargeDetails: surchargeCalc.details,
-          discountAmount: computed.discountAmount,
-          discountCampaignId: normalizeString(data.discountCampaignId),
-          discountCampaignName: normalizeString(data.discountCampaignName),
-          couponId,
-          couponName,
-          couponDiscountAmount: computed.couponAmount,
-          pointAmount: computed.pointAmount,
-          overtimeMinutes: 0,
-          overtimeAmount: 0,
-          manualAdjust: computed.manualAdjust,
-          depositAmount: computed.depositAmount,
-          requiredPaymentAmount: computed.depositAmount > 0 ?
+            specialDateSurchargeAmount: computed.surchargeAmount,
+            specialDateSurchargeDetails: surchargeCalc.details,
+            discountAmount: computed.discountAmount,
+            discountCampaignId: normalizeString(data.discountCampaignId),
+            discountCampaignName: normalizeString(data.discountCampaignName),
+            couponId,
+            couponName,
+            couponDiscountAmount: computed.couponAmount,
+            pointAmount: computed.pointAmount,
+            overtimeMinutes: 0,
+            overtimeAmount: 0,
+            manualAdjust: computed.manualAdjust,
+            depositAmount: computed.depositAmount,
+            requiredPaymentAmount: computed.depositAmount > 0 ?
             computed.depositAmount : 0,
-          depositPercent: persistDaycareDepositType(settings.depositType) ===
+            depositPercent: persistDaycareDepositType(settings.depositType) ===
             "percent" ? toInt(settings.depositValue, 0) : null,
-          daycareDepositType: persistDaycareDepositType(settings.depositType),
-          depositType: persistDaycareDepositType(settings.depositType),
-          depositExpireHours: daycareRequiresDeadline(settings.depositType) ?
+            daycareDepositType: persistDaycareDepositType(settings.depositType),
+            depositType: persistDaycareDepositType(settings.depositType),
+            depositExpireHours: daycareRequiresDeadline(settings.depositType) ?
             toInt(settings.depositExpireHours, 12) : null,
-          depositExpireAt: daycareRequiresDeadline(settings.depositType) ?
+            depositExpireAt: daycareRequiresDeadline(settings.depositType) ?
             admin.firestore.Timestamp.fromDate(
                 depositExpireAtFromHours(
                     toInt(settings.depositExpireHours, 12),
                 ),
             ) : null,
-          depositPaid: false,
-          depositStatus: computed.depositAmount > 0 ? "unpaid" : "",
-          paymentMethod: normalizeString(data.paymentMethod),
-          payAmountType: normalizeString(data.payAmountType) ||
+            depositPaid: false,
+            depositStatus: computed.depositAmount > 0 ? "unpaid" : "",
+            paymentMethod: normalizeString(data.paymentMethod),
+            payAmountType: normalizeString(data.payAmountType) ||
             (computed.depositAmount > 0 ? "deposit" : "full"),
-          paidAmount: 0,
-          remainingAmount: remainingFromPaid(computed.totalAmount, 0),
-          paymentStatus: "unpaid",
-          refundAmount: 0,
-          refundStatus: "",
-          convertedToAccommodation: false,
-          convertedBookingId: "",
-          convertedFromDaycareBookingId: "",
-          conversionCreditAmount: 0,
-          conversionPolicy: "",
-          noShowAt: null,
-          completedAt: null,
-          policyId: "checkin_policy",
-          policyVersion,
-          policyVersionId: policySummary.required ? `v${policyVersion}` : "",
-          policyTitle,
-          termsAcceptedAt: termsAcceptedAt ?
+            paidAmount: 0,
+            remainingAmount: remainingFromPaid(computed.totalAmount, 0),
+            paymentStatus: "unpaid",
+            refundAmount: 0,
+            refundStatus: "",
+            convertedToAccommodation: false,
+            convertedBookingId: "",
+            convertedFromDaycareBookingId: "",
+            conversionCreditAmount: 0,
+            conversionPolicy: "",
+            noShowAt: null,
+            completedAt: null,
+            policyId: "checkin_policy",
+            policyVersion,
+            policyVersionId: policySummary.required ? `v${policyVersion}` : "",
+            policyTitle,
+            termsAcceptedAt: termsAcceptedAt ?
             admin.firestore.Timestamp.fromDate(termsAcceptedAt) : null,
-          policyAcceptedAt: termsAcceptedAt ?
+            policyAcceptedAt: termsAcceptedAt ?
             admin.firestore.Timestamp.fromDate(termsAcceptedAt) :
             (policySummary.required ?
               admin.firestore.FieldValue.serverTimestamp() : null),
-          policyKind: "daycare",
-          policyServiceType: "daycare",
-          policySignMethod: policySummary.required ? policySignMethod : "",
-          policySignedByUid: source === "admin" ? uid : userId,
-          policySnapshotVersion: policyVersion,
-          createdByUid: source === "admin" ? uid : "",
-          createdByEmail: source === "admin" ?
+            policyKind: "daycare",
+            policyServiceType: "daycare",
+            policySignMethod: policySummary.required ? policySignMethod : "",
+            policySignedByUid: source === "admin" ? uid : userId,
+            policySnapshotVersion: policyVersion,
+            createdByUid: source === "admin" ? uid : "",
+            createdByEmail: source === "admin" ?
             normalizeString((request.auth.token || {}).email) : "",
-          status,
-          bankName: shopData.bankName || "",
-          accountName: shopData.accountName || "",
-          accountNumber: shopData.accountNumber || "",
-          createdAt: admin.firestore.FieldValue.serverTimestamp(),
-          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-          ...bookingSearchFields({
-            customerName,
-            customerPhone,
-            bookingCode,
-            pets: hydratedPets,
-          }),
-        });
-        if (!preparedInv.skip) {
-          commitPreparedConsumption(transaction, preparedInv, uid);
-        }
-        if (couponRef && couponId) {
-          transaction.update(couponRef, {
-            status: "reserved",
-            usedBookingId: bookingRef.id,
-            usedAt: null,
+            status,
+            bankName: shopData.bankName || "",
+            accountName: shopData.accountName || "",
+            accountNumber: shopData.accountNumber || "",
+            createdAt: admin.firestore.FieldValue.serverTimestamp(),
             updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+            ...bookingSearchFields({
+              customerName,
+              customerPhone,
+              bookingCode,
+              pets: hydratedPets,
+            }),
           });
+          if (!preparedInv.skip) {
+            commitPreparedConsumption(transaction, preparedInv, uid);
+          }
+          if (couponRef && couponId) {
+            transaction.update(couponRef, {
+              status: "reserved",
+              usedBookingId: bookingRef.id,
+              usedAt: null,
+              updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+            });
+          }
+        });
+      } catch (error) {
+        if (error instanceof HttpsError) {
+          throw error;
         }
-      });
+        const message = error && error.message ? error.message : String(error);
+        if (error && error.code === "failed-precondition") {
+          throw new HttpsError("failed-precondition", message);
+        }
+        throw error;
+      }
 
       await writeActionLog({
         shopId,

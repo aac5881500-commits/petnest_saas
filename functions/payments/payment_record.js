@@ -103,16 +103,21 @@ function isBalanceFamily(payment) {
  *
  * @param {FirebaseFirestore.Transaction} transaction
  * @param {Array} docs
+ * @param {Object=} options
  * @return {void}
  */
-function supersedeStalePendingPayments(transaction, docs) {
+function supersedeStalePendingPayments(transaction, docs, options) {
+  const opts = options && typeof options === "object" ? options : {};
   const now = admin.firestore.FieldValue.serverTimestamp();
+  const reason = opts.reason || "settlement_amount_updated";
+  const label = opts.label || "已失效（結算金額已更新）";
+  const gatewayStatus = opts.gatewayStatus || "superseded_amount_changed";
   docs.forEach((doc) => {
     transaction.set(doc.ref, {
       status: "superseded",
-      gatewayStatus: "superseded_amount_changed",
-      supersededReason: "settlement_amount_updated",
-      supersededReasonLabel: "已失效（結算金額已更新）",
+      gatewayStatus,
+      supersededReason: reason,
+      supersededReasonLabel: label,
       supersededAt: now,
       updatedAt: now,
     }, {merge: true});

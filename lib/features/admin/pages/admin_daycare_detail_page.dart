@@ -228,11 +228,13 @@ class _DaycareDetailBodyState extends State<_DaycareDetailBody> {
     await _run(
       'settle',
       extra: <String, dynamic>{
-        'actualEndAt': choice.actualEndAt.toIso8601String(),
+        'actualEndAt': DaycareTimeHelper.callableInstant(choice.actualEndAt),
         'manualAdjust': choice.manualAdjust,
         'manualAdjustReason': choice.manualAdjustReason,
         'manualAdjustmentReason': choice.manualAdjustReason,
         'settlementTopUpMethod': choice.topUpMethod,
+        'settlementRefundMethod': choice.refundMethod,
+        'settlementRefundNote': choice.refundNote,
         'lockIfClear': choice.lockIfClear,
       },
     );

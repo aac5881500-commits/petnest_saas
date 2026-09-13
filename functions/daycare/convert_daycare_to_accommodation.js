@@ -16,6 +16,9 @@ const {
   writeActionLog,
 } = require("./daycare_utils");
 const {
+  applyHoldReleaseFromSnap,
+  holdIdentity,
+  holdRefForBooking,
   loadActiveOccupancies,
   releaseOccupancyDocs,
 } = require("./daycare_occupancy");
@@ -165,6 +168,9 @@ exports.convertDaycareToAccommodation = onCall(
       );
 
       await firestore.runTransaction(async (transaction) => {
+        const holdBooking = holdIdentity(daycare, bookingId, shopId);
+        const holdRef = holdRefForBooking(firestore, holdBooking);
+        const holdSnap = holdRef ? await transaction.get(holdRef) : null;
         for (const doc of occupancySnap.docs) {
           await transaction.get(doc.ref);
         }
@@ -247,6 +253,9 @@ exports.convertDaycareToAccommodation = onCall(
         }
         transaction.update(daycareRef, daycareUpdates);
         releaseOccupancyDocs(transaction, occupancySnap.docs);
+        applyHoldReleaseFromSnap(
+            transaction, holdRef, holdSnap, holdBooking,
+        );
       });
 
       const result = {

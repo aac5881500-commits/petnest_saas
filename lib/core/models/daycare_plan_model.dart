@@ -322,7 +322,7 @@ class DaycarePlanModel {
     } else {
       lines.add('寵物數量不限');
     }
-    if (remainingRooms != null && remainingRooms >= 0) {
+    if (remainingRooms != null && remainingRooms > 0) {
       lines.add('剩餘 $remainingRooms 間');
     }
     if (!enabled) {

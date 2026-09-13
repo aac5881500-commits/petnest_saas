@@ -36,4 +36,30 @@ class BookingSettlementFunctionService {
       throw DaycareFunctionException((error.message ?? '操作失敗').trim());
     }
   }
+
+  Future<Map<String, dynamic>> changeCustomerPaymentMethod({
+    required String shopId,
+    required String bookingId,
+    required String paymentMethod,
+    String payAmountType = '',
+  }) async {
+    try {
+      final HttpsCallableResult<dynamic> result =
+          await FirebaseFunctions.instanceFor(
+            region: DaycareFunctionService.functionsRegion,
+          ).httpsCallable('changeBookingPaymentMethod').call(<String, dynamic>{
+            'shopId': shopId,
+            'bookingId': bookingId,
+            'paymentMethod': paymentMethod,
+            if (payAmountType.isNotEmpty) 'payAmountType': payAmountType,
+          });
+      final Object? raw = result.data;
+      if (raw is Map) {
+        return Map<String, dynamic>.from(raw);
+      }
+      return <String, dynamic>{'ok': true};
+    } on FirebaseFunctionsException catch (error) {
+      throw DaycareFunctionException((error.message ?? '變更付款失敗').trim());
+    }
+  }
 }

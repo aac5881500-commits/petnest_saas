@@ -14,16 +14,15 @@ const {
 } = require("./daycare_utils");
 
 /**
- * 住宿占用 [startDate, endDate)
- * @param {Date} stayStart
- * @param {Date} stayEnd
- * @param {Date} slotStart
- * @param {Date} slotEnd
+ * 取消／結算／過期未付不占用庫存。
+ * @param {Object} data
  * @return {boolean}
  */
 function occupiesInventory(data) {
   const status = normalizeString(data.status);
-  if (status === "cancelled" || status === "no_show" || status === "completed") {
+  if (status === "cancelled" ||
+      status === "no_show" ||
+      status === "completed") {
     return false;
   }
   if (!ACTIVE_STATUSES.includes(status)) {
@@ -46,6 +45,14 @@ function occupiesInventory(data) {
   return true;
 }
 
+/**
+ * 住宿占用 [startDate, endDate)，退房日不扣。
+ * @param {Date} stayStart
+ * @param {Date} stayEnd
+ * @param {Date} slotStart
+ * @param {Date} slotEnd
+ * @return {boolean}
+ */
 function stayConflictsSlot(stayStart, stayEnd, slotStart, slotEnd) {
   const stayStartDay = new Date(Date.UTC(
       stayStart.getFullYear(), stayStart.getMonth(), stayStart.getDate(),
@@ -138,16 +145,19 @@ async function assertAvailable(firestore, params) {
         .collection("rooms").doc(roomId).get();
     if (roomSnap.exists) {
       const room = roomSnap.data() || {};
-      if (normalizeString(room.status) === "cleaning" &&
-          params.blockUntilCleaned !== false) {
-        return {ok: false, reason: "房間清潔中，暫不可分配"};
-      }
       if (room.enabled === false) {
         return {ok: false, reason: "此房間目前未開放"};
       }
       const status = normalizeString(room.status);
-      if (status === "maintenance" || status === "blocked") {
+      if (status === "cleaning" && params.blockUntilCleaned !== false) {
+        return {ok: false, reason: "房間清潔中，暫不可分配"};
+      }
+      if (status === "maintenance" || status === "blocked" ||
+          status === "unavailable") {
         return {ok: false, reason: "房間維修中，暫不可分配"};
+      }
+      if (status === "closed") {
+        return {ok: false, reason: "房間今日關閉，暫不可分配"};
       }
       const roomCapacity = toInt(room.capacity, 0);
       if (roomCapacity > 0 && petIds.length > roomCapacity) {
@@ -183,13 +193,416 @@ async function assertAvailable(firestore, params) {
         return {ok: false, reason: "此時段房間已被占用"};
       }
     }
+    const calSnap = await firestore.collection("shops").doc(shopId)
+        .collection("room_calendar")
+        .doc(`${roomId}_${serviceDate}`).get();
+    if (calSnap.exists && calendarBlocksRoom((calSnap.data() || {}).status)) {
+      return {ok: false, reason: "此房間已被住宿訂單占用"};
+    }
   }
 
   return {ok: true, reason: ""};
 }
 
+const NO_PHYSICAL_ROOMS =
+  "此房型尚未建立可用實體房間，請聯絡店家";
+const NO_USABLE_ROOMS =
+  "此房型目前沒有可用實體房間（停用、清潔中、維修中或封鎖）";
+const ROOM_TYPE_SOLD_OUT =
+  "該時段此安親房型已無可用房間，請重新選擇房型或時間。";
+
 /**
- * 臨托只占用時段、不占用整日。未分房的 pending／confirmed 仍佔用該房型名額。
+ * @param {string} status
+ * @return {boolean}
+ */
+function calendarBlocksRoom(status) {
+  const value = normalizeString(status);
+  return value === "booked" ||
+    value === "checked_in" ||
+    value === "occupied" ||
+    value === "blocked" ||
+    value === "cleaning" ||
+    value === "maintenance" ||
+    value === "closed" ||
+    value === "unavailable";
+}
+
+/**
+ * @param {Object} room
+ * @return {boolean}
+ */
+function roomUnavailable(room) {
+  const data = room || {};
+  if (data.enabled === false) {
+    return true;
+  }
+  const status = normalizeString(data.status);
+  return status === "cleaning" ||
+    status === "maintenance" ||
+    status === "blocked" ||
+    status === "closed" ||
+    status === "unavailable";
+}
+
+/**
+ * @param {Object} room
+ * @param {string} roomTypeId
+ * @return {boolean}
+ */
+function roomMatchesType(room, roomTypeId) {
+  const wanted = normalizeString(roomTypeId);
+  if (!wanted) {
+    return false;
+  }
+  return normalizeString(room && room.roomTypeId) === wanted;
+}
+
+/**
+ * @param {Object} booking
+ * @return {string}
+ */
+function unassignedTypeId(booking) {
+  return normalizeString(
+      (booking || {}).requestedRoomTypeId || (booking || {}).roomTypeId,
+  );
+}
+
+/**
+ * @param {string} roomTypeId
+ * @param {string} dateKey
+ * @return {string}
+ */
+function holdDocId(roomTypeId, dateKey) {
+  return `${normalizeString(roomTypeId)}_${normalizeString(dateKey)}`;
+}
+
+/**
+ * @param {FirebaseFirestore.Firestore} firestore
+ * @param {string} shopId
+ * @param {string} roomTypeId
+ * @param {string} dateKey
+ * @return {FirebaseFirestore.DocumentReference}
+ */
+function holdDocRef(firestore, shopId, roomTypeId, dateKey) {
+  return firestore.collection("shops").doc(shopId)
+      .collection("daycare_room_type_holds")
+      .doc(holdDocId(roomTypeId, dateKey));
+}
+
+/**
+ * @param {FirebaseFirestore.Firestore} firestore
+ * @param {Object} booking
+ * @return {FirebaseFirestore.DocumentReference|null}
+ */
+function holdRefForBooking(firestore, booking) {
+  const shopId = normalizeString(booking && booking.shopId);
+  const roomTypeId = unassignedTypeId(booking);
+  const dateKey = normalizeString(booking && booking.serviceDate) ||
+    (toDate(booking && booking.scheduledStartAt) ?
+      serviceDateKey(toDate(booking.scheduledStartAt)) : "");
+  if (!shopId || !roomTypeId || !dateKey) {
+    return null;
+  }
+  return holdDocRef(firestore, shopId, roomTypeId, dateKey);
+}
+
+/**
+ * @param {Object} holdData
+ * @return {Array<Object>}
+ */
+function listHoldEntries(holdData) {
+  const data = holdData && typeof holdData === "object" ? holdData : {};
+  return Array.isArray(data.holds) ?
+    data.holds.filter((item) => item && typeof item === "object") : [];
+}
+
+/**
+ * @param {Array<Object>} entries
+ * @param {Date} startAt
+ * @param {Date} endAt
+ * @param {string} excludeBookingId
+ * @return {Array<Object>}
+ */
+function overlappingHoldEntries(entries, startAt, endAt, excludeBookingId) {
+  const exclude = normalizeString(excludeBookingId);
+  return (Array.isArray(entries) ? entries : []).filter((item) => {
+    if (normalizeString(item.bookingId) === exclude) {
+      return false;
+    }
+    const otherStart = toDate(item.startAt);
+    const otherEnd = toDate(item.endAt);
+    if (!otherStart || !otherEnd) {
+      return false;
+    }
+    return overlaps(startAt, endAt, otherStart, otherEnd);
+  });
+}
+
+/**
+ * @param {FirebaseFirestore.Transaction} transaction
+ * @param {FirebaseFirestore.DocumentReference} holdRef
+ * @param {string} shopId
+ * @param {string} roomTypeId
+ * @param {string} dateKey
+ * @param {Array<Object>} entries
+ */
+function writeHoldEntries(
+    transaction, holdRef, shopId, roomTypeId, dateKey, entries,
+) {
+  transaction.set(holdRef, {
+    shopId,
+    roomTypeId: normalizeString(roomTypeId),
+    serviceDate: normalizeString(dateKey),
+    holds: entries,
+    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+  }, {merge: true});
+}
+
+/**
+ * @param {FirebaseFirestore.Transaction} transaction
+ * @param {FirebaseFirestore.DocumentReference} holdRef
+ * @param {Object} holdData
+ * @param {string} bookingId
+ * @param {string} shopId
+ * @param {string} roomTypeId
+ * @param {string} dateKey
+ */
+function releaseHoldEntries(
+    transaction, holdRef, holdData, bookingId, shopId, roomTypeId, dateKey,
+) {
+  const next = listHoldEntries(holdData).filter((item) => {
+    return normalizeString(item.bookingId) !== normalizeString(bookingId);
+  });
+  writeHoldEntries(transaction, holdRef, shopId, roomTypeId, dateKey, next);
+}
+
+/**
+ * @param {Object} booking
+ * @param {string} bookingId
+ * @param {string} shopId
+ * @return {Object}
+ */
+function holdIdentity(booking, bookingId, shopId) {
+  return {
+    ...(booking || {}),
+    id: bookingId || (booking && booking.id) || "",
+    bookingId: bookingId || (booking && booking.bookingId) || "",
+    shopId: shopId || (booking && booking.shopId) || "",
+  };
+}
+
+/**
+ * @param {FirebaseFirestore.Transaction} transaction
+ * @param {FirebaseFirestore.DocumentReference|null} holdRef
+ * @param {FirebaseFirestore.DocumentSnapshot|null} holdSnap
+ * @param {Object} booking
+ */
+function applyHoldReleaseFromSnap(transaction, holdRef, holdSnap, booking) {
+  if (!holdRef || !holdSnap || !holdSnap.exists) {
+    return;
+  }
+  const bookingId = normalizeString(booking.id || booking.bookingId);
+  const dateKey = normalizeString(booking.serviceDate) ||
+    (toDate(booking.scheduledStartAt) ?
+      serviceDateKey(toDate(booking.scheduledStartAt)) : "");
+  releaseHoldEntries(
+      transaction,
+      holdRef,
+      holdSnap.data(),
+      bookingId,
+      normalizeString(booking.shopId),
+      unassignedTypeId(booking),
+      dateKey,
+  );
+}
+
+/**
+ * 可用實體房間 − 同時段未分房保留。已分房只扣該 roomId，不重複扣未分房。
+ * @param {Object} params
+ * @return {{remaining: number, createdCount: number, usableCount: number,
+ *   reservedCount: number, zeroReason: string}}
+ */
+function remainingRoomsFromData(params) {
+  const roomTypeId = normalizeString(params.roomTypeId);
+  const startAt = params.startAt;
+  const endAt = params.endAt;
+  const excludeBookingId = normalizeString(params.excludeBookingId);
+  const petCount = toInt(params.petCount, 0);
+  const roomTypeCapacity = toInt(params.roomTypeCapacity, 0);
+  const dateKey = normalizeString(params.dateKey) ||
+    (startAt ? serviceDateKey(startAt) : "");
+  const rooms = Array.isArray(params.rooms) ? params.rooms : [];
+  const bookings = Array.isArray(params.bookings) ? params.bookings : [];
+  const occupancies = Array.isArray(params.occupancies) ?
+    params.occupancies : [];
+  const calendarEntries = Array.isArray(params.calendarEntries) ?
+    params.calendarEntries : [];
+  const holdEntries = Array.isArray(params.holdEntries) ?
+    params.holdEntries : [];
+  if (petCount > 0 && roomTypeCapacity > 0 && petCount > roomTypeCapacity) {
+    return {
+      remaining: 0,
+      createdCount: 0,
+      usableCount: 0,
+      reservedCount: 0,
+      freeCount: 0,
+      zeroReason: `此房型最多容納 ${roomTypeCapacity} 隻寵物`,
+    };
+  }
+  const typeRooms = rooms.filter((room) => roomMatchesType(room, roomTypeId))
+      .map((room) => {
+        return {id: normalizeString(room.id || room.roomId), ...room};
+      });
+  const createdCount = typeRooms.length;
+  if (createdCount <= 0) {
+    return {
+      remaining: 0,
+      createdCount: 0,
+      usableCount: 0,
+      reservedCount: 0,
+      freeCount: 0,
+      zeroReason: NO_PHYSICAL_ROOMS,
+    };
+  }
+  let usableCount = 0;
+  let free = 0;
+  typeRooms.forEach((room) => {
+    if (roomUnavailable(room)) {
+      return;
+    }
+    const roomCap = toInt(room.capacity, 0) > 0 ?
+      toInt(room.capacity, 0) : roomTypeCapacity;
+    if (petCount > 0 && roomCap > 0 && petCount > roomCap) {
+      return;
+    }
+    usableCount += 1;
+    const roomId = normalizeString(room.id);
+    if (!roomId) {
+      return;
+    }
+    const calendarHit = calendarEntries.some((item) => {
+      return normalizeString(item.roomId) === roomId &&
+        normalizeString(item.date) === dateKey &&
+        calendarBlocksRoom(item.status);
+    });
+    if (calendarHit) {
+      return;
+    }
+    const occupancyHit = occupancies.some((occ) => {
+      if (normalizeString(occ.roomId) !== roomId) {
+        return false;
+      }
+      if (normalizeString(occ.bookingId) === excludeBookingId) {
+        return false;
+      }
+      if (normalizeString(occ.status) &&
+          normalizeString(occ.status) !== "active") {
+        return false;
+      }
+      const occStart = toDate(occ.startAt);
+      const occEnd = toDate(occ.endAt);
+      if (!occStart || !occEnd) {
+        return false;
+      }
+      const occMode = normalizeString(occ.occupancyMode) || "slot";
+      if (occMode === "full_day") {
+        return serviceDateKey(occStart) === dateKey;
+      }
+      return overlaps(startAt, endAt, occStart, occEnd);
+    });
+    if (occupancyHit) {
+      return;
+    }
+    let busy = false;
+    bookings.forEach((booking) => {
+      if (busy) {
+        return;
+      }
+      const bookingId = normalizeString(booking.id || booking.bookingId);
+      if (bookingId === excludeBookingId) {
+        return;
+      }
+      if (!occupiesInventory(booking)) {
+        return;
+      }
+      if (normalizeString(booking.roomId) !== roomId) {
+        return;
+      }
+      if (resolveBookingKind(booking) === BOOKING_KIND_DAYCARE) {
+        const otherStart = toDate(booking.scheduledStartAt);
+        const otherEnd = toDate(booking.scheduledEndAt);
+        if (otherStart && otherEnd &&
+            overlaps(startAt, endAt, otherStart, otherEnd)) {
+          busy = true;
+        }
+        return;
+      }
+      const stayStart = toDate(booking.startDate);
+      const stayEnd = toDate(booking.endDate);
+      if (stayStart && stayEnd &&
+          stayConflictsSlot(stayStart, stayEnd, startAt, endAt)) {
+        busy = true;
+      }
+    });
+    if (!busy) {
+      free += 1;
+    }
+  });
+  const reservedIds = new Set();
+  overlappingHoldEntries(holdEntries, startAt, endAt, excludeBookingId)
+      .forEach((item) => {
+        const id = normalizeString(item.bookingId);
+        if (id) {
+          reservedIds.add(id);
+        }
+      });
+  bookings.forEach((booking) => {
+    const bookingId = normalizeString(booking.id || booking.bookingId);
+    if (bookingId === excludeBookingId) {
+      return;
+    }
+    if (!occupiesInventory(booking)) {
+      return;
+    }
+    if (resolveBookingKind(booking) !== BOOKING_KIND_DAYCARE) {
+      return;
+    }
+    if (unassignedTypeId(booking) !== roomTypeId) {
+      return;
+    }
+    if (normalizeString(booking.roomId)) {
+      return;
+    }
+    const otherStart = toDate(booking.scheduledStartAt);
+    const otherEnd = toDate(booking.scheduledEndAt);
+    if (otherStart && otherEnd &&
+        overlaps(startAt, endAt, otherStart, otherEnd)) {
+      reservedIds.add(bookingId);
+    }
+  });
+  const reservedCount = reservedIds.size;
+  const remaining = Math.max(0, free - reservedCount);
+  let zeroReason = "";
+  if (remaining <= 0) {
+    if (usableCount <= 0) {
+      zeroReason = NO_USABLE_ROOMS;
+    } else {
+      zeroReason = ROOM_TYPE_SOLD_OUT;
+    }
+  }
+  return {
+    remaining,
+    createdCount,
+    usableCount,
+    reservedCount,
+    freeCount: free,
+    zeroReason,
+  };
+}
+
+/**
+ * 臨托只占用時段。房型模式用 requestedRoomTypeId 檢查可賣實體房間。
+ * 方案模式請不要傳 roomTypeId，避免誤擋。
  * @param {FirebaseFirestore.Firestore} firestore
  * @param {Object} params
  * @return {Promise<{ok: boolean, reason: string, remaining: number}>}
@@ -201,72 +614,202 @@ async function assertRoomTypeCapacity(firestore, params) {
   const endAt = params.endAt;
   const excludeBookingId = normalizeString(params.excludeBookingId);
   if (!roomTypeId) {
-    return {ok: false, reason: "請選擇臨托房型", remaining: 0};
+    return {ok: true, reason: "", remaining: 999999};
   }
+  const dateKey = serviceDateKey(startAt);
   const roomsSnap = await firestore.collection("shops").doc(shopId)
-      .collection("rooms").where("roomTypeId", "==", roomTypeId).get();
-  let free = 0;
-  for (const doc of roomsSnap.docs) {
-    const room = doc.data() || {};
-    if (room.enabled === false) {
-      continue;
-    }
-    const result = await assertAvailable(firestore, {
-      shopId,
-      startAt,
-      endAt,
-      petIds: [],
-      roomId: doc.id,
-      roomTypeId,
-      occupancyMode: "slot",
-      dailyMaxPets: 0,
-      blockUntilCleaned: true,
-      excludeBookingId,
-    });
-    if (result.ok) {
-      free++;
+      .collection("rooms").get();
+  const rooms = roomsSnap.docs.map((doc) => {
+    return {id: doc.id, ...(doc.data() || {})};
+  });
+  const typeRooms = rooms.filter((room) => roomMatchesType(room, roomTypeId));
+  const calendarEntries = [];
+  for (const room of typeRooms) {
+    const calSnap = await firestore.collection("shops").doc(shopId)
+        .collection("room_calendar").doc(`${room.id}_${dateKey}`).get();
+    if (calSnap.exists) {
+      calendarEntries.push({id: calSnap.id, ...(calSnap.data() || {})});
     }
   }
-
+  const occSnap = await firestore.collection("shops").doc(shopId)
+      .collection("room_occupancies").where("status", "==", "active").get();
+  const occupancies = occSnap.docs.map((doc) => doc.data() || {});
   const bookingsSnap = await firestore.collection("bookings")
       .where("shopId", "==", shopId)
       .where("status", "in", ACTIVE_STATUSES)
       .get();
-  let reserved = 0;
-  for (const doc of bookingsSnap.docs) {
-    if (doc.id === excludeBookingId) {
-      continue;
-    }
-    const data = doc.data() || {};
-    if (!occupiesInventory(data)) {
-      continue;
-    }
-    if (resolveBookingKind(data) !== BOOKING_KIND_DAYCARE) {
-      continue;
-    }
-    const heldType = normalizeString(
-        data.requestedRoomTypeId || data.roomTypeId,
-    );
-    if (heldType !== roomTypeId) {
-      continue;
-    }
-    if (normalizeString(data.roomId)) {
-      continue;
-    }
-    const otherStart = toDate(data.scheduledStartAt);
-    const otherEnd = toDate(data.scheduledEndAt);
-    if (!otherStart || !otherEnd) {
-      continue;
-    }
-    if (overlaps(startAt, endAt, otherStart, otherEnd)) {
-      reserved++;
+  const bookings = bookingsSnap.docs.map((doc) => {
+    return {id: doc.id, ...(doc.data() || {})};
+  });
+  const holdSnap = await holdDocRef(
+      firestore, shopId, roomTypeId, dateKey,
+  ).get();
+  const computed = remainingRoomsFromData({
+    rooms,
+    bookings,
+    occupancies,
+    calendarEntries,
+    holdEntries: listHoldEntries(holdSnap.data()),
+    roomTypeId,
+    startAt,
+    endAt,
+    excludeBookingId,
+    petCount: toInt(params.petCount, 0),
+    roomTypeCapacity: toInt(params.roomTypeCapacity, 0),
+    dateKey,
+  });
+  if (computed.remaining <= 0) {
+    return {
+      ok: false,
+      reason: computed.zeroReason || ROOM_TYPE_SOLD_OUT,
+      remaining: 0,
+    };
+  }
+  return {ok: true, reason: "", remaining: computed.remaining};
+}
+
+/**
+ * Transaction 內先讀後寫：只讀取並檢查可賣剩餘。
+ * @param {FirebaseFirestore.Transaction} transaction
+ * @param {FirebaseFirestore.Firestore} firestore
+ * @param {Object} params
+ * @return {Promise<Object>}
+ */
+async function loadRoomTypeHoldState(transaction, firestore, params) {
+  const shopId = normalizeString(params.shopId);
+  const roomTypeId = normalizeString(params.roomTypeId);
+  const startAt = params.startAt;
+  const endAt = params.endAt;
+  const bookingId = normalizeString(params.bookingId);
+  const dateKey = serviceDateKey(startAt);
+  if (!shopId || !roomTypeId || !bookingId || !startAt || !endAt) {
+    throw new Error("缺少安親房型保留資料");
+  }
+  const holdRef = holdDocRef(firestore, shopId, roomTypeId, dateKey);
+  const roomsRef = firestore.collection("shops").doc(shopId)
+      .collection("rooms");
+  const occQuery = firestore.collection("shops").doc(shopId)
+      .collection("room_occupancies").where("status", "==", "active");
+  const bookingsQuery = firestore.collection("bookings")
+      .where("shopId", "==", shopId)
+      .where("status", "in", ACTIVE_STATUSES);
+  const holdSnap = await transaction.get(holdRef);
+  const roomsSnap = await transaction.get(roomsRef);
+  const occSnap = await transaction.get(occQuery);
+  const bookingsSnap = await transaction.get(bookingsQuery);
+  const rooms = roomsSnap.docs.map((doc) => {
+    return {id: doc.id, ...(doc.data() || {})};
+  });
+  const typeRooms = rooms.filter((room) => roomMatchesType(room, roomTypeId));
+  const calendarEntries = [];
+  for (const room of typeRooms) {
+    const calRef = firestore.collection("shops").doc(shopId)
+        .collection("room_calendar").doc(`${room.id}_${dateKey}`);
+    const calSnap = await transaction.get(calRef);
+    if (calSnap.exists) {
+      calendarEntries.push({id: calSnap.id, ...(calSnap.data() || {})});
     }
   }
-  const remaining = Math.max(0, free - reserved);
-  if (remaining <= 0) {
-    return {ok: false, reason: "該時段已無可用房間", remaining: 0};
+  const computed = remainingRoomsFromData({
+    rooms,
+    bookings: bookingsSnap.docs.map((doc) => {
+      return {id: doc.id, ...(doc.data() || {})};
+    }),
+    occupancies: occSnap.docs.map((doc) => doc.data() || {}),
+    calendarEntries,
+    holdEntries: listHoldEntries(holdSnap.data()),
+    roomTypeId,
+    startAt,
+    endAt,
+    excludeBookingId: bookingId,
+    petCount: toInt(params.petCount, 0),
+    roomTypeCapacity: toInt(params.roomTypeCapacity, 0),
+    dateKey,
+  });
+  if (computed.remaining <= 0) {
+    const error = new Error(computed.zeroReason || ROOM_TYPE_SOLD_OUT);
+    error.code = "failed-precondition";
+    throw error;
   }
-  return {ok: true, reason: "", remaining};
+  return {
+    holdRef,
+    holdData: holdSnap.data() || {},
+    shopId,
+    roomTypeId,
+    dateKey,
+    startAt,
+    endAt,
+    bookingId,
+  };
+}
+
+/**
+ * @param {FirebaseFirestore.Transaction} transaction
+ * @param {Object} state
+ */
+function commitRoomTypeHold(transaction, state) {
+  const next = listHoldEntries(state.holdData).filter((item) => {
+    return normalizeString(item.bookingId) !== state.bookingId;
+  });
+  next.push({
+    bookingId: state.bookingId,
+    startAt: state.startAt.toISOString(),
+    endAt: state.endAt.toISOString(),
+  });
+  writeHoldEntries(
+      transaction,
+      state.holdRef,
+      state.shopId,
+      state.roomTypeId,
+      state.dateKey,
+      next,
+  );
+}
+
+/**
+ * Transaction 內重算未分房保留後才允許建單。
+ * @param {FirebaseFirestore.Transaction} transaction
+ * @param {FirebaseFirestore.Firestore} firestore
+ * @param {Object} params
+ * @return {Promise<void>}
+ */
+async function reserveRoomTypeHoldInTransaction(
+    transaction, firestore, params,
+) {
+  const state = await loadRoomTypeHoldState(transaction, firestore, params);
+  commitRoomTypeHold(transaction, state);
+}
+
+/**
+ * @param {FirebaseFirestore.Transaction} transaction
+ * @param {FirebaseFirestore.Firestore} firestore
+ * @param {Object} booking
+ * @return {Promise<void>}
+ */
+async function releaseRoomTypeHoldInTransaction(
+    transaction, firestore, booking,
+) {
+  const holdRef = holdRefForBooking(firestore, booking);
+  if (!holdRef) {
+    return;
+  }
+  const holdSnap = await transaction.get(holdRef);
+  if (!holdSnap.exists) {
+    return;
+  }
+  const bookingId = normalizeString(booking.id || booking.bookingId);
+  const dateKey = normalizeString(booking.serviceDate) ||
+    (toDate(booking.scheduledStartAt) ?
+      serviceDateKey(toDate(booking.scheduledStartAt)) : "");
+  releaseHoldEntries(
+      transaction,
+      holdRef,
+      holdSnap.data(),
+      bookingId,
+      normalizeString(booking.shopId),
+      unassignedTypeId(booking),
+      dateKey,
+  );
 }
 
 /**
@@ -423,10 +966,30 @@ module.exports = {
   stayConflictsSlot,
   assertAvailable,
   assertRoomTypeCapacity,
+  remainingRoomsFromData,
+  roomUnavailable,
+  roomMatchesType,
+  calendarBlocksRoom,
+  holdDocId,
+  holdDocRef,
+  holdRefForBooking,
+  listHoldEntries,
+  overlappingHoldEntries,
+  writeHoldEntries,
+  reserveRoomTypeHoldInTransaction,
+  loadRoomTypeHoldState,
+  commitRoomTypeHold,
+  releaseHoldEntries,
+  applyHoldReleaseFromSnap,
+  holdIdentity,
+  releaseRoomTypeHoldInTransaction,
   writeOccupancy,
   loadActiveOccupancies,
   releaseOccupancyDocs,
   releaseOccupancies,
   hasOverlappingOccupancy,
   assertRoomFreeInTransaction,
+  NO_PHYSICAL_ROOMS,
+  NO_USABLE_ROOMS,
+  ROOM_TYPE_SOLD_OUT,
 };

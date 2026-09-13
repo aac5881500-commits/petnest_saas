@@ -3,7 +3,6 @@
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:petnest_saas/core/models/booking_kind.dart';
-import 'package:petnest_saas/core/models/daycare_settings_model.dart';
 import 'package:petnest_saas/core/services/booking_payment_status.dart';
 import 'package:petnest_saas/core/services/booking_settlement_math.dart';
 import 'package:petnest_saas/core/services/daycare_time_helper.dart';
@@ -35,11 +34,169 @@ class DaycareAssignableRoom {
   final String blockedReason;
 }
 
+class DaycareRoomRemaining {
+  const DaycareRoomRemaining({
+    required this.remaining,
+    required this.createdCount,
+    required this.usableCount,
+    required this.reservedCount,
+    required this.freeCount,
+    this.disabledCount = 0,
+    this.cleaningCount = 0,
+    this.maintenanceCount = 0,
+    this.closedCount = 0,
+    this.occupiedCount = 0,
+    this.zeroReason = '',
+  });
+
+  final int remaining;
+  final int createdCount;
+  final int usableCount;
+  final int reservedCount;
+  final int freeCount;
+  final int disabledCount;
+  final int cleaningCount;
+  final int maintenanceCount;
+  final int closedCount;
+  final int occupiedCount;
+  final String zeroReason;
+
+  int get vacantCount => remaining;
+
+  bool get oversold => remaining <= 0 && createdCount > 0;
+}
+
 class DaycareOccupancyService {
   DaycareOccupancyService._();
 
   static final DaycareOccupancyService instance = DaycareOccupancyService._();
 
+  static const String vacantLabel = '空房';
+  static const String disabledLabel = '未啟用';
+  static const String cleaningLabel = '清潔中';
+  static const String maintenanceLabel = '維修中';
+  static const String closedLabel = '今日關閉';
+
+  static bool isRoomEnabled(Map<String, dynamic> room) {
+    return room['enabled'] != false;
+  }
+
+  static String roomDocumentStatus(Map<String, dynamic> room) {
+    return (room['status'] ?? '').toString().trim().toLowerCase();
+  }
+
+  static bool isDocumentStatusUnsellable(String status) {
+    switch (status.trim().toLowerCase()) {
+      case 'cleaning':
+      case 'maintenance':
+      case 'blocked':
+      case 'closed':
+      case 'unavailable':
+        return true;
+      default:
+        return false;
+    }
+  }
+
+  static bool isRoomDocumentUnsellable(Map<String, dynamic> room) {
+    return !isRoomEnabled(room) ||
+        isDocumentStatusUnsellable(roomDocumentStatus(room));
+  }
+
+  static String stayBookingLabel(Map<String, dynamic>? booking) {
+    if (booking == null) {
+      return vacantLabel;
+    }
+    final String status = (booking['status'] ?? '').toString();
+    switch (status) {
+      case 'pending':
+      case 'confirmed':
+        return '已訂';
+      case 'checked_in':
+        return '入住中';
+      case 'completed':
+        return '已完成';
+      default:
+        return vacantLabel;
+    }
+  }
+
+  static String housekeepingLabel({
+    required Map<String, dynamic> room,
+    String calendarStatus = '',
+    Map<String, dynamic>? stayBooking,
+  }) {
+    if (!isRoomEnabled(room)) {
+      return disabledLabel;
+    }
+    final String docStatus = roomDocumentStatus(room);
+    if (docStatus == 'cleaning') {
+      return cleaningLabel;
+    }
+    if (docStatus == 'maintenance' ||
+        docStatus == 'blocked' ||
+        docStatus == 'unavailable') {
+      return maintenanceLabel;
+    }
+    if (docStatus == 'closed') {
+      return closedLabel;
+    }
+    final String cal = calendarStatus.trim().toLowerCase();
+    if (cal == 'closed') {
+      return closedLabel;
+    }
+    if (cal == 'blocked' || cal == 'maintenance' || cal == 'unavailable') {
+      return maintenanceLabel;
+    }
+    if (cal == 'cleaning') {
+      return cleaningLabel;
+    }
+    if (cal == 'booked' || cal == 'checked_in' || cal == 'occupied') {
+      final String fromBooking = stayBookingLabel(stayBooking);
+      return fromBooking == vacantLabel ? '已訂' : fromBooking;
+    }
+    return stayBookingLabel(stayBooking);
+  }
+
+  static String describeUnusableRooms({
+    required int createdCount,
+    required int remaining,
+    required int usableCount,
+    required int disabledCount,
+    required int cleaningCount,
+    required int maintenanceCount,
+    required int closedCount,
+    required int occupiedCount,
+  }) {
+    if (createdCount <= 0) {
+      return noPhysicalRooms;
+    }
+    if (remaining > 0) {
+      return '';
+    }
+    if (disabledCount == createdCount) {
+      return '此房型有 $createdCount 間實體房，但 $disabledCount 間目前未啟用';
+    }
+    if (cleaningCount == createdCount) {
+      return '此房型有 $createdCount 間實體房，目前 $cleaningCount 間清潔中';
+    }
+    if (maintenanceCount == createdCount) {
+      return '此房型有 $createdCount 間實體房，目前 $maintenanceCount 間維修／封鎖';
+    }
+    if (closedCount == createdCount) {
+      return '此房型有 $createdCount 間實體房，目前 $closedCount 間今日關閉';
+    }
+    if (usableCount <= 0 ||
+        disabledCount + cleaningCount + maintenanceCount + closedCount > 0) {
+      final String closedBit = closedCount > 0 ? '、關閉 $closedCount' : '';
+      return '可用 $remaining / 共 $createdCount 間；未啟用 $disabledCount、清潔 $cleaningCount、維修或封鎖 $maintenanceCount$closedBit、住宿占用 $occupiedCount';
+    }
+    return roomTypeSoldOut;
+  }
+
+  static const String noPhysicalRooms = '此房型尚未建立可用實體房間，請聯絡店家';
+  static const String roomTypeSoldOut = '該時段此安親房型已無可用房間，請重新選擇房型或時間。';
+  static const String selectTimesFirst = '請先選擇完整時間後確認空房';
   static const List<String> activeStatuses = <String>[
     'pending',
     'confirmed',
@@ -213,13 +370,51 @@ class DaycareOccupancyService {
         .where('shopId', isEqualTo: shopId)
         .where('status', whereIn: activeStatuses)
         .get();
+    final QuerySnapshot<Map<String, dynamic>> occSnap = await FirebaseFirestore
+        .instance
+        .collection('shops')
+        .doc(shopId)
+        .collection('room_occupancies')
+        .where('status', isEqualTo: 'active')
+        .get();
+    final String dateKey = _dateKey(startAt);
     final List<Map<String, dynamic>> rooms = roomSnap.docs
         .map(
           (QueryDocumentSnapshot<Map<String, dynamic>> doc) =>
               <String, dynamic>{'id': doc.id, ...doc.data()},
         )
         .toList();
+    final List<Map<String, dynamic>> calendarEntries =
+        <Map<String, dynamic>>[];
+    for (final Map<String, dynamic> room in rooms) {
+      if ((room['roomTypeId'] ?? '').toString().trim() != roomTypeId.trim()) {
+        continue;
+      }
+      final String roomId = (room['id'] ?? '').toString();
+      if (roomId.isEmpty) {
+        continue;
+      }
+      final DocumentSnapshot<Map<String, dynamic>> calSnap =
+          await FirebaseFirestore.instance
+              .collection('shops')
+              .doc(shopId)
+              .collection('room_calendar')
+              .doc('${roomId}_$dateKey')
+              .get();
+      if (calSnap.exists) {
+        calendarEntries.add(<String, dynamic>{
+          'id': calSnap.id,
+          ...?calSnap.data(),
+        });
+      }
+    }
     final List<Map<String, dynamic>> bookings = bookingSnap.docs
+        .map(
+          (QueryDocumentSnapshot<Map<String, dynamic>> doc) =>
+              <String, dynamic>{'id': doc.id, ...doc.data()},
+        )
+        .toList();
+    final List<Map<String, dynamic>> occupancies = occSnap.docs
         .map(
           (QueryDocumentSnapshot<Map<String, dynamic>> doc) =>
               <String, dynamic>{'id': doc.id, ...doc.data()},
@@ -228,6 +423,8 @@ class DaycareOccupancyService {
     return remainingRoomsFromData(
       rooms: rooms,
       bookings: bookings,
+      occupancies: occupancies,
+      calendarEntries: calendarEntries,
       roomTypeId: roomTypeId,
       startAt: startAt,
       endAt: endAt,
@@ -236,13 +433,51 @@ class DaycareOccupancyService {
   }
 
   static bool _roomUnavailable(Map<String, dynamic> room) {
-    if (room.containsKey('enabled') && !DaycareBool.parse(room['enabled'])) {
+    return isRoomDocumentUnsellable(room);
+  }
+
+  static bool calendarBlocksRoom(String status) {
+    return status == 'booked' ||
+        status == 'checked_in' ||
+        status == 'occupied' ||
+        status == 'blocked' ||
+        status == 'cleaning' ||
+        status == 'maintenance' ||
+        status == 'closed' ||
+        status == 'unavailable';
+  }
+
+  static bool roomMatchesType(
+    Map<String, dynamic> room,
+    String roomTypeId, {
+    String alternateTypeId = '',
+  }) {
+    final String rid = (room['roomTypeId'] ?? '').toString().trim();
+    final String wanted = roomTypeId.trim();
+    if (wanted.isNotEmpty && rid == wanted) {
       return true;
     }
-    final String status = (room['status'] ?? '').toString();
-    return status == 'cleaning' ||
-        status == 'maintenance' ||
-        status == 'blocked';
+    final String alt = alternateTypeId.trim();
+    return alt.isNotEmpty && rid == alt;
+  }
+
+  static String _bookingIdOf(Map<String, dynamic> booking) {
+    final String id = (booking['id'] ?? '').toString();
+    if (id.isNotEmpty) {
+      return id;
+    }
+    return (booking['bookingId'] ?? '').toString();
+  }
+
+  static DateTime? _holdTime(dynamic raw) {
+    final DateTime? parsed = _ts(raw);
+    if (parsed != null) {
+      return parsed;
+    }
+    if (raw is String && raw.isNotEmpty) {
+      return DateTime.tryParse(raw);
+    }
+    return null;
   }
 
   /// 店家確認後分房：列出此時段無衝突、非維修／待清潔、容量足夠的實際房間。
@@ -275,11 +510,57 @@ class DaycareOccupancyService {
               in typeSnap.docs)
             doc.id: doc.data(),
         };
+    final QuerySnapshot<Map<String, dynamic>> occSnap = await FirebaseFirestore
+        .instance
+        .collection('shops')
+        .doc(shopId)
+        .collection('room_occupancies')
+        .where('status', isEqualTo: 'active')
+        .get();
+    final String dateKey = _dateKey(startAt);
     final List<DaycareAssignableRoom> result = <DaycareAssignableRoom>[];
     for (final QueryDocumentSnapshot<Map<String, dynamic>> doc
         in roomSnap.docs) {
       final Map<String, dynamic> room = doc.data();
       if (_roomUnavailable(room)) {
+        continue;
+      }
+      final DocumentSnapshot<Map<String, dynamic>> calSnap =
+          await FirebaseFirestore.instance
+              .collection('shops')
+              .doc(shopId)
+              .collection('room_calendar')
+              .doc('${doc.id}_$dateKey')
+              .get();
+      if (calSnap.exists &&
+          calendarBlocksRoom((calSnap.data()?['status'] ?? '').toString())) {
+        result.add(
+          DaycareAssignableRoom(
+            roomId: doc.id,
+            roomName: (room['name'] ?? doc.id).toString(),
+            roomCode:
+                (room['roomCode'] ??
+                        room['number'] ??
+                        room['roomNumber'] ??
+                        room['name'] ??
+                        doc.id)
+                    .toString(),
+            roomTypeId: (room['roomTypeId'] ?? '').toString(),
+            roomTypeName:
+                (types[(room['roomTypeId'] ?? '').toString()]?['name'] ??
+                        (room['roomTypeId'] ?? '').toString())
+                    .toString(),
+            capacity: ((room['capacity'] as num?)?.toInt() ?? 0) > 0
+                ? (room['capacity'] as num).toInt()
+                : ((types[(room['roomTypeId'] ?? '').toString()]?['capacity']
+                              as num?)
+                          ?.toInt() ??
+                      0),
+            status: (room['status'] ?? '').toString(),
+            available: false,
+            blockedReason: '此房間已被住宿訂單占用',
+          ),
+        );
         continue;
       }
       final String roomTypeId = (room['roomTypeId'] ?? '').toString();
@@ -293,6 +574,39 @@ class DaycareOccupancyService {
       }
       final List<String> summaries = <String>[];
       bool busy = false;
+      for (final QueryDocumentSnapshot<Map<String, dynamic>> occDoc
+          in occSnap.docs) {
+        final Map<String, dynamic> occ = occDoc.data();
+        if ((occ['roomId'] ?? '').toString() != doc.id) {
+          continue;
+        }
+        if ((occ['bookingId'] ?? '').toString() == excludeBookingId) {
+          continue;
+        }
+        if ((occ['status'] ?? 'active').toString() != 'active') {
+          continue;
+        }
+        final DateTime? occStart = _ts(occ['startAt']);
+        final DateTime? occEnd = _ts(occ['endAt']);
+        if (occStart == null || occEnd == null) {
+          continue;
+        }
+        final String occMode = (occ['occupancyMode'] ?? 'slot').toString();
+        if (occMode == 'full_day') {
+          if (_dateKey(occStart) == dateKey) {
+            busy = true;
+            summaries.add('房間占用中');
+          }
+        } else if (DaycareTimeHelper.overlaps(
+          startAt,
+          endAt,
+          occStart,
+          occEnd,
+        )) {
+          busy = true;
+          summaries.add('房間占用中');
+        }
+      }
       for (final QueryDocumentSnapshot<Map<String, dynamic>> bookingDoc
           in bookingSnap.docs) {
         if (bookingDoc.id == excludeBookingId) {
@@ -395,18 +709,104 @@ class DaycareOccupancyService {
     String excludeBookingId = '',
     int petCount = 0,
     int roomTypeCapacity = 0,
+    List<Map<String, dynamic>> occupancies = const <Map<String, dynamic>>[],
+    List<Map<String, dynamic>> calendarEntries = const <Map<String, dynamic>>[],
+    List<Map<String, dynamic>> holdEntries = const <Map<String, dynamic>>[],
+    String dateKey = '',
+    String alternateTypeId = '',
+  }) {
+    return remainingRoomsResultFromData(
+      rooms: rooms,
+      bookings: bookings,
+      roomTypeId: roomTypeId,
+      startAt: startAt,
+      endAt: endAt,
+      excludeBookingId: excludeBookingId,
+      petCount: petCount,
+      roomTypeCapacity: roomTypeCapacity,
+      occupancies: occupancies,
+      calendarEntries: calendarEntries,
+      holdEntries: holdEntries,
+      dateKey: dateKey,
+      alternateTypeId: alternateTypeId,
+    ).remaining;
+  }
+
+  static DaycareRoomRemaining remainingRoomsResultFromData({
+    required List<Map<String, dynamic>> rooms,
+    required List<Map<String, dynamic>> bookings,
+    required String roomTypeId,
+    required DateTime startAt,
+    required DateTime endAt,
+    String excludeBookingId = '',
+    int petCount = 0,
+    int roomTypeCapacity = 0,
+    List<Map<String, dynamic>> occupancies = const <Map<String, dynamic>>[],
+    List<Map<String, dynamic>> calendarEntries = const <Map<String, dynamic>>[],
+    List<Map<String, dynamic>> holdEntries = const <Map<String, dynamic>>[],
+    String dateKey = '',
+    String alternateTypeId = '',
   }) {
     if (petCount > 0 &&
         roomTypeCapacity > 0 &&
         petCount > roomTypeCapacity) {
-      return 0;
+      return DaycareRoomRemaining(
+        remaining: 0,
+        createdCount: 0,
+        usableCount: 0,
+        reservedCount: 0,
+        freeCount: 0,
+        zeroReason: '此房型最多容納 $roomTypeCapacity 隻寵物',
+      );
     }
+    final String resolvedDateKey = dateKey.isNotEmpty
+        ? dateKey
+        : _dateKey(startAt);
+    final List<Map<String, dynamic>> typeRooms = rooms.where((
+      Map<String, dynamic> room,
+    ) {
+      return roomMatchesType(
+        room,
+        roomTypeId,
+        alternateTypeId: alternateTypeId,
+      );
+    }).toList();
+    final int createdCount = typeRooms.length;
+    if (createdCount <= 0) {
+      return const DaycareRoomRemaining(
+        remaining: 0,
+        createdCount: 0,
+        usableCount: 0,
+        reservedCount: 0,
+        freeCount: 0,
+        zeroReason: noPhysicalRooms,
+      );
+    }
+    int usableCount = 0;
     int free = 0;
-    for (final Map<String, dynamic> room in rooms) {
-      if ((room['roomTypeId'] ?? '').toString().trim() != roomTypeId.trim()) {
+    int disabledCount = 0;
+    int cleaningCount = 0;
+    int maintenanceCount = 0;
+    int closedCount = 0;
+    int occupiedCount = 0;
+    for (final Map<String, dynamic> room in typeRooms) {
+      if (!isRoomEnabled(room)) {
+        disabledCount += 1;
         continue;
       }
-      if (_roomUnavailable(room)) {
+      final String docStatus = roomDocumentStatus(room);
+      if (docStatus == 'cleaning') {
+        cleaningCount += 1;
+        continue;
+      }
+      if (docStatus == 'maintenance' ||
+          docStatus == 'blocked' ||
+          docStatus == 'unavailable') {
+        maintenanceCount += 1;
+        continue;
+      }
+      if (docStatus == 'closed') {
+        closedCount += 1;
         continue;
       }
       final int roomCap = ((room['capacity'] as num?)?.toInt() ?? 0) > 0
@@ -415,10 +815,50 @@ class DaycareOccupancyService {
       if (petCount > 0 && roomCap > 0 && petCount > roomCap) {
         continue;
       }
-      final String roomId = (room['id'] ?? '').toString();
+      usableCount += 1;
+      final String roomId = (room['id'] ?? room['roomId'] ?? '').toString();
+      if (roomId.isEmpty) {
+        continue;
+      }
+      final bool calendarHit = calendarEntries.any((
+        Map<String, dynamic> item,
+      ) {
+        return (item['roomId'] ?? '').toString() == roomId &&
+            (item['date'] ?? '').toString() == resolvedDateKey &&
+            calendarBlocksRoom((item['status'] ?? '').toString());
+      });
+      if (calendarHit) {
+        occupiedCount += 1;
+        continue;
+      }
+      final bool occupancyHit = occupancies.any((Map<String, dynamic> occ) {
+        if ((occ['roomId'] ?? '').toString() != roomId) {
+          return false;
+        }
+        if ((occ['bookingId'] ?? '').toString() == excludeBookingId) {
+          return false;
+        }
+        if ((occ['status'] ?? 'active').toString().isNotEmpty &&
+            (occ['status'] ?? 'active').toString() != 'active') {
+          return false;
+        }
+        final DateTime? occStart = _ts(occ['startAt']);
+        final DateTime? occEnd = _ts(occ['endAt']);
+        if (occStart == null || occEnd == null) {
+          return false;
+        }
+        if ((occ['occupancyMode'] ?? 'slot').toString() == 'full_day') {
+          return _dateKey(occStart) == resolvedDateKey;
+        }
+        return DaycareTimeHelper.overlaps(startAt, endAt, occStart, occEnd);
+      });
+      if (occupancyHit) {
+        occupiedCount += 1;
+        continue;
+      }
       bool busy = false;
       for (final Map<String, dynamic> booking in bookings) {
-        if ((booking['id'] ?? '').toString() == excludeBookingId) {
+        if (_bookingIdOf(booking) == excludeBookingId) {
           continue;
         }
         if (!occupiesInventory(booking)) {
@@ -452,13 +892,31 @@ class DaycareOccupancyService {
           }
         }
       }
-      if (!busy) {
-        free++;
+      if (busy) {
+        occupiedCount += 1;
+        continue;
+      }
+      free++;
+    }
+    final Set<String> reservedIds = <String>{};
+    for (final Map<String, dynamic> item in holdEntries) {
+      if ((item['bookingId'] ?? '').toString() == excludeBookingId) {
+        continue;
+      }
+      final DateTime? otherStart = _holdTime(item['startAt']);
+      final DateTime? otherEnd = _holdTime(item['endAt']);
+      if (otherStart != null &&
+          otherEnd != null &&
+          DaycareTimeHelper.overlaps(startAt, endAt, otherStart, otherEnd)) {
+        final String id = (item['bookingId'] ?? '').toString();
+        if (id.isNotEmpty) {
+          reservedIds.add(id);
+        }
       }
     }
-    int reserved = 0;
     for (final Map<String, dynamic> booking in bookings) {
-      if ((booking['id'] ?? '').toString() == excludeBookingId) {
+      final String bookingId = _bookingIdOf(booking);
+      if (bookingId == excludeBookingId) {
         continue;
       }
       if (!occupiesInventory(booking)) {
@@ -471,7 +929,8 @@ class DaycareOccupancyService {
           ((booking['requestedRoomTypeId'] ?? booking['roomTypeId'] ?? '')
                   .toString())
               .trim();
-      if (heldType != roomTypeId.trim()) {
+      if (heldType != roomTypeId.trim() &&
+          (alternateTypeId.isEmpty || heldType != alternateTypeId.trim())) {
         continue;
       }
       if ((booking['roomId'] ?? '').toString().trim().isNotEmpty) {
@@ -482,11 +941,38 @@ class DaycareOccupancyService {
       if (otherStart != null &&
           otherEnd != null &&
           DaycareTimeHelper.overlaps(startAt, endAt, otherStart, otherEnd)) {
-        reserved++;
+        reservedIds.add(bookingId);
       }
     }
-    return (free - reserved).clamp(0, 9999);
+    final int reservedCount = reservedIds.length;
+    final int remaining = (free - reservedCount).clamp(0, 9999);
+    return DaycareRoomRemaining(
+      remaining: remaining,
+      createdCount: createdCount,
+      usableCount: usableCount,
+      reservedCount: reservedCount,
+      freeCount: free,
+      disabledCount: disabledCount,
+      cleaningCount: cleaningCount,
+      maintenanceCount: maintenanceCount,
+      closedCount: closedCount,
+      occupiedCount: occupiedCount,
+      zeroReason: remaining <= 0
+          ? describeUnusableRooms(
+              createdCount: createdCount,
+              remaining: remaining,
+              usableCount: usableCount,
+              disabledCount: disabledCount,
+              cleaningCount: cleaningCount,
+              maintenanceCount: maintenanceCount,
+              closedCount: closedCount,
+              occupiedCount: occupiedCount,
+            )
+          : '',
+    );
   }
+
+  static String dateKeyOf(DateTime date) => _dateKey(date);
 
   static String _dateKey(DateTime date) {
     final String m = date.month.toString().padLeft(2, '0');

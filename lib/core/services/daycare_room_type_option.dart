@@ -15,6 +15,8 @@ class DaycareRoomTypeOption {
     required this.selectable,
     this.blockedReason,
     this.remainingRooms,
+    this.zeroReason = '',
+    this.timesComplete = true,
     this.estimateAmount = 0,
     this.overtimeSummary = '',
     this.isRoomBased = true,
@@ -27,6 +29,8 @@ class DaycareRoomTypeOption {
   final bool selectable;
   final String? blockedReason;
   final int? remainingRooms;
+  final String zeroReason;
+  final bool timesComplete;
   final int estimateAmount;
   final String overtimeSummary;
   final bool isRoomBased;
@@ -59,6 +63,8 @@ class DaycareRoomTypeCatalog {
     required int petCount,
     int? dailyRemaining,
     int? remainingRooms,
+    String zeroReason = '',
+    bool timesComplete = true,
     int estimateAmount = 0,
     String overtimeSummary = '',
     bool typeExists = true,
@@ -78,8 +84,12 @@ class DaycareRoomTypeCatalog {
         petCount > 0 &&
         dailyRemaining < petCount) {
       reason = '當日名額已滿';
+    } else if (!timesComplete) {
+      reason = DaycareOccupancyService.selectTimesFirst;
     } else if (remainingRooms != null && remainingRooms <= 0) {
-      reason = '此房型目前沒有空房';
+      reason = zeroReason.isNotEmpty
+          ? zeroReason
+          : DaycareOccupancyService.roomTypeSoldOut;
     }
     return DaycareRoomTypeOption(
       roomTypeId: setting.roomTypeId,
@@ -89,6 +99,8 @@ class DaycareRoomTypeCatalog {
       selectable: reason == null,
       blockedReason: reason,
       remainingRooms: remainingRooms,
+      zeroReason: zeroReason,
+      timesComplete: timesComplete,
       estimateAmount: estimateAmount,
       overtimeSummary: overtimeSummary,
       isRoomBased: isRoomBased,
@@ -131,6 +143,17 @@ class DaycareRoomTypeCatalog {
             .where('shopId', isEqualTo: shopId)
             .where('status', whereIn: DaycareOccupancyService.activeStatuses)
             .get();
+    final QuerySnapshot<Map<String, dynamic>> occSnap = await FirebaseFirestore
+        .instance
+        .collection('shops')
+        .doc(shopId)
+        .collection('room_occupancies')
+        .where('status', isEqualTo: 'active')
+        .get();
+    final bool timesComplete = startAt != null && endAt != null;
+    final String dateKey = timesComplete
+        ? DaycareOccupancyService.dateKeyOf(startAt)
+        : '';
     final List<Map<String, dynamic>> rooms = roomSnap.docs
         .map(
           (QueryDocumentSnapshot<Map<String, dynamic>> doc) =>
@@ -143,6 +166,35 @@ class DaycareRoomTypeCatalog {
               <String, dynamic>{'id': doc.id, ...doc.data()},
         )
         .toList();
+    final List<Map<String, dynamic>> occupancies = occSnap.docs
+        .map(
+          (QueryDocumentSnapshot<Map<String, dynamic>> doc) =>
+              <String, dynamic>{'id': doc.id, ...doc.data()},
+        )
+        .toList();
+    final List<Map<String, dynamic>> calendarEntries =
+        <Map<String, dynamic>>[];
+    if (timesComplete) {
+      for (final Map<String, dynamic> room in rooms) {
+        final String roomId = (room['id'] ?? '').toString();
+        if (roomId.isEmpty) {
+          continue;
+        }
+        final DocumentSnapshot<Map<String, dynamic>> calSnap =
+            await FirebaseFirestore.instance
+                .collection('shops')
+                .doc(shopId)
+                .collection('room_calendar')
+                .doc('${roomId}_$dateKey')
+                .get();
+        if (calSnap.exists) {
+          calendarEntries.add(<String, dynamic>{
+            'id': calSnap.id,
+            ...?calSnap.data(),
+          });
+        }
+      }
+    }
 
     final List<DaycareRoomTypeOption> out = <DaycareRoomTypeOption>[];
     for (final DaycareRoomTypeSetting setting in settings.roomTypes) {
@@ -151,9 +203,13 @@ class DaycareRoomTypeCatalog {
         continue;
       }
       final Map<String, dynamic>? type = resolveRoomTypeDoc(types, id);
+      final String canonicalId = canonicalRoomTypeId(types, id);
       final bool hasRooms = rooms.any(
-        (Map<String, dynamic> room) =>
-            (room['roomTypeId'] ?? '').toString().trim() == id,
+        (Map<String, dynamic> room) => DaycareOccupancyService.roomMatchesType(
+          room,
+          canonicalId,
+          alternateTypeId: id,
+        ),
       );
       int estimate = 0;
       String overtimeSummary = '';
@@ -172,16 +228,24 @@ class DaycareRoomTypeCatalog {
         );
       }
       int? remainingRooms;
-      if (startAt != null && endAt != null) {
-        remainingRooms = DaycareOccupancyService.remainingRoomsFromData(
-          rooms: rooms,
-          bookings: bookings,
-          roomTypeId: id,
-          startAt: startAt,
-          endAt: endAt,
-          petCount: petCount,
-          roomTypeCapacity: roomCapacityOf(type, rooms, id),
-        );
+      String zeroReason = '';
+      if (timesComplete && startAt != null && endAt != null) {
+        final DaycareRoomRemaining computed =
+            DaycareOccupancyService.remainingRoomsResultFromData(
+              rooms: rooms,
+              bookings: bookings,
+              occupancies: occupancies,
+              calendarEntries: calendarEntries,
+              roomTypeId: canonicalId,
+              alternateTypeId: id,
+              startAt: startAt,
+              endAt: endAt,
+              petCount: petCount,
+              roomTypeCapacity: roomCapacityOf(type, rooms, canonicalId, id),
+              dateKey: dateKey,
+            );
+        remainingRooms = computed.remaining;
+        zeroReason = computed.zeroReason;
       }
       out.add(
         evaluate(
@@ -190,11 +254,13 @@ class DaycareRoomTypeCatalog {
           petCount: petCount,
           dailyRemaining: dailyRemaining,
           remainingRooms: remainingRooms,
+          zeroReason: zeroReason,
+          timesComplete: timesComplete,
           estimateAmount: estimate,
           overtimeSummary: overtimeSummary,
           typeExists: type != null || hasRooms,
           isRoomBased: settings.isRoomBased,
-          roomCapacity: roomCapacityOf(type, rooms, id),
+          roomCapacity: roomCapacityOf(type, rooms, canonicalId, id),
         ),
       );
     }
@@ -231,18 +297,46 @@ class DaycareRoomTypeCatalog {
     return null;
   }
 
+  static String canonicalRoomTypeId(
+    Map<String, Map<String, dynamic>> types,
+    String settingId,
+  ) {
+    final String id = settingId.trim();
+    if (id.isEmpty) {
+      return id;
+    }
+    if (types.containsKey(id)) {
+      return id;
+    }
+    for (final MapEntry<String, Map<String, dynamic>> entry in types.entries) {
+      if (entry.key.trim() == id) {
+        return entry.key;
+      }
+      final String name = (entry.value['name'] ?? '').toString().trim();
+      if (name.isNotEmpty && name == id) {
+        return entry.key;
+      }
+    }
+    return id;
+  }
+
   static int roomCapacityOf(
     Map<String, dynamic>? type,
     List<Map<String, dynamic>> rooms,
-    String roomTypeId,
-  ) {
+    String roomTypeId, [
+    String alternateTypeId = '',
+  ]) {
     final int fromType = ((type?['capacity'] as num?)?.toInt() ?? 0);
     if (fromType > 0) {
       return fromType;
     }
     int maxRoom = 0;
     for (final Map<String, dynamic> room in rooms) {
-      if ((room['roomTypeId'] ?? '').toString().trim() != roomTypeId.trim()) {
+      if (!DaycareOccupancyService.roomMatchesType(
+        room,
+        roomTypeId,
+        alternateTypeId: alternateTypeId,
+      )) {
         continue;
       }
       final int cap = (room['capacity'] as num?)?.toInt() ?? 0;

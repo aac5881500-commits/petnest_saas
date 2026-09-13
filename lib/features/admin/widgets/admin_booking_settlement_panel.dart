@@ -44,6 +44,9 @@ class AdminBookingSettlementPanel extends StatelessWidget {
     final int refund = BookingSettlementMath.refundDue(data: data);
     final String method = (data['settlementTopUpMethod'] ?? '').toString();
     final String topUpStatus = (data['settlementTopUpStatus'] ?? '').toString();
+    final String refundMethod =
+        (data['settlementRefundMethod'] ?? data['lastRefundMethod'] ?? '')
+            .toString();
     return AdminBookingDetailCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -67,10 +70,17 @@ class AdminBookingSettlementPanel extends StatelessWidget {
           _kv('實收淨額', net),
           _kv('待補款', remain),
           _kv('待退款', refund),
-          if (method.isNotEmpty)
+          if (remain > 0 && method.isNotEmpty)
             Padding(
               padding: const EdgeInsets.only(bottom: 4),
               child: Text('補款方式：$method　狀態：${_statusLabel(topUpStatus)}'),
+            ),
+          if (refund > 0)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 4),
+              child: Text(
+                '退款方式：${SettlementAdjustDisplay.refundMethodLabel(refundMethod.isEmpty ? SettlementAdjustDisplay.inStoreRefundMethod : refundMethod)}',
+              ),
             ),
           if (!locked) ...<Widget>[
             const SizedBox(height: 12),
@@ -91,11 +101,11 @@ class AdminBookingSettlementPanel extends StatelessWidget {
                   BookingPaymentProof.latestUnconfirmedBalance(data) != null
                       ? FilledButton(
                           onPressed: () => _reviewTransfer(context),
-                          child: const Text('核對轉帳'),
+                          child: const Text('核對客戶回傳'),
                         )
-                      : const FilledButton(
-                          onPressed: null,
-                          child: Text('等待結算尾款證明'),
+                      : FilledButton(
+                          onPressed: () => _staffVerifyTransfer(context, remain),
+                          child: const Text('現場已核對入帳'),
                         ),
                 if (remain > 0 && (method == 'cash' || method.isEmpty))
                   FilledButton(
@@ -383,7 +393,7 @@ class AdminBookingSettlementPanel extends StatelessWidget {
       context: context,
       builder: (BuildContext context) {
         return AlertDialog(
-          title: const Text('核對轉帳補款'),
+          title: const Text('核對客戶回傳'),
           content: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -449,6 +459,67 @@ class AdminBookingSettlementPanel extends StatelessWidget {
     );
   }
 
+  Future<void> _staffVerifyTransfer(BuildContext context, int remain) async {
+    final TextEditingController note = TextEditingController();
+    final bool? ok = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('現場已核對入帳'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Text('待補款金額：NT\$ $remain'),
+                const SizedBox(height: 8),
+                const Text('客戶現場轉帳給店員看、但不願上傳照片時使用。付款方式仍記為銀行轉帳。'),
+                TextField(
+                  controller: note,
+                  minLines: 2,
+                  maxLines: 4,
+                  decoration: const InputDecoration(
+                    labelText: '現場核對註記（必填）',
+                    hintText: '例如：客戶現場網銀轉帳，店員已確認入帳。',
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actions: <Widget>[
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('取消'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('確認入帳'),
+            ),
+          ],
+        );
+      },
+    );
+    if (ok != true || !context.mounted) {
+      return;
+    }
+    if (note.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('請填寫現場核對註記')),
+      );
+      return;
+    }
+    if (!await _confirmLockIfClear(context)) {
+      return;
+    }
+    await _call(
+      context,
+      action: 'confirmStaffVerifiedTransfer',
+      extra: <String, dynamic>{
+        'transferVerificationNote': note.text.trim(),
+      },
+    );
+  }
+
   Future<bool> _confirmLockIfClear(BuildContext context) async {
     final int remain = BookingSettlementMath.remainingDue(data: data);
     final int refund = BookingSettlementMath.refundDue(data: data);
@@ -482,70 +553,96 @@ class AdminBookingSettlementPanel extends StatelessWidget {
     required int amount,
     required String action,
   }) async {
-    String method = 'cash';
+    String method = action == 'confirmRefund'
+        ? ((data['settlementRefundMethod'] ?? '').toString().trim().isEmpty
+              ? SettlementAdjustDisplay.inStoreRefundMethod
+              : (data['settlementRefundMethod'] ?? '').toString())
+        : 'cash';
     final TextEditingController amountCtrl = TextEditingController(
       text: '$amount',
+    );
+    final TextEditingController refundNote = TextEditingController(
+      text: (data['settlementRefundNote'] ?? '').toString(),
     );
     final bool? ok = await showDialog<bool>(
       context: context,
       builder: (BuildContext context) {
-        return AlertDialog(
-          title: Text(title),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: <Widget>[
-              const Text('選擇方式不等於已入帳，請確認實際收退後再儲存。'),
-              TextField(
-                controller: amountCtrl,
-                keyboardType: TextInputType.number,
-                decoration: const InputDecoration(labelText: '金額'),
+        return StatefulBuilder(
+          builder: (BuildContext context, StateSetter setDialog) {
+            return AlertDialog(
+              title: Text(title),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: <Widget>[
+                  const Text('選擇方式不等於已入帳，請確認實際收退後再儲存。'),
+                  TextField(
+                    controller: amountCtrl,
+                    keyboardType: TextInputType.number,
+                    decoration: const InputDecoration(labelText: '金額'),
+                  ),
+                  DropdownButtonFormField<String>(
+                    initialValue: method,
+                    items: action == 'confirmRefund'
+                        ? SettlementAdjustDisplay.refundMethodOptions
+                              .map(
+                                (Map<String, String> item) =>
+                                    DropdownMenuItem<String>(
+                                      value: item['id'],
+                                      child: Text(item['title'] ?? ''),
+                                    ),
+                              )
+                              .toList()
+                        : const <DropdownMenuItem<String>>[
+                            DropdownMenuItem<String>(
+                              value: 'cash',
+                              child: Text('店內付款'),
+                            ),
+                            DropdownMenuItem<String>(
+                              value: 'transfer',
+                              child: Text('銀行轉帳'),
+                            ),
+                          ],
+                    onChanged: (String? value) {
+                      setDialog(() {
+                        method = value ?? 'cash';
+                      });
+                    },
+                    decoration: const InputDecoration(labelText: '方式'),
+                  ),
+                  if (action == 'confirmRefund' &&
+                      method == SettlementAdjustDisplay.otherRefundMethod)
+                    TextField(
+                      controller: refundNote,
+                      decoration: const InputDecoration(
+                        labelText: '其他退款註記（必填）',
+                      ),
+                    ),
+                ],
               ),
-              DropdownButtonFormField<String>(
-                initialValue: method,
-                items: action == 'confirmRefund'
-                    ? const <DropdownMenuItem<String>>[
-                        DropdownMenuItem<String>(
-                          value: 'cash',
-                          child: Text('店內退款'),
-                        ),
-                        DropdownMenuItem<String>(
-                          value: 'transfer',
-                          child: Text('轉帳退款'),
-                        ),
-                        DropdownMenuItem<String>(
-                          value: 'other',
-                          child: Text('其他'),
-                        ),
-                      ]
-                    : const <DropdownMenuItem<String>>[
-                        DropdownMenuItem<String>(
-                          value: 'cash',
-                          child: Text('店內付款'),
-                        ),
-                        DropdownMenuItem<String>(
-                          value: 'transfer',
-                          child: Text('銀行轉帳'),
-                        ),
-                      ],
-                onChanged: (String? value) => method = value ?? 'cash',
-                decoration: const InputDecoration(labelText: '方式'),
-              ),
-            ],
-          ),
-          actions: <Widget>[
-            TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: const Text('取消'),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.pop(context, true),
-              child: const Text('確認入帳'),
-            ),
-          ],
+              actions: <Widget>[
+                TextButton(
+                  onPressed: () => Navigator.pop(context, false),
+                  child: const Text('取消'),
+                ),
+                FilledButton(
+                  onPressed: () => Navigator.pop(context, true),
+                  child: const Text('確認入帳'),
+                ),
+              ],
+            );
+          },
         );
       },
     );
     if (ok != true || !context.mounted) {
+      return;
+    }
+    if (action == 'confirmRefund' &&
+        method == SettlementAdjustDisplay.otherRefundMethod &&
+        refundNote.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('其他退款請填寫註記')),
+      );
       return;
     }
     await _call(
@@ -554,6 +651,8 @@ class AdminBookingSettlementPanel extends StatelessWidget {
       extra: <String, dynamic>{
         'amount': int.tryParse(amountCtrl.text.trim()) ?? 0,
         'method': method,
+        if (action == 'confirmRefund') 'refundNote': refundNote.text.trim(),
+        if (action == 'confirmRefund') 'reason': refundNote.text.trim(),
       },
     );
   }

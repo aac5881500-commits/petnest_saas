@@ -43,16 +43,39 @@ void main() {
     expect(src.contains('額外清潔費'), isFalse);
   });
 
-  test('核對轉帳改讀 paymentProofs，不再用 legacy 單張 URL', () {
+  test('核對轉帳改讀 paymentProofs，無照片可現場核對', () {
     final String src = File(
       'lib/features/admin/widgets/admin_booking_settlement_panel.dart',
     ).readAsStringSync();
     expect(src.contains('latestUnconfirmedBalance'), isTrue);
     expect(src.contains("'proofId': proof.proofId"), isTrue);
-    expect(src.contains('等待結算尾款證明'), isTrue);
+    expect(src.contains('核對客戶回傳'), isTrue);
+    expect(src.contains('現場已核對入帳'), isTrue);
+    expect(src.contains('confirmStaffVerifiedTransfer'), isTrue);
+    expect(src.contains('等待結算尾款證明'), isFalse);
     expect(
       src.contains("settlementTopUpTransferImageUrl'] ?? '尚未上傳'"),
       isFalse,
     );
+  });
+
+  test('結算減免後依待補待退顯示補款或退款', () {
+    final String stay = File(
+      'lib/features/admin/widgets/admin_stay_settle_sheet.dart',
+    ).readAsStringSync();
+    final String daycare = File(
+      'lib/features/admin/widgets/admin_daycare_settle_sheet.dart',
+    ).readAsStringSync();
+    expect(stay.contains('SettlementRefundMethodPicker'), isTrue);
+    expect(stay.contains('_showTopUp'), isTrue);
+    expect(daycare.contains('SettlementRefundMethodPicker'), isTrue);
+    expect(daycare.contains('_showRefund'), isTrue);
+    expect(daycare.contains('DaycareTimeHelper.callableInstant'), isTrue);
+    final String labels = File(
+      'lib/core/services/settlement_adjust_display.dart',
+    ).readAsStringSync();
+    expect(labels.contains('現場退款'), isTrue);
+    expect(labels.contains('銀行退款'), isTrue);
+    expect(labels.contains('其他退款'), isTrue);
   });
 }

@@ -11,6 +11,48 @@ class SettlementAdjustDisplay {
   SettlementAdjustDisplay._();
 
   static const String inStoreRefundMethod = 'cash';
+  static const String bankRefundMethod = 'transfer';
+  static const String otherRefundMethod = 'other';
+
+  static const List<Map<String, String>> refundMethodOptions =
+      <Map<String, String>>[
+        <String, String>{
+          'id': inStoreRefundMethod,
+          'title': '現場退款',
+          'subtitle': '適用現金退款或店員現場轉帳退款。',
+        },
+        <String, String>{
+          'id': bankRefundMethod,
+          'title': '銀行退款',
+          'subtitle': '店家後續匯款退給客戶。',
+        },
+        <String, String>{
+          'id': otherRefundMethod,
+          'title': '其他退款',
+          'subtitle': '需填寫退款註記。',
+        },
+      ];
+
+  static String refundMethodLabel(String method) {
+    switch (method) {
+      case bankRefundMethod:
+        return '銀行退款';
+      case otherRefundMethod:
+        return '其他退款';
+      case inStoreRefundMethod:
+        return '現場退款';
+      default:
+        return method.isEmpty ? '' : method;
+    }
+  }
+
+  static bool showTopUp(int remaining, int refundDue) {
+    return remaining > 0;
+  }
+
+  static bool showRefund(int remaining, int refundDue) {
+    return remaining <= 0 && refundDue > 0;
+  }
 
   static int signedAmount({required bool surcharge, required int unsigned}) {
     final int value = unsigned < 0 ? 0 : unsigned;

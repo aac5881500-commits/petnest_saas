@@ -6,6 +6,10 @@ class DaycareTimeHelper {
 
   static const Duration taiwanOffset = Duration(hours: 8);
 
+  static String callableInstant(DateTime value) {
+    return value.toUtc().toIso8601String();
+  }
+
   static DateTime toTaiwan(DateTime value) {
     return value.toUtc().add(taiwanOffset);
   }

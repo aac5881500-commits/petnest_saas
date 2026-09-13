@@ -1,8 +1,11 @@
 // 檔案名稱：test/daycare_room_type_option_test.dart
 // 功能說明：安親房型選項以 room_types.capacity 為可訂上限
 
+import 'dart:io';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:petnest_saas/core/models/daycare_settings_model.dart';
+import 'package:petnest_saas/core/services/daycare_occupancy_service.dart';
 import 'package:petnest_saas/core/services/daycare_room_type_option.dart';
 
 void main() {
@@ -125,6 +128,16 @@ void main() {
       ).selectable,
       isFalse,
     );
+    expect(
+      DaycareRoomTypeCatalog.evaluate(
+        setting: setting,
+        name: '舒適標準房',
+        petCount: 3,
+        remainingRooms: 0,
+        roomCapacity: 3,
+      ).blockedReason,
+      DaycareOccupancyService.roomTypeSoldOut,
+    );
   });
 
   test('VIP 與舒適兩個房型同時都可選', () {
@@ -171,5 +184,87 @@ void main() {
     );
     expect(option.selectable, isFalse);
     expect(option.blockedReason, '找不到對應房型資料，請聯絡店家');
+  });
+
+  test('尚未選完整時間不顯示剩餘 0', () {
+    final DaycareRoomTypeOption option = DaycareRoomTypeCatalog.evaluate(
+      setting: const DaycareRoomTypeSetting(
+        roomTypeId: 'vip',
+        enabled: true,
+      ),
+      name: 'VIP',
+      petCount: 1,
+      timesComplete: false,
+      roomCapacity: 1,
+    );
+    expect(option.selectable, isFalse);
+    expect(option.blockedReason, DaycareOccupancyService.selectTimesFirst);
+    expect(option.remainingRooms, isNull);
+  });
+
+  test('沒有實體房顯示聯絡店家', () {
+    final DaycareRoomTypeOption option = DaycareRoomTypeCatalog.evaluate(
+      setting: const DaycareRoomTypeSetting(
+        roomTypeId: 'vip',
+        enabled: true,
+      ),
+      name: 'VIP',
+      petCount: 1,
+      remainingRooms: 0,
+      zeroReason: DaycareOccupancyService.noPhysicalRooms,
+      roomCapacity: 1,
+    );
+    expect(option.selectable, isFalse);
+    expect(option.blockedReason, DaycareOccupancyService.noPhysicalRooms);
+  });
+
+  test('客戶端不讀 daycare_room_type_holds，月曆與房型剩餘仍可算', () {
+    const List<String> paths = <String>[
+      'lib/features/shop/widgets/booking/front_calendar_helper.dart',
+      'lib/core/services/daycare_calendar_helper.dart',
+      'lib/core/services/daycare_room_type_option.dart',
+      'lib/core/services/daycare_occupancy_service.dart',
+      'lib/core/services/booking_service.dart',
+    ];
+    for (final String path in paths) {
+      expect(
+        File(path).readAsStringSync().contains('daycare_room_type_holds'),
+        isFalse,
+        reason: path,
+      );
+    }
+    final DaycareRoomRemaining remaining =
+        DaycareOccupancyService.remainingRoomsResultFromData(
+          rooms: const <Map<String, dynamic>>[
+            <String, dynamic>{
+              'id': 'r1',
+              'roomTypeId': 'vip',
+              'capacity': 1,
+              'status': 'active',
+            },
+            <String, dynamic>{
+              'id': 'r2',
+              'roomTypeId': 'vip',
+              'capacity': 1,
+              'status': 'active',
+            },
+          ],
+          bookings: <Map<String, dynamic>>[
+            <String, dynamic>{
+              'id': 'holdless',
+              'status': 'pending',
+              'bookingKind': 'daycare',
+              'requestedRoomTypeId': 'vip',
+              'roomId': '',
+              'scheduledStartAt': DateTime(2026, 9, 13, 10),
+              'scheduledEndAt': DateTime(2026, 9, 13, 18),
+            },
+          ],
+          roomTypeId: 'vip',
+          startAt: DateTime(2026, 9, 13, 10),
+          endAt: DateTime(2026, 9, 13, 18),
+        );
+    expect(remaining.reservedCount, 1);
+    expect(remaining.remaining, 1);
   });
 }
