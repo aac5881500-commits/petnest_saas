@@ -4,11 +4,18 @@
 
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/models/booking_kind.dart';
+import 'package:petnest_saas/core/services/booking_current_room.dart';
+import 'package:petnest_saas/features/booking/widgets/booking_current_room_panel.dart';
 
 class BookingDetailStatusCard extends StatelessWidget {
-  const BookingDetailStatusCard({super.key, required this.data});
+  const BookingDetailStatusCard({
+    super.key,
+    required this.data,
+    this.audience = BookingCurrentRoomAudience.customer,
+  });
 
   final Map<String, dynamic> data;
+  final BookingCurrentRoomAudience audience;
 
   @override
   Widget build(BuildContext context) {
@@ -111,17 +118,30 @@ class BookingDetailStatusCard extends StatelessWidget {
         color: bgColor,
         borderRadius: BorderRadius.circular(12),
       ),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, color: textColor),
-          const SizedBox(width: 10),
-          Text(
-            text,
-            style: TextStyle(
-              color: textColor,
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
-            ),
+          Row(
+            children: [
+              Icon(icon, color: textColor),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  text,
+                  style: TextStyle(
+                    color: textColor,
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          BookingCurrentRoomPanel(
+            data: data,
+            audience: audience,
+            compact: true,
           ),
         ],
       ),

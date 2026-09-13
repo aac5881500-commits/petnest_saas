@@ -547,9 +547,9 @@ async function generateBookingCode(transaction, shopId) {
 
 /**
  * @param {Object} params
- * @return {Promise<void>}
+ * @return {Promise<{uid: string, email: string, displayName: string}>}
  */
-async function writeActionLog(params) {
+async function resolveOperatorIdentity(params) {
   const uid = normalizeString(params.operatorUid);
   let email = normalizeString(params.operatorEmail);
   let displayName = normalizeString(params.operatorDisplayName);
@@ -584,23 +584,58 @@ async function writeActionLog(params) {
       // 找不到店員資料時仍寫入 UID 供內部追蹤，畫面不顯示 UID。
     }
   }
+  return {uid, email, displayName};
+}
+
+/**
+ * @param {Object} params
+ * @param {{uid: string, email: string, displayName: string}} identity
+ * @return {Object}
+ */
+function actionLogFields(params, identity) {
   const now = admin.firestore.FieldValue.serverTimestamp();
-  await admin.firestore().collection("action_logs").add({
+  return {
     shopId: params.shopId || "",
     targetType: params.targetType || "booking",
     targetId: params.targetId || "",
     action: params.action || "",
-    type: params.action || "",
-    bookingId: params.targetId || "",
+    type: params.type || params.action || "",
+    bookingId: params.bookingId || params.targetId || "",
     bookingKind: params.bookingKind || BOOKING_KIND_DAYCARE,
-    operatorUid: uid,
-    operatorEmail: email,
-    operatorDisplayName: displayName,
+    operatorUid: identity.uid || "",
+    operatorEmail: identity.email || "",
+    operatorDisplayName: identity.displayName || "",
     operatorRole: params.operatorRole || "",
     operatedAt: now,
     payload: params.payload || {},
     createdAt: now,
-  });
+  };
+}
+
+/**
+ * @param {Object} params
+ * @return {Promise<void>}
+ */
+async function writeActionLog(params) {
+  const identity = await resolveOperatorIdentity(params);
+  await admin.firestore().collection("action_logs").add(
+      actionLogFields(params, identity),
+  );
+}
+
+/**
+ * @param {FirebaseFirestore.Transaction} transaction
+ * @param {Object} params
+ * @param {{uid: string, email: string, displayName: string}=} identity
+ * @return {void}
+ */
+function writeActionLogInTransaction(transaction, params, identity) {
+  const ref = admin.firestore().collection("action_logs").doc();
+  transaction.set(ref, actionLogFields(params, identity || {
+    uid: normalizeString(params.operatorUid),
+    email: normalizeString(params.operatorEmail),
+    displayName: normalizeString(params.operatorDisplayName),
+  }));
 }
 
 /**
@@ -747,7 +782,9 @@ module.exports = {
   servicePolicyVersion,
   summarizePolicyForService,
   generateBookingCode,
+  resolveOperatorIdentity,
   writeActionLog,
+  writeActionLogInTransaction,
   overlaps,
   ADDON_GROUP_KEYS,
   flattenAddonCatalog,

@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:petnest_saas/core/services/daycare_occupancy_service.dart';
+import 'package:petnest_saas/core/services/shop_room_service.dart';
 import 'package:petnest_saas/core/services/shop_service.dart';
 import 'package:petnest_saas/features/auth/pages/room_calendar_page.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -1067,6 +1068,21 @@ class _RoomDashboardPageState extends State<RoomDashboardPage> {
                                                       },
                                                     ),
                                                   ),
+                                                ),
+
+                                              if (statusLabel ==
+                                                  DaycareOccupancyService
+                                                      .cleaningLabel)
+                                                TextButton(
+                                                  onPressed: () {
+                                                    ShopRoomService.instance
+                                                        .completeCleaning(
+                                                          shopId: widget.shopId,
+                                                          roomId: roomId,
+                                                          date: selectedDate,
+                                                        );
+                                                  },
+                                                  child: const Text('完成清潔'),
                                                 ),
 
                                               /// 右邊狀態

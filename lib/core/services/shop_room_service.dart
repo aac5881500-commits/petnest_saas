@@ -6,6 +6,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'dart:typed_data';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:petnest_saas/core/services/daycare_occupancy_service.dart';
 import 'package:petnest_saas/core/services/shop_device_service.dart';
 
 class ShopRoomService {
@@ -196,6 +197,7 @@ class ShopRoomService {
       'name': name,
       'roomTypeId': roomTypeId,
       'enabled': true,
+      'permanentStatus': 'available',
       'cameraIds': [],
       'blockedDates': [],
       'priceRules': [],
@@ -425,6 +427,47 @@ class ShopRoomService {
     await batch.commit();
   }
 
+  Future<void> completeCleaning({
+    required String shopId,
+    required String roomId,
+    required DateTime date,
+  }) async {
+    final String dateKey = formatDateKey(date);
+    final DocumentReference<Map<String, dynamic>> calendarDoc = roomCalendarRef(
+      shopId,
+    ).doc('${roomId.trim()}_$dateKey');
+    final DocumentSnapshot<Map<String, dynamic>> snap = await calendarDoc.get();
+    if (!snap.exists) {
+      return;
+    }
+    final String status = (snap.data()?['status'] ?? '').toString();
+    if (status != 'cleaning') {
+      return;
+    }
+    await calendarDoc.delete();
+  }
+
+  Future<void> repairLegacyCleaningStatus({
+    required String shopId,
+    required String roomId,
+  }) async {
+    await roomsRef(shopId).doc(roomId).update(<String, dynamic>{
+      'permanentStatus': 'available',
+      'status': FieldValue.delete(),
+      'cleaningStartedAt': FieldValue.delete(),
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+  }
+
+  List<Map<String, dynamic>> legacyCleaningRooms(
+    List<Map<String, dynamic>> rooms,
+  ) {
+    return rooms.where((Map<String, dynamic> room) {
+      final String status = (room['status'] ?? '').toString().toLowerCase();
+      return status == 'cleaning' && room['cleaningStartedAt'] != null;
+    }).toList();
+  }
+
   String formatDateKey(DateTime date) {
     final d = DateTime(date.year, date.month, date.day);
     final y = d.year.toString().padLeft(4, '0');
@@ -442,26 +485,15 @@ class ShopRoomService {
     final roomTypes = roomTypesSnapshot.docs;
 
     final roomsSnapshot = await roomsRef(shopId).get();
-    final rooms = roomsSnapshot.docs;
-
-    final Map<String, List<QueryDocumentSnapshot<Map<String, dynamic>>>>
-    roomMap = {};
-
-    for (final room in rooms) {
-      final data = room.data();
-
-      if (data['enabled'] != true) continue;
-
-      final typeId = data['roomTypeId'];
-      if (typeId == null) continue;
-
-      roomMap.putIfAbsent(typeId, () => []);
-      roomMap[typeId]!.add(room);
-    }
+    final List<Map<String, dynamic>> allRooms = roomsSnapshot.docs
+        .map(
+          (QueryDocumentSnapshot<Map<String, dynamic>> doc) =>
+              <String, dynamic>{'id': doc.id, ...doc.data()},
+        )
+        .toList();
 
     final stayDates = <String>[];
     DateTime cursor = DateTime(startDate.year, startDate.month, startDate.day);
-
     while (cursor.isBefore(endDate)) {
       stayDates.add(formatDateKey(cursor));
       cursor = cursor.add(const Duration(days: 1));
@@ -469,108 +501,59 @@ class ShopRoomService {
     final bookingSnapshot = await _firestore
         .collection('bookings')
         .where('shopId', isEqualTo: shopId)
-        .where('status', whereIn: ['pending', 'confirmed', 'checked_in'])
+        .where('status', whereIn: DaycareOccupancyService.activeStatuses)
         .get();
-
-    final bookedRoomTypeDateCount = <String, int>{};
-
-    for (final doc in bookingSnapshot.docs) {
-      final data = doc.data();
-
-      final roomTypeId = (data['roomTypeId'] ?? data['roomId'] ?? '')
-          .toString();
-      if (roomTypeId.isEmpty) continue;
-
-      final bookingStartRaw = data['startDate'];
-      final bookingEndRaw = data['endDate'];
-
-      if (bookingStartRaw is! Timestamp || bookingEndRaw is! Timestamp) {
-        continue;
-      }
-
-      final bookingStart = bookingStartRaw.toDate();
-      final bookingEnd = bookingEndRaw.toDate();
-
-      DateTime cursor = DateTime(
-        bookingStart.year,
-        bookingStart.month,
-        bookingStart.day,
-      );
-
-      final stopDate = DateTime(
-        bookingEnd.year,
-        bookingEnd.month,
-        bookingEnd.day,
-      );
-
-      while (cursor.isBefore(stopDate)) {
-        final dateKey = formatDateKey(cursor);
-
-        if (stayDates.contains(dateKey)) {
-          final key = '$roomTypeId|$dateKey';
-          bookedRoomTypeDateCount[key] =
-              (bookedRoomTypeDateCount[key] ?? 0) + 1;
-        }
-
-        cursor = cursor.add(const Duration(days: 1));
-      }
-    }
+    final List<Map<String, dynamic>> bookings = bookingSnapshot.docs
+        .map(
+          (QueryDocumentSnapshot<Map<String, dynamic>> doc) =>
+              <String, dynamic>{'id': doc.id, ...doc.data()},
+        )
+        .toList();
+    final QuerySnapshot<Map<String, dynamic>> occSnap = await _firestore
+        .collection('shops')
+        .doc(shopId)
+        .collection('room_occupancies')
+        .where('status', isEqualTo: 'active')
+        .get();
+    final List<Map<String, dynamic>> occupancies = occSnap.docs
+        .map(
+          (QueryDocumentSnapshot<Map<String, dynamic>> doc) => doc.data(),
+        )
+        .toList();
+    final QuerySnapshot<Map<String, dynamic>> calendarSnap =
+        await roomCalendarRef(shopId).get();
+    final List<Map<String, dynamic>> calendarEntries = calendarSnap.docs
+        .map(
+          (QueryDocumentSnapshot<Map<String, dynamic>> doc) =>
+              <String, dynamic>{'id': doc.id, ...doc.data()},
+        )
+        .toList();
 
     final result = <Map<String, dynamic>>[];
 
     for (final typeDoc in roomTypes) {
       final type = typeDoc.data();
       final typeId = typeDoc.id;
-
-      final typeRooms = roomMap[typeId] ?? [];
-      if (typeRooms.isEmpty) continue;
-
       int minAvailableRooms = 999999;
-
       for (final date in stayDates) {
-        int availableCount = 0;
-
-        final calendarSnapshot = await roomCalendarRef(
-          shopId,
-        ).where('date', isEqualTo: date).get();
-
-        final calendarMap = {
-          for (var doc in calendarSnapshot.docs) doc['roomId']: doc.data(),
-        };
-
-        for (final room in typeRooms) {
-          final roomId = room.id;
-          final cal = calendarMap[roomId];
-          final status = cal?['status'] ?? 'available';
-
-          // 前台庫存已經透過 bookings 扣除訂單。
-          // room_calendar 額外排除手動關閉、維修與清潔中的房間。
-          if (status == 'blocked' ||
-              status == 'cleaning' ||
-              status == 'closed' ||
-              status == 'maintenance' ||
-              status == 'unavailable') {
-            continue;
-          }
-
-          final roomData = room.data();
-          final List blocked = roomData['blockedDates'] ?? [];
-
-          if (blocked.contains(date)) {
-            continue;
-          }
-
-          availableCount++;
+        final DateTime day = DateTime.parse(date);
+        final DaycareRoomRemaining computed =
+            DaycareOccupancyService.remainingRoomsResultFromData(
+              rooms: allRooms,
+              bookings: bookings,
+              occupancies: occupancies,
+              calendarEntries: calendarEntries,
+              roomTypeId: typeId,
+              startAt: day,
+              endAt: day.add(const Duration(days: 1)),
+              dateKey: date,
+            );
+        if (computed.remaining < minAvailableRooms) {
+          minAvailableRooms = computed.remaining;
         }
-
-        final bookingBookedCount =
-            bookedRoomTypeDateCount['$typeId|$date'] ?? 0;
-
-        final realAvailableCount = availableCount - bookingBookedCount;
-
-        if (realAvailableCount < minAvailableRooms) {
-          minAvailableRooms = realAvailableCount;
-        }
+      }
+      if (minAvailableRooms == 999999) {
+        minAvailableRooms = 0;
       }
 
       result.add({

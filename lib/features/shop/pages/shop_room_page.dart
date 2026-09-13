@@ -2,6 +2,7 @@
 // 功能說明：房間管理（完整升級版）
 
 import 'package:flutter/material.dart';
+import 'package:petnest_saas/core/services/shop_room_service.dart';
 import 'package:petnest_saas/core/services/shop_service.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:petnest_saas/core/services/shop_plan_service.dart';
@@ -344,6 +345,73 @@ class _ShopRoomPageState extends State<ShopRoomPage> {
     super.dispose();
   }
 
+  Future<void> _showLegacyCleaningRepair() async {
+    final List<Map<String, dynamic>> rooms = await ShopService.instance
+        .getRooms(widget.shopId);
+    final List<Map<String, dynamic>> legacy = ShopRoomService.instance
+        .legacyCleaningRooms(rooms);
+    if (!mounted) {
+      return;
+    }
+    if (legacy.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('沒有可修復的舊清潔狀態')),
+      );
+      return;
+    }
+    final bool? confirmed = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('修復舊清潔狀態'),
+          content: SizedBox(
+            width: 360,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  '這些房間的 rooms.status=cleaning 是舊版安親結算寫入的永久髒資料，確認後只會清掉該欄位，不會解鎖維修／封鎖房。',
+                ),
+                const SizedBox(height: 12),
+                ...legacy.map((Map<String, dynamic> room) {
+                  return Text(
+                    '${room['name'] ?? room['id']}　${room['cleaningStartedAt']}',
+                  );
+                }),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('取消'),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('確認修復'),
+            ),
+          ],
+        );
+      },
+    );
+    if (confirmed != true) {
+      return;
+    }
+    for (final Map<String, dynamic> room in legacy) {
+      await ShopRoomService.instance.repairLegacyCleaningStatus(
+        shopId: widget.shopId,
+        roomId: (room['id'] ?? '').toString(),
+      );
+    }
+    if (!mounted) {
+      return;
+    }
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('已修復 ${legacy.length} 間房間的舊清潔狀態')),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -351,6 +419,11 @@ class _ShopRoomPageState extends State<ShopRoomPage> {
         title: const Text('房間管理'),
         actions: [
           ShopTaskCenterButton(shopId: widget.shopId),
+          IconButton(
+            icon: const Icon(Icons.healing_outlined),
+            tooltip: '修復舊清潔狀態',
+            onPressed: _showLegacyCleaningRepair,
+          ),
           IconButton(
             icon: const Icon(Icons.help_outline),
             tooltip: '使用說明',

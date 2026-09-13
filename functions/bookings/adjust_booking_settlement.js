@@ -91,6 +91,14 @@ async function loadShop(shopId) {
   return snap.data() || {};
 }
 
+function labelTime(value) {
+  const date = toDate(value);
+  if (!date) {
+    return "";
+  }
+  return date.toLocaleString("zh-TW", {timeZone: "Asia/Taipei"});
+}
+
 function assertTopUpMethod(shop, method) {
   const id = normalizeMethodId(method);
   if (!isSettlementTopUpMethodAvailable(shop, id)) {
@@ -483,11 +491,34 @@ exports.adjustBookingSettlement = onCall(
           payload = {
             before,
             after: fields.expectedTotal,
+            delta: fields.expectedTotal - before,
+            oldFinalReceivable: before,
+            newFinalReceivable: fields.expectedTotal,
+            adjustAmount: fields.expectedTotal - before,
+            reason,
             remainingAmount: fields.remainingAmount,
             refundDueAmount: fields.refundDueAmount,
+            paidAmount: toInt(booking.paidAmount, 0),
+            finalPaidAmount: toInt(booking.paidAmount, 0),
+            refundMethod: normalizeString(
+                bookingUpdate.settlementRefundMethod ||
+                data.refundMethod || booking.settlementRefundMethod,
+            ),
+            settlementRefundMethod: normalizeString(
+                bookingUpdate.settlementRefundMethod ||
+                booking.settlementRefundMethod,
+            ),
             locked: bookingUpdate.settlementLocked === true,
             stayRoomReleased: bookingUpdate.stayRoomReleased === true ||
               booking.stayRoomReleased === true,
+            actualCheckInAt: labelTime(booking.checkInAt),
+            actualCheckOutAt: alreadyEnded ?
+              labelTime(booking.checkOutAt || booking.checkedOutAt) :
+              "本次結算",
+            checkInAtLabel: labelTime(booking.checkInAt),
+            checkOutAtLabel: alreadyEnded ?
+              labelTime(booking.checkOutAt || booking.checkedOutAt) :
+              "本次結算",
           };
         } else if (action === "applyAdjust") {
           if (!isSettlementConfirmed(booking) &&
@@ -533,9 +564,22 @@ exports.adjustBookingSettlement = onCall(
             before,
             after: fields.expectedTotal,
             delta: fields.expectedTotal - before,
+            oldFinalReceivable: before,
+            newFinalReceivable: fields.expectedTotal,
+            adjustAmount: fields.expectedTotal - before,
             reason,
             remainingAmount: fields.remainingAmount,
             refundDueAmount: fields.refundDueAmount,
+            paidAmount: toInt(booking.paidAmount, 0),
+            finalPaidAmount: toInt(booking.paidAmount, 0),
+            refundMethod: normalizeString(
+                bookingUpdate.settlementRefundMethod ||
+                data.refundMethod || booking.settlementRefundMethod,
+            ),
+            settlementRefundMethod: normalizeString(
+                bookingUpdate.settlementRefundMethod ||
+                booking.settlementRefundMethod,
+            ),
           };
         } else if (action === "confirmCollect") {
           const amount = toInt(data.amount, 0);

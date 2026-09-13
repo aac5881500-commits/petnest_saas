@@ -253,9 +253,9 @@ void main() {
     expect(result.zeroReason, '此房型有 10 間實體房，但 10 間目前未啟用');
   });
 
-  test('房間 status=cleaning 房務顯示清潔、安親不可賣', () {
+  test('舊 rooms.status=cleaning 不當永久鎖房，今天 calendar cleaning 才不可賣', () {
     final List<Map<String, dynamic>> rooms = _tenRooms(status: 'cleaning');
-    final DaycareRoomRemaining result =
+    final DaycareRoomRemaining dirty =
         DaycareOccupancyService.remainingRoomsResultFromData(
           rooms: rooms,
           bookings: const <Map<String, dynamic>>[],
@@ -265,14 +265,172 @@ void main() {
           petCount: 1,
           roomTypeCapacity: 1,
         );
-    expect(_vacantHousekeepingCount(rooms), 0);
+    expect(dirty.remaining, 10);
     expect(
       DaycareOccupancyService.housekeepingLabel(room: rooms.first),
+      DaycareOccupancyService.vacantLabel,
+    );
+    final DaycareRoomRemaining today =
+        DaycareOccupancyService.remainingRoomsResultFromData(
+          rooms: rooms,
+          bookings: const <Map<String, dynamic>>[],
+          calendarEntries: _tenRooms()
+              .map(
+                (Map<String, dynamic> room) => <String, dynamic>{
+                  'roomId': room['id'],
+                  'date': '2026-09-12',
+                  'status': 'cleaning',
+                },
+              )
+              .toList(),
+          roomTypeId: 'std',
+          startAt: start,
+          endAt: end,
+          petCount: 1,
+          roomTypeCapacity: 1,
+        );
+    expect(today.remaining, 0);
+    expect(today.cleaningCount, 10);
+    expect(
+      DaycareOccupancyService.housekeepingLabel(
+        room: rooms.first,
+        calendarStatus: 'cleaning',
+      ),
       DaycareOccupancyService.cleaningLabel,
     );
+  });
+
+  test('明天可使用今天已寫入 cleaning 的房間', () {
+    final List<Map<String, dynamic>> rooms = _tenRooms();
+    final DaycareRoomRemaining tomorrow =
+        DaycareOccupancyService.remainingRoomsResultFromData(
+          rooms: rooms,
+          bookings: const <Map<String, dynamic>>[],
+          calendarEntries: _tenRooms()
+              .map(
+                (Map<String, dynamic> room) => <String, dynamic>{
+                  'roomId': room['id'],
+                  'date': '2026-09-12',
+                  'status': 'cleaning',
+                },
+              )
+              .toList(),
+          roomTypeId: 'std',
+          startAt: DateTime(2026, 9, 13, 10),
+          endAt: DateTime(2026, 9, 13, 18),
+          petCount: 1,
+          roomTypeCapacity: 1,
+          dateKey: '2026-09-13',
+        );
+    expect(tomorrow.remaining, 10);
+  });
+
+  test('enabled:false、maintenance、blocked、unavailable 全部不可賣', () {
+    for (final Map<String, dynamic> room in <Map<String, dynamic>>[
+      <String, dynamic>{
+        'id': 'a',
+        'roomTypeId': 'std',
+        'enabled': false,
+        'permanentStatus': 'available',
+        'capacity': 1,
+      },
+      <String, dynamic>{
+        'id': 'b',
+        'roomTypeId': 'std',
+        'enabled': true,
+        'permanentStatus': 'maintenance',
+        'capacity': 1,
+      },
+      <String, dynamic>{
+        'id': 'c',
+        'roomTypeId': 'std',
+        'enabled': true,
+        'permanentStatus': 'blocked',
+        'capacity': 1,
+      },
+      <String, dynamic>{
+        'id': 'd',
+        'roomTypeId': 'std',
+        'enabled': true,
+        'permanentStatus': 'unavailable',
+        'capacity': 1,
+      },
+    ]) {
+      expect(DaycareOccupancyService.isRoomDocumentUnsellable(room), isTrue);
+      expect(
+        DaycareOccupancyService.remainingRoomsFromData(
+          rooms: <Map<String, dynamic>>[room],
+          bookings: const <Map<String, dynamic>>[],
+          roomTypeId: 'std',
+          startAt: start,
+          endAt: end,
+        ),
+        0,
+      );
+    }
+  });
+
+  test('住宿未分房與安親未分房保留互相扣除同一房型容量', () {
+    final List<Map<String, dynamic>> rooms = _tenRooms().sublist(0, 1);
+    final DaycareRoomRemaining result =
+        DaycareOccupancyService.remainingRoomsResultFromData(
+          rooms: rooms,
+          bookings: <Map<String, dynamic>>[
+            <String, dynamic>{
+              'id': 'stay-u',
+              'status': 'pending',
+              'bookingKind': 'accommodation',
+              'roomTypeId': 'std',
+              'roomId': '',
+              'startDate': DateTime(2026, 9, 12),
+              'endDate': DateTime(2026, 9, 13),
+            },
+            <String, dynamic>{
+              'id': 'day-u',
+              'status': 'pending',
+              'bookingKind': 'daycare',
+              'requestedRoomTypeId': 'std',
+              'roomId': '',
+              'scheduledStartAt': start,
+              'scheduledEndAt': end,
+            },
+          ],
+          roomTypeId: 'std',
+          startAt: start,
+          endAt: end,
+        );
     expect(result.remaining, 0);
-    expect(result.cleaningCount, 10);
-    expect(result.zeroReason, '此房型有 10 間實體房，目前 10 間清潔中');
+    expect(result.reservedCount, 2);
+  });
+
+  test('同時兩張訂單時第二張看到已保留後剩餘為 0', () {
+    final List<Map<String, dynamic>> rooms = _tenRooms().sublist(0, 1);
+    final DaycareRoomRemaining first =
+        DaycareOccupancyService.remainingRoomsResultFromData(
+          rooms: rooms,
+          bookings: const <Map<String, dynamic>>[],
+          holdEntries: const <Map<String, dynamic>>[],
+          roomTypeId: 'std',
+          startAt: start,
+          endAt: end,
+        );
+    expect(first.remaining, 1);
+    final DaycareRoomRemaining second =
+        DaycareOccupancyService.remainingRoomsResultFromData(
+          rooms: rooms,
+          bookings: const <Map<String, dynamic>>[],
+          holdEntries: <Map<String, dynamic>>[
+            <String, dynamic>{
+              'bookingId': 'winner',
+              'startAt': start.toIso8601String(),
+              'endAt': end.toIso8601String(),
+            },
+          ],
+          roomTypeId: 'std',
+          startAt: start,
+          endAt: end,
+        );
+    expect(second.remaining, 0);
   });
 
   test('10 間啟用且狀態正常、日曆無占用時剩餘 10 間且可選', () {
@@ -311,10 +469,12 @@ void main() {
       ..._tenRooms(enabled: false).take(3).map((Map<String, dynamic> room) {
         return <String, dynamic>{...room, 'id': 'd${room['id']}'};
       }),
-      ..._tenRooms(status: 'cleaning').take(3).map((
-        Map<String, dynamic> room,
-      ) {
-        return <String, dynamic>{...room, 'id': 'c${room['id']}'};
+      ..._tenRooms().take(3).map((Map<String, dynamic> room) {
+        return <String, dynamic>{
+          ...room,
+          'id': 'c${room['id']}',
+          'permanentStatus': 'maintenance',
+        };
       }),
     ];
     final DaycareRoomRemaining result =
@@ -330,7 +490,7 @@ void main() {
     expect(_vacantHousekeepingCount(mixed), result.remaining);
     expect(result.remaining, 4);
     expect(result.disabledCount, 3);
-    expect(result.cleaningCount, 3);
+    expect(result.maintenanceCount, 3);
     expect(
       result.zeroReason,
       '',

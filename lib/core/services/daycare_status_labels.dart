@@ -231,7 +231,23 @@ class DaycareStatusLabels {
       case 'daycare_noShow':
         return '舊版取消紀錄';
       case 'daycare_assign_room':
+      case 'stay_assign_room':
+      case 'room_assigned':
         return '分配房間';
+      case 'daycare_change_room':
+      case 'stay_change_room':
+      case 'room_changed':
+        return '更換房間';
+      case 'settlement_applyAdjust':
+        return '重新調整結算';
+      case 'settlement_checkOutStay':
+        return '住宿結算';
+      case 'settlement_confirmCollect':
+        return '確認收款';
+      case 'settlement_confirmRefund':
+        return '確認退款';
+      case 'payment_choice_changed':
+        return '變更付款方式';
       case 'daycare_extend':
         return '延長安親時間';
       case 'daycare_convert':

@@ -4,6 +4,8 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/models/daycare_settings_model.dart';
+import 'package:petnest_saas/core/services/booking_current_room.dart';
+import 'package:petnest_saas/core/services/booking_room_change_reasons.dart';
 import 'package:petnest_saas/core/services/daycare_assign_room_rules.dart';
 import 'package:petnest_saas/core/services/daycare_function_service.dart';
 import 'package:petnest_saas/core/services/daycare_occupancy_service.dart';
@@ -51,12 +53,23 @@ class _AssignRoomDialogState extends State<_AssignRoomDialog> {
   String? _selectedTypeId;
   String? _selectedRoomId;
   List<DaycareAssignableRoom> _rooms = const <DaycareAssignableRoom>[];
+  String _changeReason = BookingRoomChangeReasons.values.first;
+  final TextEditingController _otherReason = TextEditingController();
+
+  bool get _isChangingRoom =>
+      BookingCurrentRoom.fromBooking(widget.booking).hasPhysicalRoom;
 
   bool get _roomTypeLocked =>
       DaycareAssignRoomRules.lockRoomType(widget.booking);
 
   String get _requestedTypeId =>
       DaycareAssignRoomRules.requestedRoomTypeId(widget.booking);
+
+  @override
+  void dispose() {
+    _otherReason.dispose();
+    super.dispose();
+  }
 
   @override
   void initState() {
@@ -156,6 +169,19 @@ class _AssignRoomDialogState extends State<_AssignRoomDialog> {
     }
     setState(() => _saving = true);
     try {
+      String reason = '';
+      if (_isChangingRoom) {
+        reason = _changeReason == BookingRoomChangeReasons.other
+            ? _otherReason.text.trim()
+            : _changeReason;
+        if (reason.isEmpty) {
+          setState(() => _saving = false);
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(const SnackBar(content: Text('更換房間請填寫原因')));
+          return;
+        }
+      }
       await DaycareFunctionService.instance.assignRoom(
         shopId: widget.shopId,
         bookingId: widget.bookingId,
@@ -163,6 +189,7 @@ class _AssignRoomDialogState extends State<_AssignRoomDialog> {
         roomName: room.roomName,
         roomTypeId: room.roomTypeId,
         roomTypeName: room.roomTypeName,
+        reason: reason,
       );
       if (!mounted) {
         return;
@@ -212,7 +239,7 @@ class _AssignRoomDialogState extends State<_AssignRoomDialog> {
     final DaycareAssignableRoom? picked = selectedRoom;
     final bool canConfirm = !_saving && picked != null && picked.available;
     return AlertDialog(
-      title: const Text('分配房間'),
+      title: Text(_isChangingRoom ? '更換房間' : '分配房間'),
       content: SizedBox(
         width: 420,
         child: _loading
@@ -235,6 +262,40 @@ class _AssignRoomDialogState extends State<_AssignRoomDialog> {
                   Text('寵物數：$petCount'),
                   if (_roomTypeLocked) Text('客戶選擇房型：${_lockedRoomTypeName()}'),
                   if (currentRoom.isNotEmpty) Text('目前已分配：$currentRoom'),
+                  if (_isChangingRoom) ...<Widget>[
+                    const SizedBox(height: 8),
+                    DropdownButtonFormField<String>(
+                      value: _changeReason,
+                      decoration: const InputDecoration(
+                        labelText: '更換原因（必選）',
+                        border: OutlineInputBorder(),
+                      ),
+                      items: BookingRoomChangeReasons.values
+                          .map(
+                            (String value) => DropdownMenuItem<String>(
+                              value: value,
+                              child: Text(value),
+                            ),
+                          )
+                          .toList(),
+                      onChanged: (String? value) {
+                        setState(() {
+                          _changeReason =
+                              value ?? BookingRoomChangeReasons.values.first;
+                        });
+                      },
+                    ),
+                    if (_changeReason == BookingRoomChangeReasons.other) ...<Widget>[
+                      const SizedBox(height: 8),
+                      TextField(
+                        controller: _otherReason,
+                        decoration: const InputDecoration(
+                          labelText: '其他原因',
+                          border: OutlineInputBorder(),
+                        ),
+                      ),
+                    ],
+                  ],
                   const SizedBox(height: 8),
                   if (!_roomTypeLocked)
                     Wrap(
@@ -318,7 +379,7 @@ class _AssignRoomDialogState extends State<_AssignRoomDialog> {
         ),
         FilledButton(
           onPressed: canConfirm ? () => _assign(picked) : null,
-          child: const Text('確認分配'),
+          child: Text(_isChangingRoom ? '確認更換' : '確認分配'),
         ),
       ],
     );

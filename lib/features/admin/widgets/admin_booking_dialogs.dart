@@ -5,6 +5,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/services/booking_service.dart';
+import 'package:petnest_saas/core/services/booking_room_change_reasons.dart';
 import 'package:petnest_saas/core/utils/natural_sort.dart';
 
 Future<void> showAdminAssignRoomDialog({
@@ -118,9 +119,9 @@ Future<void> showAdminChangeRoomDialog({
   final shopId = data['shopId']?.toString() ?? '';
   final roomTypeId = data['roomTypeId']?.toString() ?? '';
   final oldRoomId = data['roomId']?.toString() ?? '';
-  final oldRoomName = data['roomName']?.toString() ?? '';
+  final oldRoomName = (data['roomName'] ?? oldRoomId).toString();
 
-  if (oldRoomId.isEmpty || oldRoomName.isEmpty) {
+  if (oldRoomId.isEmpty) {
     if (context.mounted) {
       ScaffoldMessenger.of(
         context,
@@ -133,7 +134,7 @@ Future<void> showAdminChangeRoomDialog({
   final endDate = (data['endDate'] as Timestamp).toDate();
 
   final changeReasonController = TextEditingController();
-  String selectedChangeReason = '攝影機故障';
+  String selectedChangeReason = BookingRoomChangeReasons.values.first;
 
   final rooms = await FirebaseFirestore.instance
       .collection('shops')
@@ -189,32 +190,23 @@ Future<void> showAdminChangeRoomDialog({
                           labelText: '更換原因（必選）',
                           border: OutlineInputBorder(),
                         ),
-                        items: const [
-                          DropdownMenuItem(
-                            value: '攝影機故障',
-                            child: Text('攝影機故障'),
+                        items: [
+                          ...BookingRoomChangeReasons.values.map(
+                            (String value) => DropdownMenuItem(
+                              value: value,
+                              child: Text(value),
+                            ),
                           ),
-                          DropdownMenuItem(value: '冷氣異常', child: Text('冷氣異常')),
-                          DropdownMenuItem(value: '設備維修', child: Text('設備維修')),
-                          DropdownMenuItem(
-                            value: '貓咪適應問題',
-                            child: Text('貓咪適應問題'),
-                          ),
-                          DropdownMenuItem(value: '客戶要求', child: Text('客戶要求')),
-                          DropdownMenuItem(
-                            value: '店家安排調整',
-                            child: Text('店家安排調整'),
-                          ),
-                          DropdownMenuItem(value: '其他', child: Text('其他')),
                         ],
                         onChanged: (value) {
                           setDialogState(() {
-                            selectedChangeReason = value ?? '攝影機故障';
+                            selectedChangeReason =
+                                value ?? BookingRoomChangeReasons.values.first;
                           });
                         },
                       ),
 
-                      if (selectedChangeReason == '其他') ...[
+                      if (selectedChangeReason == BookingRoomChangeReasons.other) ...[
                         const SizedBox(height: 12),
                         TextField(
                           controller: changeReasonController,
@@ -246,7 +238,7 @@ Future<void> showAdminChangeRoomDialog({
                         leading: const Icon(Icons.swap_horiz),
                         title: Text(newRoomName),
                         onTap: () async {
-                          final reason = selectedChangeReason == '其他'
+                          final reason = selectedChangeReason == BookingRoomChangeReasons.other
                               ? changeReasonController.text.trim()
                               : selectedChangeReason;
 

@@ -1,12 +1,13 @@
 // 檔案名稱：functions/daycare/occupancy_capacity.test.js
 // 功能說明：安親可賣剩餘、未分房保留、方案模式不誤擋
 
-const {describe, it} = require("node:test");
+const {describe, it, test} = require("node:test");
 const assert = require("node:assert/strict");
 const {
   remainingRoomsFromData,
   assertRoomTypeCapacity,
   occupiesInventory,
+  calendarCleaningFields,
   NO_PHYSICAL_ROOMS,
   ROOM_TYPE_SOLD_OUT,
 } = require("./daycare_occupancy");
@@ -150,21 +151,21 @@ describe("remainingRoomsFromData", () => {
     });
     assert.equal(disabled.remaining, 0);
     assert.equal(disabled.usableCount, 0);
-    const closedRooms = rooms.map(function(room) {
-      return Object.assign({}, room, {status: "closed"});
-    });
     const closed = remainingRoomsFromData({
-      rooms: closedRooms,
+      rooms,
       bookings: [],
       occupancies: [],
-      calendarEntries: [],
+      calendarEntries: [
+        {roomId: "r1", date: "2026-09-12", status: "closed"},
+        {roomId: "r2", date: "2026-09-12", status: "closed"},
+      ],
       holdEntries: [],
       roomTypeId: "vip",
       startAt: start,
       endAt: end,
+      dateKey: "2026-09-12",
     });
     assert.equal(closed.remaining, 0);
-    assert.equal(closed.usableCount, 0);
     const unavailableRooms = rooms.map(function(room) {
       return Object.assign({}, room, {status: "unavailable"});
     });
@@ -180,6 +181,38 @@ describe("remainingRoomsFromData", () => {
     });
     assert.equal(unavailable.remaining, 0);
   });
+
+  it("legacy rooms.status cleaning is not a permanent lock", function() {
+    const dirty = remainingRoomsFromData({
+      rooms: rooms.map(function(room) {
+        return Object.assign({}, room, {status: "cleaning"});
+      }),
+      bookings: [], occupancies: [], calendarEntries: [],
+      holdEntries: [], roomTypeId: "vip", startAt: start, endAt: end,
+    });
+    assert.equal(dirty.remaining, 2);
+  });
+
+  it("stay and daycare unassigned holds share capacity", function() {
+    const result = remainingRoomsFromData({
+      rooms: [rooms[0]],
+      bookings: [{
+        id: "stay-u", status: "pending", bookingKind: "accommodation",
+        roomTypeId: "vip", roomId: "",
+        startDate: new Date("2026-09-12T00:00:00.000Z"),
+        endDate: new Date("2026-09-13T00:00:00.000Z"),
+      }, {
+        id: "day-u", status: "pending", bookingKind: "daycare",
+        requestedRoomTypeId: "vip", roomId: "",
+        scheduledStartAt: start, scheduledEndAt: end,
+      }],
+      occupancies: [], calendarEntries: [], holdEntries: [],
+      roomTypeId: "vip", startAt: start, endAt: end,
+      dateKey: "2026-09-12",
+    });
+    assert.equal(result.remaining, 0);
+    assert.equal(result.reservedCount, 2);
+  });
 });
 
 describe("assertRoomTypeCapacity", () => {
@@ -193,4 +226,12 @@ describe("assertRoomTypeCapacity", () => {
     assert.equal(result.ok, true);
     assert.equal(result.remaining, 999999);
   });
+});
+
+test("daycare settlement cleaning payload is calendar-only", () => {
+  const fields = calendarCleaningFields("r1", "2026-09-12", "b1");
+  assert.equal(fields.status, "cleaning");
+  assert.equal(fields.date, "2026-09-12");
+  assert.equal(fields.roomId, "r1");
+  assert.equal(Object.prototype.hasOwnProperty.call(fields, "permanentStatus"), false);
 });

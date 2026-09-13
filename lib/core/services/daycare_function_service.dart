@@ -93,6 +93,7 @@ class DaycareFunctionService {
     String roomName = '',
     String roomTypeId = '',
     String roomTypeName = '',
+    String reason = '',
   }) {
     return _call('assignDaycareRoom', <String, dynamic>{
       'shopId': shopId,
@@ -101,6 +102,7 @@ class DaycareFunctionService {
       'roomName': roomName,
       'roomTypeId': roomTypeId,
       'roomTypeName': roomTypeName,
+      'reason': reason,
     });
   }
 

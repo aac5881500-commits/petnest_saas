@@ -2,6 +2,8 @@
 // 功能說明：訂單狀態摘要：目前狀態、下一步、日期、寵物、房間；可展開完整進度。
 
 import 'package:flutter/material.dart';
+import 'package:petnest_saas/core/services/booking_current_room.dart';
+import 'package:petnest_saas/features/booking/widgets/booking_current_room_panel.dart';
 import 'package:petnest_saas/features/booking/widgets/booking_detail/booking_detail_progress_timeline.dart';
 import 'package:petnest_saas/features/booking/widgets/booking_detail/booking_detail_ui.dart';
 import 'package:petnest_saas/features/booking/widgets/booking_detail/booking_detail_view_data.dart';
@@ -47,6 +49,12 @@ class _BookingDetailSummaryCardState extends State<BookingDetailSummaryCard> {
             ),
           ),
           const SizedBox(height: 6),
+          const SizedBox(height: 10),
+          BookingCurrentRoomPanel(
+            data: view.raw,
+            audience: BookingCurrentRoomAudience.customer,
+          ),
+          const SizedBox(height: 10),
           Text(
             view.nextStepHint,
             style: TextStyle(
@@ -103,7 +111,6 @@ class _BookingDetailSummaryCardState extends State<BookingDetailSummaryCard> {
           _meta(view.isDaycare ? '安親日期' : '住宿日期', view.dateRangeLabel),
           _meta(view.isDaycare ? '天數／時數' : '晚數', view.durationLabel),
           if (view.petNames.isNotEmpty) _meta('寵物', view.petNames),
-          _meta('房間', view.roomAssignmentLabel),
           if (view.isDaycare && view.daycareBillingRuleText.isNotEmpty)
             _meta('計費規則', view.daycareBillingRuleText),
           if (view.isDaycare) ...<Widget>[

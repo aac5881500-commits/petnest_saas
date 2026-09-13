@@ -85,12 +85,28 @@ class DaycareOccupancyService {
     return (room['status'] ?? '').toString().trim().toLowerCase();
   }
 
-  static bool isDocumentStatusUnsellable(String status) {
+  static String permanentStatusOf(Map<String, dynamic> room) {
+    final String permanent =
+        (room['permanentStatus'] ?? '').toString().trim().toLowerCase();
+    if (permanent == 'available' ||
+        permanent == 'maintenance' ||
+        permanent == 'blocked' ||
+        permanent == 'unavailable') {
+      return permanent;
+    }
+    final String legacy = roomDocumentStatus(room);
+    if (legacy == 'maintenance' ||
+        legacy == 'blocked' ||
+        legacy == 'unavailable') {
+      return legacy;
+    }
+    return 'available';
+  }
+
+  static bool isPermanentStatusUnsellable(String status) {
     switch (status.trim().toLowerCase()) {
-      case 'cleaning':
       case 'maintenance':
       case 'blocked':
-      case 'closed':
       case 'unavailable':
         return true;
       default:
@@ -100,7 +116,7 @@ class DaycareOccupancyService {
 
   static bool isRoomDocumentUnsellable(Map<String, dynamic> room) {
     return !isRoomEnabled(room) ||
-        isDocumentStatusUnsellable(roomDocumentStatus(room));
+        isPermanentStatusUnsellable(permanentStatusOf(room));
   }
 
   static String stayBookingLabel(Map<String, dynamic>? booking) {
@@ -129,17 +145,9 @@ class DaycareOccupancyService {
     if (!isRoomEnabled(room)) {
       return disabledLabel;
     }
-    final String docStatus = roomDocumentStatus(room);
-    if (docStatus == 'cleaning') {
-      return cleaningLabel;
-    }
-    if (docStatus == 'maintenance' ||
-        docStatus == 'blocked' ||
-        docStatus == 'unavailable') {
+    final String permanent = permanentStatusOf(room);
+    if (isPermanentStatusUnsellable(permanent)) {
       return maintenanceLabel;
-    }
-    if (docStatus == 'closed') {
-      return closedLabel;
     }
     final String cal = calendarStatus.trim().toLowerCase();
     if (cal == 'closed') {
@@ -794,19 +802,8 @@ class DaycareOccupancyService {
         disabledCount += 1;
         continue;
       }
-      final String docStatus = roomDocumentStatus(room);
-      if (docStatus == 'cleaning') {
-        cleaningCount += 1;
-        continue;
-      }
-      if (docStatus == 'maintenance' ||
-          docStatus == 'blocked' ||
-          docStatus == 'unavailable') {
+      if (isPermanentStatusUnsellable(permanentStatusOf(room))) {
         maintenanceCount += 1;
-        continue;
-      }
-      if (docStatus == 'closed') {
-        closedCount += 1;
         continue;
       }
       final int roomCap = ((room['capacity'] as num?)?.toInt() ?? 0) > 0
@@ -828,7 +825,25 @@ class DaycareOccupancyService {
             calendarBlocksRoom((item['status'] ?? '').toString());
       });
       if (calendarHit) {
-        occupiedCount += 1;
+        final String calStatus = calendarEntries
+            .where((Map<String, dynamic> item) {
+              return (item['roomId'] ?? '').toString() == roomId &&
+                  (item['date'] ?? '').toString() == resolvedDateKey;
+            })
+            .map((Map<String, dynamic> item) =>
+                (item['status'] ?? '').toString().trim().toLowerCase())
+            .firstWhere((String status) => status.isNotEmpty, orElse: () => '');
+        if (calStatus == 'cleaning') {
+          cleaningCount += 1;
+        } else if (calStatus == 'closed') {
+          closedCount += 1;
+        } else if (calStatus == 'maintenance' ||
+            calStatus == 'blocked' ||
+            calStatus == 'unavailable') {
+          maintenanceCount += 1;
+        } else {
+          occupiedCount += 1;
+        }
         continue;
       }
       final bool occupancyHit = occupancies.any((Map<String, dynamic> occ) {
@@ -922,7 +937,7 @@ class DaycareOccupancyService {
       if (!occupiesInventory(booking)) {
         continue;
       }
-      if (!BookingKind.isDaycare(booking)) {
+      if ((booking['roomId'] ?? '').toString().trim().isNotEmpty) {
         continue;
       }
       final String heldType =
@@ -933,14 +948,21 @@ class DaycareOccupancyService {
           (alternateTypeId.isEmpty || heldType != alternateTypeId.trim())) {
         continue;
       }
-      if ((booking['roomId'] ?? '').toString().trim().isNotEmpty) {
+      if (BookingKind.isDaycare(booking)) {
+        final DateTime? otherStart = _ts(booking['scheduledStartAt']);
+        final DateTime? otherEnd = _ts(booking['scheduledEndAt']);
+        if (otherStart != null &&
+            otherEnd != null &&
+            DaycareTimeHelper.overlaps(startAt, endAt, otherStart, otherEnd)) {
+          reservedIds.add(bookingId);
+        }
         continue;
       }
-      final DateTime? otherStart = _ts(booking['scheduledStartAt']);
-      final DateTime? otherEnd = _ts(booking['scheduledEndAt']);
-      if (otherStart != null &&
-          otherEnd != null &&
-          DaycareTimeHelper.overlaps(startAt, endAt, otherStart, otherEnd)) {
+      final DateTime? stayStart = _ts(booking['startDate']);
+      final DateTime? stayEnd = _ts(booking['endDate']);
+      if (stayStart != null &&
+          stayEnd != null &&
+          _stayContains(stayStart, stayEnd, startAt)) {
         reservedIds.add(bookingId);
       }
     }

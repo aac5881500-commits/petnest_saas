@@ -10,9 +10,11 @@ import 'package:petnest_saas/core/services/booking_payment_status.dart';
 import 'package:petnest_saas/core/services/daycare_payment_display.dart';
 import 'package:petnest_saas/core/services/daycare_time_helper.dart';
 import 'package:petnest_saas/core/widgets/member_avatar.dart';
+import 'package:petnest_saas/core/services/booking_current_room.dart';
 import 'package:petnest_saas/features/admin/widgets/admin_booking_date_helpers.dart';
 import 'package:petnest_saas/features/admin/widgets/admin_booking_detail_layout.dart';
 import 'package:petnest_saas/features/admin/widgets/admin_booking_status_chip.dart';
+import 'package:petnest_saas/features/booking/widgets/booking_current_room_panel.dart';
 import 'package:petnest_saas/features/shop/widgets/booking/policy_sign_method_field.dart';
 
 class AdminBookingHeaderCard extends StatelessWidget {
@@ -130,6 +132,12 @@ class AdminBookingHeaderCard extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 12),
+          BookingCurrentRoomPanel(
+            data: data,
+            audience: BookingCurrentRoomAudience.staff,
+            compact: phone,
+          ),
+          const SizedBox(height: 12),
           _dateRow(context, daycare: daycare, phone: phone),
           const SizedBox(height: 8),
           Wrap(
@@ -179,8 +187,8 @@ class AdminBookingHeaderCard extends StatelessWidget {
     required bool phone,
   }) {
     final ShopFrontendTheme theme = ShopFrontendTheme.of(context);
-    final String startLabel = daycare ? '送達' : '入住';
-    final String endLabel = daycare ? '接回' : '退房';
+    final String startLabel = daycare ? '預約送達' : '入住';
+    final String endLabel = daycare ? '預約接回' : '退房';
     final String start = daycare
         ? _formatTaipei(data['scheduledStartAt'] ?? data['startDate'])
         : _formatStay(data['startDate']);
@@ -308,12 +316,8 @@ class AdminBookingHeaderCard extends StatelessWidget {
       }
     }
     final String room =
-        (data['roomTypeNameSnapshot'] ??
-                data['roomTypeName'] ??
-                data['roomName'] ??
-                '')
-            .toString();
-    return room.trim().isEmpty ? '尚未分房' : room;
+        (data['roomTypeNameSnapshot'] ?? data['roomTypeName'] ?? '').toString();
+    return room.trim().isEmpty ? '尚未指定房型' : room;
   }
 
   static String _durationLabel(Map<String, dynamic> data, bool daycare) {

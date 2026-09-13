@@ -11,7 +11,8 @@ const {
   serviceDateKey,
   toDate,
   toInt,
-  writeActionLog,
+  resolveOperatorIdentity,
+  writeActionLogInTransaction,
 } = require("./daycare_utils");
 const {
   assertAvailable,
@@ -168,6 +169,23 @@ exports.assignDaycareRoom = onCall(
       const now = admin.firestore.FieldValue.serverTimestamp();
       const dateKey = normalizeString(booking.serviceDate) ||
         serviceDateKey(startAt);
+      const fromRoomId = normalizeString(booking.roomId);
+      const fromRoomName = normalizeString(booking.roomName) || fromRoomId;
+      const fromRoomTypeId = normalizeString(booking.roomTypeId);
+      const fromRoomTypeName = normalizeString(booking.roomTypeName) ||
+        normalizeString(booking.roomTypeNameSnapshot);
+      const changing = Boolean(fromRoomId && fromRoomId !== roomId);
+      const reason = normalizeString(data.reason);
+      if (changing && !reason) {
+        throw new HttpsError("invalid-argument", "更換房間請填寫原因");
+      }
+      const operator = await resolveOperatorIdentity({
+        operatorUid: uid,
+        operatorEmail: normalizeString(
+            request.auth.token && request.auth.token.email,
+        ),
+        shopId,
+      });
       try {
         await firestore.runTransaction(async (transaction) => {
           const roomRef = firestore.collection("shops").doc(shopId)
@@ -256,6 +274,37 @@ exports.assignDaycareRoom = onCall(
           applyHoldReleaseFromSnap(
               transaction, holdRef, holdSnap, holdBooking,
           );
+          writeActionLogInTransaction(transaction, {
+            shopId,
+            targetId: bookingId,
+            bookingId,
+            bookingKind: BOOKING_KIND_DAYCARE,
+            action: changing ? "daycare_change_room" : "daycare_assign_room",
+            type: changing ? "room_changed" : "room_assigned",
+            operatorUid: uid,
+            operatorEmail: operator.email,
+            operatorDisplayName: operator.displayName,
+            operatorRole: "staff",
+            payload: {
+              roomId,
+              roomName,
+              roomTypeId: actualRoomTypeId,
+              roomTypeName,
+              fromRoomId,
+              fromRoomName,
+              fromRoomTypeId,
+              fromRoomTypeName,
+              toRoomId: roomId,
+              toRoomName: roomName,
+              toRoomTypeId: actualRoomTypeId,
+              toRoomTypeName: roomTypeName,
+              oldRoomId: fromRoomId,
+              oldRoomName: fromRoomName,
+              newRoomId: roomId,
+              newRoomName: roomName,
+              reason,
+            },
+          }, operator);
         });
       } catch (error) {
         if (error instanceof HttpsError) {
@@ -268,21 +317,6 @@ exports.assignDaycareRoom = onCall(
         }
         throw error;
       }
-
-      await writeActionLog({
-        shopId,
-        targetId: bookingId,
-        action: "daycare_assign_room",
-        operatorUid: uid,
-        operatorRole: "staff",
-        payload: {
-          roomId,
-          roomName,
-          roomTypeId: actualRoomTypeId,
-          roomTypeName,
-          fromRoomId: booking.roomId || "",
-        },
-      });
 
       return {
         ok: true,

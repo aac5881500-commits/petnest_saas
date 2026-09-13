@@ -4,11 +4,10 @@
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
-import 'package:petnest_saas/core/services/daycare_status_labels.dart';
+import 'package:petnest_saas/core/services/booking_action_log_display.dart';
 import 'package:petnest_saas/core/services/operator_display.dart';
 import 'package:petnest_saas/core/services/daycare_time_helper.dart';
 import 'package:petnest_saas/features/admin/widgets/admin_booking_date_helpers.dart';
-import 'package:petnest_saas/features/admin/widgets/admin_booking_status_chip.dart';
 
 class AdminBookingActionLogCard extends StatelessWidget {
   const AdminBookingActionLogCard({super.key, required this.log});
@@ -17,41 +16,9 @@ class AdminBookingActionLogCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final type = (log['type'] ?? log['action'] ?? '').toString();
-    final String time = _formatTime(log['createdAt']);
-
-    String title = '操作紀錄';
-    final String daycareTitle = DaycareStatusLabels.actionName(type);
-    if (daycareTitle.isNotEmpty) {
-      title = daycareTitle;
-      final dynamic payload = log['payload'];
-      if (payload is Map && (payload['roomName'] ?? '').toString().isNotEmpty) {
-        title = '$daycareTitle：${payload['roomName']}';
-      }
-    } else if (type == 'booking_status_update') {
-      title =
-          '狀態變更：'
-          '${adminBookingStatusText(log['fromStatus'])}'
-          ' → '
-          '${adminBookingStatusText(log['toStatus'])}';
-    } else if (type == 'deposit_confirmed') {
-      title = '確認收到訂金';
-    } else if (type == 'booking_cancelled') {
-      title = '取消訂單：${log['cancelReason'] ?? '-'}';
-    } else if (type == 'checkout_completed') {
-      title = '退房完成：額外費用 NT\$ ${log['extraFee'] ?? 0}';
-    } else if (type == 'room_assigned') {
-      title = '完成分房：${log['roomName'] ?? '-'}';
-    } else if (type == 'room_changed') {
-      final reason = (log['reason'] ?? '').toString();
-
-      title =
-          '更換房間：${log['oldRoomName'] ?? '-'} → ${log['newRoomName'] ?? '-'}';
-
-      if (reason.isNotEmpty) {
-        title += '\n原因：$reason';
-      }
-    }
+    final String title = BookingActionLogDisplay.title(log);
+    final List<String> details = BookingActionLogDisplay.detailLines(log);
+    final String time = _formatTime(log['createdAt'] ?? log['operatedAt']);
 
     return Container(
       width: double.infinity,
@@ -66,10 +33,15 @@ class AdminBookingActionLogCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
-          const SizedBox(height: 4),
+          for (final String line in details) ...<Widget>[
+            const SizedBox(height: 4),
+            Text(line, style: const TextStyle(fontSize: 13, height: 1.35)),
+          ],
+          const SizedBox(height: 6),
           DefaultTextStyle(
             style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
             child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
                 Text('$time ・ 操作人員：'),
                 Flexible(

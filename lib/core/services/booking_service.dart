@@ -7,11 +7,11 @@ import 'package:petnest_saas/core/models/booking_kind.dart';
 import 'package:petnest_saas/core/models/pet_snapshot.dart';
 import 'package:petnest_saas/core/models/policy_applicable_service.dart';
 import 'package:petnest_saas/core/models/terms_consent_snapshot.dart';
-import 'package:petnest_saas/core/services/booking_search_fields.dart';
 import 'package:petnest_saas/core/services/daycare_occupancy_service.dart';
 import 'package:petnest_saas/core/services/daycare_time_helper.dart';
 import 'package:petnest_saas/core/services/shop_payment_methods.dart';
 import 'package:petnest_saas/core/services/shop_service.dart';
+import 'package:petnest_saas/core/services/stay_booking_function_service.dart';
 import 'package:petnest_saas/core/services/member_coupon_service.dart';
 import 'package:petnest_saas/core/services/inventory_stock_service.dart';
 import 'package:petnest_saas/core/services/booking_inventory_function_service.dart';
@@ -29,31 +29,6 @@ class BookingService {
 
   CollectionReference<Map<String, dynamic>> get _bookings =>
       _firestore.collection('bookings');
-
-  /// ===============================
-  /// 🧾 產生店家訂單編號
-  /// 格式：SHOP0001-B000001
-  /// ===============================
-  Future<String> _generateBookingCode(String shopId) async {
-    final counterRef = _firestore.collection('booking_counters').doc(shopId);
-
-    return _firestore.runTransaction<String>((transaction) async {
-      final snapshot = await transaction.get(counterRef);
-
-      final current = snapshot.exists
-          ? (snapshot.data()?['current'] ?? 0) as int
-          : 0;
-
-      final next = current + 1;
-
-      transaction.set(counterRef, {
-        'current': next,
-        'updatedAt': FieldValue.serverTimestamp(),
-      }, SetOptions(merge: true));
-
-      return '$shopId-B${next.toString().padLeft(6, '0')}';
-    });
-  }
 
   /// 建立預約（區間版）
   Future<String> createBooking({
@@ -153,9 +128,7 @@ class BookingService {
         return doc.id;
       }
     }
-    debugPrint('FRONT_BOOKING_STEP: generate code start');
-    final bookingCode = await _generateBookingCode(shopId);
-    debugPrint('FRONT_BOOKING_STEP: generate code ok');
+    debugPrint('FRONT_BOOKING_STEP: load shop');
     final normalizedStart = _dateOnly(startDate);
     final normalizedEnd = _dateOnly(endDate);
 
@@ -210,156 +183,96 @@ class BookingService {
       return PetSnapshot.fromPet(merged);
     }).toList();
 
-    final bookingId = await _firestore.runTransaction<String>((
-      transaction,
-    ) async {
-      /// 🔒 Transaction 內重新讀取，防止兩個請求同時建立
-      final existingBooking = await transaction.get(doc);
-
-      if (existingBooking.exists) {
-        debugPrint('BOOKING_IDEMPOTENCY: 已存在，直接回傳 ${doc.id}');
-        return doc.id;
-      }
-
-      transaction.set(doc, {
-        'requestId': normalizedRequestId,
-        'addons': (addons ?? []).isNotEmpty ? addons : [],
-        if (dailyCareEntitlement != null)
-          'dailyCareEntitlement': dailyCareEntitlement,
-        'bookingId': doc.id,
-        'bookingCode': bookingCode,
-        'shopId': shopId,
-        'shopName': shopData['name'],
-        'userId': user.uid,
-        'policyVersion': policyVersion,
-        'policyTitle': policyTitle,
-        'policyAcceptedAt': policyAcceptedAt ?? FieldValue.serverTimestamp(),
-        if (termsConsent != null) ...termsConsent.toBookingFields(),
-        'customerName': customerName.trim(),
-        'customerPhone': customerPhone.trim(),
-        'address': address,
-        'roomTypeName': roomTypeName,
-        'basePrice': basePrice,
-        'extraPetPrice': extraPetPrice,
-        'extraPetCount': extraPetCount,
-        'extraPetTotal': extraPetTotal,
-        'roomSubtotal': roomSubtotal,
-        'roomImages': roomImages,
-        'emergencyContact': {
-          'name': emergencyName,
-          'phone': emergencyPhone,
-          'relation': emergencyRelation,
-          'address': emergencyAddress,
-          'phone2': emergencyPhone2,
-        },
-        'petIds': petIds,
-        'pets': finalPets,
-        'roomTypeId': roomId,
-        'roomId': null,
-        'roomName': null,
-        'assignStatus': 'unassigned',
-        'serviceType': serviceType,
-        'bookingKind': 'accommodation',
-
-        /// 區間日期
-        'startDate': Timestamp.fromDate(normalizedStart),
-        'endDate': Timestamp.fromDate(normalizedEnd),
-        'nights': nights,
-
-        /// 狀態
-        'status': 'pending', // pending / confirmed / completed / cancelled
-        /// 備註
-        'note': note.trim(),
-
-        /// 價格欄位
-        'totalPrice': totalPrice,
-
-        'originalTotal': originalTotal,
-
-        /// 📅 特殊日期加價快照
-        ///
-        /// 與特殊日期加價設定文件分離保存，
-        /// 避免店家日後修改或刪除設定影響歷史訂單。
-        'specialDateSurchargeAmount': specialDateSurchargeAmount,
-        'specialDateSurchargeDetails': specialDateSurchargeDetails,
-
-        'discountAmount': discountAmount,
-        'discountUsedNights': discountUsedNights,
-        'discountPercent': discountPercent,
-        'discountMinNights': discountMinNights,
-        'discountBase': discountBase,
-
-        'discountCampaignId': discountCampaignId,
-        'discountCampaignName': discountCampaignName,
-        'discountCampaignDescription': discountCampaignDescription.trim(),
-        'discountCampaignType': discountCampaignType,
-        'discountValueType': discountValueType,
-        'discountValue': discountValue,
-        'allowCouponTogether': allowCouponTogether,
-
-        'couponId': couponId,
-        'couponName': couponName,
-        'couponType': couponType,
-        'couponDiscountAmount': couponDiscountAmount,
-
-        'depositAmount': depositAmount,
-        'paymentMethod': normalizedPaymentMethod.isNotEmpty
-            ? normalizedPaymentMethod
-            : paymentMethod,
-        'payAmountType': payAmountType,
-
-        /// 💰 Booking 付款摘要初始值
-        ///
-        /// Booking 與 Payment 採分離架構：
-        /// - Booking 建立後永久保留
-        /// - 每次付款另外建立 payments 紀錄
-        /// - 付款成功後再由 Cloud Functions 更新以下摘要
-        'paidAmount': 0,
-        'remainingAmount': totalPrice,
-        'paymentStatus': 'unpaid',
-        'lastPaymentId': null,
-        'lastMerchantTradeNo': null,
-        'paymentUpdatedAt': null,
-        'paidAt': null,
-
-        /// 🔥 店家轉帳資訊快照
-        'bankName': bankName,
-        'accountName': accountName,
-        'accountNumber': accountNumber,
-        'depositExpireHours': depositExpireHours,
-        'depositExpireAt':
-            paymentMethod == 'transfer' || paymentMethod == 'cash'
-            ? Timestamp.fromDate(
-                DateTime.now().add(
-                  depositExpireHours == 0
-                      ? const Duration(minutes: 1)
-                      : Duration(hours: depositExpireHours),
-                ),
+    final String? depositExpireIso =
+        paymentMethod == 'transfer' || paymentMethod == 'cash'
+        ? DateTime.now()
+              .add(
+                depositExpireHours == 0
+                    ? const Duration(minutes: 1)
+                    : Duration(hours: depositExpireHours as int),
               )
-            : null,
-
-        /// 未來預留
-        'checkedInAt': null,
-        'checkedOutAt': null,
-        'cameraAccessEnabled': false,
-        'cameraUrl': null,
-
-        /// 系統欄位
-        'createdAt': FieldValue.serverTimestamp(),
-        'updatedAt': FieldValue.serverTimestamp(),
-        if (customFormAnswers != null && customFormAnswers.isNotEmpty)
-          'customFormAnswers': customFormAnswers,
-        ...BookingSearchFields.fromBooking(<String, dynamic>{
-          'customerName': customerName.trim(),
-          'customerPhone': customerPhone.trim(),
-          'bookingCode': bookingCode,
-          'pets': finalPets,
-        }),
-      });
-
-      debugPrint('BOOKING_IDEMPOTENCY: 建立成功 ${doc.id}');
-      return doc.id;
-    });
+              .toIso8601String()
+        : null;
+    final Map<String, dynamic> bookingPayload = <String, dynamic>{
+      'addons': (addons ?? []).isNotEmpty ? addons : <dynamic>[],
+      if (dailyCareEntitlement != null)
+        'dailyCareEntitlement': dailyCareEntitlement,
+      'shopName': shopData['name'],
+      'policyVersion': policyVersion,
+      'policyTitle': policyTitle,
+      if (policyAcceptedAt != null)
+        'policyAcceptedAt': policyAcceptedAt.toDate().toIso8601String(),
+      if (termsConsent != null) ...termsConsent.toCallableFields(),
+      'customerName': customerName.trim(),
+      'customerPhone': customerPhone.trim(),
+      'address': address,
+      'roomTypeName': roomTypeName,
+      'basePrice': basePrice,
+      'extraPetPrice': extraPetPrice,
+      'extraPetCount': extraPetCount,
+      'extraPetTotal': extraPetTotal,
+      'roomSubtotal': roomSubtotal,
+      'roomImages': roomImages,
+      'emergencyContact': <String, dynamic>{
+        'name': emergencyName,
+        'phone': emergencyPhone,
+        'relation': emergencyRelation,
+        'address': emergencyAddress,
+        'phone2': emergencyPhone2,
+      },
+      'petIds': petIds,
+      'pets': finalPets,
+      'serviceType': serviceType,
+      'nights': nights,
+      'note': note.trim(),
+      'totalPrice': totalPrice,
+      'originalTotal': originalTotal,
+      'specialDateSurchargeAmount': specialDateSurchargeAmount,
+      'specialDateSurchargeDetails': specialDateSurchargeDetails,
+      'discountAmount': discountAmount,
+      'discountUsedNights': discountUsedNights,
+      'discountPercent': discountPercent,
+      'discountMinNights': discountMinNights,
+      'discountBase': discountBase,
+      'discountCampaignId': discountCampaignId,
+      'discountCampaignName': discountCampaignName,
+      'discountCampaignDescription': discountCampaignDescription.trim(),
+      'discountCampaignType': discountCampaignType,
+      'discountValueType': discountValueType,
+      'discountValue': discountValue,
+      'allowCouponTogether': allowCouponTogether,
+      'couponId': couponId,
+      'couponName': couponName,
+      'couponType': couponType,
+      'couponDiscountAmount': couponDiscountAmount,
+      'depositAmount': depositAmount,
+      'paymentMethod': normalizedPaymentMethod.isNotEmpty
+          ? normalizedPaymentMethod
+          : paymentMethod,
+      'payAmountType': payAmountType,
+      'paidAmount': 0,
+      'remainingAmount': totalPrice,
+      'paymentStatus': 'unpaid',
+      'bankName': bankName,
+      'accountName': accountName,
+      'accountNumber': accountNumber,
+      'depositExpireHours': depositExpireHours,
+      if (depositExpireIso != null) 'depositExpireAt': depositExpireIso,
+      'cameraAccessEnabled': false,
+      if (customFormAnswers != null && customFormAnswers.isNotEmpty)
+        'customFormAnswers': customFormAnswers,
+    };
+    final String bookingId =
+        await StayBookingFunctionService.instance.createStayBooking(
+          shopId: shopId,
+          roomTypeId: roomId,
+          startDate: normalizedStart,
+          endDate: normalizedEnd,
+          requestId: doc.id,
+          source: 'customer',
+          userId: user.uid,
+          booking: bookingPayload,
+        );
 
     debugPrint(
       '[BookingSubmit] create booking success: $bookingId shopId=$shopId',
@@ -429,11 +342,7 @@ class BookingService {
     final operator = _currentUser;
     final doc = _bookings.doc();
 
-    debugPrint('ADMIN_BOOKING_STEP 1: 開始產生訂單編號');
-
-    final bookingCode = await _generateBookingCode(shopId);
-
-    debugPrint('ADMIN_BOOKING_STEP 2: 訂單編號=$bookingCode');
+    debugPrint('ADMIN_BOOKING_STEP 1: 開始準備訂單');
     final normalizedStart = _dateOnly(startDate);
     final normalizedEnd = _dateOnly(endDate);
 
@@ -473,142 +382,102 @@ class BookingService {
     }).toList();
 
     debugPrint('ADMIN_BOOKING_STEP 3: 開始寫入 booking');
-
-    await doc.set({
-      'addons': (addons ?? []).isNotEmpty ? addons : [],
-      if (dailyCareEntitlement != null)
-        'dailyCareEntitlement': dailyCareEntitlement,
-      'bookingId': doc.id,
-      'bookingCode': bookingCode,
-      'shopId': shopId,
-      'shopName': shopData['name'],
-      'userId': userId,
-      'source': 'admin',
-      'createdByUid': operator.uid,
-      'createdByEmail': operator.email,
-      'createdByDisplayName': operator.displayName,
-      'policyVersion': policyVersion,
-      'policySignMethod': policySignMethod,
-      'policyServiceType': policyServiceType,
-      'policyAcceptedAt': policySignMethod.isEmpty
-          ? null
-          : FieldValue.serverTimestamp(),
-      'policyAcceptedByEmail': operator.email,
-      'customerName': customerName.trim(),
-      'customerPhone': customerPhone.trim(),
-      'address': address,
-      'roomTypeName': roomTypeName,
-      'basePrice': basePrice,
-      'extraPetPrice': extraPetPrice,
-      'extraPetCount': extraPetCount,
-      'extraPetTotal': extraPetTotal,
-      'roomSubtotal': roomSubtotal,
-      'roomImages': roomImages,
-      'emergencyContact': {
-        'name': emergencyName,
-        'phone': emergencyPhone,
-        'relation': emergencyRelation,
-        'address': emergencyAddress,
-        'phone2': emergencyPhone2,
-      },
-      'petIds': petIds,
-      'pets': finalPets,
-      'roomTypeId': roomId,
-      'roomId': null,
-      'roomName': null,
-      'assignStatus': 'unassigned',
-      'serviceType': serviceType,
-      'bookingKind': 'accommodation',
-
-      /// 區間日期
-      'startDate': Timestamp.fromDate(normalizedStart),
-      'endDate': Timestamp.fromDate(normalizedEnd),
-      'nights': nights,
-
-      /// 狀態
-      'status': 'pending', // pending / confirmed / completed / cancelled
-      /// 備註
-      'note': note.trim(),
-      'adminOrderSource': adminOrderSource.trim(),
-
-      /// 價格欄位
-      'totalPrice': totalPrice,
-      'originalTotal': originalTotal,
-      'quotedTotalPrice': totalPrice,
-
-      /// 📅 特殊日期加價快照
-      'specialDateSurchargeAmount': specialDateSurchargeAmount,
-      'specialDateSurchargeDetails': specialDateSurchargeDetails,
-
-      'applyLongStayDiscount': applyLongStayDiscount,
-      'discountAmount': discountAmount,
-      'discountUsedNights': discountUsedNights,
-      'discountPercent': discountPercent,
-      'discountMinNights': discountMinNights,
-      'discountBase': discountBase,
-      'discountCampaignId': discountCampaignId,
-      'discountCampaignName': discountCampaignName,
-      'discountCampaignDescription': discountCampaignDescription.trim(),
-      'discountCampaignType': discountCampaignType,
-      'discountValueType': discountValueType,
-      'discountValue': discountValue,
-      'allowCouponTogether': allowCouponTogether,
-      'depositAmount': depositAmount,
-      'paymentMethod': normalizedPaymentMethod.isNotEmpty
-          ? normalizedPaymentMethod
-          : paymentMethod,
-      'payAmountType': payAmountType,
-
-      /// 💰 Booking 付款摘要初始值
-      ///
-      /// 後台手動建立的訂單也使用相同付款摘要格式，
-      /// 避免會員訂單與手動訂單的資料結構不同。
-      'paidAmount': 0,
-      'remainingAmount': totalPrice,
-      'paymentStatus': 'unpaid',
-      'lastPaymentId': null,
-      'lastMerchantTradeNo': null,
-      'paymentUpdatedAt': null,
-      'paidAt': null,
-
-      /// 🔥 店家轉帳資訊快照
-      'bankName': bankName,
-      'accountName': accountName,
-      'accountNumber': accountNumber,
-      'depositExpireHours': depositExpireHours,
-      'depositExpireAt': paymentMethod == 'transfer' || paymentMethod == 'cash'
-          ? Timestamp.fromDate(
-              DateTime.now().add(
+    final String? depositExpireIso =
+        paymentMethod == 'transfer' || paymentMethod == 'cash'
+        ? DateTime.now()
+              .add(
                 depositExpireHours == 0
                     ? const Duration(minutes: 1)
-                    : Duration(hours: depositExpireHours),
-              ),
-            )
-          : null,
-
-      /// 未來預留
-      'checkedInAt': null,
-      'checkedOutAt': null,
-      'cameraAccessEnabled': false,
-      'cameraUrl': null,
-
-      /// 系統欄位
-      'createdAt': FieldValue.serverTimestamp(),
-      'updatedAt': FieldValue.serverTimestamp(),
-      if (adminCustomFormAnswers != null && adminCustomFormAnswers.isNotEmpty)
-        'adminCustomFormAnswers': adminCustomFormAnswers,
-      ...BookingSearchFields.fromBooking(<String, dynamic>{
-        'customerName': customerName.trim(),
-        'customerPhone': customerPhone.trim(),
-        'bookingCode': bookingCode,
-        'pets': finalPets,
-      }),
-    });
+                    : Duration(hours: depositExpireHours as int),
+              )
+              .toIso8601String()
+        : null;
+    final String bookingId =
+        await StayBookingFunctionService.instance.createStayBooking(
+          shopId: shopId,
+          roomTypeId: roomId,
+          startDate: normalizedStart,
+          endDate: normalizedEnd,
+          requestId: doc.id,
+          source: 'admin',
+          userId: userId,
+          booking: <String, dynamic>{
+            'addons': (addons ?? []).isNotEmpty ? addons : <dynamic>[],
+            if (dailyCareEntitlement != null)
+              'dailyCareEntitlement': dailyCareEntitlement,
+            'shopName': shopData['name'],
+            'createdByUid': operator.uid,
+            'createdByEmail': operator.email,
+            'createdByDisplayName': operator.displayName,
+            'policyVersion': policyVersion,
+            'policySignMethod': policySignMethod,
+            'policyServiceType': policyServiceType,
+            'policyAcceptedByEmail': operator.email,
+            'customerName': customerName.trim(),
+            'customerPhone': customerPhone.trim(),
+            'address': address,
+            'roomTypeName': roomTypeName,
+            'basePrice': basePrice,
+            'extraPetPrice': extraPetPrice,
+            'extraPetCount': extraPetCount,
+            'extraPetTotal': extraPetTotal,
+            'roomSubtotal': roomSubtotal,
+            'roomImages': roomImages,
+            'emergencyContact': <String, dynamic>{
+              'name': emergencyName,
+              'phone': emergencyPhone,
+              'relation': emergencyRelation,
+              'address': emergencyAddress,
+              'phone2': emergencyPhone2,
+            },
+            'petIds': petIds,
+            'pets': finalPets,
+            'serviceType': serviceType,
+            'nights': nights,
+            'note': note.trim(),
+            'adminOrderSource': adminOrderSource.trim(),
+            'totalPrice': totalPrice,
+            'originalTotal': originalTotal,
+            'quotedTotalPrice': totalPrice,
+            'specialDateSurchargeAmount': specialDateSurchargeAmount,
+            'specialDateSurchargeDetails': specialDateSurchargeDetails,
+            'applyLongStayDiscount': applyLongStayDiscount,
+            'discountAmount': discountAmount,
+            'discountUsedNights': discountUsedNights,
+            'discountPercent': discountPercent,
+            'discountMinNights': discountMinNights,
+            'discountBase': discountBase,
+            'discountCampaignId': discountCampaignId,
+            'discountCampaignName': discountCampaignName,
+            'discountCampaignDescription': discountCampaignDescription.trim(),
+            'discountCampaignType': discountCampaignType,
+            'discountValueType': discountValueType,
+            'discountValue': discountValue,
+            'allowCouponTogether': allowCouponTogether,
+            'depositAmount': depositAmount,
+            'paymentMethod': normalizedPaymentMethod.isNotEmpty
+                ? normalizedPaymentMethod
+                : paymentMethod,
+            'payAmountType': payAmountType,
+            'paidAmount': 0,
+            'remainingAmount': totalPrice,
+            'paymentStatus': 'unpaid',
+            'bankName': bankName,
+            'accountName': accountName,
+            'accountNumber': accountNumber,
+            'depositExpireHours': depositExpireHours,
+            if (depositExpireIso != null) 'depositExpireAt': depositExpireIso,
+            'cameraAccessEnabled': false,
+            if (adminCustomFormAnswers != null &&
+                adminCustomFormAnswers.isNotEmpty)
+              'adminCustomFormAnswers': adminCustomFormAnswers,
+          },
+        );
 
     debugPrint('ADMIN_BOOKING_STEP 4: booking 寫入完成');
 
-    await _afterBookingCreated(shopId: shopId, bookingId: doc.id);
-    return doc.id;
+    await _afterBookingCreated(shopId: shopId, bookingId: bookingId);
+    return bookingId;
   }
 
   /// 取得單筆預約
@@ -709,6 +578,16 @@ class BookingService {
       'cancelledAt': FieldValue.serverTimestamp(),
       'updatedAt': FieldValue.serverTimestamp(),
     });
+    try {
+      await StayBookingFunctionService.instance.manage(
+        shopId: (data['shopId'] ?? '').toString(),
+        bookingId: bookingId,
+        action: 'release',
+      );
+    } catch (error, stackTrace) {
+      debugPrint('取消訂單釋放房型保留失敗：$error');
+      debugPrintStack(stackTrace: stackTrace);
+    }
     final String couponShopId = (data['shopId'] ?? '').toString().trim();
     final String couponId = (data['couponId'] ?? '').toString().trim();
 
@@ -805,44 +684,18 @@ class BookingService {
     if (!available) {
       throw Exception('新房間在該日期區間已被預約');
     }
+    if (reason.trim().isEmpty) {
+      throw Exception('更換房間請填寫原因');
+    }
 
-    await releaseRoomCalendar(
+    await StayBookingFunctionService.instance.manage(
       shopId: shopId,
-      roomId: oldRoomId,
-      startDate: startDate,
-      endDate: endDate,
-    );
-
-    await blockRoomCalendar(
-      shopId: shopId,
+      bookingId: bookingId,
+      action: 'change',
       roomId: newRoomId,
-      startDate: startDate,
-      endDate: endDate,
+      roomName: newRoomName,
+      reason: reason.trim(),
     );
-
-    await _bookings.doc(bookingId).update({
-      'roomId': newRoomId,
-      'roomName': newRoomName,
-      'assignStatus': 'assigned',
-      'roomChangedAt': FieldValue.serverTimestamp(),
-      'updatedAt': FieldValue.serverTimestamp(),
-    });
-
-    await _firestore.collection('action_logs').add({
-      'type': 'room_changed',
-      'bookingId': bookingId,
-      'bookingShortId': bookingId.substring(0, 8),
-      'shopId': shopId,
-      'oldRoomId': oldRoomId,
-      'oldRoomName': oldRoomName,
-      'newRoomId': newRoomId,
-      'newRoomName': newRoomName,
-      'reason': reason,
-      'operatorUid': _currentUser?.uid,
-      'operatorEmail': _currentUser?.email,
-      'operatorRole': 'staff',
-      'createdAt': FieldValue.serverTimestamp(),
-    });
   }
 
   /// 更新預約狀態
@@ -1012,33 +865,13 @@ class BookingService {
       throw Exception('此房間在該日期區間已被預約');
     }
 
-    await _bookings.doc(bookingId).update({
-      'roomId': roomId,
-      'roomName': roomName,
-      'assignStatus': 'assigned',
-      'assignedAt': FieldValue.serverTimestamp(),
-      'updatedAt': FieldValue.serverTimestamp(),
-    });
-
-    await blockRoomCalendar(
+    await StayBookingFunctionService.instance.manage(
       shopId: shopId,
+      bookingId: bookingId,
+      action: 'assign',
       roomId: roomId,
-      startDate: startDate,
-      endDate: endDate,
+      roomName: roomName,
     );
-
-    await _firestore.collection('action_logs').add({
-      'type': 'room_assigned',
-      'bookingId': bookingId,
-      'bookingShortId': bookingId.substring(0, 8),
-      'shopId': shopId,
-      'roomId': roomId,
-      'roomName': roomName,
-      'operatorUid': _currentUser?.uid,
-      'operatorEmail': _currentUser?.email,
-      'operatorRole': 'staff',
-      'createdAt': FieldValue.serverTimestamp(),
-    });
   }
 
   /// 更新預約資料
@@ -1117,6 +950,21 @@ class BookingService {
   }) async {
     final start = _dateOnly(startDate);
     final end = _dateOnly(endDate);
+    final DocumentSnapshot<Map<String, dynamic>> roomSnap = await _firestore
+        .collection('shops')
+        .doc(shopId)
+        .collection('rooms')
+        .doc(roomId)
+        .get();
+    if (!roomSnap.exists) {
+      return false;
+    }
+    if (DaycareOccupancyService.isRoomDocumentUnsellable(<String, dynamic>{
+      'id': roomId,
+      ...?roomSnap.data(),
+    })) {
+      return false;
+    }
 
     // ======================
     // 先檢查 room_calendar
@@ -1236,12 +1084,6 @@ class BookingService {
       }
     }
 
-    final DocumentSnapshot<Map<String, dynamic>> roomSnap = await _firestore
-        .collection('shops')
-        .doc(shopId)
-        .collection('rooms')
-        .doc(roomId)
-        .get();
     final String roomTypeId =
         (roomSnap.data()?['roomTypeId'] ?? '').toString().trim();
     if (roomTypeId.isNotEmpty) {
@@ -1452,50 +1294,16 @@ class BookingService {
         .doc(shopId)
         .collection('rooms')
         .where('roomTypeId', isEqualTo: roomTypeId)
-        .where('enabled', isEqualTo: true)
         .get();
 
     for (final roomDoc in roomsSnapshot.docs) {
-      final roomId = roomDoc.id;
-
-      // 🔥 檢查房間是否被手動關閉
-      bool blocked = false;
-
-      final stayDates = getStayDates(startDate: startDate, endDate: endDate);
-
-      for (final date in stayDates) {
-        final dateKey = ShopService.instance.formatDateKey(date);
-
-        final calendarDoc = await _firestore
-            .collection('shops')
-            .doc(shopId)
-            .collection('room_calendar')
-            .doc('${roomId}_$dateKey')
-            .get();
-
-        if (calendarDoc.exists) {
-          final data = calendarDoc.data();
-
-          final String calendarStatus = data?['status']?.toString() ?? '';
-
-          if (calendarStatus == 'blocked' ||
-              calendarStatus == 'maintenance' ||
-              calendarStatus == 'closed' ||
-              calendarStatus == 'cleaning' ||
-              calendarStatus == 'unavailable' ||
-              calendarStatus == 'booked' ||
-              calendarStatus == 'checked_in' ||
-              calendarStatus == 'occupied') {
-            blocked = true;
-            break;
-          }
-        }
-      }
-
-      if (blocked) {
+      if (DaycareOccupancyService.isRoomDocumentUnsellable(<String, dynamic>{
+        'id': roomDoc.id,
+        ...roomDoc.data(),
+      })) {
         continue;
       }
-
+      final roomId = roomDoc.id;
       final available = await isRoomAvailable(
         shopId: shopId,
         roomId: roomId,

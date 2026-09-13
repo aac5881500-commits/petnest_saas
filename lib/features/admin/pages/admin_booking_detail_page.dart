@@ -28,6 +28,7 @@ import 'package:petnest_saas/core/services/member_coupon_service.dart';
 import 'package:petnest_saas/core/services/point_setting_service.dart';
 import 'package:petnest_saas/core/services/housekeeping_setting_service.dart';
 import 'package:petnest_saas/core/services/shop_room_service.dart';
+import 'package:petnest_saas/core/services/stay_booking_function_service.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:petnest_saas/core/widgets/shop_frontend_theme_scope.dart';
@@ -676,6 +677,16 @@ class AdminBookingDetailPage extends StatelessWidget {
         debugPrint('退房完成，但建立清潔中狀態失敗：$error');
         debugPrintStack(stackTrace: stackTrace);
       }
+    }
+    try {
+      await StayBookingFunctionService.instance.manage(
+        shopId: shopId,
+        bookingId: bookingId,
+        action: 'release',
+      );
+    } catch (error, stackTrace) {
+      debugPrint('退房釋放房型保留失敗：$error');
+      debugPrintStack(stackTrace: stackTrace);
     }
 
     final bool rewardPointIssued = data['rewardPointIssued'] == true;

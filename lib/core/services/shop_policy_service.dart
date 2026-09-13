@@ -474,29 +474,108 @@ class ShopPolicyService {
           .doc('v$version')
           .get();
     }
+    if (!doc.exists && serviceType == PolicyApplicableService.daycare) {
+      doc = await _firestore
+          .collection('shops')
+          .doc(shopId)
+          .collection('daycare_policy_versions')
+          .doc('v$version')
+          .get();
+    }
     return doc.data() ?? <String, dynamic>{};
   }
 
   Future<List<Map<String, dynamic>>> getPolicyAcceptances(String shopId) async {
-    final QuerySnapshot<Map<String, dynamic>> snapshot = await _firestore
-        .collectionGroup('policy_acceptances')
-        .where('shopId', isEqualTo: shopId)
-        .get();
+    final Map<String, PolicyAcceptanceRow> rowsByKey =
+        <String, PolicyAcceptanceRow>{};
 
-    final List<PolicyAcceptanceRow> rows = <PolicyAcceptanceRow>[];
+    void addRow(PolicyAcceptanceRow row) {
+      if (row.userId.isEmpty || row.acceptedVersion <= 0) {
+        return;
+      }
+
+      final String key =
+          '${row.userId}_${row.serviceType}_${row.acceptedVersion}';
+      final PolicyAcceptanceRow? old = rowsByKey[key];
+
+      // 同一位會員、同一種服務、同一版本只留最新同意時間。
+      if (old == null ||
+          _policyAcceptanceTime(
+            row.acceptedAt,
+          ).isAfter(_policyAcceptanceTime(old.acceptedAt))) {
+        rowsByKey[key] = row;
+      }
+    }
+
+    // 第一來源：會員正式的條款同意紀錄。
+    final QuerySnapshot<Map<String, dynamic>> acceptanceSnapshot =
+        await _firestore
+            .collectionGroup('policy_acceptances')
+            .where('shopId', isEqualTo: shopId)
+            .get();
+
     for (final QueryDocumentSnapshot<Map<String, dynamic>> doc
-        in snapshot.docs) {
+        in acceptanceSnapshot.docs) {
       final Map<String, dynamic> data = doc.data();
+
       if ((data['userId'] ?? '').toString().trim().isEmpty) {
         data['userId'] = doc.reference.parent.parent?.id ?? '';
       }
-      rows.addAll(PolicyAcceptanceRows.expand(data));
+
+      for (final PolicyAcceptanceRow row in PolicyAcceptanceRows.expand(data)) {
+        addRow(row);
+      }
     }
+
+    // 第二來源：補舊資料。
+    // 有些早期訂單已記下條款版本與同意時間，
+    // 但會員 policy_acceptances 文件沒有成功留下來。
+    final QuerySnapshot<Map<String, dynamic>> bookingSnapshot = await _firestore
+        .collection('bookings')
+        .where('shopId', isEqualTo: shopId)
+        .get();
+
+    for (final QueryDocumentSnapshot<Map<String, dynamic>> doc
+        in bookingSnapshot.docs) {
+      final Map<String, dynamic> booking = doc.data();
+      final String userId = (booking['userId'] ?? '').toString().trim();
+      final int version = parsePolicyVersion(
+        booking['termsVersion'] ?? booking['policyVersion'],
+      );
+
+      if (userId.isEmpty || version <= 0) {
+        continue;
+      }
+
+      final String serviceType =
+          (booking['bookingType'] ?? '').toString().toLowerCase() ==
+                  'daycare' ||
+              (booking['serviceType'] ?? '').toString().toLowerCase() ==
+                  'daycare' ||
+              booking['isDaycare'] == true
+          ? PolicyApplicableService.daycare
+          : PolicyApplicableService.accommodation;
+
+      addRow(
+        PolicyAcceptanceRow(
+          userId: userId,
+          serviceType: serviceType,
+          acceptedVersion: version,
+          acceptedAt: booking['policyAcceptedAt'] ?? booking['termsAcceptedAt'],
+          docEmail: (booking['customerEmail'] ?? booking['email'] ?? '')
+              .toString()
+              .trim(),
+        ),
+      );
+    }
+
+    final List<PolicyAcceptanceRow> rows = rowsByKey.values.toList();
 
     final Set<String> userIds = rows
         .map((PolicyAcceptanceRow row) => row.userId)
         .where((String id) => id.isNotEmpty)
         .toSet();
+
     final Map<String, Map<String, dynamic>> members =
         await _loadShopMembersByIds(shopId: shopId, userIds: userIds);
 
@@ -511,6 +590,7 @@ class ShopPolicyService {
       final String phone = (member?['phone'] ?? member?['mobile'] ?? '')
           .toString()
           .trim();
+
       return <String, dynamic>{
         'userId': row.userId,
         'serviceType': row.serviceType,
@@ -522,6 +602,16 @@ class ShopPolicyService {
         'customerPhone': phone,
       };
     }).toList();
+  }
+
+  static DateTime _policyAcceptanceTime(dynamic value) {
+    if (value is Timestamp) {
+      return value.toDate();
+    }
+    if (value is DateTime) {
+      return value;
+    }
+    return DateTime.fromMillisecondsSinceEpoch(0);
   }
 
   Future<Map<String, Map<String, dynamic>>> _loadShopMembersByIds({

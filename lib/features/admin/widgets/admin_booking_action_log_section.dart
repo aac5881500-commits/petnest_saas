@@ -50,7 +50,21 @@ class AdminBookingActionLogSection extends StatelessWidget {
             return const Center(child: CircularProgressIndicator());
           }
 
-          final logs = snapshot.data?.docs ?? [];
+          final logs = [...?snapshot.data?.docs];
+          logs.sort((a, b) {
+            final DateTime? left = _createdAt(a.data());
+            final DateTime? right = _createdAt(b.data());
+            if (left == null && right == null) {
+              return 0;
+            }
+            if (left == null) {
+              return 1;
+            }
+            if (right == null) {
+              return -1;
+            }
+            return right.compareTo(left);
+          });
 
           if (logs.isEmpty) {
             return const Text('目前無操作紀錄', style: TextStyle(color: Colors.grey));
@@ -58,12 +72,26 @@ class AdminBookingActionLogSection extends StatelessWidget {
 
           return Column(
             children: logs.map((doc) {
-              final log = doc.data() as Map<String, dynamic>;
+              final log = Map<String, dynamic>.from(doc.data() as Map);
               return AdminBookingActionLogCard(log: log);
             }).toList(),
           );
         },
       ),
     );
+  }
+
+  static DateTime? _createdAt(Object? data) {
+    if (data is! Map) {
+      return null;
+    }
+    final dynamic value = data['createdAt'] ?? data['operatedAt'];
+    if (value is Timestamp) {
+      return value.toDate();
+    }
+    if (value is DateTime) {
+      return value;
+    }
+    return null;
   }
 }

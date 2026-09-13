@@ -829,6 +829,11 @@ exports.finalizeBookingAddonInventory =
 exports.returnBookingInventory =
   require("./bookings/return_booking_inventory").returnBookingInventory;
 
+exports.createStayBooking =
+  require("./bookings/create_stay_booking").createStayBooking;
+exports.manageStayInventory =
+  require("./bookings/create_stay_booking").manageStayInventory;
+
 /**
  * 🐾 建立臨托訂單
  */

@@ -1841,8 +1841,11 @@ class _ShopDaycareBookingPageState extends State<ShopDaycareBookingPage> {
             ),
             selected: selected,
             enabled: canPick,
-            blockedReason: option.blockedReason ??
-                (!petsReady ? null : '目前不可選'),
+            blockedReason: option.selectable
+                ? null
+                : ((option.blockedReason ?? '').trim().isNotEmpty
+                    ? option.blockedReason
+                    : '暫時無法確認可用狀態，請重新整理'),
             onTap: () {
               if (!canPick) {
                 return;

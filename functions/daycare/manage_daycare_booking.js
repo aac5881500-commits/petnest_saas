@@ -9,6 +9,7 @@ const {
   isRootAdmin,
   normalizeString,
   resolveBookingKind,
+  serviceDateKey,
   toDate,
   toInt,
   writeActionLog,
@@ -22,6 +23,7 @@ const {
 const {
   assertAvailable,
   applyHoldReleaseFromSnap,
+  calendarCleaningFields,
   holdIdentity,
   holdRefForBooking,
   listHoldEntries,
@@ -30,6 +32,14 @@ const {
   writeHoldEntries,
 } = require("./daycare_occupancy");
 const {computeEarnPoints} = require("./daycare_points");
+
+function formatLogTime(value) {
+  const date = toDate(value);
+  if (!date) {
+    return "";
+  }
+  return date.toLocaleString("zh-TW", {timeZone: "Asia/Taipei"});
+}
 const {
   applyBookingReport,
 } = require("../reports/shop_report_summary");
@@ -503,6 +513,14 @@ exports.manageDaycareBooking = onCall(
             );
             const payQuery = firestore.collection("payments")
                 .where("bookingId", "==", bookingId);
+            const assignedRoomId = normalizeString(booking.roomId);
+            const serviceDate = normalizeString(booking.serviceDate) ||
+              (toDate(booking.scheduledStartAt) ?
+                serviceDateKey(toDate(booking.scheduledStartAt)) : "");
+            const cleaningCalRef = assignedRoomId && serviceDate ?
+              firestore.collection("shops").doc(shopId)
+                  .collection("room_calendar")
+                  .doc(`${assignedRoomId}_${serviceDate}`) : null;
             await firestore.runTransaction(async (transaction) => {
               const holdBooking = holdIdentity(booking, bookingId, shopId);
               const holdRef = holdRefForBooking(firestore, holdBooking);
@@ -512,6 +530,9 @@ exports.manageDaycareBooking = onCall(
                 await transaction.get(doc.ref);
               }
               const paySnap = await transaction.get(payQuery);
+              if (cleaningCalRef) {
+                await transaction.get(cleaningCalRef);
+              }
               releaseOccupancyDocs(transaction, occSnap.docs);
               applyHoldReleaseFromSnap(
                   transaction, holdRef, holdSnap, holdBooking,
@@ -529,6 +550,16 @@ exports.manageDaycareBooking = onCall(
                 }
                 supersedeStalePendingPayments(transaction, [doc]);
               });
+              if (cleaningCalRef) {
+                transaction.set(cleaningCalRef, {
+                  ...calendarCleaningFields(
+                      assignedRoomId, serviceDate, bookingId,
+                  ),
+                  roomName: normalizeString(booking.roomName),
+                  cleaningStartedAt: now,
+                  updatedAt: now,
+                }, {merge: true});
+              }
               transaction.update(bookingRef, bookingUpdate);
             });
             await issueOrRevokeDaycarePoints(firestore, {
@@ -546,15 +577,6 @@ exports.manageDaycareBooking = onCall(
               },
               mode: "issue",
             });
-            if (normalizeString(booking.roomId)) {
-              await firestore.collection("shops").doc(shopId)
-                  .collection("rooms").doc(booking.roomId)
-                  .set({
-                    status: "cleaning",
-                    cleaningStartedAt: now,
-                    updatedAt: now,
-                  }, {merge: true});
-            }
           } else {
             const payQuery = firestore.collection("payments")
                 .where("bookingId", "==", bookingId);
@@ -583,6 +605,15 @@ exports.manageDaycareBooking = onCall(
             paymentStatus: nextPaymentStatus,
             completeMode,
             locked: bookingUpdate.settlementLocked === true,
+            actualStartAtLabel: formatLogTime(booking.actualStartAt),
+            actualEndAtLabel: formatLogTime(
+                bookingUpdate.actualEndAt || booking.actualEndAt,
+            ),
+            settlementRefundMethod: normalizeString(
+                bookingUpdate.settlementRefundMethod ||
+                booking.settlementRefundMethod,
+            ),
+            refundDueAmount,
           };
         }
       } else if (action === "cancel") {
@@ -814,12 +845,34 @@ exports.manageDaycareBooking = onCall(
             originalSettlementAmount: result.originalSettlementAmount || 0,
             manualAdjustmentAmount: result.manualAdjustmentAmount || 0,
             manualAdjustmentReason: result.manualAdjustmentReason || "",
+            reason: result.manualAdjustmentReason ||
+              normalizeString(payload.reason),
             finalSettlementAmount: result.finalSettlementAmount ||
               result.finalTotal || result.totalPrice || 0,
-            finalPaidAmount: result.finalPaidAmount || 0,
+            finalPaidAmount: result.finalPaidAmount ||
+              toInt(booking.paidAmount, 0),
             finalRemainingAmount: result.finalRemainingAmount ||
               result.remainingAmount || 0,
+            refundDueAmount: result.refundDueAmount ||
+              toInt(booking.refundDueAmount, 0),
+            refundMethod: normalizeString(
+                result.settlementRefundMethod ||
+                payload.settlementRefundMethod ||
+                payload.refundMethod ||
+                booking.settlementRefundMethod,
+            ),
+            settlementRefundMethod: normalizeString(
+                result.settlementRefundMethod ||
+                booking.settlementRefundMethod ||
+                payload.settlementRefundMethod,
+            ),
             finalTotal: result.finalTotal || result.totalPrice || 0,
+            actualStartAtLabel: result.actualStartAtLabel || formatLogTime(
+                booking.actualStartAt || booking.scheduledStartAt,
+            ),
+            actualEndAtLabel: result.actualEndAtLabel || formatLogTime(
+                booking.actualEndAt || booking.checkedOutAt,
+            ),
           },
         });
       }
