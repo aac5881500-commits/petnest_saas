@@ -23,6 +23,11 @@ const {
   isSettlementTopUpMethodAvailable,
   normalizeMethodId,
 } = require("../payments/shop_payment_methods");
+const {
+  isActivePayment,
+  isBalanceFamily,
+  supersedeStalePendingPayments,
+} = require("../payments/payment_record");
 
 const ALLOWED_COLLECT = ["cash", "transfer"];
 const ALLOWED_REFUND = ["cash", "transfer", "other"];
@@ -128,9 +133,8 @@ exports.adjustBookingSettlement = onCall(
         return {ok: true, ...settlementFields(booking0, manual)};
       }
 
-      const pendingQuery = firestore.collection("payments")
-          .where("bookingId", "==", bookingId)
-          .where("status", "==", "pending");
+      const relatedPaymentsQuery = firestore.collection("payments")
+          .where("bookingId", "==", bookingId);
 
       const result = await firestore.runTransaction(async (transaction) => {
         const bookingSnap = await transaction.get(bookingRef);
@@ -149,6 +153,7 @@ exports.adjustBookingSettlement = onCall(
         let payload = {};
         let bookingUpdate = {};
         let paymentWrite = null;
+        const relatedPaySnap = await transaction.get(relatedPaymentsQuery);
 
         if (action === "applyAdjust") {
           if (!isSettlementConfirmed(booking) &&
@@ -176,6 +181,8 @@ exports.adjustBookingSettlement = onCall(
           bookingUpdate = {
             manualAdjust,
             lastManualAdjustReason: reason,
+            manualAdjustmentReason: reason,
+            manualAdjustReason: reason,
             settlementAdjustments: history,
             quotedTotalPrice: fields.quotedTotalPrice,
             totalPayableAmount: fields.expectedTotal,
@@ -252,7 +259,7 @@ exports.adjustBookingSettlement = onCall(
               status: "paid",
               paymentMethod: method,
               paymentPurpose: "balance",
-              amountType: "balance",
+              amountType: "full",
               channel: "in_shop",
               requestId,
               createdAt: now,
@@ -417,7 +424,7 @@ exports.adjustBookingSettlement = onCall(
                 status: "paid",
                 paymentMethod: "transfer",
                 paymentPurpose: "balance",
-                amountType: "balance",
+                amountType: "full",
                 channel: "bank_transfer",
                 requestId,
                 createdAt: now,
@@ -477,6 +484,26 @@ exports.adjustBookingSettlement = onCall(
         );
         if (bookingUpdate.status === "completed" && !booking.completedAt) {
           bookingUpdate.completedAt = now;
+        }
+        if (action === "applyAdjust") {
+          const expectedRemain = toInt(bookingUpdate.remainingAmount, 0);
+          relatedPaySnap.docs.forEach((doc) => {
+            const payment = doc.data() || {};
+            if (!isActivePayment(payment)) {
+              return;
+            }
+            if (!isBalanceFamily(payment) &&
+                String(payment.amountType || "").toLowerCase() !== "full") {
+              return;
+            }
+            if (isDepositFamily(payment)) {
+              return;
+            }
+            if (toInt(payment.amount, 0) === expectedRemain) {
+              return;
+            }
+            supersedeStalePendingPayments(transaction, [doc]);
+          });
         }
         transaction.update(bookingRef, bookingUpdate);
         if (paymentWrite) {

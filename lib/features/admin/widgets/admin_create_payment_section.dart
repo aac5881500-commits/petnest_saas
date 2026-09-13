@@ -43,10 +43,20 @@ class AdminCreatePaymentSection extends StatelessWidget {
               ? ShopPaymentMethods.noMethodsMessage
               : '目前沒有可在後台直接建立的付款方式（到店付款或銀行轉帳）。',
         ),
-        if (!isManualMember && online.methods.isNotEmpty) ...<Widget>[
+        if (isManualMember) ...<Widget>[
           const SizedBox(height: 14),
           Text(
-            '建立訂單後，客戶可至 App 訂單詳情選擇店家支援的線上付款方式並完成付款。',
+            '綠界線上付款需由 App 會員在自己的訂單中操作。',
+            style: TextStyle(
+              fontSize: 13,
+              height: 1.4,
+              color: textColor.withValues(alpha: 0.72),
+            ),
+          ),
+        ] else if (online.methods.isNotEmpty) ...<Widget>[
+          const SizedBox(height: 14),
+          Text(
+            '綠界線上付款需由 App 會員在自己的訂單中操作。',
             style: TextStyle(
               fontSize: 13,
               height: 1.4,

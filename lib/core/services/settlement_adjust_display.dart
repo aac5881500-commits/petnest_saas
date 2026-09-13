@@ -67,10 +67,11 @@ class SettlementAdjustDisplay {
   }
 
   static String customerNoteOf(Map<String, dynamic> data) {
-    if (!shouldShow(data)) {
+    final String reason = reasonOf(data);
+    if (reason.isEmpty) {
       return '';
     }
-    return '店家調整說明：${reasonOf(data)}';
+    return '店家調整說明：$reason';
   }
 
   static int amountOf(Map<String, dynamic> data) {
@@ -83,7 +84,7 @@ class SettlementAdjustDisplay {
   }
 
   static bool shouldShow(Map<String, dynamic> data) {
-    return amountOf(data) != 0 && reasonOf(data).isNotEmpty;
+    return amountOf(data) != 0;
   }
 }
 

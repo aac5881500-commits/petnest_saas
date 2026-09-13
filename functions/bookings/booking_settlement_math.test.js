@@ -3,7 +3,7 @@
 
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const {remainingDue, refundDue, expectedTotal} = require(
+const {remainingDue, refundDue, expectedTotal, stampDaycareClearStatus} = require(
     "./booking_settlement_math",
 );
 
@@ -34,4 +34,38 @@ test("已收 1600 已退 200 應收 1500 待補 100", () => {
   };
   assert.equal(remainingDue(booking), 100);
   assert.equal(expectedTotal(booking), 1500);
+});
+
+test("安親結清才 completed，待補／待退維持 checked_in", () => {
+  const update = {};
+  stampDaycareClearStatus({
+    bookingKind: "daycare",
+    settlementConfirmed: true,
+    status: "checked_in",
+  }, {remainingAmount: 0, refundDueAmount: 0}, update);
+  assert.equal(update.status, "completed");
+
+  const remain = {};
+  stampDaycareClearStatus({
+    bookingKind: "daycare",
+    settlementConfirmed: true,
+    status: "checked_in",
+  }, {remainingAmount: 300, refundDueAmount: 0}, remain);
+  assert.equal(remain.status, "checked_in");
+
+  const refund = {};
+  stampDaycareClearStatus({
+    bookingKind: "daycare",
+    settlementConfirmed: true,
+    status: "checked_in",
+  }, {remainingAmount: 0, refundDueAmount: 200}, refund);
+  assert.equal(refund.status, "checked_in");
+
+  const stay = {};
+  stampDaycareClearStatus({
+    bookingKind: "accommodation",
+    settlementConfirmed: true,
+    status: "confirmed",
+  }, {remainingAmount: 0, refundDueAmount: 0}, stay);
+  assert.equal(stay.status, undefined);
 });

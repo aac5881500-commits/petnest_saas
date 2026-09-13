@@ -10,14 +10,16 @@ const {
   HttpsError,
 } = require("firebase-functions/v2/https");
 
-const {
-  normalizeString,
-  resolveDepositAmount,
-  resolveRequestedPaymentAmount,
-  resolveBookingPaymentIntent,
-  verifyBookingForPayment,
-  verifyStoreOrderForPayment,
-} = require("./payment_verify");
+      const {
+        normalizeString,
+        normalizeStoredAmountType,
+        normalizeStoredPaymentPurpose,
+        resolveDepositAmount,
+        resolveRequestedPaymentAmount,
+        resolveBookingPaymentIntent,
+        verifyBookingForPayment,
+        verifyStoreOrderForPayment,
+      } = require("./payment_verify");
 
 const {
   createOrGetPendingPayment,
@@ -97,13 +99,14 @@ exports.createEcpayPayment = onCall(
           requestData.paymentMethod,
       ).toLowerCase();
 
-      const amountType = normalizeString(
+      const amountType = normalizeStoredAmountType(
           requestData.amountType,
-      ).toLowerCase();
+      );
 
-      const requestedPaymentPurpose = normalizeString(
+      const requestedPaymentPurpose = normalizeStoredPaymentPurpose(
           requestData.paymentPurpose,
-      ).toLowerCase();
+          requestData.amountType,
+      );
 
       const paymentPurpose = requestedPaymentPurpose ||
         (amountType === "deposit" ? "deposit" : "full");
@@ -156,8 +159,6 @@ exports.createEcpayPayment = onCall(
       const allowedAmountTypes = [
         "deposit",
         "full",
-        "balance",
-        "additional",
       ];
 
       if (!allowedAmountTypes.includes(amountType)) {
@@ -171,8 +172,6 @@ exports.createEcpayPayment = onCall(
         "deposit",
         "balance",
         "full",
-        "additional",
-        "other",
       ];
 
       if (!allowedPaymentPurposes.includes(paymentPurpose)) {
@@ -193,6 +192,7 @@ exports.createEcpayPayment = onCall(
       let resolvedBookingId = bookingId;
       let resolvedAmountType = amountType;
       let resolvedPaymentPurpose = paymentPurpose;
+      let remainingDueAmount = 0;
 
       if (sourceType === "store_order") {
         const verifiedOrder = await verifyStoreOrderForPayment({
@@ -212,6 +212,7 @@ exports.createEcpayPayment = onCall(
         resolvedBookingId = "";
         resolvedAmountType = "full";
         resolvedPaymentPurpose = "full";
+        remainingDueAmount = verifiedOrder.totalAmount;
 
         const extraMinutes = paymentMethod === "credit_card" ? 30 : 3 * 24 * 60;
         const reservationOutcome = await admin.firestore()
@@ -265,6 +266,7 @@ exports.createEcpayPayment = onCall(
         resolvedBookingId = verifiedBooking.bookingId;
         resolvedAmountType = intent.amountType;
         resolvedPaymentPurpose = intent.paymentPurpose;
+        remainingDueAmount = verifiedBooking.remainingAmount;
       }
 
       await verifyPaymentSettings({
@@ -385,7 +387,7 @@ exports.createEcpayPayment = onCall(
 
         totalAmount,
         paidAmount,
-        remainingAmount: Math.max(totalAmount - paidAmount, 0),
+        remainingAmount: remainingDueAmount,
 
         isExisting: paymentRecord.isExisting,
       };

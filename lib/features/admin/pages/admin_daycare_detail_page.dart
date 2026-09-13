@@ -229,8 +229,6 @@ class _DaycareDetailBodyState extends State<_DaycareDetailBody> {
       'settle',
       extra: <String, dynamic>{
         'actualEndAt': choice.actualEndAt.toIso8601String(),
-        'waiveOvertime': choice.waiveOvertime,
-        'waiveReason': choice.waiveReason,
         'manualAdjust': choice.manualAdjust,
         'manualAdjustReason': choice.manualAdjustReason,
         'manualAdjustmentReason': choice.manualAdjustReason,

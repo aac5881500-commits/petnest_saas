@@ -550,7 +550,10 @@ class BookingDetailViewData {
     if (isDaycare) {
       return BookingSettlementMath.isOrderComplete(raw);
     }
-    return remainingAmount <= 0 && totalAmount > 0;
+    return BookingSettlementMath.remainingDue(data: raw) <= 0 &&
+        BookingSettlementMath.refundDue(data: raw) <= 0 &&
+        paidAmount > 0 &&
+        totalAmount > 0;
   }
 
   bool get showEstimateLabel {

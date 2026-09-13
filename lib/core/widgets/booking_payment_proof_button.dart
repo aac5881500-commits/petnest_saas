@@ -36,9 +36,9 @@ class BookingPaymentProofRecord {
   String get purposeLabel {
     switch (purpose) {
       case 'balance':
-        return '尾款';
       case 'top_up':
-        return '補款';
+      case 'additional':
+        return '結算尾款';
       default:
         return '訂金';
     }
@@ -71,15 +71,46 @@ class BookingPaymentProof {
         .toList();
   }
 
+  static String normalizePurpose(String purpose) {
+    switch (purpose.trim()) {
+      case 'balance':
+      case 'top_up':
+      case 'additional':
+        return 'balance';
+      default:
+        return 'deposit';
+    }
+  }
+
   static List<BookingPaymentProofRecord> records(Map<String, dynamic> data) {
     final List<BookingPaymentProofRecord> out = <BookingPaymentProofRecord>[];
-    final Set<String> seen = <String>{};
+    final Set<String> seenProofIds = <String>{};
+    final Set<String> proofUrls = <String>{};
+    final Set<String> seenLegacyUrls = <String>{};
 
-    void add(BookingPaymentProofRecord record) {
-      if (record.imageUrl.isEmpty || seen.contains(record.imageUrl)) {
+    void addProof(BookingPaymentProofRecord record) {
+      if (record.imageUrl.isEmpty) {
         return;
       }
-      seen.add(record.imageUrl);
+      if (record.proofId.isNotEmpty && seenProofIds.contains(record.proofId)) {
+        return;
+      }
+      if (record.proofId.isNotEmpty) {
+        seenProofIds.add(record.proofId);
+      }
+      proofUrls.add(record.imageUrl);
+      out.add(record);
+    }
+
+    void addLegacy(BookingPaymentProofRecord record) {
+      if (record.imageUrl.isEmpty) {
+        return;
+      }
+      if (proofUrls.contains(record.imageUrl) ||
+          seenLegacyUrls.contains(record.imageUrl)) {
+        return;
+      }
+      seenLegacyUrls.add(record.imageUrl);
       out.add(record);
     }
 
@@ -90,7 +121,7 @@ class BookingPaymentProof {
           continue;
         }
         final Map<String, dynamic> map = Map<String, dynamic>.from(item);
-        add(
+        addProof(
           BookingPaymentProofRecord(
             proofId: SafeParse.parseString(map['proofId']),
             imageUrl: SafeParse.parseString(map['imageUrl']),
@@ -114,7 +145,7 @@ class BookingPaymentProof {
     );
     for (final String key in urlKeys) {
       final String url = SafeParse.parseString(data[key]);
-      add(
+      addLegacy(
         BookingPaymentProofRecord(
           proofId: 'legacy_$key',
           imageUrl: url,
@@ -133,7 +164,7 @@ class BookingPaymentProof {
       final dynamic raw = data[key];
       if (raw is List) {
         for (int i = 0; i < raw.length; i++) {
-          add(
+          addLegacy(
             BookingPaymentProofRecord(
               proofId: 'legacy_${key}_$i',
               imageUrl: raw[i]?.toString() ?? '',
@@ -148,7 +179,7 @@ class BookingPaymentProof {
     final String topUpUrl = SafeParse.parseString(
       data['settlementTopUpTransferImageUrl'],
     );
-    add(
+    addLegacy(
       BookingPaymentProofRecord(
         proofId: 'legacy_settlement_top_up',
         imageUrl: topUpUrl,
@@ -156,7 +187,7 @@ class BookingPaymentProof {
           data['settlementTopUpTransferImagePath'],
         ),
         purpose: BookingSettlementMath.isSettlementConfirmed(data)
-            ? 'top_up'
+            ? 'balance'
             : 'balance',
         amount: BookingSettlementMath.remainingDue(data: data),
         last5: SafeParse.parseString(data['settlementTopUpTransferLast5']),
@@ -168,10 +199,39 @@ class BookingPaymentProof {
     return out;
   }
 
+  static List<String> uniqueLast5(Map<String, dynamic> data) {
+    final Set<String> seen = <String>{};
+    final List<String> out = <String>[];
+    for (final BookingPaymentProofRecord record in records(data)) {
+      final String code = record.last5.trim();
+      if (code.isEmpty || seen.contains(code)) {
+        continue;
+      }
+      seen.add(code);
+      out.add(code);
+    }
+    return out;
+  }
+
+  static String last5Summary(Map<String, dynamic> data) {
+    return uniqueLast5(data).join('、');
+  }
+
+  static bool hasImageForPurpose(Map<String, dynamic> data, String purpose) {
+    final String want = normalizePurpose(purpose);
+    return records(data).any(
+      (BookingPaymentProofRecord e) =>
+          normalizePurpose(e.purpose) == want && e.imageUrl.isNotEmpty,
+    );
+  }
+
   static bool shouldShow(Map<String, dynamic> data) {
     return ShopPaymentMethods.isManualBankTransferPayment(
-      data['paymentMethod'],
-    );
+          data['paymentMethod'],
+        ) ||
+        ShopPaymentMethods.isManualBankTransferPayment(
+          data['settlementTopUpMethod'],
+        );
   }
 
   static bool canConfirmManualDeposit(Map<String, dynamic> data) {

@@ -39,9 +39,13 @@ class BookingPaymentProofFunctionService {
         storagePath: storagePath,
         stage: 'appendBookingPaymentProof',
       );
-      throw DaycareFunctionException(userMessage(error));
+      throw DaycareFunctionException(writeFailedMessage);
     }
   }
+
+  static const String writeFailedMessage =
+      '照片已上傳，但付款資料寫入失敗，請重新送出付款資料。';
+  static const String storageFailedMessage = '照片上傳失敗，請重試。';
 
   static String userMessage(Object error) {
     if (error is FirebaseFunctionsException) {
@@ -52,7 +56,7 @@ class BookingPaymentProofFunctionService {
         case 'internal':
         case 'unknown':
         case 'unavailable':
-          return '無法儲存付款回傳資料';
+          return writeFailedMessage;
         default:
           final String message = (error.message ?? '').trim();
           if (message.isNotEmpty &&
@@ -60,19 +64,19 @@ class BookingPaymentProofFunctionService {
               message.toLowerCase() != 'internal.') {
             return message;
           }
-          return '無法儲存付款回傳資料';
+          return writeFailedMessage;
       }
     }
     if (error is FirebaseException) {
       debugFail(error, StackTrace.current, stage: 'firebase');
       if (error.plugin.contains('storage')) {
-        return '照片上傳失敗，請重試';
+        return storageFailedMessage;
       }
       if (error.code == 'permission-denied') {
         return '無權限上傳付款照片';
       }
     }
-    return '照片上傳失敗，請重試';
+    return storageFailedMessage;
   }
 
   static void debugFail(

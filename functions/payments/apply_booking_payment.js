@@ -8,7 +8,7 @@ const {
   resolvePaidAmount,
   resolveTotalAmount,
 } = require("./payment_verify");
-const {settlementFields, canLock, isSettlementLocked} =
+const {settlementFields, canLock, isSettlementLocked, stampDaycareClearStatus} =
   require("../bookings/booking_settlement_math");
 
 /**
@@ -169,7 +169,24 @@ function buildSuccessfulEcpayBookingPaymentUpdates(params) {
     paidAmount: newPaidAmount,
     remainingAmount,
     refundDueAmount: next.refundDueAmount,
+    settlementConfirmed: booking.settlementConfirmed === true ||
+      booking.settledAt != null ||
+      booking.finalSettlementAmount != null,
   })) {
+    bookingUpdate.settlementLocked = true;
+    bookingUpdate.settlementLockedBy = "system";
+    bookingUpdate.settlementLockedReason = "ecpay_top_up_cleared";
+    bookingUpdate.markSettlementLockedAt = true;
+  }
+
+  stampDaycareClearStatus(booking, next, bookingUpdate);
+  if (bookingUpdate.status === "completed" && !booking.completedAt) {
+    bookingUpdate.markCompletedAt = true;
+  }
+  if (daycare &&
+      bookingUpdate.status === "completed" &&
+      remainingAmount <= 0 &&
+      next.refundDueAmount <= 0) {
     bookingUpdate.settlementLocked = true;
     bookingUpdate.settlementLockedBy = "system";
     bookingUpdate.settlementLockedReason = "ecpay_top_up_cleared";

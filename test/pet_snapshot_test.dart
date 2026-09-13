@@ -46,30 +46,18 @@ void main() {
     expect(merged['litterType'], '豆腐砂');
   });
 
-  test('疫苗不出現在摘要，疾病資訊在安全資訊', () {
+  test('疫苗不單獨當成疾病醫療，也不觸發疾病提醒', () {
     final Map<String, dynamic> pet = PetSnapshot.fromPet(<String, dynamic>{
       'name': '咪',
-      'vaccine': '心臟病',
+      'vaccine': '定期施打',
     });
-    expect(
-      PetSnapshot.visibleRows(
-        pet,
-      ).any((MapEntry<String, String> e) => e.key == '疫苗'),
-      isFalse,
-    );
     expect(
       PetSnapshot.safetyRows(
         pet,
       ).any((MapEntry<String, String> e) => e.key == '疾病／醫療'),
-      isTrue,
-    );
-    expect(
-      PetSnapshot.safetyRows(
-        pet,
-      ).any((MapEntry<String, String> e) => e.key == '餵藥'),
       isFalse,
     );
-    expect(PetSnapshot.hasDiseaseAlert(pet), isTrue);
+    expect(PetSnapshot.hasDiseaseAlert(pet), isFalse);
   });
 
   test('可餵藥不顯示疾病提醒', () {

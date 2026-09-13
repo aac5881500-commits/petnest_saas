@@ -17,6 +17,7 @@ import 'package:petnest_saas/core/models/booking_kind.dart';
 import 'package:petnest_saas/core/models/payment_gateway_status.dart';
 import 'package:petnest_saas/core/models/policy_applicable_service.dart';
 import 'package:petnest_saas/core/models/pre_arrival_guide_model.dart';
+import 'package:petnest_saas/core/widgets/booking_payment_proof_button.dart';
 import 'package:petnest_saas/core/services/booking_payment_proof_function_service.dart';
 import 'package:petnest_saas/core/services/booking_payment_status.dart';
 import 'package:petnest_saas/core/services/booking_settlement_math.dart';
@@ -45,6 +46,62 @@ import 'package:petnest_saas/features/booking/widgets/shop_payment_method_cards.
 import 'package:petnest_saas/features/payment/pages/ecpay_payment_page.dart';
 import 'package:petnest_saas/features/shop/pages/policy_version_detail_page.dart';
 import 'package:petnest_saas/features/shop/widgets/booking/terms_confirmation_sheet.dart';
+
+/// 客戶變更付款方式時只重設待審狀態，不碰歷史付款證據。
+class BookingPaymentChoicePatch {
+  BookingPaymentChoicePatch._();
+
+  static const List<String> preservedProofKeys = <String>[
+    'transferImageUrl',
+    'transferImagePath',
+    'settlementTopUpTransferImageUrl',
+    'settlementTopUpTransferImagePath',
+    'paymentProofs',
+  ];
+
+  static String depositStatusForMethod(String paymentMethod) {
+    if (paymentMethod == PaymentMethodType.bankTransfer) {
+      return 'awaiting_proof';
+    }
+    return 'unpaid';
+  }
+
+  static String settlementTopUpStatusForMethod(String paymentMethod) {
+    if (paymentMethod == PaymentMethodType.bankTransfer) {
+      return 'awaiting_proof';
+    }
+    return 'selected';
+  }
+
+  static Map<String, dynamic> depositFields({
+    required String payAmountType,
+    required String paymentMethod,
+  }) {
+    return <String, dynamic>{
+      'payAmountType': payAmountType,
+      'paymentMethod': paymentMethod,
+      'depositStatus': depositStatusForMethod(paymentMethod),
+    };
+  }
+
+  static Map<String, dynamic> settlementTopUpFields({
+    required String paymentMethod,
+  }) {
+    return <String, dynamic>{
+      'settlementTopUpMethod': paymentMethod,
+      'settlementTopUpStatus': settlementTopUpStatusForMethod(paymentMethod),
+    };
+  }
+
+  static Map<String, dynamic> applyToBooking({
+    required Map<String, dynamic> booking,
+    required Map<String, dynamic> patch,
+  }) {
+    final Map<String, dynamic> next = Map<String, dynamic>.from(booking);
+    next.addAll(patch);
+    return next;
+  }
+}
 
 class BookingDetailPage extends StatelessWidget {
   const BookingDetailPage({super.key, required this.data, required this.docId});
@@ -362,7 +419,8 @@ class _BookingDetailPageState extends State<_BookingDetailBody> {
                                 creatingPayment: _creatingPayment,
                                 onUploadImage: _uploadImage,
                                 onSubmitDeposit: _submitDeposit,
-                                onDeleteTransferImage: _deleteTransferImage,
+                                onDeleteTransferImage:
+                                    _remindPaymentProofCannotDelete,
                                 onChangePayment: () => _showChangePaymentSheet(
                                   booking: data,
                                   flags: flags,
@@ -810,10 +868,6 @@ class _BookingDetailPageState extends State<_BookingDetailBody> {
     final String previousAmountType = SafeParse.parseString(
       booking['payAmountType'],
     );
-    final bool hadPendingProof =
-        SafeParse.parseString(booking['depositStatus']) == 'pending_review' ||
-        SafeParse.parseString(booking['transferLast5']).isNotEmpty ||
-        SafeParse.parseString(booking['transferImageUrl']).isNotEmpty;
     try {
       setState(() {
         _loading = true;
@@ -823,11 +877,9 @@ class _BookingDetailPageState extends State<_BookingDetailBody> {
             .collection('bookings')
             .doc(widget.docId)
             .update(<String, dynamic>{
-              'settlementTopUpMethod': paymentMethod,
-              'settlementTopUpStatus':
-                  paymentMethod == PaymentMethodType.bankTransfer
-                  ? 'awaiting_proof'
-                  : 'selected',
+              ...BookingPaymentChoicePatch.settlementTopUpFields(
+                paymentMethod: paymentMethod,
+              ),
               'updatedAt': FieldValue.serverTimestamp(),
               'paymentChoiceChangedAt': FieldValue.serverTimestamp(),
             });
@@ -843,15 +895,12 @@ class _BookingDetailPageState extends State<_BookingDetailBody> {
           .collection('bookings')
           .doc(widget.docId)
           .update(<String, dynamic>{
-            'payAmountType': payAmountType,
-            'paymentMethod': paymentMethod,
+            ...BookingPaymentChoicePatch.depositFields(
+              payAmountType: payAmountType,
+              paymentMethod: paymentMethod,
+            ),
             'updatedAt': FieldValue.serverTimestamp(),
             'paymentChoiceChangedAt': FieldValue.serverTimestamp(),
-            if (hadPendingProof) 'depositStatus': 'unpaid',
-            if (hadPendingProof) 'transferLast5': '',
-            if (hadPendingProof) 'transferImageUrl': '',
-            if (hadPendingProof) 'transferImagePath': '',
-            if (hadPendingProof) 'depositSubmittedAt': FieldValue.delete(),
           });
       if (uid.isNotEmpty && shopId.isNotEmpty) {
         try {
@@ -869,7 +918,6 @@ class _BookingDetailPageState extends State<_BookingDetailBody> {
                 'paymentMethod': paymentMethod,
                 'previousPayAmountType': previousAmountType,
                 'payAmountType': payAmountType,
-                'voidedPendingProof': hadPendingProof,
               },
               'createdAt': FieldValue.serverTimestamp(),
             },
@@ -883,12 +931,14 @@ class _BookingDetailPageState extends State<_BookingDetailBody> {
         context,
       ).showSnackBar(const SnackBar(content: Text('已更新付款方式／付款金額')));
       if (PaymentMethodType.isOnlinePayment(paymentMethod)) {
-        final Map<String, dynamic> next = Map<String, dynamic>.from(booking);
-        next['payAmountType'] = payAmountType;
-        next['paymentMethod'] = paymentMethod;
-        if (hadPendingProof) {
-          next['depositStatus'] = 'unpaid';
-        }
+        final Map<String, dynamic> next =
+            BookingPaymentChoicePatch.applyToBooking(
+              booking: booking,
+              patch: BookingPaymentChoicePatch.depositFields(
+                payAmountType: payAmountType,
+                paymentMethod: paymentMethod,
+              ),
+            );
         final BookingDetailViewData nextView =
             BookingDetailViewData.fromBooking(data: next, docId: widget.docId);
         if (nextView.dueNowAmount > 0) {
@@ -1103,10 +1153,11 @@ class _BookingDetailPageState extends State<_BookingDetailBody> {
     final Map<String, dynamic> bookingData = SafeParse.parseMap(
       bookingDoc.data(),
     );
-    final String transferImageUrl = SafeParse.parseString(
-      bookingData['transferImageUrl'],
+    final bool settled = BookingSettlementMath.isSettlementConfirmed(
+      bookingData,
     );
-    if (transferImageUrl.isEmpty) {
+    final String purpose = settled ? 'balance' : 'deposit';
+    if (!BookingPaymentProof.hasImageForPurpose(bookingData, purpose)) {
       if (!context.mounted) {
         return;
       }
@@ -1144,24 +1195,24 @@ class _BookingDetailPageState extends State<_BookingDetailBody> {
       setState(() {
         _loading = true;
       });
-      if (BookingSettlementMath.isSettlementConfirmed(bookingData)) {
+      if (settled) {
         await BookingPaymentProofFunctionService.instance.append(
           bookingId: widget.docId,
           imageUrl: '',
           storagePath: '',
-          purpose: 'top_up',
+          purpose: 'balance',
           last5: last5,
           amount: BookingSettlementMath.remainingDue(data: bookingData),
         );
       } else {
-        await FirebaseFirestore.instance
-            .collection('bookings')
-            .doc(widget.docId)
-            .update(<String, dynamic>{
-              'transferLast5': last5,
-              'depositStatus': 'pending_review',
-              'depositSubmittedAt': FieldValue.serverTimestamp(),
-            });
+        await BookingPaymentProofFunctionService.instance.append(
+          bookingId: widget.docId,
+          imageUrl: '',
+          storagePath: '',
+          purpose: 'deposit',
+          last5: last5,
+          amount: BookingPaymentStatus.resolveDepositAmount(bookingData),
+        );
       }
       if (!mounted) {
         return;
@@ -1232,11 +1283,7 @@ class _BookingDetailPageState extends State<_BookingDetailBody> {
       final bool settled = BookingSettlementMath.isSettlementConfirmed(
         bookingData,
       );
-      final String purpose = settled
-          ? (BookingSettlementMath.remainingDue(data: bookingData) > 0
-                ? 'top_up'
-                : 'balance')
-          : 'deposit';
+      final String purpose = settled ? 'balance' : 'deposit';
       final int amount = purpose == 'deposit'
           ? BookingPaymentStatus.resolveDepositAmount(bookingData)
           : BookingSettlementMath.remainingDue(data: bookingData);
@@ -1252,13 +1299,6 @@ class _BookingDetailPageState extends State<_BookingDetailBody> {
       }
       await ref.putData(bytes, SettableMetadata(contentType: 'image/jpeg'));
       final String url = await ref.getDownloadURL();
-      await FirebaseFirestore.instance
-          .collection('bookings')
-          .doc(widget.docId)
-          .update(<String, dynamic>{
-            'transferImageUrl': url,
-            'transferImagePath': ref.fullPath,
-          });
       try {
         await BookingPaymentProofFunctionService.instance.append(
           bookingId: widget.docId,
@@ -1276,13 +1316,24 @@ class _BookingDetailPageState extends State<_BookingDetailBody> {
           storagePath: ref.fullPath,
           stage: 'append-after-storage',
         );
+        if (!mounted) {
+          return;
+        }
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              BookingPaymentProofFunctionService.writeFailedMessage,
+            ),
+          ),
+        );
+        return;
       }
       if (!mounted) {
         return;
       }
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(const SnackBar(content: Text('圖片上傳成功')));
+      ).showSnackBar(const SnackBar(content: Text('付款資料已送出')));
     } catch (error, stack) {
       BookingPaymentProofFunctionService.debugFail(
         error,
@@ -1306,59 +1357,23 @@ class _BookingDetailPageState extends State<_BookingDetailBody> {
     }
   }
 
-  Future<void> _deleteTransferImage(String imageUrl) async {
-    if (imageUrl.isEmpty) {
+  Future<void> _remindPaymentProofCannotDelete(String _) async {
+    if (!mounted) {
       return;
     }
-    final bool? confirm = await showDialog<bool>(
+    await showDialog<void>(
       context: context,
       builder: (_) => AlertDialog(
-        title: const Text('刪除轉帳截圖'),
-        content: const Text('確定要刪除目前上傳的轉帳截圖嗎？'),
+        title: const Text('無法刪除付款證據'),
+        content: const Text('已送出的付款照片僅供對帳，無法刪除。請由店家核對、拒絕或保留紀錄。'),
         actions: <Widget>[
           TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('取消'),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('確定刪除'),
+            onPressed: () => Navigator.pop(context),
+            child: const Text('知道了'),
           ),
         ],
       ),
     );
-    if (confirm != true) {
-      return;
-    }
-    setState(() {
-      _loading = true;
-    });
-    try {
-      await FirebaseStorage.instance.refFromURL(imageUrl).delete();
-      await FirebaseFirestore.instance
-          .collection('bookings')
-          .doc(widget.docId)
-          .update(<String, dynamic>{'transferImageUrl': FieldValue.delete()});
-      if (!mounted) {
-        return;
-      }
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('已刪除轉帳截圖')));
-    } catch (error) {
-      if (!mounted) {
-        return;
-      }
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('刪除失敗：$error')));
-    } finally {
-      if (mounted) {
-        setState(() {
-          _loading = false;
-        });
-      }
-    }
   }
 
   bool _needDepositPayment(Map<String, dynamic> data) {

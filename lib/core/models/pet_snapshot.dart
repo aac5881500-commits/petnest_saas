@@ -64,9 +64,8 @@ class PetSnapshot {
           : null,
       'canSocial': _jsonScalar(pet['canSocial']),
       'canMedicate': _jsonScalar(pet['canMedicate']),
-      'medicalStatus': (pet['medicalStatus'] ?? pet['vaccine'] ?? '')
-          .toString(),
-      'vaccine': (pet['vaccine'] ?? pet['medicalStatus'] ?? '').toString(),
+      'medicalStatus': (pet['medicalStatus'] ?? '').toString(),
+      'vaccine': (pet['vaccine'] ?? '').toString(),
       'vaccineStatus': (pet['vaccineStatus'] ?? '').toString(),
       'chipNumber':
           (pet['chipNumber'] ??
@@ -171,10 +170,7 @@ class PetSnapshot {
     }
 
     add('過敏', pet['allergy']);
-    add(
-      '疾病／醫療',
-      _firstNonEmpty(<dynamic>[pet['medicalStatus'], pet['vaccine']]),
-    );
+    add('疾病／醫療', pet['medicalStatus']);
     add('藥物', pet['medication']);
     add('緊張或攻擊行為', pet['emergencyBehavior']);
     add('不喜歡', pet['dislikes']);
@@ -185,7 +181,6 @@ class PetSnapshot {
   static bool hasDiseaseAlert(Map<String, dynamic> pet) {
     return _firstNonEmpty(<dynamic>[
       pet['medicalStatus'],
-      pet['vaccine'],
       pet['allergy'],
       pet['medication'],
       pet['emergencyBehavior'],

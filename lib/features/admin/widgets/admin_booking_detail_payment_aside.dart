@@ -3,6 +3,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/models/shop_frontend_theme.dart';
+import 'package:petnest_saas/core/services/booking_settlement_math.dart';
 import 'package:petnest_saas/core/services/booking_payment_status.dart';
 import 'package:petnest_saas/core/services/daycare_payment_display.dart';
 import 'package:petnest_saas/core/widgets/booking_payment_deadline_banner.dart';
@@ -31,12 +32,14 @@ class AdminBookingDetailPaymentAside extends StatelessWidget {
     final bool phone = AdminBookingDetailScope.of(context).isPhone;
     final int total = DaycarePaymentDisplay.resolveTotal(data);
     final int paid = BookingPaymentStatus.resolvePaid(data);
-    final int remaining = BookingPaymentStatus.resolveRemaining(
-      total: total,
-      paid: paid,
-    );
+    final int remaining = BookingSettlementMath.remainingDue(data: data);
+    final int refundDue = BookingSettlementMath.refundDue(data: data);
     final bool depositPaid = BookingPaymentStatus.isDepositConfirmed(data);
     final bool overdue = BookingPaymentStatus.isDeadlineOverdue(data);
+    final bool daycare = BookingPaymentStatus.isDaycare(data);
+    final bool cleared = daycare
+        ? BookingSettlementMath.isOrderComplete(data)
+        : remaining <= 0 && refundDue <= 0 && paid > 0 && total > 0;
     final Color accent = remaining > 0
         ? (overdue ? ShopFrontendTheme.errorColor : theme.primaryColor)
         : ShopFrontendTheme.successColor;
@@ -77,10 +80,10 @@ class AdminBookingDetailPaymentAside extends StatelessWidget {
             runSpacing: 6,
             children: <Widget>[
               _pill(
-                remaining <= 0 && total > 0
+                cleared
                     ? '已付清'
                     : (depositPaid ? '訂金已確認' : '尚未完成付款'),
-                remaining <= 0
+                cleared
                     ? ShopFrontendTheme.successColor
                     : ShopFrontendTheme.warningColor,
               ),
@@ -97,11 +100,11 @@ class AdminBookingDetailPaymentAside extends StatelessWidget {
               'transfer') ...<Widget>[
             const SizedBox(height: 8),
             Text(
-              ((data['transferLast5'] ?? '').toString().trim().isEmpty)
+              BookingPaymentProof.last5Summary(data).isEmpty
                   ? '尚無轉帳後五碼'
-                  : '轉帳後五碼 ${(data['transferLast5'] ?? '').toString()}',
+                  : '轉帳後五碼 ${BookingPaymentProof.last5Summary(data)}',
               style: TextStyle(
-                color: (data['transferLast5'] ?? '').toString().trim().isEmpty
+                color: BookingPaymentProof.last5Summary(data).isEmpty
                     ? ShopFrontendTheme.warningColor
                     : theme.titleColor,
                 fontWeight: FontWeight.w700,

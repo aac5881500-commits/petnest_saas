@@ -171,11 +171,17 @@ abstract final class PaymentPurpose {
   /// 預約一次付清
   static const String full = 'full';
 
-  /// 加購服務、延長住宿或其他補款
+  /// 加購服務、延長住宿或其他補款（舊資料相容讀取）
   static const String additional = 'additional';
 
-  /// 其他人工指定付款
+  /// 其他人工指定付款（舊資料相容讀取）
   static const String other = 'other';
+
+  /// 舊結算補款（相容讀取，新資料寫 balance）
+  static const String topUp = 'top_up';
+
+  /// 退款
+  static const String refund = 'refund';
 
   static const List<String> values = <String>[
     deposit,
@@ -183,21 +189,40 @@ abstract final class PaymentPurpose {
     full,
     additional,
     other,
+    topUp,
+    refund,
   ];
 
   static bool isValid(String value) {
     return values.contains(value);
   }
 
-  /// 顯示用途。舊 additional 視為結算尾款；amountType=deposit 優先顯示訂金。
+  static String normalize(String purpose) {
+    final String raw = purpose.trim();
+    if (raw == additional || raw == topUp || raw == other) {
+      return balance;
+    }
+    return raw;
+  }
+
+  /// 顯示用途。舊 additional／top_up 視為結算尾款；amountType=deposit 優先顯示訂金。
   static String displayLabel(String purpose, {String amountType = ''}) {
     if (purpose == deposit || amountType == PaymentAmountType.deposit) {
       return '訂金';
     }
-    if (purpose == balance || purpose == additional) {
+    if (purpose == refund || amountType == refund) {
+      return '退款';
+    }
+    if (purpose == balance ||
+        purpose == additional ||
+        purpose == topUp ||
+        purpose == other) {
       return '結算尾款';
     }
-    if (purpose == full || amountType == PaymentAmountType.full) {
+    if (purpose == full) {
+      return '全額付款';
+    }
+    if (amountType == PaymentAmountType.full) {
       return '全額付款';
     }
     return '付款';

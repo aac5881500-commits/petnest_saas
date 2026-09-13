@@ -102,6 +102,7 @@ void main() {
         expect(find.byType(Scrollbar), findsNWidgets(2));
       }
       expect(find.textContaining('SHOP0001-B000105'), findsWidgets);
+      expect(find.text('點擊查看詳細資料與照護資料 ›'), findsWidgets);
     }
 
     addTearDown(tester.view.resetPhysicalSize);

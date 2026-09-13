@@ -188,6 +188,7 @@ test("已 superseded 的交易仍可入帳且不重複加款於 paid", () => {
       amountType: "full",
     }),
     booking: daycareBooking({
+      status: "checked_in",
       settlementConfirmed: true,
       quotedTotalPrice: 1000,
       manualAdjust: 800,
@@ -205,4 +206,110 @@ test("已 superseded 的交易仍可入帳且不重複加款於 paid", () => {
   assert.equal(pending.paymentUpdate.status, "paid");
   assert.equal(pending.bookingUpdate.paidAmount, 1500);
   assert.equal(pending.bookingUpdate.remainingAmount, 300);
+  assert.equal(pending.bookingUpdate.status, "checked_in");
+});
+
+test("安親結算尾款信用卡成功 → completed 並鎖單", () => {
+  const result = buildSuccessfulEcpayBookingPaymentUpdates({
+    payment: payment({
+      amount: 1300,
+      paymentPurpose: "balance",
+      amountType: "full",
+    }),
+    booking: daycareBooking({
+      status: "checked_in",
+      settlementConfirmed: true,
+      quotedTotalPrice: 1800,
+      totalPrice: 1800,
+      totalPayableAmount: 1800,
+      finalSettlementAmount: 1800,
+      paidAmount: 500,
+    }),
+    paymentId: "p-bal",
+    merchantTradeNo: "TN123",
+    gatewayTradeNo: "G10",
+    callbackAmount: 1300,
+  });
+  assert.equal(result.bookingUpdate.paidAmount, 1800);
+  assert.equal(result.bookingUpdate.remainingAmount, 0);
+  assert.equal(result.bookingUpdate.refundDueAmount, 0);
+  assert.equal(result.bookingUpdate.status, "completed");
+  assert.equal(result.bookingUpdate.settlementLocked, true);
+  assert.equal(result.bookingUpdate.settlementLockedBy, "system");
+  assert.equal(
+      result.bookingUpdate.settlementLockedReason,
+      "ecpay_top_up_cleared",
+  );
+  assert.equal(result.bookingUpdate.markCompletedAt, true);
+  assert.equal(result.bookingUpdate.depositExpireAt, undefined);
+});
+
+test("安親結算後待補款不可 completed", () => {
+  const result = buildSuccessfulEcpayBookingPaymentUpdates({
+    payment: payment({
+      amount: 200,
+      paymentPurpose: "balance",
+      amountType: "full",
+    }),
+    booking: daycareBooking({
+      status: "checked_in",
+      settlementConfirmed: true,
+      quotedTotalPrice: 1800,
+      totalPrice: 1800,
+      finalSettlementAmount: 1800,
+      paidAmount: 500,
+    }),
+    paymentId: "p-part",
+    merchantTradeNo: "TN123",
+    gatewayTradeNo: "G11",
+    callbackAmount: 200,
+  });
+  assert.equal(result.bookingUpdate.remainingAmount, 1100);
+  assert.equal(result.bookingUpdate.status, "checked_in");
+});
+
+test("安親結算後待退款不可 completed", () => {
+  const result = buildSuccessfulEcpayBookingPaymentUpdates({
+    payment: payment({
+      amount: 500,
+      paymentPurpose: "balance",
+      amountType: "full",
+    }),
+    booking: daycareBooking({
+      status: "checked_in",
+      settlementConfirmed: true,
+      quotedTotalPrice: 800,
+      totalPrice: 800,
+      finalSettlementAmount: 800,
+      paidAmount: 500,
+    }),
+    paymentId: "p-over",
+    merchantTradeNo: "TN123",
+    gatewayTradeNo: "G12",
+    callbackAmount: 500,
+  });
+  assert.equal(result.bookingUpdate.paidAmount, 1000);
+  assert.equal(result.bookingUpdate.refundDueAmount, 200);
+  assert.equal(result.bookingUpdate.status, "checked_in");
+});
+
+test("住宿不因安親結算規則改成 completed", () => {
+  const result = buildSuccessfulEcpayBookingPaymentUpdates({
+    payment: payment({
+      amount: 3000,
+      paymentPurpose: "full",
+      amountType: "full",
+    }),
+    booking: stayBooking({
+      settlementConfirmed: true,
+      finalSettlementAmount: 3000,
+      paidAmount: 0,
+      status: "confirmed",
+    }),
+    paymentId: "p-stay",
+    merchantTradeNo: "TN123",
+    gatewayTradeNo: "G13",
+    callbackAmount: 3000,
+  });
+  assert.equal(result.bookingUpdate.status, undefined);
 });

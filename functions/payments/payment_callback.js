@@ -530,6 +530,7 @@ exports.ecpayPaymentCallback = onRequest(
               delete bookingUpdate.markDepositPaidAt;
               delete bookingUpdate.markConfirmedAt;
               delete bookingUpdate.markSettlementLockedAt;
+              delete bookingUpdate.markCompletedAt;
               delete bookingUpdate.settlementExceptionAt;
 
               if (outcome.bookingUpdate.markPaidAt) {
@@ -543,6 +544,9 @@ exports.ecpayPaymentCallback = onRequest(
               }
               if (outcome.bookingUpdate.markSettlementLockedAt) {
                 bookingUpdate.settlementLockedAt = now;
+              }
+              if (outcome.bookingUpdate.markCompletedAt) {
+                bookingUpdate.completedAt = now;
               }
               if (outcome.bookingUpdate.settlementExceptionAt) {
                 bookingUpdate.settlementExceptionAt = now;

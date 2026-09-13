@@ -10,11 +10,20 @@ const admin = require("firebase-admin");
 const {
   normalizeInteger,
   normalizeString,
+  normalizeStoredAmountType,
+  normalizeStoredPaymentPurpose,
+  resolveBookingPaymentIntent,
+  resolveRequestedPaymentAmount,
 } = require("./payment_verify");
 
 const {
   createMerchantTradeNo,
 } = require("./ecpay_utils");
+
+const {
+  remainingDue,
+  isSettlementLocked,
+} = require("../bookings/booking_settlement_math");
 
 /**
  * 使用會員 UID 與 requestId 產生固定 paymentId
@@ -59,21 +68,11 @@ function createPaymentId({
  * @return {string}
  */
 function resolvePaymentPurpose(payment) {
-  const paymentPurpose = normalizeString(
+  const paymentPurpose = normalizeStoredPaymentPurpose(
       payment.paymentPurpose,
-  ).toLowerCase();
-
-  if (paymentPurpose) {
-    return paymentPurpose;
-  }
-
-  const amountType = normalizeString(
       payment.amountType,
-  ).toLowerCase();
-
-  return amountType === "deposit" ?
-    "deposit" :
-    "full";
+  );
+  return paymentPurpose;
 }
 
 /**
@@ -89,6 +88,14 @@ function isDepositFamily(payment) {
   const data = payment && typeof payment === "object" ? payment : {};
   return resolvePaymentPurpose(data) === "deposit" ||
     normalizeString(data.amountType).toLowerCase() === "deposit";
+}
+
+function isBalanceFamily(payment) {
+  const purpose = resolvePaymentPurpose(payment);
+  return purpose === "balance" ||
+    purpose === "additional" ||
+    purpose === "top_up" ||
+    purpose === "other";
 }
 
 /**
@@ -237,13 +244,11 @@ async function createOrGetPendingPayment({
       paymentMethod,
   ).toLowerCase();
 
-  const normalizedAmountType = normalizeString(
-      amountType,
-  ).toLowerCase();
-
-  const normalizedPaymentPurpose = normalizeString(
+  const normalizedAmountType = normalizeStoredAmountType(amountType);
+  const normalizedPaymentPurpose = normalizeStoredPaymentPurpose(
       paymentPurpose,
-  ).toLowerCase();
+      amountType,
+  );
 
   const normalizedAmount = normalizeInteger(amount);
   const normalizedTotalAmount = normalizeInteger(totalAmount);
@@ -301,8 +306,6 @@ async function createOrGetPendingPayment({
     "deposit",
     "balance",
     "full",
-    "additional",
-    "other",
   ];
 
   if (
@@ -326,6 +329,10 @@ async function createOrGetPendingPayment({
   );
 
   const firestore = admin.firestore();
+  const paymentRef = firestore.collection("payments").doc(paymentId);
+  const bookingRef = normalizedSourceType === "store_order" ?
+    null :
+    firestore.collection("bookings").doc(normalizedBookingId);
 
   const activeQueryField = normalizedSourceType === "store_order" ?
     "storeOrderId" :
@@ -333,153 +340,174 @@ async function createOrGetPendingPayment({
   const activeQueryValue = normalizedSourceType === "store_order" ?
     normalizedStoreOrderId || normalizedSourceId :
     normalizedBookingId;
-
-  const activePaymentsSnapshot = await firestore
+  const relatedPaymentsQuery = firestore
       .collection("payments")
-      .where(
-          activeQueryField,
-          "==",
-          activeQueryValue,
-      )
-      .get();
-
-  const activeDocs = activePaymentsSnapshot.docs.filter((doc) => {
-    const payment = doc.data() || {};
-    return isActivePayment(payment) &&
-      normalizeString(payment.gateway).toLowerCase() === "ecpay";
-  });
-
-  const creatingDeposit = normalizedPaymentPurpose === "deposit" ||
-    normalizedAmountType === "deposit";
-
-  const familyDocs = activeDocs.filter((doc) => {
-    const payment = doc.data() || {};
-    const depositFamily = isDepositFamily(payment);
-    return creatingDeposit ? depositFamily : !depositFamily;
-  });
-
-  const reusableDoc = familyDocs.find((doc) => {
-    const payment = doc.data() || {};
-    return normalizeString(payment.paymentMethod).toLowerCase() ===
-        normalizedPaymentMethod &&
-      normalizeInteger(payment.amount) === normalizedAmount;
-  });
-
-  if (reusableDoc) {
-    return {
-      paymentId: reusableDoc.id,
-      paymentRef: reusableDoc.ref,
-      payment: reusableDoc.data() || {},
-      isExisting: true,
-    };
-  }
-
-  const staleDocs = familyDocs;
-  if (staleDocs.length > 0 && normalizedSourceType === "store_order") {
-    const existingPayment = staleDocs[0].data() || {};
-    throw new HttpsError(
-        "already-exists",
-        "此訂單已有一筆尚未完成的付款，請先確認原付款結果。",
-        {
-          paymentId: staleDocs[0].id,
-          bookingId: normalizedBookingId,
-          merchantTradeNo: normalizeString(existingPayment.merchantTradeNo),
-          status: normalizeString(existingPayment.status),
-        },
-    );
-  }
-
-  let resolvedBookingCode = normalizeString(bookingCode);
-  let resolvedCustomerName = normalizeString(customerName);
-
-  if (normalizedSourceType !== "store_order") {
-    const bookingRef = firestore
-        .collection("bookings")
-        .doc(normalizedBookingId);
-
-    const bookingSnapshot = await bookingRef.get();
-
-    if (!bookingSnapshot.exists) {
-      throw new HttpsError(
-          "not-found",
-          "找不到付款對應的訂單。",
-      );
-    }
-
-    const booking = bookingSnapshot.data() || {};
-    resolvedBookingCode = normalizeString(booking.bookingCode);
-    resolvedCustomerName = normalizeString(booking.customerName);
-  }
-
-  const paymentRef = firestore
-      .collection("payments")
-      .doc(paymentId);
-
-  const paymentData = {
-    paymentId,
-    requestId: normalizedRequestId,
-    bookingId: normalizedBookingId,
-    shopId: normalizedShopId,
-    userId: normalizedUserId,
-    bookingCode: resolvedBookingCode,
-    customerName: resolvedCustomerName,
-    sourceType: normalizedSourceType,
-    sourceId: normalizedSourceId,
-    storeOrderId: normalizedStoreOrderId,
-    storeOrderCode: normalizedStoreOrderCode,
-    gateway: "ecpay",
-    paymentMethod: normalizedPaymentMethod,
-    amountType: normalizedAmountType,
-    paymentPurpose: normalizedPaymentPurpose,
-    amount: normalizedAmount,
-    totalAmount: normalizedTotalAmount,
-    paidAmountBeforePayment: normalizedPaidAmount,
-    status: "creating",
-    gatewayStatus: "",
-    merchantTradeNo,
-    paymentUrl: "",
-    atmBankCode: "",
-    atmAccount: "",
-    atmExpireAt: null,
-    cvsPaymentCode: "",
-    cvsExpireAt: null,
-    failureCode: "",
-    failureMessage: "",
-    createdAt:
-      admin.firestore.FieldValue.serverTimestamp(),
-    updatedAt:
-      admin.firestore.FieldValue.serverTimestamp(),
-  };
+      .where(activeQueryField, "==", activeQueryValue);
 
   const transactionResult = await firestore.runTransaction(
       async (transaction) => {
-        const paymentSnapshot =
-          await transaction.get(paymentRef);
+        const paymentSnapshot = await transaction.get(paymentRef);
+        let latestBooking = {};
+        if (bookingRef) {
+          const bookingSnapshot = await transaction.get(bookingRef);
+          if (!bookingSnapshot.exists) {
+            throw new HttpsError("not-found", "找不到付款對應的訂單。");
+          }
+          latestBooking = bookingSnapshot.data() || {};
+          if (isSettlementLocked(latestBooking)) {
+            throw new HttpsError(
+                "failed-precondition",
+                "訂單已鎖定，無法建立新的付款交易。",
+            );
+          }
+        }
+        const relatedSnap = await transaction.get(relatedPaymentsQuery);
 
-        for (const stale of staleDocs) {
-          const staleSnap = await transaction.get(stale.ref);
-          if (!staleSnap.exists) {
-            continue;
-          }
-          const stalePayment = staleSnap.data() || {};
-          if (normalizeString(stalePayment.status).toLowerCase() === "paid") {
-            continue;
-          }
-          if (!isActivePayment(stalePayment)) {
-            continue;
-          }
-          supersedeStalePendingPayments(transaction, [stale]);
+        let liveAmountType = normalizedAmountType;
+        let livePaymentPurpose = normalizedPaymentPurpose;
+        let liveAmount = normalizedAmount;
+        let liveTotal = normalizedTotalAmount;
+        let livePaidBefore = normalizedPaidAmount;
+        let resolvedBookingCode = normalizeString(bookingCode);
+        let resolvedCustomerName = normalizeString(customerName);
+
+        if (bookingRef) {
+          const intent = resolveBookingPaymentIntent({
+            booking: latestBooking,
+            amountType: normalizedAmountType,
+            paymentPurpose: normalizedPaymentPurpose,
+          });
+          liveAmountType = intent.amountType;
+          livePaymentPurpose = intent.paymentPurpose;
+          liveAmount = resolveRequestedPaymentAmount({
+            booking: latestBooking,
+            amountType: intent.chargeType,
+          });
+          liveTotal = remainingDue(latestBooking) +
+            normalizeInteger(latestBooking.paidAmount);
+          livePaidBefore = normalizeInteger(latestBooking.paidAmount);
+          resolvedBookingCode = normalizeString(latestBooking.bookingCode);
+          resolvedCustomerName = normalizeString(latestBooking.customerName);
         }
 
-        if (paymentSnapshot.exists) {
-          const existingPayment =
-            paymentSnapshot.data() || {};
+        const creatingDeposit = livePaymentPurpose === "deposit" ||
+          liveAmountType === "deposit";
+        const relatedDocs = relatedSnap.docs.filter((doc) => {
+          if (doc.id === paymentId) {
+            return false;
+          }
+          const payment = doc.data() || {};
+          return isActivePayment(payment) &&
+            normalizeString(payment.gateway).toLowerCase() === "ecpay";
+        });
+        const familyDocs = relatedDocs.filter((doc) => {
+          const payment = doc.data() || {};
+          const depositFamily = isDepositFamily(payment);
+          return creatingDeposit ? depositFamily : !depositFamily;
+        });
 
+        if (normalizedSourceType === "store_order" && familyDocs.length > 0) {
+          const existingPayment = familyDocs[0].data() || {};
+          const sameReuse =
+            normalizeString(existingPayment.paymentMethod).toLowerCase() ===
+              normalizedPaymentMethod &&
+            normalizeInteger(existingPayment.amount) === liveAmount;
+          if (!sameReuse) {
+            throw new HttpsError(
+                "already-exists",
+                "此訂單已有一筆尚未完成的付款，請先確認原付款結果。",
+                {
+                  paymentId: familyDocs[0].id,
+                  bookingId: normalizedBookingId,
+                  merchantTradeNo: normalizeString(
+                      existingPayment.merchantTradeNo,
+                  ),
+                  status: normalizeString(existingPayment.status),
+                },
+            );
+          }
+        }
+
+        const reusableDoc = familyDocs.find((doc) => {
+          const payment = doc.data() || {};
+          return normalizeString(payment.paymentMethod).toLowerCase() ===
+              normalizedPaymentMethod &&
+            normalizeInteger(payment.amount) === liveAmount;
+        });
+        if (reusableDoc) {
+          return {
+            paymentId: reusableDoc.id,
+            paymentRef: reusableDoc.ref,
+            payment: reusableDoc.data() || {},
+            isExisting: true,
+          };
+        }
+
+        familyDocs.forEach((stale) => {
+          const stalePayment = stale.data() || {};
+          if (normalizeString(stalePayment.status).toLowerCase() === "paid") {
+            return;
+          }
+          if (!isActivePayment(stalePayment)) {
+            return;
+          }
+          if (creatingDeposit || isBalanceFamily(stalePayment) ||
+              !isDepositFamily(stalePayment)) {
+            supersedeStalePendingPayments(transaction, [stale]);
+          }
+        });
+
+        const paymentData = {
+          paymentId,
+          requestId: normalizedRequestId,
+          bookingId: normalizedBookingId,
+          shopId: normalizedShopId,
+          userId: normalizedUserId,
+          bookingCode: resolvedBookingCode,
+          customerName: resolvedCustomerName,
+          sourceType: normalizedSourceType,
+          sourceId: normalizedSourceId,
+          storeOrderId: normalizedStoreOrderId,
+          storeOrderCode: normalizedStoreOrderCode,
+          gateway: "ecpay",
+          paymentMethod: normalizedPaymentMethod,
+          amountType: liveAmountType,
+          paymentPurpose: livePaymentPurpose,
+          amount: liveAmount,
+          totalAmount: liveTotal,
+          paidAmountBeforePayment: livePaidBefore,
+          status: "creating",
+          gatewayStatus: "",
+          merchantTradeNo,
+          paymentUrl: "",
+          atmBankCode: "",
+          atmAccount: "",
+          atmExpireAt: null,
+          cvsPaymentCode: "",
+          cvsExpireAt: null,
+          failureCode: "",
+          failureMessage: "",
+          createdAt: admin.firestore.FieldValue.serverTimestamp(),
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        };
+
+        if (paymentSnapshot.exists) {
+          const existingPayment = paymentSnapshot.data() || {};
+          if (isActivePayment(existingPayment) &&
+              normalizeInteger(existingPayment.amount) === liveAmount &&
+              normalizeString(existingPayment.paymentMethod).toLowerCase() ===
+                normalizedPaymentMethod) {
+            return {
+              paymentId,
+              paymentRef,
+              payment: existingPayment,
+              isExisting: true,
+            };
+          }
           verifyExistingPaymentRequest({
             existingPayment,
             expectedPayment: paymentData,
           });
-
           return {
             paymentId,
             paymentRef,
@@ -488,11 +516,7 @@ async function createOrGetPendingPayment({
           };
         }
 
-        transaction.create(
-            paymentRef,
-            paymentData,
-        );
-
+        transaction.create(paymentRef, paymentData);
         return {
           paymentId,
           paymentRef,
@@ -544,4 +568,9 @@ module.exports = {
   verifyExistingPaymentRequest,
   createOrGetPendingPayment,
   findPaymentForEcpayCallback,
+  isActivePayment,
+  isBalanceFamily,
+  isDepositFamily,
+  supersedeStalePendingPayments,
+  resolvePaymentPurpose,
 };

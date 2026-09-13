@@ -169,7 +169,7 @@ class AdminBookingSettlementPanel extends StatelessWidget {
           Padding(
             padding: const EdgeInsets.only(bottom: 4),
             child: Text(
-              '調整原因：${SettlementAdjustDisplay.reasonOf(data)}',
+              '店家調整說明：${SettlementAdjustDisplay.reasonOf(data)}',
             ),
           ),
       ],

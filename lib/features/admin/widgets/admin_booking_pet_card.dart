@@ -173,6 +173,15 @@ class AdminBookingPetCard extends StatelessWidget {
                     ),
                   ),
                 ],
+                const SizedBox(height: 8),
+                Text(
+                  '點擊查看詳細資料與照護資料 ›',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: accent,
+                  ),
+                ),
               ],
             ),
           ),

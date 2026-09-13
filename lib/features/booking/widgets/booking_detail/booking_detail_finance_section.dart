@@ -1,6 +1,7 @@
 // 檔案名稱：lib/features/booking/widgets/booking_detail/booking_detail_finance_section.dart
 // 功能說明：費用與付款：摘要、付款操作、明細展開、轉帳、付款紀錄、退房追加費用。
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:petnest_saas/core/models/payment_gateway_status.dart';
@@ -113,36 +114,34 @@ class _BookingDetailFinanceSectionState
               'NT\$ ${view.depositAmount}',
               valueColor: BookingDetailUi.of(context).primary,
             ),
-          if (view.isDaycare) ...<Widget>[
-            const SizedBox(height: 8),
-            Text(
-              '付款進度',
-              style: TextStyle(
-                fontSize: BookingDetailUi.bodySize,
-                fontWeight: FontWeight.w700,
-                color: BookingDetailUi.of(context).text,
-              ),
+          const SizedBox(height: 8),
+          Text(
+            '付款進度',
+            style: TextStyle(
+              fontSize: BookingDetailUi.bodySize,
+              fontWeight: FontWeight.w700,
+              color: BookingDetailUi.of(context).text,
             ),
-            const SizedBox(height: 8),
-            _kv('訂金', view.daycareDepositProgressLabel),
-            _kv('結算尾款', view.daycareBalanceProgressLabel),
-            const SizedBox(height: 4),
-          ],
+          ),
+          const SizedBox(height: 8),
+          _kv('訂金', view.daycareDepositProgressLabel),
+          _kv('結算尾款', view.daycareBalanceProgressLabel),
+          const SizedBox(height: 4),
           _kv('已付款', 'NT\$ ${view.paidAmount}'),
           if (BookingSettlementMath.isSettlementConfirmed(view.raw) &&
               !view.isDaycare) ...<Widget>[
-            if (view.isDaycare &&
-                SettlementAdjustDisplay.shouldShow(view.raw)) ...<Widget>[
+            if (SettlementAdjustDisplay.amountOf(view.raw) != 0) ...<Widget>[
               _kv(
                 '費用調整',
                 SettlementAdjustDisplay.signedLabel(
                   SettlementAdjustDisplay.amountOf(view.raw),
                 ),
               ),
-              _kv(
-                '調整說明',
-                SettlementAdjustDisplay.reasonOf(view.raw),
-              ),
+              if (SettlementAdjustDisplay.reasonOf(view.raw).isNotEmpty)
+                _kv(
+                  '店家調整說明',
+                  SettlementAdjustDisplay.reasonOf(view.raw),
+                ),
             ],
             _kv(
               '已完成退款',
@@ -586,8 +585,11 @@ class _BookingDetailFinanceSectionState
       ),
       builder: (BuildContext context, AsyncSnapshot<List<PaymentModel>> snapshot) {
         if (snapshot.hasError) {
+          if (kDebugMode) {
+            debugPrint('[paymentHistory] ${snapshot.error}');
+          }
           return Text(
-            '付款紀錄暫時無法載入',
+            '付款紀錄暫時無法載入，請稍後重試',
             style: TextStyle(
               fontSize: BookingDetailUi.captionSize,
               color: BookingDetailUi.of(context).muted,

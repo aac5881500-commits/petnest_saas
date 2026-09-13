@@ -60,3 +60,30 @@ test("一次付清未付款訂單用途為 full", () => {
   });
   assert.equal(intent.paymentPurpose, "full");
 });
+
+test("前端誤傳 amountType=balance 仍正規成 full，不會付款金額類型不正確", () => {
+  const {
+    normalizeStoredAmountType,
+    normalizeStoredPaymentPurpose,
+  } = require("./payment_verify");
+  assert.equal(normalizeStoredAmountType("balance"), "full");
+  assert.equal(normalizeStoredPaymentPurpose("balance", "balance"), "balance");
+  const booking = {
+    settlementConfirmed: true,
+    quotedTotalPrice: 1800,
+    paidAmount: 500,
+    finalSettlementAmount: 1800,
+  };
+  const intent = resolveBookingPaymentIntent({
+    booking,
+    amountType: "balance",
+    paymentPurpose: "balance",
+  });
+  assert.equal(intent.amountType, "full");
+  assert.equal(intent.chargeType, "full");
+  assert.equal(intent.paymentPurpose, "balance");
+  assert.equal(
+      resolveRequestedPaymentAmount({booking, amountType: intent.amountType}),
+      1300,
+  );
+});

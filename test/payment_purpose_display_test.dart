@@ -21,6 +21,11 @@ void main() {
   test('結算尾款包含 balance 與舊 additional', () {
     expect(PaymentPurpose.displayLabel('balance'), '結算尾款');
     expect(PaymentPurpose.displayLabel('additional'), '結算尾款');
+    expect(PaymentPurpose.displayLabel('top_up'), '結算尾款');
+    expect(
+      PaymentPurpose.displayLabel('balance', amountType: 'full'),
+      '結算尾款',
+    );
   });
 
   test('失效狀態顯示結算金額已更新', () {

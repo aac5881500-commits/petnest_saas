@@ -140,9 +140,7 @@ function resolveDepositAmount(booking) {
  * 所有金額都由後端訂單資料重新計算，
  * 不採用 Flutter 傳入的 amount。
  *
- * amountType：
- * deposit：支付尚未付清的訂金
- * full／balance／additional：支付目前剩餘待付（結算後為結算尾款）
+ * amountType 只接受 deposit 或 full（結算尾款由 intent 轉成 full）。
  *
  * @param {Object} params 計算參數
  * @param {Object} params.booking 訂單資料
@@ -153,9 +151,7 @@ function resolveRequestedPaymentAmount({
   booking,
   amountType,
 }) {
-  const normalizedAmountType = normalizeString(
-      amountType,
-  ).toLowerCase();
+  const normalizedAmountType = normalizeStoredAmountType(amountType);
 
   const totalAmount = resolveTotalAmount(booking);
   const remainingAmount = remainingDue(booking);
@@ -174,11 +170,7 @@ function resolveRequestedPaymentAmount({
     );
   }
 
-  if (
-    normalizedAmountType === "full" ||
-    normalizedAmountType === "balance" ||
-    normalizedAmountType === "additional"
-  ) {
+  if (normalizedAmountType === "full") {
     return remainingAmount;
   }
 
@@ -226,13 +218,60 @@ function resolveRequestedPaymentAmount({
  * @param {string} params.paymentPurpose
  * @return {Object}
  */
+/**
+ * 新付款只保存 amountType=deposit|full。
+ * 舊客戶端若傳 balance／additional／top_up，視為 full。
+ *
+ * @param {*} value
+ * @return {string}
+ */
+function normalizeStoredAmountType(value) {
+  const raw = normalizeString(value).toLowerCase();
+  if (raw === "deposit") {
+    return "deposit";
+  }
+  if (
+    raw === "full" ||
+    raw === "balance" ||
+    raw === "additional" ||
+    raw === "top_up"
+  ) {
+    return "full";
+  }
+  return raw;
+}
+
+/**
+ * 新付款用途只寫 deposit／full／balance。
+ * 舊 additional／top_up／other 讀成 balance。
+ *
+ * @param {*} value
+ * @param {string=} amountType
+ * @return {string}
+ */
+function normalizeStoredPaymentPurpose(value, amountType) {
+  const raw = normalizeString(value).toLowerCase();
+  if (raw === "additional" || raw === "top_up" || raw === "other") {
+    return "balance";
+  }
+  if (raw === "deposit" || raw === "full" || raw === "balance") {
+    return raw;
+  }
+  return normalizeStoredAmountType(amountType) === "deposit" ?
+    "deposit" :
+    "full";
+}
+
 function resolveBookingPaymentIntent({
   booking,
   amountType,
   paymentPurpose,
 }) {
-  const requestedType = normalizeString(amountType).toLowerCase();
-  const requestedPurpose = normalizeString(paymentPurpose).toLowerCase();
+  const requestedType = normalizeStoredAmountType(amountType);
+  const requestedPurpose = normalizeStoredPaymentPurpose(
+      paymentPurpose,
+      amountType,
+  );
   const settled = isSettlementConfirmed(booking);
   const paid = resolvePaidAmount(booking);
 
@@ -494,6 +533,8 @@ async function verifyStoreOrderForPayment({
 module.exports = {
   normalizeString,
   normalizeInteger,
+  normalizeStoredAmountType,
+  normalizeStoredPaymentPurpose,
   resolvePaidAmount,
   resolveTotalAmount,
   resolveDepositAmount,

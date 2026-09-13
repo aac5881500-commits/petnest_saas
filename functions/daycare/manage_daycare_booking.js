@@ -40,6 +40,12 @@ const {
   isSettlementTopUpMethodAvailable,
   normalizeMethodId,
 } = require("../payments/shop_payment_methods");
+const {
+  isActivePayment,
+  isBalanceFamily,
+  isDepositFamily,
+  supersedeStalePendingPayments,
+} = require("../payments/payment_record");
 
 /**
  * @param {string} uid
@@ -274,8 +280,6 @@ exports.manageDaycareBooking = onCall(
         const pickup = shopLatePickupBreakdown(
             settings, scheduledEnd, actualEnd,
         );
-        const waive = payload.waiveOvertime === true ||
-          payload.completeMode === "waive";
         const originalOvertime = alreadySettled ?
           toInt(
               booking.settlementOriginalOvertimeAmount != null ?
@@ -283,14 +287,13 @@ exports.manageDaycareBooking = onCall(
               pickup.amount,
           ) :
           pickup.amount;
-        const overtimeAmt = waive ? 0 : originalOvertime;
+        const overtimeAmt = originalOvertime;
         const overtimeMinutes = pickup.extraMinutes;
-        let rule = pickup.formula;
-        if (waive) {
-          rule = "店家免收本次超時費";
-        }
+        const rule = pickup.formula;
         const manualAdjust = toInt(payload.manualAdjust, 0);
-        const manualReason = normalizeString(payload.manualAdjustReason);
+        const manualReason = normalizeString(
+            payload.manualAdjustmentReason || payload.manualAdjustReason,
+        );
         if (manualAdjust !== 0 && !manualReason) {
           throw new HttpsError("invalid-argument", "請填寫手動調整原因");
         }
@@ -342,14 +345,13 @@ exports.manageDaycareBooking = onCall(
           remainingAmount: remaining,
           refundDueAmount,
           finalRemainingAmount: remaining,
-          waivedOvertime: waive,
           alreadySettled,
         };
         if (action === "previewSettle") {
           result = {ok: true, action, ...settlement};
         } else {
           const completeMode = normalizeString(payload.completeMode) ||
-            (waive ? "waive" : "pending_balance");
+            "pending_balance";
           const fields = settlementFields(moneyBooking);
           let nextPaymentStatus = fields.paymentStatus;
           if (remaining > 0) {
@@ -367,6 +369,8 @@ exports.manageDaycareBooking = onCall(
             manualAdjust,
             manualAdjustmentAmount: manualAdjust,
             manualAdjustmentReason: manualReason,
+            lastManualAdjustReason: manualReason,
+            manualAdjustReason: manualReason,
             finalSettlementAmount,
             finalPaidAmount: paid,
             finalRemainingAmount: remaining,
@@ -376,9 +380,6 @@ exports.manageDaycareBooking = onCall(
             remainingAmount: remaining,
             refundDueAmount,
             paymentStatus: nextPaymentStatus,
-            waivedOvertime: waive,
-            waiveOvertimeReason: waive ?
-              normalizeString(payload.waiveReason) : "",
             settleMode: completeMode,
             settlementConfirmed: true,
             settlementConfirmedAt: alreadySettled ?
@@ -435,11 +436,27 @@ exports.manageDaycareBooking = onCall(
             const occSnap = await loadActiveOccupancies(
                 firestore, shopId, bookingId,
             );
+            const payQuery = firestore.collection("payments")
+                .where("bookingId", "==", bookingId);
             await firestore.runTransaction(async (transaction) => {
               for (const doc of occSnap.docs) {
                 await transaction.get(doc.ref);
               }
+              const paySnap = await transaction.get(payQuery);
               releaseOccupancyDocs(transaction, occSnap.docs);
+              paySnap.docs.forEach((doc) => {
+                const payment = doc.data() || {};
+                if (!isActivePayment(payment) || isDepositFamily(payment)) {
+                  return;
+                }
+                if (!isBalanceFamily(payment)) {
+                  return;
+                }
+                if (toInt(payment.amount, 0) === remaining) {
+                  return;
+                }
+                supersedeStalePendingPayments(transaction, [doc]);
+              });
               transaction.update(bookingRef, bookingUpdate);
             });
             await issueOrRevokeDaycarePoints(firestore, {
@@ -467,7 +484,25 @@ exports.manageDaycareBooking = onCall(
                   }, {merge: true});
             }
           } else {
-            await bookingRef.update(bookingUpdate);
+            const payQuery = firestore.collection("payments")
+                .where("bookingId", "==", bookingId);
+            await firestore.runTransaction(async (transaction) => {
+              const paySnap = await transaction.get(payQuery);
+              paySnap.docs.forEach((doc) => {
+                const payment = doc.data() || {};
+                if (!isActivePayment(payment) || isDepositFamily(payment)) {
+                  return;
+                }
+                if (!isBalanceFamily(payment)) {
+                  return;
+                }
+                if (toInt(payment.amount, 0) === remaining) {
+                  return;
+                }
+                supersedeStalePendingPayments(transaction, [doc]);
+              });
+              transaction.update(bookingRef, bookingUpdate);
+            });
           }
           result = {
             ok: true,

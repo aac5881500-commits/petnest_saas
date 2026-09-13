@@ -11,7 +11,131 @@ const {
   toInt,
 } = require("../daycare/daycare_utils");
 
-const PURPOSES = ["deposit", "balance", "top_up"];
+function normalizeProofPurpose(value) {
+  const raw = normalizeString(value) || "deposit";
+  if (raw === "top_up" || raw === "additional") {
+    return "balance";
+  }
+  if (raw === "deposit" || raw === "balance") {
+    return raw;
+  }
+  throw new HttpsError("invalid-argument", "付款類型不正確");
+}
+
+const LEGACY_IMAGE_FIELDS = [
+  "transferImageUrl",
+  "transferImagePath",
+  "settlementTopUpTransferImageUrl",
+  "settlementTopUpTransferImagePath",
+];
+
+function buildPaymentProofRecord({
+  proofId,
+  imageUrl,
+  storagePath,
+  purpose,
+  amount,
+  last5,
+  submittedBy,
+  submittedAt,
+}) {
+  return {
+    proofId,
+    imageUrl,
+    storagePath,
+    purpose,
+    amount,
+    last5,
+    submittedAt,
+    submittedBy,
+  };
+}
+
+function readProofPurpose(proof) {
+  const data = proof && typeof proof === "object" ? proof : {};
+  try {
+    return normalizeProofPurpose(data.purpose);
+  } catch (error) {
+    return "deposit";
+  }
+}
+
+function isUnconfirmedProof(proof) {
+  const data = proof && typeof proof === "object" ? proof : {};
+  return data.confirmedAt == null || data.confirmedAt === "";
+}
+
+/**
+ * 只更新同 purpose、尚未確認的最新一筆 last5。
+ * 沒有同用途照片時不改其他用途的 record。
+ *
+ * @param {Array} proofs
+ * @param {string} purpose
+ * @param {string} last5
+ * @return {{proofs: Array, updated: boolean}}
+ */
+function applyLast5ToProofs(proofs, purpose, last5) {
+  const list = Array.isArray(proofs) ? proofs.map((item) => {
+    return item && typeof item === "object" ? {...item} : {};
+  }) : [];
+  let targetIndex = -1;
+  for (let i = list.length - 1; i >= 0; i -= 1) {
+    if (readProofPurpose(list[i]) !== purpose) {
+      continue;
+    }
+    if (!isUnconfirmedProof(list[i])) {
+      continue;
+    }
+    targetIndex = i;
+    break;
+  }
+  if (targetIndex < 0) {
+    return {proofs: Array.isArray(proofs) ? proofs : [], updated: false};
+  }
+  list[targetIndex] = {
+    ...list[targetIndex],
+    last5,
+  };
+  return {proofs: list, updated: true};
+}
+
+function last5LegacyMeta(purpose, last5, now) {
+  if (purpose === "deposit") {
+    return {
+      transferLast5: last5,
+      depositStatus: "pending_review",
+      depositSubmittedAt: now,
+    };
+  }
+  return {
+    settlementTopUpTransferLast5: last5,
+    settlementTopUpStatus: "pending_review",
+    settlementTopUpSubmittedAt: now,
+  };
+}
+
+function imageAppendBookingFields(purpose, hasLast5) {
+  const keys = ["paymentProofs", "updatedAt"];
+  if (purpose === "deposit") {
+    keys.push("depositStatus", "depositSubmittedAt");
+    if (hasLast5) {
+      keys.push("transferLast5");
+    }
+  } else {
+    keys.push("settlementTopUpStatus", "settlementTopUpSubmittedAt");
+    if (hasLast5) {
+      keys.push("settlementTopUpTransferLast5");
+    }
+  }
+  return keys;
+}
+
+exports.normalizeProofPurpose = normalizeProofPurpose;
+exports.buildPaymentProofRecord = buildPaymentProofRecord;
+exports.applyLast5ToProofs = applyLast5ToProofs;
+exports.LEGACY_IMAGE_FIELDS = LEGACY_IMAGE_FIELDS;
+exports.last5LegacyMeta = last5LegacyMeta;
+exports.imageAppendBookingFields = imageAppendBookingFields;
 
 exports.appendBookingPaymentProof = onCall(
     {region: "asia-east1"},
@@ -24,7 +148,12 @@ exports.appendBookingPaymentProof = onCall(
       const bookingId = normalizeString(data.bookingId);
       const imageUrl = normalizeString(data.imageUrl);
       const storagePath = normalizeString(data.storagePath);
-      const purpose = normalizeString(data.purpose) || "deposit";
+      let purpose;
+      try {
+        purpose = normalizeProofPurpose(data.purpose);
+      } catch (error) {
+        throw error;
+      }
       const last5 = normalizeString(data.last5);
       const amount = toInt(data.amount, 0);
       if (!bookingId) {
@@ -32,9 +161,6 @@ exports.appendBookingPaymentProof = onCall(
       }
       if (!imageUrl && !last5) {
         throw new HttpsError("invalid-argument", "缺少照片資料");
-      }
-      if (purpose && !PURPOSES.includes(purpose)) {
-        throw new HttpsError("invalid-argument", "付款類型不正確");
       }
 
       const firestore = admin.firestore();
@@ -61,25 +187,23 @@ exports.appendBookingPaymentProof = onCall(
 
       const now = admin.firestore.FieldValue.serverTimestamp();
       if (!imageUrl && last5) {
-        const proofs = Array.isArray(booking.paymentProofs) ?
-          booking.paymentProofs.slice() : [];
-        if (proofs.length > 0) {
-          const last = {...(proofs[proofs.length - 1] || {})};
-          last.last5 = last5;
-          proofs[proofs.length - 1] = last;
+        const applied = applyLast5ToProofs(
+            booking.paymentProofs,
+            purpose,
+            last5,
+        );
+        const meta = {
+          updatedAt: now,
+          ...last5LegacyMeta(purpose, last5, now),
+        };
+        if (applied.updated) {
+          meta.paymentProofs = applied.proofs;
         }
-        const meta = {paymentProofs: proofs, updatedAt: now};
-        if (purpose === "deposit") {
-          meta.transferLast5 = last5;
-          meta.depositStatus = "pending_review";
-          meta.depositSubmittedAt = now;
-        } else {
-          meta.settlementTopUpTransferLast5 = last5;
-          meta.settlementTopUpStatus = "pending_review";
-          meta.settlementTopUpSubmittedAt = now;
-        }
+        LEGACY_IMAGE_FIELDS.forEach((key) => {
+          delete meta[key];
+        });
         await bookingRef.update(meta);
-        return {ok: true, purpose, last5};
+        return {ok: true, purpose, last5, proofUpdated: applied.updated};
       }
       if (!imageUrl || !storagePath) {
         throw new HttpsError("invalid-argument", "缺少照片資料");
@@ -88,7 +212,7 @@ exports.appendBookingPaymentProof = onCall(
       const proofId = normalizeString(data.proofId) ||
         `${purpose}_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
       const submittedAt = admin.firestore.Timestamp.now();
-      const record = {
+      const record = buildPaymentProofRecord({
         proofId,
         imageUrl,
         storagePath,
@@ -97,27 +221,28 @@ exports.appendBookingPaymentProof = onCall(
         last5,
         submittedAt,
         submittedBy: uid,
-      };
+      });
       const update = {
         paymentProofs: admin.firestore.FieldValue.arrayUnion(record),
         updatedAt: now,
       };
       if (purpose === "deposit") {
-        update.transferImageUrl = imageUrl;
-        update.transferImagePath = storagePath;
+        update.depositStatus = "pending_review";
+        update.depositSubmittedAt = now;
         if (last5) {
           update.transferLast5 = last5;
         }
       }
-      if (purpose === "top_up" || purpose === "balance") {
-        update.settlementTopUpTransferImageUrl = imageUrl;
-        update.settlementTopUpTransferImagePath = storagePath;
+      if (purpose === "balance") {
+        update.settlementTopUpStatus = "pending_review";
+        update.settlementTopUpSubmittedAt = now;
         if (last5) {
           update.settlementTopUpTransferLast5 = last5;
         }
-        update.settlementTopUpStatus = "pending_review";
-        update.settlementTopUpSubmittedAt = now;
       }
+      LEGACY_IMAGE_FIELDS.forEach((key) => {
+        delete update[key];
+      });
       await bookingRef.update(update);
       return {ok: true, proofId, imageUrl, storagePath, purpose};
     },

@@ -78,7 +78,7 @@ class AdminBookingPetStrip extends StatelessWidget {
           (AdminBookingPetCareScope.maybeOf(context)?.items.isNotEmpty ??
           false);
       return SizedBox(
-        height: hasCare ? 198 : 168,
+        height: hasCare ? 228 : 198,
         child: ListView.separated(
           scrollDirection: Axis.horizontal,
           itemCount: pets.length,

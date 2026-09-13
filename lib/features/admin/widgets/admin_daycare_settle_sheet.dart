@@ -16,8 +16,6 @@ import 'package:petnest_saas/core/utils/safe_parse.dart';
 class AdminDaycareSettleResult {
   const AdminDaycareSettleResult({
     required this.actualEndAt,
-    required this.waiveOvertime,
-    required this.waiveReason,
     required this.manualAdjust,
     required this.manualAdjustReason,
     required this.topUpMethod,
@@ -25,8 +23,6 @@ class AdminDaycareSettleResult {
   });
 
   final DateTime actualEndAt;
-  final bool waiveOvertime;
-  final String waiveReason;
   final int manualAdjust;
   final String manualAdjustReason;
   final String topUpMethod;
@@ -73,12 +69,10 @@ class AdminDaycareSettleSheet extends StatefulWidget {
 class _AdminDaycareSettleSheetState extends State<AdminDaycareSettleSheet> {
   late DateTime _actualEnd;
   late bool _freezeActualEnd;
-  bool _waiveOvertime = false;
   String _topUpMethod = '';
   bool _loadingPreview = true;
   String? _previewError;
   Map<String, dynamic> _preview = <String, dynamic>{};
-  final TextEditingController _waiveReason = TextEditingController();
   final TextEditingController _unsignedAdjust = TextEditingController();
   final TextEditingController _manualReason = TextEditingController();
   final ScrollController _sheetScroll = ScrollController();
@@ -99,7 +93,6 @@ class _AdminDaycareSettleSheetState extends State<AdminDaycareSettleSheet> {
       widget.booking,
     );
     _actualEnd = _ts(widget.booking['actualEndAt']) ?? DateTime.now();
-    _waiveOvertime = widget.booking['waivedOvertime'] == true;
     final DaycareManualAdjustInput existing = DaycareManualAdjustInput.fromSigned(
       SafeParse.parseMoney(widget.booking['manualAdjust']),
     );
@@ -113,7 +106,6 @@ class _AdminDaycareSettleSheetState extends State<AdminDaycareSettleSheet> {
 
   @override
   void dispose() {
-    _waiveReason.dispose();
     _unsignedAdjust.dispose();
     _manualReason.dispose();
     _sheetScroll.dispose();
@@ -161,11 +153,10 @@ class _AdminDaycareSettleSheetState extends State<AdminDaycareSettleSheet> {
   );
 
   int get _overtime {
-    if (_waiveOvertime) {
-      return 0;
-    }
     return SafeParse.parseMoney(
-      _preview['overtimeCharge'] ?? _preview['overtimeAmount'],
+      _preview['overtimeCharge'] ??
+          _preview['overtimeAmount'] ??
+          widget.booking['overtimeAmount'],
     );
   }
 
@@ -243,12 +234,6 @@ class _AdminDaycareSettleSheetState extends State<AdminDaycareSettleSheet> {
   }
 
   Future<void> _confirm() async {
-    if (_waiveOvertime && _waiveReason.text.trim().isEmpty) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('請填寫免收原因')));
-      return;
-    }
     if (SettlementAdjustDisplay.isReasonMissing(
       amount: _manual,
       reason: _manualReason.text,
@@ -309,8 +294,6 @@ class _AdminDaycareSettleSheetState extends State<AdminDaycareSettleSheet> {
       context,
       AdminDaycareSettleResult(
         actualEndAt: _actualEnd,
-        waiveOvertime: _waiveOvertime,
-        waiveReason: _waiveReason.text.trim(),
         manualAdjust: _manual,
         manualAdjustReason: _manualReason.text.trim(),
         topUpMethod: _remaining > 0 ? _topUpMethod : '',
@@ -434,31 +417,6 @@ class _AdminDaycareSettleSheetState extends State<AdminDaycareSettleSheet> {
                             _feeSection(theme),
                           const SizedBox(height: 14),
                           Text(
-                            '費用調整',
-                            style: TextStyle(
-                              fontWeight: FontWeight.w700,
-                              color: theme.titleColor,
-                            ),
-                          ),
-                          CheckboxListTile(
-                            contentPadding: EdgeInsets.zero,
-                            value: _waiveOvertime,
-                            onChanged: (bool? value) {
-                              setState(() => _waiveOvertime = value == true);
-                            },
-                            title: const Text('免收本次超時費'),
-                            subtitle: const Text('不代表免除原本尾款，也不代表已收款。'),
-                          ),
-                          if (_waiveOvertime)
-                            TextField(
-                              controller: _waiveReason,
-                              decoration: const InputDecoration(
-                                labelText: '免收原因',
-                                border: OutlineInputBorder(),
-                              ),
-                            ),
-                          const SizedBox(height: 14),
-                          Text(
                             '手動調整金額',
                             style: TextStyle(
                               fontWeight: FontWeight.w700,
@@ -532,55 +490,60 @@ class _AdminDaycareSettleSheetState extends State<AdminDaycareSettleSheet> {
                               }),
                             ),
                           ],
-                          const SizedBox(height: 8),
-                          Text(
-                            key: _reasonFieldKey,
-                            _manual != 0 ? '調整原因（必填）' : '調整原因',
-                            style: TextStyle(
-                              fontWeight: FontWeight.w700,
-                              color: _showReasonError
-                                  ? Colors.red
-                                  : theme.titleColor,
+                          if (_manual != 0) ...<Widget>[
+                            const SizedBox(height: 8),
+                            Text(
+                              key: _reasonFieldKey,
+                              '⚠ 調整原因（必填）',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w800,
+                                color: Colors.red,
+                              ),
                             ),
-                          ),
-                          const SizedBox(height: 8),
-                          TextField(
-                            controller: _manualReason,
-                            focusNode: _reasonFocus,
-                            enabled: _manual != 0,
-                            decoration: InputDecoration(
-                              hintText: '請說明本次加收或減免原因',
-                              enabledBorder: OutlineInputBorder(
-                                borderSide: BorderSide(
-                                  color: _showReasonError
-                                      ? Colors.red
-                                      : theme.borderColor,
-                                  width: _showReasonError ? 1.6 : 1,
+                            const SizedBox(height: 8),
+                            TextField(
+                              controller: _manualReason,
+                              focusNode: _reasonFocus,
+                              decoration: InputDecoration(
+                                hintText: '請說明本次加收或減免原因',
+                                enabledBorder: OutlineInputBorder(
+                                  borderSide: BorderSide(
+                                    color: Colors.red.shade400,
+                                    width: 1.6,
+                                  ),
+                                ),
+                                focusedBorder: const OutlineInputBorder(
+                                  borderSide: BorderSide(
+                                    color: Colors.red,
+                                    width: 1.8,
+                                  ),
+                                ),
+                                border: const OutlineInputBorder(),
+                              ),
+                              onChanged: (_) {
+                                setState(() {
+                                  if (_manualReason.text.trim().isNotEmpty) {
+                                    _reasonError = false;
+                                  }
+                                });
+                              },
+                            ),
+                            if (_showReasonError)
+                              const Padding(
+                                padding: EdgeInsets.only(top: 6),
+                                child: Text(
+                                  '未填寫原因不可確認結算',
+                                  style: TextStyle(
+                                    color: Colors.red,
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w700,
+                                  ),
                                 ),
                               ),
-                              focusedBorder: OutlineInputBorder(
-                                borderSide: BorderSide(
-                                  color: _showReasonError
-                                      ? Colors.red
-                                      : theme.primaryColor,
-                                  width: 1.6,
-                                ),
-                              ),
-                              border: const OutlineInputBorder(),
-                            ),
-                            onChanged: (_) {
-                              setState(() {
-                                if (_manualReason.text.trim().isNotEmpty) {
-                                  _reasonError = false;
-                                }
-                              });
-                            },
-                          ),
-                          if (_showReasonError)
                             const Padding(
                               padding: EdgeInsets.only(top: 6),
                               child: Text(
-                                '未填寫原因不可確認結算',
+                                '此說明會顯示給客戶，請清楚填寫加收或減免原因。',
                                 style: TextStyle(
                                   color: Colors.red,
                                   fontSize: 12,
@@ -588,6 +551,7 @@ class _AdminDaycareSettleSheetState extends State<AdminDaycareSettleSheet> {
                                 ),
                               ),
                             ),
+                          ],
                           const SizedBox(height: 14),
                           if (_remaining > 0) ...<Widget>[
                             Text(
@@ -795,7 +759,6 @@ class _AdminDaycareSettleSheetState extends State<AdminDaycareSettleSheet> {
           _moneyRow(theme, '預約費用', _quoted),
           _moneyRow(theme, '晚接回逾時加收', _overtime),
           _infoLine('手動調整', SettlementAdjustDisplay.signedLabel(_manual)),
-          if (_waiveOvertime) _infoLine('調整內容', '免收本次晚接回逾時費'),
           if (capAdjustment != 0) _moneyRow(theme, '上限調整', capAdjustment),
           _moneyRow(theme, '最終應收', _finalReceivable, emphasize: true),
           _moneyRow(theme, '成功收款總額', _paid),

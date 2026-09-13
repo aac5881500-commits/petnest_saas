@@ -56,9 +56,11 @@ class CreatePaymentRequestModel {
 
   /// 實際送往 Cloud Functions 的付款用途
   String get resolvedPaymentPurpose {
-    final String value = paymentPurpose?.trim() ?? '';
+    final String value = PaymentPurpose.normalize(paymentPurpose?.trim() ?? '');
 
-    if (PaymentPurpose.isValid(value)) {
+    if (value == PaymentPurpose.deposit ||
+        value == PaymentPurpose.balance ||
+        value == PaymentPurpose.full) {
       return value;
     }
 
@@ -109,7 +111,11 @@ class CreatePaymentRequestModel {
         amount > 0 &&
         hasValidPaymentMethod &&
         hasValidAmountType &&
-        PaymentPurpose.isValid(resolvedPaymentPurpose);
+        <String>[
+          PaymentPurpose.deposit,
+          PaymentPurpose.balance,
+          PaymentPurpose.full,
+        ].contains(resolvedPaymentPurpose);
   }
 
   /// 轉成 Cloud Functions callable 參數
