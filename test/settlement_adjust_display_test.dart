@@ -175,4 +175,98 @@ void main() {
       isFalse,
     );
   });
+
+  test('可見收費列加總等於最終結算應付，原預估尾款不混入', () {
+    final Map<String, dynamic> data = <String, dynamic>{
+      'bookingKind': 'daycare',
+      'settlementConfirmed': true,
+      'quotedTotalPrice': 700,
+      'overtimeAmount': 300,
+      'overtimeMinutes': 160,
+      'overtimeUnits': 6,
+      'manualAdjust': 1000,
+      'manualAdjustmentReason': '加購清潔',
+    };
+    final List<BookingSettlementDisplayLine> lines =
+        BookingFinalSettlementDisplay.daycareLines(data);
+    expect(
+      lines.any((BookingSettlementDisplayLine e) => e.label == '原預估尾款'),
+      isFalse,
+    );
+    expect(
+      lines.where((BookingSettlementDisplayLine e) => e.label == '晚接回超時計費').length,
+      1,
+    );
+    expect(
+      lines.any((BookingSettlementDisplayLine e) => e.label == '超時加收'),
+      isFalse,
+    );
+    expect(
+      lines.any((BookingSettlementDisplayLine e) => e.label == '接回逾時費'),
+      isFalse,
+    );
+    final BookingSettlementDisplayLine late = lines.firstWhere(
+      (BookingSettlementDisplayLine e) => e.label == '晚接回超時計費',
+    );
+    expect(late.amount, 300);
+    expect(late.subtitle, contains('160 分鐘'));
+    expect(
+      BookingFinalSettlementDisplay.daycareLines(<String, dynamic>{
+        'bookingKind': 'daycare',
+        'settlementConfirmed': true,
+        'quotedTotalPrice': 700,
+        'overtimeAmount': 300,
+        'extraCharges': <Map<String, dynamic>>[
+          <String, dynamic>{'label': '接回逾時費', 'amount': 300},
+        ],
+      }).where((BookingSettlementDisplayLine e) => e.label == '晚接回超時計費').length,
+      1,
+    );
+    final BookingSettlementDisplayLine manual = lines.firstWhere(
+      (BookingSettlementDisplayLine e) => e.label == '手動加收',
+    );
+    expect(manual.amount, 1000);
+    expect(manual.subtitle, contains('加購清潔'));
+    expect(
+      BookingFinalSettlementDisplay.chargeSum(lines),
+      2000,
+    );
+    expect(
+      lines.firstWhere((BookingSettlementDisplayLine e) => e.isTotal).amount,
+      2000,
+    );
+    expect(
+      lines.any(
+        (BookingSettlementDisplayLine e) =>
+            e.isReference && e.label.contains('預約時預估總額'),
+      ),
+      isTrue,
+    );
+  });
+
+  test('未結算不把預估尾款當成最終收費', () {
+    final List<BookingSettlementDisplayLine> lines =
+        BookingFinalSettlementDisplay.daycareLines(<String, dynamic>{
+          'bookingKind': 'daycare',
+          'quotedTotalPrice': 700,
+          'depositAmount': 500,
+          'depositStatus': 'confirmed',
+          'depositPaid': true,
+          'daycarePricingSnapshot': <String, dynamic>{
+            'baseAmount': 500,
+            'includedMinutes': 120,
+            'totalAmount': 700,
+          },
+        });
+    expect(
+      lines.any((BookingSettlementDisplayLine e) => e.label == '最終結算應付'),
+      isFalse,
+    );
+    expect(
+      lines.any(
+        (BookingSettlementDisplayLine e) => e.label == '服務完成後依實際時間結算尾款',
+      ),
+      isTrue,
+    );
+  });
 }

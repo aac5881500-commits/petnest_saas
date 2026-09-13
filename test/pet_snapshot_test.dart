@@ -21,6 +21,10 @@ void main() {
     expect(snap['type'], 'cat');
     expect(snap['breed'], '英國短毛');
     expect(snap['isNeutered'], isFalse);
+    expect(PetSnapshot.fromPet(<String, dynamic>{
+      'id': 'doc-1',
+      'name': '咪',
+    })['petId'], 'doc-1');
     expect(PetSnapshot.isNeuteredFalse(snap), isTrue);
     expect(
       PetSnapshot.visibleRows(

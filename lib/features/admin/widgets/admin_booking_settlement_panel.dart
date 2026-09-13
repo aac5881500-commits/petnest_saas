@@ -12,6 +12,7 @@ import 'package:petnest_saas/core/services/daycare_time_helper.dart';
 import 'package:petnest_saas/core/services/shop_payment_methods.dart';
 import 'package:petnest_saas/core/services/settlement_adjust_display.dart';
 import 'package:petnest_saas/core/utils/safe_parse.dart';
+import 'package:petnest_saas/core/widgets/booking_payment_proof_button.dart';
 import 'package:petnest_saas/features/admin/widgets/admin_booking_detail_layout.dart';
 
 class AdminBookingSettlementPanel extends StatelessWidget {
@@ -87,10 +88,15 @@ class AdminBookingSettlementPanel extends StatelessWidget {
                     child: const Text('更換補款方式'),
                   ),
                 if (remain > 0 && method == 'transfer')
-                  FilledButton(
-                    onPressed: () => _reviewTransfer(context),
-                    child: const Text('核對轉帳'),
-                  ),
+                  BookingPaymentProof.latestUnconfirmedBalance(data) != null
+                      ? FilledButton(
+                          onPressed: () => _reviewTransfer(context),
+                          child: const Text('核對轉帳'),
+                        )
+                      : const FilledButton(
+                          onPressed: null,
+                          child: Text('等待結算尾款證明'),
+                        ),
                 if (remain > 0 && (method == 'cash' || method.isEmpty))
                   FilledButton(
                     onPressed: () => _collect(context, remain),
@@ -142,8 +148,9 @@ class AdminBookingSettlementPanel extends StatelessWidget {
       _kv('晚數', SafeParse.parseMoney(data['nights'])),
       _kv('房費小計', SafeParse.parseMoney(data['roomSubtotal'])),
       _kv('加購／折扣後原報價', BookingSettlementMath.quotedTotal(data)),
-      _kv('額外收費', BookingSettlementMath.extraChargeSum(data)),
-      _kv('手動調整', SafeParse.parseMoney(data['manualAdjust'])),
+      if (BookingSettlementMath.extraChargeSum(data) > 0)
+        _kv('額外收費', BookingSettlementMath.extraChargeSum(data)),
+      _kv('手動加收／減免', SafeParse.parseMoney(data['manualAdjust'])),
     ];
   }
 
@@ -154,7 +161,7 @@ class AdminBookingSettlementPanel extends StatelessWidget {
       Text('實際送達：${_fmt(data['actualStartAt'])}'),
       Text('實際接回：${_fmt(data['actualEndAt'])}'),
       _kv('預約費用', BookingSettlementMath.quotedTotal(data)),
-      _kv('超時費用', SafeParse.parseMoney(data['overtimeAmount'])),
+      _kv('晚接回超時計費', SafeParse.parseMoney(data['overtimeAmount'])),
       if (SettlementAdjustDisplay.amountOf(data) != 0) ...<Widget>[
         Padding(
           padding: const EdgeInsets.only(bottom: 4),
@@ -365,22 +372,52 @@ class AdminBookingSettlementPanel extends StatelessWidget {
   }
 
   Future<void> _reviewTransfer(BuildContext context) async {
+    final BookingPaymentProofRecord? proof =
+        BookingPaymentProof.latestUnconfirmedBalance(data);
+    if (proof == null) {
+      return;
+    }
+    final int remain = BookingSettlementMath.remainingDue(data: data);
     final TextEditingController reason = TextEditingController();
     final bool? approved = await showDialog<bool>(
       context: context,
       builder: (BuildContext context) {
         return AlertDialog(
           title: const Text('核對轉帳補款'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: <Widget>[
-              Text('證明：${data['settlementTopUpTransferImageUrl'] ?? '尚未上傳'}'),
-              Text('後五碼：${data['settlementTopUpTransferLast5'] ?? '—'}'),
-              TextField(
-                controller: reason,
-                decoration: const InputDecoration(labelText: '失敗原因（拒絕時必填）'),
-              ),
-            ],
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                const Text('結算尾款'),
+                Text('目前待補款：NT\$ $remain'),
+                Text(
+                  '照片提交時記錄金額：${proof.amount > 0 ? 'NT\$ ${proof.amount}' : '—'}',
+                ),
+                Text('後五碼：${proof.last5.isEmpty ? '—' : proof.last5}'),
+                Text('提交時間：${_fmt(proof.submittedAt)}'),
+                const SizedBox(height: 8),
+                if (proof.imageUrl.isNotEmpty)
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(8),
+                    child: Image.network(
+                      proof.imageUrl,
+                      height: 140,
+                      fit: BoxFit.contain,
+                      errorBuilder:
+                          (BuildContext context, Object error, StackTrace? stack) {
+                        return Text(proof.imageUrl);
+                      },
+                    ),
+                  )
+                else
+                  const Text('證明：尚未上傳'),
+                TextField(
+                  controller: reason,
+                  decoration: const InputDecoration(labelText: '失敗原因（拒絕時必填）'),
+                ),
+              ],
+            ),
           ),
           actions: <Widget>[
             TextButton(
@@ -407,6 +444,7 @@ class AdminBookingSettlementPanel extends StatelessWidget {
       extra: <String, dynamic>{
         'approved': approved,
         'reviewReason': reason.text.trim(),
+        'proofId': proof.proofId,
       },
     );
   }

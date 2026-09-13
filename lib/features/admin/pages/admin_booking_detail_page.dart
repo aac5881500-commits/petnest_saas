@@ -17,7 +17,9 @@ import 'package:petnest_saas/features/admin/widgets/admin_internal_handover_card
 import 'package:petnest_saas/core/services/booking_payment_status.dart';
 import 'package:petnest_saas/core/debug/chat_error_probe.dart';
 import 'package:petnest_saas/core/services/admin_manual_deposit_confirm.dart';
+import 'package:petnest_saas/core/services/booking_settlement_function_service.dart';
 import 'package:petnest_saas/core/services/booking_settlement_math.dart';
+import 'package:petnest_saas/core/services/daycare_function_service.dart';
 import 'package:petnest_saas/core/services/internal_handover_note_service.dart';
 import 'package:petnest_saas/core/services/booking_service.dart';
 import 'package:petnest_saas/core/exceptions/inventory_exception.dart';
@@ -52,6 +54,7 @@ import 'package:petnest_saas/core/services/daily_care_setting_service.dart';
 import 'package:petnest_saas/features/admin/widgets/admin_booking_form_summary_card.dart';
 import 'package:petnest_saas/features/admin/widgets/admin_booking_stay_meta_section.dart';
 import 'package:petnest_saas/features/admin/widgets/admin_daily_care_report_shortcut.dart';
+import 'package:petnest_saas/features/admin/widgets/admin_stay_settle_sheet.dart';
 
 class AdminBookingDetailPage extends StatelessWidget {
   const AdminBookingDetailPage({
@@ -380,6 +383,17 @@ class AdminBookingDetailPage extends StatelessWidget {
                           shopId: shopId,
                           bookingId: bookingId,
                           data: data,
+                          onReadjust: canEdit &&
+                                  !BookingSettlementMath.isSettlementLocked(
+                                    data,
+                                  )
+                              ? () {
+                                  _handleCheckOut(
+                                    context: context,
+                                    data: data,
+                                  );
+                                }
+                              : null,
                         ),
                         AdminBookingDetailPaymentAside(
                           data: data,
@@ -487,154 +501,23 @@ class AdminBookingDetailPage extends StatelessWidget {
     required BuildContext context,
     required Map<String, dynamic> data,
   }) async {
-    final extraFeeController = TextEditingController();
-    final extraChargeTitleController = TextEditingController(text: '額外清潔費');
-    final extraChargeNoteController = TextEditingController();
-
-    List<XFile> extraChargeImages = [];
-    bool isUploadingExtraImage = false;
-
-    final result = await showDialog<String>(
+    final String shopId = (data['shopId'] ?? '').toString().trim();
+    final AdminStaySettleResult? result = await showAdminStaySettleSheet(
       context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: const Text('退房 - 額外收費'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: extraChargeTitleController,
-                decoration: const InputDecoration(
-                  labelText: '費用名稱',
-                  hintText: '例如：額外清潔費',
-                ),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: extraFeeController,
-                keyboardType: TextInputType.number,
-                decoration: const InputDecoration(
-                  labelText: '金額',
-                  hintText: '例如：300',
-                ),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: extraChargeNoteController,
-                decoration: const InputDecoration(
-                  labelText: '備註',
-                  hintText: '例如：退房時發現亂尿尿',
-                ),
-              ),
-              const SizedBox(height: 12),
-              StatefulBuilder(
-                builder: (context, setDialogState) {
-                  return Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      OutlinedButton.icon(
-                        onPressed: () async {
-                          if (isUploadingExtraImage) return;
-
-                          if (extraChargeImages.length >= 3) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text('最多只能上傳 3 張照片')),
-                            );
-                            return;
-                          }
-
-                          setDialogState(() {
-                            isUploadingExtraImage = true;
-                          });
-
-                          final picked = await ImagePicker().pickImage(
-                            source: ImageSource.gallery,
-                            maxWidth: 1200,
-                            imageQuality: 75,
-                          );
-
-                          if (picked != null) {
-                            extraChargeImages.add(picked);
-                          }
-
-                          setDialogState(() {
-                            isUploadingExtraImage = false;
-                          });
-                        },
-                        icon: Icon(
-                          isUploadingExtraImage
-                              ? Icons.hourglass_top
-                              : Icons.photo_library,
-                        ),
-                        label: Text(
-                          isUploadingExtraImage ? '照片處理中...' : '選擇照片',
-                        ),
-                      ),
-                      if (extraChargeImages.isNotEmpty)
-                        Padding(
-                          padding: const EdgeInsets.only(top: 8),
-                          child: Text(
-                            '已選擇 ${extraChargeImages.length} 張照片',
-                            style: const TextStyle(
-                              color: Colors.green,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                    ],
-                  );
-                },
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('取消'),
-            ),
-            ElevatedButton(
-              onPressed: () {
-                Navigator.pop(context, extraFeeController.text);
-              },
-              child: const Text('確認退房'),
-            ),
-          ],
-        );
-      },
+      shopId: shopId,
+      bookingId: bookingId,
+      booking: data,
     );
+    if (result == null) {
+      return;
+    }
+    if (!context.mounted) {
+      return;
+    }
 
-    if (result == null) return;
-
-    final confirmCheckout = await showDialog<bool>(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('確認退房'),
-        content: const Text('確定要將此訂單改為退房完成嗎？此操作會結束本次入住流程。'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('返回'),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(context, true),
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
-            child: const Text('確認退房'),
-          ),
-        ],
-      ),
-    );
-
-    if (confirmCheckout != true) return;
-
-    final extraFee = int.tryParse(result) ?? 0;
-    final extraChargeTitle = extraChargeTitleController.text.trim();
-    final extraChargeNote = extraChargeNoteController.text.trim();
-
-    final List<Map<String, dynamic>> extraCharges = [];
-    List<String> evidenceImageUrls = [];
-
-    if (extraChargeImages.isNotEmpty) {
-      showDialog(
+    List<String> evidenceImageUrls = <String>[];
+    if (result.images.isNotEmpty) {
+      showDialog<void>(
         context: context,
         barrierDismissible: false,
         builder: (_) => const AlertDialog(
@@ -647,11 +530,10 @@ class AdminBookingDetailPage extends StatelessWidget {
           ),
         ),
       );
-
       try {
         evidenceImageUrls = await _uploadExtraChargeImages(
           bookingId: bookingId,
-          images: extraChargeImages,
+          images: result.images,
         );
       } catch (e) {
         if (context.mounted) {
@@ -662,106 +544,59 @@ class AdminBookingDetailPage extends StatelessWidget {
         }
         return;
       }
-
       if (context.mounted) {
         Navigator.pop(context);
       }
     }
 
-    if (extraFee > 0) {
-      extraCharges.add({
-        'title': extraChargeTitle.isEmpty ? '退房額外費用' : extraChargeTitle,
-        'amount': extraFee,
-        'note': extraChargeNote,
-        'imageUrls': evidenceImageUrls,
-        'createdAt': Timestamp.now(),
-      });
-    }
-
-    final now = FieldValue.serverTimestamp();
-    final Map<String, dynamic> settled = <String, dynamic>{
-      ...data,
-      'extraFee': extraFee,
-      'extraCharges': <dynamic>[
-        ...((data['extraCharges'] is List)
-            ? data['extraCharges'] as List
-            : <dynamic>[]),
-        ...extraCharges,
-      ],
-    };
-    final int expected = BookingSettlementMath.expectedTotal(data: settled);
-    final int delta = BookingSettlementMath.balanceDelta(data: settled);
-    final int remain = delta > 0 ? delta : 0;
-    final int refundDue = delta < 0 ? -delta : 0;
-    bool lockIfClear = false;
-    if (remain <= 0 && refundDue <= 0) {
-      final bool? lockOk = await showDialog<bool>(
-        context: context,
-        builder: (BuildContext context) {
-          return AlertDialog(
-            title: const Text('確認鎖定訂單'),
-            content: const Text('完成後訂單將鎖定，無法再修改，請確認金額與資料正確。'),
-            actions: <Widget>[
-              TextButton(
-                onPressed: () => Navigator.pop(context, false),
-                child: const Text('稍後鎖定'),
-              ),
-              FilledButton(
-                onPressed: () => Navigator.pop(context, true),
-                child: const Text('確認鎖定'),
-              ),
-            ],
-          );
+    final bool alreadyEnded =
+        data['checkOutAt'] != null ||
+        data['checkedOutAt'] != null ||
+        (data['status'] ?? '').toString() == 'checked_out' ||
+        data['stayRoomReleased'] == true;
+    try {
+      await BookingSettlementFunctionService.instance.call(
+        shopId: shopId,
+        bookingId: bookingId,
+        action: 'checkOutStay',
+        requestId: alreadyEnded
+            ? 'checkOutStay_adjust_${DateTime.now().millisecondsSinceEpoch}'
+            : 'checkOutStay_$bookingId',
+        extra: <String, dynamic>{
+          'manualAdjust': result.manualAdjust,
+          'reason': result.manualAdjustReason,
+          'settlementTopUpMethod': result.topUpMethod,
+          'lockIfClear': result.lockIfClear,
+          'evidenceImageUrls': evidenceImageUrls,
         },
       );
-      lockIfClear = lockOk == true;
+    } on DaycareFunctionException catch (error) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(error.message)));
+      }
+      return;
     }
-    final User? operator = FirebaseAuth.instance.currentUser;
-    await FirebaseFirestore.instance
-        .collection('bookings')
-        .doc(bookingId)
-        .update({
-          'checkOutAt': now,
-          'extraFee': extraFee,
-          'extraCharges': FieldValue.arrayUnion(extraCharges),
-          'status': 'completed',
-          'updatedAt': now,
-          'quotedTotalPrice': BookingSettlementMath.quotedTotal(data),
-          'totalPrice': expected,
-          'totalPayableAmount': expected,
-          'remainingAmount': remain,
-          'refundDueAmount': refundDue,
-          'settlementConfirmed': true,
-          'settledAt': now,
-          'settledBy': operator?.uid ?? '',
-          if (lockIfClear) 'settlementLocked': true,
-          if (lockIfClear) 'settlementLockedAt': now,
-          if (lockIfClear) 'settlementLockedBy': operator?.uid ?? '',
-          if (lockIfClear) 'settlementLockedReason': 'settlement_cleared',
-        });
+
     try {
       final String checkoutShopId = (data['shopId'] ?? '').toString().trim();
-
       if (checkoutShopId.isNotEmpty) {
         final setting = await DailyCareSettingService.instance.getSetting(
           checkoutShopId,
         );
-
         final int downloadHours = setting.downloadHoursAfterCheckout;
-
         final DocumentSnapshot<Map<String, dynamic>> updatedBookingSnapshot =
             await FirebaseFirestore.instance
                 .collection('bookings')
                 .doc(bookingId)
                 .get();
-
         final Map<String, dynamic> updatedBookingData =
             updatedBookingSnapshot.data() ?? <String, dynamic>{};
-
-        final dynamic rawCheckOutAt = updatedBookingData['checkOutAt'];
-
+        final dynamic rawCheckOutAt =
+            updatedBookingData['checkOutAt'] ??
+            updatedBookingData['checkedOutAt'];
         DateTime? checkoutCompletedAt;
-
         if (rawCheckOutAt is Timestamp) {
           checkoutCompletedAt = rawCheckOutAt.toDate();
         } else if (rawCheckOutAt is DateTime) {
@@ -769,30 +604,22 @@ class AdminBookingDetailPage extends StatelessWidget {
         } else if (rawCheckOutAt is String) {
           checkoutCompletedAt = DateTime.tryParse(rawCheckOutAt);
         }
-
-        if (checkoutCompletedAt == null) {
-          throw StateError('退房完成，但找不到有效的 checkOutAt');
-        }
-
+        checkoutCompletedAt ??= DateTime.now();
         final DateTime expiresAt = checkoutCompletedAt.add(
           Duration(hours: downloadHours),
         );
-
         final QuerySnapshot<Map<String, dynamic>> downloadSnapshot =
             await FirebaseFirestore.instance
                 .collection('daily_care_photo_downloads')
                 .where('bookingId', isEqualTo: bookingId)
                 .get();
-
         if (downloadSnapshot.docs.isNotEmpty) {
           final WriteBatch batch = FirebaseFirestore.instance.batch();
-
           for (final doc in downloadSnapshot.docs) {
             batch.update(doc.reference, <String, dynamic>{
               'expiresAt': Timestamp.fromDate(expiresAt),
             });
           }
-
           await batch.commit();
         }
       }
@@ -801,10 +628,8 @@ class AdminBookingDetailPage extends StatelessWidget {
       debugPrintStack(stackTrace: stackTrace);
     }
 
-    final String shopId = (data['shopId'] ?? '').toString().trim();
     final String userId = (data['userId'] ?? '').toString().trim();
     final String couponId = (data['couponId'] ?? '').toString().trim();
-
     if (couponId.isNotEmpty) {
       try {
         await MemberCouponService.instance.redeemCoupon(
@@ -820,21 +645,14 @@ class AdminBookingDetailPage extends StatelessWidget {
     }
     final String roomId = (data['roomId'] ?? '').toString().trim();
     final String roomName = (data['roomName'] ?? '').toString().trim();
-
-    /// 退房後依房務設定，將退房當日設為清潔中。
-    ///
-    /// 清潔狀態寫入失敗時，不阻斷後續的點數、報表與操作紀錄流程。
     if (shopId.isNotEmpty && roomId.isNotEmpty) {
       try {
         final setting = await HousekeepingSettingService.instance.getSetting(
           shopId,
         );
-
         if (setting.autoCleaningAfterCheckout) {
           final dynamic rawCheckoutDate = data['endDate'];
-
           DateTime? checkoutDate;
-
           if (rawCheckoutDate is Timestamp) {
             checkoutDate = rawCheckoutDate.toDate();
           } else if (rawCheckoutDate is DateTime) {
@@ -842,7 +660,6 @@ class AdminBookingDetailPage extends StatelessWidget {
           } else if (rawCheckoutDate is String) {
             checkoutDate = DateTime.tryParse(rawCheckoutDate);
           }
-
           if (checkoutDate != null) {
             await ShopRoomService.instance.startCleaningAfterCheckout(
               shopId: shopId,
@@ -851,8 +668,6 @@ class AdminBookingDetailPage extends StatelessWidget {
               bookingId: bookingId,
               checkoutDate: checkoutDate,
             );
-          } else {
-            debugPrint('退房完成，但無法解析退房日期：$rawCheckoutDate');
           }
         }
       } catch (error, stackTrace) {
@@ -862,21 +677,17 @@ class AdminBookingDetailPage extends StatelessWidget {
     }
 
     final bool rewardPointIssued = data['rewardPointIssued'] == true;
-
     if (!rewardPointIssued && shopId.isNotEmpty && userId.isNotEmpty) {
       try {
         final int orderAmount =
             ((data['totalPrice'] ?? data['total'] ?? 0) as num).toInt();
-
         final int nights = ((data['nights'] ?? 0) as num).toInt();
-
         final int rewardPoints = await PointSettingService.instance
             .calculateBookingPoints(
               shopId: shopId,
               orderAmount: orderAmount,
               nights: nights,
             );
-
         if (rewardPoints > 0) {
           await MemberPointService.instance.addBookingPoints(
             shopId: shopId,
@@ -891,38 +702,6 @@ class AdminBookingDetailPage extends StatelessWidget {
         debugPrintStack(stackTrace: stackTrace);
       }
     }
-
-    await FirebaseFirestore.instance.collection('reports').add({
-      'shopId': data['shopId'],
-      'bookingId': bookingId,
-      'roomName': data['roomName'],
-      'totalPrice': data['totalPrice'] ?? 0,
-      'extraFee': extraFee,
-      'extraCharges': extraCharges,
-      'finalAmount': (data['totalPrice'] ?? 0) + extraFee,
-      'createdAt': FieldValue.serverTimestamp(),
-    });
-
-    final user = FirebaseAuth.instance.currentUser;
-
-    await FirebaseFirestore.instance.collection('action_logs').add({
-      'type': 'checkout_completed',
-      'bookingId': bookingId,
-      'bookingShortId': bookingId.substring(0, 8),
-      'shopId': data['shopId'],
-      'roomId': data['roomId'],
-      'roomName': data['roomName'],
-      'roomTypeName': data['roomTypeName'],
-      'totalPrice': data['totalPrice'] ?? 0,
-      'extraFee': extraFee,
-      'finalAmount': (data['totalPrice'] ?? 0) + extraFee,
-      'extraCharges': extraCharges,
-      'extraChargeImageCount': evidenceImageUrls.length,
-      'operatorUid': user?.uid,
-      'operatorRole': 'staff',
-      'operatorEmail': user?.email,
-      'createdAt': FieldValue.serverTimestamp(),
-    });
   }
 
   Future<List<String>> _uploadExtraChargeImages({

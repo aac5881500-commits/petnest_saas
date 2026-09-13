@@ -63,7 +63,7 @@ class AdminPaymentDetailPage extends StatelessWidget {
             title: '綠界對帳資料',
             children: [
               _DetailRow(
-                label: '商店交易編號',
+                label: 'PetNest 付款單號',
                 value: payment.merchantTradeNo.isEmpty
                     ? '尚未取得'
                     : payment.merchantTradeNo,

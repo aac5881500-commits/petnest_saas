@@ -2,7 +2,6 @@
 // 功能說明：客戶端訂單詳細頁顯示資料：只做讀取與文案，不寫入 Firestore、不重算計價。
 
 import 'package:petnest_saas/core/models/booking_kind.dart';
-import 'package:petnest_saas/core/models/booking_fee_line_item.dart';
 import 'package:petnest_saas/core/models/daycare_settings_model.dart';
 import 'package:petnest_saas/core/models/payment_gateway_status.dart';
 import 'package:petnest_saas/core/services/booking_form_visibility.dart';
@@ -23,6 +22,7 @@ class BookingDetailFeeLine {
     this.subtitle = '',
     this.isDiscount = false,
     this.isTotal = false,
+    this.isReference = false,
   });
 
   final String label;
@@ -30,6 +30,7 @@ class BookingDetailFeeLine {
   final String subtitle;
   final bool isDiscount;
   final bool isTotal;
+  final bool isReference;
 }
 
 class BookingDetailTimelineItem {
@@ -377,14 +378,17 @@ class BookingDetailViewData {
     if (isDaycare && BookingSettlementMath.isOrderComplete(raw)) {
       return '已完成';
     }
-    if (isDaycare && BookingSettlementMath.isDaycareAwaitingClear(raw)) {
+    if (BookingSettlementMath.isAwaitingClear(raw)) {
       if (BookingSettlementMath.refundDue(data: raw) > 0) {
-        return '等待店家退款';
+        return '待退款處理';
       }
       return '待支付結算尾款';
     }
     if (status == 'completed') {
       return '已完成';
+    }
+    if (status == 'checked_out') {
+      return '已退房／待結清';
     }
     if (status == 'checked_in') {
       return isDaycare ? '安親中' : '入住中';
@@ -457,7 +461,7 @@ class BookingDetailViewData {
     if (status == 'cancelled') {
       return '此訂單已取消。';
     }
-    if (isDaycare && BookingSettlementMath.isDaycareAwaitingClear(raw)) {
+    if (BookingSettlementMath.isAwaitingClear(raw)) {
       final int remain = BookingSettlementMath.remainingDue(data: raw);
       final int refund = BookingSettlementMath.refundDue(data: raw);
       if (remain > 0) {
@@ -467,8 +471,7 @@ class BookingDetailViewData {
         return '服務已結束，等待店家退款 NT\$$refund。';
       }
     }
-    if (status == 'completed' ||
-        (isDaycare && BookingSettlementMath.isOrderComplete(raw))) {
+    if (status == 'completed' || BookingSettlementMath.isOrderComplete(raw)) {
       if (BookingSettlementMath.balanceDelta(data: raw) > 0) {
         return '尚有待補款，請完成付款。';
       }
@@ -528,6 +531,7 @@ class BookingDetailViewData {
     if (topUp > 0 &&
         (status == 'completed' ||
             status == 'checked_in' ||
+            status == 'checked_out' ||
             BookingPaymentStatus.isDepositConfirmed(raw))) {
       return topUp;
     }
@@ -547,7 +551,7 @@ class BookingDetailViewData {
       BookingPaymentStatus.canChangePaymentChoice(raw);
 
   bool get isPaidInFull {
-    if (isDaycare) {
+    if (isDaycare || BookingSettlementMath.isSettlementConfirmed(raw)) {
       return BookingSettlementMath.isOrderComplete(raw);
     }
     return BookingSettlementMath.remainingDue(data: raw) <= 0 &&
@@ -617,6 +621,12 @@ class BookingDetailViewData {
     if (isPaidInFull) {
       return '已付清';
     }
+    if (BookingSettlementMath.isStayAwaitingClear(raw)) {
+      if (BookingSettlementMath.refundDue(data: raw) > 0) {
+        return '待退款處理';
+      }
+      return '待支付結算尾款';
+    }
     if (depositStatus == 'pending_review') {
       return '付款資料審核中';
     }
@@ -670,7 +680,7 @@ class BookingDetailViewData {
     if (BookingSettlementMath.isOrderComplete(raw)) {
       return '已付清';
     }
-    if (BookingSettlementMath.isDaycareAwaitingClear(raw)) {
+    if (BookingSettlementMath.isAwaitingClear(raw)) {
       if (BookingSettlementMath.refundDue(data: raw) > 0) {
         return '等待店家退款';
       }
@@ -902,7 +912,7 @@ class BookingDetailViewData {
     return answers.isNotEmpty;
   }
 
-  bool get paymentTaskComplete {
+  bool get depositRequirementComplete {
     if (isPaidInFull) {
       return true;
     }
@@ -912,13 +922,38 @@ class BookingDetailViewData {
     if (isDaycare && !BookingPaymentStatus.requiresUpfrontPayment(raw)) {
       return true;
     }
+    if (depositAmount <= 0 && payAmountType != 'full') {
+      return true;
+    }
     return false;
+  }
+
+  String get paymentProgressSubtitle {
+    if (isPaidInFull) {
+      return '已付清';
+    }
+    if (BookingSettlementMath.isSettlementConfirmed(raw)) {
+      if (BookingSettlementMath.remainingDue(data: raw) > 0) {
+        return '待支付結算尾款';
+      }
+      if (BookingSettlementMath.refundDue(data: raw) > 0) {
+        return '待退款處理';
+      }
+    }
+    if (depositAmount <= 0 ||
+        (isDaycare && !BookingPaymentStatus.requiresUpfrontPayment(raw))) {
+      return '不需訂金，服務完成後結算尾款';
+    }
+    if (BookingPaymentStatus.isDepositConfirmed(raw)) {
+      return '訂金已付，結算尾款待服務結束';
+    }
+    return '尚需付款 NT\$ $remainingAmount';
   }
 
   bool get stayDataComplete =>
       termsState != BookingDetailTermsState.unconfirmed &&
       termsState != BookingDetailTermsState.needsReconfirm &&
-      paymentTaskComplete;
+      depositRequirementComplete;
 
   bool get showCamera {
     return status == 'checked_in' &&
@@ -1038,52 +1073,27 @@ class BookingDetailViewData {
     }
 
     if (isDaycare) {
-      for (final BookingFeeLineItem line
-          in DaycarePricingService.instance.itemLinesFromBooking(raw)) {
-        addLine(
-          label: line.label,
-          amount: line.kind == BookingFeeLineKind.discount
-              ? line.amount.abs()
-              : line.amount,
-          subtitle: line.subtitle,
-          isDiscount: line.kind == BookingFeeLineKind.discount,
+      for (final BookingSettlementDisplayLine line
+          in BookingFinalSettlementDisplay.daycareLines(raw)) {
+        if (!line.isReference &&
+            !line.isTotal &&
+            line.amount == 0 &&
+            line.subtitle.isEmpty) {
+          continue;
+        }
+        lines.add(
+          BookingDetailFeeLine(
+            label: line.label,
+            amount: line.amount,
+            subtitle: line.subtitle,
+            isDiscount: line.isDiscount,
+            isTotal: line.isTotal,
+            isReference: line.isReference,
+          ),
         );
       }
-      if (BookingSettlementMath.isSettlementConfirmed(raw)) {
-        final int quoted = BookingSettlementMath.quotedTotal(raw);
-        final int depositPaid = BookingPaymentStatus.isDepositConfirmed(raw)
-            ? depositAmount
-            : 0;
-        int estimatedBalance = quoted - depositPaid;
-        if (estimatedBalance < 0) {
-          estimatedBalance = 0;
-        }
-        addLine(label: '原預估尾款', amount: estimatedBalance, force: true);
-        final int quotedForManual = quoted;
-        final int extra = BookingSettlementMath.extraChargeSum(raw);
-        final int overtime = BookingDetailParse.parseMoney(raw['overtimeAmount']);
-        addLine(label: '超時加收', amount: overtime);
-        final int manual = BookingSettlementMath.expectedTotal(data: raw) -
-            quotedForManual -
-            extra -
-            overtime;
-        if (manual != 0) {
-          final String note = SettlementAdjustDisplay.customerNoteOf(raw);
-          addLine(
-            label: manual > 0 ? '手動加收' : '手動減免',
-            amount: manual.abs(),
-            subtitle: note,
-            isDiscount: manual < 0,
-            force: true,
-          );
-        }
-        addLine(
-          label: '最終結算應付',
-          amount: BookingSettlementMath.expectedTotal(data: raw),
-          force: true,
-        );
-      }
-    } else {
+      return lines;
+    }
       final int room = BookingDetailParse.parseMoney(raw['roomSubtotal']);
       final int base = BookingDetailParse.parseMoney(raw['basePrice']);
       final int nightCount = nights <= 0 ? 1 : nights;
@@ -1100,7 +1110,6 @@ class BookingDetailViewData {
                   BookingDetailParse.parseMoney(raw['extraPetCount']) *
                   nightCount,
       );
-    }
 
     for (final Map<String, dynamic> addon in BookingDetailParse.parseMapList(
       raw['addons'],
@@ -1163,11 +1172,25 @@ class BookingDetailViewData {
     if (hasExtraCharges) {
       addLine(label: '退房追加費用', amount: extraChargesTotal);
     }
+    final int manual = SettlementAdjustDisplay.amountOf(raw);
+    if (BookingSettlementMath.isSettlementConfirmed(raw) && manual != 0) {
+      addLine(
+        label: manual > 0 ? '手動加收' : '手動減免',
+        amount: manual.abs(),
+        subtitle: SettlementAdjustDisplay.customerNoteOf(raw),
+        isDiscount: manual < 0,
+        force: true,
+      );
+    }
 
     lines.add(
       BookingDetailFeeLine(
-        label: showEstimateLabel ? '暫估總額' : '最終總額',
-        amount: totalAmount,
+        label: BookingSettlementMath.isSettlementConfirmed(raw)
+            ? '最終結算應付'
+            : (showEstimateLabel ? '暫估總額' : '最終總額'),
+        amount: BookingSettlementMath.isSettlementConfirmed(raw)
+            ? BookingSettlementMath.expectedTotal(data: raw)
+            : totalAmount,
         isTotal: true,
       ),
     );
@@ -1215,6 +1238,7 @@ class BookingDetailViewData {
         active:
             status == 'confirmed' ||
             status == 'checked_in' ||
+            status == 'checked_out' ||
             status == 'completed',
       ),
     );
@@ -1223,6 +1247,7 @@ class BookingDetailViewData {
         title: isDaycare ? '安親開始' : '已入住',
         time: checkInAt ?? actualStartAt,
         active: status == 'checked_in' ||
+            status == 'checked_out' ||
             status == 'completed' ||
             BookingSettlementMath.isSettlementConfirmed(raw),
       ),
@@ -1247,9 +1272,20 @@ class BookingDetailViewData {
     } else {
       items.add(
         BookingDetailTimelineItem(
-          title: '已完成',
+          title: '已退房',
           time: checkOutAt ?? actualEndAt,
-          active: status == 'completed',
+          active: status == 'checked_out' ||
+              status == 'completed' ||
+              BookingSettlementMath.isSettlementConfirmed(raw),
+        ),
+      );
+      items.add(
+        BookingDetailTimelineItem(
+          title: '訂單完成',
+          time: BookingDetailParse.parseDate(raw['completedAt']) ??
+              checkOutAt ??
+              actualEndAt,
+          active: BookingSettlementMath.isOrderComplete(raw),
         ),
       );
     }

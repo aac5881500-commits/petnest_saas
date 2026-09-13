@@ -47,6 +47,21 @@ const {
   supersedeStalePendingPayments,
 } = require("../payments/payment_record");
 
+function assertActualTimes(actualStart, actualEnd, now) {
+  const current = now instanceof Date ? now : new Date();
+  if (actualStart && actualStart.getTime() > current.getTime()) {
+    throw new HttpsError("invalid-argument", "實際送達時間不可晚於目前時間");
+  }
+  if (actualEnd && actualEnd.getTime() > current.getTime()) {
+    throw new HttpsError("invalid-argument", "實際接回時間不可晚於目前時間");
+  }
+  if (actualStart && actualEnd && actualEnd.getTime() < actualStart.getTime()) {
+    throw new HttpsError("invalid-argument", "實際接回時間不可早於實際送達時間");
+  }
+}
+
+exports.assertActualTimes = assertActualTimes;
+
 /**
  * @param {string} uid
  * @param {string} shopId
@@ -272,6 +287,9 @@ exports.manageDaycareBooking = onCall(
           (toDate(booking.actualEndAt) || toDate(payload.actualEndAt) ||
             new Date()) :
           (toDate(payload.actualEndAt) || new Date());
+        if (!alreadySettled) {
+          assertActualTimes(actualStart, actualEnd, new Date());
+        }
         const quoted = toInt(
             booking.quotedTotalPrice != null ?
               booking.quotedTotalPrice : booking.totalPrice, 0,

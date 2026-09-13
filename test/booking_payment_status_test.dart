@@ -25,7 +25,7 @@ void main() {
     expect(view.paidAmount, 200);
     expect(view.remainingAmount, 200);
     expect(view.paymentStatusLabel, '訂金已付');
-    expect(view.paymentTaskComplete, isTrue);
+    expect(view.depositRequirementComplete, isTrue);
     expect(view.statusTitle, '訂金已確認');
     expect(view.nextStepHint, '已付訂金 NT\$200／尚餘 NT\$200');
     expect(BookingPaymentStatus.latestOrderStatusLabel(data), '訂金已確認');

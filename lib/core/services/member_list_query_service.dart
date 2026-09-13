@@ -1,5 +1,6 @@
 // 檔案名稱：lib/core/services/member_list_query_service.dart
-// 功能說明：會員 Firestore cursor 真分頁與 count aggregation 統計。
+// 功能說明：會員列表與統計。
+// 支援舊版會員資料缺少 isArchived、memberSource、搜尋索引欄位的情況。
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:petnest_saas/core/services/member_search_fields.dart';
@@ -32,6 +33,7 @@ class MemberListStats {
 
 class MemberListQueryService {
   MemberListQueryService._();
+
   static final MemberListQueryService instance = MemberListQueryService._();
 
   static const int pageSize = 24;
@@ -43,28 +45,48 @@ class MemberListQueryService {
         .collection('members');
   }
 
+  /// 舊資料沒有新版布林欄位時，Firestore 的 where(false) 會直接排除它。
+  /// 因此統一讀取後，使用下方相容邏輯計算統計數字。
   Future<MemberListStats> loadStats(String shopId) async {
-    final CollectionReference<Map<String, dynamic>> col = _col(shopId);
+    final QuerySnapshot<Map<String, dynamic>> snapshot = await _col(
+      shopId,
+    ).get();
+
     final DateTime now = DateTime.now();
     final DateTime monthStart = DateTime(now.year, now.month, 1);
-    final List<AggregateQuerySnapshot> snaps =
-        await Future.wait(<Future<AggregateQuerySnapshot>>[
-          col.where('isArchived', isEqualTo: false).count().get(),
-          col.where('isBlacklisted', isEqualTo: true).count().get(),
-          col.where('isVip', isEqualTo: true).count().get(),
-          col
-              .where(
-                'createdAt',
-                isGreaterThanOrEqualTo: Timestamp.fromDate(monthStart),
-              )
-              .count()
-              .get(),
-        ]);
+
+    int total = 0;
+    int blacklisted = 0;
+    int vip = 0;
+    int newThisMonth = 0;
+
+    for (final QueryDocumentSnapshot<Map<String, dynamic>> doc
+        in snapshot.docs) {
+      final Map<String, dynamic> data = doc.data();
+
+      if (!_isArchived(data) && !_isMerged(data)) {
+        total++;
+      }
+
+      if (_isBlacklisted(data)) {
+        blacklisted++;
+      }
+
+      if (_isVip(data)) {
+        vip++;
+      }
+
+      final DateTime? createdAt = _dateTimeOf(data['createdAt']);
+      if (createdAt != null && !createdAt.isBefore(monthStart)) {
+        newThisMonth++;
+      }
+    }
+
     return MemberListStats(
-      total: snaps[0].count ?? 0,
-      blacklisted: snaps[1].count ?? 0,
-      vip: snaps[2].count ?? 0,
-      newThisMonth: snaps[3].count ?? 0,
+      total: total,
+      blacklisted: blacklisted,
+      vip: vip,
+      newThisMonth: newThisMonth,
     );
   }
 
@@ -75,113 +97,73 @@ class MemberListQueryService {
     QueryDocumentSnapshot<Map<String, dynamic>>? cursor,
   }) async {
     final String trimmed = keyword.trim();
-    Query<Map<String, dynamic>> query = _col(shopId);
-    if (trimmed.isNotEmpty) {
-      query = _searchQuery(query, trimmed);
-    } else {
-      query = _filterQuery(query, filter);
+
+    // 不能在 Firestore 先用 isArchived / memberSource / namePrefixes 篩選，
+    // 否則舊會員缺少這些欄位時會完全消失。
+    Query<Map<String, dynamic>> query = _col(
+      shopId,
+    ).orderBy('createdAt', descending: true);
+
+    QueryDocumentSnapshot<Map<String, dynamic>>? scanCursor = cursor;
+    QueryDocumentSnapshot<Map<String, dynamic>>? lastCursor;
+    final List<QueryDocumentSnapshot<Map<String, dynamic>>> matchedDocs =
+        <QueryDocumentSnapshot<Map<String, dynamic>>>[];
+
+    bool hasMore = true;
+
+    // 每次頁面保留 pageSize 位符合條件的會員。
+    // 若中間有封存或不符合分類的資料，會繼續讀下一批，避免畫面誤顯示空白。
+    while (matchedDocs.length < pageSize && hasMore) {
+      Query<Map<String, dynamic>> pageQuery = query.limit(pageSize);
+
+      if (scanCursor != null) {
+        pageQuery = pageQuery.startAfterDocument(scanCursor);
+      }
+
+      final QuerySnapshot<Map<String, dynamic>> snapshot = await pageQuery
+          .get();
+
+      if (snapshot.docs.isEmpty) {
+        hasMore = false;
+        break;
+      }
+
+      for (final QueryDocumentSnapshot<Map<String, dynamic>> doc
+          in snapshot.docs) {
+        final Map<String, dynamic> data = doc.data();
+
+        if (_matchesFilter(data, filter) &&
+            (trimmed.isEmpty || _matchesKeyword(data, trimmed))) {
+          matchedDocs.add(doc);
+
+          if (matchedDocs.length >= pageSize) {
+            break;
+          }
+        }
+      }
+
+      lastCursor = snapshot.docs.last;
+      scanCursor = lastCursor;
+      hasMore = snapshot.docs.length >= pageSize;
     }
-    query = query.limit(pageSize);
-    if (cursor != null) {
-      query = query.startAfterDocument(cursor);
-    }
-    final QuerySnapshot<Map<String, dynamic>> snap = await query.get();
-    final List<QueryDocumentSnapshot<Map<String, dynamic>>> docs = snap.docs
-        .where((QueryDocumentSnapshot<Map<String, dynamic>> doc) {
-          return _matchesFilter(doc.data(), filter) &&
-              (trimmed.isEmpty || _matchesKeyword(doc.data(), trimmed));
-        })
-        .toList();
+
     return MemberListPageResult(
-      docs: docs,
-      cursor: snap.docs.isEmpty ? cursor : snap.docs.last,
-      hasMore: snap.docs.length >= pageSize,
+      docs: matchedDocs,
+      cursor: lastCursor ?? cursor,
+      hasMore: hasMore,
     );
   }
 
-  Query<Map<String, dynamic>> _filterQuery(
-    Query<Map<String, dynamic>> query,
-    String filter,
-  ) {
-    switch (filter) {
-      case 'app':
-        return query
-            .where('memberSource', isEqualTo: 'app')
-            .where('isArchived', isEqualTo: false)
-            .orderBy('createdAt', descending: true);
-      case 'admin':
-        return query
-            .where('memberSource', isEqualTo: 'admin')
-            .where('isArchived', isEqualTo: false)
-            .orderBy('createdAt', descending: true);
-      case 'archived':
-        return query
-            .where('isArchived', isEqualTo: true)
-            .orderBy('createdAt', descending: true);
-      case 'blacklisted':
-        return query
-            .where('isBlacklisted', isEqualTo: true)
-            .orderBy('createdAt', descending: true);
-      case 'vip':
-        return query
-            .where('isVip', isEqualTo: true)
-            .where('isArchived', isEqualTo: false)
-            .orderBy('createdAt', descending: true);
-      case 'activeAll':
-      default:
-        return query
-            .where('isArchived', isEqualTo: false)
-            .orderBy('createdAt', descending: true);
-    }
-  }
-
-  Query<Map<String, dynamic>> _searchQuery(
-    Query<Map<String, dynamic>> query,
-    String keyword,
-  ) {
-    final String digits = MemberSearchFields.digitsOnly(keyword);
-    if (digits.length == 4 || digits.length == 5) {
-      return query
-          .where(
-            digits.length == 4 ? 'phoneLast4' : 'phoneLast5',
-            isEqualTo: digits,
-          )
-          .orderBy('createdAt', descending: true);
-    }
-    if (keyword.contains('@')) {
-      return query
-          .where(
-            'emailNormalized',
-            isEqualTo: MemberSearchFields.normalizeEmail(keyword),
-          )
-          .orderBy('createdAt', descending: true);
-    }
-    final String prefix = MemberSearchFields.normalizeName(keyword);
-    final String capped = prefix.length > MemberSearchFields.maxNamePrefixLength
-        ? prefix.substring(0, MemberSearchFields.maxNamePrefixLength)
-        : prefix;
-    return query
-        .where('namePrefixes', arrayContains: capped)
-        .orderBy('createdAt', descending: true);
-  }
-
   bool _matchesFilter(Map<String, dynamic> data, String filter) {
-    final String status = (data['status'] ?? '').toString();
-    if (status == 'merged') {
+    if (_isMerged(data)) {
       return false;
     }
-    final bool archived =
-        data['isArchived'] == true || status == 'archived';
-    final String source = (data['memberSource'] ?? data['source'] ?? 'app')
-        .toString();
-    final bool blacklisted =
-        data['isBlacklisted'] == true ||
-        data['blacklisted'] == true ||
-        data['isBlocked'] == true;
-    final List<dynamic> tags = data['tags'] is List
-        ? data['tags'] as List<dynamic>
-        : const <dynamic>[];
-    final bool vip = data['isVip'] == true || tags.contains('vip');
+
+    final bool archived = _isArchived(data);
+    final String source = _memberSource(data);
+    final bool blacklisted = _isBlacklisted(data);
+    final bool vip = _isVip(data);
+
     switch (filter) {
       case 'archived':
         return archived;
@@ -193,6 +175,7 @@ class MemberListQueryService {
         return blacklisted;
       case 'vip':
         return !archived && vip;
+      case 'activeAll':
       default:
         return !archived;
     }
@@ -200,6 +183,7 @@ class MemberListQueryService {
 
   bool _matchesKeyword(Map<String, dynamic> data, String keyword) {
     final String digits = MemberSearchFields.digitsOnly(keyword);
+    final String normalizedKeyword = MemberSearchFields.normalizeName(keyword);
     final String name = MemberSearchFields.normalizeName(
       (data['name'] ?? '').toString(),
     );
@@ -209,12 +193,61 @@ class MemberListQueryService {
     final String phone = MemberSearchFields.digitsOnly(
       (data['phone'] ?? '').toString(),
     );
+
     if (digits.length >= 4 && phone.endsWith(digits)) {
       return true;
     }
-    if (keyword.contains('@') && email == MemberSearchFields.normalizeEmail(keyword)) {
+
+    if (keyword.contains('@') &&
+        email == MemberSearchFields.normalizeEmail(keyword)) {
       return true;
     }
-    return name.startsWith(MemberSearchFields.normalizeName(keyword));
+
+    return normalizedKeyword.isNotEmpty && name.startsWith(normalizedKeyword);
+  }
+
+  bool _isArchived(Map<String, dynamic> data) {
+    return data['isArchived'] == true ||
+        (data['status'] ?? '').toString() == 'archived';
+  }
+
+  bool _isMerged(Map<String, dynamic> data) {
+    return data['isMerged'] == true ||
+        (data['status'] ?? '').toString() == 'merged';
+  }
+
+  bool _isBlacklisted(Map<String, dynamic> data) {
+    return data['isBlacklisted'] == true ||
+        data['blacklisted'] == true ||
+        data['isBlocked'] == true;
+  }
+
+  bool _isVip(Map<String, dynamic> data) {
+    final dynamic rawTags = data['tags'];
+    final List<dynamic> tags = rawTags is List ? rawTags : const <dynamic>[];
+
+    return data['isVip'] == true || tags.contains('vip');
+  }
+
+  String _memberSource(Map<String, dynamic> data) {
+    final String raw =
+        (data['memberSource'] ?? data['source'] ?? data['createdFrom'] ?? 'app')
+            .toString()
+            .trim()
+            .toLowerCase();
+
+    return raw == 'admin' ? 'admin' : 'app';
+  }
+
+  DateTime? _dateTimeOf(dynamic value) {
+    if (value is Timestamp) {
+      return value.toDate();
+    }
+
+    if (value is DateTime) {
+      return value;
+    }
+
+    return null;
   }
 }

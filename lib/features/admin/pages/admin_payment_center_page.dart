@@ -295,7 +295,7 @@ class _AdminPaymentCenterPageState extends State<AdminPaymentCenterPage> {
             '${_statusLabel(payment.status)}\n'
             '付款時間：'
             '${_formatDateTime(payment.paidAt)}\n'
-            '商店交易編號：'
+            'PetNest 付款單號：'
             '${payment.merchantTradeNo.isEmpty ? '尚未取得' : payment.merchantTradeNo}\n'
             '綠界交易編號：'
             '${payment.gatewayTradeNo.isEmpty ? '尚未取得' : payment.gatewayTradeNo}',

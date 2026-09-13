@@ -69,11 +69,11 @@ class BookingDetailPreparationSection extends StatelessWidget {
                     : '必填'),
           onTap: onOpenTerms,
         ),
-        if (!view.paymentTaskComplete)
+        if (!view.depositRequirementComplete)
           BookingDetailEntryRow(
             icon: Icons.payments_outlined,
             title: '尚未付款',
-            subtitle: '尚需付款 NT\$ ${view.remainingAmount}',
+            subtitle: view.paymentProgressSubtitle,
             badge: '待完成',
             onTap: onOpenPayment,
           )
@@ -81,8 +81,8 @@ class BookingDetailPreparationSection extends StatelessWidget {
           BookingDetailEntryRow(
             icon: Icons.payments_outlined,
             title: '付款',
-            subtitle: '已付清',
-            done: true,
+            subtitle: view.paymentProgressSubtitle,
+            done: view.isPaidInFull,
             onTap: onOpenPayment,
           ),
       ],

@@ -317,4 +317,37 @@ void main() {
       );
     }
   });
+
+  test('latestUnconfirmedBalance 不誤選訂金照片', () {
+    expect(
+      BookingPaymentProof.latestUnconfirmedBalance(<String, dynamic>{
+        'paymentProofs': <Map<String, dynamic>>[
+          <String, dynamic>{
+            'proofId': 'd1',
+            'imageUrl': 'https://a/d.jpg',
+            'purpose': 'deposit',
+          },
+          <String, dynamic>{
+            'proofId': 'b1',
+            'imageUrl': 'https://a/b.jpg',
+            'purpose': 'balance',
+          },
+        ],
+      })?.proofId,
+      'b1',
+    );
+    expect(
+      BookingPaymentProof.latestUnconfirmedBalance(<String, dynamic>{
+        'paymentProofs': <Map<String, dynamic>>[
+          <String, dynamic>{
+            'proofId': 'd1',
+            'imageUrl': 'https://a/d.jpg',
+            'purpose': 'deposit',
+          },
+        ],
+        'settlementTopUpTransferImageUrl': '',
+      }),
+      isNull,
+    );
+  });
 }

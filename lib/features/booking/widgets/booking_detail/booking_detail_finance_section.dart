@@ -406,13 +406,13 @@ class _BookingDetailFinanceSectionState
                     Text(
                       lines[i].label,
                       style: TextStyle(
-                        fontSize: lines[i].isTotal
-                            ? BookingDetailUi.bodySize
-                            : BookingDetailUi.bodySize,
+                        fontSize: BookingDetailUi.bodySize,
                         fontWeight: lines[i].isTotal
                             ? FontWeight.w700
                             : FontWeight.w500,
-                        color: BookingDetailUi.of(context).text,
+                        color: lines[i].isReference
+                            ? BookingDetailUi.of(context).muted
+                            : BookingDetailUi.of(context).text,
                       ),
                     ),
                     if (lines[i].subtitle.isNotEmpty)
@@ -427,7 +427,9 @@ class _BookingDetailFinanceSectionState
                 ),
               ),
               Text(
-                '${lines[i].isDiscount ? '-' : ''}NT\$ ${lines[i].amount.abs()}',
+                lines[i].isReference && lines[i].amount == 0
+                    ? ''
+                    : '${lines[i].isDiscount ? '-' : ''}NT\$ ${lines[i].amount.abs()}',
                 style: TextStyle(
                   fontSize: lines[i].isTotal ? 18 : BookingDetailUi.bodySize,
                   fontWeight: lines[i].isTotal

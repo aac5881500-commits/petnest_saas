@@ -93,6 +93,39 @@ void main() {
     ]);
   });
 
+  test('舊住宿 pets 無 petId 時不與 petIds 重複顯示', () {
+    final List<Map<String, dynamic>> pets = AdminBookingFormAnswersSection.petsOf(
+      <String, dynamic>{
+        'pets': <Map<String, dynamic>>[
+          <String, dynamic>{'name': '咪'},
+          <String, dynamic>{'name': '球'},
+          <String, dynamic>{'name': '豆'},
+        ],
+        'petIds': <String>['p1', 'p2', 'p3'],
+      },
+    );
+    expect(pets.length, 3);
+    expect(pets.map((Map<String, dynamic> e) => e['name']).toList(), <String>[
+      '咪',
+      '球',
+      '豆',
+    ]);
+  });
+
+  test('pets 比 petIds 少時只補未對到的 petId', () {
+    final List<Map<String, dynamic>> pets = AdminBookingFormAnswersSection.petsOf(
+      <String, dynamic>{
+        'pets': <Map<String, dynamic>>[
+          <String, dynamic>{'name': '咪'},
+        ],
+        'petIds': <String>['p1', 'p2'],
+      },
+    );
+    expect(pets.length, 2);
+    expect(pets[0]['name'], '咪');
+    expect(pets[1]['petId'], 'p2');
+  });
+
   test('相容 shopFormAnswers 本體與舊 customFormAnswers', () {
     expect(
       PetShopFormAnswers.resolve(

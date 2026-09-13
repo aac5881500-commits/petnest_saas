@@ -59,6 +59,14 @@ class AdminBookingStatusChip extends StatelessWidget {
       }
       return _ChipStyle(text, color);
     }
+    if (status == 'checked_out') {
+      return _ChipStyle(
+        DaycareStatusLabels.primary(
+          data ?? <String, dynamic>{'status': status},
+        ),
+        ShopFrontendTheme.errorColor,
+      );
+    }
     if (status == 'completed') {
       return const _ChipStyle('已完成', ShopFrontendTheme.successColor);
     }
@@ -106,6 +114,8 @@ String adminBookingStatusText(dynamic value) {
       return '已確認';
     case 'checked_in':
       return '入住中';
+    case 'checked_out':
+      return '已退房／待結清';
     case 'completed':
       return '已完成';
     case 'cancelled':

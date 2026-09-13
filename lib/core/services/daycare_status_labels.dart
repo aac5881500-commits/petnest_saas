@@ -82,6 +82,8 @@ class DaycareStatusLabels {
         return '已分房';
       case 'checked_in':
         return _settledPrimary(data, '安親中');
+      case 'checked_out':
+        return _settledPrimary(data, '已退房／待結清');
       case 'completed':
         return _settledPrimary(data, '已完成');
       case 'cancelled':
@@ -148,7 +150,8 @@ class DaycareStatusLabels {
       case 'checked_in':
         return !isHistory(data) &&
             (status == 'checked_in' ||
-                BookingSettlementMath.isDaycareAwaitingClear(data));
+                status == 'checked_out' ||
+                BookingSettlementMath.isAwaitingClear(data));
       case 'todayDropOff':
         return !isHistory(data) &&
             start != null &&

@@ -1,46 +1,45 @@
-// 檔案名稱：lib/features/admin/widgets/admin_daycare_settle_sheet.dart
-// 功能說明：安親結算 bottom sheet：完整日期時間、晚接回明細、手動調整與收款選項
+// 檔案名稱：lib/features/admin/widgets/admin_stay_settle_sheet.dart
+// 功能說明：住宿退房結算：原房費不動，手動加收／減免與證據照片，不按小時計費。
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:petnest_saas/core/models/policy_applicable_service.dart';
 import 'package:petnest_saas/core/models/shop_frontend_theme.dart';
 import 'package:petnest_saas/core/services/booking_settlement_math.dart';
-import 'package:petnest_saas/core/services/daycare_function_service.dart';
-import 'package:petnest_saas/core/services/daycare_time_helper.dart';
 import 'package:petnest_saas/core/services/settlement_adjust_display.dart';
 import 'package:petnest_saas/core/services/shop_payment_methods.dart';
 import 'package:petnest_saas/core/utils/safe_parse.dart';
 
-class AdminDaycareSettleResult {
-  const AdminDaycareSettleResult({
-    required this.actualEndAt,
+class AdminStaySettleResult {
+  const AdminStaySettleResult({
     required this.manualAdjust,
     required this.manualAdjustReason,
     required this.topUpMethod,
     required this.lockIfClear,
+    required this.images,
   });
 
-  final DateTime actualEndAt;
   final int manualAdjust;
   final String manualAdjustReason;
   final String topUpMethod;
   final bool lockIfClear;
+  final List<XFile> images;
 }
 
-Future<AdminDaycareSettleResult?> showAdminDaycareSettleSheet({
+Future<AdminStaySettleResult?> showAdminStaySettleSheet({
   required BuildContext context,
   required String shopId,
   required String bookingId,
   required Map<String, dynamic> booking,
 }) {
-  return showModalBottomSheet<AdminDaycareSettleResult>(
+  return showModalBottomSheet<AdminStaySettleResult>(
     context: context,
     isScrollControlled: true,
     backgroundColor: Colors.transparent,
     builder: (BuildContext context) {
-      return AdminDaycareSettleSheet(
+      return AdminStaySettleSheet(
         shopId: shopId,
         bookingId: bookingId,
         booking: booking,
@@ -49,8 +48,8 @@ Future<AdminDaycareSettleResult?> showAdminDaycareSettleSheet({
   );
 }
 
-class AdminDaycareSettleSheet extends StatefulWidget {
-  const AdminDaycareSettleSheet({
+class AdminStaySettleSheet extends StatefulWidget {
+  const AdminStaySettleSheet({
     super.key,
     required this.shopId,
     required this.bookingId,
@@ -62,17 +61,12 @@ class AdminDaycareSettleSheet extends StatefulWidget {
   final Map<String, dynamic> booking;
 
   @override
-  State<AdminDaycareSettleSheet> createState() =>
-      _AdminDaycareSettleSheetState();
+  State<AdminStaySettleSheet> createState() => _AdminStaySettleSheetState();
 }
 
-class _AdminDaycareSettleSheetState extends State<AdminDaycareSettleSheet> {
-  late DateTime _actualEnd;
-  late bool _freezeActualEnd;
+class _AdminStaySettleSheetState extends State<AdminStaySettleSheet> {
   String _topUpMethod = '';
-  bool _loadingPreview = true;
-  String? _previewError;
-  Map<String, dynamic> _preview = <String, dynamic>{};
+  String _refundMethod = '';
   final TextEditingController _unsignedAdjust = TextEditingController();
   final TextEditingController _manualReason = TextEditingController();
   final ScrollController _sheetScroll = ScrollController();
@@ -80,19 +74,11 @@ class _AdminDaycareSettleSheetState extends State<AdminDaycareSettleSheet> {
   final GlobalKey _reasonFieldKey = GlobalKey();
   DaycareManualAdjustKind _adjustKind = DaycareManualAdjustKind.none;
   bool _reasonError = false;
-  String _refundMethod = '';
-
-  DateTime? get _scheduledStart => _ts(widget.booking['scheduledStartAt']);
-  DateTime? get _scheduledEnd => _ts(widget.booking['scheduledEndAt']);
-  DateTime? get _actualStart => _ts(widget.booking['actualStartAt']);
+  final List<XFile> _images = <XFile>[];
 
   @override
   void initState() {
     super.initState();
-    _freezeActualEnd = BookingSettlementMath.isSettlementConfirmed(
-      widget.booking,
-    );
-    _actualEnd = _ts(widget.booking['actualEndAt']) ?? DateTime.now();
     final DaycareManualAdjustInput existing = DaycareManualAdjustInput.fromSigned(
       SafeParse.parseMoney(widget.booking['manualAdjust']),
     );
@@ -101,7 +87,7 @@ class _AdminDaycareSettleSheetState extends State<AdminDaycareSettleSheet> {
       _unsignedAdjust.text = '${existing.unsignedAmount}';
     }
     _manualReason.text = SettlementAdjustDisplay.reasonOf(widget.booking);
-    _reloadPreview();
+    _topUpMethod = (widget.booking['settlementTopUpMethod'] ?? '').toString();
   }
 
   @override
@@ -113,57 +99,13 @@ class _AdminDaycareSettleSheetState extends State<AdminDaycareSettleSheet> {
     super.dispose();
   }
 
-  Future<void> _reloadPreview() async {
-    setState(() {
-      _loadingPreview = true;
-      _previewError = null;
-    });
-    try {
-      final Map<String, dynamic> preview = await DaycareFunctionService.instance
-          .manage(
-            shopId: widget.shopId,
-            bookingId: widget.bookingId,
-            action: 'previewSettle',
-            extra: <String, dynamic>{
-              'actualEndAt': _actualEnd.toIso8601String(),
-            },
-          );
-      if (!mounted) {
-        return;
-      }
-      setState(() {
-        _preview = preview;
-        _loadingPreview = false;
-      });
-    } catch (error) {
-      if (!mounted) {
-        return;
-      }
-      setState(() {
-        _previewError = error.toString();
-        _loadingPreview = false;
-      });
-    }
-  }
+  int get _quoted => BookingSettlementMath.quotedTotal(widget.booking);
 
-  int get _quoted => SafeParse.parseMoney(
-    _preview['quotedTotal'] ??
-        widget.booking['quotedTotalPrice'] ??
-        widget.booking['totalPrice'],
-  );
+  int get _paid => BookingSettlementMath.paidAmount(widget.booking);
 
-  int get _overtime {
-    return SafeParse.parseMoney(
-      _preview['overtimeCharge'] ??
-          _preview['overtimeAmount'] ??
-          widget.booking['overtimeAmount'],
-    );
-  }
+  int get _refunded => BookingSettlementMath.refundedAmount(widget.booking);
 
-  int get _paid => BookingSettlementMath.paidAmount(<String, dynamic>{
-    ...widget.booking,
-    ..._preview,
-  });
+  int get _net => BookingSettlementMath.netCollected(widget.booking);
 
   int get _unsignedAdjustAmount {
     return int.tryParse(_unsignedAdjust.text.trim()) ?? 0;
@@ -177,18 +119,24 @@ class _AdminDaycareSettleSheetState extends State<AdminDaycareSettleSheet> {
   }
 
   int get _finalReceivable {
-    final int value = _quoted + _overtime + _manual;
-    return value < 0 ? 0 : value;
+    return BookingSettlementMath.expectedTotal(
+      data: widget.booking,
+      manualAdjustOverride: _manual,
+    );
   }
 
   int get _remaining {
-    final int net = _paid - BookingSettlementMath.refundedAmount(widget.booking);
-    return _finalReceivable > net ? _finalReceivable - net : 0;
+    return BookingSettlementMath.remainingDue(
+      data: widget.booking,
+      manualAdjustOverride: _manual,
+    );
   }
 
   int get _refundDue {
-    final int net = _paid - BookingSettlementMath.refundedAmount(widget.booking);
-    return net > _finalReceivable ? net - _finalReceivable : 0;
+    return BookingSettlementMath.refundDue(
+      data: widget.booking,
+      manualAdjustOverride: _manual,
+    );
   }
 
   bool get _showReasonError {
@@ -197,60 +145,6 @@ class _AdminDaycareSettleSheetState extends State<AdminDaycareSettleSheet> {
           amount: _manual,
           reason: _manualReason.text,
         );
-  }
-
-  Future<void> _pickActualEnd() async {
-    if (_freezeActualEnd) {
-      return;
-    }
-    final DateTime firstDate = _scheduledStart ?? DateTime(2020);
-    final DateTime lastDate = DateTime.now();
-    DateTime initialDate = _actualEnd;
-    if (initialDate.isAfter(lastDate)) {
-      initialDate = lastDate;
-    }
-    final DateTime? date = await showDatePicker(
-      context: context,
-      initialDate: initialDate.isBefore(firstDate) ? firstDate : initialDate,
-      firstDate: firstDate.isAfter(lastDate) ? lastDate : firstDate,
-      lastDate: lastDate,
-    );
-    if (date == null || !mounted) {
-      return;
-    }
-    final TimeOfDay? time = await showTimePicker(
-      context: context,
-      initialTime: TimeOfDay.fromDateTime(_actualEnd),
-    );
-    if (time == null) {
-      return;
-    }
-    setState(() {
-      _actualEnd = DateTime(
-        date.year,
-        date.month,
-        date.day,
-        time.hour,
-        time.minute,
-      );
-    });
-    final String? timeError = DaycareTimeHelper.actualTimesError(
-      actualStartAt: _actualStart,
-      actualEndAt: _actualEnd,
-    );
-    if (timeError != null) {
-      if (!mounted) {
-        return;
-      }
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(timeError)));
-      setState(() {
-        _actualEnd = DateTime.now();
-      });
-      return;
-    }
-    await _reloadPreview();
   }
 
   Future<void> _confirm() async {
@@ -273,19 +167,9 @@ class _AdminDaycareSettleSheetState extends State<AdminDaycareSettleSheet> {
       return;
     }
     if (_remaining > 0 && _topUpMethod.isEmpty) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('請選擇補款方式，或先至付款設定開啟可用方式')));
-      return;
-    }
-    final String? timeError = DaycareTimeHelper.actualTimesError(
-      actualStartAt: _actualStart,
-      actualEndAt: _actualEnd,
-    );
-    if (timeError != null) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(timeError)));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('請選擇補款方式，或先至付款設定開啟可用方式')),
+      );
       return;
     }
     if (_refundDue > 0) {
@@ -322,12 +206,12 @@ class _AdminDaycareSettleSheetState extends State<AdminDaycareSettleSheet> {
     }
     Navigator.pop(
       context,
-      AdminDaycareSettleResult(
-        actualEndAt: _actualEnd,
+      AdminStaySettleResult(
         manualAdjust: _manual,
         manualAdjustReason: _manualReason.text.trim(),
         topUpMethod: _remaining > 0 ? _topUpMethod : '',
         lockIfClear: lockIfClear,
+        images: List<XFile>.from(_images),
       ),
     );
   }
@@ -365,7 +249,7 @@ class _AdminDaycareSettleSheetState extends State<AdminDaycareSettleSheet> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: <Widget>[
                         Text(
-                          '結算安親',
+                          '辦理退房／結算',
                           style: TextStyle(
                             fontSize: 20,
                             fontWeight: FontWeight.w800,
@@ -374,7 +258,7 @@ class _AdminDaycareSettleSheetState extends State<AdminDaycareSettleSheet> {
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          '依實際接回時間計算晚接回費用，確認後完成此筆安親。',
+                          '服務結束後可釋放房間。有待補款或待退款時，訂單不會標示為已完成。',
                           style: TextStyle(
                             fontSize: 13,
                             color: theme.subtitleColor,
@@ -391,60 +275,7 @@ class _AdminDaycareSettleSheetState extends State<AdminDaycareSettleSheet> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: <Widget>[
-                          _timeCard(
-                            theme,
-                            title: '預約時間',
-                            rows: <List<String>>[
-                              <String>[
-                                '預約送達',
-                                DaycareTimeHelper.formatDateTimeOrUnrecorded(
-                                  _scheduledStart,
-                                ),
-                              ],
-                              <String>[
-                                '預約接回',
-                                DaycareTimeHelper.formatDateTimeOrUnrecorded(
-                                  _scheduledEnd,
-                                ),
-                              ],
-                            ],
-                          ),
-                          const SizedBox(height: 10),
-                          _timeCard(
-                            theme,
-                            title: '實際時間',
-                            rows: <List<String>>[
-                              <String>[
-                                '實際送達',
-                                DaycareTimeHelper.formatDateTimeOrUnrecorded(
-                                  _actualStart,
-                                ),
-                              ],
-                              <String>[
-                                '實際接回',
-                                DaycareTimeHelper.formatDateTime(_actualEnd),
-                              ],
-                            ],
-                            trailing: _freezeActualEnd
-                                ? const Text('以首次結算時間為準')
-                                : TextButton(
-                                    onPressed: _pickActualEnd,
-                                    child: const Text('調整接回時間'),
-                                  ),
-                          ),
-                          const SizedBox(height: 14),
-                          if (_loadingPreview)
-                            const Padding(
-                              padding: EdgeInsets.symmetric(vertical: 24),
-                              child: Center(child: CircularProgressIndicator()),
-                            )
-                          else if (_previewError != null)
-                            Text(
-                              _previewError!,
-                              style: TextStyle(color: theme.primaryColor),
-                            )
-                          else
-                            _feeSection(theme),
+                          _feeSection(theme),
                           const SizedBox(height: 14),
                           Text(
                             '手動調整金額',
@@ -496,7 +327,9 @@ class _AdminDaycareSettleSheetState extends State<AdminDaycareSettleSheet> {
                               ),
                             ],
                           ),
-                          if (_adjustKind != DaycareManualAdjustKind.none) ...<Widget>[
+                          if (_adjustKind != DaycareManualAdjustKind.none) ...<
+                            Widget
+                          >[
                             const SizedBox(height: 8),
                             TextField(
                               controller: _unsignedAdjust,
@@ -583,6 +416,32 @@ class _AdminDaycareSettleSheetState extends State<AdminDaycareSettleSheet> {
                             ),
                           ],
                           const SizedBox(height: 14),
+                          OutlinedButton.icon(
+                            onPressed: () async {
+                              if (_images.length >= 3) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(content: Text('最多只能上傳 3 張照片')),
+                                );
+                                return;
+                              }
+                              final XFile? picked = await ImagePicker()
+                                  .pickImage(
+                                    source: ImageSource.gallery,
+                                    maxWidth: 1200,
+                                    imageQuality: 75,
+                                  );
+                              if (picked != null) {
+                                setState(() => _images.add(picked));
+                              }
+                            },
+                            icon: const Icon(Icons.photo_library),
+                            label: Text(
+                              _images.isEmpty
+                                  ? '選擇證據照片（選填）'
+                                  : '已選擇 ${_images.length} 張照片',
+                            ),
+                          ),
+                          const SizedBox(height: 14),
                           if (_remaining > 0) ...<Widget>[
                             Text(
                               '補款方式',
@@ -592,7 +451,9 @@ class _AdminDaycareSettleSheetState extends State<AdminDaycareSettleSheet> {
                               ),
                             ),
                             const SizedBox(height: 8),
-                            StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+                            StreamBuilder<
+                              DocumentSnapshot<Map<String, dynamic>>
+                            >(
                               stream: FirebaseFirestore.instance
                                   .collection('shops')
                                   .doc(widget.shopId)
@@ -610,8 +471,8 @@ class _AdminDaycareSettleSheetState extends State<AdminDaycareSettleSheet> {
                                           shopData:
                                               snapshot.data?.data() ??
                                               const <String, dynamic>{},
-                                          serviceType:
-                                              PolicyApplicableService.daycare,
+                                          serviceType: PolicyApplicableService
+                                              .accommodation,
                                         );
                                     if (catalog.methods.isEmpty) {
                                       return const Text(
@@ -647,8 +508,7 @@ class _AdminDaycareSettleSheetState extends State<AdminDaycareSettleSheet> {
                             ),
                             RadioListTile<String>(
                               value: SettlementAdjustDisplay.inStoreRefundMethod,
-                              groupValue:
-                                  _refundMethod.isEmpty
+                              groupValue: _refundMethod.isEmpty
                                   ? SettlementAdjustDisplay.inStoreRefundMethod
                                   : _refundMethod,
                               title: const Text('店內退款'),
@@ -656,9 +516,7 @@ class _AdminDaycareSettleSheetState extends State<AdminDaycareSettleSheet> {
                                 '店員實際完成退款後再於結算結果確認，不會自動退刷或匯款。',
                               ),
                               onChanged: (String? value) {
-                                setState(
-                                  () => _refundMethod = value ?? '',
-                                );
+                                setState(() => _refundMethod = value ?? '');
                               },
                             ),
                           ],
@@ -681,7 +539,7 @@ class _AdminDaycareSettleSheetState extends State<AdminDaycareSettleSheet> {
                                   ),
                                 ),
                                 const SizedBox(height: 6),
-                                Text('原應收 NT\$$_quoted'),
+                                Text('原住宿費用 NT\$$_quoted'),
                                 Text(
                                   _manual == 0
                                       ? '加收／減免 未調整'
@@ -700,7 +558,9 @@ class _AdminDaycareSettleSheetState extends State<AdminDaycareSettleSheet> {
                                     fontWeight: FontWeight.w800,
                                   ),
                                 ),
-                                Text('已收款 NT\$$_paid'),
+                                Text('已成功收款 NT\$$_paid'),
+                                Text('已完成退款 NT\$$_refunded'),
+                                Text('實收淨額 NT\$$_net'),
                                 if (_remaining > 0)
                                   Text('待補款 NT\$$_remaining'),
                                 if (_refundDue > 0)
@@ -731,7 +591,7 @@ class _AdminDaycareSettleSheetState extends State<AdminDaycareSettleSheet> {
                             backgroundColor: theme.buttonColor,
                             foregroundColor: theme.onPrimaryColor,
                           ),
-                          onPressed: _loadingPreview ? null : _confirm,
+                          onPressed: _confirm,
                           child: const Text('確認結算'),
                         ),
                       ),
@@ -747,15 +607,6 @@ class _AdminDaycareSettleSheetState extends State<AdminDaycareSettleSheet> {
   }
 
   Widget _feeSection(ShopFrontendTheme theme) {
-    final int extra = SafeParse.parseMoney(_preview['overtimeMinutes']);
-    final int grace = SafeParse.parseMoney(_preview['overtimeGraceMinutes']);
-    final int billable = SafeParse.parseMoney(_preview['billableMinutes']);
-    final String formula = (_preview['overtimeFormula'] ?? '未加收').toString();
-    final int scheduledMinutes = SafeParse.parseMoney(
-      _preview['scheduledMinutes'],
-    );
-    final int actualMinutes = SafeParse.parseMoney(_preview['actualMinutes']);
-    final int capAdjustment = SafeParse.parseMoney(_preview['capAdjustment']);
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
@@ -774,78 +625,14 @@ class _AdminDaycareSettleSheetState extends State<AdminDaycareSettleSheet> {
             ),
           ),
           const SizedBox(height: 8),
-          _infoLine('預約時數', DaycareTimeHelper.durationLabel(scheduledMinutes)),
-          _infoLine(
-            '實際時數',
-            _actualStart == null
-                ? '尚未記錄'
-                : DaycareTimeHelper.durationLabel(actualMinutes),
-          ),
-          _infoLine('晚接回分鐘數', '$extra 分鐘'),
-          _infoLine('免費寬限分鐘', '$grace 分鐘'),
-          _infoLine('實際計費分鐘數', '$billable 分鐘'),
-          _infoLine('計費算式', formula),
-          const Divider(height: 20),
-          _moneyRow(theme, '預約費用', _quoted),
-          _moneyRow(theme, '晚接回超時計費', _overtime),
+          _moneyRow(theme, '原住宿費用', _quoted),
+          _moneyRow(theme, '已成功收款', _paid),
+          _moneyRow(theme, '已完成退款', _refunded),
+          _moneyRow(theme, '實收淨額', _net),
           _infoLine('手動調整', SettlementAdjustDisplay.signedLabel(_manual)),
-          if (capAdjustment != 0) _moneyRow(theme, '上限調整', capAdjustment),
           _moneyRow(theme, '最終應收', _finalReceivable, emphasize: true),
-          _moneyRow(theme, '成功收款總額', _paid),
           _moneyRow(theme, '待補款', _remaining),
           _moneyRow(theme, '待退款', _refundDue),
-        ],
-      ),
-    );
-  }
-
-  Widget _timeCard(
-    ShopFrontendTheme theme, {
-    required String title,
-    required List<List<String>> rows,
-    Widget? trailing,
-  }) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: theme.pageBackgroundColor,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: theme.borderColor),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
-          Row(
-            children: <Widget>[
-              Expanded(
-                child: Text(
-                  title,
-                  style: TextStyle(
-                    fontWeight: FontWeight.w700,
-                    color: theme.titleColor,
-                  ),
-                ),
-              ),
-              ?trailing,
-            ],
-          ),
-          const SizedBox(height: 8),
-          for (final List<String> row in rows) ...<Widget>[
-            Text(
-              row.first,
-              style: TextStyle(fontSize: 12, color: theme.subtitleColor),
-            ),
-            Text(
-              row.last,
-              style: TextStyle(
-                fontSize: 15,
-                fontWeight: FontWeight.w600,
-                color: theme.titleColor,
-              ),
-            ),
-            const SizedBox(height: 6),
-          ],
         ],
       ),
     );
@@ -887,22 +674,10 @@ class _AdminDaycareSettleSheetState extends State<AdminDaycareSettleSheet> {
             'NT\$ $amount',
             style: TextStyle(
               fontWeight: emphasize ? FontWeight.w800 : FontWeight.w600,
-              fontSize: emphasize ? 18 : 14,
-              color: emphasize ? theme.primaryColor : theme.titleColor,
             ),
           ),
         ],
       ),
     );
-  }
-
-  DateTime? _ts(dynamic raw) {
-    if (raw is Timestamp) {
-      return raw.toDate();
-    }
-    if (raw is DateTime) {
-      return raw;
-    }
-    return null;
   }
 }

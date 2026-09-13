@@ -225,6 +225,36 @@ class BookingPaymentProof {
     );
   }
 
+  static BookingPaymentProofRecord? latestUnconfirmedBalance(
+    Map<String, dynamic> data,
+  ) {
+    final List<BookingPaymentProofRecord> items = records(data)
+        .where(
+          (BookingPaymentProofRecord e) =>
+              normalizePurpose(e.purpose) == 'balance' &&
+              e.imageUrl.isNotEmpty &&
+              e.confirmedAt == null,
+        )
+        .toList();
+    if (items.isEmpty) {
+      return null;
+    }
+    DateTime? latestAt;
+    BookingPaymentProofRecord latest = items.last;
+    for (final BookingPaymentProofRecord item in items) {
+      final DateTime? at = item.submittedAt;
+      if (at == null) {
+        latest = item;
+        continue;
+      }
+      if (latestAt == null || !at.isBefore(latestAt)) {
+        latestAt = at;
+        latest = item;
+      }
+    }
+    return latest;
+  }
+
   static bool shouldShow(Map<String, dynamic> data) {
     return ShopPaymentMethods.isManualBankTransferPayment(
           data['paymentMethod'],

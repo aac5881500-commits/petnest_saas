@@ -37,9 +37,13 @@ class AdminBookingDetailPaymentAside extends StatelessWidget {
     final bool depositPaid = BookingPaymentStatus.isDepositConfirmed(data);
     final bool overdue = BookingPaymentStatus.isDeadlineOverdue(data);
     final bool daycare = BookingPaymentStatus.isDaycare(data);
-    final bool cleared = daycare
-        ? BookingSettlementMath.isOrderComplete(data)
-        : remaining <= 0 && refundDue <= 0 && paid > 0 && total > 0;
+    final bool cleared = BookingSettlementMath.isOrderComplete(data) ||
+        (!daycare &&
+            !BookingSettlementMath.isSettlementConfirmed(data) &&
+            remaining <= 0 &&
+            refundDue <= 0 &&
+            paid > 0 &&
+            total > 0);
     final Color accent = remaining > 0
         ? (overdue ? ShopFrontendTheme.errorColor : theme.primaryColor)
         : ShopFrontendTheme.successColor;

@@ -116,11 +116,26 @@ function isDaycareBooking(booking) {
   return kind === "daycare" || service === "daycare";
 }
 
-/** 安親：款項結清才 completed；有待補／待退維持 checked_in。住宿不改。 */
+function isStayServiceEnded(booking, bookingUpdate) {
+  const data = booking || {};
+  const update = bookingUpdate || {};
+  const status = String(update.status || data.status || "").trim();
+  return Boolean(
+      update.checkOutAt ||
+      update.checkedOutAt ||
+      data.checkOutAt ||
+      data.checkedOutAt ||
+      status === "checked_out" ||
+      data.stayRoomReleased === true ||
+      update.stayRoomReleased === true,
+  );
+}
+
+/**
+ * 安親：款項結清才 completed；有待補／待退維持 checked_in。
+ * 住宿：服務結束後，結清才 completed，否則 checked_out，不可冒充 completed。
+ */
 function stampDaycareClearStatus(booking, fields, bookingUpdate) {
-  if (!isDaycareBooking(booking)) {
-    return;
-  }
   const confirmed = bookingUpdate.settlementConfirmed === true ||
     booking.settlementConfirmed === true ||
     booking.settledAt != null;
@@ -137,8 +152,15 @@ function stampDaycareClearStatus(booking, fields, bookingUpdate) {
         bookingUpdate.refundDueAmount : fields.refundDueAmount,
       0,
   );
-  bookingUpdate.status = remain <= 0 && refund <= 0 ?
-    "completed" : "checked_in";
+  const cleared = remain <= 0 && refund <= 0;
+  if (isDaycareBooking(booking)) {
+    bookingUpdate.status = cleared ? "completed" : "checked_in";
+    return;
+  }
+  if (!isStayServiceEnded(booking, bookingUpdate)) {
+    return;
+  }
+  bookingUpdate.status = cleared ? "completed" : "checked_out";
 }
 
 function paymentStatusOf(expected, net) {
@@ -189,5 +211,6 @@ module.exports = {
   isSettlementLocked,
   canLock,
   isDaycareBooking,
+  isStayServiceEnded,
   stampDaycareClearStatus,
 };

@@ -4,6 +4,7 @@
 // 並集中管理訂金確認、取消、選房、更換房間與退房完成按鈕。
 
 import 'package:flutter/material.dart';
+import 'package:petnest_saas/core/services/booking_settlement_math.dart';
 
 class AdminBookingActionSection extends StatelessWidget {
   const AdminBookingActionSection({
@@ -46,6 +47,8 @@ class AdminBookingActionSection extends StatelessWidget {
         status == 'unpaid';
     final bool isConfirmed = status == 'confirmed';
     final bool isCheckedIn = status == 'checked_in';
+    final bool isCheckedOut = status == 'checked_out';
+    final bool locked = BookingSettlementMath.isSettlementLocked(data);
     final bool canOperate = status != 'cancelled' && status != 'completed';
 
     final ButtonStyle tap = ElevatedButton.styleFrom(
@@ -155,7 +158,7 @@ class AdminBookingActionSection extends StatelessWidget {
             child: const Text('入住'),
           ),
 
-        if (isAssigned && canOperate)
+        if (isAssigned && canOperate && !isCheckedOut)
           ElevatedButton.icon(
             onPressed: onChangeRoom,
             style: tap,
@@ -176,7 +179,7 @@ class AdminBookingActionSection extends StatelessWidget {
         // ===============================
         // 入住後：退房完成
         // ===============================
-        if (isCheckedIn)
+        if ((isCheckedIn || isCheckedOut) && !locked)
           ElevatedButton(
             onPressed: onCheckOut,
             style: ElevatedButton.styleFrom(
@@ -184,7 +187,7 @@ class AdminBookingActionSection extends StatelessWidget {
               backgroundColor: Colors.green,
               foregroundColor: Colors.white,
             ),
-            child: const Text('退房完成'),
+            child: Text(isCheckedOut ? '重新結算' : '辦理退房／結算'),
           ),
       ],
     );

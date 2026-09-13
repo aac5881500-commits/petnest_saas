@@ -33,6 +33,7 @@ class AdminBookingFormAnswersSection extends StatelessWidget {
   static List<Map<String, dynamic>> petsOf(Map<String, dynamic> data) {
     final List<Map<String, dynamic>> out = <Map<String, dynamic>>[];
     final Set<String> seen = <String>{};
+    int snapshotsMissingPetId = 0;
     void add(Map<String, dynamic> pet) {
       final String id = PetShopFormAnswers.petIdOf(pet);
       if (id.isNotEmpty) {
@@ -40,6 +41,8 @@ class AdminBookingFormAnswersSection extends StatelessWidget {
           return;
         }
         seen.add(id);
+      } else {
+        snapshotsMissingPetId += 1;
       }
       out.add(pet);
     }
@@ -53,9 +56,20 @@ class AdminBookingFormAnswersSection extends StatelessWidget {
     }
     final Object? ids = data['petIds'];
     if (ids is List) {
-      for (final Object? id in ids) {
-        final String petId = id.toString().trim();
-        if (petId.isEmpty || seen.contains(petId)) {
+      final List<String> petIds = ids
+          .map((Object? id) => id.toString().trim())
+          .where((String id) => id.isNotEmpty)
+          .toList();
+      if (out.isNotEmpty && out.length == petIds.length) {
+        return out;
+      }
+      int positionalBudget = snapshotsMissingPetId;
+      for (final String petId in petIds) {
+        if (seen.contains(petId)) {
+          continue;
+        }
+        if (positionalBudget > 0) {
+          positionalBudget -= 1;
           continue;
         }
         add(<String, dynamic>{'petId': petId});

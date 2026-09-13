@@ -4,6 +4,7 @@
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:petnest_saas/core/services/daycare_time_helper.dart';
 
 void main() {
   test('安親結算 UI 不存在免收本次超時費', () {
@@ -15,5 +16,43 @@ void main() {
     expect(src.contains('_waiveOvertime'), isFalse);
     expect(src.contains('＋ 加收'), isTrue);
     expect(src.contains('－ 減免'), isTrue);
+    expect(src.contains('actualTimesError'), isTrue);
+    expect(src.contains('DateTime.now().add(const Duration(days: 2))'), isFalse);
+    expect(src.contains('晚接回超時計費'), isTrue);
+  });
+
+  test('實際接回不可晚於現在', () {
+    final DateTime now = DateTime(2026, 9, 13, 13, 42);
+    expect(
+      DaycareTimeHelper.actualTimesError(
+        actualStartAt: DateTime(2026, 9, 13, 13, 40),
+        actualEndAt: DateTime(2026, 9, 13, 21, 40),
+        now: now,
+      ),
+      DaycareTimeHelper.actualEndInFutureMessage,
+    );
+  });
+
+  test('住宿退房結算 UI 與安親同套加收減免', () {
+    final String src = File(
+      'lib/features/admin/widgets/admin_stay_settle_sheet.dart',
+    ).readAsStringSync();
+    expect(src.contains('＋ 加收'), isTrue);
+    expect(src.contains('－ 減免'), isTrue);
+    expect(src.contains('⚠ 調整原因（必填）'), isTrue);
+    expect(src.contains('額外清潔費'), isFalse);
+  });
+
+  test('核對轉帳改讀 paymentProofs，不再用 legacy 單張 URL', () {
+    final String src = File(
+      'lib/features/admin/widgets/admin_booking_settlement_panel.dart',
+    ).readAsStringSync();
+    expect(src.contains('latestUnconfirmedBalance'), isTrue);
+    expect(src.contains("'proofId': proof.proofId"), isTrue);
+    expect(src.contains('等待結算尾款證明'), isTrue);
+    expect(
+      src.contains("settlementTopUpTransferImageUrl'] ?? '尚未上傳'"),
+      isFalse,
+    );
   });
 }

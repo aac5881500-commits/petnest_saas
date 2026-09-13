@@ -42,6 +42,28 @@ class DaycareTimeHelper {
     return formatDateTime(value);
   }
 
+  static const String actualEndInFutureMessage = '實際接回時間不可晚於目前時間';
+  static const String actualStartInFutureMessage = '實際送達時間不可晚於目前時間';
+  static const String actualEndBeforeStartMessage = '實際接回時間不可早於實際送達時間';
+
+  static String? actualTimesError({
+    DateTime? actualStartAt,
+    required DateTime actualEndAt,
+    DateTime? now,
+  }) {
+    final DateTime current = now ?? DateTime.now();
+    if (actualStartAt != null && actualStartAt.isAfter(current)) {
+      return actualStartInFutureMessage;
+    }
+    if (actualEndAt.isAfter(current)) {
+      return actualEndInFutureMessage;
+    }
+    if (actualStartAt != null && actualEndAt.isBefore(actualStartAt)) {
+      return actualEndBeforeStartMessage;
+    }
+    return null;
+  }
+
   static String dateKey(DateTime value) {
     final DateTime day = DateTime(value.year, value.month, value.day);
     final String m = day.month.toString().padLeft(2, '0');

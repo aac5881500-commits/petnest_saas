@@ -3,6 +3,7 @@
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:petnest_saas/core/models/pet_snapshot.dart';
 import 'package:petnest_saas/core/models/policy_applicable_service.dart';
 import 'package:petnest_saas/core/models/terms_consent_snapshot.dart';
 import 'package:petnest_saas/core/services/booking_search_fields.dart';
@@ -189,25 +190,21 @@ class BookingService {
         .where(FieldPath.documentId, whereIn: petIds)
         .get();
 
+    final Map<String, Map<String, dynamic>> petsById =
+        <String, Map<String, dynamic>>{};
+    for (final Map<String, dynamic> pet in pets ?? <Map<String, dynamic>>[]) {
+      final String id = (pet['petId'] ?? pet['id'] ?? '').toString().trim();
+      if (id.isNotEmpty) {
+        petsById[id] = pet;
+      }
+    }
     final finalPets = petDocs.docs.map((doc) {
-      final p = doc.data();
-
-      return {
-        'name': p['name'],
-        'breed': p['breed'],
-        'gender': p['gender'],
-        'age': p['age'],
-        'isNeutered': p['isNeutered'],
-
-        /// 🔥 修正這裡
-        'photoUrl': p['photoUrl'] ?? '',
-
-        'medicalStatus': p['vaccine'],
-        'litterType': p['litterType'],
-
-        'note': p['note'],
-        'staffNote': p['adminNote'] ?? '',
+      final Map<String, dynamic> merged = <String, dynamic>{
+        ...doc.data(),
+        ...?petsById[doc.id],
+        'petId': doc.id,
       };
+      return PetSnapshot.fromPet(merged);
     }).toList();
 
     final bookingId = await _firestore.runTransaction<String>((
@@ -468,21 +465,8 @@ class BookingService {
     if (operator == null) throw Exception('未登入');
 
     final finalPets = (pets ?? []).map((p) {
-      return {
-        'petId': p['petId'] ?? '',
-        'name': p['name'] ?? '',
-        'type': p['type'] ?? '',
-        'breed': p['breed'] ?? '',
-        'gender': p['gender'] ?? '',
-        'age': p['age'] ?? '',
-        'isNeutered': p['isNeutered'] ?? false,
-        'photoUrl': p['photoUrl'] ?? p['imageUrl'] ?? '',
-        'vaccine': p['vaccine'] ?? '',
-        'medicalStatus': p['medicalStatus'] ?? p['vaccine'] ?? '',
-        'litterType': p['litterType'] ?? '',
-        'note': p['note'] ?? '',
-        'staffNote': p['staffNote'] ?? p['adminNote'] ?? '',
-      };
+      final String petId = (p['petId'] ?? p['id'] ?? '').toString().trim();
+      return PetSnapshot.fromPet(<String, dynamic>{...p, 'petId': petId});
     }).toList();
 
     debugPrint('ADMIN_BOOKING_STEP 3: 開始寫入 booking');

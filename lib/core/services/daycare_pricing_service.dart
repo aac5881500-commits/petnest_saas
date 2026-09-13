@@ -399,6 +399,7 @@ class DaycarePricingService {
     int timeAddonAmount = 0,
     int overtimeAmount = 0,
     int overtimeMinutes = 0,
+    int overtimeUnits = 0,
   }) {
     final List<BookingFeeLineItem> lines = <BookingFeeLineItem>[];
     final int unit = extraBillingMinutes == 30 ? 30 : 60;
@@ -486,9 +487,13 @@ class DaycarePricingService {
     if (overtimeAmount > 0) {
       lines.add(
         BookingFeeLineItem(
-          label: '接回逾時費',
+          label: '晚接回超時計費',
           amount: overtimeAmount,
-          subtitle: overtimeMinutes > 0 ? '$overtimeMinutes 分鐘' : '',
+          subtitle: overtimeMinutes > 0 && overtimeUnits > 0
+              ? '$overtimeMinutes 分鐘／$overtimeUnits 單位'
+              : (overtimeMinutes > 0
+                    ? '$overtimeMinutes 分鐘'
+                    : (overtimeUnits > 0 ? '$overtimeUnits 單位' : '')),
         ),
       );
     }
@@ -675,6 +680,7 @@ class DaycarePricingService {
       booking['overtimeAmount'] ?? snap['overtimeAmount'],
     );
     final int overtimeMinutes = readInt(booking['overtimeMinutes']);
+    final int overtimeUnits = readInt(booking['overtimeUnits']);
 
     return timeChargeItemLines(
       baseAmount: baseAmount,
@@ -694,6 +700,7 @@ class DaycarePricingService {
       timeAddonAmount: timeAddonAmount,
       overtimeAmount: overtimeAmount,
       overtimeMinutes: overtimeMinutes,
+      overtimeUnits: overtimeUnits,
     );
   }
 

@@ -135,24 +135,37 @@ class BookingSettlementMath {
     return BookingKind.isDaycare(data);
   }
 
-  /// 安親：結算且款項結清才算訂單完成。住宿仍看 status。
+  /// 安親須已結算且款項結清。住宿結算後同樣看差額；尚未結算的舊住宿仍看 status。
   static bool isOrderComplete(Map<String, dynamic> data) {
     final String status = (data['status'] ?? '').toString();
     if (status == 'cancelled' || status == 'no_show') {
       return false;
     }
-    if (!isDaycare(data)) {
-      return status == 'completed';
+    if (isDaycare(data)) {
+      if (!isSettlementConfirmed(data)) {
+        return false;
+      }
+      return remainingDue(data: data) <= 0 && refundDue(data: data) <= 0;
     }
-    if (!isSettlementConfirmed(data)) {
-      return false;
+    if (isSettlementConfirmed(data)) {
+      return remainingDue(data: data) <= 0 && refundDue(data: data) <= 0;
     }
-    return remainingDue(data: data) <= 0 && refundDue(data: data) <= 0;
+    return status == 'completed';
   }
 
   static bool isDaycareAwaitingClear(Map<String, dynamic> data) {
     return isDaycare(data) &&
         isSettlementConfirmed(data) &&
         !isOrderComplete(data);
+  }
+
+  static bool isStayAwaitingClear(Map<String, dynamic> data) {
+    return !isDaycare(data) &&
+        isSettlementConfirmed(data) &&
+        !isOrderComplete(data);
+  }
+
+  static bool isAwaitingClear(Map<String, dynamic> data) {
+    return isDaycareAwaitingClear(data) || isStayAwaitingClear(data);
   }
 }

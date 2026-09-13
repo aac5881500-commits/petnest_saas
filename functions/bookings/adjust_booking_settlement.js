@@ -8,6 +8,8 @@ const {
   hasShopPermission,
   isRootAdmin,
   normalizeString,
+  toDate,
+  serviceDateKey,
   writeActionLog,
 } = require("../daycare/daycare_utils");
 const {
@@ -17,6 +19,7 @@ const {
   isSettlementConfirmed,
   canLock,
   toInt,
+  isDaycareBooking,
   stampDaycareClearStatus,
 } = require("./booking_settlement_math");
 const {
@@ -95,6 +98,166 @@ function assertTopUpMethod(shop, method) {
   return id;
 }
 
+function normalizeProofPurpose(value) {
+  const raw = normalizeString(value) || "deposit";
+  if (raw === "top_up" || raw === "additional" || raw === "balance") {
+    return "balance";
+  }
+  if (raw === "deposit") {
+    return "deposit";
+  }
+  return "deposit";
+}
+
+function proofSubmittedMs(proof) {
+  const data = proof && typeof proof === "object" ? proof : {};
+  const value = data.submittedAt;
+  if (!value) {
+    return 0;
+  }
+  if (typeof value.toMillis === "function") {
+    return value.toMillis();
+  }
+  if (typeof value.toDate === "function") {
+    return value.toDate().getTime();
+  }
+  if (value._seconds != null) {
+    return Number(value._seconds) * 1000;
+  }
+  if (value.seconds != null) {
+    return Number(value.seconds) * 1000;
+  }
+  const parsed = new Date(value);
+  const ms = parsed.getTime();
+  return Number.isFinite(ms) ? ms : 0;
+}
+
+function hasProofImage(proof) {
+  const data = proof && typeof proof === "object" ? proof : {};
+  return Boolean(normalizeString(data.imageUrl));
+}
+
+function isProofConfirmed(proof) {
+  const data = proof && typeof proof === "object" ? proof : {};
+  return data.confirmedAt != null && data.confirmedAt !== "";
+}
+
+function listPaymentProofs(booking) {
+  const bookingData = booking && typeof booking === "object" ? booking : {};
+  return Array.isArray(bookingData.paymentProofs) ?
+    bookingData.paymentProofs.filter((item) => item && typeof item === "object") :
+    [];
+}
+
+function missingBalanceProofMessage(proofs) {
+  const list = Array.isArray(proofs) ? proofs : [];
+  const hasDepositImage = list.some((item) => {
+    return normalizeProofPurpose(item.purpose) === "deposit" && hasProofImage(item);
+  });
+  const hasBalanceImage = list.some((item) => {
+    return normalizeProofPurpose(item.purpose) === "balance" && hasProofImage(item);
+  });
+  if (hasDepositImage && !hasBalanceImage) {
+    return "尚未提交結算尾款轉帳證明";
+  }
+  return "沒有待核對的結算尾款轉帳證明";
+}
+
+/**
+ * 從 paymentProofs[] 選出待核對結算尾款照片；不讀寫 legacy 圖片欄位。
+ *
+ * @param {Array} proofs
+ * @param {string} proofId
+ * @return {{proof?: Object, index?: number, error?: string, alreadyConfirmed?: boolean}}
+ */
+function selectBalanceProofForReview(proofs, proofId) {
+  const list = Array.isArray(proofs) ? proofs : [];
+  const wantedId = normalizeString(proofId);
+  if (wantedId) {
+    const index = list.findIndex((item) => normalizeString(item.proofId) === wantedId);
+    if (index < 0) {
+      return {error: missingBalanceProofMessage(list)};
+    }
+    const proof = list[index];
+    if (normalizeProofPurpose(proof.purpose) !== "balance" || !hasProofImage(proof)) {
+      return {error: missingBalanceProofMessage(list)};
+    }
+    if (isProofConfirmed(proof)) {
+      return {proof, index, alreadyConfirmed: true};
+    }
+    return {proof, index};
+  }
+  let index = -1;
+  let bestMs = -1;
+  for (let i = 0; i < list.length; i += 1) {
+    const item = list[i];
+    if (normalizeProofPurpose(item.purpose) !== "balance") {
+      continue;
+    }
+    if (!hasProofImage(item) || isProofConfirmed(item)) {
+      continue;
+    }
+    const ms = proofSubmittedMs(item);
+    if (index < 0 || ms >= bestMs) {
+      index = i;
+      bestMs = ms;
+    }
+  }
+  if (index < 0) {
+    return {error: missingBalanceProofMessage(list)};
+  }
+  return {proof: list[index], index};
+}
+
+function stayDateKeys(booking) {
+  const start = toDate((booking || {}).startDate);
+  const end = toDate((booking || {}).endDate);
+  if (!start || !end) {
+    return [];
+  }
+  const keys = [];
+  const endKey = serviceDateKey(end);
+  let cursor = new Date(start.getTime());
+  let guard = 0;
+  while (serviceDateKey(cursor) < endKey && guard < 400) {
+    keys.push(serviceDateKey(cursor));
+    cursor = new Date(cursor.getTime() + (24 * 60 * 60 * 1000));
+    guard += 1;
+  }
+  return keys;
+}
+
+function uniqueImageUrls(values) {
+  const out = [];
+  const seen = new Set();
+  (Array.isArray(values) ? values : []).forEach((item) => {
+    const url = normalizeString(item);
+    if (!url || seen.has(url)) {
+      return;
+    }
+    seen.add(url);
+    out.push(url);
+  });
+  return out;
+}
+
+function patchProofs(proofs, index, patch) {
+  const list = Array.isArray(proofs) ? proofs.map((item) => {
+    return item && typeof item === "object" ? {...item} : {};
+  }) : [];
+  if (index < 0 || index >= list.length) {
+    return list;
+  }
+  list[index] = {...list[index], ...patch};
+  return list;
+}
+
+exports.normalizeProofPurpose = normalizeProofPurpose;
+exports.selectBalanceProofForReview = selectBalanceProofForReview;
+exports.missingBalanceProofMessage = missingBalanceProofMessage;
+exports.patchProofs = patchProofs;
+exports.stayDateKeys = stayDateKeys;
+
 exports.adjustBookingSettlement = onCall(
     {region: "asia-east1"},
     async (request) => {
@@ -154,8 +317,135 @@ exports.adjustBookingSettlement = onCall(
         let bookingUpdate = {};
         let paymentWrite = null;
         const relatedPaySnap = await transaction.get(relatedPaymentsQuery);
+        const calendarDeletes = [];
+        if (action === "checkOutStay") {
+          const roomId = normalizeString(booking.roomId);
+          if (roomId && booking.stayRoomReleased !== true) {
+            stayDateKeys(booking).forEach((dateKey) => {
+              calendarDeletes.push(
+                  firestore.collection("shops").doc(shopId)
+                      .collection("room_calendar")
+                      .doc(`${roomId}_${dateKey}`),
+              );
+            });
+          }
+        }
+        for (let i = 0; i < calendarDeletes.length; i += 1) {
+          await transaction.get(calendarDeletes[i]);
+        }
 
-        if (action === "applyAdjust") {
+        if (action === "checkOutStay") {
+          if (isDaycareBooking(booking)) {
+            throw new HttpsError(
+                "failed-precondition",
+                "安親訂單請使用安親結算",
+            );
+          }
+          const status = normalizeString(booking.status);
+          if (status !== "checked_in" &&
+              status !== "checked_out" &&
+              status !== "completed") {
+            throw new HttpsError(
+                "failed-precondition",
+                "僅入住中訂單可辦理退房",
+            );
+          }
+          const manualAdjust = toInt(data.manualAdjust, 0);
+          const reason = normalizeString(data.reason);
+          if (manualAdjust !== 0 && !reason) {
+            throw new HttpsError("invalid-argument", "調整金額不為零時請填寫原因");
+          }
+          const evidenceUrls = uniqueImageUrls(data.evidenceImageUrls);
+          const alreadyEnded = Boolean(
+              booking.checkOutAt ||
+              booking.checkedOutAt ||
+              status === "checked_out" ||
+              status === "completed" ||
+              booking.stayRoomReleased === true,
+          );
+          const before = expectedTotal(booking);
+          const fields = settlementFields(booking, manualAdjust);
+          const history = Array.isArray(booking.settlementAdjustments) ?
+            booking.settlementAdjustments.slice() : [];
+          history.push({
+            before,
+            after: fields.expectedTotal,
+            delta: fields.expectedTotal - before,
+            manualAdjust,
+            reason,
+            operatorUid: uid,
+            createdAt: new Date().toISOString(),
+          });
+          const topUpMethod = normalizeMethodId(
+              data.settlementTopUpMethod || data.topUpMethod || "",
+          );
+          bookingUpdate = {
+            manualAdjust,
+            lastManualAdjustReason: reason,
+            manualAdjustmentReason: reason,
+            manualAdjustReason: reason,
+            settlementAdjustments: history,
+            quotedTotalPrice: fields.quotedTotalPrice,
+            totalPayableAmount: fields.expectedTotal,
+            totalPrice: fields.expectedTotal,
+            totalAmount: fields.expectedTotal,
+            remainingAmount: fields.remainingAmount,
+            refundDueAmount: fields.refundDueAmount,
+            paymentStatus: fields.remainingAmount > 0 ?
+              "awaiting_supplement" : fields.paymentStatus,
+            appTopUpRequested: fields.remainingAmount > 0,
+            settlementConfirmed: true,
+            settlementConfirmedAt: alreadyEnded ?
+              (booking.settlementConfirmedAt || now) : now,
+            settledAt: alreadyEnded ? (booking.settledAt || now) : now,
+            settledBy: alreadyEnded ? (booking.settledBy || uid) : uid,
+            updatedAt: now,
+          };
+          if (!alreadyEnded) {
+            bookingUpdate.checkOutAt = now;
+            bookingUpdate.checkedOutAt = now;
+          }
+          if (fields.remainingAmount <= 0) {
+            bookingUpdate.settlementTopUpStatus = "none";
+          } else if (topUpMethod) {
+            assertTopUpMethod(shop, topUpMethod);
+            bookingUpdate.settlementTopUpMethod = topUpMethod;
+            bookingUpdate.settlementTopUpStatus = topUpMethod === "transfer" ?
+              "awaiting_proof" : "selected";
+            bookingUpdate.appTopUpRequested = topUpMethod !== "cash";
+          }
+          if (evidenceUrls.length > 0) {
+            bookingUpdate.settlementEvidenceUrls =
+              admin.firestore.FieldValue.arrayUnion(...evidenceUrls);
+            bookingUpdate.extraChargeImages =
+              admin.firestore.FieldValue.arrayUnion(...evidenceUrls);
+          }
+          if (booking.stayRoomReleased !== true) {
+            calendarDeletes.forEach((ref) => {
+              transaction.delete(ref);
+            });
+            bookingUpdate.stayRoomReleased = true;
+          }
+          if (fields.remainingAmount <= 0 &&
+              fields.refundDueAmount <= 0 &&
+              data.lockIfClear !== false) {
+            applyLock(
+                bookingUpdate,
+                uid,
+                alreadyEnded ? "readjust_cleared" : "settlement_cleared",
+                toInt(booking.settlementVersion, 0) + 1,
+            );
+          }
+          payload = {
+            before,
+            after: fields.expectedTotal,
+            remainingAmount: fields.remainingAmount,
+            refundDueAmount: fields.refundDueAmount,
+            locked: bookingUpdate.settlementLocked === true,
+            stayRoomReleased: bookingUpdate.stayRoomReleased === true ||
+              booking.stayRoomReleased === true,
+          };
+        } else if (action === "applyAdjust") {
           if (!isSettlementConfirmed(booking) &&
               normalizeString(booking.status) !== "completed") {
             throw new HttpsError("failed-precondition", "請先完成結算確認");
@@ -377,21 +667,46 @@ exports.adjustBookingSettlement = onCall(
           if (normalizeMethodId(booking.settlementTopUpMethod) !== "transfer") {
             throw new HttpsError("failed-precondition", "目前不是銀行轉帳補款");
           }
-          if (normalizeString(booking.settlementTopUpStatus) !== "pending_review") {
-            throw new HttpsError("failed-precondition", "沒有待核對的轉帳證明");
+          const proofs = listPaymentProofs(booking);
+          const selected = selectBalanceProofForReview(
+              proofs,
+              normalizeString(data.proofId),
+          );
+          if (selected.error) {
+            throw new HttpsError("failed-precondition", selected.error);
           }
           const ok = data.approved !== false;
           const reviewReason = normalizeString(data.reviewReason);
           if (!ok && !reviewReason) {
             throw new HttpsError("invalid-argument", "核對失敗請填寫原因");
           }
+          const proofNow = admin.firestore.Timestamp.now();
           if (!ok) {
             bookingUpdate = {
+              paymentProofs: patchProofs(proofs, selected.index, {
+                rejectedAt: proofNow,
+                rejectedBy: uid,
+                reviewReason,
+              }),
               settlementTopUpStatus: "rejected",
               settlementTopUpReviewReason: reviewReason,
               updatedAt: now,
             };
-            payload = {approved: false, reviewReason};
+            payload = {
+              approved: false,
+              reviewReason,
+              proofId: normalizeString(selected.proof.proofId),
+            };
+          } else if (selected.alreadyConfirmed) {
+            bookingUpdate = {
+              updatedAt: now,
+            };
+            payload = {
+              approved: true,
+              amount: 0,
+              duplicate: true,
+              proofId: normalizeString(selected.proof.proofId),
+            };
           } else {
             const amount = settlementFields(booking).remainingAmount;
             if (amount <= 0) {
@@ -400,6 +715,10 @@ exports.adjustBookingSettlement = onCall(
             const paid = toInt(booking.paidAmount, 0) + amount;
             const next = settlementFields({...booking, paidAmount: paid});
             bookingUpdate = {
+              paymentProofs: patchProofs(proofs, selected.index, {
+                confirmedAt: proofNow,
+                confirmedBy: uid,
+              }),
               paidAmount: paid,
               remainingAmount: next.remainingAmount,
               refundDueAmount: next.refundDueAmount,
@@ -408,6 +727,8 @@ exports.adjustBookingSettlement = onCall(
               lastPaymentPurpose: "balance",
               lastPaymentAmount: amount,
               settlementTopUpStatus: "collected",
+              settlementTopUpCollectedAt: now,
+              settlementTopUpCollectedBy: uid,
               paymentUpdatedAt: now,
               updatedAt: now,
             };
@@ -430,7 +751,8 @@ exports.adjustBookingSettlement = onCall(
                 createdAt: now,
                 paidAt: now,
                 recordedByUid: uid,
-                proofUrl: normalizeString(booking.settlementTopUpTransferImageUrl),
+                proofUrl: normalizeString(selected.proof.imageUrl),
+                proofId: normalizeString(selected.proof.proofId),
               },
             };
             maybeLock(
@@ -439,7 +761,12 @@ exports.adjustBookingSettlement = onCall(
                 uid,
                 "transfer_top_up_collected",
             );
-            payload = {approved: true, amount, locked: bookingUpdate.settlementLocked === true};
+            payload = {
+              approved: true,
+              amount,
+              locked: bookingUpdate.settlementLocked === true,
+              proofId: normalizeString(selected.proof.proofId),
+            };
           }
         } else if (action === "confirmNoTopUpAndLock") {
           if (!isSettlementConfirmed(booking)) {
@@ -485,7 +812,7 @@ exports.adjustBookingSettlement = onCall(
         if (bookingUpdate.status === "completed" && !booking.completedAt) {
           bookingUpdate.completedAt = now;
         }
-        if (action === "applyAdjust") {
+        if (action === "applyAdjust" || action === "checkOutStay") {
           const expectedRemain = toInt(bookingUpdate.remainingAmount, 0);
           relatedPaySnap.docs.forEach((doc) => {
             const payment = doc.data() || {};

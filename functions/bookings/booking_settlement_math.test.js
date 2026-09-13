@@ -68,4 +68,22 @@ test("安親結清才 completed，待補／待退維持 checked_in", () => {
     status: "confirmed",
   }, {remainingAmount: 0, refundDueAmount: 0}, stay);
   assert.equal(stay.status, undefined);
+
+  const stayRemain = {};
+  stampDaycareClearStatus({
+    bookingKind: "accommodation",
+    settlementConfirmed: true,
+    status: "checked_in",
+    checkOutAt: "t",
+  }, {remainingAmount: 300, refundDueAmount: 0}, stayRemain);
+  assert.equal(stayRemain.status, "checked_out");
+
+  const stayClear = {};
+  stampDaycareClearStatus({
+    bookingKind: "accommodation",
+    settlementConfirmed: true,
+    checkOutAt: "t",
+    status: "checked_in",
+  }, {remainingAmount: 0, refundDueAmount: 0}, stayClear);
+  assert.equal(stayClear.status, "completed");
 });

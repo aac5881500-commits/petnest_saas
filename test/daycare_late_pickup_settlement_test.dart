@@ -106,4 +106,19 @@ void main() {
     expect(minus.overtimeAmount, 0);
     expect(minus.finalTotal, 0);
   });
+
+  test('提早接回且未達起步時數不收晚接回費', () {
+    final DaycareSettlement early = pricing.settle(
+      settings: settings,
+      booking: <String, dynamic>{
+        'scheduledEndAt': scheduledEnd,
+        'quotedTotalPrice': 200,
+        'paidAmount': 0,
+      },
+      actualEndAt: DateTime(2026, 9, 8, 16),
+      manualAdjust: 0,
+    );
+    expect(early.overtimeAmount, 0);
+    expect(early.finalTotal, 200);
+  });
 }
