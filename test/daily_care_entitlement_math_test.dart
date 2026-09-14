@@ -150,4 +150,37 @@ void main() {
     expect(result.finalReports, 0);
     expect(result.amount, 0);
   });
+
+  test('住宿 9/16～9/18 固定兩天回報，忽略舊開關', () {
+    final result = DailyCareEntitlementMath.resolve(
+      setting: setting.copyWith(),
+      isDaycare: false,
+      shopDaycareOn: true,
+      startDate: DateTime(2026, 9, 16),
+      endDate: DateTime(2026, 9, 18),
+    );
+    expect(result.serviceDates, <String>['2026/09/16', '2026/09/17']);
+  });
+
+  test('同日入住退房為 0 天每日照護回報', () {
+    final result = DailyCareEntitlementMath.resolve(
+      setting: setting,
+      isDaycare: false,
+      shopDaycareOn: true,
+      startDate: DateTime(2026, 9, 16),
+      endDate: DateTime(2026, 9, 16),
+    );
+    expect(result.serviceDates, isEmpty);
+  });
+
+  test('安親只使用服務當日', () {
+    final result = DailyCareEntitlementMath.resolve(
+      setting: setting.copyWith(daycareEnabled: true, daycareSessionCount: 1),
+      isDaycare: true,
+      shopDaycareOn: true,
+      startDate: DateTime(2026, 9, 16),
+      endDate: DateTime(2026, 9, 18),
+    );
+    expect(result.serviceDates, <String>['2026/09/16']);
+  });
 }

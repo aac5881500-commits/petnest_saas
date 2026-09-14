@@ -54,8 +54,6 @@ class _DailyCareSettingPageState extends State<DailyCareSettingPage> {
   DailyCarePaidPlan _daycarePaidPlan = const DailyCarePaidPlan(
     chargeUnit: DailyCareReportMode.chargePerVisit,
   );
-  bool _includeCheckInDay = true;
-  bool _includeCheckOutDay = false;
   bool _logoVisible = true;
   String _logoAlign = 'left';
   double _logoSize = 36;
@@ -73,7 +71,6 @@ class _DailyCareSettingPageState extends State<DailyCareSettingPage> {
   int _tabIndex = 0;
   bool _previewDaycare = false;
   int _previewSessionIndex = 0;
-  double _previewScale = 1;
   bool _previewPhotos = true;
   String _previewOfferId = '';
 
@@ -215,8 +212,6 @@ class _DailyCareSettingPageState extends State<DailyCareSettingPage> {
         );
         _stayPaidPlan = setting.stayPaidPlan;
         _daycarePaidPlan = setting.daycarePaidPlan;
-        _includeCheckInDay = setting.includeCheckInDay;
-        _includeCheckOutDay = setting.includeCheckOutDay;
         _logoVisible = setting.logoVisible;
         _logoAlign = setting.logoAlign;
         _logoSize = setting.logoSize;
@@ -348,8 +343,6 @@ class _DailyCareSettingPageState extends State<DailyCareSettingPage> {
       stayPhotosIncluded: _stayPhotosIncluded,
       stayAddonUpgradeEnabled: _stayAddonUpgradeEnabled,
       stayOfferQuotas: _stayOfferQuotas,
-      includeCheckInDay: _includeCheckInDay,
-      includeCheckOutDay: _includeCheckOutDay,
       stayPaidPlan: _stayPaidPlan.copyWith(
         sessionLabels: List<String>.generate(
           _stayPaidPlan.reports,
@@ -371,6 +364,7 @@ class _DailyCareSettingPageState extends State<DailyCareSettingPage> {
       accentColorKey: _accentColorKey,
       iconSize: _iconSize,
       iconColorKey: _iconColorKey,
+      categoryIcons: _loaded.categoryIcons,
       cardRadius: _cardRadius,
       cardPadding: _cardPadding,
       cardGap: _cardGap,
@@ -463,12 +457,17 @@ class _DailyCareSettingPageState extends State<DailyCareSettingPage> {
         context,
       ).showSnackBar(SnackBar(content: Text(successMessage)));
       return true;
-    } catch (e) {
+    } catch (e, stack) {
+      DailyCareSaveErrorProbe.debugLog(
+        'DailyCareSetting page save failed',
+        e,
+        stack,
+      );
       if (!mounted) return false;
-
+      final String message = DailyCareSettingSaveException.fromError(e).message;
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(SnackBar(content: Text('儲存失敗：$e')));
+      ).showSnackBar(SnackBar(content: Text(message)));
       return false;
     } finally {
       if (mounted) {
@@ -505,8 +504,7 @@ class _DailyCareSettingPageState extends State<DailyCareSettingPage> {
                 _loaded.stayPaidPlan.toMap().toString() ||
             draft.daycareEnabled != _loaded.daycareEnabled ||
             draft.daycareReportMode != _loaded.daycareReportMode ||
-            draft.includeCheckInDay != _loaded.includeCheckInDay ||
-            draft.includeCheckOutDay != _loaded.includeCheckOutDay;
+            draft.photoEnabled != _loaded.photoEnabled;
       case DailyCareSettingSection.content:
         return draft.enabledFields.toString() !=
                 _loaded.enabledFields.toString() ||
@@ -1250,37 +1248,28 @@ class _DailyCareSettingPageState extends State<DailyCareSettingPage> {
         const SizedBox(height: 16),
         _SettingCard(
           title: '照片與保存',
-          subtitle:
-              '每場回報可附最多 3 張照片；服務結束後保留 24 小時，請及時下載。',
+          subtitle: '回報照片與保存期限由平台規則決定。',
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: <Widget>[
               SwitchListTile(
                 contentPadding: EdgeInsets.zero,
-                title: const Text('入住日提供照護回報'),
-                value: _includeCheckInDay,
+                title: const Text('啟用回報照片'),
+                value: _photoEnabled,
                 onChanged: (bool value) {
                   setState(() {
-                    _includeCheckInDay = value;
+                    _photoEnabled = value;
                   });
                 },
               ),
-              SwitchListTile(
-                contentPadding: EdgeInsets.zero,
-                title: const Text('退房日提供照護回報'),
-                subtitle: const Text('兩種住宿計費方式共用。同一日期不重複計費。'),
-                value: _includeCheckOutDay,
-                onChanged: (bool value) {
-                  setState(() {
-                    _includeCheckOutDay = value;
-                  });
-                },
-              ),
+              const Text('每場最多 3 張'),
+              const SizedBox(height: 6),
+              const Text('服務實際結束後保留 24 小時'),
+              const SizedBox(height: 6),
+              const Text('到期自動清除'),
             ],
           ),
         ),
-        const SizedBox(height: 16),
-        _buildDownloadCard(),
       ],
     );
   }
@@ -1392,14 +1381,6 @@ class _DailyCareSettingPageState extends State<DailyCareSettingPage> {
                     });
                   },
                 ),
-              TextButton(
-                onPressed: () {
-                  setState(() {
-                    _previewScale = _previewScale == 1 ? 1.15 : 1;
-                  });
-                },
-                child: Text('預覽倍率 ${_previewScale == 1 ? '100%' : '115%'}'),
-              ),
             ],
           ),
         ),
@@ -1412,7 +1393,7 @@ class _DailyCareSettingPageState extends State<DailyCareSettingPage> {
               sessionLabels: labels,
               sessionIndex: _previewSessionIndex,
               showPhotos: _previewPhotos,
-              previewScale: _previewScale,
+              usePhoneFrame: true,
             ),
           ),
         ),
@@ -1439,6 +1420,7 @@ class _DailyCareSettingPageState extends State<DailyCareSettingPage> {
               sessionLabels: labels,
               sessionIndex: _previewSessionIndex,
               showPhotos: _previewPhotos,
+              usePhoneFrame: false,
             ),
           );
         },
@@ -1594,6 +1576,14 @@ class _DailyCareSettingPageState extends State<DailyCareSettingPage> {
       subtitle: '住宿獨立保存啟用狀態、模式、場次與付費方案。',
       child: Column(
         children: <Widget>[
+          const Align(
+            alignment: Alignment.centerLeft,
+            child: Text(
+              '回報日期依住宿晚數計算：入住日包含，退房日不包含。',
+              style: TextStyle(height: 1.4),
+            ),
+          ),
+          const SizedBox(height: 8),
           _modeSelector(
             value: _stayReportMode,
             onChanged: (String value) {
@@ -1889,6 +1879,14 @@ class _DailyCareSettingPageState extends State<DailyCareSettingPage> {
       subtitle: '顯示為每筆安親回報次數。全店安親關閉時會隱藏此區，不會清除資料。',
       child: Column(
         children: <Widget>[
+          const Align(
+            alignment: Alignment.centerLeft,
+            child: Text(
+              '每筆安親服務於服務當日提供回報。',
+              style: TextStyle(height: 1.4),
+            ),
+          ),
+          const SizedBox(height: 8),
           SwitchListTile(
             contentPadding: EdgeInsets.zero,
             title: const Text('啟用安親照護回報'),

@@ -101,3 +101,41 @@ test("依房型 VIP 每天 2 場，未設定拋錯", () => {
     offerId: "normal",
   }), /尚未設定/);
 });
+
+test("同日入住退房為 0 天且舊開關不影響新訂單", () => {
+  const result = resolveDailyCareEntitlement({
+    setting: {
+      ...setting,
+      includeCheckInDay: false,
+      includeCheckOutDay: true,
+    },
+    startDate: "2026-09-16",
+    endDate: "2026-09-16",
+  });
+  assert.deepEqual(result.entitlement.serviceDates, []);
+});
+
+test("住宿 9/16 至 9/18 固定兩天，即使舊設定要含退房日", () => {
+  const result = resolveDailyCareEntitlement({
+    setting: {
+      ...setting,
+      includeCheckOutDay: true,
+    },
+    startDate: "2026-09-16",
+    endDate: "2026-09-18",
+  });
+  assert.deepEqual(
+      result.entitlement.serviceDates,
+      ["2026/09/16", "2026/09/17"],
+  );
+});
+
+test("安親只使用服務當日", () => {
+  const result = resolveDailyCareEntitlement({
+    setting: {...setting, daycareEnabled: true, daycareSessionCount: 1},
+    isDaycare: true,
+    startDate: "2026-09-16",
+    endDate: "2026-09-18",
+  });
+  assert.deepEqual(result.entitlement.serviceDates, ["2026/09/16"]);
+});

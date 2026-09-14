@@ -1,449 +1,289 @@
 // 檔案名稱：lib/features/shop/widgets/daily_care_full_journal_preview.dart
-// 功能說明：設定頁完整顧客日誌預覽，共用正式卡片與背景元件，使用示範資料。
+// 功能說明：設定頁即時預覽。示範 Booking／權益／紀錄，共用客戶端 renderer，不讀寫 Firestore。
 
 import 'package:flutter/material.dart';
 
+import '../../../core/models/daily_care_entitlement.dart';
+import '../../../core/models/daily_care_photo_model.dart';
+import '../../../core/models/daily_care_record_model.dart';
 import '../../../core/models/daily_care_report_mode.dart';
 import '../../../core/models/daily_care_setting_model.dart';
+import '../../../core/models/daily_care_stay_info.dart';
 import '../../../core/widgets/daily_care_card_surface.dart';
+import '../../../core/widgets/daily_care_journal_renderer.dart';
 
-class DailyCareFullJournalPreview extends StatelessWidget {
+class DailyCareJournalDemoData {
+  const DailyCareJournalDemoData({
+    required this.stay,
+    required this.entitlement,
+    required this.record,
+    required this.dateKeys,
+    required this.sessionTabs,
+    required this.photos,
+  });
+
+  final DailyCareStayInfo stay;
+  final DailyCareEntitlement entitlement;
+  final DailyCareRecordModel record;
+  final List<String> dateKeys;
+  final List<DailyCareJournalSessionTab> sessionTabs;
+  final List<DailyCarePhotoModel> photos;
+
+  static const double phoneLogicalWidth = 390;
+
+  static DailyCareJournalDemoData build({
+    required DailyCareSettingModel setting,
+    required bool isDaycare,
+    required List<String> sessionLabels,
+    required int sessionIndex,
+    required String selectedDateKey,
+    required bool showPhotos,
+  }) {
+    final DailyCareStayInfo stay = DailyCareStayInfo(
+      roomName: isDaycare ? '安親區' : 'A1',
+      pets: const <DailyCareStayPet>[
+        DailyCareStayPet(name: '小米', photoUrl: ''),
+      ],
+      startDate: DateTime(2026, 9, 16),
+      endDate: isDaycare ? DateTime(2026, 9, 16) : DateTime(2026, 9, 18),
+    );
+    final List<String> dateKeys = isDaycare
+        ? const <String>['2026/09/16']
+        : stay.careDateKeys();
+    final DateTime recordDate = _parseDateKey(selectedDateKey) ??
+        DateTime(2026, 9, 16);
+    final List<String> labels = sessionLabels.isEmpty
+        ? <String>[setting.sessionLabel(0)]
+        : sessionLabels;
+    final List<DailyCareJournalSessionTab> tabs =
+        List<DailyCareJournalSessionTab>.generate(labels.length, (int index) {
+          return DailyCareJournalSessionTab(
+            sessionIndex: index,
+            sessionName: labels[index],
+          );
+        });
+    final int safeSession = sessionIndex.clamp(0, tabs.length - 1);
+    final DailyCareEntitlement entitlement = DailyCareEntitlement(
+      enabled: true,
+      service: isDaycare ? 'daycare' : 'accommodation',
+      finalReports: tabs.length,
+      sessionLabels: labels,
+      serviceDates: dateKeys,
+      offerName: isDaycare ? '示範安親' : '示範房間',
+      careDateRule: isDaycare
+          ? DailyCareEntitlement.daycareCareDateRule
+          : DailyCareEntitlement.stayCareDateRule,
+    );
+    final DailyCareRecordModel record = DailyCareRecordModel(
+      id: 'demo-record',
+      shopId: 'demo-shop',
+      bookingId: 'demo-booking',
+      roomId: 'demo-room',
+      roomName: stay.roomName,
+      recordDate: recordDate,
+      sessionIndex: safeSession,
+      sessionName: tabs[safeSession].sessionName,
+      values: _demoValues(setting),
+      petNotes: const <String, String>{},
+      photoCount: showPhotos ? 3 : 0,
+      createdAt: DateTime(2026, 9, 16, 10, 32),
+      updatedAt: DateTime(2026, 9, 16, 10, 32),
+      serviceType: isDaycare
+          ? DailyCareServiceTypes.daycare
+          : DailyCareServiceTypes.accommodation,
+    );
+    final List<DailyCarePhotoModel> photos = showPhotos
+        ? List<DailyCarePhotoModel>.generate(3, (int index) {
+            return DailyCarePhotoModel(
+              id: 'demo-photo-$index',
+              shopId: 'demo-shop',
+              bookingId: 'demo-booking',
+              roomId: 'demo-room',
+              roomName: stay.roomName,
+              recordDate: recordDate,
+              sessionIndex: safeSession,
+              sessionName: tabs[safeSession].sessionName,
+              previewUrl: '',
+              previewStoragePath: '',
+              createdAt: DateTime(2026, 9, 16, 10, 32),
+            );
+          })
+        : const <DailyCarePhotoModel>[];
+    return DailyCareJournalDemoData(
+      stay: stay,
+      entitlement: entitlement,
+      record: record,
+      dateKeys: dateKeys,
+      sessionTabs: tabs,
+      photos: photos,
+    );
+  }
+
+  static Map<String, dynamic> _demoValues(DailyCareSettingModel setting) {
+    const Map<String, String> samples = <String, String>{
+      'water': '一般',
+      'dryFood': '有',
+      'wetFood': '少',
+      'snack': '無',
+      'stool': '正常',
+      'urine': '正常',
+      'wandToy': '有',
+      'scratchBoard': '有',
+      'jumpPlatform': '無',
+      'toyBall': '有',
+      'catHouse': '有',
+      'catnip': '無',
+      'silverVine': '無',
+      'catGrass': '有',
+      'temperature': '26',
+      'humidity': '55',
+      'generalNote': '今天整體狀況良好，活動量正常。',
+    };
+    final Map<String, dynamic> values = <String, dynamic>{};
+    for (final String key in setting.enabledFields) {
+      values[key] = samples[key] ?? '有';
+    }
+    for (final DailyCareCustomField field in setting.customFields) {
+      values[field.id] = field.inputType == 'text' ? '示範文字' : '正常';
+    }
+    return values;
+  }
+
+  static DateTime? _parseDateKey(String value) {
+    final List<String> parts = value.split('/');
+    if (parts.length != 3) {
+      return null;
+    }
+    final int? year = int.tryParse(parts[0]);
+    final int? month = int.tryParse(parts[1]);
+    final int? day = int.tryParse(parts[2]);
+    if (year == null || month == null || day == null) {
+      return null;
+    }
+    return DateTime(year, month, day);
+  }
+}
+
+class DailyCareFullJournalPreview extends StatefulWidget {
   const DailyCareFullJournalPreview({
     super.key,
     required this.setting,
     required this.isDaycare,
     required this.sessionLabels,
     required this.sessionIndex,
-    this.shopName = '示範店家',
-    this.shopLogoUrl = '',
-    this.offerName = '示範房間',
-    this.dateLabel = '2026/09/10',
     this.showPhotos = true,
-    this.previewScale = 1,
-    this.pageImage,
-    this.cardImage,
+    this.usePhoneFrame = true,
   });
 
   final DailyCareSettingModel setting;
   final bool isDaycare;
   final List<String> sessionLabels;
   final int sessionIndex;
-  final String shopName;
-  final String shopLogoUrl;
-  final String offerName;
-  final String dateLabel;
   final bool showPhotos;
-  final double previewScale;
-  final ImageProvider? pageImage;
-  final ImageProvider? cardImage;
+  final bool usePhoneFrame;
+
+  @override
+  State<DailyCareFullJournalPreview> createState() =>
+      _DailyCareFullJournalPreviewState();
+}
+
+class _DailyCareFullJournalPreviewState
+    extends State<DailyCareFullJournalPreview> {
+  String? _selectedDateKey;
+
+  @override
+  void didUpdateWidget(DailyCareFullJournalPreview oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.isDaycare != widget.isDaycare) {
+      _selectedDateKey = null;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    final String title = isDaycare ? '本次安親回報' : '每日照護日誌';
-    final String sessionName = sessionIndex < sessionLabels.length
-        ? sessionLabels[sessionIndex]
-        : '第 ${sessionIndex + 1} 次照護';
-    final Color textColor = _color(setting.textColorKey, const Color(0xFF3A2A20));
-    final Color accent = _color(setting.accentColorKey, const Color(0xFF8B5A2B));
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(18),
-      child: ColoredBox(
-        color: const Color(0xFFEDE7E0),
-        child: FittedBox(
-          fit: BoxFit.contain,
+    final DailyCareJournalDemoData demo = DailyCareJournalDemoData.build(
+      setting: widget.setting,
+      isDaycare: widget.isDaycare,
+      sessionLabels: widget.sessionLabels,
+      sessionIndex: widget.sessionIndex,
+      selectedDateKey: _selectedDateKey ?? '',
+      showPhotos: widget.showPhotos && widget.setting.photoEnabled,
+    );
+    final String selectedDateKey =
+        _selectedDateKey != null && demo.dateKeys.contains(_selectedDateKey)
+        ? _selectedDateKey!
+        : demo.dateKeys.first;
+    final Widget journal = Stack(
+      children: <Widget>[
+        const Positioned.fill(
+          child: ColoredBox(color: Color(0xFFEDE7E0)),
+        ),
+        Positioned.fill(
+          child: DailyCareJournalPageBackground(setting: widget.setting),
+        ),
+        DailyCareJournalRenderer(
+          setting: widget.setting,
+          stay: demo.stay,
+          dateKeys: demo.dateKeys,
+          selectedDateKey: selectedDateKey,
+          sessionTabs: demo.sessionTabs,
+          selectedSessionIndex: widget.sessionIndex.clamp(
+            0,
+            demo.sessionTabs.length - 1,
+          ),
+          record: demo.record,
+          fallbackRoomName: demo.stay.roomName,
+          photos: demo.photos,
+          photosLoading: false,
+          showPhotoSection: widget.setting.photoEnabled,
+          onDateSelected: (String dateKey) {
+            setState(() {
+              _selectedDateKey = dateKey;
+            });
+          },
+          onSessionSelected: null,
+        ),
+      ],
+    );
+
+    if (!widget.usePhoneFrame) {
+      return journal;
+    }
+
+    return LayoutBuilder(
+      builder: (BuildContext context, BoxConstraints constraints) {
+        final double height = constraints.maxHeight.isFinite
+            ? constraints.maxHeight
+            : 720;
+        return Center(
           child: SizedBox(
-            width: 390 * previewScale,
-            height: 720 * previewScale,
-            child: Stack(
-              fit: StackFit.expand,
-              children: <Widget>[
-                DailyCareJournalPageBackground(
-                  setting: setting,
-                  imageOverride: pageImage,
-                ),
-                ListView(
-                  padding: const EdgeInsets.fromLTRB(16, 20, 16, 28),
-                  children: <Widget>[
-                    _header(
-                      title: title,
-                      textColor: textColor,
-                      accent: accent,
-                    ),
-                    const SizedBox(height: 10),
-                    DailyCareCardSurface(
-                      setting: setting,
-                      imageOverride: cardImage,
-                      padding: EdgeInsets.all(setting.cardPadding),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: <Widget>[
-                          Text(
-                            offerName,
-                            style: TextStyle(
-                              fontSize: setting.titleFontSize - 2,
-                              fontWeight: FontWeight.w800,
-                              color: textColor,
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            '示範寵物 小米 · $dateLabel · $sessionName',
-                            style: TextStyle(
-                              fontSize: setting.bodyFontSize,
-                              color: textColor.withValues(alpha: 0.7),
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            '已填寫  10:32',
-                            style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w700,
-                              color: accent,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    SizedBox(height: setting.cardGap),
-                    DailyCareCardSurface(
-                      setting: setting,
-                      imageOverride: cardImage,
-                      padding: EdgeInsets.all(setting.cardPadding),
-                      child: Row(
-                        children: <Widget>[
-                          Expanded(
-                            child: Text(
-                              '溫度 26°C',
-                              style: TextStyle(
-                                fontSize: setting.bodyFontSize,
-                                fontWeight: FontWeight.w700,
-                                color: textColor,
-                              ),
-                            ),
-                          ),
-                          Expanded(
-                            child: Text(
-                              '濕度 58%',
-                              style: TextStyle(
-                                fontSize: setting.bodyFontSize,
-                                fontWeight: FontWeight.w700,
-                                color: textColor,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    ..._categoryCards(textColor, accent, cardImage),
-                    SizedBox(height: setting.cardGap),
-                    DailyCareCardSurface(
-                      setting: setting,
-                      imageOverride: cardImage,
-                      longText: true,
-                      padding: EdgeInsets.all(setting.cardPadding),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: <Widget>[
-                          Text(
-                            '文字備註',
-                            style: TextStyle(
-                              fontSize: setting.bodyFontSize,
-                              fontWeight: FontWeight.w800,
-                              color: textColor,
-                            ),
-                          ),
-                          const SizedBox(height: 6),
-                          Text(
-                            '今天精神很好，有好好吃飯喝水。（示範值）',
-                            style: TextStyle(
-                              fontSize: setting.bodyFontSize,
-                              height: 1.4,
-                              color: textColor,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    SizedBox(height: setting.cardGap),
-                    DailyCareCardSurface(
-                      setting: setting,
-                      imageOverride: cardImage,
-                      padding: EdgeInsets.all(setting.cardPadding),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: <Widget>[
-                          Text(
-                            '照護照片',
-                            style: TextStyle(
-                              fontSize: setting.bodyFontSize,
-                              fontWeight: FontWeight.w800,
-                              color: textColor,
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          _photoRow(showPhotos),
-                          const SizedBox(height: 6),
-                          Text(
-                            DailyCareReportMode.photoShareNote,
-                            style: TextStyle(
-                              fontSize: 11,
-                              height: 1.35,
-                              color: textColor.withValues(alpha: 0.65),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _header({
-    required String title,
-    required Color textColor,
-    required Color accent,
-  }) {
-    final bool showLogo = setting.logoVisible && shopLogoUrl.trim().isNotEmpty;
-    final Widget titleBlock = Column(
-      crossAxisAlignment: setting.logoAlign == 'center'
-          ? CrossAxisAlignment.center
-          : CrossAxisAlignment.start,
-      children: <Widget>[
-        Text(
-          shopName,
-          style: TextStyle(
-            fontSize: setting.titleFontSize,
-            fontWeight: FontWeight.w800,
-            color: textColor,
-          ),
-        ),
-        Text(
-          title,
-          style: TextStyle(
-            fontSize: setting.bodyFontSize,
-            fontWeight: FontWeight.w700,
-            color: accent,
-          ),
-        ),
-      ],
-    );
-    if (!showLogo) {
-      return titleBlock;
-    }
-    final Widget logo = ClipRRect(
-      borderRadius: BorderRadius.circular(8),
-      child: Image.network(
-        shopLogoUrl,
-        width: setting.logoSize,
-        height: setting.logoSize,
-        fit: BoxFit.cover,
-        errorBuilder: (_, __, ___) => const SizedBox.shrink(),
-      ),
-    );
-    if (setting.logoAlign == 'center') {
-      return Column(
-        children: <Widget>[
-          logo,
-          const SizedBox(height: 8),
-          titleBlock,
-        ],
-      );
-    }
-    return Row(
-      children: <Widget>[
-        logo,
-        const SizedBox(width: 10),
-        Expanded(child: titleBlock),
-      ],
-    );
-  }
-
-  List<Widget> _categoryCards(
-    Color textColor,
-    Color accent,
-    ImageProvider? cardImage,
-  ) {
-    final List<_PreviewGroup> groups = <_PreviewGroup>[
-      _PreviewGroup('飲食', Icons.restaurant_outlined, const <String>[
-        'dryFood',
-        'wetFood',
-        'snack',
-      ], const <String>['有吃', '少許', '無']),
-      _PreviewGroup('飲水', Icons.water_drop_outlined, const <String>[
-        'water',
-      ], const <String>['一般']),
-      _PreviewGroup('大小便', Icons.check_circle_outline, const <String>[
-        'stool',
-        'urine',
-      ], const <String>['正常', '正常']),
-      _PreviewGroup('活動', Icons.sports_esports_outlined, const <String>[
-        'wandToy',
-        'scratchBoard',
-        'jumpPlatform',
-        'toyBall',
-      ], const <String>['有', '有', '無', '有']),
-    ];
-    final List<Widget> out = <Widget>[];
-    for (final _PreviewGroup group in groups) {
-      final List<MapEntry<String, String>> items = <MapEntry<String, String>>[];
-      for (int i = 0; i < group.keys.length; i++) {
-        if (setting.enabledFields.contains(group.keys[i])) {
-          items.add(MapEntry<String, String>(group.keys[i], group.values[i]));
-        }
-      }
-      if (items.isEmpty) {
-        continue;
-      }
-      out.add(SizedBox(height: setting.cardGap));
-      out.add(
-        DailyCareCardSurface(
-          setting: setting,
-          imageOverride: cardImage,
-          padding: EdgeInsets.all(setting.cardPadding),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: <Widget>[
-              Row(
-                children: <Widget>[
-                  Icon(
-                    group.icon,
-                    size: setting.iconSize,
-                    color: accent,
-                  ),
-                  const SizedBox(width: 6),
-                  Text(
-                    group.title,
-                    style: TextStyle(
-                      fontSize: setting.bodyFontSize,
-                      fontWeight: FontWeight.w800,
-                      color: textColor,
-                    ),
+            width: DailyCareJournalDemoData.phoneLogicalWidth,
+            height: height,
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                color: const Color(0xFF2C241C),
+                borderRadius: BorderRadius.circular(36),
+                boxShadow: <BoxShadow>[
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.18),
+                    blurRadius: 18,
+                    offset: const Offset(0, 8),
                   ),
                 ],
               ),
-              const SizedBox(height: 8),
-              for (final MapEntry<String, String> item in items)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 4),
-                  child: Text(
-                    '${_label(item.key)}  ${item.value}',
-                    style: TextStyle(
-                      fontSize: setting.bodyFontSize,
-                      color: textColor,
-                    ),
-                  ),
+              child: Padding(
+                padding: const EdgeInsets.all(10),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(26),
+                  child: journal,
                 ),
-            ],
-          ),
-        ),
-      );
-    }
-    for (final DailyCareCustomField field in setting.customFields) {
-      out.add(SizedBox(height: setting.cardGap));
-      out.add(
-        DailyCareCardSurface(
-          setting: setting,
-          imageOverride: cardImage,
-          padding: EdgeInsets.all(setting.cardPadding),
-          child: Text(
-            '${field.label}  ${_customDemo(field.inputType)}',
-            style: TextStyle(
-              fontSize: setting.bodyFontSize,
-              color: textColor,
-            ),
-          ),
-        ),
-      );
-    }
-    return out;
-  }
-
-  Widget _photoRow(bool withPhotos) {
-    if (!withPhotos) {
-      return Text(
-        '本場未附照片（示範：0 張）',
-        style: TextStyle(fontSize: setting.bodyFontSize),
-      );
-    }
-    return Wrap(
-      spacing: 8,
-      runSpacing: 8,
-      children: List<Widget>.generate(3, (int index) {
-        return ClipRRect(
-          borderRadius: BorderRadius.circular(setting.photoRadius),
-          child: Container(
-            width: 96,
-            height: 96,
-            color: const Color(0xFFE8DCCF),
-            alignment: Alignment.center,
-            child: Text(
-              '示範圖 ${index + 1}',
-              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
+              ),
             ),
           ),
         );
-      }),
+      },
     );
   }
-
-  String _label(String key) {
-    const Map<String, String> labels = <String, String>{
-      'water': '飲水',
-      'dryFood': '飼料',
-      'wetFood': '罐頭',
-      'snack': '零食',
-      'stool': '大便',
-      'urine': '尿尿',
-      'wandToy': '逗貓棒',
-      'scratchBoard': '貓抓板',
-      'jumpPlatform': '貓跳台',
-      'toyBall': '玩具球',
-    };
-    return labels[key] ?? key;
-  }
-
-  String _customDemo(String inputType) {
-    switch (inputType) {
-      case 'amount':
-        return '一般';
-      case 'condition':
-        return '正常';
-      case 'text':
-        return '示範文字';
-      default:
-        return '有';
-    }
-  }
-
-  Color _color(String key, Color fallback) {
-    switch (key) {
-      case 'brown':
-        return const Color(0xFF8B5A2B);
-      case 'blue':
-        return const Color(0xFF3D6F9F);
-      case 'green':
-        return const Color(0xFF2E8B47);
-      case 'ink':
-        return const Color(0xFF3A2A20);
-      default:
-        return fallback;
-    }
-  }
-}
-
-class _PreviewGroup {
-  const _PreviewGroup(this.title, this.icon, this.keys, this.values);
-  final String title;
-  final IconData icon;
-  final List<String> keys;
-  final List<String> values;
 }
 
 class DailyCarePreviewSession {
@@ -471,7 +311,9 @@ class DailyCarePreviewSession {
       return quota.resolvedLabels();
     }
     return isDaycare
-        ? setting.resolvedDaycareSessionLabelsForCount(setting.daycareSessionCount)
+        ? setting.resolvedDaycareSessionLabelsForCount(
+            setting.daycareSessionCount,
+          )
         : setting.resolvedStaySessionLabelsForCount(setting.sessionCount);
   }
 }

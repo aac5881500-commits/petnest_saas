@@ -214,8 +214,6 @@ class DailyCareSettingModel {
     this.stayPhotosIncluded = 3,
     this.stayAddonUpgradeEnabled = false,
     this.stayOfferQuotas = const <String, DailyCareOfferQuota>{},
-    this.includeCheckInDay = true,
-    this.includeCheckOutDay = false,
     this.stayPaidPlan = const DailyCarePaidPlan(),
     this.daycarePaidPlan = const DailyCarePaidPlan(
       chargeUnit: DailyCareReportMode.chargePerVisit,
@@ -334,12 +332,6 @@ class DailyCareSettingModel {
 
   final Map<String, DailyCareOfferQuota> stayOfferQuotas;
 
-  /// 住宿服務日期：入住日是否提供回報。
-  final bool includeCheckInDay;
-
-  /// 住宿服務日期：退房日是否提供回報。
-  final bool includeCheckOutDay;
-
   final DailyCarePaidPlan stayPaidPlan;
   final DailyCarePaidPlan daycarePaidPlan;
 
@@ -455,8 +447,6 @@ class DailyCareSettingModel {
       ),
       stayAddonUpgradeEnabled: map['stayAddonUpgradeEnabled'] == true,
       stayOfferQuotas: DailyCareOfferQuota.mapFrom(map['stayOfferQuotas']),
-      includeCheckInDay: map['includeCheckInDay'] != false,
-      includeCheckOutDay: map['includeCheckOutDay'] == true,
       stayPaidPlan: DailyCarePaidPlan.fromMap(
         map['stayPaidPlan'] is Map
             ? Map<String, dynamic>.from(map['stayPaidPlan'] as Map)
@@ -535,8 +525,6 @@ class DailyCareSettingModel {
       'stayPhotosIncluded': stayPhotosIncluded,
       'stayAddonUpgradeEnabled': stayAddonUpgradeEnabled,
       'stayOfferQuotas': DailyCareOfferQuota.mapToFirestore(stayOfferQuotas),
-      'includeCheckInDay': includeCheckInDay,
-      'includeCheckOutDay': includeCheckOutDay,
       'stayPaidPlan': stayPaidPlan.toMap(),
       'daycarePaidPlan': daycarePaidPlan.toMap(),
       'logoVisible': logoVisible,
@@ -583,8 +571,6 @@ class DailyCareSettingModel {
     int? stayPhotosIncluded,
     bool? stayAddonUpgradeEnabled,
     Map<String, DailyCareOfferQuota>? stayOfferQuotas,
-    bool? includeCheckInDay,
-    bool? includeCheckOutDay,
     DailyCarePaidPlan? stayPaidPlan,
     DailyCarePaidPlan? daycarePaidPlan,
     bool? logoVisible,
@@ -636,8 +622,6 @@ class DailyCareSettingModel {
       stayAddonUpgradeEnabled:
           stayAddonUpgradeEnabled ?? this.stayAddonUpgradeEnabled,
       stayOfferQuotas: stayOfferQuotas ?? this.stayOfferQuotas,
-      includeCheckInDay: includeCheckInDay ?? this.includeCheckInDay,
-      includeCheckOutDay: includeCheckOutDay ?? this.includeCheckOutDay,
       stayPaidPlan: stayPaidPlan ?? this.stayPaidPlan,
       daycarePaidPlan: daycarePaidPlan ?? this.daycarePaidPlan,
       logoVisible: logoVisible ?? this.logoVisible,

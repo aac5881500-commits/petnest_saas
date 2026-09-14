@@ -43,31 +43,28 @@ function dateKey(date) {
   return `${y}/${m}/${d}`;
 }
 
-function serviceDates(startRaw, endRaw, includeCheckIn, includeCheckOut) {
+function stayServiceDates(startRaw, endRaw) {
   const start = dateOnly(startRaw);
-  const end = dateOnly(endRaw || startRaw);
-  if (!start || !end || end < start) {
+  const end = dateOnly(endRaw);
+  if (!start || !end || end <= start) {
     return [];
   }
   const out = [];
   const cursor = new Date(start.getTime());
-  while (cursor <= end) {
-    const isStart = cursor.getTime() === start.getTime();
-    const isEnd = cursor.getTime() === end.getTime();
-    let include = true;
-    if (isStart && isEnd) {
-      include = includeCheckIn || includeCheckOut;
-    } else if (isStart) {
-      include = includeCheckIn;
-    } else if (isEnd) {
-      include = includeCheckOut;
-    }
-    if (include) {
-      out.push(dateKey(cursor));
-    }
+  while (cursor < end) {
+    out.push(dateKey(cursor));
     cursor.setDate(cursor.getDate() + 1);
   }
   return out;
+}
+
+function daycareServiceDates(startRaw) {
+  const start = dateOnly(startRaw);
+  return start ? [dateKey(start)] : [];
+}
+
+function serviceDates(startRaw, endRaw) {
+  return stayServiceDates(startRaw, endRaw);
 }
 
 function normalizeMode(raw) {
@@ -146,13 +143,9 @@ function resolveDailyCareEntitlement(params) {
   const shopDaycareOn = params.shopDaycareOn !== false;
   const offerId = String(params.offerId || "").trim();
   const offerName = String(params.offerName || "").trim();
-  const includeCheckIn = setting.includeCheckInDay !== false;
-  const includeCheckOut = setting.includeCheckOutDay === true;
   const dates = isDaycare ?
-    (params.startDate ? serviceDates(params.startDate, params.startDate,
-        true, true) : []) :
-    serviceDates(params.startDate, params.endDate, includeCheckIn,
-        includeCheckOut);
+    daycareServiceDates(params.startDate) :
+    stayServiceDates(params.startDate, params.endDate);
   const featureOn = isDaycare ?
     setting.daycareEnabled === true && shopDaycareOn :
     setting.enabled === true;
@@ -175,8 +168,8 @@ function resolveDailyCareEntitlement(params) {
         photoRuleVersion: PHOTO_RULE_V2,
         photosPerSession: PHOTOS_PER_SESSION,
         serviceDates: dates,
-        includeCheckInDay: includeCheckIn,
-        includeCheckOutDay: includeCheckOut,
+        includeCheckInDay: true,
+        includeCheckOutDay: false,
       },
       addonLine: null,
       amount: 0,
@@ -256,14 +249,14 @@ function resolveDailyCareEntitlement(params) {
     offerId,
     offerName,
     careDateRule: isDaycare ?
-      "安親照護回報以每筆服務計算，服務當日提供。" :
+      "每筆安親服務於服務當日提供回報。" :
       (chargeUnit === CHARGE_ONCE ?
         "整筆住宿收費一次；服務日期仍每天提供設定場次。" :
         "每日費用依實際包含的服務日期計算。") +
-        `入住日${includeCheckIn ? "提供" : "不提供"}、退房日${includeCheckOut ? "提供" : "不提供"}。`,
+        "回報日期依住宿晚數計算：入住日包含，退房日不包含。",
     photoShareNote: PHOTO_NOTE,
-    includeCheckInDay: includeCheckIn,
-    includeCheckOutDay: includeCheckOut,
+    includeCheckInDay: true,
+    includeCheckOutDay: false,
     serviceDates: dates,
     photosPerSession: PHOTOS_PER_SESSION,
     photoRuleVersion: PHOTO_RULE_V2,

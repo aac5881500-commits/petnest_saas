@@ -28,17 +28,11 @@ class DailyCareEntitlementMath {
     final String mode = DailyCareReportMode.normalize(
       isDaycare ? setting.daycareReportMode : setting.stayReportMode,
     );
-    final bool includeCheckIn = setting.includeCheckInDay;
-    final bool includeCheckOut = setting.includeCheckOutDay;
     final List<DateTime> dates = isDaycare
-        ? (startDate == null
-              ? const <DateTime>[]
-              : <DateTime>[DailyCareDateHelper.dateOnly(startDate)])
+        ? DailyCareDateHelper.daycareCareDates(serviceDate: startDate)
         : DailyCareDateHelper.careDates(
             checkIn: startDate,
             checkOut: endDate,
-            includeCheckInDay: includeCheckIn,
-            includeCheckOutDay: includeCheckOut,
           );
     final List<String> serviceDateKeys = dates
         .map(DailyCareDateHelper.dateKey)
@@ -61,8 +55,6 @@ class DailyCareEntitlementMath {
         enabled: false,
         service: isDaycare ? 'daycare' : 'accommodation',
         mode: mode,
-        includeCheckInDay: includeCheckIn,
-        includeCheckOutDay: includeCheckOut,
         serviceDates: serviceDateKeys,
         photoRuleVersion: DailyCareReportMode.photoRuleVersion,
         photosPerSession: DailyCareReportMode.photosPerSession,
@@ -142,19 +134,18 @@ class DailyCareEntitlementMath {
       offerName: offerName,
       careDateRule: isDaycare
           ? DailyCareEntitlement.daycareCareDateRule
-          : _stayRule(includeCheckIn, includeCheckOut, chargeUnit),
+          : _stayRule(chargeUnit),
       photoShareNote: DailyCareReportMode.photoShareNote,
-      includeCheckInDay: includeCheckIn,
-      includeCheckOutDay: includeCheckOut,
+      includeCheckInDay: true,
+      includeCheckOutDay: false,
       serviceDates: serviceDateKeys,
       photosPerSession: photosPerSession,
       photoRuleVersion: DailyCareReportMode.photoRuleVersion,
     );
   }
 
-  static String _stayRule(bool checkIn, bool checkOut, String chargeUnit) {
-    final String days =
-        '入住日${checkIn ? '提供' : '不提供'}、退房日${checkOut ? '提供' : '不提供'}，同一日期不重複計費。';
+  static String _stayRule(String chargeUnit) {
+    const String days = '回報日期依住宿晚數計算：入住日包含，退房日不包含。';
     if (chargeUnit == DailyCareReportMode.chargeOncePerStay) {
       return '整筆住宿收費一次；服務日期仍每天提供設定場次。$days';
     }

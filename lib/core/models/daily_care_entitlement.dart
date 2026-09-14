@@ -34,8 +34,8 @@ class DailyCareEntitlement {
   });
 
   static const String stayCareDateRule =
-      '照護回報依實際包含的服務日期提供；同一日期不重複計費。';
-  static const String daycareCareDateRule = '安親照護回報以每筆服務計算，服務當日提供。';
+      '回報日期依住宿晚數計算：入住日包含，退房日不包含。';
+  static const String daycareCareDateRule = '每筆安親服務於服務當日提供回報。';
 
   final bool enabled;
   final String service;

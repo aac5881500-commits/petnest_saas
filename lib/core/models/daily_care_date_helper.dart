@@ -1,7 +1,7 @@
 // 檔案名稱：lib/core/models/daily_care_date_helper.dart
 // 功能說明：每日照護有效日期
-// 規則：入住日包含、退房日不包含。
-// checkInDate <= careDate < checkOutDate
+// 住宿：入住日包含、退房日不包含。checkInDate <= careDate < checkOutDate
+// 安親：只使用服務當日。不讀入住日／退房日開關。
 // 不改 booking checkIn / checkOut、房價 nights 或庫存。
 
 class DailyCareDateHelper {
@@ -51,13 +51,11 @@ class DailyCareDateHelper {
         '${day.day.toString().padLeft(2, '0')}';
   }
 
-  /// 可填寫／可顯示的照護日期。
-  /// 預設入住日提供、退房日不提供；同一日期只出現一次。
+  /// 住宿可填寫／可顯示的照護日期：入住日含、退房日不含。
+  /// 同日入住退房＝0 天。
   static List<DateTime> careDates({
     required DateTime? checkIn,
     required DateTime? checkOut,
-    bool includeCheckInDay = true,
-    bool includeCheckOutDay = false,
   }) {
     if (checkIn == null || checkOut == null) {
       return const <DateTime>[];
@@ -65,29 +63,24 @@ class DailyCareDateHelper {
 
     final DateTime start = calendarDateInTaipei(checkIn);
     final DateTime end = calendarDateInTaipei(checkOut);
-    if (end.isBefore(start)) {
+    if (!end.isAfter(start)) {
       return const <DateTime>[];
     }
 
     final List<DateTime> dates = <DateTime>[];
     DateTime cursor = start;
-    while (!cursor.isAfter(end)) {
-      final bool isStart = cursor == start;
-      final bool isEnd = cursor == end;
-      bool include = true;
-      if (isStart && isEnd) {
-        include = includeCheckInDay || includeCheckOutDay;
-      } else if (isStart) {
-        include = includeCheckInDay;
-      } else if (isEnd) {
-        include = includeCheckOutDay;
-      }
-      if (include) {
-        dates.add(cursor);
-      }
+    while (cursor.isBefore(end)) {
+      dates.add(cursor);
       cursor = cursor.add(const Duration(days: 1));
     }
     return dates;
+  }
+
+  static List<DateTime> daycareCareDates({required DateTime? serviceDate}) {
+    if (serviceDate == null) {
+      return const <DateTime>[];
+    }
+    return <DateTime>[calendarDateInTaipei(serviceDate)];
   }
 
   static List<String> careDateKeys({
