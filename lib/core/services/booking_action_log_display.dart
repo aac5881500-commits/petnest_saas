@@ -1,7 +1,10 @@
 // 檔案名稱：lib/core/services/booking_action_log_display.dart
 // 功能說明：操作紀錄標題與前後值文字；相容舊欄位與 payload，不改歷史文件
 
+import 'package:petnest_saas/core/services/booking_payment_labels.dart';
 import 'package:petnest_saas/core/services/daycare_status_labels.dart';
+import 'package:petnest_saas/core/services/settlement_adjust_display.dart';
+import 'package:petnest_saas/core/services/shop_room_name_lookup.dart';
 
 class BookingActionLogDisplay {
   BookingActionLogDisplay._();
@@ -26,14 +29,69 @@ class BookingActionLogDisplay {
     return (log['type'] ?? log['action'] ?? '').toString();
   }
 
+  static Set<String> roomIdsNeedingLookup(Map<String, dynamic> log) {
+    final Map<String, dynamic> f = flattened(log);
+    final Set<String> ids = <String>{};
+    void consider(dynamic name, dynamic id) {
+      final String? lookup = ShopRoomNameLookup.idIfLookupNeeded(name, id);
+      if (lookup != null) {
+        ids.add(lookup);
+      }
+    }
+
+    consider(f['fromRoomName'] ?? f['oldRoomName'], f['fromRoomId'] ?? f['oldRoomId']);
+    consider(
+      f['toRoomName'] ?? f['newRoomName'] ?? f['roomName'],
+      f['toRoomId'] ?? f['newRoomId'] ?? f['roomId'],
+    );
+    return ids;
+  }
+
   static String title(Map<String, dynamic> log) {
     final String type = actionKey(log);
     final Map<String, dynamic> fields = flattened(log);
-    final String daycare = DaycareStatusLabels.actionName(type);
     if (type == 'daycare_assign_room' && _isRoomChange(fields)) {
       return '更換房間';
     }
-    if (daycare.isNotEmpty) {
+    if (type == 'settlement_applyAdjust' || type == 'daycare_adjustPrice') {
+      return _adjustTitle(fields);
+    }
+    if (type == 'settlement_confirmCollect') {
+      final String amount = _money(
+        fields['amount'] ?? fields['paidAmount'] ?? fields['collectedAmount'],
+      );
+      return amount.isEmpty ? '確認現場補款' : '確認現場補款 $amount';
+    }
+    if (type == 'settlement_confirmRefund') {
+      final String amount = _money(
+        fields['refundDueAmount'] ?? fields['refundAmount'] ?? fields['amount'],
+      );
+      return amount.isEmpty ? '辦理退款' : '辦理退款 $amount';
+    }
+    if (type == 'settlement_checkOutStay') {
+      return '確認住宿結算';
+    }
+    if (type == 'daycare_settle') {
+      return '確認安親結算';
+    }
+    if (type == 'settlement_confirmStaffVerifiedTransfer') {
+      return '店員現場已核對入帳';
+    }
+    if (type == 'settlement_confirmTransferTopUp') {
+      return '核對轉帳補款';
+    }
+    if (type == 'settlement_confirmNoTopUpAndLock') {
+      return '確認無需補款並鎖定訂單';
+    }
+    if (type == 'settlement_switchTopUpMethod' ||
+        type == 'settlement_requestAppTopUp' ||
+        type == 'payment_choice_changed') {
+      return '變更付款方式';
+    }
+    final String daycare = DaycareStatusLabels.actionName(type);
+    if (daycare.isNotEmpty &&
+        type != 'daycare_settle' &&
+        !type.startsWith('settlement_')) {
       return daycare;
     }
     switch (type) {
@@ -52,30 +110,19 @@ class BookingActionLogDisplay {
         return '取消訂單';
       case 'checkout_completed':
         return '退房完成';
-      case 'settlement_applyAdjust':
-        return '重新調整結算';
-      case 'settlement_checkOutStay':
-        return '住宿結算';
-      case 'settlement_confirmCollect':
-        return '確認收款';
-      case 'settlement_confirmRefund':
-        return '確認退款';
-      case 'settlement_confirmStaffVerifiedTransfer':
-      case 'settlement_confirmTransferTopUp':
-        return '核對轉帳';
-      case 'payment_choice_changed':
-        return '變更付款方式';
-      case 'daycare_settle':
-        return '安親結算';
       default:
         if (type.startsWith('settlement_')) {
-          return '結算操作';
+          return _settlementFallbackTitle(type);
         }
         return type.isEmpty ? '操作紀錄' : type;
     }
   }
 
-  static List<String> detailLines(Map<String, dynamic> log) {
+  static List<String> detailLines(
+    Map<String, dynamic> log, {
+    Map<String, String> roomNames = const <String, String>{},
+    bool awaitingRoomNames = false,
+  }) {
     final String type = actionKey(log);
     final Map<String, dynamic> f = flattened(log);
     final List<String> lines = <String>[];
@@ -92,7 +139,7 @@ class BookingActionLogDisplay {
         lines.add('房型：$roomType');
       }
       lines.add(
-        '實際房間：${_unassignedLabel(f['fromRoomName'] ?? f['fromRoomId'])} → ${_roomLabel(f, to: true)}',
+        '實際房間：${_unassignedLabel(f['fromRoomName'] ?? f['fromRoomId'], roomNames, awaitingRoomNames)} → ${_roomLabel(f, to: true, roomNames: roomNames, awaiting: awaitingRoomNames)}',
       );
     } else if (type == 'room_changed' ||
         type == 'stay_change_room' ||
@@ -115,9 +162,10 @@ class BookingActionLogDisplay {
         }
       }
       lines.add(
-        '實際房間：${_roomLabel(f, to: false)} → ${_roomLabel(f, to: true)}',
+        '實際房間：${_roomLabel(f, to: false, roomNames: roomNames, awaiting: awaitingRoomNames)} → ${_roomLabel(f, to: true, roomNames: roomNames, awaiting: awaitingRoomNames)}',
       );
-    } else if (type == 'settlement_applyAdjust') {
+    } else if (type == 'settlement_applyAdjust' ||
+        type == 'daycare_adjustPrice') {
       lines.addAll(_adjustLines(f));
     } else if (type == 'settlement_checkOutStay' || type == 'daycare_settle') {
       lines.addAll(_settleLines(f, stay: type == 'settlement_checkOutStay'));
@@ -130,10 +178,10 @@ class BookingActionLogDisplay {
       lines.add('${f['fromStatus'] ?? '-'} → ${f['toStatus'] ?? '-'}');
     } else if (type == 'checkout_completed') {
       lines.add('額外費用 NT\$ ${f['extraFee'] ?? 0}');
-    } else if (type == 'payment_choice_changed') {
-      lines.add(
-        '${_label(f['previousPaymentMethod'])} → ${_label(f['paymentMethod'])}',
-      );
+    } else if (type == 'payment_choice_changed' ||
+        type == 'settlement_switchTopUpMethod' ||
+        type == 'settlement_requestAppTopUp') {
+      lines.addAll(_paymentChangeLines(f));
     } else if (type == 'deposit_confirmed') {
       final String amount = _money(f['depositAmount'] ?? f['paidAmount']);
       if (amount.isNotEmpty) {
@@ -150,7 +198,7 @@ class BookingActionLogDisplay {
       }
       final String method = _first(f, <String>['method', 'paymentMethod']);
       if (method.isNotEmpty) {
-        lines.add('方式：$method');
+        lines.add('方式：${BookingPaymentLabels.method(method)}');
       }
     }
 
@@ -159,10 +207,56 @@ class BookingActionLogDisplay {
       'manualAdjustmentReason',
       'manualAdjustReason',
       'changeReason',
+      'note',
+      'remark',
     ]);
     if (reason.isNotEmpty &&
         !lines.any((String line) => line.contains('原因：$reason'))) {
       lines.add('原因：$reason');
+    }
+    return lines.where((String line) => !_containsDocumentId(line)).toList();
+  }
+
+  static List<String> _paymentChangeLines(Map<String, dynamic> f) {
+    final String mode = (f['mode'] ?? '').toString();
+    final String amountType = (f['payAmountType'] ?? f['amountType'] ?? '')
+        .toString();
+    final String methodLabel = mode == 'settlement_top_up'
+        ? '結算尾款付款方式'
+        : (mode == 'deposit' || amountType == 'deposit')
+        ? '訂金付款方式'
+        : '付款方式';
+    final String fromMethod = _first(f, <String>[
+      'previousPaymentMethod',
+      'fromMethod',
+      'oldPaymentMethod',
+    ]);
+    final String toMethod = _first(f, <String>[
+      'paymentMethod',
+      'toMethod',
+      'newPaymentMethod',
+      'settlementTopUpMethod',
+    ]);
+    final List<String> lines = <String>[];
+    if (fromMethod.isNotEmpty || toMethod.isNotEmpty) {
+      lines.add(
+        '$methodLabel：${BookingPaymentLabels.method(fromMethod)} → ${BookingPaymentLabels.method(toMethod)}',
+      );
+    }
+    final String fromStatus = _first(f, <String>[
+      'previousPaymentStatus',
+      'previousSettlementTopUpStatus',
+      'fromPaymentStatus',
+    ]);
+    final String toStatus = _first(f, <String>[
+      'paymentStatus',
+      'settlementTopUpStatus',
+      'toPaymentStatus',
+    ]);
+    if (fromStatus.isNotEmpty || toStatus.isNotEmpty) {
+      lines.add(
+        '付款狀態：${BookingPaymentLabels.status(fromStatus)} → ${BookingPaymentLabels.status(toStatus)}',
+      );
     }
     return lines;
   }
@@ -177,33 +271,96 @@ class BookingActionLogDisplay {
     return from.isNotEmpty;
   }
 
-  static String _unassignedLabel(dynamic raw) {
+  static String _unassignedLabel(
+    dynamic raw,
+    Map<String, String> roomNames,
+    bool awaiting,
+  ) {
     final String text = (raw ?? '').toString().trim();
     if (text.isEmpty) {
       return '未分房';
     }
-    return text;
+    return _humanRoom(
+      name: text,
+      id: text,
+      roomNames: roomNames,
+      awaiting: awaiting,
+      emptyFallback: '未分房',
+    );
   }
 
-  static String _roomLabel(Map<String, dynamic> f, {required bool to}) {
+  static String _roomLabel(
+    Map<String, dynamic> f, {
+    required bool to,
+    required Map<String, String> roomNames,
+    required bool awaiting,
+  }) {
     if (to) {
-      final String label = _first(f, <String>[
-        'newRoomName',
-        'toRoomName',
-        'roomName',
-        'newRoomId',
-        'toRoomId',
-        'roomId',
-      ]);
-      return label.isEmpty ? '-' : label;
+      return _humanRoom(
+        name: _first(f, <String>['newRoomName', 'toRoomName', 'roomName']),
+        id: _first(f, <String>['newRoomId', 'toRoomId', 'roomId']),
+        roomNames: roomNames,
+        awaiting: awaiting,
+        emptyFallback: '-',
+      );
     }
-    final String label = _first(f, <String>[
-      'oldRoomName',
-      'fromRoomName',
-      'oldRoomId',
-      'fromRoomId',
-    ]);
-    return label.isEmpty ? '未分房' : label;
+    return _humanRoom(
+      name: _first(f, <String>['oldRoomName', 'fromRoomName']),
+      id: _first(f, <String>['oldRoomId', 'fromRoomId']),
+      roomNames: roomNames,
+      awaiting: awaiting,
+      emptyFallback: '未分房',
+    );
+  }
+
+  static String _humanRoom({
+    required String name,
+    required String id,
+    required Map<String, String> roomNames,
+    required bool awaiting,
+    required String emptyFallback,
+  }) {
+    if (name.isNotEmpty && !ShopRoomNameLookup.looksLikeDocumentId(name)) {
+      return name;
+    }
+    final String lookupId = ShopRoomNameLookup.looksLikeDocumentId(name)
+        ? name
+        : id;
+    if (lookupId.isEmpty) {
+      return emptyFallback;
+    }
+    if (roomNames.containsKey(lookupId)) {
+      final String resolved = roomNames[lookupId]!.trim();
+      return resolved.isEmpty ? ShopRoomNameLookup.missingLabel : resolved;
+    }
+    if (ShopRoomNameLookup.looksLikeDocumentId(lookupId) ||
+        ShopRoomNameLookup.looksLikeDocumentId(name)) {
+      return awaiting ? '讀取房號中' : ShopRoomNameLookup.missingLabel;
+    }
+    if (name.isNotEmpty) {
+      return name;
+    }
+    return emptyFallback;
+  }
+
+  static String _adjustTitle(Map<String, dynamic> f) {
+    final int delta = _int(
+      f['delta'] ?? f['adjustAmount'] ?? f['manualAdjustmentAmount'] ?? f['manualAdjust'],
+    );
+    if (delta > 0) {
+      return '手動加收 ${_nt(delta)}';
+    }
+    if (delta < 0) {
+      return '手動減免 ${_nt(delta.abs())}';
+    }
+    return '重新調整結算';
+  }
+
+  static String _settlementFallbackTitle(String type) {
+    const Map<String, String> known = <String, String>{
+      'settlement_preview': '結算預覽',
+    };
+    return known[type] ?? '結算紀錄';
   }
 
   static List<String> _adjustLines(Map<String, dynamic> f) {
@@ -303,7 +460,9 @@ class BookingActionLogDisplay {
     }
     final List<String> lines = <String>[];
     if (method.isNotEmpty) {
-      lines.add('退款方式：$method');
+      lines.add(
+        '退款方式：${SettlementAdjustDisplay.refundMethodLabel(method)}',
+      );
     }
     if (refund > 0) {
       lines.add('退款金額 ${_nt(refund)}');
@@ -321,9 +480,11 @@ class BookingActionLogDisplay {
     return '';
   }
 
-  static String _label(dynamic raw) {
-    final String text = (raw ?? '').toString().trim();
-    return text.isEmpty ? '-' : text;
+  static bool _containsDocumentId(String line) {
+    return RegExp(r'[A-Za-z0-9_-]{18,}').hasMatch(line) &&
+        !RegExp(r'[\u4e00-\u9fff]').hasMatch(
+          RegExp(r'[A-Za-z0-9_-]{18,}').firstMatch(line)?.group(0) ?? '',
+        );
   }
 
   static int _int(dynamic raw) {

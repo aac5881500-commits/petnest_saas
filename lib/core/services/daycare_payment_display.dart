@@ -1,6 +1,7 @@
 // 檔案名稱：lib/core/services/daycare_payment_display.dart
 // 功能說明：安親訂單金額與付款狀態顯示：相容舊欄位，不以 remainingAmount==0 判定已付清
 
+import 'package:petnest_saas/core/services/booking_payment_labels.dart';
 import 'package:petnest_saas/core/services/booking_payment_status.dart';
 
 class DaycarePaymentDisplay {
@@ -84,20 +85,6 @@ class DaycarePaymentDisplay {
   }
 
   static String storedPaymentMethodLabel(dynamic value) {
-    switch (value?.toString()) {
-      case 'cash':
-        return '到店付款';
-      case 'transfer':
-        return '銀行轉帳';
-      case 'credit_card':
-        return '信用卡';
-      case 'point':
-        return '點數';
-      case '':
-      case null:
-        return '未設定';
-      default:
-        return value.toString();
-    }
+    return BookingPaymentLabels.method(value);
   }
 }

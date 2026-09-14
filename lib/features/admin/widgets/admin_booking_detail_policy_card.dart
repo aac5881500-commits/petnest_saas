@@ -1,11 +1,13 @@
 // 檔案名稱：lib/features/admin/widgets/admin_booking_detail_policy_card.dart
-// 功能說明：店主訂單詳細條款摘要：住宿／安親共用，
-// 安親條款版本讀取 daycare_v{version}，並保留舊版 v{version} 相容。
+// 功能說明：店主訂單詳細條款摘要：住宿／安親共用歷史讀取規則
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/models/booking_kind.dart';
+import 'package:petnest_saas/core/models/policy_applicable_service.dart';
 import 'package:petnest_saas/core/models/shop_frontend_theme.dart';
+import 'package:petnest_saas/core/services/shop_policy_history.dart';
+import 'package:petnest_saas/core/services/shop_policy_service.dart';
 import 'package:petnest_saas/features/admin/widgets/admin_booking_detail_layout.dart';
 import 'package:petnest_saas/features/shop/pages/policy_version_detail_page.dart';
 
@@ -18,14 +20,17 @@ class AdminBookingDetailPolicyCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final ShopFrontendTheme theme = ShopFrontendTheme.of(context);
     final bool daycare = BookingKind.isDaycare(data);
-    final int version = _versionNumber(
+    final int version = ShopPolicyHistory.parseVersion(
       data['termsVersion'] ?? data['policyVersion'],
     );
     final bool missing = version <= 0;
 
     final String title = missing
-        ? (daycare ? '舊訂單／尚無條款確認紀錄' : '舊訂單／尚無條款確認紀錄')
-        : (data['policyTitle'] ?? (daycare ? '安親須知' : '入住須知')).toString();
+        ? '舊訂單／尚無條款確認紀錄'
+        : (data['policyTitle'] ??
+                  data['termsTitle'] ??
+                  (daycare ? '安親須知' : '入住須知'))
+              .toString();
 
     final String subtitle = missing
         ? (daycare ? '舊安親訂單沒有條款確認資料' : '尚無版本紀錄')
@@ -74,9 +79,17 @@ class AdminBookingDetailPolicyCard extends StatelessWidget {
   Future<void> _open(BuildContext context) async {
     final String shopId = (data['shopId'] ?? '').toString().trim();
     final bool daycare = BookingKind.isDaycare(data);
-    final int version = _versionNumber(
+    final String serviceType = daycare
+        ? PolicyApplicableService.daycare
+        : PolicyApplicableService.accommodation;
+    final int version = ShopPolicyHistory.parseVersion(
       data['termsVersion'] ?? data['policyVersion'],
     );
+    final String preferred = (data['termsVersionDocumentId'] ??
+            data['policyVersionId'] ??
+            '')
+        .toString()
+        .trim();
 
     if (shopId.isEmpty || version <= 0) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -85,58 +98,33 @@ class AdminBookingDetailPolicyCard extends StatelessWidget {
       return;
     }
 
-    final CollectionReference<Map<String, dynamic>> versionsRef =
-        FirebaseFirestore.instance
-            .collection('shops')
-            .doc(shopId)
-            .collection('policy_versions');
-
-    // 住宿版本：v5
-    // 安親新版版本：daycare_v5
-    DocumentSnapshot<Map<String, dynamic>> doc = await versionsRef
-        .doc(daycare ? 'daycare_v$version' : 'v$version')
-        .get();
-
-    // 相容舊安親資料：早期可能存成 policy_versions/v5。
-    if (!doc.exists && daycare) {
-      doc = await versionsRef.doc('v$version').get();
-    }
-
-    // 更早期安親條款另存於 daycare_policy_versions/v5。
-    if (!doc.exists && daycare) {
-      doc = await FirebaseFirestore.instance
-          .collection('shops')
-          .doc(shopId)
-          .collection('daycare_policy_versions')
-          .doc('v$version')
-          .get();
-    }
+    final Map<String, dynamic> snapshot = await ShopPolicyService.instance
+        .loadPolicyVersionSnapshot(
+          shopId: shopId,
+          serviceType: serviceType,
+          version: version,
+          preferredDocumentId: preferred,
+        );
 
     if (!context.mounted) {
       return;
     }
-
-    if (!doc.exists) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('找不到該版本條款')));
+    if (snapshot.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(ShopPolicyHistory.notFoundMessage(serviceType))),
+      );
       return;
     }
 
     Navigator.push(
       context,
       MaterialPageRoute<void>(
-        builder: (_) => PolicyVersionDetailPage(data: doc.data()!),
+        builder: (_) => PolicyVersionDetailPage(
+          data: snapshot,
+          serviceType: serviceType,
+        ),
       ),
     );
-  }
-
-  static int _versionNumber(dynamic value) {
-    if (value is num) {
-      return value.toInt();
-    }
-    final Match? match = RegExp(r'(\d+)').firstMatch(value?.toString() ?? '');
-    return int.tryParse(match?.group(1) ?? '') ?? 0;
   }
 
   static String _formatAccepted(dynamic value) {

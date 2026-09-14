@@ -1018,8 +1018,14 @@ exports.createDaycareBooking = onCall(
             completedAt: null,
             policyId: "checkin_policy",
             policyVersion,
-            policyVersionId: policySummary.required ? `v${policyVersion}` : "",
+            policyVersionId: policySummary.required ?
+              `daycare_v${policyVersion}` : "",
             policyTitle,
+            termsType: "daycare",
+            termsVersion: policyVersion,
+            termsTitle: policyTitle,
+            termsVersionDocumentId: policySummary.required ?
+              `daycare_v${policyVersion}` : "",
             termsAcceptedAt: termsAcceptedAt ?
             admin.firestore.Timestamp.fromDate(termsAcceptedAt) : null,
             policyAcceptedAt: termsAcceptedAt ?

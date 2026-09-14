@@ -7,6 +7,7 @@ import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:petnest_saas/core/models/policy_applicable_service.dart';
 import 'package:petnest_saas/core/models/shop_frontend_theme.dart';
+import 'package:petnest_saas/core/services/booking_payment_labels.dart';
 import 'package:petnest_saas/core/services/booking_settlement_math.dart';
 import 'package:petnest_saas/core/services/settlement_adjust_display.dart';
 import 'package:petnest_saas/core/services/shop_payment_methods.dart';
@@ -594,7 +595,7 @@ class _AdminStaySettleSheetState extends State<AdminStaySettleSheet> {
                                   const Text('待補款／待退款 NT\$0'),
                                 if (_showTopUp && _topUpMethod.isNotEmpty)
                                   Text(
-                                    '補款方式 ${ShopPaymentMethods.historyLabel(_topUpMethod)}',
+                                    '補款方式：${BookingPaymentLabels.method(_topUpMethod)}　付款狀態：${BookingPaymentLabels.status(widget.booking['settlementTopUpStatus'] ?? 'selected')}',
                                   ),
                                 if (_showRefund)
                                   Text(

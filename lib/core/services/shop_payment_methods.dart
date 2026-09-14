@@ -3,6 +3,7 @@
 
 import 'package:petnest_saas/core/models/payment_gateway_status.dart';
 import 'package:petnest_saas/core/models/policy_applicable_service.dart';
+import 'package:petnest_saas/core/services/booking_payment_labels.dart';
 
 class ShopPaymentMethodOption {
   const ShopPaymentMethodOption({
@@ -142,7 +143,7 @@ class ShopPaymentMethods {
       case 'ecpay_cvs':
         return '超商代碼';
       default:
-        return paymentMethod.trim().isEmpty ? '未設定' : paymentMethod;
+        return BookingPaymentLabels.method(paymentMethod);
     }
   }
 

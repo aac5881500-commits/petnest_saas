@@ -55,11 +55,13 @@ void main() {
     );
   });
 
-  test('舊單只有 roomId 時顯示 roomId', () {
+  test('舊單只有 roomId 時不把 document id 當房號', () {
     final BookingCurrentRoom room = BookingCurrentRoom.fromBooking(
-      <String, dynamic>{'roomId': 'room_a5'},
+      <String, dynamic>{'roomId': 'T7D4M2h7qbCAWoz37pWD', 'shopId': 'shop1'},
     );
     expect(room.hasPhysicalRoom, isTrue);
-    expect(room.physicalRoomLabel, 'room_a5');
+    expect(room.physicalRoomLabel, isEmpty);
+    expect(room.needsRoomNameLookup, isTrue);
+    expect(room.physicalDisplay(BookingCurrentRoomAudience.staff).contains('T7D4'), isFalse);
   });
 }

@@ -10,6 +10,8 @@ import 'package:petnest_saas/core/models/terms_consent_snapshot.dart';
 import 'package:petnest_saas/core/services/daycare_occupancy_service.dart';
 import 'package:petnest_saas/core/services/daycare_time_helper.dart';
 import 'package:petnest_saas/core/services/shop_payment_methods.dart';
+import 'package:petnest_saas/core/services/shop_policy_history.dart';
+import 'package:petnest_saas/core/services/shop_policy_service.dart';
 import 'package:petnest_saas/core/services/shop_service.dart';
 import 'package:petnest_saas/core/services/stay_booking_function_service.dart';
 import 'package:petnest_saas/core/services/member_coupon_service.dart';
@@ -412,6 +414,25 @@ class BookingService {
             'policyVersion': policyVersion,
             'policySignMethod': policySignMethod,
             'policyServiceType': policyServiceType,
+            'policyTitle': ShopPolicyService.instance.termsTitleForService(
+              policyServiceType,
+            ),
+            'termsType': policyServiceType,
+            'termsVersion': policyVersion,
+            'termsTitle': ShopPolicyService.instance.termsTitleForService(
+              policyServiceType,
+            ),
+            'termsVersionDocumentId': ShopPolicyHistory.documentId(
+              serviceType: policyServiceType,
+              version: policyVersion,
+            ),
+            'policyVersionId': ShopPolicyHistory.documentId(
+              serviceType: policyServiceType,
+              version: policyVersion,
+            ),
+            'policySnapshotVersion': policyVersion,
+            if (policyVersion > 0)
+              'policyAcceptedAt': DateTime.now().toUtc().toIso8601String(),
             'policyAcceptedByEmail': operator.email,
             'customerName': customerName.trim(),
             'customerPhone': customerPhone.trim(),

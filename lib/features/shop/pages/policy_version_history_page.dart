@@ -7,6 +7,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:petnest_saas/core/models/policy_applicable_service.dart';
 import 'package:petnest_saas/features/shop/pages/policy_version_detail_page.dart';
 
 class PolicyVersionHistoryPage extends StatelessWidget {
@@ -63,10 +64,20 @@ class PolicyVersionHistoryPage extends StatelessWidget {
                   subtitle: Text('更新時間：$updatedAt\n更新者：$updatedByEmail'),
                   trailing: const Icon(Icons.chevron_right),
                   onTap: () {
+                    final String docId = docs[index].id;
+                    final String serviceType =
+                        docId.startsWith('daycare_') ||
+                            (data['serviceType'] ?? '') ==
+                                PolicyApplicableService.daycare
+                        ? PolicyApplicableService.daycare
+                        : PolicyApplicableService.accommodation;
                     Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (_) => PolicyVersionDetailPage(data: data),
+                        builder: (_) => PolicyVersionDetailPage(
+                          data: data,
+                          serviceType: serviceType,
+                        ),
                       ),
                     );
                   },

@@ -28,6 +28,8 @@ import 'package:petnest_saas/core/services/daily_care_setting_service.dart';
 import 'package:petnest_saas/core/services/payment_function_service.dart';
 import 'package:petnest_saas/core/services/pre_arrival_guide_service.dart';
 import 'package:petnest_saas/core/services/shop_payment_methods.dart';
+import 'package:petnest_saas/core/services/shop_policy_history.dart';
+import 'package:petnest_saas/core/services/shop_policy_service.dart';
 import 'package:petnest_saas/core/models/shop_frontend_theme.dart';
 import 'package:petnest_saas/core/utils/safe_parse.dart';
 import 'package:petnest_saas/features/shop/pages/shop_public_page.dart';
@@ -577,38 +579,41 @@ class _BookingDetailPageState extends State<_BookingDetailBody> {
       return;
     }
     final String shopId = SafeParse.parseString(view.raw['shopId']);
-    final String docId = SafeParse.parseString(
-      view.raw['termsVersionDocumentId'],
+    final String serviceType = view.isDaycare
+        ? PolicyApplicableService.daycare
+        : PolicyApplicableService.accommodation;
+    final String preferred = SafeParse.parseString(
+      view.raw['termsVersionDocumentId'] ?? view.raw['policyVersionId'],
     );
-    final String versionId = docId.isNotEmpty
-        ? docId
-        : (view.termsVersion > 0 ? 'v${view.termsVersion}' : '');
-    if (shopId.isEmpty || versionId.isEmpty) {
+    if (shopId.isEmpty || view.termsVersion <= 0) {
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(const SnackBar(content: Text('舊訂單／尚無條款確認紀錄')));
       return;
     }
-    final DocumentSnapshot<Map<String, dynamic>> doc = await FirebaseFirestore
-        .instance
-        .collection('shops')
-        .doc(shopId)
-        .collection('policy_versions')
-        .doc(versionId)
-        .get();
+    final Map<String, dynamic> snapshot = await ShopPolicyService.instance
+        .loadPolicyVersionSnapshot(
+          shopId: shopId,
+          serviceType: serviceType,
+          version: view.termsVersion,
+          preferredDocumentId: preferred,
+        );
     if (!mounted) {
       return;
     }
-    if (!doc.exists || doc.data() == null) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('找不到該版本條款')));
+    if (snapshot.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(ShopPolicyHistory.notFoundMessage(serviceType))),
+      );
       return;
     }
     Navigator.push(
       context,
       MaterialPageRoute<void>(
-        builder: (_) => PolicyVersionDetailPage(data: doc.data()!),
+        builder: (_) => PolicyVersionDetailPage(
+          data: snapshot,
+          serviceType: serviceType,
+        ),
       ),
     );
   }

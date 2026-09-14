@@ -277,6 +277,25 @@ void main() {
     expect(find.text('飲食'), findsWidgets);
   });
 
+  testWidgets('表單資料摘要不含無法展開的寵物照護資料列', (WidgetTester tester) async {
+    await tester.pumpWidget(
+      _wrap(
+        const AdminBookingFormSummaryCard(
+          shopId: 'shop-a',
+          bookingId: 'b1',
+          data: <String, dynamic>{
+            'source': 'app',
+          },
+        ),
+      ),
+    );
+    await tester.pump();
+    expect(find.text('表單資料摘要'), findsOneWidget);
+    expect(find.text('寵物照護資料'), findsNothing);
+    expect(find.text('客戶送單表單'), findsOneWidget);
+    expect(find.text('手動訂單表單'), findsOneWidget);
+  });
+
   testWidgets('表單摘要在已載入時顯示幾隻已填，不把讀取中當成無', (WidgetTester tester) async {
     await tester.pumpWidget(
       _wrap(

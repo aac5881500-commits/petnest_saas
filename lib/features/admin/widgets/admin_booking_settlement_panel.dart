@@ -5,6 +5,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/models/booking_kind.dart';
 import 'package:petnest_saas/core/models/policy_applicable_service.dart';
+import 'package:petnest_saas/core/services/booking_payment_labels.dart';
 import 'package:petnest_saas/core/services/booking_settlement_function_service.dart';
 import 'package:petnest_saas/core/services/booking_settlement_math.dart';
 import 'package:petnest_saas/core/services/daycare_function_service.dart';
@@ -73,7 +74,9 @@ class AdminBookingSettlementPanel extends StatelessWidget {
           if (remain > 0 && method.isNotEmpty)
             Padding(
               padding: const EdgeInsets.only(bottom: 4),
-              child: Text('補款方式：$method　狀態：${_statusLabel(topUpStatus)}'),
+              child: Text(
+                '補款方式：${BookingPaymentLabels.method(method)}　付款狀態：${BookingPaymentLabels.status(topUpStatus)}',
+              ),
             ),
           if (refund > 0)
             Padding(
@@ -128,23 +131,6 @@ class AdminBookingSettlementPanel extends StatelessWidget {
         ],
       ),
     );
-  }
-
-  String _statusLabel(String status) {
-    switch (status) {
-      case 'pending_review':
-        return '待核對';
-      case 'awaiting_proof':
-        return '待上傳證明';
-      case 'selected':
-        return '已選擇方式';
-      case 'collected':
-        return '已入帳';
-      case 'rejected':
-        return '核對失敗';
-      default:
-        return status.isEmpty ? '—' : status;
-    }
   }
 
   String _fmt(Object? raw) {

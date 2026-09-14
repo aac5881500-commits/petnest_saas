@@ -132,13 +132,35 @@ class AdminBookingHeaderCard extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 12),
-          BookingCurrentRoomPanel(
-            data: data,
-            audience: BookingCurrentRoomAudience.staff,
-            compact: phone,
-          ),
-          const SizedBox(height: 12),
-          _dateRow(context, daycare: daycare, phone: phone),
+          if (phone) ...<Widget>[
+            BookingCurrentRoomPanel(
+              data: data,
+              audience: BookingCurrentRoomAudience.staff,
+              compact: true,
+            ),
+            const SizedBox(height: 12),
+            _dateRow(context, daycare: daycare, phone: true),
+          ] else
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Expanded(
+                  flex: 5,
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 420),
+                    child: BookingCurrentRoomPanel(
+                      data: data,
+                      audience: BookingCurrentRoomAudience.staff,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  flex: 4,
+                  child: _dateRow(context, daycare: daycare, phone: false),
+                ),
+              ],
+            ),
           const SizedBox(height: 8),
           Wrap(
             spacing: 12,
@@ -164,11 +186,8 @@ class AdminBookingHeaderCard extends StatelessWidget {
                 if ((data['note'] ?? '').toString().trim().isNotEmpty)
                   _meta(theme, '客戶備註', (data['note'] ?? '').toString()),
               ],
-              _meta(
-                theme,
-                daycare ? '方案／房型' : '房型',
-                _serviceLabel(data, daycare),
-              ),
+              if (daycare && _planLabel(data).isNotEmpty)
+                _meta(theme, '方案', _planLabel(data)),
               _meta(
                 theme,
                 daycare ? '時數' : '晚數',
@@ -301,23 +320,16 @@ class AdminBookingHeaderCard extends StatelessWidget {
     return bookingId;
   }
 
-  static String _serviceLabel(Map<String, dynamic> data, bool daycare) {
-    if (daycare) {
-      if (data['daycarePlanSnapshot'] is Map) {
-        final String name = ((data['daycarePlanSnapshot'] as Map)['name'] ?? '')
-            .toString();
-        if (name.trim().isNotEmpty) {
-          return name;
-        }
-      }
-      final String requested = (data['requestedRoomTypeName'] ?? '').toString();
-      if (requested.trim().isNotEmpty) {
-        return requested;
+  static String _planLabel(Map<String, dynamic> data) {
+    if (data['daycarePlanSnapshot'] is Map) {
+      final String name = ((data['daycarePlanSnapshot'] as Map)['name'] ?? '')
+          .toString()
+          .trim();
+      if (name.isNotEmpty) {
+        return name;
       }
     }
-    final String room =
-        (data['roomTypeNameSnapshot'] ?? data['roomTypeName'] ?? '').toString();
-    return room.trim().isEmpty ? '尚未指定房型' : room;
+    return '';
   }
 
   static String _durationLabel(Map<String, dynamic> data, bool daycare) {

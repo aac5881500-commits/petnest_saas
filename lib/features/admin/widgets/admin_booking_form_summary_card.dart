@@ -3,11 +3,9 @@
 
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/services/booking_form_visibility.dart';
-import 'package:petnest_saas/core/services/pet_shop_form_answers.dart';
 import 'package:petnest_saas/features/admin/widgets/admin_booking_detail_layout.dart';
 import 'package:petnest_saas/features/admin/widgets/admin_booking_form_answers_section.dart';
 import 'package:petnest_saas/features/admin/widgets/admin_booking_form_focus.dart';
-import 'package:petnest_saas/features/admin/widgets/admin_booking_pet_care_forms.dart';
 
 class AdminBookingFormSummaryCard extends StatelessWidget {
   const AdminBookingFormSummaryCard({
@@ -23,8 +21,6 @@ class AdminBookingFormSummaryCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final List<Map<String, dynamic>> pets =
-        AdminBookingFormAnswersSection.petsOf(data);
     final dynamic customerRaw =
         data['customFormAnswers'] ??
         data['bookingFormAnswers'] ??
@@ -48,21 +44,11 @@ class AdminBookingFormSummaryCard extends StatelessWidget {
       adminRaw,
     );
     return AdminBookingDetailSection(
+      key: ValueKey<String>('form-summary-$shopId-$bookingId'),
       title: '表單資料摘要',
       child: AdminBookingDetailCard(
         child: Column(
           children: <Widget>[
-            _row(
-              context,
-              label: '寵物照護資料',
-              trailing: AdminBookingPetCareFormsSummary(
-                shopId: shopId,
-                userId: PetShopFormAnswers.bookingUserId(data),
-                pets: pets,
-                bookingId: bookingId,
-              ),
-              anchor: AdminBookingFormAnchor.petCare,
-            ),
             _row(
               context,
               label: '客戶送單表單',

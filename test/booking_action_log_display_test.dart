@@ -60,4 +60,84 @@ void main() {
     expect(minus, contains('調整金額 -NT\$ 300'));
     expect(minus, contains('新最終應收 NT\$ 2200'));
   });
+
+  test('舊換房 log 只有 roomId 時不露出 id', () {
+    const String roomId = 'T7D4M2h7qbCAWoz37pWD';
+    final Map<String, dynamic> log = <String, dynamic>{
+      'type': 'room_changed',
+      'fromRoomId': roomId,
+      'fromRoomName': roomId,
+      'toRoomName': 'A1',
+      'roomTypeName': '舒適標準房',
+      'reason': '清潔調度',
+    };
+    expect(BookingActionLogDisplay.title(log), '更換房間');
+    final List<String> unresolved = BookingActionLogDisplay.detailLines(log);
+    expect(unresolved.join('\n').contains(roomId), isFalse);
+    expect(unresolved, contains('實際房間：原房間資料已不存在 → A1'));
+    expect(unresolved, contains('原因：清潔調度'));
+
+    final List<String> resolved = BookingActionLogDisplay.detailLines(
+      log,
+      roomNames: <String, String>{roomId: 'A5'},
+    );
+    expect(resolved, contains('實際房間：A5 → A1'));
+    expect(resolved.join('\n').contains(roomId), isFalse);
+  });
+
+  test('付款方式變更顯示中文', () {
+    final List<String> lines = BookingActionLogDisplay.detailLines(
+      <String, dynamic>{
+        'type': 'payment_choice_changed',
+        'mode': 'settlement_top_up',
+        'previousPaymentMethod': 'credit_card',
+        'paymentMethod': 'atm',
+        'previousSettlementTopUpStatus': 'awaiting_supplement',
+        'settlementTopUpStatus': 'selected',
+      },
+    );
+    expect(BookingActionLogDisplay.title(<String, dynamic>{
+      'type': 'payment_choice_changed',
+    }), '變更付款方式');
+    expect(lines, contains('結算尾款付款方式：信用卡 → ATM 虛擬帳號'));
+    expect(lines, contains('付款狀態：待補款 → 已選擇付款方式'));
+    expect(lines.join('\n').contains('credit_card'), isFalse);
+  });
+
+  test('結算標題顯示具體動作', () {
+    expect(
+      BookingActionLogDisplay.title(<String, dynamic>{
+        'type': 'daycare_settle',
+      }),
+      '確認安親結算',
+    );
+    expect(
+      BookingActionLogDisplay.title(<String, dynamic>{
+        'action': 'settlement_applyAdjust',
+        'delta': 500,
+      }),
+      '手動加收 NT\$ 500',
+    );
+    expect(
+      BookingActionLogDisplay.title(<String, dynamic>{
+        'action': 'settlement_applyAdjust',
+        'delta': -300,
+      }),
+      '手動減免 NT\$ 300',
+    );
+    expect(
+      BookingActionLogDisplay.title(<String, dynamic>{
+        'type': 'settlement_confirmCollect',
+        'amount': 800,
+      }),
+      '確認現場補款 NT\$ 800',
+    );
+    expect(
+      BookingActionLogDisplay.title(<String, dynamic>{
+        'type': 'settlement_confirmRefund',
+        'refundAmount': 200,
+      }),
+      '辦理退款 NT\$ 200',
+    );
+  });
 }

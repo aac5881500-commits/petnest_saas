@@ -5,6 +5,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/models/booking_kind.dart';
 import 'package:petnest_saas/core/services/booking_current_room.dart';
+import 'package:petnest_saas/core/services/booking_payment_labels.dart';
 import 'package:petnest_saas/core/services/daycare_function_service.dart';
 import 'package:petnest_saas/core/services/daycare_time_helper.dart';
 import 'package:petnest_saas/features/admin/pages/admin_daycare_detail_page.dart';
@@ -367,13 +368,6 @@ class _BoardCardState extends State<_BoardCard> {
   }
 
   String _payText(Map<String, dynamic> data) {
-    final String payment = (data['paymentStatus'] ?? '').toString();
-    if (payment == 'paid') {
-      return '已付款';
-    }
-    if (payment == 'partial') {
-      return '部分付款';
-    }
-    return '未付款';
+    return BookingPaymentLabels.status(data['paymentStatus']);
   }
 }

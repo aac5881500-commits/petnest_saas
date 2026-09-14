@@ -73,7 +73,7 @@ class AdminBookingActionLogSection extends StatelessWidget {
           return Column(
             children: logs.map((doc) {
               final log = Map<String, dynamic>.from(doc.data() as Map);
-              return AdminBookingActionLogCard(log: log);
+              return AdminBookingActionLogCard(log: log, shopId: shopId);
             }).toList(),
           );
         },

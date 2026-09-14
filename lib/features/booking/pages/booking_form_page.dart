@@ -14,6 +14,7 @@ import 'package:petnest_saas/core/models/payment_gateway_status.dart';
 import 'package:petnest_saas/core/models/policy_applicable_service.dart';
 import 'package:petnest_saas/core/models/terms_consent_snapshot.dart';
 import 'package:petnest_saas/core/services/custom_form_service.dart';
+import 'package:petnest_saas/core/services/shop_policy_history.dart';
 import 'package:petnest_saas/core/services/shop_policy_service.dart';
 import 'package:petnest_saas/core/services/shop_payment_methods.dart';
 import 'package:petnest_saas/core/utils/dropdown_value.dart';
@@ -999,7 +1000,10 @@ class _BookingFormPageState extends State<BookingFormPage> {
               userId: user.uid,
               shopId: widget.shopId,
             ),
-      termsVersionDocumentId: status.version > 0 ? 'v${status.version}' : '',
+      termsVersionDocumentId: ShopPolicyHistory.documentId(
+        serviceType: widget.termsServiceType,
+        version: status.version,
+      ),
     );
   }
 
