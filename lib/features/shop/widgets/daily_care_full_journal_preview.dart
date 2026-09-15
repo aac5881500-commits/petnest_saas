@@ -121,10 +121,10 @@ class DailyCareJournalDemoData {
 
   static Map<String, dynamic> _demoValues(DailyCareSettingModel setting) {
     const Map<String, String> samples = <String, String>{
-      'water': '一般',
-      'dryFood': '有',
-      'wetFood': '少',
-      'snack': '無',
+      'water': '正常',
+      'dryFood': '正常',
+      'wetFood': '偏少',
+      'snack': '正常',
       'stool': '正常',
       'urine': '正常',
       'wandToy': '有',
@@ -135,8 +135,8 @@ class DailyCareJournalDemoData {
       'catnip': '無',
       'silverVine': '無',
       'catGrass': '有',
-      'temperature': '26',
-      'humidity': '55',
+      'temperature': '28',
+      'humidity': '60',
       'generalNote': '今天整體狀況良好，活動量正常。',
     };
     final Map<String, dynamic> values = <String, dynamic>{};
@@ -145,6 +145,16 @@ class DailyCareJournalDemoData {
     }
     for (final DailyCareCustomField field in setting.customFields) {
       values[field.id] = field.inputType == 'text' ? '示範文字' : '正常';
+    }
+    if (setting.journalDisplay.showTemperature) {
+      values['temperature'] = '28';
+    } else {
+      values.remove('temperature');
+    }
+    if (setting.journalDisplay.showHumidity) {
+      values['humidity'] = '60';
+    } else {
+      values.remove('humidity');
     }
     return values;
   }
@@ -164,6 +174,37 @@ class DailyCareJournalDemoData {
   }
 }
 
+class DailyCarePreviewPhoneSize {
+  const DailyCarePreviewPhoneSize({
+    required this.id,
+    required this.label,
+    required this.size,
+  });
+
+  final String id;
+  final String label;
+  final Size size;
+
+  static const DailyCarePreviewPhoneSize small = DailyCarePreviewPhoneSize(
+    id: 'small',
+    label: '小手機',
+    size: Size(360, 780),
+  );
+  static const DailyCarePreviewPhoneSize standard = DailyCarePreviewPhoneSize(
+    id: 'standard',
+    label: '標準手機',
+    size: Size(393, 852),
+  );
+  static const DailyCarePreviewPhoneSize large = DailyCarePreviewPhoneSize(
+    id: 'large',
+    label: '大手機',
+    size: Size(430, 932),
+  );
+
+  static const List<DailyCarePreviewPhoneSize> all =
+      <DailyCarePreviewPhoneSize>[small, standard, large];
+}
+
 class DailyCareFullJournalPreview extends StatefulWidget {
   const DailyCareFullJournalPreview({
     super.key,
@@ -173,6 +214,9 @@ class DailyCareFullJournalPreview extends StatefulWidget {
     required this.sessionIndex,
     this.showPhotos = true,
     this.usePhoneFrame = true,
+    this.shopName = '',
+    this.shopLogoUrl = '',
+    this.phoneSize = DailyCarePreviewPhoneSize.standard,
   });
 
   final DailyCareSettingModel setting;
@@ -181,6 +225,9 @@ class DailyCareFullJournalPreview extends StatefulWidget {
   final int sessionIndex;
   final bool showPhotos;
   final bool usePhoneFrame;
+  final String shopName;
+  final String shopLogoUrl;
+  final DailyCarePreviewPhoneSize phoneSize;
 
   @override
   State<DailyCareFullJournalPreview> createState() =>
@@ -190,22 +237,29 @@ class DailyCareFullJournalPreview extends StatefulWidget {
 class _DailyCareFullJournalPreviewState
     extends State<DailyCareFullJournalPreview> {
   String? _selectedDateKey;
+  int? _selectedSessionIndex;
+
+  static const EdgeInsets _phoneSafePadding = EdgeInsets.only(
+    top: 47,
+    bottom: 34,
+  );
 
   @override
   void didUpdateWidget(DailyCareFullJournalPreview oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.isDaycare != widget.isDaycare) {
-      _selectedDateKey = null;
+    if (oldWidget.sessionIndex != widget.sessionIndex) {
+      _selectedSessionIndex = widget.sessionIndex;
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final int sessionIndex = _selectedSessionIndex ?? widget.sessionIndex;
     final DailyCareJournalDemoData demo = DailyCareJournalDemoData.build(
       setting: widget.setting,
       isDaycare: widget.isDaycare,
       sessionLabels: widget.sessionLabels,
-      sessionIndex: widget.sessionIndex,
+      sessionIndex: sessionIndex,
       selectedDateKey: _selectedDateKey ?? '',
       showPhotos: widget.showPhotos && widget.setting.photoEnabled,
     );
@@ -213,7 +267,39 @@ class _DailyCareFullJournalPreviewState
         _selectedDateKey != null && demo.dateKeys.contains(_selectedDateKey)
         ? _selectedDateKey!
         : demo.dateKeys.first;
-    final Widget journal = Stack(
+    final int safeSession = sessionIndex.clamp(0, demo.sessionTabs.length - 1);
+    final Widget journal = DailyCareJournalRenderer(
+      setting: widget.setting,
+      stay: demo.stay,
+      dateKeys: demo.dateKeys,
+      selectedDateKey: selectedDateKey,
+      sessionTabs: demo.sessionTabs,
+      selectedSessionIndex: safeSession,
+      record: demo.record,
+      fallbackRoomName: demo.stay.roomName,
+      photos: demo.photos,
+      photosLoading: false,
+      showPhotoSection:
+          widget.setting.photoEnabled &&
+          widget.setting.journalDisplay.showPhotoSection &&
+          widget.showPhotos,
+      shopName: widget.shopName,
+      shopLogoUrl: widget.shopLogoUrl,
+      isDaycare: widget.isDaycare,
+      offerName: widget.isDaycare ? '示範安親' : 'A1',
+      onDateSelected: (String dateKey) {
+        setState(() {
+          _selectedDateKey = dateKey;
+        });
+      },
+      onSessionSelected: (int index) {
+        setState(() {
+          _selectedSessionIndex = index;
+        });
+      },
+    );
+
+    final Widget phoneScreen = Stack(
       children: <Widget>[
         const Positioned.fill(
           child: ColoredBox(color: Color(0xFFEDE7E0)),
@@ -221,44 +307,62 @@ class _DailyCareFullJournalPreviewState
         Positioned.fill(
           child: DailyCareJournalPageBackground(setting: widget.setting),
         ),
-        DailyCareJournalRenderer(
-          setting: widget.setting,
-          stay: demo.stay,
-          dateKeys: demo.dateKeys,
-          selectedDateKey: selectedDateKey,
-          sessionTabs: demo.sessionTabs,
-          selectedSessionIndex: widget.sessionIndex.clamp(
-            0,
-            demo.sessionTabs.length - 1,
+        Scaffold(
+          backgroundColor: Colors.transparent,
+          appBar: AppBar(
+            leading: IconButton(
+              icon: const BackButtonIcon(),
+              onPressed: () {},
+            ),
+            title: const SizedBox.shrink(),
+            backgroundColor: Colors.transparent,
+            surfaceTintColor: Colors.transparent,
+            elevation: 0,
+            scrolledUnderElevation: 0,
           ),
-          record: demo.record,
-          fallbackRoomName: demo.stay.roomName,
-          photos: demo.photos,
-          photosLoading: false,
-          showPhotoSection: widget.setting.photoEnabled,
-          onDateSelected: (String dateKey) {
-            setState(() {
-              _selectedDateKey = dateKey;
-            });
-          },
-          onSessionSelected: null,
+          body: SafeArea(
+            top: false,
+            child: journal,
+          ),
         ),
+        if (widget.usePhoneFrame)
+          const Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            child: IgnorePointer(
+              child: DailyCarePreviewStatusBar(),
+            ),
+          ),
       ],
     );
 
     if (!widget.usePhoneFrame) {
-      return journal;
+      return phoneScreen;
     }
 
-    return LayoutBuilder(
-      builder: (BuildContext context, BoxConstraints constraints) {
-        final double height = constraints.maxHeight.isFinite
-            ? constraints.maxHeight
-            : 720;
-        return Center(
-          child: SizedBox(
-            width: DailyCareJournalDemoData.phoneLogicalWidth,
-            height: height,
+    final Size logical = widget.phoneSize.size;
+    final Widget viewport = MediaQuery(
+      data: MediaQuery.of(context).copyWith(
+        size: logical,
+        padding: _phoneSafePadding,
+        viewPadding: _phoneSafePadding,
+        viewInsets: EdgeInsets.zero,
+      ),
+      child: SizedBox(
+        width: logical.width,
+        height: logical.height,
+        child: phoneScreen,
+      ),
+    );
+
+    return Align(
+      alignment: Alignment.topCenter,
+      child: SingleChildScrollView(
+        child: SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(12, 8, 12, 16),
             child: DecoratedBox(
               decoration: BoxDecoration(
                 color: const Color(0xFF2C241C),
@@ -275,13 +379,74 @@ class _DailyCareFullJournalPreviewState
                 padding: const EdgeInsets.all(10),
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(26),
-                  child: journal,
+                  child: viewport,
                 ),
               ),
             ),
           ),
-        );
-      },
+        ),
+      ),
+    );
+  }
+}
+
+class DailyCarePreviewStatusBar extends StatelessWidget {
+  const DailyCarePreviewStatusBar({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final double height = MediaQuery.paddingOf(context).top;
+    if (height <= 0) {
+      return const SizedBox.shrink();
+    }
+    return SizedBox(
+      height: height,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        child: Row(
+          children: <Widget>[
+            const Text(
+              '10:32',
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: Colors.black87,
+              ),
+            ),
+            const Expanded(
+              child: Center(
+                child: SizedBox(
+                  width: 88,
+                  height: 22,
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      color: Color(0xFF1C1C1E),
+                      borderRadius: BorderRadius.all(Radius.circular(12)),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            Icon(
+              Icons.signal_cellular_alt,
+              size: 14,
+              color: Colors.black.withValues(alpha: 0.75),
+            ),
+            const SizedBox(width: 4),
+            Icon(
+              Icons.wifi,
+              size: 14,
+              color: Colors.black.withValues(alpha: 0.75),
+            ),
+            const SizedBox(width: 4),
+            Icon(
+              Icons.battery_full,
+              size: 14,
+              color: Colors.black.withValues(alpha: 0.75),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

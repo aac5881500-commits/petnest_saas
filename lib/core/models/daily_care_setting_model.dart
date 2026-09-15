@@ -5,6 +5,7 @@
 
 import 'package:flutter/material.dart';
 
+import 'daily_care_journal_layout.dart';
 import 'daily_care_offer_quota.dart';
 import 'daily_care_paid_plan.dart';
 import 'daily_care_report_mode.dart';
@@ -254,6 +255,8 @@ class DailyCareSettingModel {
     this.cardBackgroundImagePath = '',
     this.cardBackgroundImageFit = DailyCareJournalTheme.fitCover,
     this.cardBackgroundImageFade = DailyCareJournalTheme.fadeLight,
+    this.journalDisplay = const DailyCareJournalDisplayFlags(),
+    this.journalCards = const <String, DailyCareJournalCardLayout>{},
   });
 
   /// 是否啟用每日照護紀錄
@@ -377,6 +380,20 @@ class DailyCareSettingModel {
   /// 退房後可下載紀錄與照片的時間
   final int downloadHoursAfterCheckout;
 
+  /// 客戶端日誌頁首與區塊顯示開關（舊資料缺欄視為全部開啟）
+  final DailyCareJournalDisplayFlags journalDisplay;
+
+  /// 回報卡片編排；空 map 時套用預設編排
+  final Map<String, DailyCareJournalCardLayout> journalCards;
+
+  Map<String, DailyCareJournalCardLayout> get resolvedJournalCards {
+    return DailyCareJournalCardLayout.mapFrom(
+      journalCards.isEmpty
+          ? null
+          : DailyCareJournalCardLayout.mapToFirestore(journalCards),
+    );
+  }
+
   /// 從 Firestore Map 建立設定
   factory DailyCareSettingModel.fromMap(Map<String, dynamic>? map) {
     if (map == null) {
@@ -495,6 +512,12 @@ class DailyCareSettingModel {
       downloadHoursAfterCheckout: _readDownloadHours(
         map['downloadHoursAfterCheckout'],
       ),
+      journalDisplay: DailyCareJournalDisplayFlags.fromMap(
+        map['journalDisplay'] is Map
+            ? Map<String, dynamic>.from(map['journalDisplay'] as Map)
+            : null,
+      ),
+      journalCards: DailyCareJournalCardLayout.mapFrom(map['journalCards']),
     );
   }
 
@@ -556,6 +579,10 @@ class DailyCareSettingModel {
       ),
       'revision': revision,
       'downloadHoursAfterCheckout': downloadHoursAfterCheckout,
+      'journalDisplay': journalDisplay.toMap(),
+      'journalCards': DailyCareJournalCardLayout.mapToFirestore(
+        resolvedJournalCards,
+      ),
     };
   }
 
@@ -609,6 +636,8 @@ class DailyCareSettingModel {
     String? cardBackgroundImagePath,
     String? cardBackgroundImageFit,
     String? cardBackgroundImageFade,
+    DailyCareJournalDisplayFlags? journalDisplay,
+    Map<String, DailyCareJournalCardLayout>? journalCards,
   }) {
     return DailyCareSettingModel(
       enabled: enabled ?? this.enabled,
@@ -667,6 +696,8 @@ class DailyCareSettingModel {
           cardBackgroundImageFit ?? this.cardBackgroundImageFit,
       cardBackgroundImageFade:
           cardBackgroundImageFade ?? this.cardBackgroundImageFade,
+      journalDisplay: journalDisplay ?? this.journalDisplay,
+      journalCards: journalCards ?? this.journalCards,
     );
   }
 
@@ -786,7 +817,7 @@ class DailyCareSettingModel {
     if (backgroundType == DailyCareJournalTheme.typeColor) {
       return backgroundColor();
     }
-    return const Color(0xFFF5F6F8);
+    return const Color(0xFFF6EFE4);
   }
 
   BoxFit resolvedImageFit() {

@@ -7,6 +7,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
+import '../../../core/models/daily_care_journal_layout.dart';
 import '../../../core/models/daily_care_offer_quota.dart';
 import '../../../core/models/daily_care_paid_plan.dart';
 import '../../../core/models/daily_care_report_mode.dart';
@@ -69,10 +70,11 @@ class _DailyCareSettingPageState extends State<DailyCareSettingPage> {
   bool _showCardBorder = true;
   double _photoRadius = 10;
   int _tabIndex = 0;
-  bool _previewDaycare = false;
   int _previewSessionIndex = 0;
   bool _previewPhotos = true;
   String _previewOfferId = '';
+  DailyCarePreviewPhoneSize _previewPhoneSize =
+      DailyCarePreviewPhoneSize.standard;
 
   String _backgroundType = DailyCareJournalTheme.typeSystem;
   String _backgroundColorKey = DailyCareJournalTheme.colorDefault;
@@ -87,6 +89,10 @@ class _DailyCareSettingPageState extends State<DailyCareSettingPage> {
   String _cardBackgroundImagePath = '';
   String _cardBackgroundImageFit = DailyCareJournalTheme.fitCover;
   String _cardBackgroundImageFade = DailyCareJournalTheme.fadeLight;
+  DailyCareJournalDisplayFlags _journalDisplay =
+      const DailyCareJournalDisplayFlags();
+  Map<String, DailyCareJournalCardLayout> _journalCards =
+      DailyCareJournalCardLayout.mapFrom(null);
 
   Set<String> _enabledFields = <String>{};
 
@@ -240,6 +246,8 @@ class _DailyCareSettingPageState extends State<DailyCareSettingPage> {
         _cardBackgroundImagePath = setting.cardBackgroundImagePath;
         _cardBackgroundImageFit = setting.cardBackgroundImageFit;
         _cardBackgroundImageFade = setting.cardBackgroundImageFade;
+        _journalDisplay = setting.journalDisplay;
+        _journalCards = setting.resolvedJournalCards;
         _syncSessionLabelControllers(
           setting.sessionCount,
           labels: setting.resolvedSessionLabels(),
@@ -394,6 +402,13 @@ class _DailyCareSettingPageState extends State<DailyCareSettingPage> {
       cardBackgroundImagePath: _cardBackgroundImagePath,
       cardBackgroundImageFit: _cardBackgroundImageFit,
       cardBackgroundImageFade: _cardBackgroundImageFade,
+      journalDisplay: _journalDisplay.copyWith(
+        showRoomOrOffer: true,
+        showPetNames: true,
+        showServiceDate: true,
+        showFilledTime: true,
+      ),
+      journalCards: _journalCards,
     );
   }
 
@@ -509,12 +524,23 @@ class _DailyCareSettingPageState extends State<DailyCareSettingPage> {
         return draft.enabledFields.toString() !=
                 _loaded.enabledFields.toString() ||
             draft.customFields.map((e) => e.id).join() !=
-                _loaded.customFields.map((e) => e.id).join();
+                _loaded.customFields.map((e) => e.id).join() ||
+            draft.journalDisplay.showTemperature !=
+                _loaded.journalDisplay.showTemperature ||
+            draft.journalDisplay.showHumidity !=
+                _loaded.journalDisplay.showHumidity;
       case DailyCareSettingSection.appearance:
         return draft.backgroundType != _loaded.backgroundType ||
             draft.cardBackgroundType != _loaded.cardBackgroundType ||
             draft.logoVisible != _loaded.logoVisible ||
-            draft.titleFontSize != _loaded.titleFontSize;
+            draft.titleFontSize != _loaded.titleFontSize ||
+            draft.journalDisplay.toMap().toString() !=
+                _loaded.journalDisplay.toMap().toString() ||
+            DailyCareJournalCardLayout.mapToFirestore(draft.resolvedJournalCards)
+                    .toString() !=
+                DailyCareJournalCardLayout.mapToFirestore(
+                  _loaded.resolvedJournalCards,
+                ).toString();
       case DailyCareSettingSection.all:
         return true;
     }
@@ -999,6 +1025,9 @@ class _DailyCareSettingPageState extends State<DailyCareSettingPage> {
   }
 
   Future<void> _showAddCustomFieldDialog(String category) async {
+    if (category == 'food' || category == 'toilet') {
+      return;
+    }
     final TextEditingController nameController = TextEditingController();
 
     String inputType = 'yesNo';
@@ -1302,6 +1331,10 @@ class _DailyCareSettingPageState extends State<DailyCareSettingPage> {
       children: <Widget>[
         _logoAndTypeCard(),
         const SizedBox(height: 16),
+        _headerDisplayCard(),
+        const SizedBox(height: 16),
+        _cardLayoutEditorCard(),
+        const SizedBox(height: 16),
         _buildAppearanceCard(),
         if (!wide) ...<Widget>[
           const SizedBox(height: 16),
@@ -1330,10 +1363,34 @@ class _DailyCareSettingPageState extends State<DailyCareSettingPage> {
   }
 
   Widget _desktopPreviewPane() {
+    return StreamBuilder<Map<String, dynamic>?>(
+      stream: ShopService.instance.streamShop(widget.shopId),
+      builder:
+          (BuildContext context, AsyncSnapshot<Map<String, dynamic>?> snap) {
+            final String shopName = (snap.data?['name'] ??
+                    snap.data?['shopName'] ??
+                    '')
+                .toString()
+                .trim();
+            final String shopLogo = (snap.data?['logoUrl'] ?? '')
+                .toString()
+                .trim();
+            return _desktopPreviewBody(
+              shopName: shopName,
+              shopLogo: shopLogo,
+            );
+          },
+    );
+  }
+
+  Widget _desktopPreviewBody({
+    required String shopName,
+    required String shopLogo,
+  }) {
     final DailyCareSettingModel preview = _previewSetting();
     final List<String> labels = DailyCarePreviewSession.labelsFor(
       preview,
-      isDaycare: _previewDaycare,
+      isDaycare: false,
       offerId: _previewOfferId,
     );
     return Column(
@@ -1344,24 +1401,19 @@ class _DailyCareSettingPageState extends State<DailyCareSettingPage> {
             spacing: 8,
             runSpacing: 8,
             children: <Widget>[
-              ChoiceChip(
-                label: const Text('住宿'),
-                selected: !_previewDaycare,
-                onSelected: (_) {
-                  setState(() {
-                    _previewDaycare = false;
-                  });
-                },
-              ),
-              ChoiceChip(
-                label: const Text('安親'),
-                selected: _previewDaycare,
-                onSelected: (_) {
-                  setState(() {
-                    _previewDaycare = true;
-                  });
-                },
-              ),
+              for (final DailyCarePreviewPhoneSize phone
+                  in DailyCarePreviewPhoneSize.all)
+                ChoiceChip(
+                  label: Text(
+                    '${phone.label} ${phone.size.width.toInt()}×${phone.size.height.toInt()}',
+                  ),
+                  selected: _previewPhoneSize.id == phone.id,
+                  onSelected: (_) {
+                    setState(() {
+                      _previewPhoneSize = phone;
+                    });
+                  },
+                ),
               ChoiceChip(
                 label: Text(_previewPhotos ? '有照片' : '無照片'),
                 selected: _previewPhotos,
@@ -1385,16 +1437,16 @@ class _DailyCareSettingPageState extends State<DailyCareSettingPage> {
           ),
         ),
         Expanded(
-          child: Padding(
-            padding: const EdgeInsets.all(12),
-            child: DailyCareFullJournalPreview(
-              setting: preview,
-              isDaycare: _previewDaycare,
-              sessionLabels: labels,
-              sessionIndex: _previewSessionIndex,
-              showPhotos: _previewPhotos,
-              usePhoneFrame: true,
-            ),
+          child: DailyCareFullJournalPreview(
+            setting: preview,
+            isDaycare: false,
+            sessionLabels: labels,
+            sessionIndex: _previewSessionIndex,
+            showPhotos: _previewPhotos,
+            usePhoneFrame: true,
+            shopName: shopName,
+            shopLogoUrl: shopLogo,
+            phoneSize: _previewPhoneSize,
           ),
         ),
       ],
@@ -1405,7 +1457,7 @@ class _DailyCareSettingPageState extends State<DailyCareSettingPage> {
     final DailyCareSettingModel preview = _previewSetting();
     final List<String> labels = DailyCarePreviewSession.labelsFor(
       preview,
-      isDaycare: _previewDaycare,
+      isDaycare: false,
       offerId: _previewOfferId,
     );
     await Navigator.push<void>(
@@ -1416,11 +1468,13 @@ class _DailyCareSettingPageState extends State<DailyCareSettingPage> {
             appBar: AppBar(title: const Text('照護日誌預覽')),
             body: DailyCareFullJournalPreview(
               setting: preview,
-              isDaycare: _previewDaycare,
+              isDaycare: false,
               sessionLabels: labels,
               sessionIndex: _previewSessionIndex,
               showPhotos: _previewPhotos,
               usePhoneFrame: false,
+              shopName: '',
+              shopLogoUrl: '',
             ),
           );
         },
@@ -1519,6 +1573,190 @@ class _DailyCareSettingPageState extends State<DailyCareSettingPage> {
         ],
       ),
     );
+  }
+
+  Widget _headerDisplayCard() {
+    Widget switchRow(String title, bool value, ValueChanged<bool> onChanged) {
+      return SwitchListTile(
+        contentPadding: EdgeInsets.zero,
+        title: Text(title),
+        value: value,
+        onChanged: (bool next) {
+          setState(() => onChanged(next));
+        },
+      );
+    }
+
+    return _SettingCard(
+      title: '頁首與顯示內容',
+      subtitle: '控制客戶端照護日誌要顯示哪些資訊。未設定的舊店家全部預設開啟。',
+      child: Column(
+        children: <Widget>[
+          switchRow('顯示店名', _journalDisplay.showShopName, (bool v) {
+            _journalDisplay = _journalDisplay.copyWith(showShopName: v);
+          }),
+          const ListTile(
+            contentPadding: EdgeInsets.zero,
+            title: Text('顯示 Logo'),
+            subtitle: Text('照護日誌是否顯示 Logo，沿用上方「品牌與文字」的開關。'),
+          ),
+          switchRow('顯示照護照片區', _journalDisplay.showPhotoSection, (bool v) {
+            _journalDisplay = _journalDisplay.copyWith(showPhotoSection: v);
+          }),
+        ],
+      ),
+    );
+  }
+
+  Widget _cardLayoutEditorCard() {
+    final List<DailyCareJournalCardLayout> rows =
+        DailyCareJournalCardLayout.sorted(_journalCards);
+    return _SettingCard(
+      title: '回報卡片編排',
+      subtitle: '調整顯示、滿寬／半寬、色彩與順序。半寬在過窄或文字過長時會自動改滿寬。',
+      child: Column(
+        children: <Widget>[
+          for (int index = 0; index < rows.length; index++)
+            _cardLayoutRow(rows[index], index, rows.length),
+        ],
+      ),
+    );
+  }
+
+  Widget _cardLayoutRow(
+    DailyCareJournalCardLayout item,
+    int index,
+    int total,
+  ) {
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.fromLTRB(10, 8, 10, 10),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF9FAFC),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.black.withValues(alpha: 0.06)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Row(
+            children: <Widget>[
+              Text(
+                '${index + 1}.',
+                style: const TextStyle(fontWeight: FontWeight.w800),
+              ),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  DailyCareJournalCardKeys.labelOf(item.key),
+                  style: const TextStyle(fontWeight: FontWeight.w700),
+                ),
+              ),
+              Switch(
+                value: item.visible,
+                onChanged: (bool value) {
+                  setState(() {
+                    _journalCards = Map<String, DailyCareJournalCardLayout>.from(
+                      _journalCards,
+                    )..[item.key] = item.copyWith(visible: value);
+                  });
+                },
+              ),
+            ],
+          ),
+          Wrap(
+            spacing: 8,
+            runSpacing: 4,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: <Widget>[
+              ChoiceChip(
+                label: const Text('滿寬'),
+                selected: !item.isHalf,
+                onSelected: (_) {
+                  setState(() {
+                    _journalCards = Map<String, DailyCareJournalCardLayout>.from(
+                      _journalCards,
+                    )..[item.key] = item.copyWith(
+                      width: DailyCareJournalCardStyle.widthFull,
+                    );
+                  });
+                },
+              ),
+              ChoiceChip(
+                label: const Text('半寬'),
+                selected: item.isHalf,
+                onSelected: (_) {
+                  setState(() {
+                    _journalCards = Map<String, DailyCareJournalCardLayout>.from(
+                      _journalCards,
+                    )..[item.key] = item.copyWith(
+                      width: DailyCareJournalCardStyle.widthHalf,
+                    );
+                  });
+                },
+              ),
+              DropdownButton<String>(
+                value: item.colorKey,
+                items: DailyCareJournalCardStyle.colorKeys
+                    .map(
+                      (String key) => DropdownMenuItem<String>(
+                        value: key,
+                        child: Text(DailyCareJournalCardStyle.colorLabel(key)),
+                      ),
+                    )
+                    .toList(),
+                onChanged: (String? value) {
+                  if (value == null) {
+                    return;
+                  }
+                  setState(() {
+                    _journalCards = Map<String, DailyCareJournalCardLayout>.from(
+                      _journalCards,
+                    )..[item.key] = item.copyWith(colorKey: value);
+                  });
+                },
+              ),
+              IconButton(
+                tooltip: '上移',
+                onPressed: index == 0
+                    ? null
+                    : () => _moveCard(item.key, -1),
+                icon: const Icon(Icons.arrow_upward),
+              ),
+              IconButton(
+                tooltip: '下移',
+                onPressed: index == total - 1
+                    ? null
+                    : () => _moveCard(item.key, 1),
+                icon: const Icon(Icons.arrow_downward),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _moveCard(String key, int delta) {
+    final List<DailyCareJournalCardLayout> rows =
+        DailyCareJournalCardLayout.sorted(_journalCards);
+    final int index = rows.indexWhere(
+      (DailyCareJournalCardLayout row) => row.key == key,
+    );
+    final int next = index + delta;
+    if (index < 0 || next < 0 || next >= rows.length) {
+      return;
+    }
+    final DailyCareJournalCardLayout a = rows[index];
+    final DailyCareJournalCardLayout b = rows[next];
+    setState(() {
+      final Map<String, DailyCareJournalCardLayout> nextMap =
+          Map<String, DailyCareJournalCardLayout>.from(_journalCards);
+      nextMap[a.key] = a.copyWith(order: b.order);
+      nextMap[b.key] = b.copyWith(order: a.order);
+      _journalCards = nextMap;
+    });
   }
 
   Widget _modeSelector({
@@ -2424,12 +2662,6 @@ class _DailyCareSettingPageState extends State<DailyCareSettingPage> {
             ],
           ],
           const SizedBox(height: 12),
-          const Text(
-            '每日照護日誌縮圖預覽',
-            style: TextStyle(fontWeight: FontWeight.w700),
-          ),
-          const SizedBox(height: 8),
-          _JournalPreviewCard(setting: preview),
         ],
       ),
     );
@@ -2539,6 +2771,7 @@ class _DailyCareSettingPageState extends State<DailyCareSettingPage> {
     required String category,
     required IconData icon,
     required List<_CareFieldOption> builtInFields,
+    bool allowCustom = true,
   }) {
     final List<DailyCareCustomField> customFields = _customFields
         .where((DailyCareCustomField field) => field.category == category)
@@ -2565,13 +2798,14 @@ class _DailyCareSettingPageState extends State<DailyCareSettingPage> {
                   style: const TextStyle(fontWeight: FontWeight.w800),
                 ),
               ),
-              TextButton.icon(
-                onPressed: () {
-                  _showAddCustomFieldDialog(category);
-                },
-                icon: const Icon(Icons.add, size: 18),
-                label: const Text('新增'),
-              ),
+              if (allowCustom)
+                TextButton.icon(
+                  onPressed: () {
+                    _showAddCustomFieldDialog(category);
+                  },
+                  icon: const Icon(Icons.add, size: 18),
+                  label: const Text('新增'),
+                ),
             ],
           ),
 
@@ -2593,8 +2827,9 @@ class _DailyCareSettingPageState extends State<DailyCareSettingPage> {
               },
             ),
 
-          for (final DailyCareCustomField field in customFields)
-            ListTile(
+          if (allowCustom)
+            for (final DailyCareCustomField field in customFields)
+              ListTile(
               contentPadding: EdgeInsets.zero,
               leading: const Icon(Icons.extension_outlined, size: 20),
               title: Text(field.label),
@@ -2619,7 +2854,7 @@ class _DailyCareSettingPageState extends State<DailyCareSettingPage> {
   Widget _buildFieldsCard() {
     return _SettingCard(
       title: '照護紀錄欄位',
-      subtitle: '溫度與濕度為固定紀錄；其他項目可依店家流程自行勾選或新增。',
+      subtitle: '溫度與濕度為固定紀錄。飲食與大小便為固定六項，不可新增自訂；活動、放鬆與文字可依店家流程勾選或新增。',
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
@@ -2632,31 +2867,33 @@ class _DailyCareSettingPageState extends State<DailyCareSettingPage> {
               color: const Color(0xFFF2F7FC),
               borderRadius: BorderRadius.circular(14),
             ),
-            child: const Column(
+            child: Column(
               children: <Widget>[
-                ListTile(
+                SwitchListTile(
                   contentPadding: EdgeInsets.zero,
-                  leading: Icon(Icons.thermostat_outlined),
-                  title: Text('室內溫度'),
-                  trailing: Text(
-                    '必填',
-                    style: TextStyle(
-                      color: Colors.green,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
+                  secondary: const Icon(Icons.thermostat_outlined),
+                  title: const Text('室內溫度'),
+                  value: _journalDisplay.showTemperature,
+                  onChanged: (bool value) {
+                    setState(() {
+                      _journalDisplay = _journalDisplay.copyWith(
+                        showTemperature: value,
+                      );
+                    });
+                  },
                 ),
-                ListTile(
+                SwitchListTile(
                   contentPadding: EdgeInsets.zero,
-                  leading: Icon(Icons.water_drop_outlined),
-                  title: Text('室內濕度'),
-                  trailing: Text(
-                    '必填',
-                    style: TextStyle(
-                      color: Colors.green,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
+                  secondary: const Icon(Icons.water_drop_outlined),
+                  title: const Text('室內濕度'),
+                  value: _journalDisplay.showHumidity,
+                  onChanged: (bool value) {
+                    setState(() {
+                      _journalDisplay = _journalDisplay.copyWith(
+                        showHumidity: value,
+                      );
+                    });
+                  },
                 ),
               ],
             ),
@@ -2666,6 +2903,7 @@ class _DailyCareSettingPageState extends State<DailyCareSettingPage> {
             title: '飲食與飲水',
             category: 'food',
             icon: Icons.restaurant_outlined,
+            allowCustom: false,
             builtInFields: _fieldOptions
                 .where(
                   (_CareFieldOption item) => <String>[
@@ -2682,6 +2920,7 @@ class _DailyCareSettingPageState extends State<DailyCareSettingPage> {
             title: '大小便狀況',
             category: 'toilet',
             icon: Icons.health_and_safety_outlined,
+            allowCustom: false,
             builtInFields: _fieldOptions
                 .where(
                   (_CareFieldOption item) =>
@@ -2820,97 +3059,6 @@ class _DailyCareSettingPageState extends State<DailyCareSettingPage> {
       subtitle:
           '住宿以實際退房、安親以實際結束起算 24 小時。不從上傳或預定時間起算，補退款也不延長。檔案由後續排程清除，不保證第 24 小時整點已全部刪除。',
       child: const Text('固定保留 24 小時，此期限由平台統一，確認儲存時仍會一併寫入設定。'),
-    );
-  }
-}
-
-class _JournalPreviewCard extends StatelessWidget {
-  const _JournalPreviewCard({required this.setting});
-
-  final DailyCareSettingModel setting;
-
-  @override
-  Widget build(BuildContext context) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(14),
-      child: SizedBox(
-        height: 268,
-        width: double.infinity,
-        child: Stack(
-          fit: StackFit.expand,
-          children: <Widget>[
-            DailyCareJournalPageBackground(setting: setting),
-            Padding(
-              padding: const EdgeInsets.all(10),
-              child: Column(
-                children: <Widget>[
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.94),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: <Widget>[
-                        const Text(
-                          '每日照護日誌',
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w800,
-                          ),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          setting.sessionLabel(0),
-                          style: const TextStyle(
-                            fontSize: 11,
-                            color: Colors.black54,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Expanded(
-                    child: DailyCareCardSurface(
-                      setting: setting,
-                      padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
-                      child: const Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: <Widget>[
-                          Text(
-                            '環境狀況',
-                            style: TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                          SizedBox(height: 4),
-                          Text('生活狀況　飲水 一般', style: TextStyle(fontSize: 11)),
-                          SizedBox(height: 6),
-                          Text(
-                            '今日概況',
-                            style: TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                          Text(
-                            '今天精神很好，有好好吃飯喝水。',
-                            style: TextStyle(fontSize: 11, height: 1.35),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
     );
   }
 }

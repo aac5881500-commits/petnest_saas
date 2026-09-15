@@ -283,10 +283,15 @@ class DailyCareSettingService {
         final DailyCareSettingModel next = merged.copyWith(
           revision: currentRevision + 1,
         );
+        final Map<String, dynamic> payload =
+            DailyCareSettingFirestoreValue.sanitizeMap(next.toMap());
+        if (raw is Map && raw.containsKey('welcomeText')) {
+          payload['welcomeText'] = DailyCareSettingFirestoreValue.sanitize(
+            raw['welcomeText'],
+          );
+        }
         transaction.set(_shopReference(normalizedShopId), <String, dynamic>{
-          'dailyCareSetting': DailyCareSettingFirestoreValue.sanitizeMap(
-            next.toMap(),
-          ),
+          'dailyCareSetting': payload,
           'updatedAt': FieldValue.serverTimestamp(),
         }, SetOptions(merge: true));
       });
@@ -331,6 +336,10 @@ class DailyCareSettingService {
         return current.copyWith(
           enabledFields: incoming.enabledFields,
           customFields: incoming.customFields,
+          journalDisplay: current.journalDisplay.copyWith(
+            showTemperature: incoming.journalDisplay.showTemperature,
+            showHumidity: incoming.journalDisplay.showHumidity,
+          ),
         );
       case DailyCareSettingSection.appearance:
         return current.copyWith(
@@ -361,6 +370,8 @@ class DailyCareSettingService {
           cardBackgroundImagePath: incoming.cardBackgroundImagePath,
           cardBackgroundImageFit: incoming.cardBackgroundImageFit,
           cardBackgroundImageFade: incoming.cardBackgroundImageFade,
+          journalDisplay: incoming.journalDisplay,
+          journalCards: incoming.journalCards,
         );
       case DailyCareSettingSection.all:
         return incoming;

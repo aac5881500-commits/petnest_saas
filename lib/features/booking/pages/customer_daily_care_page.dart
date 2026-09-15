@@ -8,6 +8,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/constants/shop_permission_keys.dart';
 import '../../../core/models/booking_kind.dart';
@@ -21,9 +22,11 @@ import '../../../core/services/daily_care_daycare_access.dart';
 import '../../../core/services/daily_care_photo_service.dart';
 import '../../../core/services/daily_care_record_service.dart';
 import '../../../core/services/daily_care_setting_service.dart';
+import '../../../core/services/shop_device_service.dart';
 import '../../../core/services/shop_service.dart';
 import '../../../core/widgets/daily_care_card_surface.dart';
 import '../../../core/widgets/daily_care_journal_renderer.dart';
+import 'customer_daily_care_photo_page.dart';
 
 class CustomerDailyCarePage extends StatefulWidget {
   const CustomerDailyCarePage({
@@ -220,8 +223,6 @@ class _CustomerDailyCarePageState extends State<CustomerDailyCarePage> {
             }
 
             final bool isDaycare = BookingKind.isDaycare(bookingData);
-            final String journalTitle =
-                widget.journalTitle ?? (isDaycare ? '本次安親回報' : '每日照護日誌');
             final DailyCareStayInfo stay = DailyCareStayInfo.fromBookingMap(
               bookingData,
               fallbackRoomName: widget.roomName,
@@ -267,7 +268,6 @@ class _CustomerDailyCarePageState extends State<CustomerDailyCarePage> {
                   );
                   return _journalScaffold(
                     setting: setting,
-                    title: journalTitle,
                     child: _errorView(_loadErrorMessage(recordSnapshot.error)),
                   );
                 }
@@ -275,7 +275,6 @@ class _CustomerDailyCarePageState extends State<CustomerDailyCarePage> {
                 if (!recordSnapshot.hasData) {
                   return _journalScaffold(
                     setting: setting,
-                    title: journalTitle,
                     child: const Center(child: CircularProgressIndicator()),
                   );
                 }
@@ -295,7 +294,6 @@ class _CustomerDailyCarePageState extends State<CustomerDailyCarePage> {
                 if (dateKeys.isEmpty) {
                   return _journalScaffold(
                     setting: setting,
-                    title: journalTitle,
                     child: const _EmptyCareView(),
                   );
                 }
@@ -326,18 +324,45 @@ class _CustomerDailyCarePageState extends State<CustomerDailyCarePage> {
                   selectedSessionIndex,
                 );
 
-                return _journalScaffold(
-                  setting: setting,
-                  title: journalTitle,
-                  child: _journalRenderer(
-                    setting: setting,
-                    stay: stay,
-                    dateKeys: dateKeys,
-                    selectedDateKey: selectedDateKey,
-                    sessionTabs: sessionTabs,
-                    selectedSessionIndex: selectedSessionIndex,
-                    record: record,
-                  ),
+                return StreamBuilder<Map<String, dynamic>?>(
+                  stream: ShopService.instance.streamShop(widget.shopId),
+                  builder:
+                      (
+                        BuildContext context,
+                        AsyncSnapshot<Map<String, dynamic>?> shopSnap,
+                      ) {
+                        final Map<String, dynamic> shop =
+                            shopSnap.data ?? <String, dynamic>{};
+                        final String shopName = (shop['name'] ??
+                                shop['shopName'] ??
+                                '')
+                            .toString()
+                            .trim();
+                        final String logoUrl = (shop['logoUrl'] ?? '')
+                            .toString()
+                            .trim();
+                        final String offerName =
+                            entitlement.offerName.trim().isNotEmpty
+                            ? entitlement.offerName.trim()
+                            : stay.roomName;
+                        return _journalScaffold(
+                          setting: setting,
+                          child: _journalRenderer(
+                            setting: setting,
+                            stay: stay,
+                            dateKeys: dateKeys,
+                            selectedDateKey: selectedDateKey,
+                            sessionTabs: sessionTabs,
+                            selectedSessionIndex: selectedSessionIndex,
+                            record: record,
+                            shopName: shopName,
+                            shopLogoUrl: logoUrl,
+                            isDaycare: isDaycare,
+                            offerName: offerName,
+                            bookingData: bookingData,
+                          ),
+                        );
+                      },
                 );
               },
             );
@@ -350,13 +375,11 @@ class _CustomerDailyCarePageState extends State<CustomerDailyCarePage> {
   Widget _journalScaffold({
     required DailyCareSettingModel setting,
     required Widget child,
-    String? title,
   }) {
     return Scaffold(
       backgroundColor: Colors.transparent,
-      extendBodyBehindAppBar: true,
       appBar: AppBar(
-        title: Text(title ?? widget.journalTitle ?? '每日照護日誌'),
+        title: const SizedBox.shrink(),
         backgroundColor: Colors.transparent,
         surfaceTintColor: Colors.transparent,
         elevation: 0,
@@ -367,14 +390,14 @@ class _CustomerDailyCarePageState extends State<CustomerDailyCarePage> {
           Positioned.fill(
             child: DailyCareJournalPageBackground(setting: setting),
           ),
-          Column(
-            children: <Widget>[
-              SizedBox(
-                height: MediaQuery.paddingOf(context).top + kToolbarHeight,
-              ),
-              if (widget.previewMode) _previewBanner(),
-              Expanded(child: child),
-            ],
+          SafeArea(
+            top: false,
+            child: Column(
+              children: <Widget>[
+                if (widget.previewMode) _previewBanner(),
+                Expanded(child: child),
+              ],
+            ),
           ),
         ],
       ),
@@ -493,8 +516,21 @@ class _CustomerDailyCarePageState extends State<CustomerDailyCarePage> {
     required List<DailyCareJournalSessionTab> sessionTabs,
     required int selectedSessionIndex,
     required DailyCareRecordModel? record,
+    required String shopName,
+    required String shopLogoUrl,
+    required bool isDaycare,
+    required String offerName,
+    required Map<String, dynamic> bookingData,
   }) {
-    if (record == null || !setting.photoEnabled) {
+    final bool photosOn =
+        record != null &&
+        setting.photoEnabled &&
+        setting.journalDisplay.showPhotoSection;
+    final Widget footer = _journalServiceRow(
+      setting: setting,
+      bookingData: bookingData,
+    );
+    if (!photosOn) {
       return DailyCareJournalRenderer(
         setting: setting,
         stay: stay,
@@ -505,6 +541,11 @@ class _CustomerDailyCarePageState extends State<CustomerDailyCarePage> {
         record: record,
         fallbackRoomName: widget.roomName,
         showPhotoSection: false,
+        shopName: shopName,
+        shopLogoUrl: shopLogoUrl,
+        isDaycare: isDaycare,
+        offerName: offerName,
+        footer: footer,
         onDateSelected: (String dateKey) {
           setState(() {
             _selectedDateKey = dateKey;
@@ -545,6 +586,11 @@ class _CustomerDailyCarePageState extends State<CustomerDailyCarePage> {
                   snapshot.connectionState == ConnectionState.waiting &&
                   !snapshot.hasData,
               showPhotoSection: true,
+              shopName: shopName,
+              shopLogoUrl: shopLogoUrl,
+              isDaycare: isDaycare,
+              offerName: offerName,
+              footer: footer,
               onDateSelected: (String dateKey) {
                 setState(() {
                   _selectedDateKey = dateKey;
@@ -558,6 +604,42 @@ class _CustomerDailyCarePageState extends State<CustomerDailyCarePage> {
               },
             );
           },
+    );
+  }
+
+  Widget _journalServiceRow({
+    required DailyCareSettingModel setting,
+    required Map<String, dynamic> bookingData,
+  }) {
+    final bool showPhotos =
+        setting.photoEnabled || setting.journalDisplay.showPhotoSection;
+    if (!showPhotos && widget.previewMode) {
+      return const SizedBox.shrink();
+    }
+    final Widget photoButton = showPhotos
+        ? FilledButton.tonalIcon(
+            onPressed: () {
+              Navigator.push<void>(
+                context,
+                MaterialPageRoute<void>(
+                  builder: (_) => CustomerDailyCarePhotoPage(
+                    shopId: widget.shopId,
+                    bookingId: widget.bookingId,
+                    roomName: widget.roomName,
+                  ),
+                ),
+              );
+            },
+            icon: const Icon(Icons.photo_library_outlined),
+            label: const Text('查看全部照護照片'),
+          )
+        : const SizedBox.shrink();
+
+    return _CameraAwareServiceRow(
+      shopId: widget.shopId,
+      bookingData: bookingData,
+      previewMode: widget.previewMode,
+      photoButton: showPhotos ? photoButton : null,
     );
   }
 
@@ -690,5 +772,120 @@ class _EmptyCareView extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+class _CameraAwareServiceRow extends StatelessWidget {
+  const _CameraAwareServiceRow({
+    required this.shopId,
+    required this.bookingData,
+    required this.previewMode,
+    required this.photoButton,
+  });
+
+  final String shopId;
+  final Map<String, dynamic> bookingData;
+  final bool previewMode;
+  final Widget? photoButton;
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<Map<String, dynamic>?>(
+      stream: ShopService.instance.streamShop(shopId),
+      builder:
+          (BuildContext context, AsyncSnapshot<Map<String, dynamic>?> shopSnap) {
+            final bool shopCameraOn =
+                (shopSnap.data?['showCameraSection'] ?? true) != false;
+            final String status = (bookingData['status'] ?? '').toString();
+            final String roomId = (bookingData['roomId'] ?? '').toString().trim();
+            final bool stayActive = status == 'checked_in';
+            if (!shopCameraOn || !stayActive || roomId.isEmpty || previewMode) {
+              return _buttons(camera: null);
+            }
+            return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+              stream: ShopDeviceService.instance.watchCameraDevicesByRoom(
+                shopId: shopId,
+                roomId: roomId,
+              ),
+              builder:
+                  (
+                    BuildContext context,
+                    AsyncSnapshot<QuerySnapshot<Map<String, dynamic>>> camSnap,
+                  ) {
+                    if (!camSnap.hasData || camSnap.data!.docs.isEmpty) {
+                      return _buttons(camera: null);
+                    }
+                    final Map<String, dynamic> camera = camSnap.data!.docs.first
+                        .data();
+                    final String url = (camera['url'] ?? '').toString().trim();
+                    final Uri? uri = Uri.tryParse(url);
+                    final bool valid =
+                        uri != null &&
+                        uri.hasScheme &&
+                        (uri.scheme == 'https' || uri.scheme == 'http') &&
+                        url.isNotEmpty;
+                    if (!valid) {
+                      return _buttons(camera: null);
+                    }
+                    return _buttons(
+                      camera: OutlinedButton.icon(
+                        onPressed: () => _openCamera(context, url),
+                        icon: const Icon(Icons.videocam_outlined),
+                        label: const Text('觀看攝影機'),
+                      ),
+                    );
+                  },
+            );
+          },
+    );
+  }
+
+  Widget _buttons({required Widget? camera}) {
+    if (photoButton == null && camera == null) {
+      return const SizedBox.shrink();
+    }
+    if (photoButton == null) {
+      return SizedBox(width: double.infinity, child: camera);
+    }
+    if (camera == null) {
+      return SizedBox(width: double.infinity, child: photoButton);
+    }
+    return Row(
+      children: <Widget>[
+        Expanded(child: photoButton!),
+        const SizedBox(width: 10),
+        Expanded(child: camera),
+      ],
+    );
+  }
+
+  Future<void> _openCamera(BuildContext context, String url) async {
+    final bool? confirm = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext dialogContext) {
+        return AlertDialog(
+          title: const Text('前往外部攝影機頁面'),
+          content: const Text('即將開啟店家提供的攝影機連結，請確認是否前往。'),
+          actions: <Widget>[
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: const Text('取消'),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(dialogContext, true),
+              child: const Text('前往'),
+            ),
+          ],
+        );
+      },
+    );
+    if (confirm != true) {
+      return;
+    }
+    final Uri? uri = Uri.tryParse(url);
+    if (uri == null) {
+      return;
+    }
+    await launchUrl(uri, mode: LaunchMode.externalApplication);
   }
 }

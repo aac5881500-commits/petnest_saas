@@ -461,26 +461,23 @@ class _DailyCareRecordEditPageState extends State<DailyCareRecordEditPage> {
                       if (_enabled('water'))
                         _choiceRow(
                           keyName: 'water',
-                          options: const <String>['無', '少', '一般', '多'],
+                          options: _fixedConditionOptions,
                         ),
                       if (_enabled('dryFood'))
                         _choiceRow(
                           keyName: 'dryFood',
-                          options: const <String>['無', '少', '一般', '多'],
+                          options: _fixedConditionOptions,
                         ),
                       if (_enabled('wetFood'))
                         _choiceRow(
                           keyName: 'wetFood',
-                          options: const <String>['無', '少', '一般', '多'],
+                          options: _fixedConditionOptions,
                         ),
                       if (_enabled('snack'))
                         _choiceRow(
                           keyName: 'snack',
-                          options: const <String>['無', '有'],
+                          options: _fixedConditionOptions,
                         ),
-                      for (final DailyCareCustomField field
-                          in _customFieldsByCategory('food'))
-                        _customFieldWidget(field),
                     ],
                   ),
                 ],
@@ -494,16 +491,13 @@ class _DailyCareRecordEditPageState extends State<DailyCareRecordEditPage> {
                       if (_enabled('stool'))
                         _choiceRow(
                           keyName: 'stool',
-                          options: const <String>['無', '正常', '偏少', '偏多', '異常'],
+                          options: _fixedConditionOptions,
                         ),
                       if (_enabled('urine'))
                         _choiceRow(
                           keyName: 'urine',
-                          options: const <String>['無', '正常', '偏少', '偏多', '異常'],
+                          options: _fixedConditionOptions,
                         ),
-                      for (final DailyCareCustomField field
-                          in _customFieldsByCategory('toilet'))
-                        _customFieldWidget(field),
                     ],
                   ),
                 ],
@@ -1056,6 +1050,13 @@ class _DailyCareRecordEditPageState extends State<DailyCareRecordEditPage> {
       ),
     );
   }
+
+  static const List<String> _fixedConditionOptions = <String>[
+    '正常',
+    '偏少',
+    '偏多',
+    '異常',
+  ];
 
   Widget _choiceRow({
     required String keyName,

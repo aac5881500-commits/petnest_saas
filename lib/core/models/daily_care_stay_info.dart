@@ -73,11 +73,23 @@ class DailyCareStayInfo {
     );
   }
 
-  String get petNamesText {
-    if (pets.isEmpty) {
+  String get petNamesText => formatPetNames(pets);
+
+  static String formatPetNames(
+    List<DailyCareStayPet> pets, {
+    int maxNamed = 2,
+  }) {
+    final List<String> names = pets
+        .map((DailyCareStayPet pet) => pet.name.trim())
+        .where((String name) => name.isNotEmpty)
+        .toList();
+    if (names.isEmpty) {
       return '尚未指定寵物';
     }
-    return pets.map((DailyCareStayPet pet) => pet.name).join('、');
+    if (names.length <= maxNamed) {
+      return names.join('、');
+    }
+    return '${names.take(maxNamed).join('、')} 等 ${names.length} 隻';
   }
 
   String get stayDateText {

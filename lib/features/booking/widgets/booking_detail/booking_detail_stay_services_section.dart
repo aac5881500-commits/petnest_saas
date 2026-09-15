@@ -103,13 +103,14 @@ class BookingDetailStayServicesSection extends StatelessWidget {
           icon: Icons.photo_library_outlined,
           title: '照護照片',
           subtitle: deadline != null
-              ? '可查看至 ${view.formatDateTime(deadline)}（實際結束後 24 小時）'
+              ? '上傳完成即可查看與下載，可使用至 ${view.formatDateTime(deadline)}'
               : '上傳完成即可查看與下載預覽／高清版',
           onTap: () {
             Navigator.push(
               context,
               MaterialPageRoute<void>(
                 builder: (_) => CustomerDailyCarePhotoPage(
+                  shopId: shopId,
                   bookingId: bookingId,
                   roomName: roomName,
                 ),

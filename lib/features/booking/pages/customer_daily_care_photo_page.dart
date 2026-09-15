@@ -5,25 +5,49 @@
 // 退房後的照片下載功能會由另一個流程處理。
 
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/models/daily_care_photo_model.dart';
 import '../../../core/services/daily_care_photo_service.dart';
+import 'customer_daily_care_download_page.dart';
 
 class CustomerDailyCarePhotoPage extends StatelessWidget {
   const CustomerDailyCarePhotoPage({
     super.key,
     required this.bookingId,
     required this.roomName,
+    this.shopId = '',
   });
 
   final String bookingId;
   final String roomName;
+  final String shopId;
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF5F6F8),
-      appBar: AppBar(title: const Text('照護照片')),
+      appBar: AppBar(
+        title: const Text('照護照片'),
+        actions: <Widget>[
+          if (shopId.trim().isNotEmpty)
+            TextButton(
+              onPressed: () {
+                Navigator.push<void>(
+                  context,
+                  MaterialPageRoute<void>(
+                    builder: (_) => CustomerDailyCareDownloadPage(
+                      shopId: shopId,
+                      bookingId: bookingId,
+                      roomName: roomName,
+                    ),
+                  ),
+                );
+              },
+              child: const Text('全部下載'),
+            ),
+        ],
+      ),
       body: StreamBuilder<List<DailyCarePhotoModel>>(
         stream: DailyCarePhotoService.instance.streamBookingPhotos(
           bookingId: bookingId,
@@ -298,6 +322,22 @@ class CustomerDailyCarePhotoPage extends StatelessWidget {
                     Navigator.of(dialogContext).pop();
                   },
                   icon: const Icon(Icons.close),
+                ),
+              ),
+              Positioned(
+                left: 12,
+                right: 12,
+                bottom: 16,
+                child: FilledButton.icon(
+                  onPressed: () async {
+                    final Uri? uri = Uri.tryParse(photo.previewUrl);
+                    if (uri == null) {
+                      return;
+                    }
+                    await launchUrl(uri, mode: LaunchMode.externalApplication);
+                  },
+                  icon: const Icon(Icons.download_outlined),
+                  label: const Text('下載這張'),
                 ),
               ),
             ],

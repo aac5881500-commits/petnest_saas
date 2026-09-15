@@ -192,7 +192,16 @@ class DailyCareJournalPageBackground extends StatelessWidget {
             ? NetworkImage(setting.backgroundImageUrl)
             : null);
     if (image == null) {
-      return ColoredBox(color: setting.resolvedPageColor());
+      return Stack(
+        fit: StackFit.expand,
+        children: <Widget>[
+          ColoredBox(color: setting.resolvedPageColor()),
+          const CustomPaint(
+            painter: DailyCareJournalDecorPainter(),
+            child: SizedBox.expand(),
+          ),
+        ],
+      );
     }
 
     final bool contain =
@@ -341,4 +350,52 @@ class DailyCareCardPresetPainter extends CustomPainter {
   bool shouldRepaint(covariant DailyCareCardPresetPainter oldDelegate) {
     return oldDelegate.presetKey != presetKey || oldDelegate.sparse != sparse;
   }
+}
+
+/// 低對比裝飾：肉掌／毛線，不影響閱讀。
+class DailyCareJournalDecorPainter extends CustomPainter {
+  const DailyCareJournalDecorPainter();
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (size.width <= 0 || size.height <= 0) {
+      return;
+    }
+    final Paint paw = Paint()
+      ..color = const Color(0xFF8B5A2B).withValues(alpha: 0.055)
+      ..style = PaintingStyle.fill;
+    final Paint yarn = Paint()
+      ..color = const Color(0xFF2F5D50).withValues(alpha: 0.04)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.4;
+    for (double y = 36; y < size.height; y += 120) {
+      for (double x = 28; x < size.width; x += 110) {
+        _paw(canvas, Offset(x, y), paw);
+      }
+    }
+    for (double y = 90; y < size.height; y += 160) {
+      canvas.drawOval(
+        Rect.fromCenter(
+          center: Offset(size.width * 0.82, y),
+          width: 42,
+          height: 28,
+        ),
+        yarn,
+      );
+    }
+  }
+
+  void _paw(Canvas canvas, Offset origin, Paint paint) {
+    canvas.drawOval(
+      Rect.fromCenter(center: origin, width: 14, height: 11),
+      paint,
+    );
+    canvas.drawCircle(origin + const Offset(-8, -8), 3.2, paint);
+    canvas.drawCircle(origin + const Offset(-2, -10), 3.2, paint);
+    canvas.drawCircle(origin + const Offset(4, -10), 3.2, paint);
+    canvas.drawCircle(origin + const Offset(9, -7), 3.2, paint);
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
