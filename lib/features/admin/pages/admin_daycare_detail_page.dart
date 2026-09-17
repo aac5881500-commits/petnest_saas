@@ -17,7 +17,6 @@ import 'package:petnest_saas/core/services/daycare_pricing_service.dart';
 import 'package:petnest_saas/core/services/daycare_status_labels.dart';
 import 'package:petnest_saas/core/services/daycare_time_helper.dart';
 import 'package:petnest_saas/core/services/pet_shop_form_answers.dart';
-import 'package:petnest_saas/core/services/booking_pet_care_form_loader.dart';
 import 'package:petnest_saas/core/widgets/shop_frontend_theme_scope.dart';
 import 'package:petnest_saas/features/admin/widgets/admin_booking_form_summary_card.dart';
 import 'package:petnest_saas/features/admin/widgets/admin_booking_action_log_section.dart';
@@ -515,12 +514,6 @@ class _DaycareDetailBodyState extends State<_DaycareDetailBody> {
                 ],
               ),
             ),
-          petCareFuture: BookingPetCareFormLoader.load(
-            shopId: widget.shopId,
-            userId: PetShopFormAnswers.bookingUserId(data),
-            pets: pets,
-            bookingId: widget.bookingId,
-          ),
           forms: <Widget>[
             AdminBookingFormAnswersSection(
               shopId: widget.shopId,

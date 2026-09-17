@@ -60,15 +60,22 @@ class DailyCareSaveErrorProbe {
       return;
     }
     debugPrint(label);
-    final String text = safeToString(error);
-    if (text.isNotEmpty) {
-      debugPrint(text);
-    }
-    if (stack != null) {
-      final String stackText = safeToString(stack);
-      if (stackText.isNotEmpty) {
-        debugPrint(stackText);
+    if (error is FirebaseException) {
+      debugPrint('FirebaseException code=${error.code}');
+      debugPrint('FirebaseException message=${error.message}');
+    } else {
+      final String code = readCode(error);
+      final String message = readMessage(error);
+      if (code.isNotEmpty) {
+        debugPrint('error code=$code');
       }
+      if (message.isNotEmpty) {
+        debugPrint('error message=$message');
+      }
+    }
+    debugPrint('exception=${safeToString(error)}');
+    if (stack != null) {
+      debugPrint(safeToString(stack));
     }
   }
 }
@@ -130,12 +137,54 @@ class DailyCareSettingSaveException implements Exception {
 class DailyCareSettingFirestoreValue {
   DailyCareSettingFirestoreValue._();
 
+  static Map<String, dynamic> copyRawMap(Object? raw) {
+    if (raw is! Map) {
+      return <String, dynamic>{};
+    }
+    final Map<String, dynamic> copied = <String, dynamic>{};
+    raw.forEach((Object? key, Object? value) {
+      final String name = DailyCareSaveErrorProbe.safeToString(key).trim();
+      if (name.isEmpty) {
+        return;
+      }
+      copied[name] = value;
+    });
+    return copied;
+  }
+
   static Map<String, dynamic> sanitizeMap(Map<String, dynamic> input) {
     final Object? value = sanitize(input);
     if (value is Map<String, dynamic>) {
       return value;
     }
     return <String, dynamic>{};
+  }
+
+  static const List<String> _removedSettingKeys = <String>[
+    'welcomeText',
+  ];
+
+  static const List<String> _removedDisplayKeys = <String>[
+    'showRoomOrOffer',
+    'showPetNames',
+    'showServiceDate',
+    'showFilledTime',
+  ];
+
+  static Map<String, dynamic> payloadForWrite(DailyCareSettingModel setting) {
+    final Map<String, dynamic> payload = sanitizeMap(setting.toMap());
+    for (final String key in _removedSettingKeys) {
+      payload[key] = FieldValue.delete();
+    }
+    final Map<String, dynamic> display = payload['journalDisplay'] is Map
+        ? Map<String, dynamic>.from(payload['journalDisplay'] as Map)
+        : <String, dynamic>{};
+    for (final String key in _removedDisplayKeys) {
+      display.remove(key);
+      display[key] = FieldValue.delete();
+    }
+    payload['journalDisplay'] = display;
+    return payload;
   }
 
   static Object? sanitize(Object? value) {
@@ -215,7 +264,9 @@ class DailyCareSettingService {
       }
 
       return DailyCareSettingModel.fromMap(
-        Map<String, dynamic>.from(rawSetting),
+        DailyCareSettingFirestoreValue.sanitizeMap(
+          DailyCareSettingFirestoreValue.copyRawMap(rawSetting),
+        ),
       );
     });
   }
@@ -242,7 +293,11 @@ class DailyCareSettingService {
       return const DailyCareSettingModel();
     }
 
-    return DailyCareSettingModel.fromMap(Map<String, dynamic>.from(rawSetting));
+    return DailyCareSettingModel.fromMap(
+      DailyCareSettingFirestoreValue.sanitizeMap(
+        DailyCareSettingFirestoreValue.copyRawMap(rawSetting),
+      ),
+    );
   }
 
   Future<void> saveSetting({
@@ -273,7 +328,11 @@ class DailyCareSettingService {
           );
         }
         final DailyCareSettingModel current = raw is Map
-            ? DailyCareSettingModel.fromMap(Map<String, dynamic>.from(raw))
+            ? DailyCareSettingModel.fromMap(
+                DailyCareSettingFirestoreValue.sanitizeMap(
+                  DailyCareSettingFirestoreValue.copyRawMap(raw),
+                ),
+              )
             : const DailyCareSettingModel();
         final DailyCareSettingModel merged = _mergeSection(
           current: current,
@@ -284,12 +343,8 @@ class DailyCareSettingService {
           revision: currentRevision + 1,
         );
         final Map<String, dynamic> payload =
-            DailyCareSettingFirestoreValue.sanitizeMap(next.toMap());
-        if (raw is Map && raw.containsKey('welcomeText')) {
-          payload['welcomeText'] = DailyCareSettingFirestoreValue.sanitize(
-            raw['welcomeText'],
-          );
-        }
+            DailyCareSettingFirestoreValue.payloadForWrite(next);
+        payload['revision'] = currentRevision + 1;
         transaction.set(_shopReference(normalizedShopId), <String, dynamic>{
           'dailyCareSetting': payload,
           'updatedAt': FieldValue.serverTimestamp(),
@@ -336,18 +391,10 @@ class DailyCareSettingService {
         return current.copyWith(
           enabledFields: incoming.enabledFields,
           customFields: incoming.customFields,
-          journalDisplay: current.journalDisplay.copyWith(
-            showTemperature: incoming.journalDisplay.showTemperature,
-            showHumidity: incoming.journalDisplay.showHumidity,
-          ),
         );
       case DailyCareSettingSection.appearance:
         return current.copyWith(
           logoVisible: incoming.logoVisible,
-          logoAlign: incoming.logoAlign,
-          logoSize: incoming.logoSize,
-          titleFontSize: incoming.titleFontSize,
-          bodyFontSize: incoming.bodyFontSize,
           textColorKey: incoming.textColorKey,
           accentColorKey: incoming.accentColorKey,
           iconSize: incoming.iconSize,
@@ -372,6 +419,7 @@ class DailyCareSettingService {
           cardBackgroundImageFade: incoming.cardBackgroundImageFade,
           journalDisplay: incoming.journalDisplay,
           journalCards: incoming.journalCards,
+          journalHeader: incoming.journalHeader,
         );
       case DailyCareSettingSection.all:
         return incoming;

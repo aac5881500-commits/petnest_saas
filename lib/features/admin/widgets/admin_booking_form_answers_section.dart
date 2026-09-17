@@ -1,11 +1,13 @@
 // 檔案名稱：lib/features/admin/widgets/admin_booking_form_answers_section.dart
-// 功能說明：後台表單資料：寵物照護／客戶送單唯讀，僅手動訂單表單可編輯。
+// 功能說明：後台表單資料：客戶送單唯讀，僅手動訂單表單可編輯（含寵物資訊）。
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:petnest_saas/core/models/booking_order_form_answers.dart';
 import 'package:petnest_saas/core/models/custom_form_answer_model.dart';
 import 'package:petnest_saas/core/models/custom_form_model.dart';
+import 'package:petnest_saas/core/models/custom_form_pet_condition.dart';
 import 'package:petnest_saas/core/models/home_theme_model.dart';
 import 'package:petnest_saas/core/services/action_log_service.dart';
 import 'package:petnest_saas/core/services/booking_form_visibility.dart';
@@ -14,9 +16,8 @@ import 'package:petnest_saas/core/services/custom_form_service.dart';
 import 'package:petnest_saas/core/services/pet_shop_form_answers.dart';
 import 'package:petnest_saas/features/admin/widgets/admin_booking_detail_layout.dart';
 import 'package:petnest_saas/features/admin/widgets/admin_booking_form_focus.dart';
-import 'package:petnest_saas/features/admin/widgets/admin_booking_pet_care_forms.dart';
-import 'package:petnest_saas/features/custom_form/widgets/custom_form_answer_view.dart';
-import 'package:petnest_saas/features/custom_form/widgets/custom_form_response_fields.dart';
+import 'package:petnest_saas/features/custom_form/widgets/order_custom_form_fill.dart';
+import 'package:petnest_saas/features/custom_form/widgets/order_form_answers_view.dart';
 
 class AdminBookingFormAnswersSection extends StatelessWidget {
   const AdminBookingFormAnswersSection({
@@ -78,12 +79,22 @@ class AdminBookingFormAnswersSection extends StatelessWidget {
     return out;
   }
 
-  static bool hasVisibleAnswers(dynamic raw) {
-    return (CustomFormAnswerSnapshot.tryParse(raw)?.filledCount ?? 0) > 0;
+  static bool hasVisibleAnswers(
+    dynamic raw, {
+    Map<String, dynamic> petAnswersByPetId = const <String, dynamic>{},
+  }) {
+    return OrderFormAnswersView.hasVisibleContent(
+      orderRaw: raw,
+      petAnswersByPetId: petAnswersByPetId,
+    );
   }
 
-  static int filledCount(dynamic raw) {
-    return CustomFormAnswerSnapshot.tryParse(raw)?.filledCount ?? 0;
+  static int filledCount(
+    dynamic raw, {
+    Map<String, dynamic> petAnswersByPetId = const <String, dynamic>{},
+  }) {
+    return (CustomFormAnswerSnapshot.tryParse(raw)?.filledCount ?? 0) +
+        BookingOrderFormAnswers.filledCountOfMap(petAnswersByPetId);
   }
 
   @override
@@ -94,30 +105,24 @@ class AdminBookingFormAnswersSection extends StatelessWidget {
         data['bookingFormAnswers'] ??
         data['formAnswers'];
     final dynamic adminRaw = data['adminCustomFormAnswers'];
+    final Map<String, dynamic> customerPets =
+        BookingOrderFormAnswers.resolveByPetId(booking: data, admin: false);
+    final Map<String, dynamic> adminPets =
+        BookingOrderFormAnswers.resolveByPetId(booking: data, admin: true);
     final bool showCustomer = BookingFormVisibility.showCustomerSubmitForm(
       data: data,
-      hasAnswers: hasVisibleAnswers(customerRaw),
+      hasAnswers: hasVisibleAnswers(
+        customerRaw,
+        petAnswersByPetId: customerPets,
+      ),
     );
     final bool showAdmin = BookingFormVisibility.showAdminCreateForm(
       data: data,
       isShopView: true,
-      hasAnswers: hasVisibleAnswers(adminRaw),
+      hasAnswers: hasVisibleAnswers(adminRaw, petAnswersByPetId: adminPets),
     );
     return Column(
       children: <Widget>[
-        KeyedSubtree(
-          key:
-              AdminBookingFormFocusScope.maybeOf(
-                context,
-              )?.anchorKeys[AdminBookingFormAnchor.petCare] ??
-              const ValueKey<String>('form-anchor-petCare'),
-          child: AdminBookingPetCareForms(
-            shopId: shopId,
-            userId: PetShopFormAnswers.bookingUserId(data),
-            bookingId: bookingId,
-            pets: pets,
-          ),
-        ),
         if (showCustomer)
           KeyedSubtree(
             key:
@@ -129,10 +134,14 @@ class AdminBookingFormAnswersSection extends StatelessWidget {
               shopId: shopId,
               bookingId: bookingId,
               field: 'customFormAnswers',
+              petField: BookingOrderFormAnswers.petFormAnswersByPetIdField,
               title: '客戶送單表單',
               fallback: data['bookingFormAnswers'] ?? data['formAnswers'],
               data: data,
+              pets: pets,
+              petAnswersByPetId: customerPets,
               editable: false,
+              admin: false,
               anchor: AdminBookingFormAnchor.customerSubmit,
             ),
           ),
@@ -147,9 +156,13 @@ class AdminBookingFormAnswersSection extends StatelessWidget {
               shopId: shopId,
               bookingId: bookingId,
               field: 'adminCustomFormAnswers',
+              petField: BookingOrderFormAnswers.adminPetFormAnswersByPetIdField,
               title: '手動訂單表單',
               data: data,
+              pets: pets,
+              petAnswersByPetId: adminPets,
               editable: true,
+              admin: true,
               anchor: AdminBookingFormAnchor.adminCreate,
             ),
           ),
@@ -163,9 +176,13 @@ class _FormBlock extends StatelessWidget {
     required this.shopId,
     required this.bookingId,
     required this.field,
+    required this.petField,
     required this.title,
     required this.data,
+    required this.pets,
+    required this.petAnswersByPetId,
     required this.editable,
+    required this.admin,
     required this.anchor,
     this.fallback,
   });
@@ -173,17 +190,19 @@ class _FormBlock extends StatelessWidget {
   final String shopId;
   final String bookingId;
   final String field;
+  final String petField;
   final String title;
   final Map<String, dynamic> data;
+  final List<Map<String, dynamic>> pets;
+  final Map<String, dynamic> petAnswersByPetId;
   final bool editable;
+  final bool admin;
   final AdminBookingFormAnchor anchor;
   final dynamic fallback;
 
   @override
   Widget build(BuildContext context) {
     final dynamic raw = data[field] ?? fallback;
-    final CustomFormAnswerSnapshot? snapshot =
-        CustomFormAnswerSnapshot.tryParse(raw);
     final AdminBookingFormFocusScope? focus =
         AdminBookingFormFocusScope.maybeOf(context);
     final bool expanded = focus?.isExpanded(anchor) ?? true;
@@ -194,17 +213,18 @@ class _FormBlock extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: <Widget>[
-          CustomFormAnswerView(
-            raw: raw,
-            title: title,
+          OrderFormAnswersView(
+            orderRaw: raw,
+            petAnswersByPetId: petAnswersByPetId,
+            pets: pets,
             theme: HomeThemeModel.classicDefault,
+            orderTitle: '訂單資訊',
           ),
-          if (editable &&
-              !BookingSettlementMath.isSettlementLocked(data))
+          if (editable && !BookingSettlementMath.isSettlementLocked(data))
             Align(
               alignment: Alignment.centerRight,
               child: TextButton(
-                onPressed: () => _edit(context, snapshot),
+                onPressed: () => _edit(context, raw),
                 child: const Text('編輯'),
               ),
             ),
@@ -213,22 +233,29 @@ class _FormBlock extends StatelessWidget {
     );
   }
 
-  Future<void> _edit(
-    BuildContext context,
-    CustomFormAnswerSnapshot? snapshot,
-  ) async {
-    CustomFormModel form;
-    Map<String, dynamic> answers;
-    if (snapshot != null && !snapshot.isEmpty) {
-      form = snapshot.toEditableForm(shopId: shopId);
-      answers = snapshot.toValueMap();
-    } else {
-      form = await CustomFormService.instance.getForm(
-        shopId: shopId,
-        formType: CustomFormType.adminCreate,
-      );
-      answers = <String, dynamic>{};
+  Future<void> _edit(BuildContext context, dynamic raw) async {
+    CustomFormModel live = await CustomFormService.instance.getForm(
+      shopId: shopId,
+      formType: CustomFormType.adminCreate,
+    );
+    if (!live.shouldCollectAnswers) {
+      final CustomFormAnswerSnapshot? snapshot =
+          CustomFormAnswerSnapshot.tryParse(raw);
+      if (snapshot != null && !snapshot.isEmpty) {
+        live = snapshot.toEditableForm(shopId: shopId);
+      }
     }
+    Map<String, dynamic> orderAnswers =
+        CustomFormAnswerSnapshot.tryParse(raw)?.toValueMap() ??
+        <String, dynamic>{};
+    final Map<String, Map<String, dynamic>> petAnswers =
+        <String, Map<String, dynamic>>{
+          for (final MapEntry<String, dynamic> entry
+              in petAnswersByPetId.entries)
+            entry.key:
+                CustomFormAnswerSnapshot.tryParse(entry.value)?.toValueMap() ??
+                <String, dynamic>{},
+        };
     if (!context.mounted) {
       return;
     }
@@ -246,7 +273,6 @@ class _FormBlock extends StatelessWidget {
                 child: Padding(
                   padding: const EdgeInsets.all(16),
                   child: Column(
-                    mainAxisSize: MainAxisSize.min,
                     children: <Widget>[
                       Text(
                         '編輯$title',
@@ -256,37 +282,64 @@ class _FormBlock extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(height: 12),
-                      Flexible(
+                      Expanded(
                         child: SingleChildScrollView(
-                          child: CustomFormResponseFields(
-                            form: form,
-                            answers: answers,
+                          child: OrderCustomFormFill(
+                            form: live.copyWith(enabled: true),
+                            title: title,
+                            orderAnswers: orderAnswers,
+                            petAnswersByPetId: petAnswers,
+                            pets: pets,
                             theme: HomeThemeModel.classicDefault,
-                            onChanged: (Map<String, dynamic> next) {
-                              setModal(() => answers = next);
+                            onOrderChanged: (Map<String, dynamic> next) {
+                              setModal(() => orderAnswers = next);
                             },
+                            onPetChanged:
+                                (String petId, Map<String, dynamic> next) {
+                                  setModal(() {
+                                    petAnswers[petId] = next;
+                                  });
+                                },
                           ),
                         ),
                       ),
                       const SizedBox(height: 12),
                       FilledButton(
                         onPressed: () {
-                          final CustomFormValidationResult result =
-                              CustomFormAnswerSnapshot.validate(
-                                form: form,
-                                answersByQuestionId: answers,
+                          final CustomFormValidationResult order =
+                              BookingOrderFormAnswers.validateOrder(
+                                form: live,
+                                answersByQuestionId: orderAnswers,
                               );
-                          if (!result.isValid) {
+                          if (!order.isValid) {
                             ScaffoldMessenger.of(context).showSnackBar(
                               SnackBar(
                                 content: Text(
-                                  result.message.isEmpty
+                                  order.message.isEmpty
                                       ? '請完成必填題'
-                                      : result.message,
+                                      : order.message,
                                 ),
                               ),
                             );
                             return;
+                          }
+                          for (final Map<String, dynamic> pet in pets) {
+                            final String petId =
+                                CustomFormPetCondition.petIdOf(pet);
+                            final CustomFormValidationResult petCheck =
+                                BookingOrderFormAnswers.validatePet(
+                                  form: live,
+                                  pet: pet,
+                                  answersByQuestionId:
+                                      petAnswers[petId] ??
+                                      const <String, dynamic>{},
+                                );
+                            if (!petCheck.isValid) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(content: Text(petCheck.message)),
+                              );
+                              return;
+                            }
                           }
                           Navigator.pop(context, true);
                         },
@@ -304,15 +357,22 @@ class _FormBlock extends StatelessWidget {
     if (saved != true) {
       return;
     }
-    final CustomFormAnswerSnapshot next = CustomFormAnswerSnapshot.build(
-      form: form,
-      answersByQuestionId: answers,
+    final CustomFormAnswerSnapshot? orderSnapshot =
+        BookingOrderFormAnswers.buildOrderSnapshot(
+          form: live,
+          answersByQuestionId: orderAnswers,
+        );
+    final Map<String, dynamic> byPetId = BookingOrderFormAnswers.encodeByPetId(
+      form: live,
+      pets: pets,
+      answersByPetId: petAnswers,
     );
     await FirebaseFirestore.instance
         .collection('bookings')
         .doc(bookingId)
         .update(<String, dynamic>{
-          field: next.toFirestoreMap(),
+          if (orderSnapshot != null) field: orderSnapshot.toFirestoreMap(),
+          petField: byPetId,
           'updatedAt': FieldValue.serverTimestamp(),
         });
     final User? user = FirebaseAuth.instance.currentUser;
@@ -325,8 +385,7 @@ class _FormBlock extends StatelessWidget {
       operatorRole: 'staff',
       payload: <String, dynamic>{
         'field': field,
-        'before': snapshot?.toCallableMap(),
-        'after': next.toCallableMap(),
+        'petField': petField,
         'operatorEmail': (user?.email ?? '').trim(),
       },
     );

@@ -15,13 +15,17 @@ class DailyCareJournalCardKeys {
 
   static const List<String> ordered = <String>[
     environment,
-    food,
     toilet,
+    food,
     activity,
     relax,
     generalNote,
     photos,
   ];
+
+  static bool isPinned(String key) {
+    return key == environment || key == toilet;
+  }
 
   static String labelOf(String key) {
     switch (key) {
@@ -50,6 +54,45 @@ class DailyCareJournalCardStyle {
 
   static const String widthFull = 'full';
   static const String widthHalf = 'half';
+
+  static const String inkAuto = 'auto';
+  static const String inkDark = 'dark';
+  static const String inkLight = 'light';
+  static const String inkCustom = 'custom';
+
+  static const String backgroundFollow = 'follow';
+  static const String backgroundPreset = 'preset';
+
+  static const List<String> backgroundSources = <String>[
+    backgroundFollow,
+    backgroundPreset,
+  ];
+
+  static const List<String> inkModes = <String>[
+    inkAuto,
+    inkDark,
+    inkLight,
+    inkCustom,
+  ];
+
+  static String inkLabel(String key) {
+    switch (key) {
+      case inkDark:
+        return '深色';
+      case inkLight:
+        return '淺色';
+      case inkCustom:
+        return '自訂顏色';
+      case inkAuto:
+      default:
+        return '自動';
+    }
+  }
+
+  static String _readInkMode(Object? value) {
+    final String key = (value ?? inkAuto).toString();
+    return inkModes.contains(key) ? key : inkAuto;
+  }
 
   static const String colorTheme = 'theme';
   static const String colorCream = 'cream';
@@ -93,6 +136,10 @@ class DailyCareJournalCardLayout {
     this.width = DailyCareJournalCardStyle.widthFull,
     this.colorKey = DailyCareJournalCardStyle.colorTheme,
     this.order = 0,
+    this.inkMode = DailyCareJournalCardStyle.inkAuto,
+    this.inkColorArgb = 0,
+    this.backgroundSource = DailyCareJournalCardStyle.backgroundFollow,
+    this.backgroundPreset = '',
   });
 
   final String key;
@@ -100,8 +147,16 @@ class DailyCareJournalCardLayout {
   final String width;
   final String colorKey;
   final int order;
+  final String inkMode;
+  final int inkColorArgb;
+  final String backgroundSource;
+  final String backgroundPreset;
 
   bool get isHalf => width == DailyCareJournalCardStyle.widthHalf;
+  bool get followsSharedBackground =>
+      backgroundSource != DailyCareJournalCardStyle.backgroundPreset ||
+      backgroundPreset.trim().isEmpty;
+  bool get isPinned => DailyCareJournalCardKeys.isPinned(key);
 
   factory DailyCareJournalCardLayout.fromMap(
     String key,
@@ -113,18 +168,32 @@ class DailyCareJournalCardLayout {
     }
     final String width = (map['width'] ?? fallback.width).toString();
     final String colorKey = (map['colorKey'] ?? fallback.colorKey).toString();
+    final int inkColorArgb = map['inkColorArgb'] is num
+        ? (map['inkColorArgb'] as num).toInt()
+        : fallback.inkColorArgb;
+    final bool pinned = DailyCareJournalCardKeys.isPinned(key);
     return DailyCareJournalCardLayout(
       key: key,
-      visible: map['visible'] != false,
-      width: width == DailyCareJournalCardStyle.widthHalf
+      visible: pinned ? true : map['visible'] != false,
+      width: pinned
           ? DailyCareJournalCardStyle.widthHalf
-          : DailyCareJournalCardStyle.widthFull,
+          : (width == DailyCareJournalCardStyle.widthHalf
+                ? DailyCareJournalCardStyle.widthHalf
+                : DailyCareJournalCardStyle.widthFull),
       colorKey: DailyCareJournalCardStyle.colorKeys.contains(colorKey)
           ? colorKey
           : fallback.colorKey,
-      order: map['order'] is num
-          ? (map['order'] as num).round()
-          : fallback.order,
+      order: pinned
+          ? (key == DailyCareJournalCardKeys.environment ? 0 : 1)
+          : (map['order'] is num
+                ? (map['order'] as num).round()
+                : fallback.order),
+      inkMode: DailyCareJournalCardStyle._readInkMode(
+        map['inkMode'] ?? fallback.inkMode,
+      ),
+      inkColorArgb: inkColorArgb,
+      backgroundSource: _readBackgroundSource(map['backgroundSource']),
+      backgroundPreset: (map['backgroundPreset'] ?? '').toString().trim(),
     );
   }
 
@@ -134,7 +203,20 @@ class DailyCareJournalCardLayout {
       'width': width,
       'colorKey': colorKey,
       'order': order,
+      'inkMode': inkMode,
+      'inkColorArgb': inkColorArgb,
+      'backgroundSource': backgroundSource,
+      'backgroundPreset': backgroundPreset,
     };
+  }
+
+  static String _readBackgroundSource(Object? value) {
+    final String key = (value ?? DailyCareJournalCardStyle.backgroundFollow)
+        .toString();
+    if (key == DailyCareJournalCardStyle.backgroundPreset) {
+      return DailyCareJournalCardStyle.backgroundPreset;
+    }
+    return DailyCareJournalCardStyle.backgroundFollow;
   }
 
   DailyCareJournalCardLayout copyWith({
@@ -142,6 +224,10 @@ class DailyCareJournalCardLayout {
     String? width,
     String? colorKey,
     int? order,
+    String? inkMode,
+    int? inkColorArgb,
+    String? backgroundSource,
+    String? backgroundPreset,
   }) {
     return DailyCareJournalCardLayout(
       key: key,
@@ -149,6 +235,10 @@ class DailyCareJournalCardLayout {
       width: width ?? this.width,
       colorKey: colorKey ?? this.colorKey,
       order: order ?? this.order,
+      inkMode: inkMode ?? this.inkMode,
+      inkColorArgb: inkColorArgb ?? this.inkColorArgb,
+      backgroundSource: backgroundSource ?? this.backgroundSource,
+      backgroundPreset: backgroundPreset ?? this.backgroundPreset,
     );
   }
 
@@ -161,15 +251,15 @@ class DailyCareJournalCardLayout {
         order: 0,
       ),
       DailyCareJournalCardLayout(
-        key: DailyCareJournalCardKeys.food,
-        width: DailyCareJournalCardStyle.widthHalf,
-        colorKey: DailyCareJournalCardStyle.colorBlue,
-        order: 1,
-      ),
-      DailyCareJournalCardLayout(
         key: DailyCareJournalCardKeys.toilet,
         width: DailyCareJournalCardStyle.widthHalf,
         colorKey: DailyCareJournalCardStyle.colorCream,
+        order: 1,
+      ),
+      DailyCareJournalCardLayout(
+        key: DailyCareJournalCardKeys.food,
+        width: DailyCareJournalCardStyle.widthHalf,
+        colorKey: DailyCareJournalCardStyle.colorBlue,
         order: 2,
       ),
       DailyCareJournalCardLayout(
@@ -246,6 +336,17 @@ class DailyCareJournalCardLayout {
         )
         .toList();
     list.sort((DailyCareJournalCardLayout a, DailyCareJournalCardLayout b) {
+      if (a.isPinned && b.isPinned) {
+        return DailyCareJournalCardKeys.ordered
+            .indexOf(a.key)
+            .compareTo(DailyCareJournalCardKeys.ordered.indexOf(b.key));
+      }
+      if (a.isPinned) {
+        return -1;
+      }
+      if (b.isPinned) {
+        return 1;
+      }
       final int byOrder = a.order.compareTo(b.order);
       if (byOrder != 0) {
         return byOrder;
@@ -255,6 +356,86 @@ class DailyCareJournalCardLayout {
           .compareTo(DailyCareJournalCardKeys.ordered.indexOf(b.key));
     });
     return list;
+  }
+
+  /// 客戶日誌、預覽固定：環境狀況 → 大小便狀況 → 其餘可設定卡片。
+  static List<DailyCareJournalCardLayout> displaySorted(
+    Map<String, DailyCareJournalCardLayout> layouts,
+  ) {
+    final List<DailyCareJournalCardLayout> all = sorted(layouts);
+    DailyCareJournalCardLayout? environment;
+    DailyCareJournalCardLayout? toilet;
+    final List<DailyCareJournalCardLayout> rest = <DailyCareJournalCardLayout>[];
+    for (final DailyCareJournalCardLayout item in all) {
+      if (item.key == DailyCareJournalCardKeys.environment) {
+        environment = item;
+      } else if (item.key == DailyCareJournalCardKeys.toilet) {
+        toilet = item;
+      } else {
+        rest.add(item);
+      }
+    }
+    return <DailyCareJournalCardLayout>[
+      ?environment,
+      ?toilet,
+      ...rest,
+    ];
+  }
+}
+
+/// 日期／場次／房間基本資訊共用的頁首卡片外觀（與照護內容分類卡分開）。
+class DailyCareJournalHeaderStyle {
+  const DailyCareJournalHeaderStyle({
+    this.inkMode = DailyCareJournalCardStyle.inkAuto,
+    this.inkColorArgb = 0,
+    this.useCardBackground = false,
+  });
+
+  final String inkMode;
+  final int inkColorArgb;
+  final bool useCardBackground;
+
+  DailyCareJournalCardLayout get asInkLayout {
+    return DailyCareJournalCardLayout(
+      key: 'header',
+      inkMode: inkMode,
+      inkColorArgb: inkColorArgb,
+    );
+  }
+
+  factory DailyCareJournalHeaderStyle.fromMap(Object? raw) {
+    if (raw is! Map) {
+      return const DailyCareJournalHeaderStyle();
+    }
+    final Map<String, dynamic> map = Map<String, dynamic>.from(raw);
+    final int inkColorArgb = map['inkColorArgb'] is num
+        ? (map['inkColorArgb'] as num).toInt()
+        : 0;
+    return DailyCareJournalHeaderStyle(
+      inkMode: DailyCareJournalCardStyle._readInkMode(map['inkMode']),
+      inkColorArgb: inkColorArgb,
+      useCardBackground: map['useCardBackground'] == true,
+    );
+  }
+
+  Map<String, dynamic> toMap() {
+    return <String, dynamic>{
+      'inkMode': inkMode,
+      'inkColorArgb': inkColorArgb,
+      'useCardBackground': useCardBackground,
+    };
+  }
+
+  DailyCareJournalHeaderStyle copyWith({
+    String? inkMode,
+    int? inkColorArgb,
+    bool? useCardBackground,
+  }) {
+    return DailyCareJournalHeaderStyle(
+      inkMode: inkMode ?? this.inkMode,
+      inkColorArgb: inkColorArgb ?? this.inkColorArgb,
+      useCardBackground: useCardBackground ?? this.useCardBackground,
+    );
   }
 }
 
@@ -284,27 +465,20 @@ class DailyCareJournalDisplayFlags {
       return const DailyCareJournalDisplayFlags();
     }
     return DailyCareJournalDisplayFlags(
-      showShopName: map['showShopName'] != false,
+      showShopName: true,
       showRoomOrOffer: map['showRoomOrOffer'] != false,
       showPetNames: map['showPetNames'] != false,
       showServiceDate: map['showServiceDate'] != false,
       showFilledTime: map['showFilledTime'] != false,
       showPhotoSection: map['showPhotoSection'] != false,
-      showTemperature: map['showTemperature'] != false,
-      showHumidity: map['showHumidity'] != false,
+      showTemperature: true,
+      showHumidity: true,
     );
   }
 
   Map<String, dynamic> toMap() {
     return <String, dynamic>{
-      'showShopName': showShopName,
-      'showRoomOrOffer': true,
-      'showPetNames': true,
-      'showServiceDate': true,
-      'showFilledTime': true,
       'showPhotoSection': showPhotoSection,
-      'showTemperature': showTemperature,
-      'showHumidity': showHumidity,
     };
   }
 

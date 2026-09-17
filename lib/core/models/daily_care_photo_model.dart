@@ -7,6 +7,8 @@
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+import 'daily_care_date_helper.dart';
+
 class DailyCarePhotoModel {
   const DailyCarePhotoModel({
     required this.id,
@@ -148,5 +150,58 @@ class DailyCarePhotoModel {
     }
 
     return null;
+  }
+}
+
+/// 日誌摘要與照片頁對同一筆本場照片的判定（日曆日 + 場次）。
+class DailyCarePhotoMatch {
+  DailyCarePhotoMatch._();
+
+  static bool matchesDate(DailyCarePhotoModel photo, String dateKey) {
+    final String selected = dateKey.trim();
+    if (selected.isEmpty) {
+      return false;
+    }
+    final String localKey = DailyCareDateHelper.dateKey(
+      DailyCareDateHelper.dateOnly(photo.recordDate),
+    );
+    final String taipeiKey = DailyCareDateHelper.dateKey(
+      DailyCareDateHelper.calendarDateInTaipei(photo.recordDate),
+    );
+    return localKey == selected || taipeiKey == selected;
+  }
+
+  static bool matchesSession({
+    required DailyCarePhotoModel photo,
+    required String dateKey,
+    required int sessionIndex,
+    String sessionName = '',
+  }) {
+    if (!matchesDate(photo, dateKey)) {
+      return false;
+    }
+    if (photo.sessionIndex == sessionIndex) {
+      return true;
+    }
+    final String name = sessionName.trim();
+    return name.isNotEmpty && photo.sessionName.trim() == name;
+  }
+
+  static List<DailyCarePhotoModel> sessionPhotos({
+    required List<DailyCarePhotoModel> photos,
+    required String dateKey,
+    required int sessionIndex,
+    String sessionName = '',
+  }) {
+    return photos
+        .where(
+          (DailyCarePhotoModel photo) => matchesSession(
+            photo: photo,
+            dateKey: dateKey,
+            sessionIndex: sessionIndex,
+            sessionName: sessionName,
+          ),
+        )
+        .toList();
   }
 }

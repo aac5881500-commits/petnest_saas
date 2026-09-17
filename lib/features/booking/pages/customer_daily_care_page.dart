@@ -347,6 +347,7 @@ class _CustomerDailyCarePageState extends State<CustomerDailyCarePage> {
                             : stay.roomName;
                         return _journalScaffold(
                           setting: setting,
+                          shopName: shopName,
                           child: _journalRenderer(
                             setting: setting,
                             stay: stay,
@@ -375,11 +376,17 @@ class _CustomerDailyCarePageState extends State<CustomerDailyCarePage> {
   Widget _journalScaffold({
     required DailyCareSettingModel setting,
     required Widget child,
+    String shopName = '',
   }) {
     return Scaffold(
       backgroundColor: Colors.transparent,
       appBar: AppBar(
-        title: const SizedBox.shrink(),
+        centerTitle: true,
+        title: Text(
+          shopName.trim(),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
         backgroundColor: Colors.transparent,
         surfaceTintColor: Colors.transparent,
         elevation: 0,
@@ -523,9 +530,7 @@ class _CustomerDailyCarePageState extends State<CustomerDailyCarePage> {
     required Map<String, dynamic> bookingData,
   }) {
     final bool photosOn =
-        record != null &&
-        setting.photoEnabled &&
-        setting.journalDisplay.showPhotoSection;
+        setting.photoEnabled && setting.journalDisplay.showPhotoSection;
     final Widget footer = _journalServiceRow(
       setting: setting,
       bookingData: bookingData,
@@ -561,11 +566,8 @@ class _CustomerDailyCarePageState extends State<CustomerDailyCarePage> {
     }
 
     return StreamBuilder<List<DailyCarePhotoModel>>(
-      stream: DailyCarePhotoService.instance.streamSessionPhotos(
-        shopId: widget.shopId,
+      stream: DailyCarePhotoService.instance.streamBookingPhotos(
         bookingId: widget.bookingId,
-        recordDate: record.recordDate,
-        sessionIndex: record.sessionIndex,
       ),
       builder:
           (

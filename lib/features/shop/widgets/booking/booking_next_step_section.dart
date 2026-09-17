@@ -39,6 +39,7 @@ class BookingNextStepSection extends StatelessWidget {
     required this.onSubmitWithData,
     this.theme = HomeThemeModel.classicDefault,
     this.compact = false,
+    this.selectedPets = const <Map<String, dynamic>>[],
   });
 
   final bool canShow;
@@ -70,6 +71,7 @@ class BookingNextStepSection extends StatelessWidget {
 
   final HomeThemeModel theme;
   final bool compact;
+  final List<Map<String, dynamic>> selectedPets;
 
   @override
   Widget build(BuildContext context) {
@@ -212,6 +214,7 @@ class BookingNextStepSection extends StatelessWidget {
                         termsServiceType: PolicyApplicableService.accommodation,
                         feeLineItems: feeLines,
                         showSubmitError: false,
+                        selectedPets: selectedPets,
                       ),
                     ),
                   );

@@ -107,7 +107,37 @@ class _QuestionField extends StatelessWidget {
   final ValueChanged<dynamic> onChanged;
 
   String get _label {
-    return question.required ? '${question.label} *' : question.label;
+    return question.collectsRequired ? '${question.label} *' : question.label;
+  }
+
+  InputDecoration _inputDecoration({String? hint}) {
+    final String description = question.description.trim();
+    return petProfileInputDecoration(
+      theme: theme,
+      label: _label,
+      hint: hint ?? question.placeholder,
+    ).copyWith(
+      helperText: description.isEmpty ? null : description,
+      helperMaxLines: 5,
+    );
+  }
+
+  Widget _helpText() {
+    final String description = question.description.trim();
+    if (description.isEmpty) {
+      return const SizedBox.shrink();
+    }
+    return Padding(
+      padding: const EdgeInsets.only(top: 4, bottom: 6),
+      child: Text(
+        description,
+        style: TextStyle(
+          fontSize: 12,
+          height: 1.4,
+          color: theme.textColor.withValues(alpha: 0.68),
+        ),
+      ),
+    );
   }
 
   @override
@@ -119,11 +149,7 @@ class _QuestionField extends StatelessWidget {
           minLines: 3,
           maxLines: 6,
           style: TextStyle(fontSize: 14, color: theme.textColor),
-          decoration: petProfileInputDecoration(
-            theme: theme,
-            label: _label,
-            hint: question.placeholder,
-          ),
+          decoration: _inputDecoration(),
           validator: (_) => CustomFormAnswerSnapshot.requiredError(
             question: question,
             raw: value,
@@ -138,11 +164,7 @@ class _QuestionField extends StatelessWidget {
             FilteringTextInputFormatter.allow(RegExp(r'[0-9.\-]')),
           ],
           style: TextStyle(fontSize: 14, color: theme.textColor),
-          decoration: petProfileInputDecoration(
-            theme: theme,
-            label: _label,
-            hint: question.placeholder,
-          ),
+          decoration: _inputDecoration(),
           validator: (_) => CustomFormAnswerSnapshot.requiredError(
             question: question,
             raw: value,
@@ -175,6 +197,7 @@ class _QuestionField extends StatelessWidget {
                     color: theme.textColor,
                   ),
                 ),
+                _helpText(),
                 const SizedBox(height: 8),
                 Row(
                   children: <Widget>[
@@ -229,7 +252,7 @@ class _QuestionField extends StatelessWidget {
               ? (value ?? '').toString()
               : null,
           isExpanded: true,
-          decoration: petProfileInputDecoration(theme: theme, label: _label),
+          decoration: _inputDecoration(),
           items: options
               .map(
                 (CustomFormOption option) => DropdownMenuItem<String>(
@@ -278,6 +301,7 @@ class _QuestionField extends StatelessWidget {
                     color: theme.textColor,
                   ),
                 ),
+                _helpText(),
                 const SizedBox(height: 6),
                 Wrap(
                   spacing: 8,
@@ -351,9 +375,7 @@ class _QuestionField extends StatelessWidget {
                 state.didChange(stored);
               },
               child: InputDecorator(
-                decoration: petProfileInputDecoration(
-                  theme: theme,
-                  label: _label,
+                decoration: _inputDecoration(
                   hint: question.placeholder.isEmpty
                       ? '點擊選擇'
                       : question.placeholder,
@@ -385,11 +407,7 @@ class _QuestionField extends StatelessWidget {
         return TextFormField(
           initialValue: (value ?? '').toString(),
           style: TextStyle(fontSize: 14, color: theme.textColor),
-          decoration: petProfileInputDecoration(
-            theme: theme,
-            label: _label,
-            hint: question.placeholder,
-          ),
+          decoration: _inputDecoration(),
           validator: (_) => CustomFormAnswerSnapshot.requiredError(
             question: question,
             raw: value,

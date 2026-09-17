@@ -1,6 +1,6 @@
 // 檔案名稱：lib/core/models/custom_form_model.dart
 // 功能說明：店家自訂表單資料模型
-// 用途：新增寵物表單、送出訂單表單的結構定義與 Firestore 解析。
+// 用途：送出訂單表單、手動訂單表單的結構定義與 Firestore 解析。
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 
@@ -34,18 +34,18 @@ enum CustomFormType {
   String get defaultDescription {
     switch (this) {
       case CustomFormType.petProfile:
-        return '會員新增或編輯寵物時填寫。答案歸屬於該隻寵物，作為店家照護資料。';
+        return '已停用：不再於新增或編輯寵物時填寫店家自訂題目。';
       case CustomFormType.bookingSubmit:
-        return '只有 APP 會員從客戶端自己送出住宿／安親預約時填寫。答案只歸屬該筆訂單。';
+        return 'APP 會員自行送出住宿／安親預約時填寫。可設定訂單資訊（每筆一次）或寵物資訊（每隻各填一次）。答案只歸屬該筆訂單，不會寫回共用寵物檔案。';
       case CustomFormType.adminCreate:
-        return '只有店家後台手動建立住宿／安親訂單時填寫。幫 APP 會員或非會員建立皆使用此表單。僅店家內部使用，客戶端永遠看不到。';
+        return '店員／店主後台手動建立住宿／安親訂單時填寫。可設定訂單資訊或寵物資訊。答案只歸屬該筆訂單，僅店家後台可見。';
     }
   }
 
   String get whenToUse {
     switch (this) {
       case CustomFormType.petProfile:
-        return '會員新增或編輯寵物資料時';
+        return '已不再使用';
       case CustomFormType.bookingSubmit:
         return 'APP 會員從客戶端自行送出住宿／安親預約時';
       case CustomFormType.adminCreate:
@@ -67,9 +67,9 @@ enum CustomFormType {
   String get answerLocation {
     switch (this) {
       case CustomFormType.petProfile:
-        return '歸屬於該隻寵物，作為店家照護資料';
+        return '不再寫入寵物檔案';
       case CustomFormType.bookingSubmit:
-        return '只歸屬該筆訂單';
+        return '只歸屬該筆訂單（含每隻寵物的照護答案快照）';
       case CustomFormType.adminCreate:
         return '只歸屬該筆訂單，且僅店家後台可見';
     }
@@ -84,6 +84,189 @@ enum CustomFormType {
       return CustomFormType.adminCreate;
     }
     return CustomFormType.petProfile;
+  }
+
+  static const List<CustomFormType> shopSettingTypes = <CustomFormType>[
+    CustomFormType.bookingSubmit,
+    CustomFormType.adminCreate,
+  ];
+}
+
+enum CustomFormAnswerScope {
+  order,
+  pet;
+
+  String get storageValue {
+    switch (this) {
+      case CustomFormAnswerScope.order:
+        return 'order';
+      case CustomFormAnswerScope.pet:
+        return 'pet';
+    }
+  }
+
+  String get shortLabel {
+    switch (this) {
+      case CustomFormAnswerScope.order:
+        return '訂單資訊';
+      case CustomFormAnswerScope.pet:
+        return '寵物資訊';
+    }
+  }
+
+  String get editorLabel {
+    switch (this) {
+      case CustomFormAnswerScope.order:
+        return '訂單資訊（每筆訂單填一次）';
+      case CustomFormAnswerScope.pet:
+        return '寵物資訊（每隻寵物各填一次）';
+    }
+  }
+
+  static CustomFormAnswerScope fromStorage(String? value) {
+    final String id = (value ?? '').trim().toLowerCase();
+    if (id == CustomFormAnswerScope.pet.storageValue ||
+        id == 'pet_info' ||
+        id == 'pets') {
+      return CustomFormAnswerScope.pet;
+    }
+    return CustomFormAnswerScope.order;
+  }
+}
+
+class CustomFormDisplayCondition {
+  const CustomFormDisplayCondition({this.field = '', this.value = ''});
+
+  final String field;
+  final String value;
+
+  bool get isEmpty => field.trim().isEmpty || value.trim().isEmpty;
+
+  String get cardSummary {
+    if (isEmpty) {
+      return '';
+    }
+    final CustomFormPetConditionField parsed =
+        CustomFormPetConditionField.fromStorage(field);
+    if (parsed == CustomFormPetConditionField.none) {
+      return '';
+    }
+    return '${parsed.label}：${value.trim()}時顯示';
+  }
+
+  factory CustomFormDisplayCondition.fromMap(dynamic raw) {
+    if (raw is! Map) {
+      return const CustomFormDisplayCondition();
+    }
+    final Map<String, dynamic> map = Map<String, dynamic>.from(raw);
+    return CustomFormDisplayCondition(
+      field: (map['field'] ?? '').toString().trim(),
+      value: (map['value'] ?? '').toString().trim(),
+    );
+  }
+
+  Map<String, dynamic> toMap() {
+    return <String, dynamic>{'field': field, 'value': value};
+  }
+
+  CustomFormDisplayCondition copyWith({String? field, String? value}) {
+    return CustomFormDisplayCondition(
+      field: field ?? this.field,
+      value: value ?? this.value,
+    );
+  }
+}
+
+enum CustomFormPetConditionField {
+  none,
+  isNeutered,
+  medicalStatus,
+  allergy,
+  canMedicate;
+
+  String get storageValue {
+    switch (this) {
+      case CustomFormPetConditionField.none:
+        return '';
+      case CustomFormPetConditionField.isNeutered:
+        return 'isNeutered';
+      case CustomFormPetConditionField.medicalStatus:
+        return 'medicalStatus';
+      case CustomFormPetConditionField.allergy:
+        return 'allergy';
+      case CustomFormPetConditionField.canMedicate:
+        return 'canMedicate';
+    }
+  }
+
+  String get label {
+    switch (this) {
+      case CustomFormPetConditionField.none:
+        return '不設定條件';
+      case CustomFormPetConditionField.isNeutered:
+        return '結紮狀況';
+      case CustomFormPetConditionField.medicalStatus:
+        return '疾病狀況';
+      case CustomFormPetConditionField.allergy:
+        return '飲食／食物過敏狀況';
+      case CustomFormPetConditionField.canMedicate:
+        return '是否需要固定用藥';
+    }
+  }
+
+  List<String> get valueOptions {
+    switch (this) {
+      case CustomFormPetConditionField.none:
+        return const <String>[];
+      case CustomFormPetConditionField.isNeutered:
+        return const <String>['有結紮', '未結紮'];
+      case CustomFormPetConditionField.medicalStatus:
+        return const <String>[
+          '無',
+          '有疾病',
+          '慢性腎臟病',
+          '心臟病',
+          '糖尿病',
+          '術後照護',
+          '皮膚疾病',
+          '其他',
+        ];
+      case CustomFormPetConditionField.allergy:
+        return const <String>['有', '無'];
+      case CustomFormPetConditionField.canMedicate:
+        return const <String>['是', '否'];
+    }
+  }
+
+  static CustomFormPetConditionField fromStorage(String? value) {
+    final String id = (value ?? '').trim();
+    for (final CustomFormPetConditionField field
+        in CustomFormPetConditionField.values) {
+      if (field != CustomFormPetConditionField.none &&
+          field.storageValue == id) {
+        return field;
+      }
+    }
+    return CustomFormPetConditionField.none;
+  }
+
+  /// 新增條件時可選；allergy / canMedicate 僅保留舊題目解析。
+  static const List<CustomFormPetConditionField> selectableInEditor =
+      <CustomFormPetConditionField>[
+        CustomFormPetConditionField.none,
+        CustomFormPetConditionField.isNeutered,
+        CustomFormPetConditionField.medicalStatus,
+      ];
+
+  static List<CustomFormPetConditionField> editorItemsFor(
+    CustomFormPetConditionField current,
+  ) {
+    final List<CustomFormPetConditionField> items =
+        List<CustomFormPetConditionField>.from(selectableInEditor);
+    if (!items.contains(current)) {
+      items.add(current);
+    }
+    return items;
   }
 }
 
@@ -227,6 +410,8 @@ class CustomFormQuestion {
     this.sortOrder = 0,
     this.options = const <CustomFormOption>[],
     this.placeholder = '',
+    this.answerScope = CustomFormAnswerScope.order,
+    this.displayCondition = const CustomFormDisplayCondition(),
   });
 
   final String id;
@@ -238,6 +423,14 @@ class CustomFormQuestion {
   final int sortOrder;
   final List<CustomFormOption> options;
   final String placeholder;
+  final CustomFormAnswerScope answerScope;
+  final CustomFormDisplayCondition displayCondition;
+
+  bool get collectsRequired => required;
+
+  String get scopeCardLabel => answerScope.shortLabel;
+
+  String get conditionCardLabel => displayCondition.cardSummary;
 
   factory CustomFormQuestion.fromMap(Map<String, dynamic> map) {
     final List<CustomFormOption> options = CustomFormModel.parseMapList(
@@ -247,31 +440,50 @@ class CustomFormQuestion {
       (CustomFormOption a, CustomFormOption b) =>
           a.sortOrder.compareTo(b.sortOrder),
     );
-
+    final CustomFormAnswerScope scope = CustomFormAnswerScope.fromStorage(
+      map['answerScope']?.toString(),
+    );
+    final bool storedRequired = CustomFormModel.parseBool(map['required']);
+    final bool petRequired = map.containsKey('petRequired')
+        ? CustomFormModel.parseBool(map['petRequired'])
+        : storedRequired;
     return CustomFormQuestion(
       id: (map['id'] ?? '').toString().trim(),
       label: (map['label'] ?? '').toString(),
       description: (map['description'] ?? '').toString(),
       type: CustomFormQuestionType.fromStorage(map['type']?.toString()),
-      required: CustomFormModel.parseBool(map['required']),
+      required: scope == CustomFormAnswerScope.pet
+          ? petRequired
+          : storedRequired,
       enabled: CustomFormModel.parseBool(map['enabled'], fallback: true),
       sortOrder: CustomFormModel.parseInt(map['sortOrder']),
       options: options,
       placeholder: (map['placeholder'] ?? '').toString(),
+      answerScope: scope,
+      displayCondition: CustomFormDisplayCondition.fromMap(
+        map['displayCondition'],
+      ),
     );
   }
 
   Map<String, dynamic> toMap() {
+    final bool cfRequired =
+        answerScope == CustomFormAnswerScope.order && required;
     return <String, dynamic>{
       'id': id,
       'label': label,
       'description': description,
       'type': type.storageValue,
-      'required': required,
+      'required': cfRequired,
+      'petRequired': answerScope == CustomFormAnswerScope.pet && required,
       'enabled': enabled,
       'sortOrder': sortOrder,
       'options': options.map((CustomFormOption item) => item.toMap()).toList(),
       'placeholder': placeholder,
+      'answerScope': answerScope.storageValue,
+      'displayCondition': displayCondition.isEmpty
+          ? <String, dynamic>{}
+          : displayCondition.toMap(),
     };
   }
 
@@ -285,6 +497,8 @@ class CustomFormQuestion {
     int? sortOrder,
     List<CustomFormOption>? options,
     String? placeholder,
+    CustomFormAnswerScope? answerScope,
+    CustomFormDisplayCondition? displayCondition,
   }) {
     return CustomFormQuestion(
       id: id ?? this.id,
@@ -296,6 +510,8 @@ class CustomFormQuestion {
       sortOrder: sortOrder ?? this.sortOrder,
       options: options ?? this.options,
       placeholder: placeholder ?? this.placeholder,
+      answerScope: answerScope ?? this.answerScope,
+      displayCondition: displayCondition ?? this.displayCondition,
     );
   }
 }
@@ -351,8 +567,9 @@ class CustomFormSection {
 
   int get questionCount => questions.length;
 
-  int get requiredCount =>
-      questions.where((CustomFormQuestion item) => item.required).length;
+  int get requiredCount => questions
+      .where((CustomFormQuestion item) => item.collectsRequired)
+      .length;
 
   CustomFormSection copyWith({
     String? id,
@@ -470,6 +687,12 @@ class CustomFormModel {
 
   /// 前台只收集已啟用分類中的已啟用題目。
   List<(CustomFormSection, CustomFormQuestion)> get enabledQuestionEntries {
+    return enabledQuestionEntriesWhere((CustomFormQuestion _) => true);
+  }
+
+  List<(CustomFormSection, CustomFormQuestion)> enabledQuestionEntriesWhere(
+    bool Function(CustomFormQuestion question) test,
+  ) {
     final List<(CustomFormSection, CustomFormQuestion)> result =
         <(CustomFormSection, CustomFormQuestion)>[];
     for (final CustomFormSection section in sections) {
@@ -477,13 +700,29 @@ class CustomFormModel {
         continue;
       }
       for (final CustomFormQuestion question in section.questions) {
-        if (!question.enabled || question.id.trim().isEmpty) {
+        if (!question.enabled ||
+            question.id.trim().isEmpty ||
+            !test(question)) {
           continue;
         }
         result.add((section, question));
       }
     }
     return result;
+  }
+
+  CustomFormModel whereQuestions(
+    bool Function(CustomFormQuestion question) test,
+  ) {
+    return copyWith(
+      sections: sections
+          .map(
+            (CustomFormSection section) => section.copyWith(
+              questions: section.questions.where(test).toList(growable: false),
+            ),
+          )
+          .toList(growable: false),
+    );
   }
 
   bool get hasEnabledQuestions => enabledQuestionEntries.isNotEmpty;
@@ -493,6 +732,30 @@ class CustomFormModel {
   int get questionCount => sections.fold<int>(
     0,
     (int sum, CustomFormSection section) => sum + section.questionCount,
+  );
+
+  int get orderQuestionCount => sections.fold<int>(
+    0,
+    (int sum, CustomFormSection section) =>
+        sum +
+        section.questions
+            .where(
+              (CustomFormQuestion question) =>
+                  question.answerScope == CustomFormAnswerScope.order,
+            )
+            .length,
+  );
+
+  int get petQuestionCount => sections.fold<int>(
+    0,
+    (int sum, CustomFormSection section) =>
+        sum +
+        section.questions
+            .where(
+              (CustomFormQuestion question) =>
+                  question.answerScope == CustomFormAnswerScope.pet,
+            )
+            .length,
   );
 
   int get requiredQuestionCount => sections.fold<int>(

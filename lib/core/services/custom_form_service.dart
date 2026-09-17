@@ -26,11 +26,17 @@ class CustomFormService {
   }
 
   /// 讀取表單。文件不存在時回傳預設空表單，不丟錯。
+  /// 新增寵物表單已停用：App 不再讀取該文件。
   Stream<CustomFormModel> streamForm({
     required String shopId,
     required CustomFormType formType,
   }) {
     final String normalizedShopId = shopId.trim();
+    if (formType == CustomFormType.petProfile) {
+      return Stream<CustomFormModel>.value(
+        CustomFormModel.empty(shopId: normalizedShopId, formType: formType),
+      );
+    }
     if (normalizedShopId.isEmpty) {
       return Stream<CustomFormModel>.value(
         CustomFormModel.empty(shopId: '', formType: formType),
@@ -62,6 +68,12 @@ class CustomFormService {
     if (normalizedShopId.isEmpty) {
       return CustomFormModel.empty(shopId: '', formType: formType);
     }
+    if (formType == CustomFormType.petProfile) {
+      return CustomFormModel.empty(
+        shopId: normalizedShopId,
+        formType: formType,
+      );
+    }
 
     final DocumentSnapshot<Map<String, dynamic>> snapshot = await _formRef(
       shopId: normalizedShopId,
@@ -87,6 +99,9 @@ class CustomFormService {
     final String shopId = form.shopId.trim();
     if (shopId.isEmpty) {
       throw ArgumentError('缺少店家 ID');
+    }
+    if (form.formType == CustomFormType.petProfile) {
+      return;
     }
 
     final DocumentReference<Map<String, dynamic>> ref = _formRef(
@@ -134,6 +149,9 @@ class CustomFormService {
     required String shopId,
     required CustomFormType formType,
   }) async {
+    if (formType == CustomFormType.petProfile) {
+      return CustomFormFrontLoadResult.unavailable();
+    }
     try {
       final CustomFormModel form = await getForm(
         shopId: shopId,

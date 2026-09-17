@@ -1,17 +1,16 @@
-// 檔案名稱：test/admin_booking_forms_permission_test.dart
-// 功能說明：店家後台表單／客戶備註編輯權限、寵物照護卡與桌機摘要展開。
+﻿// 檔案名稱：test/admin_booking_forms_permission_test.dart
+// 功能說明：店家後台表單／客戶備註編輯權限、完整表單階層與寵物卡不再放照護入口。
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:petnest_saas/core/models/home_theme_model.dart';
 import 'package:petnest_saas/core/models/shop_frontend_theme.dart';
-import 'package:petnest_saas/core/services/booking_pet_care_form_loader.dart';
 import 'package:petnest_saas/features/admin/widgets/admin_booking_detail_layout.dart';
 import 'package:petnest_saas/features/admin/widgets/admin_booking_form_answers_section.dart';
 import 'package:petnest_saas/features/admin/widgets/admin_booking_form_summary_card.dart';
 import 'package:petnest_saas/features/admin/widgets/admin_booking_note_section.dart';
-import 'package:petnest_saas/features/admin/widgets/admin_booking_pet_care_forms.dart';
-import 'package:petnest_saas/features/admin/widgets/admin_booking_pet_care_scope.dart';
 import 'package:petnest_saas/features/admin/widgets/admin_booking_pet_strip.dart';
+import 'package:petnest_saas/features/custom_form/widgets/order_form_answers_view.dart';
 
 Map<String, dynamic> _answer({required String label, required String value}) {
   return <String, dynamic>{
@@ -91,42 +90,39 @@ void main() {
     expect(find.text('不該出現'), findsNothing);
   });
 
-  testWidgets('訂單詳細頁依每隻寵物顯示已填照護表單卡', (WidgetTester tester) async {
+  testWidgets('完整表單依訂單資訊與每隻寵物分層顯示', (WidgetTester tester) async {
     await tester.pumpWidget(
       _wrap(
-        AdminBookingPetCareForms(
-          shopId: 'shop-a',
-          userId: '',
-          pets: <Map<String, dynamic>>[
-            <String, dynamic>{
+        OrderFormAnswersView(
+          orderRaw: _answer(label: '接送', value: '需要'),
+          petAnswersByPetId: <String, dynamic>{
+            'p1': <String, dynamic>{
               'petId': 'p1',
-              'name': '咪',
-              'customFormAnswersByShop': <String, dynamic>{
-                'shop-a': _answer(label: '個性', value: '黏人'),
-              },
+              'petName': '毛毛',
+              'answers':
+                  (_answer(label: '藥物', value: '早一顆')['answers'] as List),
             },
-            <String, dynamic>{
+            'p2': <String, dynamic>{
               'petId': 'p2',
-              'name': '球',
-              'customFormAnswersByShop': <String, dynamic>{
-                'shop-a': _answer(label: '飲食', value: '濕食'),
-              },
+              'petName': '喵喵',
+              'answers':
+                  (_answer(label: '飲食', value: '濕食')['answers'] as List),
             },
-            <String, dynamic>{
-              'petId': 'p3',
-              'name': '空空',
-            },
+          },
+          pets: const <Map<String, dynamic>>[
+            <String, dynamic>{'petId': 'p1', 'name': '毛毛'},
+            <String, dynamic>{'petId': 'p2', 'name': '喵喵'},
           ],
+          theme: HomeThemeModel.classicDefault,
         ),
         size: const Size(390, 800),
       ),
     );
     await tester.pump();
-    expect(find.text('寵物照護資料'), findsOneWidget);
-    expect(find.text('咪'), findsWidgets);
-    expect(find.text('球'), findsWidgets);
-    expect(find.text('空空'), findsNothing);
-    expect(find.text('已填 1 題'), findsNWidgets(2));
+    expect(find.textContaining('訂單資訊'), findsWidgets);
+    expect(find.textContaining('毛毛的照護資訊'), findsOneWidget);
+    expect(find.textContaining('喵喵的照護資訊'), findsOneWidget);
+    expect(find.text('寵物照護資料提醒'), findsNothing);
   });
 
   testWidgets('desktop 3/1 主副欄，mobile 維持三分頁；摘要可展開表單', (
@@ -181,7 +177,10 @@ void main() {
       ),
     );
     await tester.pump();
-    expect(find.byKey(const ValueKey<String>('admin-booking-desktop-split')), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey<String>('admin-booking-desktop-split')),
+      findsOneWidget,
+    );
     expect(find.byType(Scrollbar), findsNWidgets(2));
     expect(find.text('訂單資料'), findsNothing);
     expect(find.text('訂單進度'), findsOneWidget);
@@ -213,10 +212,13 @@ void main() {
     expect(find.text('訂單資料'), findsOneWidget);
     expect(find.text('表單資料'), findsOneWidget);
     expect(find.text('交接與溝通'), findsOneWidget);
-    expect(find.byKey(const ValueKey<String>('admin-booking-desktop-split')), findsNothing);
+    expect(
+      find.byKey(const ValueKey<String>('admin-booking-desktop-split')),
+      findsNothing,
+    );
   });
 
-  testWidgets('手機表單資料分頁顯示寵物照護卡，摘要用同一批資料計數', (
+  testWidgets('手機表單資料分頁顯示訂單表單，不再出現寵物照護卡', (
     WidgetTester tester,
   ) async {
     tester.view.physicalSize = const Size(390, 800);
@@ -224,21 +226,19 @@ void main() {
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
 
-    final List<BookingPetCareFormItem> items = <BookingPetCareFormItem>[
-      BookingPetCareFormItem(
-        petId: 'p1',
-        name: '咪',
-        photoUrl: '',
-        raw: _answer(label: '個性', value: '黏人'),
-        filledCount: 1,
-      ),
-    ];
     final Map<String, dynamic> data = <String, dynamic>{
       'source': 'app',
       'pets': <Map<String, dynamic>>[
         <String, dynamic>{'petId': 'p1', 'name': '咪'},
       ],
       'customFormAnswers': _answer(label: '飲食', value: '早午餐'),
+      'petFormAnswersByPetId': <String, dynamic>{
+        'p1': <String, dynamic>{
+          'petId': 'p1',
+          'petName': '咪',
+          'answers': (_answer(label: '藥物', value: '早一顆')['answers'] as List),
+        },
+      },
     };
 
     await tester.pumpWidget(
@@ -251,7 +251,6 @@ void main() {
             overview: const Text('摘要'),
             left: const <Widget>[Text('顧客資訊')],
             right: const <Widget>[Text('付款')],
-            petCareFuture: Future<List<BookingPetCareFormItem>>.value(items),
             forms: <Widget>[
               AdminBookingFormAnswersSection(
                 shopId: 'shop-a',
@@ -271,8 +270,9 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('表單資料'));
     await tester.pumpAndSettle();
-    expect(find.text('寵物照護資料'), findsOneWidget);
-    expect(find.text('已填 1 題'), findsWidgets);
+    expect(find.text('寵物照護資料'), findsNothing);
+    expect(find.textContaining('訂單資訊'), findsWidgets);
+    expect(find.textContaining('咪的照護資訊'), findsOneWidget);
     expect(find.text('客戶送單表單'), findsOneWidget);
     expect(find.text('飲食'), findsWidgets);
   });
@@ -291,129 +291,29 @@ void main() {
     );
     await tester.pump();
     expect(find.text('表單資料摘要'), findsOneWidget);
+    expect(find.text('查看完整表單'), findsOneWidget);
     expect(find.text('寵物照護資料'), findsNothing);
     expect(find.text('客戶送單表單'), findsOneWidget);
     expect(find.text('手動訂單表單'), findsOneWidget);
   });
 
-  testWidgets('表單摘要在已載入時顯示幾隻已填，不把讀取中當成無', (WidgetTester tester) async {
+  testWidgets('寵物資訊下方不再顯示照護提醒與查看入口', (WidgetTester tester) async {
     await tester.pumpWidget(
       _wrap(
-        AdminBookingPetCareScope(
-          items: <BookingPetCareFormItem>[
-            BookingPetCareFormItem(
-              petId: 'p1',
-              name: '咪',
-              photoUrl: '',
-              raw: _answer(label: '個性', value: '黏人'),
-              filledCount: 1,
-            ),
+        AdminBookingPetStrip(
+          pets: const <Map<String, dynamic>>[
+            <String, dynamic>{'petId': 'p1', 'name': '測試'},
+            <String, dynamic>{'petId': 'p2', 'name': '喵喵'},
+            <String, dynamic>{'petId': 'p3', 'name': '無表單'},
           ],
-          loading: false,
-          child: const AdminBookingPetCareFormsSummary(
-            shopId: 'shop-a',
-            userId: 'u1',
-            pets: <Map<String, dynamic>>[
-              <String, dynamic>{'petId': 'p1', 'name': '咪'},
-            ],
-          ),
-        ),
-      ),
-    );
-    await tester.pump();
-    expect(find.text('1 隻已填'), findsOneWidget);
-    expect(find.text('無'), findsNothing);
-  });
-
-  testWidgets('寵物資訊下方顯示照護提醒卡與查看入口', (WidgetTester tester) async {
-    final List<BookingPetCareFormItem> items = <BookingPetCareFormItem>[
-      BookingPetCareFormItem(
-        petId: 'p1',
-        name: '測試',
-        photoUrl: '',
-        raw: _answer(label: '飲食', value: '早午餐'),
-        filledCount: 9,
-      ),
-      BookingPetCareFormItem(
-        petId: 'p2',
-        name: '喵喵',
-        photoUrl: '',
-        raw: _answer(label: '個性', value: '黏人'),
-        filledCount: 6,
-      ),
-    ];
-    await tester.pumpWidget(
-      _wrap(
-        AdminBookingPetCareScope(
-          items: items,
-          loading: false,
-          child: AdminBookingPetStrip(
-            pets: const <Map<String, dynamic>>[
-              <String, dynamic>{'petId': 'p1', 'name': '測試'},
-              <String, dynamic>{'petId': 'p2', 'name': '喵喵'},
-              <String, dynamic>{'petId': 'p3', 'name': '無表單'},
-            ],
-          ),
-        ),
-      ),
-    );
-    await tester.pump();
-    expect(find.text('⚠ 寵物照護資料提醒'), findsOneWidget);
-    expect(find.text('本訂單有 2 隻寵物已填寫照護資料，請於照護前查看。'), findsOneWidget);
-    expect(find.text('測試：已填 9 題'), findsOneWidget);
-    expect(find.text('喵喵：已填 6 題'), findsOneWidget);
-    expect(find.text('查看照護表單（已填 9 題） ›'), findsOneWidget);
-    expect(find.text('查看照護表單（已填 6 題） ›'), findsOneWidget);
-    expect(find.textContaining('查看照護表單（已填'), findsNWidgets(2));
-  });
-
-  testWidgets('桌機寵物資訊也顯示照護提醒卡', (WidgetTester tester) async {
-    await tester.pumpWidget(
-      _wrap(
-        AdminBookingDetailScope(
-          mode: AdminBookingDetailMode.desktop,
-          width: 1440,
-          child: AdminBookingPetCareScope(
-            items: <BookingPetCareFormItem>[
-              BookingPetCareFormItem(
-                petId: 'p1',
-                name: '測試',
-                photoUrl: '',
-                raw: _answer(label: '飲食', value: '早午餐'),
-                filledCount: 9,
-              ),
-            ],
-            loading: false,
-            child: const AdminBookingPetStrip(
-              pets: <Map<String, dynamic>>[
-                <String, dynamic>{'petId': 'p1', 'name': '測試'},
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-    await tester.pump();
-    expect(find.text('⚠ 寵物照護資料提醒'), findsOneWidget);
-    expect(find.text('查看照護表單（已填 9 題） ›'), findsOneWidget);
-  });
-
-  testWidgets('沒有照護表單時不顯示提醒卡', (WidgetTester tester) async {
-    await tester.pumpWidget(
-      _wrap(
-        const AdminBookingPetCareScope(
-          items: <BookingPetCareFormItem>[],
-          loading: false,
-          child: AdminBookingPetStrip(
-            pets: <Map<String, dynamic>>[
-              <String, dynamic>{'petId': 'p1', 'name': '測試'},
-            ],
-          ),
         ),
       ),
     );
     await tester.pump();
     expect(find.text('⚠ 寵物照護資料提醒'), findsNothing);
     expect(find.textContaining('查看照護表單'), findsNothing);
+    expect(find.textContaining('點擊查看'), findsNothing);
+    expect(find.text('測試'), findsWidgets);
+    expect(find.text('喵喵'), findsWidgets);
   });
 }

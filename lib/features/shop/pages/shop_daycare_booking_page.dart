@@ -5,6 +5,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/models/booking_fee_line_item.dart';
+import 'package:petnest_saas/core/models/booking_order_form_answers.dart';
 import 'package:petnest_saas/core/models/create_payment_request_model.dart';
 import 'package:petnest_saas/core/models/daycare_date_override_model.dart';
 import 'package:petnest_saas/core/models/daycare_plan_model.dart';
@@ -1011,6 +1012,13 @@ class _ShopDaycareBookingPageState extends State<ShopDaycareBookingPage> {
               ? quote.depositAmount
               : null,
           onSubmitWithData: _submitOrder,
+          selectedPets: _pets
+              .where(
+                (Map<String, dynamic> pet) => _selectedPetIds.contains(
+                  (pet['petId'] ?? pet['id'] ?? '').toString(),
+                ),
+              )
+              .toList(),
         ),
       ),
     );
@@ -1062,14 +1070,18 @@ class _ShopDaycareBookingPageState extends State<ShopDaycareBookingPage> {
     });
     try {
       final String requestId = _bookingRequestId!;
-      final List<Map<String, dynamic>> petSnaps = _pets
-          .where(
-            (Map<String, dynamic> pet) => _selectedPetIds.contains(
-              (pet['petId'] ?? pet['id'] ?? '').toString(),
-            ),
-          )
-          .map(DaycareCallablePayload.petSnapshot)
-          .toList();
+      final List<Map<String, dynamic>> petSnaps = BookingOrderFormAnswers
+          .attachToPets(
+            pets: _pets
+                .where(
+                  (Map<String, dynamic> pet) => _selectedPetIds.contains(
+                    (pet['petId'] ?? pet['id'] ?? '').toString(),
+                  ),
+                )
+                .map(DaycareCallablePayload.petSnapshot)
+                .toList(),
+            byPetId: data.petFormAnswersByPetId,
+          );
       final bool roomBased = widget.settings.isRoomBased;
       final DaycareRoomTypeSetting? roomSetting = roomBased
           ? widget.settings.roomTypeSetting(_selectedRoomTypeId ?? '')
@@ -1136,6 +1148,8 @@ class _ShopDaycareBookingPageState extends State<ShopDaycareBookingPage> {
         'couponDiscountAmount': quote.couponAmount,
         if (data.customFormAnswers != null)
           'customFormAnswers': data.customFormAnswers!.toCallableMap(),
+        if (data.petFormAnswersByPetId.isNotEmpty)
+          'petFormAnswersByPetId': data.petFormAnswersByPetId,
       };
       CallablePayload.assertValid(payload);
       final Map<String, dynamic> created = await DaycareFunctionService.instance

@@ -50,7 +50,6 @@ import 'package:petnest_saas/features/admin/widgets/admin_booking_text_helpers.d
 import 'package:petnest_saas/features/admin/widgets/admin_booking_timeline.dart';
 import 'package:petnest_saas/features/booking/widgets/booking_detail/booking_detail_message_section.dart';
 import 'package:petnest_saas/core/services/pet_shop_form_answers.dart';
-import 'package:petnest_saas/core/services/booking_pet_care_form_loader.dart';
 import 'package:petnest_saas/core/services/daily_care_setting_service.dart';
 import 'package:petnest_saas/features/admin/widgets/admin_booking_form_summary_card.dart';
 import 'package:petnest_saas/features/admin/widgets/admin_booking_stay_meta_section.dart';
@@ -338,12 +337,6 @@ class AdminBookingDetailPage extends StatelessWidget {
                             ],
                           ),
                         ),
-                      petCareFuture: BookingPetCareFormLoader.load(
-                        shopId: shopId,
-                        userId: PetShopFormAnswers.bookingUserId(data),
-                        pets: pets,
-                        bookingId: bookingId,
-                      ),
                       forms: <Widget>[
                         AdminBookingFormAnswersSection(
                           shopId: shopId,

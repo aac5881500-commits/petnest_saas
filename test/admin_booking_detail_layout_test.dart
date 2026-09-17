@@ -104,7 +104,8 @@ void main() {
       expect(find.textContaining('SHOP0001-B000105'), findsWidgets);
       expect(find.text('目前安排'), findsWidgets);
       expect(find.text('尚未分配實體房間'), findsWidgets);
-      expect(find.text('點擊查看詳細資料與照護資料 ›'), findsWidgets);
+      expect(find.textContaining('點擊查看'), findsNothing);
+      expect(find.text('寵物照護資料提醒'), findsNothing);
     }
 
     addTearDown(tester.view.resetPhysicalSize);

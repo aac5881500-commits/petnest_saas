@@ -139,6 +139,7 @@ class BookingSubmitHelper {
     required String requestId,
     TermsConsentSnapshot? termsConsent,
     CustomFormAnswerSnapshot? customFormAnswers,
+    Map<String, dynamic> petFormAnswersByPetId = const <String, dynamic>{},
     Map<String, dynamic>? dailyCareEntitlement,
   }) async {
     await MemberService.instance.ensureMember(
@@ -267,6 +268,9 @@ class BookingSubmitHelper {
       customFormAnswers: customFormAnswers == null
           ? null
           : customFormAnswers.toFirestoreMap(),
+      petFormAnswersByPetId: petFormAnswersByPetId.isEmpty
+          ? null
+          : petFormAnswersByPetId,
     );
 
     final String normalizedCouponId = couponId.trim();

@@ -8,8 +8,12 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import '../../../core/models/daily_care_setting_model.dart';
+import '../../../core/models/daily_care_journal_layout.dart';
 import '../../../core/models/daily_care_record_model.dart';
 import '../../../core/services/daily_care_record_service.dart';
+import '../../../core/services/daily_care_setting_service.dart';
+import '../../../core/widgets/daily_care_illustrations.dart';
+import '../../../core/widgets/daily_care_journal_renderer.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../../core/models/daily_care_photo_model.dart';
 import '../../../core/services/daily_care_photo_function_service.dart';
@@ -59,6 +63,7 @@ class DailyCareRecordEditPage extends StatefulWidget {
 class _DailyCareRecordEditPageState extends State<DailyCareRecordEditPage> {
   bool _loading = true;
   bool _saving = false;
+  DailyCareSettingModel _setting = const DailyCareSettingModel();
 
   bool _uploadingPhoto = false;
   bool _photosLocked = false;
@@ -119,6 +124,13 @@ class _DailyCareRecordEditPageState extends State<DailyCareRecordEditPage> {
   }
 
   Future<void> _load() async {
+    try {
+      _setting = await DailyCareSettingService.instance.getSetting(
+        widget.shopId,
+      );
+    } catch (_) {
+      _setting = const DailyCareSettingModel();
+    }
     try {
       await _loadExistingRecord();
     } catch (e) {
@@ -444,8 +456,29 @@ class _DailyCareRecordEditPageState extends State<DailyCareRecordEditPage> {
 
                 const SizedBox(height: 14),
 
-                // 🌡️💧 固定必填
-                _environmentCard(),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Expanded(child: _environmentCard()),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: _illustratedSection(
+                        cardKey: DailyCareJournalCardKeys.toilet,
+                        title: '大小便狀況',
+                        children: <Widget>[
+                          _choiceRow(
+                            keyName: 'stool',
+                            options: _fixedConditionOptions,
+                          ),
+                          _choiceRow(
+                            keyName: 'urine',
+                            options: _fixedConditionOptions,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
 
                 if (_hasAny(<String>[
                   'water',
@@ -454,9 +487,9 @@ class _DailyCareRecordEditPageState extends State<DailyCareRecordEditPage> {
                   'snack',
                 ])) ...<Widget>[
                   const SizedBox(height: 14),
-                  _sectionCard(
-                    title: '飲食與飲水',
-                    icon: Icons.restaurant_outlined,
+                  _illustratedSection(
+                    cardKey: DailyCareJournalCardKeys.food,
+                    title: '生活狀況',
                     children: <Widget>[
                       if (_enabled('water'))
                         _choiceRow(
@@ -482,26 +515,6 @@ class _DailyCareRecordEditPageState extends State<DailyCareRecordEditPage> {
                   ),
                 ],
 
-                if (_hasAny(<String>['stool', 'urine'])) ...<Widget>[
-                  const SizedBox(height: 14),
-                  _sectionCard(
-                    title: '大小便狀況',
-                    icon: Icons.health_and_safety_outlined,
-                    children: <Widget>[
-                      if (_enabled('stool'))
-                        _choiceRow(
-                          keyName: 'stool',
-                          options: _fixedConditionOptions,
-                        ),
-                      if (_enabled('urine'))
-                        _choiceRow(
-                          keyName: 'urine',
-                          options: _fixedConditionOptions,
-                        ),
-                    ],
-                  ),
-                ],
-
                 if (_hasAny(<String>[
                   'wandToy',
                   'scratchBoard',
@@ -510,9 +523,9 @@ class _DailyCareRecordEditPageState extends State<DailyCareRecordEditPage> {
                   'catHouse',
                 ])) ...<Widget>[
                   const SizedBox(height: 14),
-                  _sectionCard(
+                  _illustratedSection(
+                    cardKey: DailyCareJournalCardKeys.activity,
                     title: '活動與玩樂',
-                    icon: Icons.sports_esports_outlined,
                     children: <Widget>[
                       for (final String key in <String>[
                         'wandToy',
@@ -539,9 +552,9 @@ class _DailyCareRecordEditPageState extends State<DailyCareRecordEditPage> {
                   'catGrass',
                 ])) ...<Widget>[
                   const SizedBox(height: 14),
-                  _sectionCard(
+                  _illustratedSection(
+                    cardKey: DailyCareJournalCardKeys.relax,
                     title: '放鬆與用品',
-                    icon: Icons.eco_outlined,
                     children: <Widget>[
                       for (final String key in <String>[
                         'catnip',
@@ -562,9 +575,9 @@ class _DailyCareRecordEditPageState extends State<DailyCareRecordEditPage> {
 
                 if (_enabled('generalNote')) ...<Widget>[
                   const SizedBox(height: 14),
-                  _sectionCard(
-                    title: '整房概況',
-                    icon: Icons.notes_outlined,
+                  _illustratedSection(
+                    cardKey: DailyCareJournalCardKeys.generalNote,
+                    title: '今日概況',
                     children: <Widget>[
                       TextField(
                         controller: _generalNoteController,
@@ -582,9 +595,9 @@ class _DailyCareRecordEditPageState extends State<DailyCareRecordEditPage> {
 
                 if (_customFieldsByCategory('other').isNotEmpty) ...<Widget>[
                   const SizedBox(height: 14),
-                  _sectionCard(
+                  _illustratedSection(
+                    cardKey: 'other',
                     title: '其他紀錄',
-                    icon: Icons.edit_note_outlined,
                     children: <Widget>[
                       for (final DailyCareCustomField field
                           in _customFieldsByCategory('other'))
@@ -655,87 +668,126 @@ class _DailyCareRecordEditPageState extends State<DailyCareRecordEditPage> {
   }
 
   /// 🌡️💧 固定環境紀錄
-  Widget _environmentCard() {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.grey.shade200),
+  DailyCareJournalCardLayout _layoutOf(String key) {
+    return _setting.resolvedJournalCards[key] ??
+        DailyCareJournalCardLayout(key: key, order: 99);
+  }
+
+  Widget _illustratedSection({
+    required String cardKey,
+    required String title,
+    required List<Widget> children,
+    Widget? trailing,
+  }) {
+    final DailyCareJournalCardLayout layout = _layoutOf(cardKey);
+    final Color fill = DailyCareJournalThemeTokens.fillOf(layout.colorKey);
+    final Color ink = DailyCareInk.of(
+      layout: layout,
+      fill: fill,
+      colors: Theme.of(context).colorScheme,
+    );
+    return DailyCareIllustratedShell(
+      layout: layout,
+      title: title,
+      fill: fill,
+      ink: ink,
+      trailing: trailing,
+      child: DefaultTextStyle.merge(
+        style: TextStyle(color: ink, fontSize: 13),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: children,
+        ),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
-          const Row(
-            children: <Widget>[
-              Icon(
-                Icons.thermostat_outlined,
-                size: 20,
-                color: Color(0xFF3D6F9F),
+    );
+  }
+
+  Widget _environmentCard() {
+    final DailyCareJournalCardLayout layout = _layoutOf(
+      DailyCareJournalCardKeys.environment,
+    );
+    final Color fill = DailyCareJournalThemeTokens.fillOf(layout.colorKey);
+    final Color ink = DailyCareInk.of(
+      layout: layout,
+      fill: fill,
+      colors: Theme.of(context).colorScheme,
+    );
+    final InputDecorationTheme inputTheme = InputDecorationTheme(
+      labelStyle: TextStyle(color: ink.withValues(alpha: 0.78)),
+      hintStyle: TextStyle(color: ink.withValues(alpha: 0.45)),
+      suffixStyle: TextStyle(color: ink),
+    );
+    return DailyCareIllustratedShell(
+      layout: layout,
+      title: '環境狀況',
+      fill: fill,
+      ink: ink,
+      trailing: Text(
+        '必填',
+        style: TextStyle(
+          fontSize: 12,
+          color: ink,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+      child: Theme(
+        data: Theme.of(context).copyWith(inputDecorationTheme: inputTheme),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            Text(
+              '每一場照護紀錄都需要填寫目前房間的溫度與濕度。',
+              style: TextStyle(
+                fontSize: 12,
+                color: ink.withValues(alpha: 0.72),
               ),
-              SizedBox(width: 8),
-              Text(
-                '環境紀錄',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _temperatureController,
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: true,
               ),
-              Spacer(),
-              Text(
-                '必填',
-                style: TextStyle(
-                  fontSize: 12,
-                  color: Colors.red,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ],
-          ),
-
-          const SizedBox(height: 6),
-
-          Text(
-            '每一場照護紀錄都需要填寫目前房間的溫度與濕度。',
-            style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
-          ),
-
-          const SizedBox(height: 16),
-
-          Row(
-            children: <Widget>[
-              Expanded(
-                child: TextField(
-                  controller: _temperatureController,
-                  keyboardType: const TextInputType.numberWithOptions(
-                    decimal: true,
-                  ),
-                  decoration: const InputDecoration(
-                    labelText: '室內溫度',
-                    hintText: '例如 24.5',
-                    suffixText: '°C',
-                    border: OutlineInputBorder(),
-                  ),
-                ),
-              ),
-
-              const SizedBox(width: 12),
-
-              Expanded(
-                child: TextField(
-                  controller: _humidityController,
-                  keyboardType: const TextInputType.numberWithOptions(
-                    decimal: true,
-                  ),
-                  decoration: const InputDecoration(
-                    labelText: '室內濕度',
-                    hintText: '例如 55',
-                    suffixText: '%',
-                    border: OutlineInputBorder(),
+              style: TextStyle(color: ink, fontWeight: FontWeight.w700),
+              decoration: InputDecoration(
+                labelText: '溫度',
+                hintText: '例如 28',
+                suffixText: '°C',
+                prefixIcon: Padding(
+                  padding: const EdgeInsets.all(10),
+                  child: DailyCareSvgIcon(
+                    asset: DailyCareIllustrations.environment,
+                    color: ink,
+                    size: 20,
                   ),
                 ),
+                border: const OutlineInputBorder(),
               ),
-            ],
-          ),
-        ],
+            ),
+            const SizedBox(height: 10),
+            TextField(
+              controller: _humidityController,
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: true,
+              ),
+              style: TextStyle(color: ink, fontWeight: FontWeight.w700),
+              decoration: InputDecoration(
+                labelText: '濕度',
+                hintText: '例如 60',
+                suffixText: '%',
+                prefixIcon: Padding(
+                  padding: const EdgeInsets.all(10),
+                  child: DailyCareSvgIcon(
+                    asset: DailyCareIllustrations.humidity,
+                    color: ink,
+                    size: 20,
+                  ),
+                ),
+                border: const OutlineInputBorder(),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -762,45 +814,20 @@ class _DailyCareRecordEditPageState extends State<DailyCareRecordEditPage> {
 
         final bool reachedLimit = currentCount >= maxCount || _photosLocked;
 
-        return Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: Colors.grey.shade200),
+        return _illustratedSection(
+          cardKey: DailyCareJournalCardKeys.photos,
+          title: '照護照片',
+          trailing: Text(
+            _photosLocked
+                ? '此場照片已鎖定 $currentCount／$maxCount 張'
+                : '此場 $currentCount／$maxCount 張',
+            style: TextStyle(
+              fontSize: 12,
+              color: reachedLimit ? Colors.red : Colors.grey.shade700,
+              fontWeight: FontWeight.w700,
+            ),
           ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: <Widget>[
-              Row(
-                children: <Widget>[
-                  const Icon(
-                    Icons.photo_camera_outlined,
-                    size: 20,
-                    color: Color(0xFF3D6F9F),
-                  ),
-                  const SizedBox(width: 8),
-                  const Text(
-                    '照護照片',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
-                  ),
-                  const Spacer(),
-                  Text(
-                    _photosLocked
-                        ? '此場照片已鎖定 $currentCount／$maxCount 張'
-                        : '此場 $currentCount／$maxCount 張',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: reachedLimit ? Colors.red : Colors.grey.shade600,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ],
-              ),
-
-              const SizedBox(height: 6),
-
+          children: <Widget>[
               Text(
                 _photosLocked
                     ? '此場照片已鎖定，不可追加、更換或由一般員工刪除。修改文字不會解除鎖定。'
@@ -947,8 +974,7 @@ class _DailyCareRecordEditPageState extends State<DailyCareRecordEditPage> {
                   ),
                 ),
               ),
-            ],
-          ),
+          ],
         );
       },
     );
@@ -1015,42 +1041,6 @@ class _DailyCareRecordEditPageState extends State<DailyCareRecordEditPage> {
     }
   }
 
-  Widget _sectionCard({
-    required String title,
-    required IconData icon,
-    required List<Widget> children,
-  }) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.grey.shade200),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
-          Row(
-            children: <Widget>[
-              Icon(icon, size: 20, color: const Color(0xFF3D6F9F)),
-              const SizedBox(width: 8),
-              Text(
-                title,
-                style: const TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 14),
-          ...children,
-        ],
-      ),
-    );
-  }
-
   static const List<String> _fixedConditionOptions = <String>[
     '正常',
     '偏少',
@@ -1096,6 +1086,9 @@ class _DailyCareRecordEditPageState extends State<DailyCareRecordEditPage> {
   }
 
   bool _enabled(String key) {
+    if (DailyCareReportFormat.isAlwaysOn(key)) {
+      return true;
+    }
     return widget.enabledFields.contains(key);
   }
 

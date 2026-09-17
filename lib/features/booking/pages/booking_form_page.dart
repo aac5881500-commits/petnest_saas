@@ -6,8 +6,10 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/constants/emergency_relation_options.dart';
 import 'package:petnest_saas/core/models/booking_fee_line_item.dart';
+import 'package:petnest_saas/core/models/booking_order_form_answers.dart';
 import 'package:petnest_saas/core/models/custom_form_answer_model.dart';
 import 'package:petnest_saas/core/models/custom_form_model.dart';
+import 'package:petnest_saas/core/models/custom_form_pet_condition.dart';
 import 'package:petnest_saas/core/models/daycare_settings_model.dart';
 import 'package:petnest_saas/core/models/home_theme_model.dart';
 import 'package:petnest_saas/core/models/payment_gateway_status.dart';
@@ -20,7 +22,7 @@ import 'package:petnest_saas/core/services/shop_payment_methods.dart';
 import 'package:petnest_saas/core/utils/dropdown_value.dart';
 import 'package:petnest_saas/core/utils/safe_parse.dart';
 import 'package:petnest_saas/features/booking/models/booking_form_submit_data.dart';
-import 'package:petnest_saas/features/custom_form/widgets/custom_form_response_fields.dart';
+import 'package:petnest_saas/features/custom_form/widgets/order_custom_form_fill.dart';
 import 'package:petnest_saas/features/shop/widgets/booking/booking_step_widgets.dart';
 import 'package:petnest_saas/features/shop/widgets/booking/terms_confirmation_card.dart';
 import 'package:petnest_saas/features/shop/widgets/booking/terms_confirmation_sheet.dart';
@@ -66,6 +68,7 @@ class BookingFormPage extends StatefulWidget {
     this.showSubmitError = true,
     this.showStepBackButton = false,
     this.seedCustomForm,
+    this.selectedPets = const <Map<String, dynamic>>[],
   });
 
   final GlobalKey<FormState> formKey;
@@ -131,6 +134,8 @@ class BookingFormPage extends StatefulWidget {
   @visibleForTesting
   final CustomFormModel? seedCustomForm;
 
+  final List<Map<String, dynamic>> selectedPets;
+
   final String shopId;
 
   final Future<void> Function(BookingFormSubmitData data) onSubmitWithData;
@@ -176,6 +181,8 @@ class _BookingFormPageState extends State<BookingFormPage> {
 
   CustomFormModel? _customForm;
   Map<String, dynamic> _customAnswers = <String, dynamic>{};
+  Map<String, Map<String, dynamic>> _petCustomAnswers =
+      <String, Map<String, dynamic>>{};
   bool _customFormLoading = false;
   bool _customFormLoadFailed = false;
 
@@ -787,36 +794,41 @@ class _BookingFormPageState extends State<BookingFormPage> {
       return const SizedBox.shrink();
     }
     for (final (CustomFormSection _, CustomFormQuestion question)
-        in form.enabledQuestionEntries) {
+        in BookingOrderFormAnswers.orderForm(form).enabledQuestionEntries) {
       _customQuestionKeys.putIfAbsent(question.id, GlobalKey.new);
     }
-    return KeyedSubtree(
-      key: _customFormSectionKey,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: <Widget>[
-          Padding(
-            padding: const EdgeInsets.only(bottom: 8),
-            child: Text(
-              '送出訂單表單',
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w700,
-                color: widget.theme.textColor,
-              ),
-            ),
-          ),
-          CustomFormResponseFields(
+    for (final Map<String, dynamic> pet in widget.selectedPets) {
+      final String petId = CustomFormPetCondition.petIdOf(pet);
+      if (petId.isEmpty) {
+        continue;
+      }
+      for (final (CustomFormSection _, CustomFormQuestion question)
+          in BookingOrderFormAnswers.petFormFor(
             form: form,
-            answers: _customAnswers,
-            theme: widget.theme,
-            fieldKeys: _customQuestionKeys,
-            onChanged: (Map<String, dynamic> next) {
-              setState(() => _customAnswers = next);
-            },
-          ),
-        ],
-      ),
+            pet: pet,
+          ).enabledQuestionEntries) {
+        _customQuestionKeys.putIfAbsent('$petId::${question.id}', GlobalKey.new);
+      }
+    }
+    return OrderCustomFormFill(
+      form: form,
+      orderAnswers: _customAnswers,
+      petAnswersByPetId: _petCustomAnswers,
+      pets: widget.selectedPets,
+      theme: widget.theme,
+      sectionKey: _customFormSectionKey,
+      fieldKeys: _customQuestionKeys,
+      onOrderChanged: (Map<String, dynamic> next) {
+        setState(() => _customAnswers = next);
+      },
+      onPetChanged: (String petId, Map<String, dynamic> next) {
+        setState(() {
+          _petCustomAnswers = <String, Map<String, dynamic>>{
+            ..._petCustomAnswers,
+            petId: next,
+          };
+        });
+      },
     );
   }
 
@@ -962,16 +974,47 @@ class _BookingFormPageState extends State<BookingFormPage> {
       return '表單載入失敗，請重試';
     }
     if (_customForm?.shouldCollectAnswers == true) {
-      final CustomFormValidationResult check =
-          CustomFormAnswerSnapshot.validate(
-            form: _customForm!,
-            answersByQuestionId: _customAnswers,
-          );
+      final CustomFormValidationResult check = _validateBookingCustomForm();
       if (!check.isValid) {
-        return '請完成送出訂單表單';
+        return check.message.isEmpty ? '請完成送出訂單表單' : check.message;
       }
     }
     return '';
+  }
+
+  CustomFormValidationResult _validateBookingCustomForm() {
+    final CustomFormModel? form = _customForm;
+    if (form == null || !form.shouldCollectAnswers) {
+      return CustomFormValidationResult.ok;
+    }
+    final CustomFormValidationResult order =
+        BookingOrderFormAnswers.validateOrder(
+          form: form,
+          answersByQuestionId: _customAnswers,
+        );
+    if (!order.isValid) {
+      return order;
+    }
+    for (final Map<String, dynamic> pet in widget.selectedPets) {
+      final String petId = CustomFormPetCondition.petIdOf(pet);
+      final CustomFormValidationResult petCheck =
+          BookingOrderFormAnswers.validatePet(
+            form: form,
+            pet: pet,
+            answersByQuestionId:
+                _petCustomAnswers[petId] ?? const <String, dynamic>{},
+          );
+      if (!petCheck.isValid) {
+        return CustomFormValidationResult(
+          isValid: false,
+          firstInvalidQuestionId: petId.isEmpty
+              ? petCheck.firstInvalidQuestionId
+              : '$petId::${petCheck.firstInvalidQuestionId}',
+          message: petCheck.message,
+        );
+      }
+    }
+    return CustomFormValidationResult.ok;
   }
 
   TermsConsentSnapshot _buildTermsConsent() {
@@ -1311,14 +1354,12 @@ class _BookingFormPageState extends State<BookingFormPage> {
       return;
     }
     if (_customForm?.shouldCollectAnswers == true) {
-      final CustomFormValidationResult check =
-          CustomFormAnswerSnapshot.validate(
-            form: _customForm!,
-            answersByQuestionId: _customAnswers,
-          );
+      final CustomFormValidationResult check = _validateBookingCustomForm();
       if (!check.isValid) {
         debugPrint('[BookingSubmit] custom form incomplete');
-        _showSubmitMessage('請完成送出訂單表單');
+        _showSubmitMessage(
+          check.message.isEmpty ? '請完成送出訂單表單' : check.message,
+        );
         _scrollToCustomForm(questionId: check.firstInvalidQuestionId);
         return;
       }
@@ -1341,11 +1382,18 @@ class _BookingFormPageState extends State<BookingFormPage> {
           payAmountType: _payAmountType,
           termsConsent: _buildTermsConsent(),
           customFormAnswers: _customForm?.shouldCollectAnswers == true
-              ? CustomFormAnswerSnapshot.build(
+              ? BookingOrderFormAnswers.buildOrderSnapshot(
                   form: _customForm!,
                   answersByQuestionId: _customAnswers,
                 )
               : null,
+          petFormAnswersByPetId: _customForm?.shouldCollectAnswers == true
+              ? BookingOrderFormAnswers.encodeByPetId(
+                  form: _customForm!,
+                  pets: widget.selectedPets,
+                  answersByPetId: _petCustomAnswers,
+                )
+              : const <String, dynamic>{},
         ),
       );
     } catch (error, stackTrace) {
@@ -1912,7 +1960,9 @@ class _BookingFormPageState extends State<BookingFormPage> {
                             ? '正在送出，請稍候'
                             : '請先完成付款方式與條款確認';
                         debugPrint('[BookingSubmit] 01 ignored: $reason');
-                        if (reason == '請完成送出訂單表單' || reason == '表單載入失敗，請重試') {
+                        if (reason == '請完成送出訂單表單' ||
+                            reason.contains('照護資訊') ||
+                            reason == '表單載入失敗，請重試') {
                           _scrollToCustomForm();
                         }
                         _showSubmitMessage(reason);

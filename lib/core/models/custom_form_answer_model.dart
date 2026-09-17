@@ -357,7 +357,7 @@ class CustomFormAnswerSnapshot {
     }
     for (final (CustomFormSection _, CustomFormQuestion question)
         in form.enabledQuestionEntries) {
-      if (!question.required) {
+      if (!question.collectsRequired) {
         continue;
       }
       final String? error = requiredError(
@@ -379,7 +379,7 @@ class CustomFormAnswerSnapshot {
     required CustomFormQuestion question,
     required dynamic raw,
   }) {
-    if (!question.required) {
+    if (!question.collectsRequired) {
       return numberError(question: question, raw: raw);
     }
     switch (question.type) {
@@ -431,14 +431,14 @@ class CustomFormAnswerSnapshot {
       return null;
     }
     if (raw == null) {
-      return question.required ? '請填寫此必填題目' : null;
+      return question.collectsRequired ? '請填寫此必填題目' : null;
     }
     if (raw is num) {
       return null;
     }
     final String text = raw.toString().trim();
     if (text.isEmpty) {
-      return question.required ? '請填寫此必填題目' : null;
+      return question.collectsRequired ? '請填寫此必填題目' : null;
     }
     if (num.tryParse(text) == null) {
       return '請輸入合法數字';

@@ -121,14 +121,14 @@ Future<void> _pumpBooking(
 void main() {
   test('表單關閉時不收集答案', () {
     final CustomFormModel form = _form(
-      type: CustomFormType.petProfile,
+      type: CustomFormType.bookingSubmit,
       enabled: false,
     );
     expect(form.shouldCollectAnswers, isFalse);
   });
 
   test('必填未填不能通過驗證', () {
-    final CustomFormModel form = _form(type: CustomFormType.petProfile);
+    final CustomFormModel form = _form(type: CustomFormType.bookingSubmit);
     final CustomFormValidationResult result = CustomFormAnswerSnapshot.validate(
       form: form,
       answersByQuestionId: const <String, dynamic>{},
@@ -137,7 +137,7 @@ void main() {
   });
 
   test('填完可產生答案快照，多選為 List、yesNo 為 bool，並保存題目文字', () {
-    final CustomFormModel form = _form(type: CustomFormType.petProfile);
+    final CustomFormModel form = _form(type: CustomFormType.bookingSubmit);
     final CustomFormAnswerSnapshot snapshot = CustomFormAnswerSnapshot.build(
       form: form,
       answersByQuestionId: <String, dynamic>{
@@ -147,7 +147,7 @@ void main() {
       },
     );
     expect(snapshot.formVersion, 4);
-    expect(snapshot.formTitle, '新增寵物表單');
+    expect(snapshot.formTitle, '送出訂單表單');
     expect(snapshot.answers.first.questionLabel, '飲食習慣');
     expect(snapshot.answers[1].value, isA<List<String>>());
     expect(snapshot.answers[2].value, isTrue);
@@ -172,10 +172,10 @@ void main() {
     expect(onlyA?['formId'], 'a');
   });
 
-  testWidgets('表單關閉時新增寵物不顯示自訂欄位', (WidgetTester tester) async {
+  testWidgets('新增寵物不再顯示店家自訂題目', (WidgetTester tester) async {
     await tester.pumpWidget(
       const MaterialApp(
-        home: AddPetPage(shopId: 'shop-a', skipRemoteLoads: true),
+        home: AddPetPage(shopId: 'shop-a'),
       ),
     );
     await tester.pump();
@@ -183,25 +183,21 @@ void main() {
     expect(find.text('新增寵物'), findsWidgets);
   });
 
-  testWidgets('表單開啟時新增寵物顯示題目', (WidgetTester tester) async {
+  testWidgets('新增寵物不再顯示店家自訂題目即使有舊設定', (WidgetTester tester) async {
     tester.view.physicalSize = const Size(390, 4000);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
     await tester.pumpWidget(
-      MaterialApp(
-        home: AddPetPage(
-          shopId: 'shop-a',
-          skipRemoteLoads: true,
-          seedCustomForm: _form(type: CustomFormType.petProfile),
-        ),
+      const MaterialApp(
+        home: AddPetPage(shopId: 'shop-a'),
       ),
     );
     await tester.pump();
-    expect(find.textContaining('飲食習慣'), findsOneWidget);
+    expect(find.textContaining('飲食習慣'), findsNothing);
   });
 
-  testWidgets('必填題未填不能新增寵物', (WidgetTester tester) async {
+  testWidgets('新增寵物只驗證共用基本欄位', (WidgetTester tester) async {
     tester.view.physicalSize = const Size(390, 4000);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
@@ -210,8 +206,6 @@ void main() {
       MaterialApp(
         home: AddPetPage(
           shopId: 'shop-a',
-          skipRemoteLoads: true,
-          seedCustomForm: _form(type: CustomFormType.petProfile),
         ),
       ),
     );
@@ -278,7 +272,7 @@ void main() {
     await tester.tap(find.text('送出預約').last);
     await tester.pump();
     expect(called, isFalse);
-    expect(find.text('請完成送出訂單表單'), findsWidgets);
+    expect(find.textContaining('請填寫此必填題目'), findsWidgets);
   });
 
   testWidgets('BookingFormPage 仍只有最下面一顆送出按鈕', (WidgetTester tester) async {
@@ -319,8 +313,6 @@ void main() {
       MaterialApp(
         home: AddPetPage(
           shopId: 'shop-a',
-          skipRemoteLoads: true,
-          seedCustomForm: _form(type: CustomFormType.petProfile),
         ),
       ),
     );

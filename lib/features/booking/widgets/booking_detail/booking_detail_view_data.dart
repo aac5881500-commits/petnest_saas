@@ -2,6 +2,7 @@
 // 功能說明：客戶端訂單詳細頁顯示資料：只做讀取與文案，不寫入 Firestore、不重算計價。
 
 import 'package:petnest_saas/core/models/booking_kind.dart';
+import 'package:petnest_saas/core/models/booking_order_form_answers.dart';
 import 'package:petnest_saas/core/models/daycare_settings_model.dart';
 import 'package:petnest_saas/core/models/payment_gateway_status.dart';
 import 'package:petnest_saas/core/services/booking_form_visibility.dart';
@@ -271,6 +272,9 @@ class BookingDetailViewData {
       raw['bookingFormAnswers'] ??
       raw['formAnswers'];
 
+  Map<String, dynamic> get customerPetFormAnswers =>
+      BookingOrderFormAnswers.resolveByPetId(booking: raw, admin: false);
+
   bool get showCustomerSubmitFormOnCustomerPage {
     final dynamic rawAnswers = customerSubmitFormRaw;
     final bool hasAnswers = rawAnswers is Map
@@ -278,7 +282,9 @@ class BookingDetailViewData {
         : rawAnswers is List && rawAnswers.isNotEmpty;
     return BookingFormVisibility.showCustomerSubmitForm(
       data: raw,
-      hasAnswers: hasAnswers,
+      hasAnswers:
+          hasAnswers ||
+          BookingOrderFormAnswers.filledCountOfMap(customerPetFormAnswers) > 0,
     );
   }
 

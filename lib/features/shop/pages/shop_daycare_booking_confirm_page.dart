@@ -5,6 +5,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/models/booking_fee_line_item.dart';
+import 'package:petnest_saas/core/models/booking_order_form_answers.dart';
 import 'package:petnest_saas/core/models/create_payment_request_model.dart';
 import 'package:petnest_saas/core/models/policy_applicable_service.dart';
 import 'package:petnest_saas/core/models/terms_consent_snapshot.dart';
@@ -16,6 +17,7 @@ import 'package:petnest_saas/core/models/point_setting_model.dart';
 import 'package:petnest_saas/core/services/daycare_addon_catalog.dart';
 import 'package:petnest_saas/core/services/daycare_addon_line.dart';
 import 'package:petnest_saas/core/services/daycare_booking_validator.dart';
+import 'package:petnest_saas/core/services/daycare_callable_payload.dart';
 import 'package:petnest_saas/core/services/daycare_coupon_helper.dart';
 import 'package:petnest_saas/core/services/daycare_date_override_service.dart';
 import 'package:petnest_saas/core/services/daycare_function_service.dart';
@@ -345,6 +347,13 @@ class _ShopDaycareBookingConfirmPageState
           showStepBackButton: true,
           feeLineItems: feeLines,
           onSubmitWithData: _submit,
+          selectedPets: widget.pets
+              .where(
+                (Map<String, dynamic> pet) => widget.selectedPetIds.contains(
+                  (pet['petId'] ?? pet['id'] ?? '').toString(),
+                ),
+              )
+              .toList(),
         ),
       ),
     );
@@ -466,23 +475,18 @@ class _ShopDaycareBookingConfirmPageState
           .collection('bookings')
           .doc()
           .id;
-      final List<Map<String, dynamic>> petSnaps = widget.pets
-          .where(
-            (Map<String, dynamic> pet) => widget.selectedPetIds.contains(
-              (pet['petId'] ?? pet['id'] ?? '').toString(),
-            ),
-          )
-          .map(
-            (Map<String, dynamic> pet) => <String, dynamic>{
-              'petId': (pet['petId'] ?? pet['id'] ?? '').toString(),
-              'name': pet['name'],
-              'breed': pet['breed'],
-              'gender': pet['gender'],
-              'isNeutered': pet['isNeutered'],
-              'photoUrl': pet['photoUrl'] ?? '',
-            },
-          )
-          .toList();
+      final List<Map<String, dynamic>> petSnaps = BookingOrderFormAnswers
+          .attachToPets(
+            pets: widget.pets
+                .where(
+                  (Map<String, dynamic> pet) => widget.selectedPetIds.contains(
+                    (pet['petId'] ?? pet['id'] ?? '').toString(),
+                  ),
+                )
+                .map(DaycareCallablePayload.petSnapshot)
+                .toList(),
+            byPetId: data.petFormAnswersByPetId,
+          );
       final Map<String, dynamic> created = await DaycareFunctionService.instance
           .createBooking(<String, dynamic>{
             'shopId': widget.shopId,
@@ -569,6 +573,8 @@ class _ShopDaycareBookingConfirmPageState
             'pointAmount': quote.pointAmount,
             if (data.customFormAnswers != null)
               'customFormAnswers': data.customFormAnswers!.toCallableMap(),
+            if (data.petFormAnswersByPetId.isNotEmpty)
+              'petFormAnswersByPetId': data.petFormAnswersByPetId,
           });
       final String bookingId = (created['bookingId'] ?? requestId).toString();
       if (!mounted) {

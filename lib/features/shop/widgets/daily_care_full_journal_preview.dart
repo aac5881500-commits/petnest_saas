@@ -38,23 +38,30 @@ class DailyCareJournalDemoData {
     required int sessionIndex,
     required String selectedDateKey,
     required bool showPhotos,
+    bool singleDayMode = false,
+    bool singleSessionMode = false,
   }) {
+    final bool oneDay = singleDayMode || isDaycare;
     final DailyCareStayInfo stay = DailyCareStayInfo(
       roomName: isDaycare ? '安親區' : 'A1',
       pets: const <DailyCareStayPet>[
         DailyCareStayPet(name: '小米', photoUrl: ''),
       ],
       startDate: DateTime(2026, 9, 16),
-      endDate: isDaycare ? DateTime(2026, 9, 16) : DateTime(2026, 9, 18),
+      endDate: oneDay ? DateTime(2026, 9, 16) : DateTime(2026, 9, 18),
     );
-    final List<String> dateKeys = isDaycare
+    final List<String> dateKeys = oneDay
         ? const <String>['2026/09/16']
         : stay.careDateKeys();
     final DateTime recordDate = _parseDateKey(selectedDateKey) ??
         DateTime(2026, 9, 16);
-    final List<String> labels = sessionLabels.isEmpty
-        ? <String>[setting.sessionLabel(0)]
-        : sessionLabels;
+    final List<String> labels = singleSessionMode
+        ? <String>[
+            sessionLabels.isNotEmpty && sessionLabels.first.trim().isNotEmpty
+                ? sessionLabels.first.trim()
+                : '上午場',
+          ]
+        : const <String>['上午場', '下午場', '晚上場'];
     final List<DailyCareJournalSessionTab> tabs =
         List<DailyCareJournalSessionTab>.generate(labels.length, (int index) {
           return DailyCareJournalSessionTab(
@@ -143,18 +150,12 @@ class DailyCareJournalDemoData {
     for (final String key in setting.enabledFields) {
       values[key] = samples[key] ?? '有';
     }
+    values['stool'] = samples['stool'];
+    values['urine'] = samples['urine'];
+    values['temperature'] = '28';
+    values['humidity'] = '60';
     for (final DailyCareCustomField field in setting.customFields) {
       values[field.id] = field.inputType == 'text' ? '示範文字' : '正常';
-    }
-    if (setting.journalDisplay.showTemperature) {
-      values['temperature'] = '28';
-    } else {
-      values.remove('temperature');
-    }
-    if (setting.journalDisplay.showHumidity) {
-      values['humidity'] = '60';
-    } else {
-      values.remove('humidity');
     }
     return values;
   }
@@ -217,6 +218,8 @@ class DailyCareFullJournalPreview extends StatefulWidget {
     this.shopName = '',
     this.shopLogoUrl = '',
     this.phoneSize = DailyCarePreviewPhoneSize.standard,
+    this.singleDayMode = false,
+    this.singleSessionMode = false,
   });
 
   final DailyCareSettingModel setting;
@@ -228,6 +231,11 @@ class DailyCareFullJournalPreview extends StatefulWidget {
   final String shopName;
   final String shopLogoUrl;
   final DailyCarePreviewPhoneSize phoneSize;
+  final bool singleDayMode;
+  final bool singleSessionMode;
+
+  static const String deviceNote =
+      '此為標準手機比例預覽；不同廠牌、螢幕尺寸及瀏海／動態島設計，實際上下留白可能略有差異。';
 
   @override
   State<DailyCareFullJournalPreview> createState() =>
@@ -247,8 +255,12 @@ class _DailyCareFullJournalPreviewState
   @override
   void didUpdateWidget(DailyCareFullJournalPreview oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.sessionIndex != widget.sessionIndex) {
+    if (oldWidget.sessionIndex != widget.sessionIndex ||
+        oldWidget.singleSessionMode != widget.singleSessionMode) {
       _selectedSessionIndex = widget.sessionIndex;
+    }
+    if (oldWidget.singleDayMode != widget.singleDayMode) {
+      _selectedDateKey = null;
     }
   }
 
@@ -262,6 +274,8 @@ class _DailyCareFullJournalPreviewState
       sessionIndex: sessionIndex,
       selectedDateKey: _selectedDateKey ?? '',
       showPhotos: widget.showPhotos && widget.setting.photoEnabled,
+      singleDayMode: widget.singleDayMode,
+      singleSessionMode: widget.singleSessionMode,
     );
     final String selectedDateKey =
         _selectedDateKey != null && demo.dateKeys.contains(_selectedDateKey)
@@ -281,12 +295,12 @@ class _DailyCareFullJournalPreviewState
       photosLoading: false,
       showPhotoSection:
           widget.setting.photoEnabled &&
-          widget.setting.journalDisplay.showPhotoSection &&
-          widget.showPhotos,
+          widget.setting.journalDisplay.showPhotoSection,
       shopName: widget.shopName,
       shopLogoUrl: widget.shopLogoUrl,
       isDaycare: widget.isDaycare,
       offerName: widget.isDaycare ? '示範安親' : 'A1',
+      footer: const DailyCarePreviewServiceButtons(),
       onDateSelected: (String dateKey) {
         setState(() {
           _selectedDateKey = dateKey;
@@ -314,7 +328,12 @@ class _DailyCareFullJournalPreviewState
               icon: const BackButtonIcon(),
               onPressed: () {},
             ),
-            title: const SizedBox.shrink(),
+            centerTitle: true,
+            title: Text(
+              widget.shopName.trim(),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
             backgroundColor: Colors.transparent,
             surfaceTintColor: Colors.transparent,
             elevation: 0,
@@ -337,8 +356,26 @@ class _DailyCareFullJournalPreviewState
       ],
     );
 
+    const Widget deviceNote = Padding(
+      padding: EdgeInsets.fromLTRB(16, 4, 16, 12),
+      child: Text(
+        DailyCareFullJournalPreview.deviceNote,
+        textAlign: TextAlign.center,
+        style: TextStyle(
+          fontSize: 11,
+          height: 1.4,
+          color: Color(0xFF9A8F86),
+        ),
+      ),
+    );
+
     if (!widget.usePhoneFrame) {
-      return phoneScreen;
+      return Column(
+        children: <Widget>[
+          Expanded(child: phoneScreen),
+          deviceNote,
+        ],
+      );
     }
 
     final Size logical = widget.phoneSize.size;
@@ -359,33 +396,91 @@ class _DailyCareFullJournalPreviewState
     return Align(
       alignment: Alignment.topCenter,
       child: SingleChildScrollView(
-        child: SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(12, 8, 12, 16),
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                color: const Color(0xFF2C241C),
-                borderRadius: BorderRadius.circular(36),
-                boxShadow: <BoxShadow>[
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.18),
-                    blurRadius: 18,
-                    offset: const Offset(0, 8),
-                  ),
-                ],
-              ),
+        child: Column(
+          children: <Widget>[
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
               child: Padding(
-                padding: const EdgeInsets.all(10),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(26),
-                  child: viewport,
+                padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF2C241C),
+                    borderRadius: BorderRadius.circular(36),
+                    boxShadow: <BoxShadow>[
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.18),
+                        blurRadius: 18,
+                        offset: const Offset(0, 8),
+                      ),
+                    ],
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.all(10),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(26),
+                      child: viewport,
+                    ),
+                  ),
                 ),
               ),
             ),
-          ),
+            deviceNote,
+          ],
         ),
       ),
+    );
+  }
+}
+
+class DailyCarePreviewServiceButtons extends StatelessWidget {
+  const DailyCarePreviewServiceButtons({super.key});
+
+  static const Key photosButtonKey = ValueKey<String>(
+    'preview-mock-photos-button',
+  );
+  static const Key cameraButtonKey = ValueKey<String>(
+    'preview-mock-camera-button',
+  );
+
+  @override
+  Widget build(BuildContext context) {
+    final ButtonStyle compact = ButtonStyle(
+      visualDensity: VisualDensity.compact,
+      padding: const WidgetStatePropertyAll<EdgeInsets>(
+        EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+      ),
+      shape: WidgetStatePropertyAll<RoundedRectangleBorder>(
+        RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      ),
+    );
+    return Row(
+      children: <Widget>[
+        Expanded(
+          child: FilledButton.tonalIcon(
+            key: photosButtonKey,
+            onPressed: () {},
+            style: compact,
+            icon: const Icon(Icons.photo_library_outlined, size: 16),
+            label: const FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text('查看全部照護照片'),
+            ),
+          ),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: OutlinedButton.icon(
+            key: cameraButtonKey,
+            onPressed: () {},
+            style: compact,
+            icon: const Icon(Icons.videocam_outlined, size: 16),
+            label: const FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text('觀看攝影機'),
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

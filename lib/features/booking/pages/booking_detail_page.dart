@@ -4,7 +4,6 @@
 
 import 'dart:async';
 
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -34,7 +33,7 @@ import 'package:petnest_saas/core/models/shop_frontend_theme.dart';
 import 'package:petnest_saas/core/utils/safe_parse.dart';
 import 'package:petnest_saas/features/shop/pages/shop_public_page.dart';
 import 'package:petnest_saas/core/widgets/shop_frontend_theme_scope.dart';
-import 'package:petnest_saas/features/custom_form/widgets/custom_form_answer_view.dart';
+import 'package:petnest_saas/features/custom_form/widgets/order_form_answers_view.dart';
 import 'package:petnest_saas/features/booking/widgets/booking_detail/booking_detail_completion_section.dart';
 import 'package:petnest_saas/features/booking/widgets/booking_detail/booking_detail_customer_pet_section.dart';
 import 'package:petnest_saas/features/booking/widgets/booking_detail/booking_detail_finance_section.dart';
@@ -346,10 +345,14 @@ class _BookingDetailPageState extends State<_BookingDetailBody> {
                           },
                     ),
                     if (view.showCustomerSubmitFormOnCustomerPage)
-                      CustomFormAnswerView(
-                        raw: view.customerSubmitFormRaw,
-                        title: '本次照護交代',
+                      OrderFormAnswersView(
+                        orderRaw: view.customerSubmitFormRaw,
+                        petAnswersByPetId: view.customerPetFormAnswers,
+                        pets: view.pets,
                         theme: ShopFrontendTheme.of(context).home,
+                        orderTitle: '訂單資訊',
+                        collapsible: true,
+                        initiallyExpanded: false,
                       ),
                     FutureBuilder<DailyCareSettingModel>(
                       future: _dailyCareSettingFuture,
@@ -610,10 +613,8 @@ class _BookingDetailPageState extends State<_BookingDetailBody> {
     Navigator.push(
       context,
       MaterialPageRoute<void>(
-        builder: (_) => PolicyVersionDetailPage(
-          data: snapshot,
-          serviceType: serviceType,
-        ),
+        builder: (_) =>
+            PolicyVersionDetailPage(data: snapshot, serviceType: serviceType),
       ),
     );
   }
@@ -874,24 +875,21 @@ class _BookingDetailPageState extends State<_BookingDetailBody> {
       });
       await BookingSettlementFunctionService.instance
           .changeCustomerPaymentMethod(
-                shopId: shopId,
-                bookingId: widget.docId,
-                paymentMethod: paymentMethod,
-                payAmountType: BookingSettlementMath.isSettlementConfirmed(
-                  booking,
-                )
-                    ? ''
-                    : payAmountType,
-              );
+            shopId: shopId,
+            bookingId: widget.docId,
+            paymentMethod: paymentMethod,
+            payAmountType: BookingSettlementMath.isSettlementConfirmed(booking)
+                ? ''
+                : payAmountType,
+          );
       if (!mounted) {
         return;
       }
-      final bool settlementTopUp =
-          BookingSettlementMath.isSettlementConfirmed(booking);
+      final bool settlementTopUp = BookingSettlementMath.isSettlementConfirmed(
+        booking,
+      );
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(settlementTopUp ? '已更新補款方式' : '已更新付款方式／付款金額'),
-        ),
+        SnackBar(content: Text(settlementTopUp ? '已更新補款方式' : '已更新付款方式／付款金額')),
       );
       if (PaymentMethodType.isOnlinePayment(paymentMethod)) {
         final Map<String, dynamic> next =
@@ -906,10 +904,8 @@ class _BookingDetailPageState extends State<_BookingDetailBody> {
                       paymentMethod: paymentMethod,
                     ),
             );
-        final BookingDetailViewData nextView = BookingDetailViewData.fromBooking(
-          data: next,
-          docId: widget.docId,
-        );
+        final BookingDetailViewData nextView =
+            BookingDetailViewData.fromBooking(data: next, docId: widget.docId);
         if (nextView.dueNowAmount > 0) {
           await _createRemainingPayment(
             booking: next,

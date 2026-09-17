@@ -7,6 +7,7 @@ import 'package:petnest_saas/core/models/custom_form_model.dart';
 Future<CustomFormQuestion?> showCustomFormQuestionEditor({
   required BuildContext context,
   required CustomFormQuestion question,
+  bool showScopeSettings = true,
 }) {
   return showModalBottomSheet<CustomFormQuestion>(
     context: context,
@@ -18,16 +19,24 @@ Future<CustomFormQuestion?> showCustomFormQuestionEditor({
         padding: EdgeInsets.only(
           bottom: MediaQuery.viewInsetsOf(context).bottom,
         ),
-        child: CustomFormQuestionEditor(question: question),
+        child: CustomFormQuestionEditor(
+          question: question,
+          showScopeSettings: showScopeSettings,
+        ),
       );
     },
   );
 }
 
 class CustomFormQuestionEditor extends StatefulWidget {
-  const CustomFormQuestionEditor({super.key, required this.question});
+  const CustomFormQuestionEditor({
+    super.key,
+    required this.question,
+    this.showScopeSettings = true,
+  });
 
   final CustomFormQuestion question;
+  final bool showScopeSettings;
 
   @override
   State<CustomFormQuestionEditor> createState() =>
@@ -158,6 +167,110 @@ class _CustomFormQuestionEditorState extends State<CustomFormQuestionEditor> {
     });
   }
 
+  Widget _buildConditionFields() {
+    final CustomFormPetConditionField field =
+        CustomFormPetConditionField.fromStorage(
+          _question.displayCondition.field,
+        );
+    final List<String> values = field.valueOptions;
+    final String currentValue =
+        values.contains(_question.displayCondition.value)
+        ? _question.displayCondition.value
+        : (values.isEmpty ? '' : values.first);
+    return Column(
+      children: <Widget>[
+        const SizedBox(height: 10),
+        const Text(
+          '依寵物資料顯示（可不設定）',
+          style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          '例如只有疾病狀況為「有疾病」的寵物，才顯示此題。',
+          style: TextStyle(
+            fontSize: 12,
+            height: 1.4,
+            color: Theme.of(
+              context,
+            ).colorScheme.onSurface.withValues(alpha: 0.7),
+          ),
+        ),
+        const SizedBox(height: 10),
+        DropdownButtonFormField<CustomFormPetConditionField>(
+          key: ValueKey<CustomFormPetConditionField>(field),
+          initialValue: field,
+          decoration: const InputDecoration(
+            labelText: '顯示條件',
+            labelStyle: TextStyle(fontSize: 14),
+          ),
+          items: CustomFormPetConditionField.editorItemsFor(field)
+              .map(
+                (CustomFormPetConditionField item) =>
+                    DropdownMenuItem<CustomFormPetConditionField>(
+                      value: item,
+                      child: Text(
+                        item.label,
+                        style: const TextStyle(fontSize: 14),
+                      ),
+                    ),
+              )
+              .toList(),
+          onChanged: (CustomFormPetConditionField? value) {
+            if (value == null) {
+              return;
+            }
+            setState(() {
+              if (value == CustomFormPetConditionField.none) {
+                _question = _question.copyWith(
+                  displayCondition: const CustomFormDisplayCondition(),
+                );
+                return;
+              }
+              final List<String> options = value.valueOptions;
+              _question = _question.copyWith(
+                displayCondition: CustomFormDisplayCondition(
+                  field: value.storageValue,
+                  value: options.isEmpty ? '' : options.first,
+                ),
+              );
+            });
+          },
+        ),
+        if (field != CustomFormPetConditionField.none) ...<Widget>[
+          const SizedBox(height: 10),
+          DropdownButtonFormField<String>(
+            key: ValueKey<String>('cond-$field-$currentValue'),
+            initialValue: currentValue,
+            decoration: const InputDecoration(
+              labelText: '符合的值',
+              labelStyle: TextStyle(fontSize: 14),
+            ),
+            items: values
+                .map(
+                  (String item) => DropdownMenuItem<String>(
+                    value: item,
+                    child: Text(item, style: const TextStyle(fontSize: 14)),
+                  ),
+                )
+                .toList(),
+            onChanged: (String? value) {
+              if (value == null) {
+                return;
+              }
+              setState(() {
+                _question = _question.copyWith(
+                  displayCondition: _question.displayCondition.copyWith(
+                    value: value,
+                  ),
+                );
+              });
+            },
+          ),
+        ],
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final ColorScheme colors = Theme.of(context).colorScheme;
@@ -245,6 +358,48 @@ class _CustomFormQuestionEditorState extends State<CustomFormQuestionEditor> {
                     });
                   },
                 ),
+                if (widget.showScopeSettings) ...<Widget>[
+                  const SizedBox(height: 10),
+                  DropdownButtonFormField<CustomFormAnswerScope>(
+                    key: ValueKey<CustomFormAnswerScope>(_question.answerScope),
+                    initialValue: _question.answerScope,
+                    decoration: const InputDecoration(
+                      labelText: '填寫範圍',
+                      labelStyle: TextStyle(fontSize: 14),
+                    ),
+                    items: CustomFormAnswerScope.values
+                        .map(
+                          (CustomFormAnswerScope scope) =>
+                              DropdownMenuItem<CustomFormAnswerScope>(
+                                value: scope,
+                                child: Text(
+                                  scope.editorLabel,
+                                  style: const TextStyle(fontSize: 14),
+                                ),
+                              ),
+                        )
+                        .toList(),
+                    onChanged: (CustomFormAnswerScope? value) {
+                      if (value == null) {
+                        return;
+                      }
+                      setState(() {
+                        CustomFormQuestion next = _question.copyWith(
+                          answerScope: value,
+                        );
+                        if (value == CustomFormAnswerScope.order) {
+                          next = next.copyWith(
+                            displayCondition:
+                                const CustomFormDisplayCondition(),
+                          );
+                        }
+                        _question = next;
+                      });
+                    },
+                  ),
+                  if (_question.answerScope == CustomFormAnswerScope.pet)
+                    _buildConditionFields(),
+                ],
                 SwitchListTile(
                   contentPadding: EdgeInsets.zero,
                   title: const Text('必填', style: TextStyle(fontSize: 14)),

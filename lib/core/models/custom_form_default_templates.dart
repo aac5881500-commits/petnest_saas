@@ -1,5 +1,5 @@
 // 檔案名稱：lib/core/models/custom_form_default_templates.dart
-// 功能說明：新增寵物與送出訂單表單的系統預設範本。
+// 功能說明：送出訂單與手動訂單表單的系統建議初版範本。
 
 import 'package:petnest_saas/core/models/custom_form_model.dart';
 
@@ -178,184 +178,148 @@ class CustomFormDefaultTemplates {
         ),
       ];
 
-  static const List<CustomFormSection> _bookingSubmitSections =
-      <CustomFormSection>[
-        CustomFormSection(
-          id: 'booking_care',
-          title: '本次照護交代',
-          description: '請填寫這次住宿或安親期間的照護需求。',
-          sortOrder: 0,
-          questions: <CustomFormQuestion>[
-            CustomFormQuestion(
-              id: 'booking_feeding_changed',
-              label: '本次餵食安排是否與平常不同',
-              type: CustomFormQuestionType.yesNo,
-              required: true,
-              sortOrder: 0,
-            ),
-            CustomFormQuestion(
-              id: 'booking_feeding_instruction',
-              label: '本次餵食說明',
-              type: CustomFormQuestionType.longText,
-              required: false,
-              sortOrder: 1,
-              placeholder: '沒有不同可留空',
-            ),
-            CustomFormQuestion(
-              id: 'booking_need_medication',
-              label: '本次是否需要協助餵藥',
-              type: CustomFormQuestionType.yesNo,
-              required: true,
-              sortOrder: 2,
-            ),
-            CustomFormQuestion(
-              id: 'booking_medication_instruction',
-              label: '本次用藥方式',
-              description: '請填寫藥名、劑量及餵藥時間。',
-              type: CustomFormQuestionType.longText,
-              required: false,
-              sortOrder: 3,
-              placeholder: '不需要餵藥可留空',
-            ),
-          ],
-        ),
-        CustomFormSection(
-          id: 'booking_items',
-          title: '攜帶物品',
-          description: '方便入住與離店時核對物品。',
-          sortOrder: 1,
-          questions: <CustomFormQuestion>[
-            CustomFormQuestion(
-              id: 'booking_brought_items',
-              label: '本次攜帶的物品',
-              type: CustomFormQuestionType.multipleChoice,
-              required: false,
-              sortOrder: 0,
-              options: <CustomFormOption>[
-                CustomFormOption(id: 'food', label: '主食或飼料', sortOrder: 0),
-                CustomFormOption(id: 'snack', label: '零食', sortOrder: 1),
-                CustomFormOption(id: 'medicine', label: '藥品', sortOrder: 2),
-                CustomFormOption(id: 'toy', label: '玩具', sortOrder: 3),
-                CustomFormOption(id: 'bed', label: '睡墊或毯子', sortOrder: 4),
-                CustomFormOption(id: 'carrier', label: '外出籠', sortOrder: 5),
-                CustomFormOption(id: 'other', label: '其他', sortOrder: 6),
-              ],
-            ),
-            CustomFormQuestion(
-              id: 'booking_other_item',
-              label: '其他攜帶物品',
-              type: CustomFormQuestionType.shortText,
-              required: false,
-              sortOrder: 1,
-              placeholder: '沒有可留空',
-            ),
-          ],
-        ),
-        CustomFormSection(
-          id: 'booking_other_request',
-          title: '接送與其他需求',
-          description: '若本次有特殊狀況，請提前告知店家。',
-          sortOrder: 2,
-          questions: <CustomFormQuestion>[
-            CustomFormQuestion(
-              id: 'booking_special_care',
-              label: '本次需要特別注意或協助的事項',
-              type: CustomFormQuestionType.longText,
-              required: false,
-              sortOrder: 0,
-              placeholder: '沒有可留空',
-            ),
-            CustomFormQuestion(
-              id: 'booking_different_pickup_person',
-              label: '接回人是否與會員本人不同',
-              type: CustomFormQuestionType.yesNo,
-              required: true,
-              sortOrder: 1,
-            ),
-            CustomFormQuestion(
-              id: 'booking_pickup_person',
-              label: '其他接回人的姓名與電話',
-              type: CustomFormQuestionType.longText,
-              required: false,
-              sortOrder: 2,
-              placeholder: '接回人相同可留空',
-            ),
-          ],
-        ),
-      ];
+  static const List<CustomFormOption> _broughtItemOptions = <CustomFormOption>[
+    CustomFormOption(id: 'food', label: '主食或飼料', sortOrder: 0),
+    CustomFormOption(id: 'snack', label: '零食', sortOrder: 1),
+    CustomFormOption(id: 'medicine', label: '藥品', sortOrder: 2),
+    CustomFormOption(id: 'toy', label: '玩具', sortOrder: 3),
+    CustomFormOption(id: 'bed', label: '睡墊或毯子', sortOrder: 4),
+    CustomFormOption(id: 'carrier', label: '外出籠', sortOrder: 5),
+    CustomFormOption(id: 'other', label: '其他', sortOrder: 6),
+  ];
 
-  static const List<CustomFormSection> _adminCreateSections =
-      <CustomFormSection>[
-        CustomFormSection(
-          id: 'admin_handover_check',
-          title: '現場交接確認',
-          description: '店員現場核對飼主與寵物資料。',
-          sortOrder: 0,
-          questions: <CustomFormQuestion>[
-            CustomFormQuestion(
-              id: 'admin_owner_pet_verified',
-              label: '是否已核對飼主與寵物資料',
-              type: CustomFormQuestionType.yesNo,
-              required: true,
-              sortOrder: 0,
-            ),
-            CustomFormQuestion(
-              id: 'admin_onsite_note',
-              label: '現場特殊交代事項',
-              type: CustomFormQuestionType.longText,
-              required: false,
-              sortOrder: 1,
-              placeholder: '沒有可留空',
-            ),
-          ],
-        ),
-        CustomFormSection(
-          id: 'admin_items',
-          title: '攜帶物品清點',
-          description: '現場核對本次攜帶物品。',
-          sortOrder: 1,
-          questions: <CustomFormQuestion>[
-            CustomFormQuestion(
-              id: 'admin_brought_items',
-              label: '攜帶物品',
-              type: CustomFormQuestionType.multipleChoice,
-              required: false,
-              sortOrder: 0,
-              options: <CustomFormOption>[
-                CustomFormOption(id: 'food', label: '主食或飼料', sortOrder: 0),
-                CustomFormOption(id: 'snack', label: '零食', sortOrder: 1),
-                CustomFormOption(id: 'medicine', label: '藥品', sortOrder: 2),
-                CustomFormOption(id: 'toy', label: '玩具', sortOrder: 3),
-                CustomFormOption(id: 'bed', label: '睡墊或毯子', sortOrder: 4),
-                CustomFormOption(id: 'carrier', label: '外出籠', sortOrder: 5),
-                CustomFormOption(id: 'other', label: '其他', sortOrder: 6),
-              ],
-            ),
-            CustomFormQuestion(
-              id: 'admin_other_item',
-              label: '其他物品／數量',
-              type: CustomFormQuestionType.shortText,
-              required: false,
-              sortOrder: 1,
-              placeholder: '沒有可留空',
-            ),
-          ],
-        ),
-        CustomFormSection(
-          id: 'admin_staff_note',
-          title: '店員內部備註',
-          description: '僅店家內部使用，客戶端看不到。',
-          sortOrder: 2,
-          questions: <CustomFormQuestion>[
-            CustomFormQuestion(
-              id: 'admin_next_shift_note',
-              label: '本次需提醒下一班的事項',
-              type: CustomFormQuestionType.longText,
-              required: false,
-              sortOrder: 0,
-              placeholder: '沒有可留空',
-            ),
-          ],
-        ),
-      ];
+  static const CustomFormDisplayCondition _hasMedicalCondition =
+      CustomFormDisplayCondition(field: 'medicalStatus', value: '有疾病');
+
+  static List<CustomFormSection> _orderFormSections({
+    required String idPrefix,
+    required bool staffWording,
+  }) {
+    final String diseaseNote = staffWording
+        ? '系統偵測到此寵物有疾病狀況；請依會員提供資訊補充本次照護重點，沒有可留白。'
+        : '系統偵測到此寵物有疾病狀況；如本次有需特別留意、觀察或照護的事項，請填寫。';
+    return <CustomFormSection>[
+      CustomFormSection(
+        id: '${idPrefix}_care',
+        title: '本次照護與交代',
+        description: staffWording
+            ? '請依會員提供的本次照護需求填寫；沒有特殊情況可留白選填題。'
+            : '請填寫這次住宿或安親期間的照護需求。',
+        sortOrder: 0,
+        questions: <CustomFormQuestion>[
+          CustomFormQuestion(
+            id: '${idPrefix}_feeding_changed',
+            label: '本次飲食安排是否與平常不同？',
+            type: CustomFormQuestionType.yesNo,
+            required: true,
+            sortOrder: 0,
+          ),
+          CustomFormQuestion(
+            id: '${idPrefix}_feeding_instruction',
+            label: '本次飲食說明',
+            type: CustomFormQuestionType.longText,
+            required: false,
+            sortOrder: 1,
+            placeholder: '沒有不同可留白',
+          ),
+          CustomFormQuestion(
+            id: '${idPrefix}_pet_disease_care',
+            label: '疾病照護補充',
+            description: diseaseNote,
+            type: CustomFormQuestionType.longText,
+            required: false,
+            sortOrder: 2,
+            placeholder: '沒有可留白',
+            answerScope: CustomFormAnswerScope.pet,
+            displayCondition: _hasMedicalCondition,
+          ),
+          CustomFormQuestion(
+            id: '${idPrefix}_pet_special_care',
+            label: '此寵物本次需要特別照顧或注意事項嗎？',
+            description: '例如飲食、活動、情緒、環境、接觸方式或其他本次需要注意的內容；沒有可留白。',
+            type: CustomFormQuestionType.longText,
+            required: false,
+            sortOrder: 3,
+            placeholder: '沒有可留白',
+            answerScope: CustomFormAnswerScope.pet,
+          ),
+          CustomFormQuestion(
+            id: '${idPrefix}_pet_diet_note',
+            label: '此寵物本次飲食／餵食注意事項',
+            description: '如每隻寵物的飲食安排不同，可分別填寫；沒有可留白。',
+            type: CustomFormQuestionType.longText,
+            required: false,
+            sortOrder: 4,
+            placeholder: '沒有可留白',
+            answerScope: CustomFormAnswerScope.pet,
+          ),
+        ],
+      ),
+      CustomFormSection(
+        id: '${idPrefix}_items',
+        title: '攜帶物品',
+        description: staffWording
+            ? '請核對或代填本次攜帶物品。'
+            : '方便入住與離店時核對物品。',
+        sortOrder: 1,
+        questions: <CustomFormQuestion>[
+          CustomFormQuestion(
+            id: '${idPrefix}_brought_items',
+            label: '本次攜帶的物品',
+            type: CustomFormQuestionType.multipleChoice,
+            required: false,
+            sortOrder: 0,
+            options: _broughtItemOptions,
+          ),
+          CustomFormQuestion(
+            id: '${idPrefix}_other_item',
+            label: '其他攜帶物品',
+            type: CustomFormQuestionType.longText,
+            required: false,
+            sortOrder: 1,
+            placeholder: '沒有可留白',
+          ),
+        ],
+      ),
+      CustomFormSection(
+        id: '${idPrefix}_other_request',
+        title: '接送與其他需求',
+        description: staffWording
+            ? '請依會員說明填寫接送與其他需求。'
+            : '若本次有特殊狀況，請提前告知店家。',
+        sortOrder: 2,
+        questions: <CustomFormQuestion>[
+          CustomFormQuestion(
+            id: '${idPrefix}_special_care',
+            label: '本次需要特別注意或協助的事項',
+            type: CustomFormQuestionType.longText,
+            required: false,
+            sortOrder: 0,
+            placeholder: '沒有可留白',
+          ),
+          CustomFormQuestion(
+            id: '${idPrefix}_different_pickup_person',
+            label: '接回人是否與會員本人不同？',
+            type: CustomFormQuestionType.yesNo,
+            required: true,
+            sortOrder: 1,
+          ),
+          CustomFormQuestion(
+            id: '${idPrefix}_pickup_person',
+            label: '其他接回人的姓名與電話',
+            type: CustomFormQuestionType.longText,
+            required: false,
+            sortOrder: 2,
+            placeholder: '接回人相同可留白',
+          ),
+        ],
+      ),
+    ];
+  }
+
+  static List<CustomFormSection> get _bookingSubmitSections =>
+      _orderFormSections(idPrefix: 'booking', staffWording: false);
+
+  static List<CustomFormSection> get _adminCreateSections =>
+      _orderFormSections(idPrefix: 'admin', staffWording: true);
 }

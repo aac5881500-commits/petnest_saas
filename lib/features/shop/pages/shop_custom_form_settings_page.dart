@@ -1,5 +1,5 @@
 // 檔案名稱：lib/features/shop/pages/shop_custom_form_settings_page.dart
-// 功能說明：店家自訂表單設定入口：三種用途、狀態與快速建立。
+// 功能說明：店家自訂表單設定入口：送出訂單與手動訂單表單。
 
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/models/custom_form_model.dart';
@@ -28,7 +28,7 @@ class ShopCustomFormSettingsPage extends StatelessWidget {
         padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
         children: <Widget>[
           Text(
-            '三種表單分開儲存，用途不同，資料不會混在一起。手動訂單表單只給店員填，客戶端永遠看不到。',
+            '兩種表單分開儲存，用途不同，資料不會混在一起。送出訂單表單由會員預約時填寫；手動訂單表單只給店員填，客戶端永遠看不到。題目可設為訂單資訊或寵物資訊，寵物資訊答案只存在該筆訂單，不會寫回會員共用寵物資料。',
             style: TextStyle(
               fontSize: 13,
               height: 1.5,
@@ -36,12 +36,6 @@ class ShopCustomFormSettingsPage extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 14),
-          _FormTypeLiveCard(
-            shopId: shopId,
-            formType: CustomFormType.petProfile,
-            icon: Icons.pets_outlined,
-          ),
-          const SizedBox(height: 12),
           _FormTypeLiveCard(
             shopId: shopId,
             formType: CustomFormType.bookingSubmit,

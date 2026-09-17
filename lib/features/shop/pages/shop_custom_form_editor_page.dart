@@ -1,14 +1,13 @@
 // 檔案名稱：lib/features/shop/pages/shop_custom_form_editor_page.dart
-// 功能說明：店家自訂表單編輯頁：寵物表單與訂單表單共用。
+// 功能說明：店家自訂表單編輯頁：送出訂單與手動訂單表單共用。
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/models/custom_form_default_templates.dart';
 import 'package:petnest_saas/core/models/custom_form_model.dart';
-import 'package:petnest_saas/core/models/home_theme_model.dart';
 import 'package:petnest_saas/core/services/custom_form_service.dart';
 import 'package:petnest_saas/core/widgets/shop_task_center_button.dart';
-import 'package:petnest_saas/features/custom_form/widgets/custom_form_response_fields.dart';
+import 'package:petnest_saas/features/custom_form/widgets/custom_form_fill_preview.dart';
 import 'package:petnest_saas/features/shop/widgets/custom_form/custom_form_question_editor.dart';
 
 class ShopCustomFormEditorPage extends StatefulWidget {
@@ -46,6 +45,15 @@ class _ShopCustomFormEditorPageState extends State<ShopCustomFormEditorPage> {
     _savedForm = _form;
     _titleCtrl = TextEditingController(text: _form.title);
     _descCtrl = TextEditingController(text: _form.description);
+    if (widget.formType == CustomFormType.petProfile) {
+      _loading = false;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          Navigator.of(context).maybePop();
+        }
+      });
+      return;
+    }
     _load();
   }
 
@@ -218,13 +226,18 @@ class _ShopCustomFormEditorPageState extends State<ShopCustomFormEditorPage> {
     );
   }
 
-  Future<void> _editQuestion(int sectionIndex, int? questionIndex) async {
+  Future<void> _editQuestion(
+    int sectionIndex,
+    int? questionIndex, {
+    CustomFormAnswerScope createScope = CustomFormAnswerScope.order,
+  }) async {
     final CustomFormSection section = _form.sections[sectionIndex];
     final CustomFormQuestion draft = questionIndex == null
         ? CustomFormQuestion(
             id: CustomFormModel.createStableId('q'),
             label: '',
             sortOrder: section.questions.length,
+            answerScope: createScope,
           )
         : section.questions[questionIndex];
 
@@ -280,70 +293,49 @@ class _ShopCustomFormEditorPageState extends State<ShopCustomFormEditorPage> {
       context: context,
       isScrollControlled: true,
       builder: (BuildContext context) {
-        Map<String, dynamic> answers = <String, dynamic>{};
-        return StatefulBuilder(
-          builder: (BuildContext context, StateSetter setModal) {
-            return SafeArea(
-              child: Padding(
-                padding: EdgeInsets.only(
-                  left: 16,
-                  right: 16,
-                  top: 16,
-                  bottom: MediaQuery.viewInsetsOf(context).bottom + 16,
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: <Widget>[
-                    Text(
-                      widget.formType == CustomFormType.adminCreate
-                          ? '填寫預覽（店員實際看到的表單）'
-                          : '填寫預覽（客戶實際看到的表單）',
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w800,
+        return SafeArea(
+          child: Padding(
+            padding: EdgeInsets.only(
+              left: 16,
+              right: 16,
+              top: 16,
+              bottom: MediaQuery.viewInsetsOf(context).bottom + 16,
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: <Widget>[
+                Expanded(
+                  child: ListView(
+                    children: <Widget>[
+                      CustomFormFillPreview(
+                        form: _form,
+                        formType: widget.formType,
+                        interactive: true,
                       ),
-                    ),
-                    const SizedBox(height: 8),
-                    Expanded(
-                      child: ListView(
-                        children: <Widget>[
-                          if (!_form.shouldCollectAnswers)
-                            const Text('此表單尚未啟用或沒有可填題目，客戶／店員目前不會看到。')
-                          else
-                            CustomFormResponseFields(
-                              form: _form.copyWith(enabled: true),
-                              answers: answers,
-                              onChanged: (Map<String, dynamic> next) {
-                                setModal(() => answers = next);
-                              },
-                              theme: HomeThemeModel.classicDefault,
-                            ),
-                        ],
-                      ),
-                    ),
-                    FilledButton(
-                      onPressed: () => Navigator.pop(context),
-                      child: const Text('關閉預覽'),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
-              ),
-            );
-          },
+                FilledButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('關閉預覽'),
+                ),
+              ],
+            ),
+          ),
         );
       },
     );
   }
 
-  Future<void> _applyRecommended({required bool replace}) async {
-    if (replace && _form.hasCustomQuestions) {
+  Future<void> _applyRecommended() async {
+    if (_form.hasCustomQuestions) {
       final bool? confirmed = await showDialog<bool>(
         context: context,
         builder: (BuildContext context) {
           return AlertDialog(
-            title: const Text('取代目前表單？'),
+            title: const Text('套用建議初版？'),
             content: const Text(
-              '會清除畫面中現有分類與問題，改成推薦初版。必須再按「儲存設定」才會正式保存。',
+              '套用後會取代目前這張表單的分類與題目，既有訂單答案不受影響。',
             ),
             actions: <Widget>[
               TextButton(
@@ -362,14 +354,8 @@ class _ShopCustomFormEditorPageState extends State<ShopCustomFormEditorPage> {
         return;
       }
     }
-    final CustomFormModel next = replace
-        ? CustomFormDefaultTemplates.replaceWithRecommended(_form)
-        : CustomFormDefaultTemplates.mergeMissingModules(
-            current: _form,
-            moduleIds: CustomFormDefaultTemplates.modulesFor(
-              widget.formType,
-            ).map((CustomFormSection item) => item.id),
-          );
+    final CustomFormModel next =
+        CustomFormDefaultTemplates.replaceWithRecommended(_form);
     _markDirty(next);
     if (!mounted) {
       return;
@@ -381,18 +367,6 @@ class _ShopCustomFormEditorPageState extends State<ShopCustomFormEditorPage> {
               ? '已套用推薦初版，確認內容後請按儲存設定'
               : '已套用推薦初版。儲存後才會生效；目前尚未啟用，客戶／店員尚不會看到此表單。',
         ),
-      ),
-    );
-  }
-
-  void _addModule(CustomFormSection module) {
-    if (CustomFormDefaultTemplates.hasModule(_form, module.id)) {
-      return;
-    }
-    _markDirty(
-      CustomFormDefaultTemplates.mergeMissingModules(
-        current: _form,
-        moduleIds: <String>[module.id],
       ),
     );
   }
@@ -480,76 +454,167 @@ class _ShopCustomFormEditorPageState extends State<ShopCustomFormEditorPage> {
                   child: Text(_error!, textAlign: TextAlign.center),
                 ),
               )
-            : Column(
-                children: <Widget>[
-                  Expanded(
-                    child: ListView(
-                      padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+            : LayoutBuilder(
+                builder: (BuildContext context, BoxConstraints constraints) {
+                  final bool wide = constraints.maxWidth >= 1024;
+                  final Widget settings = ListView(
+                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+                    children: _buildSettingsChildren(colors, showPreviewButton: !wide),
+                  );
+                  if (!wide) {
+                    return Column(
                       children: <Widget>[
-                        _buildFormMetaCard(colors),
-                        const SizedBox(height: 12),
-                        _buildQuickApplyCard(colors),
-                        const SizedBox(height: 12),
-                        ..._form.sections.asMap().entries.map((
-                          MapEntry<int, CustomFormSection> entry,
-                        ) {
-                          return Padding(
-                            padding: const EdgeInsets.only(bottom: 12),
-                            child: _buildSectionCard(entry.key, entry.value),
-                          );
-                        }),
-                        OutlinedButton.icon(
-                          onPressed: () {
-                            final List<CustomFormSection> sections =
-                                List<CustomFormSection>.from(_form.sections)
-                                  ..add(
-                                    CustomFormSection(
-                                      id: CustomFormModel.createStableId('sec'),
-                                      title: '新分類',
-                                      sortOrder: _form.sections.length,
-                                    ),
-                                  );
-                            _markDirty(
-                              _form.copyWith(
-                                sections: _reindexSections(sections),
-                              ),
-                            );
-                          },
-                          icon: const Icon(Icons.add),
-                          label: const Text('新增分類'),
-                        ),
+                        Expanded(child: settings),
+                        _buildSaveBar(colors),
                       ],
-                    ),
-                  ),
-                  Material(
-                    elevation: 8,
-                    color: colors.surface,
-                    child: SafeArea(
-                      top: false,
-                      child: Padding(
-                        padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
-                        child: SizedBox(
-                          width: double.infinity,
-                          height: 48,
-                          child: FilledButton.icon(
-                            onPressed: _saving ? null : _save,
-                            icon: _saving
-                                ? const SizedBox(
-                                    width: 18,
-                                    height: 18,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2,
+                    );
+                  }
+                  return Row(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: <Widget>[
+                      Expanded(
+                        flex: 42,
+                        child: DecoratedBox(
+                          decoration: BoxDecoration(
+                            color: colors.surfaceContainerLowest,
+                            border: Border(
+                              right: BorderSide(color: colors.outlineVariant),
+                            ),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: <Widget>[
+                              Padding(
+                                padding: const EdgeInsets.fromLTRB(16, 14, 16, 8),
+                                child: Text(
+                                  '填寫預覽',
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w800,
+                                    color: colors.onSurface,
+                                  ),
+                                ),
+                              ),
+                              Expanded(
+                                child: ListView(
+                                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                                  children: <Widget>[
+                                    CustomFormDesktopFillPreview(
+                                      form: _form,
                                     ),
-                                  )
-                                : const Icon(Icons.save_outlined),
-                            label: Text(_saving ? '儲存中...' : '儲存設定'),
+                                  ],
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                       ),
-                    ),
-                  ),
-                ],
+                      Expanded(
+                        flex: 58,
+                        child: Column(
+                          children: <Widget>[
+                            Expanded(child: settings),
+                            _buildSaveBar(colors),
+                          ],
+                        ),
+                      ),
+                    ],
+                  );
+                },
               ),
+      ),
+    );
+  }
+
+  List<Widget> _buildSettingsChildren(
+    ColorScheme colors, {
+    required bool showPreviewButton,
+  }) {
+    return <Widget>[
+      _buildScopeHintCard(colors),
+      const SizedBox(height: 12),
+      _buildFormMetaCard(colors),
+      const SizedBox(height: 12),
+      _buildQuickApplyCard(colors, showPreviewButton: showPreviewButton),
+      const SizedBox(height: 12),
+      ..._form.sections.asMap().entries.map((
+        MapEntry<int, CustomFormSection> entry,
+      ) {
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 12),
+          child: _buildSectionCard(entry.key, entry.value),
+        );
+      }),
+      OutlinedButton.icon(
+        onPressed: () {
+          final List<CustomFormSection> sections =
+              List<CustomFormSection>.from(_form.sections)..add(
+                CustomFormSection(
+                  id: CustomFormModel.createStableId('sec'),
+                  title: '新分類',
+                  sortOrder: _form.sections.length,
+                ),
+              );
+          _markDirty(
+            _form.copyWith(sections: _reindexSections(sections)),
+          );
+        },
+        icon: const Icon(Icons.add),
+        label: const Text('新增分類'),
+      ),
+    ];
+  }
+
+  Widget _buildSaveBar(ColorScheme colors) {
+    return Material(
+      elevation: 8,
+      color: colors.surface,
+      child: SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
+          child: SizedBox(
+            width: double.infinity,
+            height: 48,
+            child: FilledButton.icon(
+              onPressed: _saving ? null : _save,
+              icon: _saving
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.save_outlined),
+              label: Text(_saving ? '儲存中...' : '儲存設定'),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildScopeHintCard(ColorScheme colors) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: colors.primaryContainer.withValues(alpha: 0.45),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: colors.outlineVariant),
+      ),
+      child: const Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Text(
+            '訂單資訊：每筆訂單填一次。',
+            style: TextStyle(fontSize: 13, height: 1.45, fontWeight: FontWeight.w600),
+          ),
+          SizedBox(height: 4),
+          Text(
+            '寵物資訊：依本次選取的每隻寵物分開填寫。',
+            style: TextStyle(fontSize: 13, height: 1.45, fontWeight: FontWeight.w600),
+          ),
+        ],
       ),
     );
   }
@@ -627,9 +692,14 @@ class _ShopCustomFormEditorPageState extends State<ShopCustomFormEditorPage> {
     );
   }
 
-  Widget _buildQuickApplyCard(ColorScheme colors) {
-    final List<CustomFormSection> modules =
-        CustomFormDefaultTemplates.modulesFor(widget.formType);
+  Widget _buildQuickApplyCard(
+    ColorScheme colors, {
+    required bool showPreviewButton,
+  }) {
+    final CustomFormModel recommended = CustomFormDefaultTemplates.create(
+      shopId: widget.shopId,
+      formType: widget.formType,
+    );
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(16),
@@ -647,12 +717,17 @@ class _ShopCustomFormEditorPageState extends State<ShopCustomFormEditorPage> {
           ),
           const SizedBox(height: 4),
           Text(
-            '先套用推薦初版，也可只加入還沒有的模組。套用後請按儲存才會正式生效。',
+            '這是建議初版，不會自動覆蓋已儲存的表單。套用後請再按儲存設定才會正式生效。',
             style: TextStyle(
               fontSize: 12,
               height: 1.45,
               color: colors.onSurface.withValues(alpha: 0.7),
             ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            '建議初版包含 ${recommended.orderQuestionCount} 題訂單資訊、${recommended.petQuestionCount} 題寵物資訊。',
+            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
           ),
           const SizedBox(height: 10),
           Wrap(
@@ -660,57 +735,18 @@ class _ShopCustomFormEditorPageState extends State<ShopCustomFormEditorPage> {
             runSpacing: 8,
             children: <Widget>[
               FilledButton.icon(
-                onPressed: _saving
-                    ? null
-                    : () => _applyRecommended(replace: false),
+                onPressed: _saving ? null : _applyRecommended,
                 icon: const Icon(Icons.auto_awesome_outlined),
-                label: const Text('一鍵套用推薦初版'),
+                label: const Text('套用建議初版'),
               ),
-              OutlinedButton.icon(
-                onPressed: _saving ? null : _previewForm,
-                icon: const Icon(Icons.visibility_outlined),
-                label: const Text('填寫預覽'),
-              ),
-              if (_form.hasCustomQuestions)
-                TextButton(
-                  onPressed: _saving
-                      ? null
-                      : () => _applyRecommended(replace: true),
-                  child: const Text('改為取代目前表單'),
+              if (showPreviewButton)
+                OutlinedButton.icon(
+                  onPressed: _saving ? null : _previewForm,
+                  icon: const Icon(Icons.visibility_outlined),
+                  label: const Text('填寫預覽'),
                 ),
             ],
           ),
-          const SizedBox(height: 12),
-          const Text(
-            '可單獨加入的模組',
-            style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
-          ),
-          const SizedBox(height: 6),
-          ...modules.map((CustomFormSection module) {
-            final bool added = CustomFormDefaultTemplates.hasModule(
-              _form,
-              module.id,
-            );
-            return Padding(
-              padding: const EdgeInsets.only(bottom: 6),
-              child: Row(
-                children: <Widget>[
-                  Expanded(
-                    child: Text(
-                      '${module.title}（${module.questionCount} 題）',
-                      style: const TextStyle(fontSize: 13),
-                    ),
-                  ),
-                  FilledButton.tonal(
-                    onPressed: added || _saving
-                        ? null
-                        : () => _addModule(module),
-                    child: Text(added ? '已加入' : '加入'),
-                  ),
-                ],
-              ),
-            );
-          }),
         ],
       ),
     );
@@ -830,13 +866,60 @@ class _ShopCustomFormEditorPageState extends State<ShopCustomFormEditorPage> {
                       fontWeight: FontWeight.w600,
                     ),
                   ),
+                  const SizedBox(height: 6),
+                  Wrap(
+                    spacing: 6,
+                    runSpacing: 6,
+                    children: <Widget>[
+                      _scopeTag(
+                        question.answerScope.shortLabel,
+                        pet: question.answerScope == CustomFormAnswerScope.pet,
+                      ),
+                      if (question.conditionCardLabel.isNotEmpty)
+                        _scopeTag(question.conditionCardLabel, condition: true),
+                    ],
+                  ),
                   const SizedBox(height: 4),
                   Text(
-                    '${question.type.labelWithHint}　${question.required ? '必填' : '選填'}　${question.enabled ? '啟用' : '停用'}',
+                    '${question.type.labelWithHint}　${question.collectsRequired ? '必填' : '選填'}　${question.enabled ? '啟用' : '停用'}',
                     style: TextStyle(
                       fontSize: 12,
                       color: colors.onSurface.withValues(alpha: 0.7),
                     ),
+                  ),
+                  SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    dense: true,
+                    title: const Text('啟用', style: TextStyle(fontSize: 13)),
+                    value: question.enabled,
+                    onChanged: (bool value) {
+                      final List<CustomFormQuestion> questions =
+                          List<CustomFormQuestion>.from(section.questions);
+                      questions[questionIndex] = question.copyWith(
+                        enabled: value,
+                      );
+                      _replaceSection(
+                        sectionIndex,
+                        section.copyWith(questions: questions),
+                      );
+                    },
+                  ),
+                  SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    dense: true,
+                    title: const Text('必填', style: TextStyle(fontSize: 13)),
+                    value: question.required,
+                    onChanged: (bool value) {
+                      final List<CustomFormQuestion> questions =
+                          List<CustomFormQuestion>.from(section.questions);
+                      questions[questionIndex] = question.copyWith(
+                        required: value,
+                      );
+                      _replaceSection(
+                        sectionIndex,
+                        section.copyWith(questions: questions),
+                      );
+                    },
                   ),
                   Wrap(
                     spacing: 4,
@@ -874,15 +957,66 @@ class _ShopCustomFormEditorPageState extends State<ShopCustomFormEditorPage> {
               ),
             );
           }),
-          Align(
-            alignment: Alignment.centerLeft,
-            child: TextButton.icon(
-              onPressed: () => _editQuestion(sectionIndex, null),
-              icon: const Icon(Icons.add, size: 18),
-              label: const Text('新增問題'),
-            ),
+          Wrap(
+            spacing: 8,
+            runSpacing: 4,
+            children: <Widget>[
+              TextButton.icon(
+                onPressed: () => _editQuestion(
+                  sectionIndex,
+                  null,
+                  createScope: CustomFormAnswerScope.order,
+                ),
+                icon: const Icon(Icons.add, size: 18),
+                label: const Text('＋ 新增訂單資訊題目'),
+              ),
+              TextButton.icon(
+                onPressed: () => _editQuestion(
+                  sectionIndex,
+                  null,
+                  createScope: CustomFormAnswerScope.pet,
+                ),
+                icon: const Icon(Icons.add, size: 18),
+                label: const Text('＋ 新增寵物資訊題目'),
+              ),
+            ],
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _scopeTag(
+    String label, {
+    bool pet = false,
+    bool condition = false,
+  }) {
+    final ColorScheme colors = Theme.of(context).colorScheme;
+    final Color bg;
+    final Color fg;
+    if (condition) {
+      bg = colors.tertiaryContainer;
+      fg = colors.onTertiaryContainer;
+    } else if (pet) {
+      bg = const Color(0xFFD7EDE3);
+      fg = const Color(0xFF1F5C45);
+    } else {
+      bg = colors.primaryContainer;
+      fg = colors.onPrimaryContainer;
+    }
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          fontSize: 11,
+          fontWeight: FontWeight.w700,
+          color: fg,
+        ),
       ),
     );
   }

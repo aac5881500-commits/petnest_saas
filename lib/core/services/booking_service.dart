@@ -4,6 +4,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:petnest_saas/core/models/booking_kind.dart';
+import 'package:petnest_saas/core/models/booking_order_form_answers.dart';
 import 'package:petnest_saas/core/models/pet_snapshot.dart';
 import 'package:petnest_saas/core/models/policy_applicable_service.dart';
 import 'package:petnest_saas/core/models/terms_consent_snapshot.dart';
@@ -96,6 +97,7 @@ class BookingService {
     /// 🔒 同一次送出請求的唯一識別碼，用來避免網路重送建立兩筆訂單
     String requestId = '',
     Map<String, dynamic>? customFormAnswers,
+    Map<String, dynamic>? petFormAnswersByPetId,
     Map<String, dynamic>? dailyCareEntitlement,
   }) async {
     final user = _currentUser;
@@ -182,7 +184,13 @@ class BookingService {
         ...?petsById[doc.id],
         'petId': doc.id,
       };
-      return PetSnapshot.fromPet(merged);
+      final Map<String, dynamic> snapshot = PetSnapshot.fromPet(merged);
+      final Object? petAnswers = petFormAnswersByPetId?[doc.id];
+      if (petAnswers is Map) {
+        snapshot[BookingOrderFormAnswers.nestedPetFormAnswers] =
+            Map<String, dynamic>.from(petAnswers);
+      }
+      return snapshot;
     }).toList();
 
     final String? depositExpireIso =
@@ -263,6 +271,8 @@ class BookingService {
       'cameraAccessEnabled': false,
       if (customFormAnswers != null && customFormAnswers.isNotEmpty)
         'customFormAnswers': customFormAnswers,
+      if (petFormAnswersByPetId != null && petFormAnswersByPetId.isNotEmpty)
+        'petFormAnswersByPetId': petFormAnswersByPetId,
     };
     final String bookingId =
         await StayBookingFunctionService.instance.createStayBooking(
@@ -338,6 +348,7 @@ class BookingService {
     String policySignMethod = '',
     String policyServiceType = PolicyApplicableService.accommodation,
     Map<String, dynamic>? adminCustomFormAnswers,
+    Map<String, dynamic>? adminPetFormAnswersByPetId,
     String adminOrderSource = '',
     Map<String, dynamic>? dailyCareEntitlement,
   }) async {
@@ -380,7 +391,15 @@ class BookingService {
 
     final finalPets = (pets ?? []).map((p) {
       final String petId = (p['petId'] ?? p['id'] ?? '').toString().trim();
-      return PetSnapshot.fromPet(<String, dynamic>{...p, 'petId': petId});
+      final Map<String, dynamic> snapshot = PetSnapshot.fromPet(
+        <String, dynamic>{...p, 'petId': petId},
+      );
+      final Object? petAnswers = adminPetFormAnswersByPetId?[petId];
+      if (petAnswers is Map) {
+        snapshot[BookingOrderFormAnswers.nestedAdminPetFormAnswers] =
+            Map<String, dynamic>.from(petAnswers);
+      }
+      return snapshot;
     }).toList();
 
     debugPrint('ADMIN_BOOKING_STEP 3: 開始寫入 booking');
@@ -492,6 +511,9 @@ class BookingService {
             if (adminCustomFormAnswers != null &&
                 adminCustomFormAnswers.isNotEmpty)
               'adminCustomFormAnswers': adminCustomFormAnswers,
+            if (adminPetFormAnswersByPetId != null &&
+                adminPetFormAnswersByPetId.isNotEmpty)
+              'adminPetFormAnswersByPetId': adminPetFormAnswersByPetId,
           },
         );
 

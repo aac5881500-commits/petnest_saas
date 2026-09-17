@@ -17,6 +17,7 @@ class BookingFormSubmitData {
     required this.payAmountType,
     required this.termsConsent,
     this.customFormAnswers,
+    this.petFormAnswersByPetId = const <String, dynamic>{},
   });
 
   final String fullAddress;
@@ -30,4 +31,5 @@ class BookingFormSubmitData {
   final String payAmountType;
   final TermsConsentSnapshot termsConsent;
   final CustomFormAnswerSnapshot? customFormAnswers;
+  final Map<String, dynamic> petFormAnswersByPetId;
 }

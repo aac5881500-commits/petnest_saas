@@ -47,9 +47,9 @@ class DailyCareCustomField {
 
   /// 填寫方式
   ///
-  /// yesNo     = 有 / 無
-  /// amount    = 無 / 少 / 一般 / 多
-  /// condition = 正常 / 偏少 / 偏多 / 異常
+  /// yesNo     = 有／無
+  /// amount    = 無／少／一般／多
+  /// condition = 正常／偏少／偏多／異常
   /// text      = 自由文字
   final String inputType;
 
@@ -87,6 +87,71 @@ class DailyCareCustomField {
       inputType: inputType ?? this.inputType,
     );
   }
+}
+
+/// 回報格式標籤：沿用既有 inputType，不另建資料結構。
+class DailyCareReportFormat {
+  DailyCareReportFormat._();
+
+  static const String yesNo = 'yesNo';
+  static const String amount = 'amount';
+  static const String condition = 'condition';
+  static const String text = 'text';
+  static const String temperature = 'temperature';
+  static const String humidity = 'humidity';
+
+  static const List<String> alwaysOnFields = <String>['stool', 'urine'];
+
+  static String builtInInputType(String key) {
+    switch (key) {
+      case 'temperature':
+        return temperature;
+      case 'humidity':
+        return humidity;
+      case 'water':
+      case 'dryFood':
+      case 'wetFood':
+      case 'snack':
+      case 'stool':
+      case 'urine':
+        return condition;
+      case 'generalNote':
+      case 'petNotes':
+        return text;
+      default:
+        return yesNo;
+    }
+  }
+
+  static bool isAlwaysOn(String key) => alwaysOnFields.contains(key);
+
+  static List<String> persistableEnabledFields(Iterable<String> fields) {
+    return fields
+        .map((String value) => value.trim())
+        .where((String value) => value.isNotEmpty && !isAlwaysOn(value))
+        .toList();
+  }
+
+  static String optionsLabel(String inputType) {
+    switch (inputType) {
+      case amount:
+        return '無／少／一般／多';
+      case condition:
+        return '正常／偏少／偏多／異常';
+      case text:
+        return '自由文字';
+      case temperature:
+        return '數值 °C';
+      case humidity:
+        return '數值 %';
+      case yesNo:
+        return '有／無';
+      default:
+        return inputType.trim().isEmpty ? '有／無' : inputType.trim();
+    }
+  }
+
+  static String hintOf(String inputType) => '回報格式：${optionsLabel(inputType)}';
 }
 
 /// 🎨 每日照護日誌外觀
@@ -160,6 +225,12 @@ class DailyCareJournalTheme {
 
   static const int sessionLabelMaxLength = 12;
 
+  static List<DailyCareCardBackgroundPreset> get builtInVisuals {
+    return cardPresets
+        .where((DailyCareCardBackgroundPreset item) => item.hasAsset)
+        .toList();
+  }
+
   static DailyCareCardBackgroundPreset? cardPresetByKey(String key) {
     for (final DailyCareCardBackgroundPreset preset in cardPresets) {
       if (preset.key == key) {
@@ -196,8 +267,6 @@ class DailyCareSettingModel {
       'dryFood',
       'wetFood',
       'snack',
-      'stool',
-      'urine',
       'wandToy',
       'scratchBoard',
       'jumpPlatform',
@@ -257,6 +326,7 @@ class DailyCareSettingModel {
     this.cardBackgroundImageFade = DailyCareJournalTheme.fadeLight,
     this.journalDisplay = const DailyCareJournalDisplayFlags(),
     this.journalCards = const <String, DailyCareJournalCardLayout>{},
+    this.journalHeader = const DailyCareJournalHeaderStyle(),
   });
 
   /// 是否啟用每日照護紀錄
@@ -312,6 +382,13 @@ class DailyCareSettingModel {
 
   /// 店家選擇要填寫的系統內建照護欄位
   final List<String> enabledFields;
+
+  bool isCareFieldEnabled(String key) {
+    if (DailyCareReportFormat.isAlwaysOn(key)) {
+      return true;
+    }
+    return enabledFields.contains(key);
+  }
 
   /// 店家自行新增的照護欄位
   ///
@@ -386,6 +463,9 @@ class DailyCareSettingModel {
   /// 回報卡片編排；空 map 時套用預設編排
   final Map<String, DailyCareJournalCardLayout> journalCards;
 
+  /// 日期／場次／房間基本資訊的頁首卡片外觀
+  final DailyCareJournalHeaderStyle journalHeader;
+
   Map<String, DailyCareJournalCardLayout> get resolvedJournalCards {
     return DailyCareJournalCardLayout.mapFrom(
       journalCards.isEmpty
@@ -429,13 +509,11 @@ class DailyCareSettingModel {
         map['cardBackgroundImageFade'],
       ),
 
-      enabledFields: rawFields is List
-          ? rawFields
-                .whereType<String>()
-                .map((String value) => value.trim())
-                .where((String value) => value.isNotEmpty)
-                .toList()
-          : const DailyCareSettingModel().enabledFields,
+      enabledFields: DailyCareReportFormat.persistableEnabledFields(
+        rawFields is List
+            ? rawFields.whereType<String>()
+            : const DailyCareSettingModel().enabledFields,
+      ),
 
       customFields: rawCustomFields is List
           ? rawCustomFields
@@ -477,10 +555,6 @@ class DailyCareSettingModel {
               },
       ),
       logoVisible: map['logoVisible'] != false,
-      logoAlign: _readAlign(map['logoAlign']),
-      logoSize: _readDouble(map['logoSize'], 36, min: 20, max: 72),
-      titleFontSize: _readDouble(map['titleFontSize'], 18, min: 14, max: 28),
-      bodyFontSize: _readDouble(map['bodyFontSize'], 14, min: 12, max: 20),
       textColorKey: (map['textColorKey'] ?? 'ink').toString(),
       accentColorKey: (map['accentColorKey'] ?? 'brown').toString(),
       iconSize: _readDouble(map['iconSize'], 18, min: 14, max: 28),
@@ -518,6 +592,7 @@ class DailyCareSettingModel {
             : null,
       ),
       journalCards: DailyCareJournalCardLayout.mapFrom(map['journalCards']),
+      journalHeader: DailyCareJournalHeaderStyle.fromMap(map['journalHeader']),
     );
   }
 
@@ -539,7 +614,9 @@ class DailyCareSettingModel {
       'cardBackgroundImagePath': cardBackgroundImagePath,
       'cardBackgroundImageFit': cardBackgroundImageFit,
       'cardBackgroundImageFade': cardBackgroundImageFade,
-      'enabledFields': enabledFields,
+      'enabledFields': DailyCareReportFormat.persistableEnabledFields(
+        enabledFields,
+      ),
       'customFields': customFields
           .map((DailyCareCustomField field) => field.toMap())
           .toList(),
@@ -551,10 +628,6 @@ class DailyCareSettingModel {
       'stayPaidPlan': stayPaidPlan.toMap(),
       'daycarePaidPlan': daycarePaidPlan.toMap(),
       'logoVisible': logoVisible,
-      'logoAlign': logoAlign,
-      'logoSize': logoSize,
-      'titleFontSize': titleFontSize,
-      'bodyFontSize': bodyFontSize,
       'textColorKey': textColorKey,
       'accentColorKey': accentColorKey,
       'iconSize': iconSize,
@@ -583,6 +656,7 @@ class DailyCareSettingModel {
       'journalCards': DailyCareJournalCardLayout.mapToFirestore(
         resolvedJournalCards,
       ),
+      'journalHeader': journalHeader.toMap(),
     };
   }
 
@@ -638,6 +712,7 @@ class DailyCareSettingModel {
     String? cardBackgroundImageFade,
     DailyCareJournalDisplayFlags? journalDisplay,
     Map<String, DailyCareJournalCardLayout>? journalCards,
+    DailyCareJournalHeaderStyle? journalHeader,
   }) {
     return DailyCareSettingModel(
       enabled: enabled ?? this.enabled,
@@ -698,6 +773,7 @@ class DailyCareSettingModel {
           cardBackgroundImageFade ?? this.cardBackgroundImageFade,
       journalDisplay: journalDisplay ?? this.journalDisplay,
       journalCards: journalCards ?? this.journalCards,
+      journalHeader: journalHeader ?? this.journalHeader,
     );
   }
 
@@ -777,24 +853,42 @@ class DailyCareSettingModel {
     return cardBackgroundImageUrl.trim().isNotEmpty;
   }
 
+  /// 單卡若選平台內建，只用 preset key，不用店家自訂圖。
+  DailyCareSettingModel visualForCard(DailyCareJournalCardLayout layout) {
+    if (layout.followsSharedBackground) {
+      return this;
+    }
+    final DailyCareCardBackgroundPreset? preset =
+        DailyCareJournalTheme.cardPresetByKey(layout.backgroundPreset);
+    if (preset == null || !preset.hasAsset) {
+      return this;
+    }
+    return copyWith(
+      cardBackgroundType: DailyCareJournalTheme.cardTypePreset,
+      cardBackgroundPreset: preset.key,
+      cardBackgroundImageUrl: '',
+      cardBackgroundImagePath: '',
+    );
+  }
+
   BoxFit resolvedCardImageFit() {
     return cardBackgroundImageFit == DailyCareJournalTheme.fitContain
         ? BoxFit.contain
         : BoxFit.cover;
   }
 
-  /// 卡片白色 overlay：原圖要看得出圖案，很淡才接近白卡。
-  /// longText：今日概況再多蓋一層，但仍要看得到背景。
+  /// 卡片白色 overlay：原圖清楚可見；淡化為預設；很淡才接近白卡。
+  /// longText：今日概況略多遮罩，但不蓋成純白。
   double resolvedCardOverlayOpacity({bool longText = false}) {
     final double base = switch (cardBackgroundImageFade) {
-      DailyCareJournalTheme.fadeNone => 0.58,
-      DailyCareJournalTheme.fadeHeavy => 0.82,
-      _ => 0.70,
+      DailyCareJournalTheme.fadeNone => 0.22,
+      DailyCareJournalTheme.fadeHeavy => 0.70,
+      _ => 0.42,
     };
     if (!longText) {
       return base;
     }
-    return (base + 0.10).clamp(0.0, 0.92);
+    return (base + 0.10).clamp(0.22, 0.80).toDouble();
   }
 
   Color backgroundColor() {
@@ -973,10 +1067,6 @@ class DailyCareSettingModel {
       return key;
     }
     return DailyCareJournalTheme.cardPresetNone;
-  }
-
-  static String _readAlign(Object? value) {
-    return _readString(value) == 'center' ? 'center' : 'left';
   }
 
   static double _readDouble(

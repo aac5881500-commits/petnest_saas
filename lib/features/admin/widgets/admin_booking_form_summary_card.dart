@@ -2,6 +2,7 @@
 // 功能說明：桌機右欄表單摘要；點擊後在左欄展開完整表單。
 
 import 'package:flutter/material.dart';
+import 'package:petnest_saas/core/models/booking_order_form_answers.dart';
 import 'package:petnest_saas/core/services/booking_form_visibility.dart';
 import 'package:petnest_saas/features/admin/widgets/admin_booking_detail_layout.dart';
 import 'package:petnest_saas/features/admin/widgets/admin_booking_form_answers_section.dart';
@@ -26,22 +27,32 @@ class AdminBookingFormSummaryCard extends StatelessWidget {
         data['bookingFormAnswers'] ??
         data['formAnswers'];
     final dynamic adminRaw = data['adminCustomFormAnswers'];
+    final Map<String, dynamic> customerPets =
+        BookingOrderFormAnswers.resolveByPetId(booking: data, admin: false);
+    final Map<String, dynamic> adminPets =
+        BookingOrderFormAnswers.resolveByPetId(booking: data, admin: true);
     final bool showCustomer = BookingFormVisibility.showCustomerSubmitForm(
       data: data,
       hasAnswers: AdminBookingFormAnswersSection.hasVisibleAnswers(
         customerRaw,
+        petAnswersByPetId: customerPets,
       ),
     );
     final bool showAdmin = BookingFormVisibility.showAdminCreateForm(
       data: data,
       isShopView: true,
-      hasAnswers: AdminBookingFormAnswersSection.hasVisibleAnswers(adminRaw),
+      hasAnswers: AdminBookingFormAnswersSection.hasVisibleAnswers(
+        adminRaw,
+        petAnswersByPetId: adminPets,
+      ),
     );
     final int customerFilled = AdminBookingFormAnswersSection.filledCount(
       customerRaw,
+      petAnswersByPetId: customerPets,
     );
     final int adminFilled = AdminBookingFormAnswersSection.filledCount(
       adminRaw,
+      petAnswersByPetId: adminPets,
     );
     return AdminBookingDetailSection(
       key: ValueKey<String>('form-summary-$shopId-$bookingId'),
@@ -68,6 +79,14 @@ class AdminBookingFormSummaryCard extends StatelessWidget {
                 style: const TextStyle(fontWeight: FontWeight.w700),
               ),
               anchor: AdminBookingFormAnchor.adminCreate,
+            ),
+            const SizedBox(height: 4),
+            const Align(
+              alignment: Alignment.centerRight,
+              child: Text(
+                '查看完整表單',
+                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
+              ),
             ),
           ],
         ),

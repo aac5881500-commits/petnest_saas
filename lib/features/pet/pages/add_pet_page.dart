@@ -1,15 +1,12 @@
 // 檔案名稱：lib/features/pet/pages/add_pet_page.dart
-// 功能說明：新增寵物（與編輯寵物共用表單視覺），並填寫店家新增寵物自訂表單。
+// 功能說明：新增寵物（與編輯寵物共用表單視覺），僅填寫跨店共用基本資料。
 
-import 'package:flutter/foundation.dart';
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
-import 'package:petnest_saas/core/models/custom_form_answer_model.dart';
-import 'package:petnest_saas/core/models/custom_form_model.dart';
 import 'package:petnest_saas/core/models/fixed_image_spec.dart';
 import 'package:petnest_saas/core/models/home_theme_model.dart';
-import 'package:petnest_saas/core/services/custom_form_service.dart';
 import 'package:petnest_saas/core/services/pet_service.dart';
-import 'package:petnest_saas/features/custom_form/widgets/custom_form_response_fields.dart';
 import 'package:petnest_saas/features/pet/widgets/pet_profile_form.dart';
 import 'package:petnest_saas/features/shop/widgets/media/fixed_image_pick_flow.dart';
 
@@ -18,18 +15,10 @@ class AddPetPage extends StatefulWidget {
     super.key,
     required this.shopId,
     this.theme = HomeThemeModel.modernDefault,
-    this.skipRemoteLoads = false,
-    this.seedCustomForm,
   });
 
   final String shopId;
   final HomeThemeModel theme;
-
-  @visibleForTesting
-  final bool skipRemoteLoads;
-
-  @visibleForTesting
-  final CustomFormModel? seedCustomForm;
 
   @override
   State<AddPetPage> createState() => _AddPetPageState();
@@ -43,7 +32,6 @@ class _AddPetPageState extends State<AddPetPage> {
   final TextEditingController _otherMedicalController = TextEditingController();
   final TextEditingController _otherLitterController = TextEditingController();
   final TextEditingController _noteController = TextEditingController();
-  final Map<String, GlobalKey> _questionKeys = <String, GlobalKey>{};
 
   String? _ageRange;
   String? _neuterStatus;
@@ -52,86 +40,24 @@ class _AddPetPageState extends State<AddPetPage> {
   String? _gender;
   Uint8List? _imageBytes;
   bool _loading = false;
-  bool _formLoading = false;
-  bool _formLoadFailed = false;
-  CustomFormModel? _customForm;
-  Map<String, dynamic> _customAnswers = <String, dynamic>{};
 
   HomeThemeModel get _theme => widget.theme;
-
-  bool get _needsCustomForm => _customForm?.shouldCollectAnswers == true;
 
   @override
   void initState() {
     super.initState();
-    if (widget.skipRemoteLoads) {
-      _customForm = widget.seedCustomForm;
-      return;
-    }
-    _loadCustomForm();
-  }
-
-  Future<void> _loadCustomForm() async {
-    setState(() {
-      _formLoading = true;
-      _formLoadFailed = false;
-    });
-    final CustomFormFrontLoadResult result = await CustomFormService.instance
-        .loadFormForCustomer(
-          shopId: widget.shopId,
-          formType: CustomFormType.petProfile,
-        );
-    if (!mounted) {
-      return;
-    }
-    setState(() {
-      _formLoading = false;
-      _formLoadFailed = result.failed;
-      _customForm = result.form;
-    });
   }
 
   Future<void> _submit() async {
-    if (_formLoading) {
-      return;
-    }
-    if (_formLoadFailed) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('表單載入失敗，請重試')));
-      return;
-    }
     final bool valid = _formKey.currentState?.validate() == true;
     if (!valid) {
-      _scrollToFirstError();
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(const SnackBar(content: Text('請完成必填欄位')));
       return;
     }
-    if (_needsCustomForm) {
-      final CustomFormValidationResult check =
-          CustomFormAnswerSnapshot.validate(
-            form: _customForm!,
-            answersByQuestionId: _customAnswers,
-          );
-      if (!check.isValid) {
-        _scrollToFirstError(questionId: check.firstInvalidQuestionId);
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(check.message)));
-        return;
-      }
-    }
     setState(() => _loading = true);
     try {
-      Map<String, dynamic>? answersMap;
-      if (_needsCustomForm) {
-        answersMap = CustomFormAnswerSnapshot.build(
-          form: _customForm!,
-          answersByQuestionId: _customAnswers,
-        ).toFirestoreMap();
-      }
       final String petId = await PetService.instance.createPet(
         name: _nameController.text.trim(),
         age: _ageRange ?? '',
@@ -148,7 +74,6 @@ class _AddPetPageState extends State<AddPetPage> {
         canSocial: true,
         canMedicate: _medicalStatus != '無',
         shopId: widget.shopId,
-        customFormAnswers: answersMap,
       );
       if (_imageBytes != null) {
         await PetService.instance.uploadPetPhoto(
@@ -178,23 +103,6 @@ class _AddPetPageState extends State<AddPetPage> {
     }
   }
 
-  void _scrollToFirstError({String questionId = ''}) {
-    final GlobalKey? key = questionId.isNotEmpty
-        ? _questionKeys[questionId]
-        : _questionKeys.values.cast<GlobalKey?>().firstWhere(
-            (GlobalKey? item) => item?.currentContext != null,
-            orElse: () => null,
-          );
-    final BuildContext? target = key?.currentContext;
-    if (target != null) {
-      Scrollable.ensureVisible(
-        target,
-        duration: const Duration(milliseconds: 280),
-        alignment: 0.15,
-      );
-    }
-  }
-
   @override
   void dispose() {
     _scrollController.dispose();
@@ -204,55 +112,6 @@ class _AddPetPageState extends State<AddPetPage> {
     _otherLitterController.dispose();
     _noteController.dispose();
     super.dispose();
-  }
-
-  List<Widget> _customFormChildren() {
-    if (_formLoading) {
-      return <Widget>[
-        const Padding(
-          padding: EdgeInsets.symmetric(vertical: 12),
-          child: Center(
-            child: SizedBox(
-              width: 22,
-              height: 22,
-              child: CircularProgressIndicator(strokeWidth: 2.2),
-            ),
-          ),
-        ),
-      ];
-    }
-    if (_formLoadFailed) {
-      return <Widget>[
-        PetFormSectionCard(
-          theme: _theme,
-          icon: Icons.error_outline,
-          title: '店家照護資料',
-          children: <Widget>[
-            Text('表單載入失敗，請重試', style: TextStyle(color: _theme.textColor)),
-            TextButton(onPressed: _loadCustomForm, child: const Text('重試')),
-          ],
-        ),
-      ];
-    }
-    final CustomFormModel? form = _customForm;
-    if (form == null || !form.shouldCollectAnswers) {
-      return const <Widget>[];
-    }
-    for (final (CustomFormSection _, CustomFormQuestion question)
-        in form.enabledQuestionEntries) {
-      _questionKeys.putIfAbsent(question.id, GlobalKey.new);
-    }
-    return <Widget>[
-      CustomFormResponseFields(
-        form: form,
-        answers: _customAnswers,
-        theme: _theme,
-        fieldKeys: _questionKeys,
-        onChanged: (Map<String, dynamic> next) {
-          setState(() => _customAnswers = next);
-        },
-      ),
-    ];
   }
 
   @override
@@ -287,7 +146,7 @@ class _AddPetPageState extends State<AddPetPage> {
               medicalStatus: _medicalStatus,
               litterType: _litterType,
               imageBytes: _imageBytes,
-              extraChildren: _customFormChildren(),
+              extraChildren: const <Widget>[],
               onGenderChanged: (String? value) =>
                   setState(() => _gender = value),
               onAgeChanged: (String? value) =>
@@ -307,7 +166,7 @@ class _AddPetPageState extends State<AddPetPage> {
             theme: _theme,
             primaryLabel: '新增寵物',
             loading: _loading,
-            primaryEnabled: !_formLoading,
+            primaryEnabled: !_loading,
             onPrimary: _submit,
           ),
         ],

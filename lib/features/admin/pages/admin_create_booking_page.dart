@@ -35,8 +35,10 @@ import 'package:petnest_saas/core/models/home_theme_model.dart';
 import 'package:petnest_saas/core/services/home_banner_service.dart';
 import 'package:petnest_saas/features/admin/widgets/admin_create_flow_scaffold.dart';
 import 'package:petnest_saas/features/admin/widgets/admin_create_custom_form_section.dart';
+import 'package:petnest_saas/core/models/booking_order_form_answers.dart';
 import 'package:petnest_saas/core/models/custom_form_answer_model.dart';
 import 'package:petnest_saas/core/models/custom_form_model.dart';
+import 'package:petnest_saas/core/models/custom_form_pet_condition.dart';
 import 'package:petnest_saas/core/services/custom_form_service.dart';
 import 'package:petnest_saas/features/shop/widgets/booking/booking_step_widgets.dart';
 import 'package:petnest_saas/features/shop/widgets/booking/policy_sign_method_field.dart';
@@ -78,6 +80,8 @@ class _AdminCreateBookingPageState extends State<AdminCreateBookingPage> {
   String _adminOrderSource = '電話預約';
   CustomFormModel? _adminForm;
   Map<String, dynamic> _adminFormAnswers = <String, dynamic>{};
+  Map<String, Map<String, dynamic>> _adminPetFormAnswers =
+      <String, Map<String, dynamic>>{};
   final Map<String, GlobalKey> _adminFormKeys = <String, GlobalKey>{};
   Map<String, dynamic>? _selectedRoomType;
   bool _applyLongStayDiscount = true;
@@ -161,6 +165,45 @@ class _AdminCreateBookingPageState extends State<AdminCreateBookingPage> {
     setState(() => _adminForm = form);
   }
 
+  List<Map<String, dynamic>> get _selectedPets {
+    return _pets
+        .where(
+          (Map<String, dynamic> pet) => _selectedPetIds.contains(
+            (pet['petId'] ?? pet['id'] ?? '').toString(),
+          ),
+        )
+        .toList();
+  }
+
+  CustomFormValidationResult _validateAdminForm() {
+    final CustomFormModel? form = _adminForm;
+    if (form == null || !form.shouldCollectAnswers) {
+      return CustomFormValidationResult.ok;
+    }
+    final CustomFormValidationResult order =
+        BookingOrderFormAnswers.validateOrder(
+          form: form,
+          answersByQuestionId: _adminFormAnswers,
+        );
+    if (!order.isValid) {
+      return order;
+    }
+    for (final Map<String, dynamic> pet in _selectedPets) {
+      final String petId = CustomFormPetCondition.petIdOf(pet);
+      final CustomFormValidationResult petCheck =
+          BookingOrderFormAnswers.validatePet(
+            form: form,
+            pet: pet,
+            answersByQuestionId:
+                _adminPetFormAnswers[petId] ?? const <String, dynamic>{},
+          );
+      if (!petCheck.isValid) {
+        return petCheck;
+      }
+    }
+    return CustomFormValidationResult.ok;
+  }
+
   Future<void> _loadPolicy() async {
     final Map<String, dynamic>? policy = await ShopPolicyService.instance
         .getCheckinPolicy(widget.shopId);
@@ -222,11 +265,7 @@ class _AdminCreateBookingPageState extends State<AdminCreateBookingPage> {
         return;
       }
       if (_adminForm?.shouldCollectAnswers == true) {
-        final CustomFormValidationResult result =
-            CustomFormAnswerSnapshot.validate(
-              form: _adminForm!,
-              answersByQuestionId: _adminFormAnswers,
-            );
+        final CustomFormValidationResult result = _validateAdminForm();
         if (!result.isValid) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
@@ -645,8 +684,19 @@ class _AdminCreateBookingPageState extends State<AdminCreateBookingPage> {
                       answers: _adminFormAnswers,
                       theme: theme,
                       fieldKeys: _adminFormKeys,
+                      pets: _selectedPets,
+                      petAnswersByPetId: _adminPetFormAnswers,
                       onChanged: (Map<String, dynamic> next) {
                         setState(() => _adminFormAnswers = next);
+                      },
+                      onPetChanged: (String petId, Map<String, dynamic> next) {
+                        setState(() {
+                          _adminPetFormAnswers =
+                              <String, Map<String, dynamic>>{
+                                ..._adminPetFormAnswers,
+                                petId: next,
+                              };
+                        });
                       },
                     ),
                     const SizedBox(height: 12),
@@ -2109,10 +2159,18 @@ class _AdminCreateBookingPageState extends State<AdminCreateBookingPage> {
         policyServiceType: PolicyApplicableService.accommodation,
         adminOrderSource: _adminOrderSource,
         adminCustomFormAnswers: _adminForm?.shouldCollectAnswers == true
-            ? CustomFormAnswerSnapshot.build(
+            ? BookingOrderFormAnswers.buildOrderSnapshot(
+                    form: _adminForm!,
+                    answersByQuestionId: _adminFormAnswers,
+                  )
+                  ?.toFirestoreMap()
+            : null,
+        adminPetFormAnswersByPetId: _adminForm?.shouldCollectAnswers == true
+            ? BookingOrderFormAnswers.encodeByPetId(
                 form: _adminForm!,
-                answersByQuestionId: _adminFormAnswers,
-              ).toFirestoreMap()
+                pets: _selectedPets,
+                answersByPetId: _adminPetFormAnswers,
+              )
             : null,
         note:
             '手動新增訂單｜$_adminOrderSource'

@@ -44,7 +44,17 @@ class DaycareCallablePayload {
   }
 
   static Map<String, dynamic> petSnapshot(Map<String, dynamic> pet) {
-    return PetSnapshot.fromPet(pet);
+    final Map<String, dynamic> out = PetSnapshot.fromPet(pet);
+    for (final String key in <String>[
+      'petFormAnswers',
+      'adminPetFormAnswers',
+    ]) {
+      final Object? raw = pet[key];
+      if (raw is Map) {
+        out[key] = Map<String, dynamic>.from(raw);
+      }
+    }
+    return out;
   }
 
   static Map<String, dynamic> addonSnapshot(
@@ -118,6 +128,7 @@ class DaycareCallablePayload {
     required String note,
     String adminOrderSource = '',
     Map<String, dynamic>? adminCustomFormAnswers,
+    Map<String, dynamic>? adminPetFormAnswersByPetId,
     required String requestId,
     String dailyCareAddonId = '',
   }) {
@@ -150,6 +161,9 @@ class DaycareCallablePayload {
       'adminOrderSource': adminOrderSource,
       if (adminCustomFormAnswers != null)
         'adminCustomFormAnswers': adminCustomFormAnswers,
+      if (adminPetFormAnswersByPetId != null &&
+          adminPetFormAnswersByPetId.isNotEmpty)
+        'adminPetFormAnswersByPetId': adminPetFormAnswersByPetId,
       'requestId': requestId,
     };
   }

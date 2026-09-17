@@ -1,16 +1,11 @@
 // 檔案名稱：lib/features/admin/widgets/admin_booking_pet_card.dart
 // 功能說明：訂單寵物摘要卡：只顯示有值欄位，可展開詳細與該店照護表單
 
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
-import 'package:petnest_saas/core/models/custom_form_answer_model.dart';
-import 'package:petnest_saas/core/models/home_theme_model.dart';
 import 'package:petnest_saas/core/models/pet_snapshot.dart';
 import 'package:petnest_saas/core/widgets/member_avatar.dart';
 import 'package:petnest_saas/core/models/shop_frontend_theme.dart';
 import 'package:petnest_saas/core/services/pet_shop_form_answers.dart';
-import 'package:petnest_saas/features/admin/widgets/admin_booking_pet_care_scope.dart';
-import 'package:petnest_saas/features/custom_form/widgets/custom_form_answer_view.dart';
 
 class AdminBookingPetCard extends StatelessWidget {
   const AdminBookingPetCard({
@@ -75,19 +70,6 @@ class AdminBookingPetCard extends StatelessWidget {
     final List<MapEntry<String, String>> safety = PetSnapshot.safetyRows(
       merged,
     );
-    final String petId = (merged['petId'] ?? pet['petId'] ?? pet['id'] ?? '')
-        .toString();
-    final int careFilled =
-        AdminBookingPetCareScope.maybeOf(context)?.itemOf(petId)?.filledCount ??
-        0;
-    final Map<String, dynamic>? formRaw = resolveShopCareForm(
-      shopId: shopId,
-      pet: pet,
-      fallback: fallback,
-    );
-    final CustomFormAnswerSnapshot? form = CustomFormAnswerSnapshot.tryParse(
-      formRaw,
-    );
     final String summary = rows
         .take(3)
         .map((MapEntry<String, String> e) => e.value)
@@ -109,8 +91,6 @@ class AdminBookingPetCard extends StatelessWidget {
           photoUrl: photoUrl,
           rows: rows,
           safety: safety,
-          formRaw: formRaw,
-          petId: petId,
         );
       }
 
@@ -161,26 +141,6 @@ class AdminBookingPetCard extends StatelessWidget {
                       ),
                     ),
                   ],
-                ),
-                if (careFilled > 0) ...<Widget>[
-                  const SizedBox(height: 8),
-                  Text(
-                    '查看照護表單（已填 $careFilled 題） ›',
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w800,
-                      color: accent,
-                    ),
-                  ),
-                ],
-                const SizedBox(height: 8),
-                Text(
-                  '點擊查看詳細資料與照護資料 ›',
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
-                    color: accent,
-                  ),
                 ),
               ],
             ),
@@ -266,13 +226,6 @@ class AdminBookingPetCard extends StatelessWidget {
               ),
             ),
           ],
-          if (form != null && careFilled > 0)
-            CustomFormAnswerView(
-              raw: formRaw,
-              title: '店家照護資料・已填 $careFilled 題',
-              theme: HomeThemeModel.classicDefault,
-              collapsible: true,
-            ),
         ],
       ),
     );
@@ -284,71 +237,12 @@ class AdminBookingPetCard extends StatelessWidget {
     required String photoUrl,
     required List<MapEntry<String, String>> rows,
     required List<MapEntry<String, String>> safety,
-    required Map<String, dynamic>? formRaw,
-    required String petId,
   }) {
     return showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
       showDragHandle: true,
       builder: (BuildContext context) {
-        Widget formView(Map<String, dynamic>? raw) {
-          final CustomFormAnswerSnapshot? parsed =
-              CustomFormAnswerSnapshot.tryParse(raw);
-          final int count = parsed == null
-              ? 0
-              : parsed.answers
-                    .where(
-                      (CustomFormAnswerItem item) =>
-                          item.displayValue.trim().isNotEmpty,
-                    )
-                    .length;
-          if (raw == null || count <= 0) {
-            return const SizedBox.shrink();
-          }
-          return CustomFormAnswerView(
-            raw: raw,
-            title: '店家照護資料／寵物自訂表單',
-            theme: HomeThemeModel.classicDefault,
-            collapsible: false,
-            initiallyExpanded: true,
-          );
-        }
-
-        final String uid = userId.trim();
-        final String sid = shopId.trim();
-        final String pid = petId.trim();
-        final Widget formBlock =
-            uid.isNotEmpty && sid.isNotEmpty && pid.isNotEmpty
-            ? StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-                stream: FirebaseFirestore.instance
-                    .collection('user_profiles')
-                    .doc(uid)
-                    .collection('pets')
-                    .doc(pid)
-                    .collection('shop_form_answers')
-                    .doc(sid)
-                    .snapshots(),
-                builder:
-                    (
-                      BuildContext context,
-                      AsyncSnapshot<DocumentSnapshot<Map<String, dynamic>>>
-                      snap,
-                    ) {
-                      final Map<String, dynamic>? live = snap.data?.data();
-                      return formView(
-                        resolveShopCareForm(
-                              shopId: sid,
-                              pet: pet,
-                              fallback: fallback,
-                              subcollectionData: live,
-                            ) ??
-                            formRaw,
-                      );
-                    },
-              )
-            : formView(formRaw);
-
         return Padding(
           padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
           child: SingleChildScrollView(
@@ -422,7 +316,6 @@ class AdminBookingPetCard extends StatelessWidget {
                     ),
                   ),
                 ],
-                formBlock,
               ],
             ),
           ),

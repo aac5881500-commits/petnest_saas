@@ -27,8 +27,10 @@ import 'package:petnest_saas/core/services/shop_service.dart';
 import 'package:petnest_saas/features/admin/widgets/admin_create_flow_scaffold.dart';
 import 'package:petnest_saas/features/admin/widgets/admin_create_custom_form_section.dart';
 import 'package:petnest_saas/features/admin/widgets/admin_order_source_note_fields.dart';
+import 'package:petnest_saas/core/models/booking_order_form_answers.dart';
 import 'package:petnest_saas/core/models/custom_form_answer_model.dart';
 import 'package:petnest_saas/core/models/custom_form_model.dart';
+import 'package:petnest_saas/core/models/custom_form_pet_condition.dart';
 import 'package:petnest_saas/core/services/custom_form_service.dart';
 import 'package:petnest_saas/core/models/daily_care_addon_plan.dart';
 import 'package:petnest_saas/core/models/daily_care_entitlement.dart';
@@ -104,6 +106,8 @@ class _AdminCreateDaycareBookingPageState
   String _adminOrderSource = '電話預約';
   CustomFormModel? _adminForm;
   Map<String, dynamic> _adminFormAnswers = <String, dynamic>{};
+  Map<String, Map<String, dynamic>> _adminPetFormAnswers =
+      <String, Map<String, dynamic>>{};
   String? _timeSlotError;
   DailyCareSettingModel _dailyCareSetting = const DailyCareSettingModel();
   List<DailyCareAddonPlan> _dailyCarePlans = <DailyCareAddonPlan>[];
@@ -677,6 +681,45 @@ class _AdminCreateDaycareBookingPageState
     );
   }
 
+  List<Map<String, dynamic>> get _selectedPets {
+    return _pets
+        .where(
+          (Map<String, dynamic> pet) => _petIds.contains(
+            (pet['id'] ?? pet['petId'] ?? '').toString(),
+          ),
+        )
+        .toList();
+  }
+
+  CustomFormValidationResult _validateAdminForm() {
+    final CustomFormModel? form = _adminForm;
+    if (form == null || !form.shouldCollectAnswers) {
+      return CustomFormValidationResult.ok;
+    }
+    final CustomFormValidationResult order =
+        BookingOrderFormAnswers.validateOrder(
+          form: form,
+          answersByQuestionId: _adminFormAnswers,
+        );
+    if (!order.isValid) {
+      return order;
+    }
+    for (final Map<String, dynamic> pet in _selectedPets) {
+      final String petId = CustomFormPetCondition.petIdOf(pet);
+      final CustomFormValidationResult petCheck =
+          BookingOrderFormAnswers.validatePet(
+            form: form,
+            pet: pet,
+            answersByQuestionId:
+                _adminPetFormAnswers[petId] ?? const <String, dynamic>{},
+          );
+      if (!petCheck.isValid) {
+        return petCheck;
+      }
+    }
+    return CustomFormValidationResult.ok;
+  }
+
   Future<void> _advance() async {
     if (_submitting) {
       return;
@@ -690,11 +733,7 @@ class _AdminCreateDaycareBookingPageState
       return;
     }
     if (_step == 3 && _adminForm?.shouldCollectAnswers == true) {
-      final CustomFormValidationResult result =
-          CustomFormAnswerSnapshot.validate(
-            form: _adminForm!,
-            answersByQuestionId: _adminFormAnswers,
-          );
+      final CustomFormValidationResult result = _validateAdminForm();
       if (!result.isValid) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -930,13 +969,23 @@ class _AdminCreateDaycareBookingPageState
             scheduledStartAt: _startAt!.toUtc().toIso8601String(),
             scheduledEndAt: _endAt!.toUtc().toIso8601String(),
             petIds: _petIds.toList(),
-            pets: _pets
-                .where(
-                  (Map<String, dynamic> e) => _petIds.contains(
-                    (e['id'] ?? e['petId'] ?? '').toString(),
-                  ),
-                )
-                .toList(),
+            pets: BookingOrderFormAnswers.attachToPets(
+              pets: _pets
+                  .where(
+                    (Map<String, dynamic> e) => _petIds.contains(
+                      (e['id'] ?? e['petId'] ?? '').toString(),
+                    ),
+                  )
+                  .toList(),
+              byPetId: _adminForm?.shouldCollectAnswers == true
+                  ? BookingOrderFormAnswers.encodeByPetId(
+                      form: _adminForm!,
+                      pets: _selectedPets,
+                      answersByPetId: _adminPetFormAnswers,
+                    )
+                  : const <String, dynamic>{},
+              nestedKey: BookingOrderFormAnswers.nestedAdminPetFormAnswers,
+            ),
             pricingMode: DaycarePricingModes.persist(settings.pricingMode),
             daycarePlanId: roomBased ? '' : (_plan?.id ?? ''),
             daycarePlanName: roomBased ? '' : (_plan?.name ?? ''),
@@ -958,10 +1007,17 @@ class _AdminCreateDaycareBookingPageState
             note: _note.text.trim(),
             adminOrderSource: _adminOrderSource,
             adminCustomFormAnswers: _adminForm?.shouldCollectAnswers == true
-                ? CustomFormAnswerSnapshot.build(
+                ? BookingOrderFormAnswers.buildOrderSnapshot(
                     form: _adminForm!,
                     answersByQuestionId: _adminFormAnswers,
-                  ).toCallableMap()
+                  )?.toCallableMap()
+                : null,
+            adminPetFormAnswersByPetId: _adminForm?.shouldCollectAnswers == true
+                ? BookingOrderFormAnswers.encodeByPetId(
+                    form: _adminForm!,
+                    pets: _selectedPets,
+                    answersByPetId: _adminPetFormAnswers,
+                  )
                 : null,
             requestId: _submitRequestId!,
             dailyCareAddonId: _selectedDailyCareAddonId ?? '',
@@ -1573,8 +1629,18 @@ class _AdminCreateDaycareBookingPageState
         form: _adminForm,
         answers: _adminFormAnswers,
         theme: theme,
+        pets: _selectedPets,
+        petAnswersByPetId: _adminPetFormAnswers,
         onChanged: (Map<String, dynamic> next) {
           setState(() => _adminFormAnswers = next);
+        },
+        onPetChanged: (String petId, Map<String, dynamic> next) {
+          setState(() {
+            _adminPetFormAnswers = <String, Map<String, dynamic>>{
+              ..._adminPetFormAnswers,
+              petId: next,
+            };
+          });
         },
       ),
       const SizedBox(height: 12),

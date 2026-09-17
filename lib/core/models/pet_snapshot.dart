@@ -124,6 +124,20 @@ class PetSnapshot {
     return raw == false || raw == 'false' || raw == 0;
   }
 
+  /// 顯示與判斷用：優先 medicalStatus，空白再讀舊欄位 vaccine。不改寫原始資料。
+  static String medicalStatusText(Map<String, dynamic> pet) {
+    final String medical = _displayText(pet['medicalStatus']);
+    if (medical.isNotEmpty) {
+      return medical;
+    }
+    return _displayText(pet['vaccine']);
+  }
+
+  static bool hasRecordedDisease(Map<String, dynamic> pet) {
+    final String medical = medicalStatusText(pet);
+    return medical.isNotEmpty && medical != '無';
+  }
+
   static String speciesLabel(Map<String, dynamic> pet) {
     return _firstNonEmpty(<dynamic>[pet['species'], pet['type']]);
   }
@@ -170,7 +184,7 @@ class PetSnapshot {
     }
 
     add('過敏', pet['allergy']);
-    add('疾病／醫療', pet['medicalStatus']);
+    add('疾病／醫療', medicalStatusText(pet));
     add('藥物', pet['medication']);
     add('緊張或攻擊行為', pet['emergencyBehavior']);
     add('不喜歡', pet['dislikes']);
@@ -179,18 +193,29 @@ class PetSnapshot {
 
   /// 卡片紅色標籤：僅在有疾病／醫療／需特別注意的安全資訊時顯示。
   static bool hasDiseaseAlert(Map<String, dynamic> pet) {
-    return _firstNonEmpty(<dynamic>[
-      pet['medicalStatus'],
-      pet['allergy'],
-      pet['medication'],
-      pet['emergencyBehavior'],
-    ]).isNotEmpty;
+    return hasRecordedDisease(pet) ||
+        _firstNonEmpty(<dynamic>[
+          pet['allergy'],
+          pet['medication'],
+          pet['emergencyBehavior'],
+        ]).isNotEmpty;
+  }
+
+  static String _displayText(dynamic value) {
+    if (value == null) {
+      return '';
+    }
+    final String text = value.toString().trim();
+    if (text.isEmpty || text == 'null') {
+      return '';
+    }
+    return text;
   }
 
   static String _firstNonEmpty(List<dynamic> values) {
     for (final dynamic value in values) {
-      final String text = value == null ? '' : value.toString().trim();
-      if (text.isNotEmpty && text != 'null') {
+      final String text = _displayText(value);
+      if (text.isNotEmpty) {
         return text;
       }
     }

@@ -5,8 +5,6 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/features/admin/widgets/admin_booking_detail_layout.dart';
 import 'package:petnest_saas/features/admin/widgets/admin_booking_pet_card.dart';
-import 'package:petnest_saas/features/admin/widgets/admin_booking_pet_care_reminder.dart';
-import 'package:petnest_saas/features/admin/widgets/admin_booking_pet_care_scope.dart';
 
 class AdminBookingPetStrip extends StatelessWidget {
   const AdminBookingPetStrip({
@@ -61,10 +59,7 @@ class AdminBookingPetStrip extends StatelessWidget {
   Widget _withReminder(BuildContext context, Widget petsView) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: <Widget>[
-        petsView,
-        const AdminBookingPetCareReminderCard(),
-      ],
+      children: <Widget>[petsView],
     );
   }
 
@@ -74,11 +69,8 @@ class AdminBookingPetStrip extends StatelessWidget {
   ) {
     final AdminBookingDetailScope scope = AdminBookingDetailScope.of(context);
     if (scope.isPhone) {
-      final bool hasCare =
-          (AdminBookingPetCareScope.maybeOf(context)?.items.isNotEmpty ??
-          false);
       return SizedBox(
-        height: hasCare ? 228 : 198,
+        height: 198,
         child: ListView.separated(
           scrollDirection: Axis.horizontal,
           itemCount: pets.length,

@@ -26,6 +26,37 @@ class AuthService {
   /// 監聽登入狀態
   Stream<User?> authStateChanges() => _auth.authStateChanges();
 
+  /// 將 Firebase Auth 的原始錯誤轉為前台可讀的中文訊息。
+  static String authErrorMessage(Object error) {
+    if (error is! FirebaseAuthException) {
+      return '系統暫時無法處理，請稍後再試';
+    }
+
+    switch (error.code) {
+      case 'invalid-email':
+        return 'Email 格式不正確，請重新輸入';
+      case 'email-already-in-use':
+        return '此 Email 已被註冊，請直接登入或使用其他 Email';
+      case 'weak-password':
+        return '密碼強度不足，請至少輸入 6 個字元';
+      case 'user-not-found':
+        return '找不到此帳號，請確認 Email 或先註冊';
+      case 'wrong-password':
+      case 'invalid-credential':
+        return 'Email 或密碼不正確，請重新輸入';
+      case 'user-disabled':
+        return '此帳號目前已被停用，請聯絡客服';
+      case 'too-many-requests':
+        return '嘗試次數過多，請稍後再試';
+      case 'network-request-failed':
+        return '網路連線異常，請確認網路後再試';
+      case 'operation-not-allowed':
+        return '此登入方式目前尚未開放';
+      default:
+        return '帳號操作失敗，請稍後再試';
+    }
+  }
+
   // =========================================
   // 🔥 Google 登入
   // =========================================

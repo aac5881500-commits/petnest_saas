@@ -1069,6 +1069,13 @@ class _ShopBookingPageState extends State<ShopBookingPage> {
       isSubmitting: _submitting,
       theme: widget.theme,
       compact: true,
+      selectedPets: _pets
+          .where(
+            (Map<String, dynamic> pet) => _selectedPetIds.contains(
+              (pet['petId'] ?? pet['id'] ?? '').toString(),
+            ),
+          )
+          .toList(),
       onServiceChanged: (value) {
         setState(() {
           _selectedServiceType = value;
@@ -1088,6 +1095,7 @@ class _ShopBookingPageState extends State<ShopBookingPage> {
           payAmountType: data.payAmountType,
           termsConsent: data.termsConsent,
           customFormAnswers: data.customFormAnswers,
+          petFormAnswersByPetId: data.petFormAnswersByPetId,
         );
       },
     );
@@ -1420,6 +1428,7 @@ class _ShopBookingPageState extends State<ShopBookingPage> {
     String payAmountType = '',
     TermsConsentSnapshot? termsConsent,
     CustomFormAnswerSnapshot? customFormAnswers,
+    Map<String, dynamic> petFormAnswersByPetId = const <String, dynamic>{},
   }) async {
     debugPrint('[BookingSubmit] 11 parent submit entered');
     if (_submitting) {
@@ -1597,6 +1606,7 @@ class _ShopBookingPageState extends State<ShopBookingPage> {
         requestId: _bookingRequestId!,
         termsConsent: termsConsent,
         customFormAnswers: customFormAnswers,
+        petFormAnswersByPetId: petFormAnswersByPetId,
       );
       debugPrint('[BookingSubmit] 13 booking created: $createdBookingId');
       if (!mounted) return;

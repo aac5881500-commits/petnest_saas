@@ -4,7 +4,7 @@
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/models/custom_form_model.dart';
 import 'package:petnest_saas/core/models/home_theme_model.dart';
-import 'package:petnest_saas/features/custom_form/widgets/custom_form_response_fields.dart';
+import 'package:petnest_saas/features/custom_form/widgets/order_custom_form_fill.dart';
 import 'package:petnest_saas/features/shop/widgets/booking/booking_step_widgets.dart';
 
 class AdminCreateCustomFormSection extends StatelessWidget {
@@ -15,6 +15,9 @@ class AdminCreateCustomFormSection extends StatelessWidget {
     required this.onChanged,
     required this.theme,
     this.fieldKeys,
+    this.pets = const <Map<String, dynamic>>[],
+    this.petAnswersByPetId = const <String, Map<String, dynamic>>{},
+    this.onPetChanged,
   });
 
   final CustomFormModel? form;
@@ -22,6 +25,9 @@ class AdminCreateCustomFormSection extends StatelessWidget {
   final ValueChanged<Map<String, dynamic>> onChanged;
   final HomeThemeModel theme;
   final Map<String, GlobalKey>? fieldKeys;
+  final List<Map<String, dynamic>> pets;
+  final Map<String, Map<String, dynamic>> petAnswersByPetId;
+  final void Function(String petId, Map<String, dynamic> answers)? onPetChanged;
 
   @override
   Widget build(BuildContext context) {
@@ -31,34 +37,19 @@ class AdminCreateCustomFormSection extends StatelessWidget {
     }
     return BookingThemedCard(
       theme: theme,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
-          Text(
-            '手動訂單表單',
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.w800,
-              color: theme.textColor,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            '僅後台使用，不會顯示給客戶。必填題請完整填寫。',
-            style: TextStyle(
-              fontSize: 13,
-              color: theme.textColor.withValues(alpha: 0.72),
-            ),
-          ),
-          const SizedBox(height: 10),
-          CustomFormResponseFields(
-            form: current,
-            answers: answers,
-            onChanged: onChanged,
-            theme: theme,
-            fieldKeys: fieldKeys,
-          ),
-        ],
+      child: OrderCustomFormFill(
+        form: current,
+        title: '手動訂單表單',
+        subtitle: '僅後台使用，不會顯示給客戶。必填題請完整填寫。',
+        orderAnswers: answers,
+        petAnswersByPetId: petAnswersByPetId,
+        pets: pets,
+        theme: theme,
+        fieldKeys: fieldKeys,
+        onOrderChanged: onChanged,
+        onPetChanged:
+            onPetChanged ??
+            (String petId, Map<String, dynamic> answers) {},
       ),
     );
   }
