@@ -3,6 +3,7 @@
 // 🐾 每日照護日誌內容 renderer（唯讀，不含 Scaffold / AppBar）
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../models/daily_care_journal_layout.dart';
 import '../models/daily_care_photo_model.dart';
@@ -26,6 +27,14 @@ class DailyCareJournalThemeTokens {
   /// 半寬卡成對排列所需最小內容寬；較窄時改滿寬，避免半寬溢位。
   static const double minHalfPairWidth = 310;
 
+  static const Color headerInk = Color(0xFF3B2F27);
+
+  static SystemUiOverlayStyle get systemOverlay => const SystemUiOverlayStyle(
+    statusBarColor: Colors.transparent,
+    statusBarIconBrightness: Brightness.dark,
+    statusBarBrightness: Brightness.light,
+  );
+
   static Color fillOf(String colorKey) {
     switch (colorKey) {
       case DailyCareJournalCardStyle.colorCream:
@@ -42,6 +51,77 @@ class DailyCareJournalThemeTokens {
       default:
         return Colors.white.withValues(alpha: 0.94);
     }
+  }
+}
+
+class DailyCareJournalScaffold extends StatelessWidget {
+  const DailyCareJournalScaffold({
+    super.key,
+    required this.setting,
+    required this.body,
+    this.shopName = '',
+    this.banner,
+    this.leading,
+  });
+
+  final DailyCareSettingModel setting;
+  final Widget body;
+  final String shopName;
+  final Widget? banner;
+  final Widget? leading;
+
+  @override
+  Widget build(BuildContext context) {
+    const Color ink = DailyCareJournalThemeTokens.headerInk;
+    const Color cream = DailyCareJournalThemeTokens.cream;
+    final SystemUiOverlayStyle overlay =
+        DailyCareJournalThemeTokens.systemOverlay;
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: overlay,
+      child: Scaffold(
+        extendBodyBehindAppBar: true,
+        backgroundColor: setting.resolvedPageColor(),
+        appBar: AppBar(
+          systemOverlayStyle: overlay,
+          centerTitle: true,
+          leading: leading,
+          title: Text(
+            shopName.trim(),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              color: ink,
+              fontWeight: FontWeight.w700,
+              fontSize: 18,
+            ),
+          ),
+          backgroundColor: cream.withValues(alpha: 0.88),
+          foregroundColor: ink,
+          surfaceTintColor: Colors.transparent,
+          elevation: 0,
+          scrolledUnderElevation: 0,
+          iconTheme: const IconThemeData(
+            color: DailyCareJournalThemeTokens.primary,
+          ),
+        ),
+        body: Stack(
+          children: <Widget>[
+            Positioned.fill(
+              child: DailyCareJournalPageBackground(setting: setting),
+            ),
+            Column(
+              children: <Widget>[
+                SizedBox(
+                  height: MediaQuery.paddingOf(context).top + kToolbarHeight,
+                ),
+                ?banner,
+                Expanded(child: body),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
 
@@ -101,9 +181,7 @@ class DailyCareJournalRenderer extends StatelessWidget {
     return isDaycare ? '本次安親回報' : '住宿照護紀錄';
   }
 
-  static String pageTitle({
-    required String shopName,
-  }) {
+  static String pageTitle({required String shopName}) {
     return shopName.trim();
   }
 
@@ -191,18 +269,11 @@ class DailyCareJournalRenderer extends StatelessWidget {
               child: CustomScrollView(
                 slivers: <Widget>[
                   if (showDates || showSessions)
-                    SliverPersistentHeader(
-                      pinned: true,
-                      delegate: _StickySwitcherDelegate(
-                        height: _stickyHeight(
-                          showDates: showDates,
-                          showSessions: showSessions,
-                        ),
-                        child: _buildStickySwitcher(
-                          colors: colors,
-                          showDates: showDates,
-                          showSessions: showSessions,
-                        ),
+                    SliverToBoxAdapter(
+                      child: _buildDateSessionSwitcher(
+                        colors: colors,
+                        showDates: showDates,
+                        showSessions: showSessions,
                       ),
                     ),
                   SliverToBoxAdapter(
@@ -217,19 +288,19 @@ class DailyCareJournalRenderer extends StatelessWidget {
                   ),
                   SliverPadding(
                     padding: const EdgeInsets.fromLTRB(14, 8, 14, 24),
-              sliver: SliverList(
-                delegate: SliverChildListDelegate(<Widget>[
-                  if (record == null)
-                    _EmptySessionView(setting: setting)
-                  else
-                    _buildRecordBody(colors: colors, record: record!),
-                  if (footer != null) ...<Widget>[
-                    const SizedBox(height: 16),
-                    footer!,
-                  ],
-                ]),
-              ),
-            ),
+                    sliver: SliverList(
+                      delegate: SliverChildListDelegate(<Widget>[
+                        if (record == null)
+                          _EmptySessionView(setting: setting)
+                        else
+                          _buildRecordBody(colors: colors, record: record!),
+                        if (footer != null) ...<Widget>[
+                          const SizedBox(height: 16),
+                          footer!,
+                        ],
+                      ]),
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -237,23 +308,6 @@ class DailyCareJournalRenderer extends StatelessWidget {
         ),
       ),
     );
-  }
-
-  double _stickyHeight({
-    required bool showDates,
-    required bool showSessions,
-  }) {
-    double height = 16;
-    if (showDates) {
-      height += 60;
-    }
-    if (showSessions) {
-      height += 46;
-    }
-    if (showDates && showSessions) {
-      height += 8;
-    }
-    return height;
   }
 
   Color get _headerFill {
@@ -288,7 +342,7 @@ class DailyCareJournalRenderer extends StatelessWidget {
     );
   }
 
-  Widget _buildStickySwitcher({
+  Widget _buildDateSessionSwitcher({
     required ColorScheme colors,
     required bool showDates,
     required bool showSessions,
@@ -347,64 +401,63 @@ class DailyCareJournalRenderer extends StatelessWidget {
         ? '尚未更新'
         : '填寫 ${_timeText(record!.updatedAt!)}';
 
-    final bool showLogo =
-        setting.logoVisible && shopLogoUrl.trim().isNotEmpty;
+    final bool showLogo = setting.logoVisible && shopLogoUrl.trim().isNotEmpty;
     final Color ink = _headerInk(colors);
     final Widget details = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
         _heroLine(
-            icon: isDaycare ? Icons.spa_outlined : Icons.meeting_room_outlined,
-            label: isDaycare ? '方案／房間' : '房間',
-            value: roomOrOffer,
-            ink: ink,
-          ),
+          icon: isDaycare ? Icons.spa_outlined : Icons.meeting_room_outlined,
+          label: isDaycare ? '方案／房間' : '房間',
+          value: roomOrOffer,
+          ink: ink,
+        ),
+        _heroLine(
+          icon: Icons.pets_outlined,
+          label: isDaycare ? '安親寵物' : '入住寵物',
+          value: stay.petNamesText,
+          maxLines: 2,
+          ink: ink,
+        ),
+        if (stay.stayDateText.isNotEmpty)
           _heroLine(
-            icon: Icons.pets_outlined,
-            label: isDaycare ? '安親寵物' : '入住寵物',
-            value: stay.petNamesText,
-            maxLines: 2,
+            icon: Icons.calendar_month_outlined,
+            label: isDaycare ? '服務日期' : '住宿日期',
+            value: stay.stayDateText,
             ink: ink,
           ),
-          if (stay.stayDateText.isNotEmpty)
-            _heroLine(
-              icon: Icons.calendar_month_outlined,
-              label: isDaycare ? '服務日期' : '住宿日期',
-              value: stay.stayDateText,
-              ink: ink,
-            ),
-          _heroLine(
-            icon: Icons.visibility_outlined,
-            label: '目前查看',
-            value: '$viewingDate · $sessionName',
-            ink: ink,
-          ),
-          Padding(
-            padding: const EdgeInsets.only(top: 2),
-            child: Row(
-              children: <Widget>[
-                Icon(
-                  Icons.schedule_outlined,
-                  size: 14,
-                  color: ink.withValues(alpha: 0.72),
-                ),
-                const SizedBox(width: 6),
-                Expanded(
-                  child: Text(
-                    fillTime,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontSize: 12,
-                      height: 1.2,
-                      color: ink.withValues(alpha: 0.72),
-                    ),
+        _heroLine(
+          icon: Icons.visibility_outlined,
+          label: '目前查看',
+          value: '$viewingDate · $sessionName',
+          ink: ink,
+        ),
+        Padding(
+          padding: const EdgeInsets.only(top: 2),
+          child: Row(
+            children: <Widget>[
+              Icon(
+                Icons.schedule_outlined,
+                size: 14,
+                color: ink.withValues(alpha: 0.72),
+              ),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  fillTime,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 12,
+                    height: 1.2,
+                    color: ink.withValues(alpha: 0.72),
                   ),
                 ),
-                _FilledChip(filled: filled, ink: ink),
-              ],
-            ),
+              ),
+              _FilledChip(filled: filled, ink: ink),
+            ],
           ),
+        ),
       ],
     );
     return KeyedSubtree(
@@ -434,8 +487,8 @@ class DailyCareJournalRenderer extends StatelessWidget {
         fit: BoxFit.cover,
         errorBuilder:
             (BuildContext context, Object error, StackTrace? stackTrace) {
-          return const SizedBox.shrink();
-        },
+              return const SizedBox.shrink();
+            },
       ),
     );
   }
@@ -454,11 +507,7 @@ class DailyCareJournalRenderer extends StatelessWidget {
         children: <Widget>[
           Padding(
             padding: const EdgeInsets.only(top: 1),
-            child: Icon(
-              icon,
-              size: 14,
-              color: ink.withValues(alpha: 0.72),
-            ),
+            child: Icon(icon, size: 14, color: ink.withValues(alpha: 0.72)),
           ),
           const SizedBox(width: 6),
           SizedBox(
@@ -495,9 +544,9 @@ class DailyCareJournalRenderer extends StatelessWidget {
     return KeyedSubtree(
       key: const ValueKey<String>('journal-header-dates'),
       child: _headerSurface(
-      padding: const EdgeInsets.fromLTRB(8, 6, 8, 6),
-      child: SizedBox(
-        height: 46,
+        padding: const EdgeInsets.fromLTRB(8, 6, 8, 6),
+        child: SizedBox(
+          height: 46,
           child: ListView.separated(
             scrollDirection: Axis.horizontal,
             itemCount: dateKeys.length,
@@ -566,22 +615,22 @@ class DailyCareJournalRenderer extends StatelessWidget {
     return KeyedSubtree(
       key: const ValueKey<String>('journal-header-sessions'),
       child: _headerSurface(
-      padding: const EdgeInsets.all(4),
-      child: SizedBox(
-        height: 36,
-        child: ListView.separated(
-          scrollDirection: Axis.horizontal,
-          itemCount: sessionTabs.length,
-          separatorBuilder: (BuildContext context, int index) =>
-              const SizedBox(width: 6),
-          itemBuilder: (BuildContext context, int index) {
-            final DailyCareJournalSessionTab tab = sessionTabs[index];
-            final bool selected = tab.sessionIndex == selectedSessionIndex;
-            return _sessionChip(colors: colors, tab: tab, selected: selected);
-          },
+        padding: const EdgeInsets.all(4),
+        child: SizedBox(
+          height: 36,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            itemCount: sessionTabs.length,
+            separatorBuilder: (BuildContext context, int index) =>
+                const SizedBox(width: 6),
+            itemBuilder: (BuildContext context, int index) {
+              final DailyCareJournalSessionTab tab = sessionTabs[index];
+              final bool selected = tab.sessionIndex == selectedSessionIndex;
+              return _sessionChip(colors: colors, tab: tab, selected: selected);
+            },
+          ),
         ),
       ),
-    ),
     );
   }
 
@@ -773,21 +822,20 @@ class DailyCareJournalRenderer extends StatelessWidget {
       );
     }
 
-    final List<_LaidCard> ordered = DailyCareJournalCardLayout.displaySorted(
-          layouts,
-        )
-        .where((DailyCareJournalCardLayout item) {
-          if (!built.containsKey(item.key)) {
-            return false;
-          }
-          if (item.key == DailyCareJournalCardKeys.environment ||
-              item.key == DailyCareJournalCardKeys.toilet) {
-            return true;
-          }
-          return item.visible;
-        })
-        .map((DailyCareJournalCardLayout item) => built[item.key]!)
-        .toList();
+    final List<_LaidCard> ordered =
+        DailyCareJournalCardLayout.displaySorted(layouts)
+            .where((DailyCareJournalCardLayout item) {
+              if (!built.containsKey(item.key)) {
+                return false;
+              }
+              if (item.key == DailyCareJournalCardKeys.environment ||
+                  item.key == DailyCareJournalCardKeys.toilet) {
+                return true;
+              }
+              return item.visible;
+            })
+            .map((DailyCareJournalCardLayout item) => built[item.key]!)
+            .toList();
     if (built.containsKey('other')) {
       ordered.add(built['other']!);
     }
@@ -864,9 +912,7 @@ class DailyCareJournalRenderer extends StatelessWidget {
     );
   }
 
-  Widget _buildEnvironmentCard({
-    required Map<String, dynamic> values,
-  }) {
+  Widget _buildEnvironmentCard({required Map<String, dynamic> values}) {
     final DailyCareJournalCardLayout? layout =
         setting.resolvedJournalCards[DailyCareJournalCardKeys.environment];
     final dynamic temperature = values['temperature'];
@@ -877,7 +923,8 @@ class DailyCareJournalRenderer extends StatelessWidget {
     return DailyCareIllustratedShell(
       key: const ValueKey<String>('journal-card-environment'),
       setting: setting,
-      layout: layout ??
+      layout:
+          layout ??
           const DailyCareJournalCardLayout(
             key: DailyCareJournalCardKeys.environment,
           ),
@@ -886,7 +933,8 @@ class DailyCareJournalRenderer extends StatelessWidget {
         layout?.colorKey ?? DailyCareJournalCardStyle.colorMint,
       ),
       child: _EnvironmentMetrics(
-        layout: layout ??
+        layout:
+            layout ??
             const DailyCareJournalCardLayout(
               key: DailyCareJournalCardKeys.environment,
             ),
@@ -1026,33 +1074,6 @@ class DailyCareJournalRenderer extends StatelessWidget {
     }
 
     return DateTime(year, month, day);
-  }
-}
-
-class _StickySwitcherDelegate extends SliverPersistentHeaderDelegate {
-  _StickySwitcherDelegate({required this.height, required this.child});
-
-  final double height;
-  final Widget child;
-
-  @override
-  double get minExtent => height;
-
-  @override
-  double get maxExtent => height;
-
-  @override
-  Widget build(
-    BuildContext context,
-    double shrinkOffset,
-    bool overlapsContent,
-  ) {
-    return SizedBox(height: height, width: double.infinity, child: child);
-  }
-
-  @override
-  bool shouldRebuild(covariant _StickySwitcherDelegate oldDelegate) {
-    return oldDelegate.height != height || oldDelegate.child != child;
   }
 }
 
@@ -1196,16 +1217,8 @@ class _ToiletStatusCard extends StatelessWidget {
       fill: fill,
       colors: Theme.of(context).colorScheme,
     );
-    _CareItem stool = const _CareItem(
-      label: '大便',
-      value: '無',
-      longText: false,
-    );
-    _CareItem urine = const _CareItem(
-      label: '尿尿',
-      value: '無',
-      longText: false,
-    );
+    _CareItem stool = const _CareItem(label: '大便', value: '無', longText: false);
+    _CareItem urine = const _CareItem(label: '尿尿', value: '無', longText: false);
     for (final _CareItem item in items) {
       if (item.label == '大便') {
         stool = item;
@@ -1417,11 +1430,7 @@ class _CategoryCard extends StatelessWidget {
     );
   }
 
-  List<Widget> _twoColumnRows(
-    List<_CareItem> items,
-    Color ink,
-    Color fill,
-  ) {
+  List<Widget> _twoColumnRows(List<_CareItem> items, Color ink, Color fill) {
     final List<Widget> rows = <Widget>[];
 
     for (int index = 0; index < items.length; index += 2) {
@@ -1481,9 +1490,10 @@ class _CompactValueRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final Color tone = Color.alphaBlend(
-      _statusColor(Theme.of(context).colorScheme, item.value).withValues(
-        alpha: ink.computeLuminance() > 0.62 ? 0.35 : 0.0,
-      ),
+      _statusColor(
+        Theme.of(context).colorScheme,
+        item.value,
+      ).withValues(alpha: ink.computeLuminance() > 0.62 ? 0.35 : 0.0),
       ink,
     );
     return Padding(

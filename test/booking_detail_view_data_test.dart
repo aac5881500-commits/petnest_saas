@@ -295,6 +295,46 @@ void main() {
       expect(pending.showCamera, isFalse);
     });
 
+    test('未入住不顯示照護；入住後可看', () {
+      final BookingDetailViewData pending = BookingDetailViewData.fromBooking(
+        data: <String, dynamic>{
+          'status': 'confirmed',
+          'bookingKind': 'daycare',
+        },
+        docId: 'id',
+      );
+      expect(
+        pending.canViewDailyCare(
+          downloadHoursAfterCheckout: 24,
+          daycareCareEnabled: true,
+        ),
+        isFalse,
+      );
+      final BookingDetailViewData inStay = BookingDetailViewData.fromBooking(
+        data: <String, dynamic>{
+          'status': 'checked_in',
+          'bookingKind': 'daycare',
+        },
+        docId: 'id',
+      );
+      expect(
+        inStay.canViewDailyCare(
+          downloadHoursAfterCheckout: 24,
+          daycareCareEnabled: true,
+        ),
+        isTrue,
+      );
+      final BookingDetailViewData stayPending =
+          BookingDetailViewData.fromBooking(
+            data: <String, dynamic>{'status': 'confirmed'},
+            docId: 'id',
+          );
+      expect(
+        stayPending.canViewDailyCare(downloadHoursAfterCheckout: 24),
+        isFalse,
+      );
+    });
+
     test('照護下載期限仍以 checkOutAt 計算', () {
       final DateTime checkOut = DateTime(2026, 8, 1, 12);
       final BookingDetailViewData view = BookingDetailViewData.fromBooking(
@@ -326,17 +366,18 @@ void main() {
     });
 
     test('安親結算手動加收顯示店家調整說明，沒原因不捏造', () {
-      final BookingDetailViewData withReason = BookingDetailViewData.fromBooking(
-        data: <String, dynamic>{
-          'bookingKind': 'daycare',
-          'settlementConfirmed': true,
-          'quotedTotalPrice': 1000,
-          'overtimeAmount': 0,
-          'manualAdjust': 500,
-          'manualAdjustmentReason': '測試',
-        },
-        docId: 'id',
-      );
+      final BookingDetailViewData withReason =
+          BookingDetailViewData.fromBooking(
+            data: <String, dynamic>{
+              'bookingKind': 'daycare',
+              'settlementConfirmed': true,
+              'quotedTotalPrice': 1000,
+              'overtimeAmount': 0,
+              'manualAdjust': 500,
+              'manualAdjustmentReason': '測試',
+            },
+            docId: 'id',
+          );
       final BookingDetailFeeLine add = withReason.feeLines.firstWhere(
         (BookingDetailFeeLine line) => line.label == '手動加收',
       );

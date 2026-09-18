@@ -49,6 +49,9 @@ class AdminDaycareCareReportSection extends StatelessWidget {
             if (!setting.daycareEnabled) {
               return const SizedBox.shrink();
             }
+            if (!DailyCareDaycareAccess.hasStartedCare(booking)) {
+              return const SizedBox.shrink();
+            }
             final bool canFill = DailyCareDaycareAccess.canOperate(
               setting: setting,
               booking: booking,

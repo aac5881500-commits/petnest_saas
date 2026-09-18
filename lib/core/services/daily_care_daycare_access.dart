@@ -34,6 +34,18 @@ class DailyCareDaycareAccess {
     return null;
   }
 
+  static String _status(Map<String, dynamic> booking) {
+    return (booking['status'] ?? '').toString().trim();
+  }
+
+  /// 已報到／入住或服務已結束（退房後仍可依期限看照片與下載）。
+  static bool hasStartedCare(Map<String, dynamic> booking) {
+    final String status = _status(booking);
+    return status == 'checked_in' ||
+        status == 'completed' ||
+        status == 'checked_out';
+  }
+
   static bool canOperate({
     required DailyCareSettingModel setting,
     required Map<String, dynamic> booking,
@@ -45,19 +57,13 @@ class DailyCareDaycareAccess {
     if (!BookingKind.isDaycare(booking)) {
       return false;
     }
-    final String status = (booking['status'] ?? '').toString().trim();
-    if (status == 'cancelled') {
+    if (_status(booking) != 'checked_in') {
       return false;
     }
-    final DateTime today = DailyCareDateHelper.todayInTaipei(now);
-    final DateTime? serviceDate = serviceCalendarDate(booking);
-    if (serviceDate == null) {
+    if (serviceCalendarDate(booking) == null) {
       return false;
     }
-    if (DailyCareDateHelper.dateOnly(serviceDate) == today) {
-      return true;
-    }
-    return status == 'checked_in';
+    return true;
   }
 
   static bool canCustomerView({
@@ -71,10 +77,6 @@ class DailyCareDaycareAccess {
     if (!BookingKind.isDaycare(booking)) {
       return false;
     }
-    final String status = (booking['status'] ?? '').toString().trim();
-    if (status == 'cancelled') {
-      return false;
-    }
-    return true;
+    return hasStartedCare(booking);
   }
 }

@@ -53,8 +53,8 @@ class DailyCareJournalDemoData {
     final List<String> dateKeys = oneDay
         ? const <String>['2026/09/16']
         : stay.careDateKeys();
-    final DateTime recordDate = _parseDateKey(selectedDateKey) ??
-        DateTime(2026, 9, 16);
+    final DateTime recordDate =
+        _parseDateKey(selectedDateKey) ?? DateTime(2026, 9, 16);
     final List<String> labels = singleSessionMode
         ? <String>[
             sessionLabels.isNotEmpty && sessionLabels.first.trim().isNotEmpty
@@ -315,43 +315,22 @@ class _DailyCareFullJournalPreviewState
 
     final Widget phoneScreen = Stack(
       children: <Widget>[
-        const Positioned.fill(
-          child: ColoredBox(color: Color(0xFFEDE7E0)),
-        ),
+        const Positioned.fill(child: ColoredBox(color: Color(0xFFEDE7E0))),
         Positioned.fill(
           child: DailyCareJournalPageBackground(setting: widget.setting),
         ),
-        Scaffold(
-          backgroundColor: Colors.transparent,
-          appBar: AppBar(
-            leading: IconButton(
-              icon: const BackButtonIcon(),
-              onPressed: () {},
-            ),
-            centerTitle: true,
-            title: Text(
-              widget.shopName.trim(),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-            backgroundColor: Colors.transparent,
-            surfaceTintColor: Colors.transparent,
-            elevation: 0,
-            scrolledUnderElevation: 0,
-          ),
-          body: SafeArea(
-            top: false,
-            child: journal,
-          ),
+        DailyCareJournalScaffold(
+          setting: widget.setting,
+          shopName: widget.shopName,
+          leading: IconButton(icon: const BackButtonIcon(), onPressed: () {}),
+          body: journal,
         ),
         if (widget.usePhoneFrame)
           const Positioned(
             top: 0,
             left: 0,
             right: 0,
-            child: IgnorePointer(
-              child: DailyCarePreviewStatusBar(),
-            ),
+            child: IgnorePointer(child: DailyCarePreviewStatusBar()),
           ),
       ],
     );
@@ -361,11 +340,7 @@ class _DailyCareFullJournalPreviewState
       child: Text(
         DailyCareFullJournalPreview.deviceNote,
         textAlign: TextAlign.center,
-        style: TextStyle(
-          fontSize: 11,
-          height: 1.4,
-          color: Color(0xFF9A8F86),
-        ),
+        style: TextStyle(fontSize: 11, height: 1.4, color: Color(0xFF9A8F86)),
       ),
     );
 
@@ -474,10 +449,7 @@ class DailyCarePreviewServiceButtons extends StatelessWidget {
             onPressed: () {},
             style: compact,
             icon: const Icon(Icons.videocam_outlined, size: 16),
-            label: const FittedBox(
-              fit: BoxFit.scaleDown,
-              child: Text('觀看攝影機'),
-            ),
+            label: const FittedBox(fit: BoxFit.scaleDown, child: Text('觀看攝影機')),
           ),
         ),
       ],

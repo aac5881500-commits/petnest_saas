@@ -153,21 +153,35 @@ class DailyCarePhotoModel {
   }
 }
 
-/// 日誌摘要與照片頁對同一筆本場照片的判定（日曆日 + 場次）。
+/// 日誌摘要與照片頁對同一筆本場照片的判定（日曆日 + sessionIndex）。
+/// 不用場次顯示名稱當比對條件。
 class DailyCarePhotoMatch {
   DailyCarePhotoMatch._();
 
+  static String normalizeDateKey(String dateKey) {
+    String key = dateKey.trim().replaceAll('-', '/');
+    if (key.length == 8 && !key.contains('/')) {
+      key =
+          '${key.substring(0, 4)}/${key.substring(4, 6)}/${key.substring(6, 8)}';
+    }
+    return key;
+  }
+
+  static String canonicalDateKey(DateTime recordDate) {
+    return DailyCareDateHelper.dateKey(
+      DailyCareDateHelper.calendarDateInTaipei(recordDate),
+    );
+  }
+
   static bool matchesDate(DailyCarePhotoModel photo, String dateKey) {
-    final String selected = dateKey.trim();
+    final String selected = normalizeDateKey(dateKey);
     if (selected.isEmpty) {
       return false;
     }
     final String localKey = DailyCareDateHelper.dateKey(
       DailyCareDateHelper.dateOnly(photo.recordDate),
     );
-    final String taipeiKey = DailyCareDateHelper.dateKey(
-      DailyCareDateHelper.calendarDateInTaipei(photo.recordDate),
-    );
+    final String taipeiKey = canonicalDateKey(photo.recordDate);
     return localKey == selected || taipeiKey == selected;
   }
 
@@ -176,15 +190,23 @@ class DailyCarePhotoMatch {
     required String dateKey,
     required int sessionIndex,
     String sessionName = '',
+    String roomId = '',
   }) {
     if (!matchesDate(photo, dateKey)) {
       return false;
     }
-    if (photo.sessionIndex == sessionIndex) {
+    if (photo.sessionIndex != sessionIndex) {
+      return false;
+    }
+    final String wantedRoom = roomId.trim();
+    if (wantedRoom.isEmpty) {
       return true;
     }
-    final String name = sessionName.trim();
-    return name.isNotEmpty && photo.sessionName.trim() == name;
+    final String photoRoom = photo.roomId.trim();
+    if (photoRoom.isEmpty) {
+      return true;
+    }
+    return photoRoom == wantedRoom;
   }
 
   static List<DailyCarePhotoModel> sessionPhotos({
@@ -192,6 +214,7 @@ class DailyCarePhotoMatch {
     required String dateKey,
     required int sessionIndex,
     String sessionName = '',
+    String roomId = '',
   }) {
     return photos
         .where(
@@ -200,6 +223,7 @@ class DailyCarePhotoMatch {
             dateKey: dateKey,
             sessionIndex: sessionIndex,
             sessionName: sessionName,
+            roomId: roomId,
           ),
         )
         .toList();

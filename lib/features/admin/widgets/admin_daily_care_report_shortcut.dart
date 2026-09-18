@@ -28,6 +28,9 @@ class AdminDailyCareReportShortcut extends StatelessWidget {
     if ((booking['status'] ?? '').toString() == 'cancelled') {
       return false;
     }
+    if (!DailyCareDaycareAccess.hasStartedCare(booking)) {
+      return false;
+    }
     final Object? raw = booking['dailyCareEntitlement'];
     if (raw is! Map) {
       return false;
@@ -64,8 +67,7 @@ class AdminDailyCareReportShortcut extends StatelessWidget {
     return pets
         .whereType<Map>()
         .map(
-          (Map item) =>
-              (item['petId'] ?? item['id'] ?? '').toString().trim(),
+          (Map item) => (item['petId'] ?? item['id'] ?? '').toString().trim(),
         )
         .where((String item) => item.isNotEmpty)
         .toList();
@@ -90,13 +92,14 @@ class AdminDailyCareReportShortcut extends StatelessWidget {
             final bool daycare = BookingKind.isDaycare(booking);
             final bool completed =
                 status == 'completed' || status == 'checked_out';
-            final bool canFill = !completed &&
+            final bool canFill =
+                !completed &&
                 (daycare
                     ? DailyCareDaycareAccess.canOperate(
                         setting: setting,
                         booking: booking,
                       )
-                    : status == 'checked_in' || status == 'confirmed');
+                    : status == 'checked_in');
             final String label = canFill ? '前往填寫照護回報' : '查看照護回報';
             return Padding(
               padding: const EdgeInsets.only(top: 8),
@@ -106,7 +109,9 @@ class AdminDailyCareReportShortcut extends StatelessWidget {
                   onPressed: () => canFill
                       ? _openFill(context, setting, _entitlement, daycare)
                       : _openView(context),
-                  icon: Icon(canFill ? Icons.edit_note : Icons.photo_library_outlined),
+                  icon: Icon(
+                    canFill ? Icons.edit_note : Icons.photo_library_outlined,
+                  ),
                   label: Text(label),
                 ),
               ),

@@ -24,7 +24,6 @@ import '../../../core/services/daily_care_record_service.dart';
 import '../../../core/services/daily_care_setting_service.dart';
 import '../../../core/services/shop_device_service.dart';
 import '../../../core/services/shop_service.dart';
-import '../../../core/widgets/daily_care_card_surface.dart';
 import '../../../core/widgets/daily_care_journal_renderer.dart';
 import 'customer_daily_care_photo_page.dart';
 
@@ -333,11 +332,10 @@ class _CustomerDailyCarePageState extends State<CustomerDailyCarePage> {
                       ) {
                         final Map<String, dynamic> shop =
                             shopSnap.data ?? <String, dynamic>{};
-                        final String shopName = (shop['name'] ??
-                                shop['shopName'] ??
-                                '')
-                            .toString()
-                            .trim();
+                        final String shopName =
+                            (shop['name'] ?? shop['shopName'] ?? '')
+                                .toString()
+                                .trim();
                         final String logoUrl = (shop['logoUrl'] ?? '')
                             .toString()
                             .trim();
@@ -378,36 +376,11 @@ class _CustomerDailyCarePageState extends State<CustomerDailyCarePage> {
     required Widget child,
     String shopName = '',
   }) {
-    return Scaffold(
-      backgroundColor: Colors.transparent,
-      appBar: AppBar(
-        centerTitle: true,
-        title: Text(
-          shopName.trim(),
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-        ),
-        backgroundColor: Colors.transparent,
-        surfaceTintColor: Colors.transparent,
-        elevation: 0,
-        scrolledUnderElevation: 0,
-      ),
-      body: Stack(
-        children: <Widget>[
-          Positioned.fill(
-            child: DailyCareJournalPageBackground(setting: setting),
-          ),
-          SafeArea(
-            top: false,
-            child: Column(
-              children: <Widget>[
-                if (widget.previewMode) _previewBanner(),
-                Expanded(child: child),
-              ],
-            ),
-          ),
-        ],
-      ),
+    return DailyCareJournalScaffold(
+      setting: setting,
+      shopName: shopName,
+      banner: widget.previewMode ? _previewBanner() : null,
+      body: child,
     );
   }
 
@@ -464,7 +437,9 @@ class _CustomerDailyCarePageState extends State<CustomerDailyCarePage> {
         <String, List<DailyCareRecordModel>>{};
 
     for (final DailyCareRecordModel record in records) {
-      final String dateKey = _dateKey(record.recordDate);
+      final String dateKey = DailyCarePhotoMatch.canonicalDateKey(
+        record.recordDate,
+      );
       grouped.putIfAbsent(dateKey, () => <DailyCareRecordModel>[]);
       grouped[dateKey]!.add(record);
     }
@@ -668,16 +643,13 @@ class _CustomerDailyCarePageState extends State<CustomerDailyCarePage> {
     return List<DailyCareJournalSessionTab>.generate(tabCount, (int index) {
       return DailyCareJournalSessionTab(
         sessionIndex: index,
-        sessionName: index < sessionLabels.length &&
+        sessionName:
+            index < sessionLabels.length &&
                 sessionLabels[index].trim().isNotEmpty
             ? sessionLabels[index]
             : setting.sessionLabel(index),
       );
     });
-  }
-
-  static String _dateKey(DateTime value) {
-    return DailyCareDateHelper.dateKey(value);
   }
 
   void _logLoadFailure({
@@ -795,11 +767,16 @@ class _CameraAwareServiceRow extends StatelessWidget {
     return StreamBuilder<Map<String, dynamic>?>(
       stream: ShopService.instance.streamShop(shopId),
       builder:
-          (BuildContext context, AsyncSnapshot<Map<String, dynamic>?> shopSnap) {
+          (
+            BuildContext context,
+            AsyncSnapshot<Map<String, dynamic>?> shopSnap,
+          ) {
             final bool shopCameraOn =
                 (shopSnap.data?['showCameraSection'] ?? true) != false;
             final String status = (bookingData['status'] ?? '').toString();
-            final String roomId = (bookingData['roomId'] ?? '').toString().trim();
+            final String roomId = (bookingData['roomId'] ?? '')
+                .toString()
+                .trim();
             final bool stayActive = status == 'checked_in';
             if (!shopCameraOn || !stayActive || roomId.isEmpty || previewMode) {
               return _buttons(camera: null);

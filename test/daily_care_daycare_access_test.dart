@@ -29,7 +29,7 @@ void main() {
     );
     final Map<String, dynamic> booking = <String, dynamic>{
       'bookingKind': 'daycare',
-      'status': 'confirmed',
+      'status': 'checked_in',
       'serviceDate': '2026-09-08',
     };
     expect(
@@ -39,6 +39,18 @@ void main() {
         now: DateTime(2026, 9, 8, 10),
       ),
       isTrue,
+    );
+    expect(
+      DailyCareDaycareAccess.canOperate(
+        setting: setting,
+        booking: <String, dynamic>{
+          'bookingKind': 'daycare',
+          'status': 'confirmed',
+          'serviceDate': '2026-09-08',
+        },
+        now: DateTime(2026, 9, 8, 10),
+      ),
+      isFalse,
     );
     expect(setting.resolvedDaycareSessionLabels(), hasLength(3));
   });
@@ -59,7 +71,7 @@ void main() {
     expect(a, 'dc_a_20260908_0');
   });
 
-  test('customer view is limited to daycare setting and non-cancelled', () {
+  test('customer view requires check-in and daycare setting', () {
     const DailyCareSettingModel setting = DailyCareSettingModel(
       daycareEnabled: true,
     );
@@ -69,6 +81,16 @@ void main() {
         booking: <String, dynamic>{
           'bookingKind': 'daycare',
           'status': 'confirmed',
+        },
+      ),
+      isFalse,
+    );
+    expect(
+      DailyCareDaycareAccess.canCustomerView(
+        setting: setting,
+        booking: <String, dynamic>{
+          'bookingKind': 'daycare',
+          'status': 'checked_in',
         },
       ),
       isTrue,

@@ -733,7 +733,8 @@ class BookingDetailViewData {
   }
 
   bool get canCreateOnlinePaymentCandidate {
-    if (BookingSettlementMath.isSettlementLocked(raw) || status == 'cancelled') {
+    if (BookingSettlementMath.isSettlementLocked(raw) ||
+        status == 'cancelled') {
       return false;
     }
     if (BookingDetailParse.parseString(raw['userId']).isEmpty) {
@@ -987,7 +988,10 @@ class BookingDetailViewData {
       if (!daycareCareEnabled || status == 'cancelled') {
         return false;
       }
-      if (status == 'completed') {
+      if (status == 'checked_in') {
+        return true;
+      }
+      if (status == 'completed' || status == 'checked_out') {
         final DateTime? deadline = dailyCareDownloadDeadline(
           downloadHoursAfterCheckout,
         );
@@ -996,7 +1000,7 @@ class BookingDetailViewData {
         }
         return (now ?? DateTime.now()).isBefore(deadline);
       }
-      return true;
+      return false;
     }
     if (status == 'checked_in') {
       return true;
@@ -1100,22 +1104,22 @@ class BookingDetailViewData {
       }
       return lines;
     }
-      final int room = BookingDetailParse.parseMoney(raw['roomSubtotal']);
-      final int base = BookingDetailParse.parseMoney(raw['basePrice']);
-      final int nightCount = nights <= 0 ? 1 : nights;
-      addLine(
-        label: '房費',
-        amount: room > 0 ? room : base * nightCount,
-        subtitle: '$nightCount 晚',
-      );
-      addLine(
-        label: '多寵物加價',
-        amount: BookingDetailParse.parseMoney(raw['extraPetTotal']) > 0
-            ? BookingDetailParse.parseMoney(raw['extraPetTotal'])
-            : BookingDetailParse.parseMoney(raw['extraPetPrice']) *
-                  BookingDetailParse.parseMoney(raw['extraPetCount']) *
-                  nightCount,
-      );
+    final int room = BookingDetailParse.parseMoney(raw['roomSubtotal']);
+    final int base = BookingDetailParse.parseMoney(raw['basePrice']);
+    final int nightCount = nights <= 0 ? 1 : nights;
+    addLine(
+      label: '房費',
+      amount: room > 0 ? room : base * nightCount,
+      subtitle: '$nightCount 晚',
+    );
+    addLine(
+      label: '多寵物加價',
+      amount: BookingDetailParse.parseMoney(raw['extraPetTotal']) > 0
+          ? BookingDetailParse.parseMoney(raw['extraPetTotal'])
+          : BookingDetailParse.parseMoney(raw['extraPetPrice']) *
+                BookingDetailParse.parseMoney(raw['extraPetCount']) *
+                nightCount,
+    );
 
     for (final Map<String, dynamic> addon in BookingDetailParse.parseMapList(
       raw['addons'],
@@ -1252,7 +1256,8 @@ class BookingDetailViewData {
       BookingDetailTimelineItem(
         title: isDaycare ? '安親開始' : '已入住',
         time: checkInAt ?? actualStartAt,
-        active: status == 'checked_in' ||
+        active:
+            status == 'checked_in' ||
             status == 'checked_out' ||
             status == 'completed' ||
             BookingSettlementMath.isSettlementConfirmed(raw),
@@ -1269,7 +1274,8 @@ class BookingDetailViewData {
       items.add(
         BookingDetailTimelineItem(
           title: '訂單完成',
-          time: BookingDetailParse.parseDate(raw['completedAt']) ??
+          time:
+              BookingDetailParse.parseDate(raw['completedAt']) ??
               checkOutAt ??
               actualEndAt,
           active: BookingSettlementMath.isOrderComplete(raw),
@@ -1280,7 +1286,8 @@ class BookingDetailViewData {
         BookingDetailTimelineItem(
           title: '已退房',
           time: checkOutAt ?? actualEndAt,
-          active: status == 'checked_out' ||
+          active:
+              status == 'checked_out' ||
               status == 'completed' ||
               BookingSettlementMath.isSettlementConfirmed(raw),
         ),
@@ -1288,7 +1295,8 @@ class BookingDetailViewData {
       items.add(
         BookingDetailTimelineItem(
           title: '訂單完成',
-          time: BookingDetailParse.parseDate(raw['completedAt']) ??
+          time:
+              BookingDetailParse.parseDate(raw['completedAt']) ??
               checkOutAt ??
               actualEndAt,
           active: BookingSettlementMath.isOrderComplete(raw),
@@ -1377,10 +1385,7 @@ class BookingDetailViewData {
     return a.year == b.year && a.month == b.month && a.day == b.day;
   }
 
-  static String paymentPurposeLabel(
-    String purpose, {
-    String amountType = '',
-  }) {
+  static String paymentPurposeLabel(String purpose, {String amountType = ''}) {
     return PaymentPurpose.displayLabel(purpose, amountType: amountType);
   }
 

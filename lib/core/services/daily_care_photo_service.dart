@@ -243,17 +243,17 @@ class DailyCarePhotoService {
     bool perSession = true,
   }) async {
     if (perSession) {
-      final List<DailyCarePhotoModel> photos = await streamRoomDayPhotos(
-        shopId: shopId,
+      final List<DailyCarePhotoModel> photos = await streamBookingPhotos(
         bookingId: bookingId,
-        roomId: roomId,
-        recordDate: recordDate,
       ).first;
-      final int used = photos
-          .where(
-            (DailyCarePhotoModel photo) => photo.sessionIndex == sessionIndex,
-          )
-          .length;
+      final String dateKey = DailyCarePhotoMatch.canonicalDateKey(recordDate);
+      final String roomFilter = roomId.trim();
+      final int used = DailyCarePhotoMatch.sessionPhotos(
+        photos: photos,
+        dateKey: dateKey,
+        sessionIndex: sessionIndex,
+        roomId: roomFilter,
+      ).length;
       final int remaining = maxPhotosPerSession - used;
       return remaining < 0 ? 0 : remaining;
     }

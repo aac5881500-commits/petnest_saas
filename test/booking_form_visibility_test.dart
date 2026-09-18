@@ -55,7 +55,10 @@ void main() {
       ),
       isFalse,
     );
-    expect(BookingFormVisibility.showInternalHandover(isShopView: false), isFalse);
+    expect(
+      BookingFormVisibility.showInternalHandover(isShopView: false),
+      isFalse,
+    );
   });
 
   test('已取消訂單不出現在已回傳付款分類', () {
@@ -83,6 +86,16 @@ void main() {
   });
 
   test('有每日照護資格才顯示回報入口，已取消不顯示', () {
+    expect(
+      AdminDailyCareReportShortcut.shouldShow(<String, dynamic>{
+        'status': 'confirmed',
+        'dailyCareEntitlement': <String, dynamic>{
+          'enabled': true,
+          'finalReports': 2,
+        },
+      }),
+      isFalse,
+    );
     expect(
       AdminDailyCareReportShortcut.shouldShow(<String, dynamic>{
         'status': 'checked_in',

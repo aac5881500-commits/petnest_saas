@@ -1,5 +1,5 @@
 // 檔案名稱：test/daily_care_journal_preview_test.dart
-// 功能說明：設定即時預覽為完整手機 viewport，含安全區與 sticky 切換
+// 功能說明：設定即時預覽為完整手機 viewport，含安全區；日期場次隨內容捲動
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -104,19 +104,18 @@ void main() {
     expect(find.text('今天也請放心把毛孩交給我們照顧。'), findsNothing);
   });
 
-  testWidgets('上滑後日期與場次仍可切換', (WidgetTester tester) async {
+  testWidgets('上滑後日期與場次會跟著內容滑走', (WidgetTester tester) async {
     await pumpPreview(tester);
-    expect(find.text('上午場'), findsWidgets);
+    final Finder sessions = find.byKey(
+      const ValueKey<String>('journal-header-sessions'),
+    );
+    expect(sessions, findsOneWidget);
     await tester.drag(
       find.byType(DailyCareJournalRenderer),
       const Offset(0, -420),
     );
     await tester.pumpAndSettle();
-    expect(find.text('上午場'), findsWidgets);
-    expect(find.text('下午場'), findsWidgets);
-    await tester.tap(find.text('下午場').first);
-    await tester.pump();
-    expect(find.textContaining('下午場'), findsWidgets);
+    expect(sessions, findsNothing);
   });
 
   testWidgets('單日模式隱藏日期列，單場模式隱藏場次列', (WidgetTester tester) async {
@@ -159,16 +158,20 @@ void main() {
     );
   });
 
-  testWidgets('日期、場次、房間卡套用頁首設定，sticky 不使用粉灰底', (
-    WidgetTester tester,
-  ) async {
+  testWidgets('日期、場次、房間卡套用頁首設定，不使用粉灰底', (WidgetTester tester) async {
     await pumpPreview(tester);
-    expect(find.byKey(const ValueKey<String>('journal-header-dates')), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey<String>('journal-header-dates')),
+      findsOneWidget,
+    );
     expect(
       find.byKey(const ValueKey<String>('journal-header-sessions')),
       findsOneWidget,
     );
-    expect(find.byKey(const ValueKey<String>('journal-header-hero')), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey<String>('journal-header-hero')),
+      findsOneWidget,
+    );
     expect(
       find.descendant(
         of: find.byKey(const ValueKey<String>('journal-header-dates')),
@@ -214,9 +217,7 @@ void main() {
       ),
     );
     expect(
-      materials.any(
-        (Material item) => item.color == const Color(0xFFEDE7E0),
-      ),
+      materials.any((Material item) => item.color == const Color(0xFFEDE7E0)),
       isFalse,
     );
   });
@@ -302,10 +303,16 @@ void main() {
       ),
     );
     await tester.pump();
-    expect(find.byKey(const ValueKey<String>('journal-card-general-note')), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey<String>('journal-card-general-note')),
+      findsOneWidget,
+    );
     expect(find.text('今日概況'), findsOneWidget);
     expect(find.text('無'), findsWidgets);
-    expect(find.byKey(const ValueKey<String>('journal-toilet-vertical')), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey<String>('journal-toilet-vertical')),
+      findsOneWidget,
+    );
     final Offset stool = tester.getTopLeft(find.text('大便').last);
     final Offset stoolValue = tester.getTopLeft(find.text('正常').first);
     expect(stoolValue.dy, greaterThan(stool.dy));
@@ -379,8 +386,14 @@ void main() {
       ),
     );
     await tester.pump();
-    expect(find.text(DailyCareJournalRenderer.emptyBookingPhotosLabel), findsNothing);
-    expect(find.text(DailyCareJournalRenderer.emptySessionPhotosLabel), findsNothing);
+    expect(
+      find.text(DailyCareJournalRenderer.emptyBookingPhotosLabel),
+      findsNothing,
+    );
+    expect(
+      find.text(DailyCareJournalRenderer.emptySessionPhotosLabel),
+      findsNothing,
+    );
     expect(find.textContaining('尚未上傳'), findsNothing);
   });
 
@@ -452,8 +465,14 @@ void main() {
       ),
     );
     await tester.pump();
-    expect(find.text(DailyCareJournalRenderer.emptySessionPhotosLabel), findsOneWidget);
-    expect(find.text(DailyCareJournalRenderer.emptyBookingPhotosLabel), findsNothing);
+    expect(
+      find.text(DailyCareJournalRenderer.emptySessionPhotosLabel),
+      findsOneWidget,
+    );
+    expect(
+      find.text(DailyCareJournalRenderer.emptyBookingPhotosLabel),
+      findsNothing,
+    );
   });
 
   testWidgets('預覽有兩個模擬按鈕且無照片時仍保留', (WidgetTester tester) async {

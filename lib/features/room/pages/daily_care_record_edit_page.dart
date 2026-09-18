@@ -16,7 +16,6 @@ import '../../../core/widgets/daily_care_illustrations.dart';
 import '../../../core/widgets/daily_care_journal_renderer.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../../core/models/daily_care_photo_model.dart';
-import '../../../core/services/daily_care_photo_function_service.dart';
 import '../../../core/services/daily_care_photo_service.dart';
 import '../../../core/services/daily_care_photo_upload_service.dart';
 
@@ -66,7 +65,6 @@ class _DailyCareRecordEditPageState extends State<DailyCareRecordEditPage> {
   DailyCareSettingModel _setting = const DailyCareSettingModel();
 
   bool _uploadingPhoto = false;
-  bool _photosLocked = false;
   final List<Uint8List> _pendingPhotos = <Uint8List>[];
 
   final ImagePicker _imagePicker = ImagePicker();
@@ -162,7 +160,6 @@ class _DailyCareRecordEditPageState extends State<DailyCareRecordEditPage> {
         );
 
     if (record == null) return;
-    _photosLocked = record.photosLocked;
 
     for (final MapEntry<String, dynamic> entry in record.values.entries) {
       switch (entry.key) {
@@ -241,7 +238,7 @@ class _DailyCareRecordEditPageState extends State<DailyCareRecordEditPage> {
   }
 
   Future<void> _pickPendingPhoto(int uploadedCount) async {
-    if (_uploadingPhoto || _photosLocked) return;
+    if (_uploadingPhoto) return;
     final int remaining =
         DailyCarePhotoService.maxPhotosPerSession -
         uploadedCount -
@@ -305,14 +302,14 @@ class _DailyCareRecordEditPageState extends State<DailyCareRecordEditPage> {
       return;
     }
 
-    if (!_photosLocked) {
+    if (_pendingPhotos.isNotEmpty) {
       final bool? confirmed = await showDialog<bool>(
         context: context,
         builder: (BuildContext context) {
           return AlertDialog(
             title: const Text('確認送出此場回報'),
-            content: const Text(
-              '送出後照片不可追加或更換，請確認照片正確。沒有照片也能送出文字回報。',
+            content: Text(
+              '將新選 ${_pendingPhotos.length} 張照片上傳。已存在的照片不會重複上傳或刪除。',
             ),
             actions: <Widget>[
               TextButton(
@@ -393,7 +390,7 @@ class _DailyCareRecordEditPageState extends State<DailyCareRecordEditPage> {
         petIds: widget.petIds,
       );
 
-      if (!_photosLocked) {
+      if (_pendingPhotos.isNotEmpty) {
         setState(() {
           _uploadingPhoto = true;
         });
@@ -409,14 +406,7 @@ class _DailyCareRecordEditPageState extends State<DailyCareRecordEditPage> {
             sessionName: widget.sessionName,
           );
         }
-        await DailyCarePhotoFunctionService.instance.lockSession(
-          shopId: widget.shopId,
-          bookingId: widget.bookingId,
-          recordDate: widget.recordDate,
-          sessionIndex: widget.sessionIndex,
-        );
         _pendingPhotos.clear();
-        _photosLocked = true;
       }
 
       if (!mounted) return;
@@ -724,11 +714,7 @@ class _DailyCareRecordEditPageState extends State<DailyCareRecordEditPage> {
       ink: ink,
       trailing: Text(
         '必填',
-        style: TextStyle(
-          fontSize: 12,
-          color: ink,
-          fontWeight: FontWeight.w700,
-        ),
+        style: TextStyle(fontSize: 12, color: ink, fontWeight: FontWeight.w700),
       ),
       child: Theme(
         data: Theme.of(context).copyWith(inputDecorationTheme: inputTheme),
@@ -793,34 +779,42 @@ class _DailyCareRecordEditPageState extends State<DailyCareRecordEditPage> {
   }
 
   Widget _photoCard() {
+    final String dateKey = DailyCarePhotoMatch.canonicalDateKey(
+      widget.recordDate,
+    );
+    final String roomFilter =
+        widget.serviceType == DailyCareServiceTypes.daycare
+        ? ''
+        : widget.roomId;
     return StreamBuilder<List<DailyCarePhotoModel>>(
-      stream: DailyCarePhotoService.instance.streamRoomDayPhotos(
-        shopId: widget.shopId,
+      stream: DailyCarePhotoService.instance.streamBookingPhotos(
         bookingId: widget.bookingId,
-        roomId: widget.roomId,
-        recordDate: widget.recordDate,
       ),
       builder: (context, snapshot) {
         final List<DailyCarePhotoModel> photos =
-            (snapshot.data ?? <DailyCarePhotoModel>[])
-                .where(
-                  (DailyCarePhotoModel photo) =>
-                      photo.sessionIndex == widget.sessionIndex,
-                )
-                .toList();
+            DailyCarePhotoMatch.sessionPhotos(
+              photos: snapshot.data ?? <DailyCarePhotoModel>[],
+              dateKey: dateKey,
+              sessionIndex: widget.sessionIndex,
+              roomId: roomFilter,
+            );
 
-        final int currentCount = photos.length + _pendingPhotos.length;
+        final int uploadedCount = photos.length;
+        final int currentCount = uploadedCount + _pendingPhotos.length;
         final int maxCount = DailyCarePhotoService.maxPhotosPerSession;
-
-        final bool reachedLimit = currentCount >= maxCount || _photosLocked;
+        final int remaining = currentCount >= maxCount
+            ? 0
+            : maxCount - currentCount;
+        final bool reachedLimit = remaining <= 0;
+        final String quotaText = remaining > 0
+            ? '本場已上傳 $uploadedCount / $maxCount 張，尚可上傳 $remaining 張'
+            : '本場已上傳 $uploadedCount / $maxCount 張，照片額度已用完';
 
         return _illustratedSection(
           cardKey: DailyCareJournalCardKeys.photos,
           title: '照護照片',
           trailing: Text(
-            _photosLocked
-                ? '此場照片已鎖定 $currentCount／$maxCount 張'
-                : '此場 $currentCount／$maxCount 張',
+            quotaText,
             style: TextStyle(
               fontSize: 12,
               color: reachedLimit ? Colors.red : Colors.grey.shade700,
@@ -828,134 +822,137 @@ class _DailyCareRecordEditPageState extends State<DailyCareRecordEditPage> {
             ),
           ),
           children: <Widget>[
-              Text(
-                _photosLocked
-                    ? '此場照片已鎖定，不可追加、更換或由一般員工刪除。修改文字不會解除鎖定。'
-                    : '每場可附最多 3 張照片，不強制上傳。送出後不可追加或更換。同場多隻寵物共用 3 張。',
-                style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
-              ),
+            Text(
+              '每場最多 3 張，以已成功上傳的照片為準。文字可重複儲存，不會清掉或重複上傳既有照片。',
+              style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+            ),
 
-              if (photos.isNotEmpty) ...<Widget>[
-                const SizedBox(height: 14),
-
-                GridView.builder(
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  itemCount: photos.length,
-                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: 3,
-                    crossAxisSpacing: 8,
-                    mainAxisSpacing: 8,
-                    childAspectRatio: 1,
-                  ),
-                  itemBuilder: (context, index) {
-                    final DailyCarePhotoModel photo = photos[index];
-
-                    return Stack(
-                      children: <Widget>[
-                        Positioned.fill(
-                          child: ClipRRect(
-                            borderRadius: BorderRadius.circular(10),
-                            child: Container(
-                              color: Colors.grey.shade100,
-                              child: Image.network(
-                                photo.previewUrl,
-                                fit: BoxFit.cover,
-                                errorBuilder: (context, error, stackTrace) {
-                                  return const Center(
-                                    child: Icon(
-                                      Icons.broken_image_outlined,
-                                      color: Colors.grey,
-                                    ),
-                                  );
-                                },
-                              ),
-                            ),
-                          ),
-                        ),
-
-                        Positioned(
-                          top: 4,
-                          right: 4,
-                          child: _photosLocked
-                              ? const SizedBox.shrink()
-                              : Material(
-                            color: Colors.black.withValues(alpha: 0.55),
-                            shape: const CircleBorder(),
-                            child: InkWell(
-                              customBorder: const CircleBorder(),
-                              onTap: () {
-                                _confirmDeletePhoto(photo);
-                              },
-                              child: const Padding(
-                                padding: EdgeInsets.all(5),
-                                child: Icon(
-                                  Icons.close,
-                                  color: Colors.white,
-                                  size: 16,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
-                    );
-                  },
-                ),
-              ],
-              if (_pendingPhotos.isNotEmpty) ...<Widget>[
-                const SizedBox(height: 10),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: List<Widget>.generate(_pendingPhotos.length, (
-                    int index,
-                  ) {
-                    return Stack(
-                      children: <Widget>[
-                        ClipRRect(
-                          borderRadius: BorderRadius.circular(10),
-                          child: Image.memory(
-                            _pendingPhotos[index],
-                            width: 96,
-                            height: 96,
-                            fit: BoxFit.cover,
-                          ),
-                        ),
-                        Positioned(
-                          top: 4,
-                          right: 4,
-                          child: InkWell(
-                            onTap: () {
-                              setState(() {
-                                _pendingPhotos.removeAt(index);
-                              });
-                            },
-                            child: const CircleAvatar(
-                              radius: 12,
-                              backgroundColor: Colors.black54,
-                              child: Icon(
-                                Icons.close,
-                                size: 14,
-                                color: Colors.white,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
-                    );
-                  }),
-                ),
-              ],
-
+            if (photos.isNotEmpty) ...<Widget>[
               const SizedBox(height: 14),
 
+              GridView.builder(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                itemCount: photos.length,
+                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: 3,
+                  crossAxisSpacing: 8,
+                  mainAxisSpacing: 8,
+                  childAspectRatio: 1,
+                ),
+                itemBuilder: (context, index) {
+                  final DailyCarePhotoModel photo = photos[index];
+                  final String url = photo.previewUrl.trim();
+
+                  return Stack(
+                    children: <Widget>[
+                      Positioned.fill(
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(10),
+                          child: Container(
+                            color: Colors.grey.shade100,
+                            child: url.isEmpty
+                                ? const Center(
+                                    child: Icon(
+                                      Icons.photo_outlined,
+                                      color: Colors.grey,
+                                    ),
+                                  )
+                                : Image.network(
+                                    url,
+                                    fit: BoxFit.cover,
+                                    errorBuilder: (context, error, stackTrace) {
+                                      return const Center(
+                                        child: Icon(
+                                          Icons.broken_image_outlined,
+                                          color: Colors.grey,
+                                        ),
+                                      );
+                                    },
+                                  ),
+                          ),
+                        ),
+                      ),
+                      Positioned(
+                        top: 4,
+                        right: 4,
+                        child: Material(
+                          color: Colors.black.withValues(alpha: 0.55),
+                          shape: const CircleBorder(),
+                          child: InkWell(
+                            customBorder: const CircleBorder(),
+                            onTap: () {
+                              _confirmDeletePhoto(photo);
+                            },
+                            child: const Padding(
+                              padding: EdgeInsets.all(5),
+                              child: Icon(
+                                Icons.close,
+                                color: Colors.white,
+                                size: 16,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  );
+                },
+              ),
+            ],
+            if (_pendingPhotos.isNotEmpty) ...<Widget>[
+              const SizedBox(height: 10),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: List<Widget>.generate(_pendingPhotos.length, (
+                  int index,
+                ) {
+                  return Stack(
+                    children: <Widget>[
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(10),
+                        child: Image.memory(
+                          _pendingPhotos[index],
+                          width: 96,
+                          height: 96,
+                          fit: BoxFit.cover,
+                        ),
+                      ),
+                      Positioned(
+                        top: 4,
+                        right: 4,
+                        child: InkWell(
+                          onTap: () {
+                            setState(() {
+                              _pendingPhotos.removeAt(index);
+                            });
+                          },
+                          child: const CircleAvatar(
+                            radius: 12,
+                            backgroundColor: Colors.black54,
+                            child: Icon(
+                              Icons.close,
+                              size: 14,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  );
+                }),
+              ),
+            ],
+
+            if (!reachedLimit) ...<Widget>[
+              const SizedBox(height: 14),
               SizedBox(
                 width: double.infinity,
                 child: FilledButton.icon(
-                  onPressed: reachedLimit || _uploadingPhoto
+                  onPressed: _uploadingPhoto
                       ? null
-                      : () => _pickPendingPhoto(photos.length),
+                      : () => _pickPendingPhoto(uploadedCount),
                   icon: _uploadingPhoto
                       ? const SizedBox(
                           width: 18,
@@ -963,17 +960,10 @@ class _DailyCareRecordEditPageState extends State<DailyCareRecordEditPage> {
                           child: CircularProgressIndicator(strokeWidth: 2),
                         )
                       : const Icon(Icons.add_photo_alternate_outlined),
-                  label: Text(
-                    _uploadingPhoto
-                        ? '上傳中...'
-                        : _photosLocked
-                        ? '照片已鎖定'
-                        : reachedLimit
-                        ? '此場照片已達上限'
-                        : '本機選擇照片',
-                  ),
+                  label: Text(_uploadingPhoto ? '上傳中...' : '本機選擇照片'),
                 ),
               ),
+            ],
           ],
         );
       },
