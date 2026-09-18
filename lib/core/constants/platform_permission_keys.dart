@@ -105,6 +105,9 @@ abstract final class PlatformPermissionKeys {
   /// 管理平台員工及分配權限
   static const String managePlatformAdmins = 'manage_platform_admins';
 
+  /// 上傳與管理平台外觀圖庫
+  static const String managePlatformMedia = 'manage_platform_media';
+
   /// 使用開發與測試工具
   static const String accessDeveloperTools = 'access_developer_tools';
 
@@ -130,6 +133,7 @@ abstract final class PlatformPermissionKeys {
     manageActivationCodes,
     viewPlatformLogs,
     managePlatformAdmins,
+    managePlatformMedia,
     accessDeveloperTools,
   ];
 
@@ -171,6 +175,8 @@ abstract final class PlatformPermissionKeys {
         return '查看平台操作紀錄';
       case managePlatformAdmins:
         return '管理平台員工與權限';
+      case managePlatformMedia:
+        return '管理平台外觀圖庫';
       case accessDeveloperTools:
         return '使用開發測試工具';
       case all:
@@ -190,6 +196,8 @@ abstract final class PlatformPermissionKeys {
         return '高風險權限，可立即停止金流交易。';
       case managePlatformAdmins:
         return '高風險權限，可建立平台員工並調整其權限。';
+      case managePlatformMedia:
+        return '上傳、編輯、啟用、停用與刪除平台提供的背景圖片。';
       case accessDeveloperTools:
         return '僅供開發、測試及系統維護帳號使用。';
       default:

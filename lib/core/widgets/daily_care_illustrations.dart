@@ -4,6 +4,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
+import '../models/daily_care_journal_appearance.dart';
 import '../models/daily_care_journal_layout.dart';
 import '../models/daily_care_setting_model.dart';
 import 'daily_care_card_surface.dart';
@@ -64,6 +65,7 @@ class DailyCareInk {
     required DailyCareJournalCardLayout layout,
     required Color fill,
     required ColorScheme colors,
+    DailyCareResolvedCardLook? look,
   }) {
     switch (layout.inkMode) {
       case DailyCareJournalCardStyle.inkDark:
@@ -77,6 +79,13 @@ class DailyCareInk {
         return Color(layout.inkColorArgb);
       case DailyCareJournalCardStyle.inkAuto:
       default:
+        if (look == null ||
+            look.isTransparent ||
+            look.isFrosted ||
+            look.needsPhotoTextVeil ||
+            look.mode == DailyCareJournalCardStyle.surfaceSolid) {
+          return dark;
+        }
         return dark;
     }
   }
@@ -91,7 +100,10 @@ class DailyCareInk {
 
   static Color chipFill(Color ink, Color cardFill) {
     if (ink.computeLuminance() > 0.62) {
-      return Color.alphaBlend(ink.withValues(alpha: 0.22), const Color(0xFF3A332C));
+      return Color.alphaBlend(
+        ink.withValues(alpha: 0.22),
+        const Color(0xFF3A332C),
+      );
     }
     return Color.alphaBlend(ink.withValues(alpha: 0.16), cardFill);
   }
@@ -154,8 +166,8 @@ class DailyCareIllustratedShell extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final ColorScheme colors = Theme.of(context).colorScheme;
-    final Color text = ink ??
-        DailyCareInk.of(layout: layout, fill: fill, colors: colors);
+    final Color text =
+        ink ?? DailyCareInk.of(layout: layout, fill: fill, colors: colors);
     final Widget header = Row(
       children: <Widget>[
         DailyCareSvgIcon(
@@ -180,11 +192,7 @@ class DailyCareIllustratedShell extends StatelessWidget {
     final Widget body = Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.start,
-      children: <Widget>[
-        header,
-        const SizedBox(height: 10),
-        child,
-      ],
+      children: <Widget>[header, const SizedBox(height: 10), child],
     );
     final Widget decor = Positioned(
       right: 6,
@@ -200,42 +208,14 @@ class DailyCareIllustratedShell extends StatelessWidget {
     );
     final DailyCareSettingModel visual = setting == null
         ? const DailyCareSettingModel()
-        : setting!.visualForCard(layout);
-    final bool useImage = visual.hasCardBackgroundVisual;
-    if (useImage) {
-      return DailyCareCardSurface(
-        setting: visual,
-        padding: padding,
-        longText: longText,
-        child: Stack(
-          clipBehavior: Clip.none,
-          children: <Widget>[body, decor],
-        ),
-      );
-    }
-    return Stack(
-      clipBehavior: Clip.none,
-      children: <Widget>[
-        Positioned.fill(
-          child: IgnorePointer(
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                color: fill,
-                borderRadius: BorderRadius.circular(radius),
-                border: Border.all(color: colors.outline.withValues(alpha: 0.08)),
-              ),
-            ),
-          ),
-        ),
-        Container(
-          width: double.infinity,
-          alignment: Alignment.topLeft,
-          padding: padding,
-          child: body,
-        ),
-        decor,
-      ],
+        : setting!;
+    return DailyCareCardSurface(
+      setting: visual,
+      layout: layout,
+      fill: fill,
+      padding: padding,
+      longText: longText,
+      child: Stack(clipBehavior: Clip.none, children: <Widget>[body, decor]),
     );
   }
 }
-

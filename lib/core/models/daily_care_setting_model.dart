@@ -166,6 +166,9 @@ class DailyCareJournalTheme {
   static const String typeSystem = 'system';
   static const String typeColor = 'color';
   static const String typeImage = 'image';
+  static const String pageSourceSystem = 'system';
+  static const String pageSourceColor = 'color';
+  static const String pageSourceLibrary = 'library';
 
   static const String colorDefault = 'default';
   static const String colorWarm = 'warm';
@@ -324,6 +327,10 @@ class DailyCareSettingModel {
     this.cardBackgroundImagePath = '',
     this.cardBackgroundImageFit = DailyCareJournalTheme.fitCover,
     this.cardBackgroundImageFade = DailyCareJournalTheme.fadeLight,
+    this.pageBackgroundSource = '',
+    this.pageBackgroundAssetId = '',
+    this.cardDefaultSurfaceMode = '',
+    this.cardDefaultBackgroundAssetId = '',
     this.journalDisplay = const DailyCareJournalDisplayFlags(),
     this.journalCards = const <String, DailyCareJournalCardLayout>{},
     this.journalHeader = const DailyCareJournalHeaderStyle(),
@@ -379,6 +386,18 @@ class DailyCareSettingModel {
 
   /// 卡片圖片淡化：none / light / heavy
   final String cardBackgroundImageFade;
+
+  /// 整頁背景來源：system / color / library；空白表示沿用舊 backgroundType
+  final String pageBackgroundSource;
+
+  /// 平台圖庫整頁背景 asset ID
+  final String pageBackgroundAssetId;
+
+  /// 卡片預設外觀：solid / transparent / frosted / library；空白表示沿用舊 cardBackgroundType
+  final String cardDefaultSurfaceMode;
+
+  /// 平台圖庫卡片預設背景 asset ID
+  final String cardDefaultBackgroundAssetId;
 
   /// 店家選擇要填寫的系統內建照護欄位
   final List<String> enabledFields;
@@ -508,6 +527,16 @@ class DailyCareSettingModel {
       cardBackgroundImageFade: _readBackgroundFade(
         map['cardBackgroundImageFade'],
       ),
+      pageBackgroundSource: _readPageBackgroundSource(
+        map['pageBackgroundSource'],
+      ),
+      pageBackgroundAssetId: _readString(map['pageBackgroundAssetId']),
+      cardDefaultSurfaceMode: _readCardDefaultSurfaceMode(
+        map['cardDefaultSurfaceMode'],
+      ),
+      cardDefaultBackgroundAssetId: _readString(
+        map['cardDefaultBackgroundAssetId'],
+      ),
 
       enabledFields: DailyCareReportFormat.persistableEnabledFields(
         rawFields is List
@@ -614,6 +643,10 @@ class DailyCareSettingModel {
       'cardBackgroundImagePath': cardBackgroundImagePath,
       'cardBackgroundImageFit': cardBackgroundImageFit,
       'cardBackgroundImageFade': cardBackgroundImageFade,
+      'pageBackgroundSource': pageBackgroundSource,
+      'pageBackgroundAssetId': pageBackgroundAssetId,
+      'cardDefaultSurfaceMode': cardDefaultSurfaceMode,
+      'cardDefaultBackgroundAssetId': cardDefaultBackgroundAssetId,
       'enabledFields': DailyCareReportFormat.persistableEnabledFields(
         enabledFields,
       ),
@@ -640,10 +673,7 @@ class DailyCareSettingModel {
       'photoRadius': photoRadius,
       'daycareEnabled': daycareEnabled,
       'daycareSessionCount': daycareSessionCount,
-      'daycareSessionLabels': List<String>.generate(
-        3,
-        daycareSessionLabelAt,
-      ),
+      'daycareSessionLabels': List<String>.generate(3, daycareSessionLabelAt),
       'daycareReportMode': daycareReportMode,
       'daycarePhotosIncluded': daycarePhotosIncluded,
       'daycareAddonUpgradeEnabled': daycareAddonUpgradeEnabled,
@@ -710,6 +740,10 @@ class DailyCareSettingModel {
     String? cardBackgroundImagePath,
     String? cardBackgroundImageFit,
     String? cardBackgroundImageFade,
+    String? pageBackgroundSource,
+    String? pageBackgroundAssetId,
+    String? cardDefaultSurfaceMode,
+    String? cardDefaultBackgroundAssetId,
     DailyCareJournalDisplayFlags? journalDisplay,
     Map<String, DailyCareJournalCardLayout>? journalCards,
     DailyCareJournalHeaderStyle? journalHeader,
@@ -771,9 +805,56 @@ class DailyCareSettingModel {
           cardBackgroundImageFit ?? this.cardBackgroundImageFit,
       cardBackgroundImageFade:
           cardBackgroundImageFade ?? this.cardBackgroundImageFade,
+      pageBackgroundSource: pageBackgroundSource ?? this.pageBackgroundSource,
+      pageBackgroundAssetId:
+          pageBackgroundAssetId ?? this.pageBackgroundAssetId,
+      cardDefaultSurfaceMode:
+          cardDefaultSurfaceMode ?? this.cardDefaultSurfaceMode,
+      cardDefaultBackgroundAssetId:
+          cardDefaultBackgroundAssetId ?? this.cardDefaultBackgroundAssetId,
       journalDisplay: journalDisplay ?? this.journalDisplay,
       journalCards: journalCards ?? this.journalCards,
       journalHeader: journalHeader ?? this.journalHeader,
+    );
+  }
+
+  /// 店家寫入：只存平台圖庫 asset ID。缺 ID 時安全改回系統／跟隨，不讓整份設定儲存失敗。
+  DailyCareSettingModel forShopWrite() {
+    String pageSource = pageBackgroundSource.trim();
+    String pageId = pageBackgroundAssetId.trim();
+    if (pageSource == DailyCareJournalTheme.pageSourceLibrary &&
+        pageId.isEmpty) {
+      pageSource = DailyCareJournalTheme.pageSourceSystem;
+    }
+    String cardMode = cardDefaultSurfaceMode.trim();
+    String cardId = cardDefaultBackgroundAssetId.trim();
+    if (cardMode == DailyCareJournalCardStyle.surfaceLibrary &&
+        cardId.isEmpty) {
+      cardMode = DailyCareJournalCardStyle.surfaceSolid;
+    }
+    final Map<String, DailyCareJournalCardLayout> cards =
+        <String, DailyCareJournalCardLayout>{};
+    for (final MapEntry<String, DailyCareJournalCardLayout> entry
+        in resolvedJournalCards.entries) {
+      DailyCareJournalCardLayout card = entry.value;
+      final String assetId = card.backgroundAssetId.trim();
+      if (card.surfaceMode == DailyCareJournalCardStyle.surfaceLibrary &&
+          assetId.isEmpty) {
+        card = card.copyWith(
+          surfaceMode: DailyCareJournalCardStyle.surfaceFollow,
+          backgroundAssetId: '',
+        );
+      } else {
+        card = card.copyWith(backgroundAssetId: assetId);
+      }
+      cards[entry.key] = card;
+    }
+    return copyWith(
+      pageBackgroundSource: pageSource,
+      pageBackgroundAssetId: pageId,
+      cardDefaultSurfaceMode: cardMode,
+      cardDefaultBackgroundAssetId: cardId,
+      journalCards: cards,
     );
   }
 
@@ -824,6 +905,11 @@ class DailyCareSettingModel {
   }
 
   bool get hasCustomBackgroundImage {
+    if (resolvedPageBackgroundSource ==
+            DailyCareJournalTheme.pageSourceLibrary &&
+        pageBackgroundAssetId.trim().isNotEmpty) {
+      return true;
+    }
     return backgroundType == DailyCareJournalTheme.typeImage &&
         backgroundImageUrl.trim().isNotEmpty;
   }
@@ -841,6 +927,11 @@ class DailyCareSettingModel {
   /// 內容卡片是否要畫圖案／自訂圖（純色則否）
   /// 自訂圖以 URL 為準；內建圖即使還沒放 asset 也要能畫 fallback。
   bool get hasCardBackgroundVisual {
+    if (resolvedCardDefaultSurfaceMode ==
+            DailyCareJournalCardStyle.surfaceLibrary &&
+        cardDefaultBackgroundAssetId.trim().isNotEmpty) {
+      return true;
+    }
     if (cardBackgroundType == DailyCareJournalTheme.cardTypeSolid) {
       return false;
     }
@@ -854,9 +945,55 @@ class DailyCareSettingModel {
   }
 
   /// 單卡若選平台內建，只用 preset key，不用店家自訂圖。
+  String get resolvedPageBackgroundSource {
+    final String source = pageBackgroundSource.trim();
+    if (source == DailyCareJournalTheme.pageSourceLibrary ||
+        source == DailyCareJournalTheme.pageSourceColor ||
+        source == DailyCareJournalTheme.pageSourceSystem) {
+      return source;
+    }
+    if (backgroundType == DailyCareJournalTheme.typeColor) {
+      return DailyCareJournalTheme.pageSourceColor;
+    }
+    return DailyCareJournalTheme.pageSourceSystem;
+  }
+
+  String get resolvedCardDefaultSurfaceMode {
+    final String mode = cardDefaultSurfaceMode.trim();
+    if (mode == DailyCareJournalCardStyle.surfaceTransparent ||
+        mode == DailyCareJournalCardStyle.surfaceFrosted ||
+        mode == DailyCareJournalCardStyle.surfaceLibrary ||
+        mode == DailyCareJournalCardStyle.surfaceSolid) {
+      return mode;
+    }
+    return cardBackgroundType;
+  }
+
   DailyCareSettingModel visualForCard(DailyCareJournalCardLayout layout) {
     if (layout.followsSharedBackground) {
       return this;
+    }
+    if (layout.resolvedSurfaceMode ==
+        DailyCareJournalCardStyle.surfaceLibrary) {
+      return copyWith(
+        cardDefaultSurfaceMode: DailyCareJournalCardStyle.surfaceLibrary,
+        cardDefaultBackgroundAssetId: layout.backgroundAssetId,
+        cardBackgroundType: DailyCareJournalTheme.cardTypeSolid,
+        cardBackgroundImageUrl: '',
+        cardBackgroundImagePath: '',
+      );
+    }
+    if (layout.resolvedSurfaceMode ==
+            DailyCareJournalCardStyle.surfaceTransparent ||
+        layout.resolvedSurfaceMode ==
+            DailyCareJournalCardStyle.surfaceFrosted ||
+        layout.resolvedSurfaceMode == DailyCareJournalCardStyle.surfaceSolid) {
+      return copyWith(
+        cardDefaultSurfaceMode: layout.resolvedSurfaceMode,
+        cardBackgroundType: DailyCareJournalTheme.cardTypeSolid,
+        cardBackgroundImageUrl: '',
+        cardBackgroundImagePath: '',
+      );
     }
     final DailyCareCardBackgroundPreset? preset =
         DailyCareJournalTheme.cardPresetByKey(layout.backgroundPreset);
@@ -1059,6 +1196,27 @@ class DailyCareSettingModel {
       return type;
     }
     return DailyCareJournalTheme.cardTypeSolid;
+  }
+
+  static String _readPageBackgroundSource(Object? value) {
+    final String source = _readString(value);
+    if (source == DailyCareJournalTheme.pageSourceLibrary ||
+        source == DailyCareJournalTheme.pageSourceColor ||
+        source == DailyCareJournalTheme.pageSourceSystem) {
+      return source;
+    }
+    return '';
+  }
+
+  static String _readCardDefaultSurfaceMode(Object? value) {
+    final String mode = _readString(value);
+    if (mode == DailyCareJournalCardStyle.surfaceTransparent ||
+        mode == DailyCareJournalCardStyle.surfaceFrosted ||
+        mode == DailyCareJournalCardStyle.surfaceLibrary ||
+        mode == DailyCareJournalCardStyle.surfaceSolid) {
+      return mode;
+    }
+    return '';
   }
 
   static String _readCardBackgroundPreset(Object? value) {

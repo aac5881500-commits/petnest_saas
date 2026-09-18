@@ -505,7 +505,8 @@ class _ShopBookingPageState extends State<ShopBookingPage> {
         shopDaycareOn: true,
         offerId: (_selectedRoomType?['id'] ?? '').toString(),
         offerName: (_selectedRoomType?['name'] ?? '').toString(),
-        purchaseAddon: _selectedDailyCareAddonId != null &&
+        purchaseAddon:
+            _selectedDailyCareAddonId != null &&
             _selectedDailyCareAddonId!.isNotEmpty,
         nights: _nights,
         startDate: _startDate,
@@ -1772,6 +1773,7 @@ class _ShopBookingPageState extends State<ShopBookingPage> {
 
     showDialog(
       context: context,
+      useRootNavigator: false,
       builder: (_) {
         return StatefulBuilder(
           builder: (context, setInnerState) {
@@ -2448,15 +2450,16 @@ class _ShopBookingPageState extends State<ShopBookingPage> {
   }
 
   List<Map<String, dynamic>> _buildAddonsData() {
-    final List<Map<String, dynamic>> addons = BookingAddonsHelper.buildAddonsData(
-      selectedTimeAddon: _selectedTimeAddon,
-      selectedValueServices: _selectedValueServices,
-      selectedCustomServices: _selectedCustomServices,
-      selectedDailyTimedServices: _selectedDailyTimedServices,
-      addonData: _addonData,
-      selectedPetIds: _selectedPetIds,
-      pets: _pets,
-    );
+    final List<Map<String, dynamic>> addons =
+        BookingAddonsHelper.buildAddonsData(
+          selectedTimeAddon: _selectedTimeAddon,
+          selectedValueServices: _selectedValueServices,
+          selectedCustomServices: _selectedCustomServices,
+          selectedDailyTimedServices: _selectedDailyTimedServices,
+          addonData: _addonData,
+          selectedPetIds: _selectedPetIds,
+          pets: _pets,
+        );
     final DailyCareEntitlement? care = _dailyCareQuote();
     final Map<String, dynamic>? line = care?.toAddonLine();
     if (line != null) {

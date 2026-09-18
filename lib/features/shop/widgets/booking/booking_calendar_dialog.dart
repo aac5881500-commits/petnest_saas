@@ -23,6 +23,9 @@ class BookingCalendarDialog extends StatelessWidget {
     this.compactCells = false,
   });
 
+  static const double desktopMaxWidth = 680;
+  static const double compactWidthBreakpoint = 600;
+
   final FrontCalendarPayload payload;
 
   final DateTime calendarMonth;
@@ -46,102 +49,104 @@ class BookingCalendarDialog extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final double viewHeight = MediaQuery.sizeOf(context).height;
+
     return Dialog(
       insetPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
-      child: SafeArea(
-        child: SizedBox(
-          height: MediaQuery.of(context).size.height * 0.82,
-          width: MediaQuery.of(context).size.width * 0.94,
-          child: SingleChildScrollView(
-            child: Column(
-              children: [
-                BookingCalendar(
-                  key: ValueKey('${tempStartDate}_$tempEndDate'),
-
-                  initialMonth: calendarMonth,
-
-                  firstDate: today,
-
-                  lastDate: today.add(Duration(days: maxDays)),
-
-                  rangeStart: tempStartDate,
-                  rangeEnd: tempEndDate,
-
-                  blockedDateKeys: payload.blockedDateKeys,
-                  blockedDateReasons: payload.blockedDateReasons,
-
-                  unbookableDateKeys: payload.unbookableDateKeys,
-                  specialOpenDateKeys: payload.specialOpenDateKeys,
-
-                  remainingRoomsMap: payload.remainingRoomsMap,
-                  compactCells: compactCells || singleDay,
-
-                  onMonthChanged: onMonthChanged,
-
-                  onDayTap: onDayTap,
-                ),
-
-                if (rangeMessage.isNotEmpty)
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 8,
-                    ),
-                    margin: const EdgeInsets.only(top: 8),
-                    decoration: BoxDecoration(
-                      color: Colors.grey.shade100,
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Row(
-                      children: [
-                        const Text('⚠️ ', style: TextStyle(fontSize: 14)),
-
-                        Expanded(
-                          child: Text(
-                            rangeMessage,
-                            style: const TextStyle(
-                              fontSize: 13,
-                              color: Colors.red,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(12, 8, 12, 10),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: OutlinedButton(
-                          onPressed: onCancel,
-                          child: const Text('取消'),
-                        ),
+      clipBehavior: Clip.antiAlias,
+      child: ConstrainedBox(
+        constraints: BoxConstraints(
+          maxWidth: desktopMaxWidth,
+          maxHeight: viewHeight * 0.9,
+        ),
+        child: LayoutBuilder(
+          builder: (BuildContext context, BoxConstraints constraints) {
+            final double width = constraints.maxWidth;
+            final bool compact =
+                compactCells || singleDay || width < compactWidthBreakpoint;
+            return SafeArea(
+              child: SizedBox(
+                width: width,
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: <Widget>[
+                      BookingCalendar(
+                        key: ValueKey('${tempStartDate}_$tempEndDate'),
+                        initialMonth: calendarMonth,
+                        firstDate: today,
+                        lastDate: today.add(Duration(days: maxDays)),
+                        rangeStart: tempStartDate,
+                        rangeEnd: tempEndDate,
+                        blockedDateKeys: payload.blockedDateKeys,
+                        blockedDateReasons: payload.blockedDateReasons,
+                        unbookableDateKeys: payload.unbookableDateKeys,
+                        specialOpenDateKeys: payload.specialOpenDateKeys,
+                        remainingRoomsMap: payload.remainingRoomsMap,
+                        compactCells: compact,
+                        onMonthChanged: onMonthChanged,
+                        onDayTap: onDayTap,
                       ),
-
-                      const SizedBox(width: 12),
-
-                      Expanded(
-                        child: ElevatedButton(
-                          onPressed: onConfirm,
-                          child: const Text(
-                            '確認',
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w700,
-                            ),
+                      if (rangeMessage.isNotEmpty)
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 8,
                           ),
+                          margin: const EdgeInsets.only(top: 8),
+                          decoration: BoxDecoration(
+                            color: Colors.grey.shade100,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Row(
+                            children: <Widget>[
+                              const Text('⚠️ ', style: TextStyle(fontSize: 14)),
+                              Expanded(
+                                child: Text(
+                                  rangeMessage,
+                                  style: const TextStyle(
+                                    fontSize: 13,
+                                    color: Colors.red,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(12, 8, 12, 10),
+                        child: Row(
+                          children: <Widget>[
+                            Expanded(
+                              child: OutlinedButton(
+                                onPressed: onCancel,
+                                child: const Text('取消'),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: ElevatedButton(
+                                onPressed: onConfirm,
+                                child: const Text(
+                                  '確認',
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     ],
                   ),
                 ),
-              ],
-            ),
-          ),
+              ),
+            );
+          },
         ),
       ),
     );

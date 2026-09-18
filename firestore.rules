@@ -42,6 +42,26 @@ function hasPlatformPermission(permission) {
     );
 }
 
+function canManagePlatformMedia() {
+  return isRootAdmin()
+    || (
+      isEnabledPlatformUser()
+      && (
+        get(
+          /databases/$(database)/documents/platform_users/$(request.auth.uid)
+        ).data.role == 'super_admin'
+        || (
+          get(
+            /databases/$(database)/documents/platform_users/$(request.auth.uid)
+          ).data.permissions is list
+          && get(
+            /databases/$(database)/documents/platform_users/$(request.auth.uid)
+          ).data.permissions.hasAny(['all', 'manage_platform_media'])
+        )
+      )
+    );
+}
+
 
     // 👤 是否本人
     function isSelf(uid) {
@@ -390,7 +410,7 @@ allow update: if signedIn() &&
       allow update: if isRootAdmin()
   ||
   (
-    isShopMember(shopId)
+    (isShopMember(shopId) || isShopOwnerUid(shopId))
     &&
     request.resource.data.diff(resource.data).changedKeys().hasOnly([
       'updatedAt',
@@ -2770,6 +2790,16 @@ match /activation_codes/{codeId} {
     allow update, delete: if isRootAdmin();
   }
 }
+
+    // 🖼 平台外觀圖庫
+    match /platform_media_library/{assetId} {
+      allow read: if signedIn() && (
+        resource.data.enabled == true
+        || canManagePlatformMedia()
+      );
+      allow create, update, delete: if canManagePlatformMedia();
+    }
+
     // 👑 平台人員與權限資料
 // 功能：根管理員可管理平台人員；一般平台人員只能查看自己的權限資料。
 match /platform_users/{platformUid} {

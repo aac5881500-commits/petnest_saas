@@ -19,6 +19,7 @@ import 'platform_review_manage_page.dart';
 import 'platform_shop_manage_page.dart';
 import 'platform_shop_request_manage_page.dart';
 import 'platform_user_management_page.dart';
+import 'platform_media_library_page.dart';
 
 class PlatformAdminPage extends StatelessWidget {
   const PlatformAdminPage({super.key});
@@ -331,6 +332,25 @@ class PlatformAdminPage extends StatelessWidget {
                       context,
                       MaterialPageRoute(
                         builder: (_) => const PlatformUserManagementPage(),
+                      ),
+                    );
+                  },
+                ),
+                const SizedBox(height: 12),
+              ],
+
+              if (hasPermission(
+                PlatformPermissionKeys.managePlatformMedia,
+              )) ...[
+                _AdminEntryCard(
+                  icon: Icons.collections_outlined,
+                  title: '外觀圖庫',
+                  subtitle: '上傳並管理店家可選用的頁面與卡片背景',
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const PlatformMediaLibraryPage(),
                       ),
                     );
                   },

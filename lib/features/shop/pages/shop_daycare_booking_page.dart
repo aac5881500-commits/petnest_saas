@@ -663,6 +663,7 @@ class _ShopDaycareBookingPageState extends State<ShopDaycareBookingPage> {
 
     await showDialog<void>(
       context: context,
+      useRootNavigator: false,
       builder: (_) {
         return StatefulBuilder(
           builder: (BuildContext context, StateSetter setInnerState) {
@@ -1070,8 +1071,8 @@ class _ShopDaycareBookingPageState extends State<ShopDaycareBookingPage> {
     });
     try {
       final String requestId = _bookingRequestId!;
-      final List<Map<String, dynamic>> petSnaps = BookingOrderFormAnswers
-          .attachToPets(
+      final List<Map<String, dynamic>> petSnaps =
+          BookingOrderFormAnswers.attachToPets(
             pets: _pets
                 .where(
                   (Map<String, dynamic> pet) => _selectedPetIds.contains(
@@ -1858,8 +1859,8 @@ class _ShopDaycareBookingPageState extends State<ShopDaycareBookingPage> {
             blockedReason: option.selectable
                 ? null
                 : ((option.blockedReason ?? '').trim().isNotEmpty
-                    ? option.blockedReason
-                    : '暫時無法確認可用狀態，請重新整理'),
+                      ? option.blockedReason
+                      : '暫時無法確認可用狀態，請重新整理'),
             onTap: () {
               if (!canPick) {
                 return;
@@ -1934,9 +1935,7 @@ class _ShopDaycareBookingPageState extends State<ShopDaycareBookingPage> {
         offerId: widget.settings.isRoomBased
             ? (_selectedRoomTypeId ?? '')
             : (_plan?.id ?? ''),
-        offerName: widget.settings.isRoomBased
-            ? ''
-            : (_plan?.name ?? ''),
+        offerName: widget.settings.isRoomBased ? '' : (_plan?.name ?? ''),
         nights: 1,
         startDate: _startAt,
         endDate: _endAt ?? _startAt,

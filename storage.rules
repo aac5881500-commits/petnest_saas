@@ -40,6 +40,44 @@ service firebase.storage {
   return request.resource.size <= 5 * 1024 * 1024;
 }
 
+    function platformUserPath() {
+      return /databases/(default)/documents/platform_users/$(request.auth.uid);
+    }
+
+    // 與 PlatformAdminService.adminHasPermission / 平台後台畫面相同：
+    // 來源為 platform_users/{uid}（不是 platform_admins / user_profiles）
+    // 欄位：enabled、role、permissions[]
+    function isEnabledPlatformUserData(data) {
+      return !data.keys().hasAny(['enabled']) || data.enabled == true;
+    }
+
+    function platformUserCanManageMedia(data) {
+      return isEnabledPlatformUserData(data)
+        && (
+          data.role == 'super_admin'
+          || (
+            data.keys().hasAny(['permissions'])
+            && data.permissions.hasAny(['all', 'manage_platform_media'])
+          )
+        );
+    }
+
+    function canManagePlatformMedia() {
+      return isRootAdmin()
+        || (
+          signedIn()
+          && firestore.exists(platformUserPath())
+          && platformUserCanManageMedia(firestore.get(platformUserPath()).data)
+        );
+    }
+
+    function isPlatformLibraryImage() {
+      return request.resource.contentType.matches('image/jpeg.*')
+        || request.resource.contentType.matches('image/jpg.*')
+        || request.resource.contentType.matches('image/png.*')
+        || request.resource.contentType.matches('image/webp.*');
+    }
+
     // 🐾 會員寵物照片：pets/{uid}/{petId}.jpg
     match /pets/{uid}/{fileName} {
   allow read: if signedIn()
@@ -376,6 +414,25 @@ allow read: if signedIn()
       || isShopMember(shopId)
     );
 }
+
+    // 🖼 平台外觀圖庫：platform/media_library/{assetId}/original.*
+    match /platform/media_library/{assetId}/{fileName} {
+      allow read: if signedIn() && (
+        canManagePlatformMedia()
+        || (
+          firestore.exists(
+            /databases/(default)/documents/platform_media_library/$(assetId)
+          )
+          && firestore.get(
+            /databases/(default)/documents/platform_media_library/$(assetId)
+          ).data.enabled == true
+        )
+      );
+      allow create, update: if canManagePlatformMedia()
+        && isPlatformLibraryImage()
+        && isUnder5MB();
+      allow delete: if canManagePlatformMedia();
+    }
 
     // 🚫 其他 Storage 路徑全部拒絕
     match /{allPaths=**} {

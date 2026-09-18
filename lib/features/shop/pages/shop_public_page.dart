@@ -27,16 +27,21 @@ import 'package:petnest_saas/features/shop/pages/shop_review_list_page.dart';
 import 'package:petnest_saas/features/shop/pages/shop_public_modern_page.dart';
 import 'package:petnest_saas/features/shop/widgets/floating_contact_button.dart';
 import 'package:petnest_saas/features/shop/widgets/store/store_banner_view.dart';
+import 'package:petnest_saas/features/shop/widgets/shop_dashboard_embedded_scope.dart';
 
 class ShopPublicPage extends StatefulWidget {
   const ShopPublicPage({
     super.key,
     required this.shopId,
     this.platformPreview = false,
+    this.embeddedInDashboard = false,
+    this.onExitEmbedded,
   });
 
   final String shopId;
   final bool platformPreview;
+  final bool embeddedInDashboard;
+  final VoidCallback? onExitEmbedded;
   @override
   State<ShopPublicPage> createState() => _ShopPublicPageState();
 }
@@ -74,7 +79,7 @@ class _ShopPublicPageState extends State<ShopPublicPage> {
 
   @override
   Widget build(BuildContext context) {
-    return StreamBuilder<Map<String, dynamic>?>(
+    Widget child = StreamBuilder<Map<String, dynamic>?>(
       stream: ShopService.instance.streamShop(widget.shopId),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
@@ -301,90 +306,92 @@ class _ShopPublicPageState extends State<ShopPublicPage> {
                             child: ConstrainedBox(
                               constraints: const BoxConstraints(maxWidth: 960),
                               child: AspectRatio(
-                            aspectRatio: homeBannerFrame.aspectRatio,
-                            child: ClipRRect(
-                              borderRadius: BorderRadius.circular(16),
-                              child: Stack(
-                                fit: StackFit.expand,
-                                children: [
-                                  GestureDetector(
-                                    behavior: HitTestBehavior.translucent,
-                                    onHorizontalDragEnd: (details) {
-                                      if (banners.length <= 1) return;
+                                aspectRatio: homeBannerFrame.aspectRatio,
+                                child: ClipRRect(
+                                  borderRadius: BorderRadius.circular(16),
+                                  child: Stack(
+                                    fit: StackFit.expand,
+                                    children: [
+                                      GestureDetector(
+                                        behavior: HitTestBehavior.translucent,
+                                        onHorizontalDragEnd: (details) {
+                                          if (banners.length <= 1) return;
 
-                                      final velocity =
-                                          details.primaryVelocity ?? 0;
+                                          final velocity =
+                                              details.primaryVelocity ?? 0;
 
-                                      if (velocity < -120) {
-                                        setState(() {
-                                          _currentIndex =
-                                              bannerIndex == banners.length - 1
-                                              ? 0
-                                              : bannerIndex + 1;
-                                        });
-                                      }
+                                          if (velocity < -120) {
+                                            setState(() {
+                                              _currentIndex =
+                                                  bannerIndex ==
+                                                      banners.length - 1
+                                                  ? 0
+                                                  : bannerIndex + 1;
+                                            });
+                                          }
 
-                                      if (velocity > 120) {
-                                        setState(() {
-                                          _currentIndex = bannerIndex == 0
-                                              ? banners.length - 1
-                                              : bannerIndex - 1;
-                                        });
-                                      }
-                                    },
-                                    child: StoreBannerView(
-                                      banner: banners[bannerIndex],
-                                      theme: classicTheme,
-                                      scope: PetNestBannerScope.home,
-                                      borderRadius: 0,
-                                      onTap:
-                                          banners[bannerIndex]
-                                              .hasNavigableAction
-                                          ? () {
-                                              HomeBannerNavigation.open(
-                                                context: context,
-                                                shopId: widget.shopId,
-                                                shop: shop,
-                                                theme: classicTheme,
-                                                banner: banners[bannerIndex],
-                                              );
-                                            }
-                                          : null,
-                                    ),
-                                  ),
-                                  if (banners.length > 1)
-                                    Positioned(
-                                      top: 12,
-                                      right: 12,
-                                      child: IgnorePointer(
-                                        child: Container(
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: 10,
-                                            vertical: 5,
-                                          ),
-                                          decoration: BoxDecoration(
-                                            color: Colors.black.withValues(
-                                              alpha: 0.45,
-                                            ),
-                                            borderRadius: BorderRadius.circular(
-                                              20,
-                                            ),
-                                          ),
-                                          child: Text(
-                                            '${bannerIndex + 1} / ${banners.length}',
-                                            style: const TextStyle(
-                                              color: Colors.white,
-                                              fontSize: 12,
-                                              fontWeight: FontWeight.w600,
+                                          if (velocity > 120) {
+                                            setState(() {
+                                              _currentIndex = bannerIndex == 0
+                                                  ? banners.length - 1
+                                                  : bannerIndex - 1;
+                                            });
+                                          }
+                                        },
+                                        child: StoreBannerView(
+                                          banner: banners[bannerIndex],
+                                          theme: classicTheme,
+                                          scope: PetNestBannerScope.home,
+                                          borderRadius: 0,
+                                          onTap:
+                                              banners[bannerIndex]
+                                                  .hasNavigableAction
+                                              ? () {
+                                                  HomeBannerNavigation.open(
+                                                    context: context,
+                                                    shopId: widget.shopId,
+                                                    shop: shop,
+                                                    theme: classicTheme,
+                                                    banner:
+                                                        banners[bannerIndex],
+                                                  );
+                                                }
+                                              : null,
+                                        ),
+                                      ),
+                                      if (banners.length > 1)
+                                        Positioned(
+                                          top: 12,
+                                          right: 12,
+                                          child: IgnorePointer(
+                                            child: Container(
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                    horizontal: 10,
+                                                    vertical: 5,
+                                                  ),
+                                              decoration: BoxDecoration(
+                                                color: Colors.black.withValues(
+                                                  alpha: 0.45,
+                                                ),
+                                                borderRadius:
+                                                    BorderRadius.circular(20),
+                                              ),
+                                              child: Text(
+                                                '${bannerIndex + 1} / ${banners.length}',
+                                                style: const TextStyle(
+                                                  color: Colors.white,
+                                                  fontSize: 12,
+                                                  fontWeight: FontWeight.w600,
+                                                ),
+                                              ),
                                             ),
                                           ),
                                         ),
-                                      ),
-                                    ),
-                                ],
+                                    ],
+                                  ),
+                                ),
                               ),
-                            ),
-                          ),
                             ),
                           ),
 
@@ -754,6 +761,13 @@ class _ShopPublicPageState extends State<ShopPublicPage> {
         );
       },
     );
+    if (widget.embeddedInDashboard) {
+      child = ShopDashboardEmbeddedScope(
+        onExitEmbedded: widget.onExitEmbedded,
+        child: child,
+      );
+    }
+    return child;
   }
 
   Widget ShopSectionTitle({

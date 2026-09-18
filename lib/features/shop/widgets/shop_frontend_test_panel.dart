@@ -4,6 +4,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/features/shop/pages/shop_public_page.dart';
+import 'package:petnest_saas/features/shop/widgets/shop_dashboard_embedded_scope.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 class ShopFrontendTestPanel extends StatefulWidget {
@@ -195,23 +196,39 @@ class _ShopFrontendTestPanelState extends State<ShopFrontendTestPanel> {
             ),
           ),
           Expanded(
-            child: HeroControllerScope.none(
-              child: KeyedSubtree(
-                key: ValueKey<int>(_refreshGeneration),
-                child: Navigator(
-                  key: _navigatorKey,
-                  onGenerateInitialRoutes:
-                      (NavigatorState navigator, String initialRoute) {
-                        return <Route<dynamic>>[
-                          MaterialPageRoute<void>(
-                            settings: const RouteSettings(name: '/'),
-                            builder: (_) =>
-                                ShopPublicPage(shopId: widget.shopId),
-                          ),
-                        ];
-                      },
-                ),
-              ),
+            child: LayoutBuilder(
+              builder: (BuildContext context, BoxConstraints constraints) {
+                final MediaQueryData parent = MediaQuery.of(context);
+                return MediaQuery(
+                  data: parent.copyWith(
+                    size: Size(constraints.maxWidth, constraints.maxHeight),
+                  ),
+                  child: ShopDashboardEmbeddedScope(
+                    onExitEmbedded: widget.onClose,
+                    child: HeroControllerScope.none(
+                      child: KeyedSubtree(
+                        key: ValueKey<int>(_refreshGeneration),
+                        child: Navigator(
+                          key: _navigatorKey,
+                          onGenerateInitialRoutes:
+                              (NavigatorState navigator, String initialRoute) {
+                                return <Route<dynamic>>[
+                                  MaterialPageRoute<void>(
+                                    settings: const RouteSettings(name: '/'),
+                                    builder: (_) => ShopPublicPage(
+                                      shopId: widget.shopId,
+                                      embeddedInDashboard: true,
+                                      onExitEmbedded: widget.onClose,
+                                    ),
+                                  ),
+                                ];
+                              },
+                        ),
+                      ),
+                    ),
+                  ),
+                );
+              },
             ),
           ),
         ],

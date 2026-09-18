@@ -3,16 +3,14 @@
 // 🐾 每日照護紀錄設定頁
 // 要填寫的照護欄位、照片功能與退房後下載期限。
 
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:image_picker/image_picker.dart';
 
 import '../../../core/models/daily_care_journal_layout.dart';
 import '../../../core/models/daily_care_offer_quota.dart';
 import '../../../core/models/daily_care_paid_plan.dart';
 import '../../../core/models/daily_care_report_mode.dart';
 import '../../../core/models/daily_care_setting_model.dart';
-import '../../../core/services/daily_care_background_service.dart';
+import '../../../core/models/platform_media_asset.dart';
 import '../../../core/services/daily_care_setting_service.dart';
 import '../../../core/services/daycare_enabled.dart';
 import '../../../core/services/shop_room_service.dart';
@@ -21,6 +19,7 @@ import '../../../core/widgets/daily_care_card_surface.dart';
 import '../../../core/widgets/daily_care_illustrations.dart';
 import '../../../core/widgets/shop_task_center_button.dart';
 import '../widgets/daily_care_full_journal_preview.dart';
+import '../widgets/platform_media_asset_picker.dart';
 import '../widgets/store/store_banner_color_field.dart';
 
 class DailyCareSettingPage extends StatefulWidget {
@@ -35,7 +34,6 @@ class DailyCareSettingPage extends StatefulWidget {
 class _DailyCareSettingPageState extends State<DailyCareSettingPage> {
   bool _loading = true;
   bool _saving = false;
-  bool _backgroundBusy = false;
   DailyCareSettingModel _loaded = const DailyCareSettingModel();
 
   bool _enabled = false;
@@ -81,12 +79,17 @@ class _DailyCareSettingPageState extends State<DailyCareSettingPage> {
   String _backgroundImageFit = DailyCareJournalTheme.fitCover;
   String _backgroundImageFade = DailyCareJournalTheme.fadeLight;
 
+  String _pageBackgroundSource = DailyCareJournalTheme.pageSourceSystem;
+  String _pageBackgroundAssetId = '';
+
   String _cardBackgroundType = DailyCareJournalTheme.cardTypeSolid;
   String _cardBackgroundPreset = DailyCareJournalTheme.cardPresetNone;
   String _cardBackgroundImageUrl = '';
   String _cardBackgroundImagePath = '';
   String _cardBackgroundImageFit = DailyCareJournalTheme.fitCover;
   String _cardBackgroundImageFade = DailyCareJournalTheme.fadeLight;
+  String _cardDefaultSurfaceMode = DailyCareJournalCardStyle.surfaceSolid;
+  String _cardDefaultBackgroundAssetId = '';
   DailyCareJournalDisplayFlags _journalDisplay =
       const DailyCareJournalDisplayFlags();
   Map<String, DailyCareJournalCardLayout> _journalCards =
@@ -110,8 +113,6 @@ class _DailyCareSettingPageState extends State<DailyCareSettingPage> {
         3,
         (int index) => TextEditingController(),
       );
-
-  final ImagePicker _imagePicker = ImagePicker();
 
   static const List<_CareFieldOption> _fieldOptions = <_CareFieldOption>[
     _CareFieldOption(
@@ -274,12 +275,20 @@ class _DailyCareSettingPageState extends State<DailyCareSettingPage> {
         _backgroundImagePath = setting.backgroundImagePath;
         _backgroundImageFit = setting.backgroundImageFit;
         _backgroundImageFade = setting.backgroundImageFade;
+        _pageBackgroundSource = setting.pageBackgroundSource.trim().isEmpty
+            ? setting.resolvedPageBackgroundSource
+            : setting.pageBackgroundSource;
+        _pageBackgroundAssetId = setting.pageBackgroundAssetId;
         _cardBackgroundType = setting.cardBackgroundType;
         _cardBackgroundPreset = setting.cardBackgroundPreset;
         _cardBackgroundImageUrl = setting.cardBackgroundImageUrl;
         _cardBackgroundImagePath = setting.cardBackgroundImagePath;
         _cardBackgroundImageFit = setting.cardBackgroundImageFit;
         _cardBackgroundImageFade = setting.cardBackgroundImageFade;
+        _cardDefaultSurfaceMode = setting.cardDefaultSurfaceMode.trim().isEmpty
+            ? DailyCareJournalCardStyle.surfaceSolid
+            : setting.cardDefaultSurfaceMode;
+        _cardDefaultBackgroundAssetId = setting.cardDefaultBackgroundAssetId;
         _journalDisplay = setting.journalDisplay;
         _journalCards = setting.resolvedJournalCards;
         _journalHeader = setting.journalHeader;
@@ -311,10 +320,13 @@ class _DailyCareSettingPageState extends State<DailyCareSettingPage> {
       sessionCount,
     );
     for (int index = 0; index < _daycareLabelControllers.length; index++) {
-      if (labels != null && index < labels.length && labels[index].trim().isNotEmpty) {
+      if (labels != null &&
+          index < labels.length &&
+          labels[index].trim().isNotEmpty) {
         _daycareLabelControllers[index].text = labels[index];
       } else if (_daycareLabelControllers[index].text.trim().isEmpty) {
-        _daycareLabelControllers[index].text = defaults[index < defaults.length ? index : 0];
+        _daycareLabelControllers[index].text =
+            defaults[index < defaults.length ? index : 0];
       }
     }
   }
@@ -354,9 +366,9 @@ class _DailyCareSettingPageState extends State<DailyCareSettingPage> {
     }
     for (int index = 0; index < required; index++) {
       if (labels[index].isEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('住宿第 ${index + 1} 場名稱不可空白')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('住宿第 ${index + 1} 場名稱不可空白')));
         return null;
       }
     }
@@ -369,10 +381,20 @@ class _DailyCareSettingPageState extends State<DailyCareSettingPage> {
       return null;
     }
 
-    String backgroundType = _backgroundType;
-    if (backgroundType == DailyCareJournalTheme.typeImage &&
-        _backgroundImageUrl.trim().isEmpty) {
-      backgroundType = DailyCareJournalTheme.typeSystem;
+    String backgroundType = DailyCareJournalTheme.typeSystem;
+    if (_pageBackgroundSource == DailyCareJournalTheme.pageSourceColor) {
+      backgroundType = DailyCareJournalTheme.typeColor;
+    } else if (_pageBackgroundSource ==
+            DailyCareJournalTheme.pageSourceSystem &&
+        _backgroundType == DailyCareJournalTheme.typeImage &&
+        _pageBackgroundAssetId.isEmpty) {
+      backgroundType = DailyCareJournalTheme.typeImage;
+    }
+
+    String cardBackgroundType = DailyCareJournalTheme.cardTypeSolid;
+    if (_cardDefaultSurfaceMode == DailyCareJournalCardStyle.surfaceSolid &&
+        _cardBackgroundType == DailyCareJournalTheme.cardTypePreset) {
+      cardBackgroundType = DailyCareJournalTheme.cardTypePreset;
     }
 
     return DailyCareSettingModel(
@@ -429,12 +451,16 @@ class _DailyCareSettingPageState extends State<DailyCareSettingPage> {
       backgroundImagePath: _backgroundImagePath,
       backgroundImageFit: _backgroundImageFit,
       backgroundImageFade: _backgroundImageFade,
-      cardBackgroundType: _resolvedCardBackgroundType(),
+      pageBackgroundSource: _pageBackgroundSource,
+      pageBackgroundAssetId: _pageBackgroundAssetId,
+      cardBackgroundType: cardBackgroundType,
       cardBackgroundPreset: _cardBackgroundPreset,
       cardBackgroundImageUrl: _cardBackgroundImageUrl,
       cardBackgroundImagePath: _cardBackgroundImagePath,
       cardBackgroundImageFit: _cardBackgroundImageFit,
       cardBackgroundImageFade: _cardBackgroundImageFade,
+      cardDefaultSurfaceMode: _cardDefaultSurfaceMode,
+      cardDefaultBackgroundAssetId: _cardDefaultBackgroundAssetId,
       journalDisplay: _journalDisplay.copyWith(
         showRoomOrOffer: true,
         showPetNames: true,
@@ -446,25 +472,67 @@ class _DailyCareSettingPageState extends State<DailyCareSettingPage> {
     );
   }
 
-  String _resolvedCardBackgroundType() {
-    if (_cardBackgroundType == DailyCareJournalTheme.cardTypeImage &&
-        _cardBackgroundImageUrl.trim().isEmpty) {
-      return _cardBackgroundPreset == DailyCareJournalTheme.cardPresetNone
-          ? DailyCareJournalTheme.cardTypeSolid
-          : DailyCareJournalTheme.cardTypePreset;
-    }
-    return _cardBackgroundType;
-  }
-
   DailyCareSettingModel _previewSetting() {
     return _draftSetting() ?? _loaded;
+  }
+
+  Future<void> _pickPageAsset() async {
+    final PlatformMediaAsset? asset = await showPlatformMediaAssetPicker(
+      context: context,
+      category: PlatformMediaCategories.dailyCarePage,
+      selectedId: _pageBackgroundAssetId,
+    );
+    if (asset == null) {
+      return;
+    }
+    setState(() {
+      _pageBackgroundSource = DailyCareJournalTheme.pageSourceLibrary;
+      _pageBackgroundAssetId = asset.id;
+      _backgroundType = DailyCareJournalTheme.typeSystem;
+    });
+  }
+
+  Future<void> _pickDefaultCardAsset() async {
+    final PlatformMediaAsset? asset = await showPlatformMediaAssetPicker(
+      context: context,
+      category: PlatformMediaCategories.dailyCareCard,
+      selectedId: _cardDefaultBackgroundAssetId,
+    );
+    if (asset == null) {
+      return;
+    }
+    setState(() {
+      _cardDefaultSurfaceMode = DailyCareJournalCardStyle.surfaceLibrary;
+      _cardDefaultBackgroundAssetId = asset.id;
+      _cardBackgroundType = DailyCareJournalTheme.cardTypeSolid;
+    });
+  }
+
+  Future<void> _pickCardAssetFor(DailyCareJournalCardLayout item) async {
+    final PlatformMediaAsset? asset = await showPlatformMediaAssetPicker(
+      context: context,
+      category: PlatformMediaCategories.dailyCareCard,
+      selectedId: item.backgroundAssetId,
+    );
+    if (asset == null) {
+      return;
+    }
+    setState(() {
+      _patchCard(
+        item.copyWith(
+          surfaceMode: DailyCareJournalCardStyle.surfaceLibrary,
+          backgroundAssetId: asset.id,
+          backgroundSource: DailyCareJournalCardStyle.backgroundFollow,
+        ),
+      );
+    });
   }
 
   Future<bool> _save({
     String successMessage = '每日照護紀錄設定已儲存',
     DailyCareSettingSection section = DailyCareSettingSection.all,
   }) async {
-    if (_saving || _backgroundBusy) return false;
+    if (_saving) return false;
 
     if (_enabled && _enabledFields.isEmpty && _tabIndex == 1) {
       ScaffoldMessenger.of(
@@ -547,7 +615,8 @@ class _DailyCareSettingPageState extends State<DailyCareSettingPage> {
       case DailyCareSettingSection.rules:
         return draft.enabled != _loaded.enabled ||
             draft.sessionCount != _loaded.sessionCount ||
-            draft.sessionLabels.toString() != _loaded.sessionLabels.toString() ||
+            draft.sessionLabels.toString() !=
+                _loaded.sessionLabels.toString() ||
             draft.stayReportMode != _loaded.stayReportMode ||
             draft.stayPaidPlan.toMap().toString() !=
                 _loaded.stayPaidPlan.toMap().toString() ||
@@ -561,12 +630,18 @@ class _DailyCareSettingPageState extends State<DailyCareSettingPage> {
                 _loaded.customFields.map((e) => e.id).join();
       case DailyCareSettingSection.appearance:
         return draft.backgroundType != _loaded.backgroundType ||
+            draft.pageBackgroundSource != _loaded.pageBackgroundSource ||
+            draft.pageBackgroundAssetId != _loaded.pageBackgroundAssetId ||
+            draft.cardDefaultSurfaceMode != _loaded.cardDefaultSurfaceMode ||
+            draft.cardDefaultBackgroundAssetId !=
+                _loaded.cardDefaultBackgroundAssetId ||
             draft.cardBackgroundType != _loaded.cardBackgroundType ||
             draft.logoVisible != _loaded.logoVisible ||
             draft.journalDisplay.toMap().toString() !=
                 _loaded.journalDisplay.toMap().toString() ||
-            DailyCareJournalCardLayout.mapToFirestore(draft.resolvedJournalCards)
-                    .toString() !=
+            DailyCareJournalCardLayout.mapToFirestore(
+                  draft.resolvedJournalCards,
+                ).toString() !=
                 DailyCareJournalCardLayout.mapToFirestore(
                   _loaded.resolvedJournalCards,
                 ).toString();
@@ -656,401 +731,6 @@ class _DailyCareSettingPageState extends State<DailyCareSettingPage> {
       return _save(section: _sectionForTab(_tabIndex));
     }
     return action == 'discard';
-  }
-
-  Future<void> _pickAndUploadBackground() async {
-    if (_saving || _backgroundBusy) {
-      return;
-    }
-
-    final XFile? file = await _imagePicker.pickImage(
-      source: ImageSource.gallery,
-      maxWidth: 1920,
-      maxHeight: 1920,
-      imageQuality: 90,
-    );
-    if (file == null) {
-      return;
-    }
-
-    final String name = file.name.toLowerCase();
-    final bool allowed =
-        name.endsWith('.jpg') ||
-        name.endsWith('.jpeg') ||
-        name.endsWith('.png') ||
-        name.endsWith('.webp');
-    if (!allowed) {
-      _showMessage('請選擇 JPG、PNG 或 WEBP 圖片。');
-      return;
-    }
-
-    final Uint8List bytes = await file.readAsBytes();
-    if (bytes.lengthInBytes > DailyCareBackgroundService.maxImageBytes) {
-      _showMessage('背景圖片不可超過 5 MB，請換一張較小的圖片。');
-      return;
-    }
-
-    setState(() {
-      _backgroundBusy = true;
-    });
-
-    String? uploadedPath;
-    bool firestoreSaved = false;
-    final String oldPath = _backgroundImagePath;
-    final String oldUrl = _backgroundImageUrl;
-    try {
-      final DailyCareBackgroundUpload uploaded =
-          await DailyCareBackgroundService.instance.uploadBytes(
-            shopId: widget.shopId,
-            bytes: bytes,
-            contentType: file.mimeType ?? '',
-          );
-      uploadedPath = uploaded.storagePath;
-
-      setState(() {
-        _backgroundType = DailyCareJournalTheme.typeImage;
-        _backgroundImageUrl = uploaded.downloadUrl;
-        _backgroundImagePath = uploaded.storagePath;
-      });
-
-      final DailyCareSettingModel? setting = _draftSetting();
-      if (setting == null) {
-        await DailyCareBackgroundService.instance.deleteStoredFile(
-          storagePath: uploaded.storagePath,
-        );
-        if (mounted) {
-          setState(() {
-            _backgroundImageUrl = oldUrl;
-            _backgroundImagePath = oldPath;
-          });
-        }
-        return;
-      }
-
-      await DailyCareSettingService.instance.saveSetting(
-        shopId: widget.shopId,
-        setting: setting,
-      );
-      firestoreSaved = true;
-
-      await DailyCareBackgroundService.instance.deleteStoredFile(
-        storagePath: oldPath,
-        downloadUrl: oldUrl,
-      );
-
-      if (!mounted) {
-        return;
-      }
-      _showMessage('背景圖片已更新');
-    } catch (error) {
-      if (!firestoreSaved && uploadedPath != null) {
-        await DailyCareBackgroundService.instance.deleteStoredFile(
-          storagePath: uploadedPath,
-        );
-        if (mounted) {
-          setState(() {
-            _backgroundImageUrl = oldUrl;
-            _backgroundImagePath = oldPath;
-          });
-        }
-      }
-      if (!mounted) {
-        return;
-      }
-      _showMessage('背景圖片上傳失敗，請稍後再試。');
-      debugPrint('每日照護背景上傳失敗：$error');
-    } finally {
-      if (mounted) {
-        setState(() {
-          _backgroundBusy = false;
-        });
-      }
-    }
-  }
-
-  Future<void> _confirmDeleteBackground() async {
-    if (_saving || _backgroundBusy || _backgroundImageUrl.isEmpty) {
-      return;
-    }
-
-    final bool? confirmed = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) {
-        return AlertDialog(
-          title: const Text('刪除背景圖片'),
-          content: const Text('確定刪除自訂背景圖片，並改回系統預設背景嗎？'),
-          actions: <Widget>[
-            TextButton(
-              onPressed: () => Navigator.pop(dialogContext, false),
-              child: const Text('取消'),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.pop(dialogContext, true),
-              child: const Text('刪除'),
-            ),
-          ],
-        );
-      },
-    );
-
-    if (confirmed != true || !mounted) {
-      return;
-    }
-
-    setState(() {
-      _backgroundBusy = true;
-    });
-
-    final String oldPath = _backgroundImagePath;
-    final String oldUrl = _backgroundImageUrl;
-
-    try {
-      setState(() {
-        _backgroundType = DailyCareJournalTheme.typeSystem;
-        _backgroundImageUrl = '';
-        _backgroundImagePath = '';
-      });
-
-      final DailyCareSettingModel? setting = _draftSetting();
-      if (setting == null) {
-        if (mounted) {
-          setState(() {
-            _backgroundType = DailyCareJournalTheme.typeImage;
-            _backgroundImageUrl = oldUrl;
-            _backgroundImagePath = oldPath;
-          });
-        }
-        return;
-      }
-
-      await DailyCareSettingService.instance.saveSetting(
-        shopId: widget.shopId,
-        setting: setting,
-      );
-      await DailyCareBackgroundService.instance.deleteStoredFile(
-        storagePath: oldPath,
-        downloadUrl: oldUrl,
-      );
-
-      if (!mounted) {
-        return;
-      }
-      _showMessage('已改回系統預設背景');
-    } catch (error) {
-      if (!mounted) {
-        return;
-      }
-      _showMessage('刪除背景圖片失敗，請稍後再試。');
-      debugPrint('每日照護背景刪除失敗：$error');
-    } finally {
-      if (mounted) {
-        setState(() {
-          _backgroundBusy = false;
-        });
-      }
-    }
-  }
-
-  Future<void> _pickAndUploadCardBackground() async {
-    if (_saving || _backgroundBusy) {
-      return;
-    }
-
-    final XFile? file = await _imagePicker.pickImage(
-      source: ImageSource.gallery,
-      maxWidth: 1600,
-      maxHeight: 1200,
-      imageQuality: 90,
-    );
-    if (file == null) {
-      return;
-    }
-
-    final String name = file.name.toLowerCase();
-    final bool allowed =
-        name.endsWith('.jpg') ||
-        name.endsWith('.jpeg') ||
-        name.endsWith('.png') ||
-        name.endsWith('.webp');
-    if (!allowed) {
-      _showMessage('請選擇 JPG、PNG 或 WEBP 圖片。');
-      return;
-    }
-
-    final Uint8List bytes = await file.readAsBytes();
-    if (bytes.lengthInBytes > DailyCareBackgroundService.maxImageBytes) {
-      _showMessage('卡片背景圖片不可超過 5 MB，請換一張較小的圖片。');
-      return;
-    }
-
-    setState(() {
-      _backgroundBusy = true;
-    });
-
-    String? uploadedPath;
-    bool firestoreSaved = false;
-    final String oldPath = _cardBackgroundImagePath;
-    final String oldUrl = _cardBackgroundImageUrl;
-    try {
-      final DailyCareBackgroundUpload uploaded =
-          await DailyCareBackgroundService.instance.uploadBytes(
-            shopId: widget.shopId,
-            bytes: bytes,
-            contentType: file.mimeType ?? '',
-            folder: DailyCareBackgroundService.cardFolderPath,
-            filePrefix: 'card_background_',
-          );
-      uploadedPath = uploaded.storagePath;
-
-      setState(() {
-        _cardBackgroundType = DailyCareJournalTheme.cardTypeImage;
-        _cardBackgroundImageUrl = uploaded.downloadUrl;
-        _cardBackgroundImagePath = uploaded.storagePath;
-      });
-
-      final DailyCareSettingModel? setting = _draftSetting();
-      if (setting == null) {
-        await DailyCareBackgroundService.instance.deleteStoredFile(
-          storagePath: uploaded.storagePath,
-        );
-        if (mounted) {
-          setState(() {
-            _cardBackgroundImageUrl = oldUrl;
-            _cardBackgroundImagePath = oldPath;
-          });
-        }
-        return;
-      }
-
-      await DailyCareSettingService.instance.saveSetting(
-        shopId: widget.shopId,
-        setting: setting,
-      );
-      firestoreSaved = true;
-
-      await DailyCareBackgroundService.instance.deleteStoredFile(
-        storagePath: oldPath,
-        downloadUrl: oldUrl,
-      );
-
-      if (!mounted) {
-        return;
-      }
-      _showMessage('卡片背景圖片已更新');
-    } catch (error) {
-      if (!firestoreSaved && uploadedPath != null) {
-        await DailyCareBackgroundService.instance.deleteStoredFile(
-          storagePath: uploadedPath,
-        );
-        if (mounted) {
-          setState(() {
-            _cardBackgroundImageUrl = oldUrl;
-            _cardBackgroundImagePath = oldPath;
-          });
-        }
-      }
-      if (!mounted) {
-        return;
-      }
-      _showMessage('卡片背景圖片上傳失敗，請稍後再試。');
-      debugPrint('每日照護卡片背景上傳失敗：$error');
-    } finally {
-      if (mounted) {
-        setState(() {
-          _backgroundBusy = false;
-        });
-      }
-    }
-  }
-
-  Future<void> _confirmDeleteCardBackground() async {
-    if (_saving || _backgroundBusy || _cardBackgroundImageUrl.isEmpty) {
-      return;
-    }
-
-    final bool? confirmed = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) {
-        return AlertDialog(
-          title: const Text('移除自訂卡片背景'),
-          content: const Text('移除後將恢復使用系統預設卡片樣式，伺服器上的圖片也會一併刪除。'),
-          actions: <Widget>[
-            TextButton(
-              onPressed: () => Navigator.pop(dialogContext, false),
-              child: const Text('取消'),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.pop(dialogContext, true),
-              child: const Text('移除'),
-            ),
-          ],
-        );
-      },
-    );
-
-    if (confirmed != true || !mounted) {
-      return;
-    }
-
-    setState(() {
-      _backgroundBusy = true;
-    });
-
-    final String oldPath = _cardBackgroundImagePath;
-    final String oldUrl = _cardBackgroundImageUrl;
-
-    try {
-      setState(() {
-        _cardBackgroundType = DailyCareJournalTheme.cardTypeSolid;
-        _cardBackgroundPreset = DailyCareJournalTheme.cardPresetNone;
-        _cardBackgroundImageUrl = '';
-        _cardBackgroundImagePath = '';
-      });
-
-      final DailyCareSettingModel? setting = _draftSetting();
-      if (setting == null) {
-        if (mounted) {
-          setState(() {
-            _cardBackgroundType = DailyCareJournalTheme.cardTypeImage;
-            _cardBackgroundImageUrl = oldUrl;
-            _cardBackgroundImagePath = oldPath;
-          });
-        }
-        return;
-      }
-
-      await DailyCareSettingService.instance.saveSetting(
-        shopId: widget.shopId,
-        setting: setting,
-      );
-      await DailyCareBackgroundService.instance.deleteStoredFile(
-        storagePath: oldPath,
-        downloadUrl: oldUrl,
-      );
-
-      if (!mounted) {
-        return;
-      }
-      _showMessage('已恢復純色卡片');
-    } catch (error) {
-      if (!mounted) {
-        return;
-      }
-      _showMessage('移除卡片背景失敗，請稍後再試。');
-      debugPrint('每日照護卡片背景刪除失敗：$error');
-    } finally {
-      if (mounted) {
-        setState(() {
-          _backgroundBusy = false;
-        });
-      }
-    }
-  }
-
-  void _showMessage(String message) {
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text(message)));
   }
 
   Future<void> _showAddCustomFieldDialog(String category) async {
@@ -1224,11 +904,9 @@ class _DailyCareSettingPageState extends State<DailyCareSettingPage> {
                         width: double.infinity,
                         height: 50,
                         child: FilledButton.icon(
-                          onPressed: _saving || _backgroundBusy
+                          onPressed: _saving
                               ? null
-                              : () => _save(
-                                  section: _sectionForTab(_tabIndex),
-                                ),
+                              : () => _save(section: _sectionForTab(_tabIndex)),
                           icon: _saving
                               ? const SizedBox(
                                   width: 18,
@@ -1402,18 +1080,14 @@ class _DailyCareSettingPageState extends State<DailyCareSettingPage> {
       stream: ShopService.instance.streamShop(widget.shopId),
       builder:
           (BuildContext context, AsyncSnapshot<Map<String, dynamic>?> snap) {
-            final String shopName = (snap.data?['name'] ??
-                    snap.data?['shopName'] ??
-                    '')
-                .toString()
-                .trim();
+            final String shopName =
+                (snap.data?['name'] ?? snap.data?['shopName'] ?? '')
+                    .toString()
+                    .trim();
             final String shopLogo = (snap.data?['logoUrl'] ?? '')
                 .toString()
                 .trim();
-            return _desktopPreviewBody(
-              shopName: shopName,
-              shopLogo: shopLogo,
-            );
+            return _desktopPreviewBody(shopName: shopName, shopLogo: shopLogo);
           },
     );
   }
@@ -1545,8 +1219,13 @@ class _DailyCareSettingPageState extends State<DailyCareSettingPage> {
                 _cardGap = 12;
                 _photoRadius = 10;
                 _backgroundType = DailyCareJournalTheme.typeSystem;
+                _pageBackgroundSource = DailyCareJournalTheme.pageSourceSystem;
+                _pageBackgroundAssetId = '';
                 _cardBackgroundType = DailyCareJournalTheme.cardTypeSolid;
                 _cardBackgroundPreset = DailyCareJournalTheme.cardPresetNone;
+                _cardDefaultSurfaceMode =
+                    DailyCareJournalCardStyle.surfaceSolid;
+                _cardDefaultBackgroundAssetId = '';
               });
             },
             child: const Text('還原預設（本機草稿）'),
@@ -1593,7 +1272,7 @@ class _DailyCareSettingPageState extends State<DailyCareSettingPage> {
         ),
         const SizedBox(height: 4),
         const Text(
-          '點卡片展開設定。單卡只能跟隨統一背景或選平台內建，不可上傳。',
+          '點卡片展開設定。每張卡可跟隨預設，或改為單色、透明、霧化或套用圖庫。',
           style: TextStyle(fontSize: 12, color: Colors.black54, height: 1.4),
         ),
         const SizedBox(height: 10),
@@ -1608,16 +1287,16 @@ class _DailyCareSettingPageState extends State<DailyCareSettingPage> {
       ..[item.key] = item;
   }
 
-  Widget _cardLayoutRow(
-    DailyCareJournalCardLayout item,
-    int index,
-    int total,
-  ) {
+  Widget _cardLayoutRow(DailyCareJournalCardLayout item, int index, int total) {
     final bool pinned = item.isPinned;
     final bool expanded = _expandedJournalCardKey == item.key;
-    final String bgLabel = item.followsSharedBackground
-        ? '跟隨統一背景'
-        : '平台內建：${DailyCareJournalTheme.cardPresetByKey(item.backgroundPreset)?.label ?? item.backgroundPreset}';
+    final String bgLabel = DailyCareJournalCardStyle.surfaceLabel(
+      item.resolvedSurfaceMode == DailyCareJournalCardStyle.backgroundPreset
+          ? DailyCareJournalCardStyle.surfaceLibrary
+          : item.surfaceMode.trim().isEmpty
+          ? DailyCareJournalCardStyle.surfaceFollow
+          : item.surfaceMode,
+    );
     final String widthLabel = pinned || item.isHalf ? '半寬' : '滿寬';
     return Container(
       width: double.infinity,
@@ -1737,75 +1416,63 @@ class _DailyCareSettingPageState extends State<DailyCareSettingPage> {
                       ],
                     ),
                   const SizedBox(height: 6),
-                  const Text('背景', style: TextStyle(fontWeight: FontWeight.w700)),
-                  RadioGroup<String>(
-                    groupValue: item.followsSharedBackground
-                        ? DailyCareJournalCardStyle.backgroundFollow
-                        : DailyCareJournalCardStyle.backgroundPreset,
-                    onChanged: (String? value) {
-                      if (value == null) return;
-                      setState(() {
-                        if (value == DailyCareJournalCardStyle.backgroundFollow) {
-                          _patchCard(
-                            item.copyWith(
-                              backgroundSource:
-                                  DailyCareJournalCardStyle.backgroundFollow,
-                            ),
-                          );
-                        } else {
-                          _patchCard(
-                            item.copyWith(
-                              backgroundSource:
-                                  DailyCareJournalCardStyle.backgroundPreset,
-                              backgroundPreset:
-                                  item.backgroundPreset.trim().isEmpty
-                                  ? DailyCareJournalTheme.cardPresetPaw
-                                  : item.backgroundPreset,
-                            ),
-                          );
-                        }
-                      });
-                    },
-                    child: const Column(
-                      children: <Widget>[
-                        RadioListTile<String>(
-                          dense: true,
-                          contentPadding: EdgeInsets.zero,
-                          value: DailyCareJournalCardStyle.backgroundFollow,
-                          title: Text('跟隨統一背景'),
-                        ),
-                        RadioListTile<String>(
-                          dense: true,
-                          contentPadding: EdgeInsets.zero,
-                          value: DailyCareJournalCardStyle.backgroundPreset,
-                          title: Text('使用平台內建背景'),
-                        ),
-                      ],
-                    ),
+                  const Text(
+                    '背景',
+                    style: TextStyle(fontWeight: FontWeight.w700),
                   ),
-                  if (!item.followsSharedBackground)
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: DailyCareJournalTheme.builtInVisuals.map((
-                        DailyCareCardBackgroundPreset preset,
-                      ) {
-                        return _cardPresetChoice(
-                          preset: preset,
-                          selected: item.backgroundPreset == preset.key,
-                          onTap: () {
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: <Widget>[
+                      for (final String mode
+                          in DailyCareJournalCardStyle.surfaceModes)
+                        ChoiceChip(
+                          label: Text(
+                            DailyCareJournalCardStyle.surfaceLabel(mode),
+                          ),
+                          selected:
+                              item.surfaceMode == mode ||
+                              (mode ==
+                                      DailyCareJournalCardStyle.surfaceFollow &&
+                                  item.surfaceMode.trim().isEmpty &&
+                                  item.followsSharedBackground),
+                          onSelected: (_) {
                             setState(() {
                               _patchCard(
                                 item.copyWith(
-                                  backgroundSource:
-                                      DailyCareJournalCardStyle.backgroundPreset,
-                                  backgroundPreset: preset.key,
+                                  surfaceMode: mode,
+                                  backgroundSource: DailyCareJournalCardStyle
+                                      .backgroundFollow,
+                                  backgroundAssetId:
+                                      mode ==
+                                          DailyCareJournalCardStyle
+                                              .surfaceLibrary
+                                      ? item.backgroundAssetId
+                                      : '',
                                 ),
                               );
                             });
+                            if (mode ==
+                                DailyCareJournalCardStyle.surfaceLibrary) {
+                              _pickCardAssetFor(item);
+                            }
                           },
-                        );
-                      }).toList(),
+                        ),
+                    ],
+                  ),
+                  if (item.surfaceMode ==
+                      DailyCareJournalCardStyle.surfaceLibrary)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 8),
+                      child: OutlinedButton.icon(
+                        onPressed: () => _pickCardAssetFor(item),
+                        icon: const Icon(Icons.collections_outlined),
+                        label: Text(
+                          item.backgroundAssetId.isEmpty
+                              ? '選擇圖庫圖片'
+                              : '已選圖庫（${item.backgroundAssetId}）',
+                        ),
+                      ),
                     ),
                   const SizedBox(height: 8),
                   const Text(
@@ -1816,7 +1483,8 @@ class _DailyCareSettingPageState extends State<DailyCareSettingPage> {
                     spacing: 8,
                     runSpacing: 4,
                     children: <Widget>[
-                      for (final String mode in DailyCareJournalCardStyle.inkModes)
+                      for (final String mode
+                          in DailyCareJournalCardStyle.inkModes)
                         ChoiceChip(
                           label: Text(DailyCareJournalCardStyle.inkLabel(mode)),
                           selected: item.inkMode == mode,
@@ -2094,14 +1762,17 @@ class _DailyCareSettingPageState extends State<DailyCareSettingPage> {
         ),
         TextField(
           controller: TextEditingController(text: plan.description)
-            ..selection =
-                TextSelection.collapsed(offset: plan.description.length),
+            ..selection = TextSelection.collapsed(
+              offset: plan.description.length,
+            ),
           decoration: const InputDecoration(labelText: '方案說明'),
           maxLines: 2,
           onChanged: (String value) {
             setState(() {
               if (daycare) {
-                _daycarePaidPlan = _daycarePaidPlan.copyWith(description: value);
+                _daycarePaidPlan = _daycarePaidPlan.copyWith(
+                  description: value,
+                );
               } else {
                 _stayPaidPlan = _stayPaidPlan.copyWith(description: value);
               }
@@ -2136,10 +1807,10 @@ class _DailyCareSettingPageState extends State<DailyCareSettingPage> {
         TextField(
           keyboardType: TextInputType.number,
           controller: TextEditingController(text: '${plan.price}')
-            ..selection = TextSelection.collapsed(offset: '${plan.price}'.length),
-          decoration: InputDecoration(
-            labelText: daycare ? '每筆價格' : '價格',
-          ),
+            ..selection = TextSelection.collapsed(
+              offset: '${plan.price}'.length,
+            ),
+          decoration: InputDecoration(labelText: daycare ? '每筆價格' : '價格'),
           onChanged: (String value) {
             final int price = int.tryParse(value) ?? 0;
             setState(() {
@@ -2153,9 +1824,7 @@ class _DailyCareSettingPageState extends State<DailyCareSettingPage> {
         ),
         DropdownButtonFormField<int>(
           initialValue: plan.reports,
-          decoration: InputDecoration(
-            labelText: daycare ? '每筆回報幾場' : '每日回報幾場',
-          ),
+          decoration: InputDecoration(labelText: daycare ? '每筆回報幾場' : '每日回報幾場'),
           items: const <DropdownMenuItem<int>>[
             DropdownMenuItem<int>(value: 1, child: Text('1 場')),
             DropdownMenuItem<int>(value: 2, child: Text('2 場')),
@@ -2185,125 +1854,133 @@ class _DailyCareSettingPageState extends State<DailyCareSettingPage> {
   Widget _roomTypeQuotaEditor({bool daycare = false}) {
     return FutureBuilder<List<Map<String, dynamic>>>(
       future: ShopRoomService.instance.getRoomTypes(widget.shopId),
-      builder: (BuildContext context, AsyncSnapshot<List<Map<String, dynamic>>> snap) {
-        final List<Map<String, dynamic>> types =
-            snap.data ?? const <Map<String, dynamic>>[];
-        if (types.isEmpty) {
-          return const Padding(
-            padding: EdgeInsets.only(top: 8),
-            child: Text('尚未設定房型'),
-          );
-        }
-        return Column(
-          children: types.map((Map<String, dynamic> type) {
-            final String id = (type['id'] ?? type['roomTypeId'] ?? '').toString();
-            final String name = (type['name'] ?? id).toString();
-            final DailyCareOfferQuota? quota = daycare
-                ? _daycareOfferQuotas[id]
-                : _stayOfferQuotas[id];
-            return ListTile(
-              contentPadding: EdgeInsets.zero,
-              title: Text(name),
-              subtitle: Text(
-                quota == null || !quota.configured
-                    ? '尚未設定場次，下單時無法使用此房型照護回報'
-                    : '每天 ${quota.reports} 場：${quota.resolvedLabels().join('、')}',
-              ),
-              trailing: IconButton(
-                icon: const Icon(Icons.edit_outlined),
-                onPressed: () async {
-                  int reports = quota?.reports ?? 1;
-                  final List<TextEditingController> names =
-                      List<TextEditingController>.generate(
-                    3,
-                    (int index) => TextEditingController(
-                      text: quota != null && index < quota.sessionLabels.length
-                          ? quota.sessionLabels[index]
-                          : '',
-                    ),
-                  );
-                  final bool? ok = await showDialog<bool>(
-                    context: context,
-                    builder: (BuildContext context) {
-                      return AlertDialog(
-                        title: Text('$name 場次'),
-                        content: StatefulBuilder(
-                          builder: (BuildContext context, StateSetter setLocal) {
-                            return Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: <Widget>[
-                                DropdownButtonFormField<int>(
-                                  initialValue: reports,
-                                  decoration: const InputDecoration(
-                                    labelText: '每天回報幾場',
-                                  ),
-                                  items: const <DropdownMenuItem<int>>[
-                                    DropdownMenuItem<int>(
-                                      value: 1,
-                                      child: Text('1 場'),
-                                    ),
-                                    DropdownMenuItem<int>(
-                                      value: 2,
-                                      child: Text('2 場'),
-                                    ),
-                                    DropdownMenuItem<int>(
-                                      value: 3,
-                                      child: Text('3 場'),
-                                    ),
-                                  ],
-                                  onChanged: (int? value) {
-                                    setLocal(() {
-                                      reports = value ?? 1;
-                                    });
+      builder:
+          (
+            BuildContext context,
+            AsyncSnapshot<List<Map<String, dynamic>>> snap,
+          ) {
+            final List<Map<String, dynamic>> types =
+                snap.data ?? const <Map<String, dynamic>>[];
+            if (types.isEmpty) {
+              return const Padding(
+                padding: EdgeInsets.only(top: 8),
+                child: Text('尚未設定房型'),
+              );
+            }
+            return Column(
+              children: types.map((Map<String, dynamic> type) {
+                final String id = (type['id'] ?? type['roomTypeId'] ?? '')
+                    .toString();
+                final String name = (type['name'] ?? id).toString();
+                final DailyCareOfferQuota? quota = daycare
+                    ? _daycareOfferQuotas[id]
+                    : _stayOfferQuotas[id];
+                return ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: Text(name),
+                  subtitle: Text(
+                    quota == null || !quota.configured
+                        ? '尚未設定場次，下單時無法使用此房型照護回報'
+                        : '每天 ${quota.reports} 場：${quota.resolvedLabels().join('、')}',
+                  ),
+                  trailing: IconButton(
+                    icon: const Icon(Icons.edit_outlined),
+                    onPressed: () async {
+                      int reports = quota?.reports ?? 1;
+                      final List<TextEditingController> names =
+                          List<TextEditingController>.generate(
+                            3,
+                            (int index) => TextEditingController(
+                              text:
+                                  quota != null &&
+                                      index < quota.sessionLabels.length
+                                  ? quota.sessionLabels[index]
+                                  : '',
+                            ),
+                          );
+                      final bool? ok = await showDialog<bool>(
+                        context: context,
+                        builder: (BuildContext context) {
+                          return AlertDialog(
+                            title: Text('$name 場次'),
+                            content: StatefulBuilder(
+                              builder:
+                                  (BuildContext context, StateSetter setLocal) {
+                                    return Column(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: <Widget>[
+                                        DropdownButtonFormField<int>(
+                                          initialValue: reports,
+                                          decoration: const InputDecoration(
+                                            labelText: '每天回報幾場',
+                                          ),
+                                          items: const <DropdownMenuItem<int>>[
+                                            DropdownMenuItem<int>(
+                                              value: 1,
+                                              child: Text('1 場'),
+                                            ),
+                                            DropdownMenuItem<int>(
+                                              value: 2,
+                                              child: Text('2 場'),
+                                            ),
+                                            DropdownMenuItem<int>(
+                                              value: 3,
+                                              child: Text('3 場'),
+                                            ),
+                                          ],
+                                          onChanged: (int? value) {
+                                            setLocal(() {
+                                              reports = value ?? 1;
+                                            });
+                                          },
+                                        ),
+                                        for (int i = 0; i < reports; i++)
+                                          TextField(
+                                            controller: names[i],
+                                            decoration: InputDecoration(
+                                              labelText: '第 ${i + 1} 場名稱',
+                                            ),
+                                          ),
+                                      ],
+                                    );
                                   },
-                                ),
-                                for (int i = 0; i < reports; i++)
-                                  TextField(
-                                    controller: names[i],
-                                    decoration: InputDecoration(
-                                      labelText: '第 ${i + 1} 場名稱',
-                                    ),
-                                  ),
-                              ],
-                            );
-                          },
-                        ),
-                        actions: <Widget>[
-                          TextButton(
-                            onPressed: () => Navigator.pop(context, false),
-                            child: const Text('取消'),
-                          ),
-                          FilledButton(
-                            onPressed: () => Navigator.pop(context, true),
-                            child: const Text('套用草稿'),
-                          ),
-                        ],
+                            ),
+                            actions: <Widget>[
+                              TextButton(
+                                onPressed: () => Navigator.pop(context, false),
+                                child: const Text('取消'),
+                              ),
+                              FilledButton(
+                                onPressed: () => Navigator.pop(context, true),
+                                child: const Text('套用草稿'),
+                              ),
+                            ],
+                          );
+                        },
                       );
-                    },
-                  );
-                  if (ok == true) {
-                    setState(() {
-                      final DailyCareOfferQuota next = DailyCareOfferQuota(
-                        configured: true,
-                        reports: reports,
-                        sessionLabels: List<String>.generate(
-                          reports,
-                          (int i) => names[i].text.trim(),
-                        ),
-                      );
-                      if (daycare) {
-                        _daycareOfferQuotas[id] = next;
-                      } else {
-                        _stayOfferQuotas[id] = next;
+                      if (ok == true) {
+                        setState(() {
+                          final DailyCareOfferQuota next = DailyCareOfferQuota(
+                            configured: true,
+                            reports: reports,
+                            sessionLabels: List<String>.generate(
+                              reports,
+                              (int i) => names[i].text.trim(),
+                            ),
+                          );
+                          if (daycare) {
+                            _daycareOfferQuotas[id] = next;
+                          } else {
+                            _stayOfferQuotas[id] = next;
+                          }
+                        });
                       }
-                    });
-                  }
-                },
-              ),
+                    },
+                  ),
+                );
+              }).toList(),
             );
-          }).toList(),
-        );
-      },
+          },
     );
   }
 
@@ -2315,10 +1992,7 @@ class _DailyCareSettingPageState extends State<DailyCareSettingPage> {
         children: <Widget>[
           const Align(
             alignment: Alignment.centerLeft,
-            child: Text(
-              '每筆安親服務於服務當日提供回報。',
-              style: TextStyle(height: 1.4),
-            ),
+            child: Text('每筆安親服務於服務當日提供回報。', style: TextStyle(height: 1.4)),
           ),
           const SizedBox(height: 8),
           SwitchListTile(
@@ -2340,7 +2014,8 @@ class _DailyCareSettingPageState extends State<DailyCareSettingPage> {
             },
             daycare: true,
           ),
-          if (_daycareReportMode == DailyCareReportMode.includedFixed) ...<Widget>[
+          if (_daycareReportMode ==
+              DailyCareReportMode.includedFixed) ...<Widget>[
             DropdownButtonFormField<int>(
               initialValue: _daycareSessionCount,
               decoration: const InputDecoration(labelText: '每筆回報幾場'),
@@ -2444,10 +2119,19 @@ class _DailyCareSettingPageState extends State<DailyCareSettingPage> {
 
   Widget _buildAppearanceCard() {
     final DailyCareSettingModel preview = _previewSetting();
+    final bool legacyPageImage =
+        _pageBackgroundSource != DailyCareJournalTheme.pageSourceLibrary &&
+        _backgroundType == DailyCareJournalTheme.typeImage &&
+        _backgroundImageUrl.trim().isNotEmpty;
+    final bool showPageImageOptions =
+        _pageBackgroundSource == DailyCareJournalTheme.pageSourceLibrary ||
+        legacyPageImage;
+    final bool showCardImageOptions =
+        _cardDefaultSurfaceMode == DailyCareJournalCardStyle.surfaceLibrary;
 
     return _SettingCard(
       title: '日誌外觀設定',
-      subtitle: '選擇客戶每日照護日誌的背景。顏色使用系統色卡，不必自行輸入色碼。',
+      subtitle: '整頁、卡片預設與單卡外觀分開設定。背景圖只能從平台圖庫套用。',
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
@@ -2457,7 +2141,7 @@ class _DailyCareSettingPageState extends State<DailyCareSettingPage> {
           ),
           const SizedBox(height: 4),
           const Text(
-            '客戶日誌整頁底色或背景圖片，與卡片背景分開設定。',
+            '選項：系統預設、內建單色、套用圖庫。',
             style: TextStyle(fontSize: 12, color: Colors.black54, height: 1.4),
           ),
           const SizedBox(height: 10),
@@ -2466,23 +2150,31 @@ class _DailyCareSettingPageState extends State<DailyCareSettingPage> {
             runSpacing: 8,
             children: <Widget>[
               _appearanceChoice(
-                selected: _backgroundType == DailyCareJournalTheme.typeSystem,
+                selected:
+                    _pageBackgroundSource ==
+                    DailyCareJournalTheme.pageSourceSystem,
                 label: '系統預設',
                 color: const Color(0xFFF5F6F8),
                 onTap: () {
                   setState(() {
+                    _pageBackgroundSource =
+                        DailyCareJournalTheme.pageSourceSystem;
                     _backgroundType = DailyCareJournalTheme.typeSystem;
+                    _pageBackgroundAssetId = '';
                   });
                 },
               ),
               _appearanceChoice(
                 selected:
-                    _backgroundType == DailyCareJournalTheme.typeColor &&
+                    _pageBackgroundSource ==
+                        DailyCareJournalTheme.pageSourceColor &&
                     _backgroundColorKey == DailyCareJournalTheme.colorWarm,
                 label: '暖米色',
                 color: const Color(0xFFF6EFE4),
                 onTap: () {
                   setState(() {
+                    _pageBackgroundSource =
+                        DailyCareJournalTheme.pageSourceColor;
                     _backgroundType = DailyCareJournalTheme.typeColor;
                     _backgroundColorKey = DailyCareJournalTheme.colorWarm;
                   });
@@ -2490,12 +2182,15 @@ class _DailyCareSettingPageState extends State<DailyCareSettingPage> {
               ),
               _appearanceChoice(
                 selected:
-                    _backgroundType == DailyCareJournalTheme.typeColor &&
+                    _pageBackgroundSource ==
+                        DailyCareJournalTheme.pageSourceColor &&
                     _backgroundColorKey == DailyCareJournalTheme.colorBlue,
                 label: '淡藍色',
                 color: const Color(0xFFE8F1F8),
                 onTap: () {
                   setState(() {
+                    _pageBackgroundSource =
+                        DailyCareJournalTheme.pageSourceColor;
                     _backgroundType = DailyCareJournalTheme.typeColor;
                     _backgroundColorKey = DailyCareJournalTheme.colorBlue;
                   });
@@ -2503,12 +2198,15 @@ class _DailyCareSettingPageState extends State<DailyCareSettingPage> {
               ),
               _appearanceChoice(
                 selected:
-                    _backgroundType == DailyCareJournalTheme.typeColor &&
+                    _pageBackgroundSource ==
+                        DailyCareJournalTheme.pageSourceColor &&
                     _backgroundColorKey == DailyCareJournalTheme.colorPink,
                 label: '淡粉色',
                 color: const Color(0xFFF8E9EE),
                 onTap: () {
                   setState(() {
+                    _pageBackgroundSource =
+                        DailyCareJournalTheme.pageSourceColor;
                     _backgroundType = DailyCareJournalTheme.typeColor;
                     _backgroundColorKey = DailyCareJournalTheme.colorPink;
                   });
@@ -2516,73 +2214,53 @@ class _DailyCareSettingPageState extends State<DailyCareSettingPage> {
               ),
               _appearanceChoice(
                 selected:
-                    _backgroundType == DailyCareJournalTheme.typeColor &&
+                    _pageBackgroundSource ==
+                        DailyCareJournalTheme.pageSourceColor &&
                     _backgroundColorKey == DailyCareJournalTheme.colorGreen,
                 label: '淡綠色',
                 color: const Color(0xFFE8F3EA),
                 onTap: () {
                   setState(() {
+                    _pageBackgroundSource =
+                        DailyCareJournalTheme.pageSourceColor;
                     _backgroundType = DailyCareJournalTheme.typeColor;
                     _backgroundColorKey = DailyCareJournalTheme.colorGreen;
                   });
                 },
               ),
               _appearanceChoice(
-                selected: _backgroundType == DailyCareJournalTheme.typeImage,
-                label: '自訂圖片',
+                selected:
+                    _pageBackgroundSource ==
+                    DailyCareJournalTheme.pageSourceLibrary,
+                label: '套用圖庫',
                 color: const Color(0xFFEDE7F6),
                 onTap: () {
                   setState(() {
-                    _backgroundType = DailyCareJournalTheme.typeImage;
+                    _pageBackgroundSource =
+                        DailyCareJournalTheme.pageSourceLibrary;
+                    _backgroundType = DailyCareJournalTheme.typeSystem;
                   });
+                  _pickPageAsset();
                 },
               ),
             ],
           ),
-          if (_backgroundType == DailyCareJournalTheme.typeImage) ...<Widget>[
-            const SizedBox(height: 14),
-            const Text(
-              '建議直式 9:16，1080 × 1920。最低 720 × 1280，最大 5 MB，支援 JPG／PNG／WEBP。',
-              style: TextStyle(
-                fontSize: 12,
-                color: Colors.black54,
-                height: 1.4,
+          if (legacyPageImage)
+            const Padding(
+              padding: EdgeInsets.only(top: 8),
+              child: Text(
+                '目前仍使用舊版店家背景圖。選擇上方選項後，會改用系統預設、單色或平台圖庫。',
+                style: TextStyle(fontSize: 12, color: Color(0xFFB45309)),
               ),
             ),
+          if (showPageImageOptions) ...<Widget>[
             const SizedBox(height: 10),
-            Row(
-              children: <Widget>[
-                Expanded(
-                  child: FilledButton.icon(
-                    onPressed: _backgroundBusy || _saving
-                        ? null
-                        : _pickAndUploadBackground,
-                    icon: _backgroundBusy
-                        ? const SizedBox(
-                            width: 16,
-                            height: 16,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Icon(Icons.upload_outlined),
-                    label: Text(
-                      _backgroundBusy
-                          ? '處理中...'
-                          : _backgroundImageUrl.isEmpty
-                          ? '上傳背景圖片'
-                          : '更換背景圖片',
-                    ),
-                  ),
-                ),
-                if (_backgroundImageUrl.isNotEmpty) ...<Widget>[
-                  const SizedBox(width: 8),
-                  OutlinedButton(
-                    onPressed: _backgroundBusy || _saving
-                        ? null
-                        : _confirmDeleteBackground,
-                    child: const Text('刪除'),
-                  ),
-                ],
-              ],
+            OutlinedButton.icon(
+              onPressed: _pickPageAsset,
+              icon: const Icon(Icons.collections_outlined),
+              label: Text(
+                _pageBackgroundAssetId.isEmpty ? '選擇圖庫圖片' : '重新選擇圖庫圖片',
+              ),
             ),
             const SizedBox(height: 12),
             const Text('圖片顯示方式', style: TextStyle(fontWeight: FontWeight.w700)),
@@ -2646,235 +2324,120 @@ class _DailyCareSettingPageState extends State<DailyCareSettingPage> {
           ],
           const SizedBox(height: 20),
           const Text(
-            '統一內容卡片背景',
+            '卡片預設外觀',
             style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800),
           ),
           const SizedBox(height: 4),
           const Text(
-            '所有照護內容卡的預設背景。店家自訂只能上傳一張圖，全部卡片共用。',
+            '所有照護內容卡的預設背景。單色使用現有色卡。',
             style: TextStyle(fontSize: 12, color: Colors.black54, height: 1.4),
           ),
           const SizedBox(height: 10),
-          RadioGroup<String>(
-            groupValue: _cardBackgroundType == DailyCareJournalTheme.cardTypeImage
-                ? DailyCareJournalTheme.cardTypeImage
-                : (_cardBackgroundType == DailyCareJournalTheme.cardTypePreset
-                    ? DailyCareJournalTheme.cardTypePreset
-                    : DailyCareJournalTheme.cardTypeSolid),
-            onChanged: (String? value) {
-              if (value == null) return;
-              setState(() {
-                if (value == DailyCareJournalTheme.cardTypeSolid) {
-                  _cardBackgroundType = DailyCareJournalTheme.cardTypeSolid;
-                } else if (value == DailyCareJournalTheme.cardTypeImage) {
-                  _cardBackgroundType = DailyCareJournalTheme.cardTypeImage;
-                } else {
-                  _cardBackgroundType = DailyCareJournalTheme.cardTypePreset;
-                  if (_cardBackgroundPreset ==
-                      DailyCareJournalTheme.cardPresetNone) {
-                    _cardBackgroundPreset = DailyCareJournalTheme.cardPresetPaw;
-                  }
-                }
-              });
-            },
-            child: const Column(
-              children: <Widget>[
-                RadioListTile<String>(
-                  dense: true,
-                  contentPadding: EdgeInsets.zero,
-                  value: DailyCareJournalTheme.cardTypeSolid,
-                  title: Text('純色卡片'),
-                ),
-                RadioListTile<String>(
-                  dense: true,
-                  contentPadding: EdgeInsets.zero,
-                  value: DailyCareJournalTheme.cardTypePreset,
-                  title: Text('平台內建背景'),
-                ),
-                RadioListTile<String>(
-                  dense: true,
-                  contentPadding: EdgeInsets.zero,
-                  value: DailyCareJournalTheme.cardTypeImage,
-                  title: Text('店家自訂背景'),
-                ),
-              ],
-            ),
-          ),
-          if (_cardBackgroundType == DailyCareJournalTheme.cardTypePreset) ...<Widget>[
-            const SizedBox(height: 8),
-            const Text('平台內建背景', style: TextStyle(fontWeight: FontWeight.w700)),
-            const SizedBox(height: 8),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: DailyCareJournalTheme.builtInVisuals.map((
-                DailyCareCardBackgroundPreset preset,
-              ) {
-                final bool selected = _cardBackgroundPreset == preset.key;
-                return _cardPresetChoice(
-                  preset: preset,
-                  selected: selected,
-                  onTap: () {
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: <Widget>[
+              for (final String mode in <String>[
+                DailyCareJournalCardStyle.surfaceSolid,
+                DailyCareJournalCardStyle.surfaceTransparent,
+                DailyCareJournalCardStyle.surfaceFrosted,
+                DailyCareJournalCardStyle.surfaceLibrary,
+              ])
+                ChoiceChip(
+                  label: Text(DailyCareJournalCardStyle.surfaceLabel(mode)),
+                  selected: _cardDefaultSurfaceMode == mode,
+                  onSelected: (_) {
                     setState(() {
-                      _cardBackgroundType =
-                          DailyCareJournalTheme.cardTypePreset;
-                      _cardBackgroundPreset = preset.key;
+                      _cardDefaultSurfaceMode = mode;
+                      if (mode != DailyCareJournalCardStyle.surfaceLibrary) {
+                        _cardBackgroundType =
+                            DailyCareJournalTheme.cardTypeSolid;
+                      }
                     });
+                    if (mode == DailyCareJournalCardStyle.surfaceLibrary) {
+                      _pickDefaultCardAsset();
+                    }
                   },
-                );
-              }).toList(),
+                ),
+            ],
+          ),
+          if (showCardImageOptions) ...<Widget>[
+            const SizedBox(height: 10),
+            OutlinedButton.icon(
+              onPressed: _pickDefaultCardAsset,
+              icon: const Icon(Icons.collections_outlined),
+              label: Text(
+                _cardDefaultBackgroundAssetId.isEmpty
+                    ? '選擇卡片圖庫圖片'
+                    : '重新選擇卡片圖庫圖片',
+              ),
             ),
-          ],
-          if (_cardBackgroundType == DailyCareJournalTheme.cardTypeImage) ...<Widget>[
             const SizedBox(height: 12),
             const Text(
-              '店家自訂背景',
+              '卡片圖片顯示方式',
               style: TextStyle(fontWeight: FontWeight.w700),
             ),
-            const Text(
-              '建議比例 4:3 或 3:2，1200 × 800。最低 900 × 600，最大 5 MB，支援 JPG／PNG／WEBP。',
-              style: TextStyle(
-                fontSize: 12,
-                color: Colors.black54,
-                height: 1.4,
-              ),
-            ),
-            const SizedBox(height: 10),
-            Row(
-              children: <Widget>[
-                Expanded(
-                  child: FilledButton.icon(
-                    onPressed: _backgroundBusy || _saving
-                        ? null
-                        : _pickAndUploadCardBackground,
-                    icon: _backgroundBusy
-                        ? const SizedBox(
-                            width: 16,
-                            height: 16,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Icon(Icons.upload_outlined),
-                    label: Text(
-                      _backgroundBusy
-                          ? '處理中...'
-                          : _cardBackgroundImageUrl.isEmpty
-                          ? '上傳自己的卡片背景'
-                          : '更換卡片背景',
-                    ),
+            RadioGroup<String>(
+              groupValue: _cardBackgroundImageFit,
+              onChanged: (String? value) {
+                if (value == null) return;
+                setState(() {
+                  _cardBackgroundImageFit = value;
+                });
+              },
+              child: const Column(
+                children: <Widget>[
+                  RadioListTile<String>(
+                    dense: true,
+                    contentPadding: EdgeInsets.zero,
+                    value: DailyCareJournalTheme.fitCover,
+                    title: Text('填滿卡片'),
                   ),
-                ),
-                if (_cardBackgroundImageUrl.isNotEmpty) ...<Widget>[
-                  const SizedBox(width: 8),
-                  OutlinedButton(
-                    onPressed: _backgroundBusy || _saving
-                        ? null
-                        : _confirmDeleteCardBackground,
-                    child: const Text('移除'),
+                  RadioListTile<String>(
+                    dense: true,
+                    contentPadding: EdgeInsets.zero,
+                    value: DailyCareJournalTheme.fitContain,
+                    title: Text('完整顯示'),
                   ),
                 ],
-              ],
+              ),
             ),
-            if (_cardBackgroundImageUrl.isNotEmpty) ...<Widget>[
-              const SizedBox(height: 8),
-              InkWell(
-                onTap: () {
-                  setState(() {
-                    _cardBackgroundType = DailyCareJournalTheme.cardTypeImage;
-                  });
-                },
-                child: Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(
-                      color:
-                          _cardBackgroundType ==
-                              DailyCareJournalTheme.cardTypeImage
-                          ? const Color(0xFF3D6F9F)
-                          : Colors.black12,
-                      width:
-                          _cardBackgroundType ==
-                              DailyCareJournalTheme.cardTypeImage
-                          ? 2
-                          : 1,
-                    ),
+            const Text(
+              '卡片圖片淡化程度',
+              style: TextStyle(fontWeight: FontWeight.w700),
+            ),
+            RadioGroup<String>(
+              groupValue: _cardBackgroundImageFade,
+              onChanged: (String? value) {
+                if (value == null) return;
+                setState(() {
+                  _cardBackgroundImageFade = value;
+                });
+              },
+              child: const Column(
+                children: <Widget>[
+                  RadioListTile<String>(
+                    dense: true,
+                    contentPadding: EdgeInsets.zero,
+                    value: DailyCareJournalTheme.fadeNone,
+                    title: Text('原圖'),
                   ),
-                  child: const Text(
-                    '目前使用店家自訂卡片背景',
-                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+                  RadioListTile<String>(
+                    dense: true,
+                    contentPadding: EdgeInsets.zero,
+                    value: DailyCareJournalTheme.fadeLight,
+                    title: Text('淡化'),
                   ),
-                ),
+                  RadioListTile<String>(
+                    dense: true,
+                    contentPadding: EdgeInsets.zero,
+                    value: DailyCareJournalTheme.fadeHeavy,
+                    title: Text('很淡'),
+                  ),
+                ],
               ),
-            ],
+            ),
           ],
-          if (preview.hasCardBackgroundVisual) ...<Widget>[
-              const SizedBox(height: 12),
-              const Text(
-                '卡片圖片顯示方式',
-                style: TextStyle(fontWeight: FontWeight.w700),
-              ),
-              RadioGroup<String>(
-                groupValue: _cardBackgroundImageFit,
-                onChanged: (String? value) {
-                  if (value == null) return;
-                  setState(() {
-                    _cardBackgroundImageFit = value;
-                  });
-                },
-                child: const Column(
-                  children: <Widget>[
-                    RadioListTile<String>(
-                      dense: true,
-                      contentPadding: EdgeInsets.zero,
-                      value: DailyCareJournalTheme.fitCover,
-                      title: Text('填滿卡片'),
-                    ),
-                    RadioListTile<String>(
-                      dense: true,
-                      contentPadding: EdgeInsets.zero,
-                      value: DailyCareJournalTheme.fitContain,
-                      title: Text('完整顯示'),
-                    ),
-                  ],
-                ),
-              ),
-              const Text(
-                '卡片圖片淡化程度',
-                style: TextStyle(fontWeight: FontWeight.w700),
-              ),
-              RadioGroup<String>(
-                groupValue: _cardBackgroundImageFade,
-                onChanged: (String? value) {
-                  if (value == null) return;
-                  setState(() {
-                    _cardBackgroundImageFade = value;
-                  });
-                },
-                child: const Column(
-                  children: <Widget>[
-                    RadioListTile<String>(
-                      dense: true,
-                      contentPadding: EdgeInsets.zero,
-                      value: DailyCareJournalTheme.fadeNone,
-                      title: Text('原圖'),
-                    ),
-                    RadioListTile<String>(
-                      dense: true,
-                      contentPadding: EdgeInsets.zero,
-                      value: DailyCareJournalTheme.fadeLight,
-                      title: Text('淡化'),
-                    ),
-                    RadioListTile<String>(
-                      dense: true,
-                      contentPadding: EdgeInsets.zero,
-                      value: DailyCareJournalTheme.fadeHeavy,
-                      title: Text('很淡'),
-                    ),
-                  ],
-                ),
-              ),
-            ],
           const SizedBox(height: 16),
           _headerAppearanceCard(preview),
           const SizedBox(height: 16),
@@ -3090,72 +2653,6 @@ class _DailyCareSettingPageState extends State<DailyCareSettingPage> {
     );
   }
 
-  Widget _cardPresetChoice({
-    required DailyCareCardBackgroundPreset preset,
-    required bool selected,
-    required VoidCallback onTap,
-  }) {
-    return InkWell(
-      borderRadius: BorderRadius.circular(12),
-      onTap: onTap,
-      child: Container(
-        width: 96,
-        padding: const EdgeInsets.fromLTRB(8, 8, 8, 6),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: selected ? const Color(0xFF3D6F9F) : Colors.black12,
-            width: selected ? 2 : 1,
-          ),
-        ),
-        child: Column(
-          children: <Widget>[
-            ClipRRect(
-              borderRadius: BorderRadius.circular(8),
-              child: SizedBox(
-                height: 40,
-                width: double.infinity,
-                child: Stack(
-                  fit: StackFit.expand,
-                  children: <Widget>[
-                    const ColoredBox(color: Color(0xFFF7F7F7)),
-                    if (preset.hasAsset)
-                      Image.asset(
-                        preset.assetPath,
-                        fit: BoxFit.cover,
-                        errorBuilder:
-                            (
-                              BuildContext context,
-                              Object error,
-                              StackTrace? stackTrace,
-                            ) {
-                          return CustomPaint(
-                            painter: DailyCareCardPresetPainter(
-                              presetKey: preset.key,
-                            ),
-                          );
-                        },
-                      ),
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(height: 6),
-            Text(
-              preset.label,
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
   Widget _buildFieldCategory({
     required String title,
     required String category,
@@ -3229,22 +2726,22 @@ class _DailyCareSettingPageState extends State<DailyCareSettingPage> {
           if (allowCustom)
             for (final DailyCareCustomField field in customFields)
               ListTile(
-              contentPadding: EdgeInsets.zero,
-              leading: const Icon(Icons.extension_outlined, size: 20),
-              title: Text(field.label),
-              subtitle: _formatHint(field.inputType),
-              trailing: IconButton(
-                tooltip: '刪除自訂項目',
-                icon: const Icon(Icons.delete_outline, color: Colors.red),
-                onPressed: () {
-                  setState(() {
-                    _customFields.removeWhere(
-                      (DailyCareCustomField item) => item.id == field.id,
-                    );
-                  });
-                },
+                contentPadding: EdgeInsets.zero,
+                leading: const Icon(Icons.extension_outlined, size: 20),
+                title: Text(field.label),
+                subtitle: _formatHint(field.inputType),
+                trailing: IconButton(
+                  tooltip: '刪除自訂項目',
+                  icon: const Icon(Icons.delete_outline, color: Colors.red),
+                  onPressed: () {
+                    setState(() {
+                      _customFields.removeWhere(
+                        (DailyCareCustomField item) => item.id == field.id,
+                      );
+                    });
+                  },
+                ),
               ),
-            ),
         ],
       ),
     );

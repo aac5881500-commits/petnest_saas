@@ -12,6 +12,7 @@ import '../models/daily_care_setting_model.dart';
 import '../models/daily_care_stay_info.dart';
 import 'daily_care_card_surface.dart';
 import 'daily_care_illustrations.dart';
+import 'platform_media_library_scope.dart';
 
 class DailyCareJournalThemeTokens {
   DailyCareJournalThemeTokens._();
@@ -78,47 +79,49 @@ class DailyCareJournalScaffold extends StatelessWidget {
         DailyCareJournalThemeTokens.systemOverlay;
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: overlay,
-      child: Scaffold(
-        extendBodyBehindAppBar: true,
-        backgroundColor: setting.resolvedPageColor(),
-        appBar: AppBar(
-          systemOverlayStyle: overlay,
-          centerTitle: true,
-          leading: leading,
-          title: Text(
-            shopName.trim(),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
-              color: ink,
-              fontWeight: FontWeight.w700,
-              fontSize: 18,
+      child: PlatformMediaLibraryScope(
+        child: Scaffold(
+          extendBodyBehindAppBar: true,
+          backgroundColor: setting.resolvedPageColor(),
+          appBar: AppBar(
+            systemOverlayStyle: overlay,
+            centerTitle: true,
+            leading: leading,
+            title: Text(
+              shopName.trim(),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                color: ink,
+                fontWeight: FontWeight.w700,
+                fontSize: 18,
+              ),
+            ),
+            backgroundColor: cream.withValues(alpha: 0.88),
+            foregroundColor: ink,
+            surfaceTintColor: Colors.transparent,
+            elevation: 0,
+            scrolledUnderElevation: 0,
+            iconTheme: const IconThemeData(
+              color: DailyCareJournalThemeTokens.primary,
             ),
           ),
-          backgroundColor: cream.withValues(alpha: 0.88),
-          foregroundColor: ink,
-          surfaceTintColor: Colors.transparent,
-          elevation: 0,
-          scrolledUnderElevation: 0,
-          iconTheme: const IconThemeData(
-            color: DailyCareJournalThemeTokens.primary,
+          body: Stack(
+            children: <Widget>[
+              Positioned.fill(
+                child: DailyCareJournalPageBackground(setting: setting),
+              ),
+              Column(
+                children: <Widget>[
+                  SizedBox(
+                    height: MediaQuery.paddingOf(context).top + kToolbarHeight,
+                  ),
+                  ?banner,
+                  Expanded(child: body),
+                ],
+              ),
+            ],
           ),
-        ),
-        body: Stack(
-          children: <Widget>[
-            Positioned.fill(
-              child: DailyCareJournalPageBackground(setting: setting),
-            ),
-            Column(
-              children: <Widget>[
-                SizedBox(
-                  height: MediaQuery.paddingOf(context).top + kToolbarHeight,
-                ),
-                ?banner,
-                Expanded(child: body),
-              ],
-            ),
-          ],
         ),
       ),
     );
@@ -326,10 +329,10 @@ class DailyCareJournalRenderer extends StatelessWidget {
     required Widget child,
     EdgeInsetsGeometry padding = const EdgeInsets.fromLTRB(10, 8, 10, 8),
   }) {
-    if (setting.journalHeader.useCardBackground &&
-        setting.hasCardBackgroundVisual) {
+    if (setting.journalHeader.useCardBackground) {
       return DailyCareCardSurface(
         setting: setting,
+        layout: setting.journalHeader.asInkLayout,
         padding: padding,
         child: child,
       );

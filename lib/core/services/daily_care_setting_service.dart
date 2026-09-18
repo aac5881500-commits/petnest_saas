@@ -122,10 +122,7 @@ class DailyCareSettingSaveException implements Exception {
     if (combined.contains('converted future') ||
         combined.contains('javascriptobject') ||
         combined.contains('dart exception thrown')) {
-      return const DailyCareSettingSaveException(
-        '儲存失敗，請稍後再試',
-        code: 'unknown',
-      );
+      return const DailyCareSettingSaveException('儲存失敗，請稍後再試', code: 'unknown');
     }
     if (rawMessage.isNotEmpty) {
       return DailyCareSettingSaveException(rawMessage, code: code);
@@ -160,9 +157,7 @@ class DailyCareSettingFirestoreValue {
     return <String, dynamic>{};
   }
 
-  static const List<String> _removedSettingKeys = <String>[
-    'welcomeText',
-  ];
+  static const List<String> _removedSettingKeys = <String>['welcomeText'];
 
   static const List<String> _removedDisplayKeys = <String>[
     'showRoomOrOffer',
@@ -172,16 +167,16 @@ class DailyCareSettingFirestoreValue {
   ];
 
   static Map<String, dynamic> payloadForWrite(DailyCareSettingModel setting) {
-    final Map<String, dynamic> payload = sanitizeMap(setting.toMap());
+    final DailyCareSettingModel safe = setting.forShopWrite();
+    final Map<String, dynamic> payload = sanitizeMap(safe.toMap());
     for (final String key in _removedSettingKeys) {
-      payload[key] = FieldValue.delete();
+      payload.remove(key);
     }
     final Map<String, dynamic> display = payload['journalDisplay'] is Map
         ? Map<String, dynamic>.from(payload['journalDisplay'] as Map)
         : <String, dynamic>{};
     for (final String key in _removedDisplayKeys) {
       display.remove(key);
-      display[key] = FieldValue.delete();
     }
     payload['journalDisplay'] = display;
     return payload;
@@ -207,10 +202,7 @@ class DailyCareSettingFirestoreValue {
       return Timestamp.fromDate(value);
     }
     if (value is Iterable) {
-      return value
-          .map(sanitize)
-          .where((Object? item) => item != null)
-          .toList();
+      return value.map(sanitize).where((Object? item) => item != null).toList();
     }
     if (value is Map) {
       final Map<String, dynamic> out = <String, dynamic>{};
@@ -345,6 +337,17 @@ class DailyCareSettingService {
         final Map<String, dynamic> payload =
             DailyCareSettingFirestoreValue.payloadForWrite(next);
         payload['revision'] = currentRevision + 1;
+        if (kDebugMode) {
+          debugPrint('DailyCareSetting write shopId=$normalizedShopId');
+          debugPrint('section=$section revision=$currentRevision');
+          debugPrint(
+            'pageBackgroundSource=${next.pageBackgroundSource} pageBackgroundAssetId=${next.pageBackgroundAssetId}',
+          );
+          debugPrint(
+            'cardDefaultSurfaceMode=${next.cardDefaultSurfaceMode} cardDefaultBackgroundAssetId=${next.cardDefaultBackgroundAssetId}',
+          );
+          debugPrint('writeFields=${payload.keys.toList()}');
+        }
         transaction.set(_shopReference(normalizedShopId), <String, dynamic>{
           'dailyCareSetting': payload,
           'updatedAt': FieldValue.serverTimestamp(),
@@ -352,7 +355,10 @@ class DailyCareSettingService {
       });
     } catch (error, stack) {
       DailyCareSaveErrorProbe.debugLog(
-        'DailyCareSetting save failed',
+        'DailyCareSetting save failed shopId=$normalizedShopId '
+        'pageBackgroundAssetId=${setting.pageBackgroundAssetId} '
+        'cardDefaultBackgroundAssetId=${setting.cardDefaultBackgroundAssetId} '
+        'writeFields=${setting.toMap().keys.toList()}',
         error,
         stack,
       );
@@ -417,6 +423,10 @@ class DailyCareSettingService {
           cardBackgroundImagePath: incoming.cardBackgroundImagePath,
           cardBackgroundImageFit: incoming.cardBackgroundImageFit,
           cardBackgroundImageFade: incoming.cardBackgroundImageFade,
+          pageBackgroundSource: incoming.pageBackgroundSource,
+          pageBackgroundAssetId: incoming.pageBackgroundAssetId,
+          cardDefaultSurfaceMode: incoming.cardDefaultSurfaceMode,
+          cardDefaultBackgroundAssetId: incoming.cardDefaultBackgroundAssetId,
           journalDisplay: incoming.journalDisplay,
           journalCards: incoming.journalCards,
           journalHeader: incoming.journalHeader,

@@ -11,6 +11,7 @@ import 'package:petnest_saas/core/services/shop_service.dart';
 import 'package:petnest_saas/core/services/storefront_access.dart';
 import 'package:petnest_saas/features/shop/pages/shop_booking_entry_page.dart';
 import 'package:petnest_saas/features/shop/pages/shop_dashboard_page.dart';
+import 'package:petnest_saas/features/shop/widgets/shop_dashboard_embedded_scope.dart';
 import 'package:petnest_saas/features/shop/pages/shop_policy_view_page.dart';
 import 'package:petnest_saas/features/shop/pages/shop_public_page.dart';
 import 'package:petnest_saas/features/booking/pages/my_bookings_page.dart';
@@ -462,6 +463,11 @@ class ModernAppDrawer extends StatelessWidget {
                                   icon: Icons.desktop_windows,
                                   title: '回後台',
                                   onTap: () {
+                                    if (ShopDashboardEmbeddedScope.tryExitToDashboard(
+                                      context,
+                                    )) {
+                                      return;
+                                    }
                                     Navigator.pushAndRemoveUntil(
                                       context,
                                       MaterialPageRoute(

@@ -63,10 +63,40 @@ class DailyCareJournalCardStyle {
   static const String backgroundFollow = 'follow';
   static const String backgroundPreset = 'preset';
 
+  static const String surfaceFollow = 'follow';
+  static const String surfaceSolid = 'solid';
+  static const String surfaceTransparent = 'transparent';
+  static const String surfaceFrosted = 'frosted';
+  static const String surfaceLibrary = 'library';
+
   static const List<String> backgroundSources = <String>[
     backgroundFollow,
     backgroundPreset,
   ];
+
+  static const List<String> surfaceModes = <String>[
+    surfaceFollow,
+    surfaceSolid,
+    surfaceTransparent,
+    surfaceFrosted,
+    surfaceLibrary,
+  ];
+
+  static String surfaceLabel(String key) {
+    switch (key) {
+      case surfaceSolid:
+        return '單色卡片';
+      case surfaceTransparent:
+        return '透明卡片';
+      case surfaceFrosted:
+        return '霧化玻璃';
+      case surfaceLibrary:
+        return '套用圖庫';
+      case surfaceFollow:
+      default:
+        return '跟隨卡片預設';
+    }
+  }
 
   static const List<String> inkModes = <String>[
     inkAuto,
@@ -140,6 +170,8 @@ class DailyCareJournalCardLayout {
     this.inkColorArgb = 0,
     this.backgroundSource = DailyCareJournalCardStyle.backgroundFollow,
     this.backgroundPreset = '',
+    this.surfaceMode = DailyCareJournalCardStyle.surfaceFollow,
+    this.backgroundAssetId = '',
   });
 
   final String key;
@@ -151,11 +183,31 @@ class DailyCareJournalCardLayout {
   final int inkColorArgb;
   final String backgroundSource;
   final String backgroundPreset;
+  final String surfaceMode;
+  final String backgroundAssetId;
 
   bool get isHalf => width == DailyCareJournalCardStyle.widthHalf;
-  bool get followsSharedBackground =>
-      backgroundSource != DailyCareJournalCardStyle.backgroundPreset ||
-      backgroundPreset.trim().isEmpty;
+  bool get followsSharedBackground {
+    final String mode = resolvedSurfaceMode;
+    if (mode != DailyCareJournalCardStyle.surfaceFollow) {
+      return false;
+    }
+    return backgroundSource != DailyCareJournalCardStyle.backgroundPreset ||
+        backgroundPreset.trim().isEmpty;
+  }
+
+  String get resolvedSurfaceMode {
+    if (DailyCareJournalCardStyle.surfaceModes.contains(surfaceMode) &&
+        surfaceMode != DailyCareJournalCardStyle.surfaceFollow) {
+      return surfaceMode;
+    }
+    if (backgroundSource == DailyCareJournalCardStyle.backgroundPreset &&
+        backgroundPreset.trim().isNotEmpty) {
+      return DailyCareJournalCardStyle.backgroundPreset;
+    }
+    return DailyCareJournalCardStyle.surfaceFollow;
+  }
+
   bool get isPinned => DailyCareJournalCardKeys.isPinned(key);
 
   factory DailyCareJournalCardLayout.fromMap(
@@ -194,6 +246,8 @@ class DailyCareJournalCardLayout {
       inkColorArgb: inkColorArgb,
       backgroundSource: _readBackgroundSource(map['backgroundSource']),
       backgroundPreset: (map['backgroundPreset'] ?? '').toString().trim(),
+      surfaceMode: _readSurfaceMode(map['surfaceMode']),
+      backgroundAssetId: (map['backgroundAssetId'] ?? '').toString().trim(),
     );
   }
 
@@ -207,7 +261,19 @@ class DailyCareJournalCardLayout {
       'inkColorArgb': inkColorArgb,
       'backgroundSource': backgroundSource,
       'backgroundPreset': backgroundPreset,
+      'surfaceMode': surfaceMode,
+      'backgroundAssetId': backgroundAssetId,
     };
+  }
+
+  static String _readSurfaceMode(Object? value) {
+    final String key = (value ?? DailyCareJournalCardStyle.surfaceFollow)
+        .toString()
+        .trim();
+    if (DailyCareJournalCardStyle.surfaceModes.contains(key)) {
+      return key;
+    }
+    return DailyCareJournalCardStyle.surfaceFollow;
   }
 
   static String _readBackgroundSource(Object? value) {
@@ -228,6 +294,8 @@ class DailyCareJournalCardLayout {
     int? inkColorArgb,
     String? backgroundSource,
     String? backgroundPreset,
+    String? surfaceMode,
+    String? backgroundAssetId,
   }) {
     return DailyCareJournalCardLayout(
       key: key,
@@ -239,6 +307,8 @@ class DailyCareJournalCardLayout {
       inkColorArgb: inkColorArgb ?? this.inkColorArgb,
       backgroundSource: backgroundSource ?? this.backgroundSource,
       backgroundPreset: backgroundPreset ?? this.backgroundPreset,
+      surfaceMode: surfaceMode ?? this.surfaceMode,
+      backgroundAssetId: backgroundAssetId ?? this.backgroundAssetId,
     );
   }
 
@@ -289,7 +359,8 @@ class DailyCareJournalCardLayout {
     final List<DailyCareJournalCardLayout> fallbacks = defaults();
     final Map<String, DailyCareJournalCardLayout> byKey =
         <String, DailyCareJournalCardLayout>{
-          for (final DailyCareJournalCardLayout item in fallbacks) item.key: item,
+          for (final DailyCareJournalCardLayout item in fallbacks)
+            item.key: item,
         };
     if (raw is Map) {
       raw.forEach((Object? key, Object? value) {
@@ -365,7 +436,8 @@ class DailyCareJournalCardLayout {
     final List<DailyCareJournalCardLayout> all = sorted(layouts);
     DailyCareJournalCardLayout? environment;
     DailyCareJournalCardLayout? toilet;
-    final List<DailyCareJournalCardLayout> rest = <DailyCareJournalCardLayout>[];
+    final List<DailyCareJournalCardLayout> rest =
+        <DailyCareJournalCardLayout>[];
     for (final DailyCareJournalCardLayout item in all) {
       if (item.key == DailyCareJournalCardKeys.environment) {
         environment = item;
@@ -375,11 +447,7 @@ class DailyCareJournalCardLayout {
         rest.add(item);
       }
     }
-    return <DailyCareJournalCardLayout>[
-      ?environment,
-      ?toilet,
-      ...rest,
-    ];
+    return <DailyCareJournalCardLayout>[?environment, ?toilet, ...rest];
   }
 }
 
@@ -477,9 +545,7 @@ class DailyCareJournalDisplayFlags {
   }
 
   Map<String, dynamic> toMap() {
-    return <String, dynamic>{
-      'showPhotoSection': showPhotoSection,
-    };
+    return <String, dynamic>{'showPhotoSection': showPhotoSection};
   }
 
   DailyCareJournalDisplayFlags copyWith({
