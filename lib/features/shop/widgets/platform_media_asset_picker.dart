@@ -120,7 +120,12 @@ class _PlatformMediaAssetPickerSheet extends StatelessWidget {
                                           ? asset.imageUrl
                                           : asset.thumbnailUrl,
                                       width: double.infinity,
-                                      fit: BoxFit.cover,
+                                      fit:
+                                          category ==
+                                              PlatformMediaCategories
+                                                  .dailyCareIcon
+                                          ? BoxFit.contain
+                                          : BoxFit.cover,
                                       errorBuilder: (_, __, ___) {
                                         return const ColoredBox(
                                           color: Color(0xFFF3F4F6),

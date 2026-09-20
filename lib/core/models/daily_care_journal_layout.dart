@@ -172,6 +172,7 @@ class DailyCareJournalCardLayout {
     this.backgroundPreset = '',
     this.surfaceMode = DailyCareJournalCardStyle.surfaceFollow,
     this.backgroundAssetId = '',
+    this.iconAssetId = '',
   });
 
   final String key;
@@ -185,6 +186,7 @@ class DailyCareJournalCardLayout {
   final String backgroundPreset;
   final String surfaceMode;
   final String backgroundAssetId;
+  final String iconAssetId;
 
   bool get isHalf => width == DailyCareJournalCardStyle.widthHalf;
   bool get followsSharedBackground {
@@ -248,6 +250,9 @@ class DailyCareJournalCardLayout {
       backgroundPreset: (map['backgroundPreset'] ?? '').toString().trim(),
       surfaceMode: _readSurfaceMode(map['surfaceMode']),
       backgroundAssetId: (map['backgroundAssetId'] ?? '').toString().trim(),
+      iconAssetId: (map['iconAssetId'] ?? fallback.iconAssetId)
+          .toString()
+          .trim(),
     );
   }
 
@@ -263,6 +268,7 @@ class DailyCareJournalCardLayout {
       'backgroundPreset': backgroundPreset,
       'surfaceMode': surfaceMode,
       'backgroundAssetId': backgroundAssetId,
+      'iconAssetId': iconAssetId,
     };
   }
 
@@ -296,6 +302,7 @@ class DailyCareJournalCardLayout {
     String? backgroundPreset,
     String? surfaceMode,
     String? backgroundAssetId,
+    String? iconAssetId,
   }) {
     return DailyCareJournalCardLayout(
       key: key,
@@ -309,6 +316,7 @@ class DailyCareJournalCardLayout {
       backgroundPreset: backgroundPreset ?? this.backgroundPreset,
       surfaceMode: surfaceMode ?? this.surfaceMode,
       backgroundAssetId: backgroundAssetId ?? this.backgroundAssetId,
+      iconAssetId: iconAssetId ?? this.iconAssetId,
     );
   }
 

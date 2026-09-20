@@ -875,23 +875,16 @@ class DailyCareJournalRenderer extends StatelessWidget {
         final List<Widget> rows = <Widget>[];
         if (envCard != null && toiletCard != null) {
           rows.add(
-            Table(
+            IntrinsicHeight(
               key: const ValueKey<String>('daily-care-pinned-row'),
-              columnWidths: const <int, TableColumnWidth>{
-                0: FlexColumnWidth(),
-                1: FixedColumnWidth(10),
-                2: FlexColumnWidth(),
-              },
-              defaultVerticalAlignment: TableCellVerticalAlignment.fill,
-              children: <TableRow>[
-                TableRow(
-                  children: <Widget>[
-                    envCard.child,
-                    const SizedBox.shrink(),
-                    toiletCard.child,
-                  ],
-                ),
-              ],
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: <Widget>[
+                  Expanded(child: envCard.child),
+                  const SizedBox(width: 10),
+                  Expanded(child: toiletCard.child),
+                ],
+              ),
             ),
           );
         }
@@ -1331,15 +1324,19 @@ class _ToiletStatBlock extends StatelessWidget {
             color: DailyCareInk.chipFill(ink, fill),
             borderRadius: BorderRadius.circular(20),
           ),
-          child: Text(
-            value,
-            maxLines: 1,
-            overflow: TextOverflow.visible,
-            style: TextStyle(
-              fontSize: 14,
-              height: 1.2,
-              fontWeight: FontWeight.w800,
-              color: _statusColor(Theme.of(context).colorScheme, value),
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Text(
+              value,
+              maxLines: 1,
+              softWrap: false,
+              overflow: TextOverflow.visible,
+              style: TextStyle(
+                fontSize: 14,
+                height: 1.2,
+                fontWeight: FontWeight.w800,
+                color: _statusColor(Theme.of(context).colorScheme, value),
+              ),
             ),
           ),
         ),

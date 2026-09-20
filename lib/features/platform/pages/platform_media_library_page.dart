@@ -132,14 +132,19 @@ class _PlatformMediaLibraryBodyState extends State<_PlatformMediaLibraryBody> {
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
             child: SegmentedButton<String>(
+              showSelectedIcon: false,
               segments: const <ButtonSegment<String>>[
                 ButtonSegment<String>(
                   value: PlatformMediaCategories.dailyCarePage,
-                  label: Text('每日照護頁背景'),
+                  label: Text('頁背景'),
                 ),
                 ButtonSegment<String>(
                   value: PlatformMediaCategories.dailyCareCard,
-                  label: Text('每日照護卡片背景'),
+                  label: Text('卡片背景'),
+                ),
+                ButtonSegment<String>(
+                  value: PlatformMediaCategories.dailyCareIcon,
+                  label: Text('小圖示'),
                 ),
               ],
               selected: <String>{_category},

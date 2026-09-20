@@ -18,6 +18,7 @@ class ShopChatMessageList extends StatelessWidget {
     this.shopHasReadLast = false,
     this.onLoadOlder,
     this.loadingOlder = false,
+    this.controller,
   });
 
   final List<ShopChatMessageModel> messages;
@@ -28,6 +29,7 @@ class ShopChatMessageList extends StatelessWidget {
   final bool shopHasReadLast;
   final VoidCallback? onLoadOlder;
   final bool loadingOlder;
+  final ScrollController? controller;
 
   @override
   Widget build(BuildContext context) {
@@ -42,6 +44,7 @@ class ShopChatMessageList extends StatelessWidget {
         return false;
       },
       child: ListView.builder(
+        controller: controller,
         reverse: true,
         padding: const EdgeInsets.fromLTRB(12, 12, 12, 8),
         itemCount: messages.length + (loadingOlder ? 1 : 0),

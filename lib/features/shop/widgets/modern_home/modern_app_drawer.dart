@@ -459,25 +459,28 @@ class ModernAppDrawer extends StatelessWidget {
                                     );
                                   },
                                 ),
-                                _menuItem(
-                                  icon: Icons.desktop_windows,
-                                  title: '回後台',
-                                  onTap: () {
-                                    if (ShopDashboardEmbeddedScope.tryExitToDashboard(
-                                      context,
-                                    )) {
-                                      return;
-                                    }
-                                    Navigator.pushAndRemoveUntil(
-                                      context,
-                                      MaterialPageRoute(
-                                        builder: (_) =>
-                                            ShopDashboardPage(shopId: shopId),
-                                      ),
-                                      (route) => false,
-                                    );
-                                  },
-                                ),
+                                if (!ShopDashboardEmbeddedScope.isEmbeddedInShopDashboard(
+                                  context,
+                                ))
+                                  _menuItem(
+                                    icon: Icons.desktop_windows,
+                                    title: '回後台',
+                                    onTap: () {
+                                      if (ShopDashboardEmbeddedScope.tryExitToDashboard(
+                                        context,
+                                      )) {
+                                        return;
+                                      }
+                                      Navigator.pushAndRemoveUntil(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder: (_) =>
+                                              ShopDashboardPage(shopId: shopId),
+                                        ),
+                                        (route) => false,
+                                      );
+                                    },
+                                  ),
                                 _divider(),
                               ],
                             );

@@ -220,7 +220,6 @@ class DailyCareFullJournalPreview extends StatefulWidget {
     this.phoneSize = DailyCarePreviewPhoneSize.standard,
     this.singleDayMode = false,
     this.singleSessionMode = false,
-    this.textScale = 1.0,
   });
 
   final DailyCareSettingModel setting;
@@ -234,7 +233,6 @@ class DailyCareFullJournalPreview extends StatefulWidget {
   final DailyCarePreviewPhoneSize phoneSize;
   final bool singleDayMode;
   final bool singleSessionMode;
-  final double textScale;
 
   static const String deviceNote =
       '此為標準手機比例預覽；不同廠牌、螢幕尺寸及瀏海／動態島設計，實際上下留白可能略有差異。';
@@ -350,7 +348,7 @@ class _DailyCareFullJournalPreviewState
       return MediaQuery(
         data: MediaQuery.of(
           context,
-        ).copyWith(textScaler: TextScaler.linear(widget.textScale)),
+        ).copyWith(textScaler: const TextScaler.linear(1.0)),
         child: Column(
           children: <Widget>[
             Expanded(child: phoneScreen),
@@ -366,7 +364,7 @@ class _DailyCareFullJournalPreviewState
       data: MediaQueryData(
         size: logical,
         devicePixelRatio: host.devicePixelRatio,
-        textScaler: TextScaler.linear(widget.textScale),
+        textScaler: const TextScaler.linear(1.0),
         padding: _phoneSafePadding,
         viewPadding: _phoneSafePadding,
         viewInsets: EdgeInsets.zero,

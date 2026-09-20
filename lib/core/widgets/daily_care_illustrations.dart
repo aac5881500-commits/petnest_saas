@@ -8,6 +8,7 @@ import '../models/daily_care_journal_appearance.dart';
 import '../models/daily_care_journal_layout.dart';
 import '../models/daily_care_setting_model.dart';
 import 'daily_care_card_surface.dart';
+import 'platform_media_library_scope.dart';
 
 class DailyCareIllustrations {
   DailyCareIllustrations._();
@@ -47,6 +48,7 @@ class DailyCareIllustrations {
     }
   }
 
+  /// 腳印／樹葉裝飾素材仍保留，但照護內容卡片不再疊加。
   static String decorFor(String key) {
     if (key == DailyCareJournalCardKeys.environment) {
       return leaf;
@@ -106,6 +108,47 @@ class DailyCareInk {
       );
     }
     return Color.alphaBlend(ink.withValues(alpha: 0.16), cardFill);
+  }
+}
+
+class DailyCareTitleIcon extends StatelessWidget {
+  const DailyCareTitleIcon({
+    super.key,
+    required this.layout,
+    required this.color,
+    this.size = 22,
+  });
+
+  final DailyCareJournalCardLayout layout;
+  final Color color;
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    final Widget fallback = DailyCareSvgIcon(
+      asset: DailyCareIllustrations.forCard(layout.key),
+      color: color,
+      size: size,
+    );
+    final String url = DailyCareJournalAppearance.titleIconUrl(
+      layout,
+      assetLookup: (String id) => PlatformMediaLibraryScope.lookup(context, id),
+    );
+    if (url.isEmpty) {
+      return fallback;
+    }
+    return SizedBox(
+      width: size,
+      height: size,
+      child: Image.network(
+        url,
+        width: size,
+        height: size,
+        fit: BoxFit.contain,
+        filterQuality: FilterQuality.medium,
+        errorBuilder: (_, _, _) => fallback,
+      ),
+    );
   }
 }
 
@@ -170,11 +213,7 @@ class DailyCareIllustratedShell extends StatelessWidget {
         ink ?? DailyCareInk.of(layout: layout, fill: fill, colors: colors);
     final Widget header = Row(
       children: <Widget>[
-        DailyCareSvgIcon(
-          asset: DailyCareIllustrations.forCard(layout.key),
-          color: text,
-          size: 22,
-        ),
+        DailyCareTitleIcon(layout: layout, color: text, size: 22),
         const SizedBox(width: 8),
         Expanded(
           child: Text(
@@ -194,18 +233,6 @@ class DailyCareIllustratedShell extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[header, const SizedBox(height: 10), child],
     );
-    final Widget decor = Positioned(
-      right: 6,
-      bottom: 4,
-      child: IgnorePointer(
-        child: DailyCareSvgIcon(
-          asset: DailyCareIllustrations.decorFor(layout.key),
-          color: text,
-          size: 28,
-          opacity: 0.12,
-        ),
-      ),
-    );
     final DailyCareSettingModel visual = setting == null
         ? const DailyCareSettingModel()
         : setting!;
@@ -215,7 +242,7 @@ class DailyCareIllustratedShell extends StatelessWidget {
       fill: fill,
       padding: padding,
       longText: longText,
-      child: Stack(clipBehavior: Clip.none, children: <Widget>[body, decor]),
+      child: body,
     );
   }
 }

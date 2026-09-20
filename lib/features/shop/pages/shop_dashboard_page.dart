@@ -18,14 +18,17 @@ import 'package:petnest_saas/core/models/daycare_settings_model.dart';
 import 'package:petnest_saas/core/services/shop_task_center_service.dart';
 import 'package:petnest_saas/core/services/daycare_settings_service.dart';
 import 'package:petnest_saas/core/widgets/shop_task_center_button.dart';
-import 'package:petnest_saas/features/shop/pages/chat/shop_chat_inbox_page.dart';
+import 'package:petnest_saas/features/shop/controllers/shop_chat_multi_dock_controller.dart';
 import 'package:petnest_saas/features/shop/widgets/chat/shop_chat_app_bar_button.dart';
+import 'package:petnest_saas/features/shop/widgets/chat/shop_chat_inbox_drawer.dart';
+import 'package:petnest_saas/features/shop/widgets/chat/shop_chat_side_panel.dart';
+import 'package:petnest_saas/features/shop/widgets/shop_admin_workspace.dart';
 import 'package:petnest_saas/features/shop/widgets/shop_frontend_test_panel.dart';
+import 'package:petnest_saas/features/shop/widgets/shop_frontend_phone_preview.dart';
 import 'package:petnest_saas/features/shop/pages/shop_basic_info_page.dart';
 import 'package:petnest_saas/features/shop/pages/shop_booking_setup_center_page.dart';
 import 'package:petnest_saas/features/shop/pages/shop_business_info_page.dart';
 import 'package:petnest_saas/features/shop/pages/shop_media_page.dart';
-import 'package:petnest_saas/features/shop/pages/shop_public_page.dart';
 import 'package:petnest_saas/features/shop/pages/shop_module_settings_page.dart';
 import 'package:petnest_saas/features/shop/pages/shop_permission_settings_page.dart';
 import 'package:petnest_saas/features/admin/pages/admin_booking_list_page.dart';
@@ -68,19 +71,16 @@ class ShopDashboardPage extends StatefulWidget {
 }
 
 class _ShopDashboardPageState extends State<ShopDashboardPage> {
-  static const double _splitMinWindowWidth = 1280;
-  static const double _panelDefaultWidth = 420;
-  static const double _panelMinWidth = 360;
-  static const double _panelMaxWidth = 620;
-  static const double _rightMinWidth = 720;
-  static const double _dividerWidth = 7;
+  late final ShopAdminWorkspaceController _workspace =
+      ShopAdminWorkspaceController();
 
   String? _currentUserRole;
   Map<String, dynamic>? _currentMemberData;
   bool _roleLoaded = false;
   bool _frontendPrefsLoaded = false;
   bool _frontendOpenPref = false;
-  double _frontendPanelWidth = _panelDefaultWidth;
+  bool _chatSurfacesOnTop = false;
+  bool _wasChatVisible = false;
   int _frontendHomeToken = 0;
   final GlobalKey _frontendTabBarViewKey = GlobalKey();
 
@@ -90,6 +90,14 @@ class _ShopDashboardPageState extends State<ShopDashboardPage> {
     _loadRole();
     _updateLastActiveAt();
     _loadFrontendPrefs();
+    _workspace.chat.addListener(_onChatSurfacesChanged);
+  }
+
+  @override
+  void dispose() {
+    _workspace.chat.removeListener(_onChatSurfacesChanged);
+    _workspace.dispose();
+    super.dispose();
   }
 
   Future<void> _updateLastActiveAt() async {
@@ -146,6 +154,11 @@ class _ShopDashboardPageState extends State<ShopDashboardPage> {
         _currentUserRole = memberData?['role']?.toString();
         _roleLoaded = true;
       });
+      _workspace.canUseChat = _can(ShopPermissionKeys.manageChat);
+      _workspace.bindChat(
+        shopId: widget.shopId,
+        uid: FirebaseAuth.instance.currentUser?.uid ?? 'anon',
+      );
     } catch (_) {
       if (!mounted) return;
       setState(() {
@@ -163,10 +176,6 @@ class _ShopDashboardPageState extends State<ShopDashboardPage> {
     return 'shop_dashboard_frontend_open_${_frontendPrefUid()}_${widget.shopId}';
   }
 
-  String _frontendWidthPrefKey() {
-    return 'shop_dashboard_frontend_width_${_frontendPrefUid()}_${widget.shopId}';
-  }
-
   Future<void> _loadFrontendPrefs() async {
     final SharedPreferences prefs = await SharedPreferences.getInstance();
     if (!mounted) {
@@ -174,9 +183,6 @@ class _ShopDashboardPageState extends State<ShopDashboardPage> {
     }
     setState(() {
       _frontendOpenPref = prefs.getBool(_frontendOpenPrefKey()) ?? false;
-      _frontendPanelWidth =
-          (prefs.getDouble(_frontendWidthPrefKey()) ?? _panelDefaultWidth)
-              .clamp(_panelMinWidth, _panelMaxWidth);
       _frontendPrefsLoaded = true;
     });
   }
@@ -186,20 +192,30 @@ class _ShopDashboardPageState extends State<ShopDashboardPage> {
     await prefs.setBool(_frontendOpenPrefKey(), open);
   }
 
-  Future<void> _saveFrontendWidth() async {
-    final SharedPreferences prefs = await SharedPreferences.getInstance();
-    await prefs.setDouble(_frontendWidthPrefKey(), _frontendPanelWidth);
-  }
-
-  bool _canSplitFrontend(double pageWidth) {
-    return pageWidth >= _splitMinWindowWidth &&
-        pageWidth >= _panelMinWidth + _dividerWidth + _rightMinWidth;
+  void _onChatSurfacesChanged() {
+    final bool visible =
+        _workspace.chat.inboxOpen || _workspace.chat.showDockWindows;
+    if (visible && !_wasChatVisible) {
+      _wasChatVisible = true;
+      if (mounted && !_chatSurfacesOnTop) {
+        setState(() {
+          _chatSurfacesOnTop = true;
+        });
+      }
+      return;
+    }
+    if (!visible) {
+      _wasChatVisible = false;
+    }
   }
 
   void _toggleFrontendPanel() {
     final bool next = !_frontendOpenPref;
     setState(() {
       _frontendOpenPref = next;
+      if (next) {
+        _chatSurfacesOnTop = false;
+      }
     });
     _saveFrontendOpen(next);
   }
@@ -208,32 +224,36 @@ class _ShopDashboardPageState extends State<ShopDashboardPage> {
     setState(() {
       _frontendOpenPref = true;
       _frontendHomeToken++;
+      _chatSurfacesOnTop = false;
     });
     _saveFrontendOpen(true);
   }
 
   void _closeFrontendPanel() {
+    if (!_frontendOpenPref) {
+      return;
+    }
     setState(() {
       _frontendOpenPref = false;
     });
     _saveFrontendOpen(false);
   }
 
-  void _pushFullFrontend() {
-    Navigator.of(context).push(
-      MaterialPageRoute<void>(
-        builder: (_) => ShopPublicPage(shopId: widget.shopId),
-      ),
-    );
+  void _handleFrontendPreview({required String shopCode, bool goHome = false}) {
+    if (goHome) {
+      _openFrontendPanelAndGoHome();
+      return;
+    }
+    _toggleFrontendPanel();
   }
 
   Widget _buildFrontendAppBarButton({
     required bool canUse,
     required bool isProfileComplete,
     required bool canUsePublicPage,
-    required bool splitMode,
     required bool panelOpen,
     required bool showLabel,
+    required String shopCode,
   }) {
     final ColorScheme colors = Theme.of(context).colorScheme;
     final String tooltip;
@@ -241,23 +261,15 @@ class _ShopDashboardPageState extends State<ShopDashboardPage> {
       tooltip = '請先完成基本資料';
     } else if (!canUsePublicPage) {
       tooltip = '升級方案解鎖';
-    } else if (splitMode) {
-      tooltip = panelOpen ? '收起前台操作區' : '開啟前台操作區';
     } else {
-      tooltip = '開啟完整前台';
+      tooltip = panelOpen ? '收起實際前台' : '開啟實際前台';
     }
 
     final VoidCallback? onPressed = !canUse
         ? null
-        : () {
-            if (splitMode) {
-              _toggleFrontendPanel();
-            } else {
-              _pushFullFrontend();
-            }
-          };
+        : () => _handleFrontendPreview(shopCode: shopCode);
 
-    final bool selected = canUse && splitMode && panelOpen;
+    final bool selected = canUse && panelOpen;
     final Color? selectedColor = selected ? colors.primary : null;
 
     if (showLabel) {
@@ -542,260 +554,352 @@ class _ShopDashboardPageState extends State<ShopDashboardPage> {
         final ColorScheme colors = Theme.of(context).colorScheme;
         final double pageWidth = MediaQuery.sizeOf(context).width;
         final _DashboardMetrics metrics = _DashboardLayout.metrics(pageWidth);
-        final bool splitMode = _canSplitFrontend(pageWidth);
-        final bool showFrontendPanel =
-            _frontendPrefsLoaded &&
-            _frontendOpenPref &&
-            canOpenFrontend &&
-            splitMode;
-        return DefaultTabController(
-          length: visibleModules.length,
-          child: Scaffold(
-            backgroundColor: _DashboardLayout.pageBg,
-            appBar: AppBar(
-              backgroundColor: Colors.white,
-              foregroundColor: _DashboardLayout.ink,
-              surfaceTintColor: Colors.transparent,
-              elevation: 0,
-              title: Text(
-                shop['name'] ?? '店家後台',
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  fontSize: metrics.appBarTitleSize,
-                  fontWeight: FontWeight.w700,
-                  color: _DashboardLayout.ink,
-                ),
-              ),
-              actions: <Widget>[
-                _buildFrontendAppBarButton(
-                  canUse: canOpenFrontend,
-                  isProfileComplete: isComplete,
-                  canUsePublicPage: canUsePublicPage,
-                  splitMode: splitMode,
-                  panelOpen: showFrontendPanel,
-                  showLabel: pageWidth >= _DashboardLayout.phoneBreakpoint,
-                ),
-                if (_can(ShopPermissionKeys.manageChat))
-                  ShopChatAppBarButton(shopId: widget.shopId),
-                ShopTaskCenterButton(shopId: widget.shopId),
-              ],
-              bottom: TabBar(
-                isScrollable: true,
-                tabAlignment: TabAlignment.start,
-                labelColor: colors.primary,
-                unselectedLabelColor: const Color(0xFF4B5563),
-                labelStyle: TextStyle(
-                  fontSize: metrics.tabLabelSelected,
-                  fontWeight: FontWeight.w700,
-                ),
-                unselectedLabelStyle: TextStyle(
-                  fontSize: metrics.tabLabelUnselected,
-                  fontWeight: FontWeight.w600,
-                ),
-                labelPadding: EdgeInsets.symmetric(
-                  horizontal: metrics.tabLabelPadH,
-                ),
-                indicatorSize: TabBarIndicatorSize.label,
-                indicator: UnderlineTabIndicator(
-                  borderRadius: BorderRadius.circular(4),
-                  borderSide: BorderSide(
-                    width: metrics.tabIndicatorHeight,
-                    color: colors.primary,
+        return ShopAdminWorkspaceScope(
+          controller: _workspace,
+          child: DefaultTabController(
+            length: visibleModules.length,
+            child: Scaffold(
+              backgroundColor: _DashboardLayout.pageBg,
+              appBar: AppBar(
+                backgroundColor: Colors.white,
+                foregroundColor: _DashboardLayout.ink,
+                surfaceTintColor: Colors.transparent,
+                elevation: 0,
+                title: Text(
+                  shop['name'] ?? '店家後台',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: metrics.appBarTitleSize,
+                    fontWeight: FontWeight.w700,
+                    color: _DashboardLayout.ink,
                   ),
                 ),
-                dividerColor: _DashboardLayout.cardBorder,
-                tabs: visibleModules
-                    .map(
-                      (module) => Tab(
-                        height: metrics.tabHeight,
-                        text: _moduleLabel(module),
-                        icon: Icon(
-                          _moduleIcon(module),
-                          size: metrics.tabIconSize,
+                actions: <Widget>[
+                  _buildFrontendAppBarButton(
+                    canUse: canOpenFrontend,
+                    isProfileComplete: isComplete,
+                    canUsePublicPage: canUsePublicPage,
+                    panelOpen: _frontendOpenPref && canOpenFrontend,
+                    showLabel: pageWidth >= _DashboardLayout.phoneBreakpoint,
+                    shopCode: shopCode,
+                  ),
+                  if (_can(ShopPermissionKeys.manageChat))
+                    ShopChatAppBarButton(shopId: widget.shopId),
+                  ShopTaskCenterButton(shopId: widget.shopId),
+                ],
+                bottom: TabBar(
+                  isScrollable: true,
+                  tabAlignment: TabAlignment.start,
+                  labelColor: colors.primary,
+                  unselectedLabelColor: const Color(0xFF4B5563),
+                  labelStyle: TextStyle(
+                    fontSize: metrics.tabLabelSelected,
+                    fontWeight: FontWeight.w700,
+                  ),
+                  unselectedLabelStyle: TextStyle(
+                    fontSize: metrics.tabLabelUnselected,
+                    fontWeight: FontWeight.w600,
+                  ),
+                  labelPadding: EdgeInsets.symmetric(
+                    horizontal: metrics.tabLabelPadH,
+                  ),
+                  indicatorSize: TabBarIndicatorSize.label,
+                  indicator: UnderlineTabIndicator(
+                    borderRadius: BorderRadius.circular(4),
+                    borderSide: BorderSide(
+                      width: metrics.tabIndicatorHeight,
+                      color: colors.primary,
+                    ),
+                  ),
+                  dividerColor: _DashboardLayout.cardBorder,
+                  tabs: visibleModules
+                      .map(
+                        (module) => Tab(
+                          height: metrics.tabHeight,
+                          text: _moduleLabel(module),
+                          icon: Icon(
+                            _moduleIcon(module),
+                            size: metrics.tabIconSize,
+                          ),
+                          iconMargin: EdgeInsets.only(
+                            bottom: metrics.tabIconGap,
+                          ),
                         ),
-                        iconMargin: EdgeInsets.only(bottom: metrics.tabIconGap),
-                      ),
-                    )
-                    .toList(),
+                      )
+                      .toList(),
+                ),
               ),
-            ),
-            body: Column(
-              children: [
-                if (!isComplete)
-                  Align(
-                    alignment: Alignment.topCenter,
-                    child: ConstrainedBox(
-                      constraints: BoxConstraints(
-                        maxWidth: _DashboardLayout.maxContentWidth(pageWidth),
-                      ),
-                      child: Container(
-                        width: double.infinity,
-                        margin: EdgeInsets.fromLTRB(
-                          metrics.pagePadH,
-                          metrics.pagePadV,
-                          metrics.pagePadH,
-                          0,
+              body: Column(
+                children: [
+                  if (!isComplete)
+                    Align(
+                      alignment: Alignment.topCenter,
+                      child: ConstrainedBox(
+                        constraints: BoxConstraints(
+                          maxWidth: _DashboardLayout.maxContentWidth(pageWidth),
                         ),
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 10,
-                        ),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFFFF4E8),
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: const Color(0xFFFFD8A8)),
-                        ),
-                        child: Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Icon(
-                              Icons.warning_amber_rounded,
-                              color: Colors.orange.shade700,
-                              size: 22,
-                            ),
-                            const SizedBox(width: 8),
-                            const Expanded(
-                              child: Text(
-                                '⚠️ 請先完成店家基本資料，才能使用完整功能',
-                                style: TextStyle(
-                                  fontWeight: FontWeight.w700,
-                                  color: _DashboardLayout.ink,
-                                  height: 1.35,
+                        child: Container(
+                          width: double.infinity,
+                          margin: EdgeInsets.fromLTRB(
+                            metrics.pagePadH,
+                            metrics.pagePadV,
+                            metrics.pagePadH,
+                            0,
+                          ),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 10,
+                          ),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFFFF4E8),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: const Color(0xFFFFD8A8)),
+                          ),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Icon(
+                                Icons.warning_amber_rounded,
+                                color: Colors.orange.shade700,
+                                size: 22,
+                              ),
+                              const SizedBox(width: 8),
+                              const Expanded(
+                                child: Text(
+                                  '⚠️ 請先完成店家基本資料，才能使用完整功能',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.w700,
+                                    color: _DashboardLayout.ink,
+                                    height: 1.35,
+                                  ),
                                 ),
                               ),
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
                       ),
                     ),
-                  ),
-                Expanded(
-                  child: LayoutBuilder(
-                    builder:
-                        (BuildContext context, BoxConstraints constraints) {
-                          final Widget tabViews = TabBarView(
-                            key: _frontendTabBarViewKey,
-                            children: visibleModules.map((module) {
-                              switch (module) {
-                                case ShopModules.basicInfo:
-                                  return _BasicInfoTab(
-                                    shopId: widget.shopId,
-                                    shop: shop,
-                                    currentUserRole: _currentUserRole,
-                                    memberData: _currentMemberData,
-                                    isProfileComplete: isComplete,
-                                    splitFrontendAvailable: splitMode,
-                                    onOpenSplitFrontend:
-                                        _openFrontendPanelAndGoHome,
-                                  );
-                                case ShopModules.catHotel:
-                                  return _CatHotelTab(
-                                    shopId: widget.shopId,
-                                    shop: shop,
-                                    isProfileComplete: isComplete,
-                                    memberData: _currentMemberData,
-                                  );
-                                case ShopModules.dogHotel:
-                                  return const _ModuleTemplateTab(
-                                    title: '狗狗旅店',
-                                    description:
-                                        '這裡先保留給狗狗住宿 / 寄宿 / 安親 / 預約管理模板。',
-                                  );
-                                case ShopModules.grooming:
-                                  return const _ModuleTemplateTab(
-                                    title: '美容功能',
-                                    description: '這裡先保留給美容預約、價目表、美容師排班、服務項目模板。',
-                                  );
-                                case ShopModules.hospital:
-                                  return const _ModuleTemplateTab(
-                                    title: '動物醫院',
-                                    description: '這裡先保留給門診預約、看診項目、醫師班表、病歷延伸模板。',
-                                  );
-                                case ShopModules.store:
-                                  return ShopStoreHubPage(
-                                    shopId: widget.shopId,
-                                    memberData: _currentMemberData,
-                                  );
-                                case ShopModules.reports:
-                                  return _ReportsTab(
-                                    shopId: widget.shopId,
-                                    currentUserRole: _currentUserRole,
-                                  );
-                                case ShopModules.inventory:
-                                  return _InventoryTab(
-                                    shopId: widget.shopId,
-                                    isProfileComplete: isComplete,
-                                    memberData: _currentMemberData,
-                                  );
-                                default:
-                                  return const Center(child: Text('模組尚未定義'));
-                              }
-                            }).toList(),
-                          );
+                  Expanded(
+                    child: LayoutBuilder(
+                      builder:
+                          (BuildContext context, BoxConstraints constraints) {
+                            final Widget tabViews = TabBarView(
+                              key: _frontendTabBarViewKey,
+                              children: visibleModules.map((module) {
+                                switch (module) {
+                                  case ShopModules.basicInfo:
+                                    return _BasicInfoTab(
+                                      shopId: widget.shopId,
+                                      shop: shop,
+                                      currentUserRole: _currentUserRole,
+                                      memberData: _currentMemberData,
+                                      isProfileComplete: isComplete,
+                                      onPreviewFrontend: () =>
+                                          _handleFrontendPreview(
+                                            shopCode: shopCode,
+                                            goHome: true,
+                                          ),
+                                    );
+                                  case ShopModules.catHotel:
+                                    return _CatHotelTab(
+                                      shopId: widget.shopId,
+                                      shop: shop,
+                                      isProfileComplete: isComplete,
+                                      memberData: _currentMemberData,
+                                    );
+                                  case ShopModules.dogHotel:
+                                    return const _ModuleTemplateTab(
+                                      title: '狗狗旅店',
+                                      description:
+                                          '這裡先保留給狗狗住宿 / 寄宿 / 安親 / 預約管理模板。',
+                                    );
+                                  case ShopModules.grooming:
+                                    return const _ModuleTemplateTab(
+                                      title: '美容功能',
+                                      description:
+                                          '這裡先保留給美容預約、價目表、美容師排班、服務項目模板。',
+                                    );
+                                  case ShopModules.hospital:
+                                    return const _ModuleTemplateTab(
+                                      title: '動物醫院',
+                                      description:
+                                          '這裡先保留給門診預約、看診項目、醫師班表、病歷延伸模板。',
+                                    );
+                                  case ShopModules.store:
+                                    return ShopStoreHubPage(
+                                      shopId: widget.shopId,
+                                      memberData: _currentMemberData,
+                                    );
+                                  case ShopModules.reports:
+                                    return _ReportsTab(
+                                      shopId: widget.shopId,
+                                      currentUserRole: _currentUserRole,
+                                    );
+                                  case ShopModules.inventory:
+                                    return _InventoryTab(
+                                      shopId: widget.shopId,
+                                      isProfileComplete: isComplete,
+                                      memberData: _currentMemberData,
+                                    );
+                                  default:
+                                    return const Center(child: Text('模組尚未定義'));
+                                }
+                              }).toList(),
+                            );
 
-                          final bool canFitSplit =
-                              showFrontendPanel &&
-                              constraints.maxWidth >=
-                                  _panelMinWidth +
-                                      _dividerWidth +
-                                      _rightMinWidth;
-                          if (!canFitSplit) {
-                            return tabViews;
-                          }
-
-                          final double maxPanel = math.min(
-                            _panelMaxWidth,
-                            constraints.maxWidth -
-                                _dividerWidth -
-                                _rightMinWidth,
-                          );
-                          final double minPanel = math.min(
-                            _panelMinWidth,
-                            maxPanel,
-                          );
-                          final double panelWidth = _frontendPanelWidth.clamp(
-                            minPanel,
-                            maxPanel,
-                          );
-
-                          return Row(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: <Widget>[
-                              SizedBox(
-                                width: panelWidth,
-                                child: ShopFrontendTestPanel(
-                                  key: ValueKey<String>(
-                                    'frontend-panel-${widget.shopId}',
+                            final bool chatAllowed = _can(
+                              ShopPermissionKeys.manageChat,
+                            );
+                            final bool frontendOpen =
+                                _frontendPrefsLoaded &&
+                                _frontendOpenPref &&
+                                canOpenFrontend;
+                            final double chatWidth =
+                                pageWidth < ShopChatMultiDockPlacement.dockWidth
+                                ? pageWidth
+                                : ShopChatMultiDockPlacement.dockWidth;
+                            final double inboxWidth =
+                                ShopChatMultiDockPlacement.inboxWidth;
+                            final double frontendScale =
+                                ShopFrontendPhoneFrame.scaleFor(
+                                  availableWidth: 430,
+                                  availableHeight: math.max(
+                                    200,
+                                    constraints.maxHeight - 72,
                                   ),
-                                  shopId: widget.shopId,
-                                  shopCode: shopCode,
-                                  initialWidth: panelWidth,
-                                  onWidthChanged: (_) {},
-                                  homeResetToken: _frontendHomeToken,
-                                  onClose: _closeFrontendPanel,
-                                  onOpenFullPage: _pushFullFrontend,
-                                ),
+                                );
+                            final double frontendWidth =
+                                430 * frontendScale + 16;
+
+                            final Widget liveFrontend = ShopFrontendTestPanel(
+                              key: ValueKey<String>(
+                                'frontend-panel-${widget.shopId}',
                               ),
-                              _FrontendResizeHandle(
-                                onDragUpdate: (double dx) {
-                                  setState(() {
-                                    _frontendPanelWidth =
-                                        (_frontendPanelWidth + dx).clamp(
-                                          minPanel,
-                                          maxPanel,
-                                        );
-                                  });
-                                },
-                                onDragEnd: _saveFrontendWidth,
-                              ),
-                              Expanded(child: tabViews),
-                            ],
-                          );
-                        },
+                              shopId: widget.shopId,
+                              shopCode: shopCode,
+                              homeResetToken: _frontendHomeToken,
+                              onClose: _closeFrontendPanel,
+                            );
+
+                            return ListenableBuilder(
+                              listenable: Listenable.merge(<Listenable>[
+                                _workspace,
+                                _workspace.chat,
+                              ]),
+                              builder: (BuildContext context, Widget? child) {
+                                final bool dockOpen =
+                                    chatAllowed &&
+                                    _workspace.chat.showDockWindows;
+                                final bool inboxOpen =
+                                    chatAllowed && _workspace.chat.inboxOpen;
+                                final bool dockMinimized =
+                                    chatAllowed &&
+                                    _workspace.chat.dockOpen &&
+                                    _workspace.chat.dockMinimized;
+                                final Widget frontendLayer = Positioned(
+                                  key: ShopDashboardLiveFrontendOverlay
+                                      .overlayKey,
+                                  left: 12,
+                                  top: 8,
+                                  bottom: 12,
+                                  width: frontendWidth,
+                                  child: Listener(
+                                    onPointerDown: (_) {
+                                      if (_chatSurfacesOnTop) {
+                                        setState(() {
+                                          _chatSurfacesOnTop = false;
+                                        });
+                                      }
+                                    },
+                                    child: liveFrontend,
+                                  ),
+                                );
+                                final List<Widget> chatLayers = <Widget>[
+                                  if (dockOpen)
+                                    Positioned(
+                                      right: 0,
+                                      top: 0,
+                                      bottom: 0,
+                                      width: chatWidth,
+                                      child: Listener(
+                                        onPointerDown: (_) {
+                                          if (!_chatSurfacesOnTop) {
+                                            setState(() {
+                                              _chatSurfacesOnTop = true;
+                                            });
+                                          }
+                                        },
+                                        child: ShopChatSidePanel(
+                                          shopId: widget.shopId,
+                                          overlay: true,
+                                        ),
+                                      ),
+                                    ),
+                                  if (inboxOpen)
+                                    Positioned(
+                                      left: 0,
+                                      top: 0,
+                                      bottom: 0,
+                                      width: inboxWidth,
+                                      child: Listener(
+                                        onPointerDown: (_) {
+                                          if (!_chatSurfacesOnTop) {
+                                            setState(() {
+                                              _chatSurfacesOnTop = true;
+                                            });
+                                          }
+                                        },
+                                        child: ShopChatInboxDrawer(
+                                          shopId: widget.shopId,
+                                          controller: _workspace.chat,
+                                          onReplaced:
+                                              (ShopChatOpenResult result) {
+                                                ScaffoldMessenger.of(
+                                                  context,
+                                                ).showSnackBar(
+                                                  const SnackBar(
+                                                    content: Text(
+                                                      '已將最久未使用的對話收起',
+                                                    ),
+                                                  ),
+                                                );
+                                              },
+                                        ),
+                                      ),
+                                    ),
+                                  if (dockMinimized)
+                                    Positioned(
+                                      right: 16,
+                                      bottom: 16,
+                                      child: FilledButton.tonalIcon(
+                                        onPressed: _workspace.chat.expandDock,
+                                        icon: const Icon(
+                                          Icons.chat_bubble_outline,
+                                        ),
+                                        label: Text(
+                                          '聊天 ${_workspace.chat.openIds.length}',
+                                        ),
+                                      ),
+                                    ),
+                                ];
+                                return Stack(
+                                  children: <Widget>[
+                                    tabViews,
+                                    if (frontendOpen && _chatSurfacesOnTop)
+                                      frontendLayer,
+                                    ...chatLayers,
+                                    if (frontendOpen && !_chatSurfacesOnTop)
+                                      frontendLayer,
+                                  ],
+                                );
+                              },
+                            );
+                          },
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         );
@@ -812,16 +916,14 @@ class _BasicInfoTab extends StatelessWidget {
     required this.currentUserRole,
     required this.memberData,
     required this.isProfileComplete,
-    required this.splitFrontendAvailable,
-    required this.onOpenSplitFrontend,
+    required this.onPreviewFrontend,
   });
   final Map<String, dynamic> shop;
   final String shopId;
   final String? currentUserRole;
   final Map<String, dynamic>? memberData;
   final bool isProfileComplete;
-  final bool splitFrontendAvailable;
-  final VoidCallback onOpenSplitFrontend;
+  final VoidCallback onPreviewFrontend;
   bool _can(String permissionKey) {
     return ShopService.instance.hasPermission(memberData, permissionKey);
   }
@@ -1006,18 +1108,7 @@ class _BasicInfoTab extends StatelessWidget {
                   : (canUsePublicPage ? '查看客戶看到的頁面' : '升級方案解鎖'),
               icon: Icons.visibility,
               enabled: isProfileComplete && canUsePublicPage,
-              onTap: () {
-                if (splitFrontendAvailable) {
-                  onOpenSplitFrontend();
-                  return;
-                }
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => ShopPublicPage(shopId: shopId),
-                  ),
-                );
-              },
+              onTap: onPreviewFrontend,
             ),
           ],
         ),
@@ -1197,24 +1288,31 @@ class _CatHotelTab extends StatelessWidget {
           title: '今日營運',
           children: [
             if (_can(ShopPermissionKeys.manageChat))
-              StreamBuilder<int>(
-                stream: ShopChatService.instance.watchShopUnreadTotal(shopId),
-                builder: (BuildContext context, AsyncSnapshot<int> snapshot) {
-                  final int unread = snapshot.data ?? 0;
-                  return _MenuTile(
-                    title: '店家聊天',
-                    subtitle: unread > 0
-                        ? '${ShopChatService.badgeLabel(unread)} 則未讀訊息'
-                        : '與會員即時聯絡',
-                    icon: Icons.chat_bubble_outline,
-                    badgeCount: unread > 99 ? 99 : unread,
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute<void>(
-                          builder: (_) => ShopChatInboxPage(shopId: shopId),
-                        ),
-                      );
+              Builder(
+                builder: (BuildContext context) {
+                  final ShopAdminWorkspaceController? workspace =
+                      ShopAdminWorkspaceScope.maybeOf(context);
+                  Widget tile(int unread) {
+                    return _MenuTile(
+                      title: '店家聊天',
+                      subtitle: unread > 0
+                          ? '${ShopChatService.badgeLabel(unread)} 則未讀訊息'
+                          : '與會員即時聯絡',
+                      icon: Icons.chat_bubble_outline,
+                      badgeCount: unread > 99 ? 99 : unread,
+                      onTap: () {
+                        workspace?.openInbox();
+                      },
+                    );
+                  }
+
+                  if (workspace == null) {
+                    return tile(0);
+                  }
+                  return ValueListenableBuilder<int>(
+                    valueListenable: workspace.unreadCount,
+                    builder: (BuildContext context, int unread, Widget? child) {
+                      return tile(unread);
                     },
                   );
                 },
@@ -2580,62 +2678,6 @@ class _DashboardMenuGrid extends StatelessWidget {
           ],
         );
       },
-    );
-  }
-}
-
-class _FrontendResizeHandle extends StatefulWidget {
-  const _FrontendResizeHandle({
-    required this.onDragUpdate,
-    required this.onDragEnd,
-  });
-
-  final ValueChanged<double> onDragUpdate;
-  final VoidCallback onDragEnd;
-
-  @override
-  State<_FrontendResizeHandle> createState() => _FrontendResizeHandleState();
-}
-
-class _FrontendResizeHandleState extends State<_FrontendResizeHandle> {
-  bool _hover = false;
-  bool _dragging = false;
-
-  @override
-  Widget build(BuildContext context) {
-    final ColorScheme colors = Theme.of(context).colorScheme;
-    final Color color;
-    if (_dragging) {
-      color = colors.primary;
-    } else if (_hover) {
-      color = colors.primary.withValues(alpha: 0.35);
-    } else {
-      color = const Color(0xFFE6EAF0);
-    }
-
-    return MouseRegion(
-      cursor: SystemMouseCursors.resizeColumn,
-      onEnter: (_) => setState(() => _hover = true),
-      onExit: (_) => setState(() => _hover = false),
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onHorizontalDragStart: (_) => setState(() => _dragging = true),
-        onHorizontalDragUpdate: (DragUpdateDetails details) {
-          widget.onDragUpdate(details.delta.dx);
-        },
-        onHorizontalDragEnd: (_) {
-          setState(() => _dragging = false);
-          widget.onDragEnd();
-        },
-        onHorizontalDragCancel: () {
-          setState(() => _dragging = false);
-          widget.onDragEnd();
-        },
-        child: SizedBox(
-          width: _ShopDashboardPageState._dividerWidth,
-          child: ColoredBox(color: color),
-        ),
-      ),
     );
   }
 }

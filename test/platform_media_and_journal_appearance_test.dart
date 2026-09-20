@@ -7,6 +7,7 @@ import 'package:petnest_saas/core/models/daily_care_journal_appearance.dart';
 import 'package:petnest_saas/core/models/daily_care_journal_layout.dart';
 import 'package:petnest_saas/core/models/daily_care_setting_model.dart';
 import 'package:petnest_saas/core/models/platform_media_asset.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:petnest_saas/core/widgets/daily_care_card_surface.dart';
 import 'package:petnest_saas/core/widgets/daily_care_illustrations.dart';
 import 'package:petnest_saas/core/widgets/platform_media_library_scope.dart';
@@ -216,10 +217,7 @@ void main() {
       ),
       DailyCareJournalAppearance.transparentWash,
     );
-    expect(
-      DailyCareJournalAppearance.frostedWash < 0.72,
-      isTrue,
-    );
+    expect(DailyCareJournalAppearance.frostedWash < 0.72, isTrue);
   });
 
   testWidgets('frosted 卡片會建立 BackdropFilter，而不是只剩透明遮罩', (
@@ -250,33 +248,27 @@ void main() {
   testWidgets('PlatformMediaLibraryScope 可解析整頁與卡片圖庫 ID', (
     WidgetTester tester,
   ) async {
-    final PlatformMediaAsset pageAsset = PlatformMediaAsset.fromMap(
-      'page-1',
-      <String, dynamic>{
-        'name': '頁背景',
-        'category': PlatformMediaCategories.dailyCarePage,
-        'imageUrl': 'https://example.com/page.jpg',
-        'enabled': true,
-      },
-    );
-    final PlatformMediaAsset cardAsset = PlatformMediaAsset.fromMap(
-      'card-1',
-      <String, dynamic>{
-        'name': '卡背景',
-        'category': PlatformMediaCategories.dailyCareCard,
-        'imageUrl': 'https://example.com/card.jpg',
-        'enabled': true,
-      },
-    );
-    final PlatformMediaAsset foodAsset = PlatformMediaAsset.fromMap(
-      'food-1',
-      <String, dynamic>{
-        'name': '餐食卡',
-        'category': PlatformMediaCategories.dailyCareCard,
-        'imageUrl': 'https://example.com/food.jpg',
-        'enabled': true,
-      },
-    );
+    final PlatformMediaAsset pageAsset =
+        PlatformMediaAsset.fromMap('page-1', <String, dynamic>{
+          'name': '頁背景',
+          'category': PlatformMediaCategories.dailyCarePage,
+          'imageUrl': 'https://example.com/page.jpg',
+          'enabled': true,
+        });
+    final PlatformMediaAsset cardAsset =
+        PlatformMediaAsset.fromMap('card-1', <String, dynamic>{
+          'name': '卡背景',
+          'category': PlatformMediaCategories.dailyCareCard,
+          'imageUrl': 'https://example.com/card.jpg',
+          'enabled': true,
+        });
+    final PlatformMediaAsset foodAsset =
+        PlatformMediaAsset.fromMap('food-1', <String, dynamic>{
+          'name': '餐食卡',
+          'category': PlatformMediaCategories.dailyCareCard,
+          'imageUrl': 'https://example.com/food.jpg',
+          'enabled': true,
+        });
     const DailyCareSettingModel setting = DailyCareSettingModel(
       pageBackgroundSource: DailyCareJournalTheme.pageSourceLibrary,
       pageBackgroundAssetId: 'page-1',
@@ -431,5 +423,134 @@ void main() {
       DailyCareInk.of(layout: auto, fill: fill, colors: colors, look: library),
       DailyCareInk.dark,
     );
+  });
+
+  test('每日照護小圖示分類與 journalCards.iconAssetId round trip', () {
+    expect(
+      PlatformMediaCategories.known,
+      contains(PlatformMediaCategories.dailyCareIcon),
+    );
+    expect(
+      PlatformMediaCategories.label(PlatformMediaCategories.dailyCareIcon),
+      '每日照護小圖示',
+    );
+    final DailyCareSettingModel setting = const DailyCareSettingModel()
+        .copyWith(
+          journalCards: DailyCareJournalCardLayout.mapFrom(<String, dynamic>{
+            'food': <String, dynamic>{'iconAssetId': 'icon-food'},
+          }),
+        );
+    final DailyCareSettingModel parsed = DailyCareSettingModel.fromMap(
+      setting.toMap(),
+    );
+    expect(
+      parsed.resolvedJournalCards[DailyCareJournalCardKeys.food]!.iconAssetId,
+      'icon-food',
+    );
+    expect(
+      parsed
+          .resolvedJournalCards[DailyCareJournalCardKeys.environment]!
+          .iconAssetId,
+      isEmpty,
+    );
+  });
+
+  test('標題小圖示 asset 缺失或停用時 fallback 空 URL', () {
+    const DailyCareJournalCardLayout layout = DailyCareJournalCardLayout(
+      key: DailyCareJournalCardKeys.food,
+      iconAssetId: 'gone',
+    );
+    expect(
+      DailyCareJournalAppearance.titleIconUrl(layout, assetLookup: (_) => null),
+      isEmpty,
+    );
+    final PlatformMediaAsset disabled =
+        PlatformMediaAsset.fromMap('gone', <String, dynamic>{
+          'enabled': false,
+          'imageUrl': 'https://example.com/icon.png',
+          'category': PlatformMediaCategories.dailyCareIcon,
+        });
+    expect(
+      DailyCareJournalAppearance.titleIconUrl(
+        layout,
+        assetLookup: (_) => disabled,
+      ),
+      isEmpty,
+    );
+    final PlatformMediaAsset enabled =
+        PlatformMediaAsset.fromMap('gone', <String, dynamic>{
+          'enabled': true,
+          'imageUrl': 'https://example.com/icon.png',
+          'category': PlatformMediaCategories.dailyCareIcon,
+        });
+    expect(
+      DailyCareJournalAppearance.titleIconUrl(
+        layout,
+        assetLookup: (_) => enabled,
+      ),
+      'https://example.com/icon.png',
+    );
+    final PlatformMediaAsset wrongCategory =
+        PlatformMediaAsset.fromMap('gone', <String, dynamic>{
+          'enabled': true,
+          'imageUrl': 'https://example.com/card.png',
+          'category': PlatformMediaCategories.dailyCareCard,
+        });
+    expect(
+      DailyCareJournalAppearance.titleIconUrl(
+        layout,
+        assetLookup: (_) => wrongCategory,
+      ),
+      isEmpty,
+    );
+    final PlatformMediaAsset thumbOnly =
+        PlatformMediaAsset.fromMap('gone', <String, dynamic>{
+          'enabled': true,
+          'imageUrl': '',
+          'thumbnailUrl': 'https://example.com/icon-thumb.png',
+          'category': PlatformMediaCategories.dailyCareIcon,
+        });
+    expect(
+      DailyCareJournalAppearance.titleIconUrl(
+        layout,
+        assetLookup: (_) => thumbOnly,
+      ),
+      'https://example.com/icon-thumb.png',
+    );
+    final PlatformMediaAsset noUrl =
+        PlatformMediaAsset.fromMap('gone', <String, dynamic>{
+          'enabled': true,
+          'imageUrl': '',
+          'thumbnailUrl': '',
+          'category': PlatformMediaCategories.dailyCareIcon,
+        });
+    expect(
+      DailyCareJournalAppearance.titleIconUrl(
+        layout,
+        assetLookup: (_) => noUrl,
+      ),
+      isEmpty,
+    );
+  });
+
+  testWidgets('照護內容卡片只保留標題內建圖示，不疊加腳印或樹葉', (WidgetTester tester) async {
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: Scaffold(
+          body: DailyCareIllustratedShell(
+            layout: DailyCareJournalCardLayout(
+              key: DailyCareJournalCardKeys.environment,
+            ),
+            title: '環境狀況',
+            fill: Color(0xFFEAF4EC),
+            child: Text('content'),
+          ),
+        ),
+      ),
+    );
+    expect(find.byType(DailyCareSvgIcon), findsOneWidget);
+    expect(find.byType(SvgPicture), findsOneWidget);
+    expect(find.text('環境狀況'), findsOneWidget);
+    expect(find.text('content'), findsOneWidget);
   });
 }

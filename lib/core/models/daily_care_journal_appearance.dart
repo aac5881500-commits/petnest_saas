@@ -67,8 +67,7 @@ class DailyCareResolvedCardLook {
   bool get hasImageVisual =>
       usesLibraryImage || usesLegacyNetworkImage || usesPreset;
 
-  bool get needsPhotoTextVeil =>
-      usesLibraryImage || usesLegacyNetworkImage;
+  bool get needsPhotoTextVeil => usesLibraryImage || usesLegacyNetworkImage;
 
   String get resolvedUrl {
     final String libraryUrl = asset?.imageUrl.trim() ?? '';
@@ -216,6 +215,28 @@ class DailyCareJournalAppearance {
       presetKey: setting.cardBackgroundPreset,
       assetLookup: assetLookup,
     );
+  }
+
+  /// 標題小圖示：須為啟用中的 dailyCareIcon；否則回空字串，由 UI 改用內建 SVG。
+  static String titleIconUrl(
+    DailyCareJournalCardLayout layout, {
+    PlatformMediaAsset? Function(String id)? assetLookup,
+  }) {
+    final String id = layout.iconAssetId.trim();
+    if (id.isEmpty) {
+      return '';
+    }
+    final PlatformMediaAsset? asset = assetLookup?.call(id);
+    if (asset == null ||
+        !asset.enabled ||
+        asset.category != PlatformMediaCategories.dailyCareIcon) {
+      return '';
+    }
+    final String imageUrl = asset.imageUrl.trim();
+    if (imageUrl.isNotEmpty) {
+      return imageUrl;
+    }
+    return asset.thumbnailUrl.trim();
   }
 
   static DailyCareResolvedCardLook _lookForMode(

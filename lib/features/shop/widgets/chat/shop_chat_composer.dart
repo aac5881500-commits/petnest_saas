@@ -2,6 +2,7 @@
 // 功能說明：聊天輸入列：文字與選圖
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:petnest_saas/core/models/shop_frontend_theme.dart';
 
 class ShopChatComposer extends StatelessWidget {
@@ -13,6 +14,7 @@ class ShopChatComposer extends StatelessWidget {
     required this.onSendText,
     required this.onPickImage,
     this.appearance,
+    this.focusNode,
   });
 
   final TextEditingController controller;
@@ -21,6 +23,7 @@ class ShopChatComposer extends StatelessWidget {
   final VoidCallback onSendText;
   final VoidCallback onPickImage;
   final ShopFrontendTheme? appearance;
+  final FocusNode? focusNode;
 
   @override
   Widget build(BuildContext context) {
@@ -47,49 +50,61 @@ class ShopChatComposer extends StatelessWidget {
                     tooltip: '選擇圖片',
                   ),
                   Expanded(
-                    child: TextField(
-                      controller: controller,
-                      enabled: canUse,
-                      minLines: 1,
-                      maxLines: 4,
-                      textInputAction: TextInputAction.send,
-                      style: TextStyle(color: theme?.bodyTextColor),
-                      decoration: InputDecoration(
-                        hintText: '輸入訊息……',
-                        hintStyle: TextStyle(color: theme?.subtitleColor),
-                        isDense: true,
-                        filled: true,
-                        fillColor: theme?.pageBackgroundColor,
-                        contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 14,
-                          vertical: 10,
-                        ),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(20),
-                          borderSide: BorderSide(
-                            color: theme?.borderColor ?? Colors.grey.shade400,
-                          ),
-                        ),
-                        enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(20),
-                          borderSide: BorderSide(
-                            color: theme?.borderColor ?? Colors.grey.shade400,
-                          ),
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(20),
-                          borderSide: BorderSide(
-                            color:
-                                theme?.primaryColor ??
-                                Theme.of(context).colorScheme.primary,
-                          ),
-                        ),
-                      ),
-                      onSubmitted: (_) {
+                    child: Focus(
+                      onKeyEvent: (FocusNode node, KeyEvent event) {
+                        if (event is! KeyDownEvent ||
+                            event.logicalKey != LogicalKeyboardKey.enter) {
+                          return KeyEventResult.ignored;
+                        }
+                        if (HardwareKeyboard.instance.isShiftPressed) {
+                          return KeyEventResult.ignored;
+                        }
                         if (canSend) {
                           onSendText();
                         }
+                        return KeyEventResult.handled;
                       },
+                      child: TextField(
+                        controller: controller,
+                        focusNode: focusNode,
+                        enabled: canUse,
+                        minLines: 1,
+                        maxLines: 4,
+                        textInputAction: TextInputAction.newline,
+                        keyboardType: TextInputType.multiline,
+                        style: TextStyle(color: theme?.bodyTextColor),
+                        decoration: InputDecoration(
+                          hintText: '輸入訊息……',
+                          hintStyle: TextStyle(color: theme?.subtitleColor),
+                          isDense: true,
+                          filled: true,
+                          fillColor: theme?.pageBackgroundColor,
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 14,
+                            vertical: 10,
+                          ),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(20),
+                            borderSide: BorderSide(
+                              color: theme?.borderColor ?? Colors.grey.shade400,
+                            ),
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(20),
+                            borderSide: BorderSide(
+                              color: theme?.borderColor ?? Colors.grey.shade400,
+                            ),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(20),
+                            borderSide: BorderSide(
+                              color:
+                                  theme?.primaryColor ??
+                                  Theme.of(context).colorScheme.primary,
+                            ),
+                          ),
+                        ),
+                      ),
                     ),
                   ),
                   const SizedBox(width: 6),

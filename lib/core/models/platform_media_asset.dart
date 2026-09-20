@@ -7,8 +7,13 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 abstract final class PlatformMediaCategories {
   static const String dailyCarePage = 'dailyCarePage';
   static const String dailyCareCard = 'dailyCareCard';
+  static const String dailyCareIcon = 'dailyCareIcon';
 
-  static const List<String> known = <String>[dailyCarePage, dailyCareCard];
+  static const List<String> known = <String>[
+    dailyCarePage,
+    dailyCareCard,
+    dailyCareIcon,
+  ];
 
   static String label(String category) {
     switch (category) {
@@ -16,6 +21,8 @@ abstract final class PlatformMediaCategories {
         return '每日照護頁背景';
       case dailyCareCard:
         return '每日照護卡片背景';
+      case dailyCareIcon:
+        return '每日照護小圖示';
       default:
         return category;
     }
@@ -27,6 +34,8 @@ abstract final class PlatformMediaCategories {
         return '建議直式 9:16';
       case dailyCareCard:
         return '建議橫式 4:3 或 3:2';
+      case dailyCareIcon:
+        return '建議正方形小圖示，透明 PNG 較佳';
       default:
         return '';
     }

@@ -23,7 +23,6 @@ void main() {
     bool singleDayMode = false,
     bool singleSessionMode = false,
     bool showPhotos = true,
-    double textScale = 1.0,
   }) async {
     await tester.binding.setSurfaceSize(const Size(1400, 1100));
     addTearDown(() => tester.binding.setSurfaceSize(null));
@@ -44,7 +43,6 @@ void main() {
               phoneSize: phoneSize,
               singleDayMode: singleDayMode,
               singleSessionMode: singleSessionMode,
-              textScale: textScale,
             ),
           ),
         ),
@@ -228,7 +226,7 @@ void main() {
     );
   });
 
-  testWidgets('環境與大小便同列同高，三種預覽尺寸不 overflow', (WidgetTester tester) async {
+  testWidgets('環境與大小便同列同高，三種預覽尺寸可見且不 overflow', (WidgetTester tester) async {
     FlutterError.onError = (FlutterErrorDetails details) {
       if (details.exception is FlutterError &&
           details.exception.toString().contains('overflowed')) {
@@ -241,16 +239,31 @@ void main() {
         in DailyCarePreviewPhoneSize.all) {
       await pumpPreview(tester, phoneSize: size);
       expect(tester.takeException(), isNull);
+      expect(
+        find.byKey(const ValueKey<String>('daily-care-pinned-row')),
+        findsOneWidget,
+      );
       final Size env = tester.getSize(
         find.byKey(const ValueKey<String>('journal-card-environment')),
       );
       final Size toilet = tester.getSize(
         find.byKey(const ValueKey<String>('journal-card-toilet')),
       );
-      expect(env.height, toilet.height);
+      expect(env.width, greaterThan(100));
+      expect(toilet.width, greaterThan(100));
+      expect(env.height, greaterThan(80));
+      expect(toilet.height, greaterThan(80));
+      expect(env.width, closeTo(toilet.width, 1));
+      expect(env.height, closeTo(toilet.height, 1));
       expect(
-        find.byKey(const ValueKey<String>('daily-care-pinned-row')),
-        findsOneWidget,
+        tester.getTopLeft(find.text('生活狀況').first).dy,
+        greaterThan(
+          tester
+              .getBottomLeft(
+                find.byKey(const ValueKey<String>('daily-care-pinned-row')),
+              )
+              .dy,
+        ),
       );
     }
   });
@@ -550,7 +563,6 @@ void main() {
                 sessionLabels: const <String>[],
                 sessionIndex: 0,
                 phoneSize: DailyCarePreviewPhoneSize.small,
-                textScale: 1.0,
               ),
             ),
           ),
@@ -572,24 +584,10 @@ void main() {
     expect(find.text('偏少'), findsWidgets);
   });
 
-  testWidgets('預覽文字 1.2／1.4 倍套用 TextScaler', (WidgetTester tester) async {
-    await pumpPreview(tester, textScale: 1.2);
-    BuildContext ctx = tester.element(find.byType(DailyCareJournalRenderer));
-    expect(MediaQuery.textScalerOf(ctx), const TextScaler.linear(1.2));
-    expect(find.text('飼料'), findsOneWidget);
-
-    await pumpPreview(tester, textScale: 1.4);
-    ctx = tester.element(find.byType(DailyCareJournalRenderer));
-    expect(MediaQuery.textScalerOf(ctx), const TextScaler.linear(1.4));
-    expect(find.text('貓跳台'), findsOneWidget);
-    expect(find.text('木天蓼'), findsOneWidget);
-    expect(tester.takeException(), isNull);
-  });
-
-  testWidgets('360／393／430 與文字倍率下單位不拆行且項目名稱可見', (WidgetTester tester) async {
+  testWidgets('360／393／430 正常字體下單位不拆行且項目名稱可見', (WidgetTester tester) async {
     const List<double> widths = <double>[360, 393, 430];
-    const List<double> scales = <double>[1.0, 1.2, 1.4];
     const List<String> names = <String>[
+      '飲水',
       '飼料',
       '罐頭',
       '零食',
@@ -600,37 +598,57 @@ void main() {
       '貓屋',
       '貓薄荷',
       '木天蓼',
+      '貓草',
     ];
     for (final double width in widths) {
-      for (final double scale in scales) {
-        await _pumpJournalAt(tester, width: width, textScale: scale);
-        final Size tempSize = tester.getSize(
-          find.byKey(const ValueKey<String>('journal-metric-溫度')),
-        );
-        final Size humidSize = tester.getSize(
-          find.byKey(const ValueKey<String>('journal-metric-濕度')),
-        );
-        expect(tempSize.height, lessThan(22 * scale * 1.1 + 10));
-        expect(humidSize.height, lessThan(22 * scale * 1.1 + 10));
-        expect(find.text('28°C'), findsOneWidget);
-        expect(find.text('30%'), findsOneWidget);
-        final Size env = tester.getSize(
-          find.byKey(const ValueKey<String>('journal-card-environment')),
-        );
-        final Size toilet = tester.getSize(
-          find.byKey(const ValueKey<String>('journal-card-toilet')),
-        );
-        expect(env.height, closeTo(toilet.height, 1));
-        expect(env.width, closeTo(toilet.width, 1));
-        for (final String name in names) {
-          expect(
-            find.text(name, skipOffstage: false),
-            findsOneWidget,
-            reason: '$name @ $width x$scale',
-          );
-        }
-        expect(tester.takeException(), isNull);
+      await _pumpJournalAt(tester, width: width);
+      expect(
+        MediaQuery.textScalerOf(
+          tester.element(find.byType(DailyCareJournalRenderer)),
+        ),
+        const TextScaler.linear(1),
+      );
+      final Size tempSize = tester.getSize(
+        find.byKey(const ValueKey<String>('journal-metric-溫度')),
+      );
+      final Size humidSize = tester.getSize(
+        find.byKey(const ValueKey<String>('journal-metric-濕度')),
+      );
+      expect(tempSize.height, lessThan(22 * 1.1 + 10));
+      expect(humidSize.height, lessThan(22 * 1.1 + 10));
+      expect(find.text('28°C'), findsOneWidget);
+      expect(find.text('30%'), findsOneWidget);
+      expect(find.text('大便'), findsWidgets);
+      expect(find.text('尿尿'), findsWidgets);
+      final Size env = tester.getSize(
+        find.byKey(const ValueKey<String>('journal-card-environment')),
+      );
+      final Size toilet = tester.getSize(
+        find.byKey(const ValueKey<String>('journal-card-toilet')),
+      );
+      expect(env.width, greaterThan(100));
+      expect(toilet.width, greaterThan(100));
+      expect(env.height, greaterThan(80));
+      expect(toilet.height, greaterThan(80));
+      expect(env.height, closeTo(toilet.height, 1));
+      expect(env.width, closeTo(toilet.width, 1));
+      expect(
+        tester.getTopLeft(find.text('生活狀況').first).dy,
+        greaterThan(
+          tester
+              .getBottomLeft(
+                find.byKey(const ValueKey<String>('daily-care-pinned-row')),
+              )
+              .dy,
+        ),
+      );
+      for (final String name in names) {
+        final Finder item = find.text(name, skipOffstage: false);
+        expect(item, findsWidgets, reason: '$name @ $width');
+        expect(tester.getSize(item.first).width, greaterThan(0));
+        expect(tester.getSize(item.first).height, greaterThan(0));
       }
+      expect(tester.takeException(), isNull);
     }
   });
 }
@@ -638,7 +656,6 @@ void main() {
 Future<void> _pumpJournalAt(
   WidgetTester tester, {
   required double width,
-  double textScale = 1.0,
   String humidity = '30',
 }) async {
   await tester.binding.setSurfaceSize(Size(width, 1600));
@@ -685,7 +702,7 @@ Future<void> _pumpJournalAt(
     MediaQuery(
       data: MediaQueryData(
         size: Size(width, 1600),
-        textScaler: TextScaler.linear(textScale),
+        textScaler: const TextScaler.linear(1.0),
       ),
       child: MaterialApp(
         home: Scaffold(

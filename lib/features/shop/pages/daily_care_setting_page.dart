@@ -17,6 +17,7 @@ import '../../../core/services/shop_room_service.dart';
 import '../../../core/services/shop_service.dart';
 import '../../../core/widgets/daily_care_card_surface.dart';
 import '../../../core/widgets/daily_care_illustrations.dart';
+import '../../../core/widgets/platform_media_library_scope.dart';
 import '../../../core/widgets/shop_task_center_button.dart';
 import '../widgets/daily_care_full_journal_preview.dart';
 import '../widgets/platform_media_asset_picker.dart';
@@ -71,7 +72,6 @@ class _DailyCareSettingPageState extends State<DailyCareSettingPage> {
   bool _previewSingleSession = false;
   DailyCarePreviewPhoneSize _previewPhoneSize =
       DailyCarePreviewPhoneSize.standard;
-  double _previewTextScale = 1.0;
 
   String _backgroundType = DailyCareJournalTheme.typeSystem;
   String _backgroundColorKey = DailyCareJournalTheme.colorDefault;
@@ -509,6 +509,20 @@ class _DailyCareSettingPageState extends State<DailyCareSettingPage> {
     });
   }
 
+  Future<void> _pickCardIconFor(DailyCareJournalCardLayout item) async {
+    final PlatformMediaAsset? asset = await showPlatformMediaAssetPicker(
+      context: context,
+      category: PlatformMediaCategories.dailyCareIcon,
+      selectedId: item.iconAssetId,
+    );
+    if (asset == null) {
+      return;
+    }
+    setState(() {
+      _patchCard(item.copyWith(iconAssetId: asset.id));
+    });
+  }
+
   Future<void> _pickCardAssetFor(DailyCareJournalCardLayout item) async {
     final PlatformMediaAsset? asset = await showPlatformMediaAssetPicker(
       context: context,
@@ -868,62 +882,65 @@ class _DailyCareSettingPageState extends State<DailyCareSettingPage> {
           Navigator.of(context).pop();
         }
       },
-      child: Scaffold(
-        backgroundColor: const Color(0xFFF7F7F7),
-        appBar: AppBar(
-          title: const Text('每日照護紀錄設定'),
-          actions: <Widget>[ShopTaskCenterButton(shopId: widget.shopId)],
-          bottom: PreferredSize(
-            preferredSize: const Size.fromHeight(48),
-            child: Row(
-              children: <Widget>[
-                _tabButton(0, '回報規則'),
-                _tabButton(1, '照護內容'),
-                _tabButton(2, '外觀設定'),
-              ],
+      child: PlatformMediaLibraryScope(
+        child: Scaffold(
+          backgroundColor: const Color(0xFFF7F7F7),
+          appBar: AppBar(
+            title: const Text('每日照護紀錄設定'),
+            actions: <Widget>[ShopTaskCenterButton(shopId: widget.shopId)],
+            bottom: PreferredSize(
+              preferredSize: const Size.fromHeight(48),
+              child: Row(
+                children: <Widget>[
+                  _tabButton(0, '回報規則'),
+                  _tabButton(1, '照護內容'),
+                  _tabButton(2, '外觀設定'),
+                ],
+              ),
             ),
           ),
-        ),
-        body: _loading
-            ? const Center(child: CircularProgressIndicator())
-            : Column(
-                children: <Widget>[
-                  Expanded(
-                    child: IndexedStack(
-                      index: _tabIndex,
-                      children: <Widget>[
-                        _wrapWidth(wide, _buildReportRulesTab()),
-                        _buildContentTab(wide),
-                        _buildAppearanceTab(wide),
-                      ],
+          body: _loading
+              ? const Center(child: CircularProgressIndicator())
+              : Column(
+                  children: <Widget>[
+                    Expanded(
+                      child: IndexedStack(
+                        index: _tabIndex,
+                        children: <Widget>[
+                          _wrapWidth(wide, _buildReportRulesTab()),
+                          _buildContentTab(wide),
+                          _buildAppearanceTab(wide),
+                        ],
+                      ),
                     ),
-                  ),
-                  SafeArea(
-                    child: Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
-                      child: SizedBox(
-                        width: double.infinity,
-                        height: 50,
-                        child: FilledButton.icon(
-                          onPressed: _saving
-                              ? null
-                              : () => _save(section: _sectionForTab(_tabIndex)),
-                          icon: _saving
-                              ? const SizedBox(
-                                  width: 18,
-                                  height: 18,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                  ),
-                                )
-                              : const Icon(Icons.save_outlined),
-                          label: Text(_saving ? '儲存中...' : '確認儲存此分頁'),
+                    SafeArea(
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+                        child: SizedBox(
+                          width: double.infinity,
+                          height: 50,
+                          child: FilledButton.icon(
+                            onPressed: _saving
+                                ? null
+                                : () =>
+                                      _save(section: _sectionForTab(_tabIndex)),
+                            icon: _saving
+                                ? const SizedBox(
+                                    width: 18,
+                                    height: 18,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                    ),
+                                  )
+                                : const Icon(Icons.save_outlined),
+                            label: Text(_saving ? '儲存中...' : '確認儲存此分頁'),
+                          ),
                         ),
                       ),
                     ),
-                  ),
-                ],
-              ),
+                  ],
+                ),
+        ),
       ),
     );
   }
@@ -1147,16 +1164,6 @@ class _DailyCareSettingPageState extends State<DailyCareSettingPage> {
                   });
                 },
               ),
-              for (final double scale in <double>[1.0, 1.2, 1.4])
-                ChoiceChip(
-                  label: Text('文字 ${scale.toStringAsFixed(1)} 倍'),
-                  selected: _previewTextScale == scale,
-                  onSelected: (_) {
-                    setState(() {
-                      _previewTextScale = scale;
-                    });
-                  },
-                ),
             ],
           ),
         ),
@@ -1173,7 +1180,6 @@ class _DailyCareSettingPageState extends State<DailyCareSettingPage> {
             phoneSize: _previewPhoneSize,
             singleDayMode: _previewSingleDay,
             singleSessionMode: _previewSingleSession,
-            textScale: _previewTextScale,
           ),
         ),
       ],
@@ -1199,7 +1205,6 @@ class _DailyCareSettingPageState extends State<DailyCareSettingPage> {
               shopLogoUrl: '',
               singleDayMode: _previewSingleDay,
               singleSessionMode: _previewSingleSession,
-              textScale: _previewTextScale,
             ),
           );
         },
@@ -1511,6 +1516,45 @@ class _DailyCareSettingPageState extends State<DailyCareSettingPage> {
                   ),
                   if (item.inkMode == DailyCareJournalCardStyle.inkCustom)
                     _cardInkColorRow(item),
+                  const SizedBox(height: 8),
+                  const Text(
+                    '標題小圖示',
+                    style: TextStyle(fontWeight: FontWeight.w700),
+                  ),
+                  const SizedBox(height: 4),
+                  const Text(
+                    '未選擇時使用內建圖示。圖庫圖片失效時也會自動改回內建圖示。',
+                    style: TextStyle(fontSize: 12, color: Colors.black54),
+                  ),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    children: <Widget>[
+                      DailyCareTitleIcon(
+                        layout: item,
+                        color: DailyCareInk.dark,
+                        size: 28,
+                      ),
+                      OutlinedButton.icon(
+                        onPressed: () => _pickCardIconFor(item),
+                        icon: const Icon(Icons.collections_outlined),
+                        label: Text(
+                          item.iconAssetId.isEmpty ? '從圖庫選擇' : '更換圖示',
+                        ),
+                      ),
+                      if (item.iconAssetId.isNotEmpty)
+                        TextButton(
+                          onPressed: () {
+                            setState(() {
+                              _patchCard(item.copyWith(iconAssetId: ''));
+                            });
+                          },
+                          child: const Text('使用預設圖示'),
+                        ),
+                    ],
+                  ),
                 ],
               ),
             ),

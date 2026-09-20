@@ -1,10 +1,11 @@
 // 檔案名稱：lib/features/shop/widgets/shop_frontend_test_panel.dart
-// 功能說明：店家後台左側完整前台操作區，以獨立 Navigator 載入既有 ShopPublicPage。
+// 功能說明：Dashboard 左側浮層掛載正式客戶前台（ShopPublicPage），固定 430×932。
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/features/shop/pages/shop_public_page.dart';
 import 'package:petnest_saas/features/shop/widgets/shop_dashboard_embedded_scope.dart';
+import 'package:petnest_saas/features/shop/widgets/shop_frontend_phone_preview.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 class ShopFrontendTestPanel extends StatefulWidget {
@@ -13,19 +14,34 @@ class ShopFrontendTestPanel extends StatefulWidget {
     required this.shopId,
     required this.shopCode,
     required this.onClose,
-    this.initialWidth,
-    this.onWidthChanged,
     this.homeResetToken = 0,
-    this.onOpenFullPage,
+    this.previewBodyOverride,
   });
+
+  static const Size liveFrontendSize = Size(430, 932);
+  static const Size dashboardFrontendPreviewSize = liveFrontendSize;
 
   final String shopId;
   final String shopCode;
   final VoidCallback onClose;
-  final double? initialWidth;
-  final ValueChanged<double>? onWidthChanged;
   final int homeResetToken;
-  final VoidCallback? onOpenFullPage;
+
+  @visibleForTesting
+  final Widget? previewBodyOverride;
+
+  @visibleForTesting
+  static Widget liveRoot({
+    required String shopId,
+    VoidCallback? onClose,
+    Widget? override,
+  }) {
+    return override ??
+        ShopPublicPage(
+          shopId: shopId,
+          embeddedInDashboard: true,
+          onExitEmbedded: onClose,
+        );
+  }
 
   @override
   State<ShopFrontendTestPanel> createState() => _ShopFrontendTestPanelState();
@@ -36,26 +52,10 @@ class _ShopFrontendTestPanelState extends State<ShopFrontendTestPanel> {
   int _refreshGeneration = 0;
 
   @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) {
-        return;
-      }
-      final double? width = widget.initialWidth;
-      if (width != null) {
-        widget.onWidthChanged?.call(width);
-      }
-    });
-  }
-
-  @override
   void didUpdateWidget(covariant ShopFrontendTestPanel oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.homeResetToken != widget.homeResetToken) {
-      _navigatorKey.currentState?.popUntil((Route<dynamic> route) {
-        return route.isFirst;
-      });
+      _goHome();
     }
     if (oldWidget.shopId != widget.shopId) {
       _resetNavigator();
@@ -102,13 +102,24 @@ class _ShopFrontendTestPanelState extends State<ShopFrontendTestPanel> {
     );
   }
 
+  Widget _liveRoot() {
+    return ShopFrontendTestPanel.liveRoot(
+      shopId: widget.shopId,
+      onClose: widget.onClose,
+      override: widget.previewBodyOverride,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final ColorScheme colors = Theme.of(context).colorScheme;
     final bool hasShopCode = widget.shopCode.trim().isNotEmpty;
 
-    return ColoredBox(
-      color: Colors.white,
+    return Material(
+      color: const Color(0xFFF7F8FC),
+      elevation: 10,
+      shadowColor: Colors.black26,
+      borderRadius: BorderRadius.circular(16),
       child: Column(
         children: <Widget>[
           SizedBox(
@@ -124,7 +135,7 @@ class _ShopFrontendTestPanelState extends State<ShopFrontendTestPanel> {
                   children: <Widget>[
                     Expanded(
                       child: Text(
-                        '前台',
+                        '實際前台',
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
@@ -134,10 +145,13 @@ class _ShopFrontendTestPanelState extends State<ShopFrontendTestPanel> {
                         ),
                       ),
                     ),
-                    _ToolbarIcon(
-                      tooltip: '返回上一頁',
-                      icon: Icons.arrow_back,
-                      onPressed: _goBack,
+                    Tooltip(
+                      message: '此區為正式前台，操作會建立實際資料',
+                      child: Icon(
+                        Icons.info_outline,
+                        size: 18,
+                        color: colors.onSurfaceVariant,
+                      ),
                     ),
                     _ToolbarIcon(
                       tooltip: '回到前台首頁',
@@ -150,12 +164,12 @@ class _ShopFrontendTestPanelState extends State<ShopFrontendTestPanel> {
                       onPressed: _resetNavigator,
                     ),
                     _ToolbarIcon(
-                      tooltip: '全頁查看',
-                      icon: Icons.open_in_full,
-                      onPressed: widget.onOpenFullPage,
+                      tooltip: '返回上一頁',
+                      icon: Icons.arrow_back,
+                      onPressed: _goBack,
                     ),
                     _ToolbarIcon(
-                      tooltip: hasShopCode ? '另開完整前台' : '請先設定店家代碼',
+                      tooltip: hasShopCode ? '開新視窗' : '請先設定店家代碼',
                       icon: Icons.open_in_new,
                       onPressed: hasShopCode ? _openPublicFrontend : null,
                     ),
@@ -169,66 +183,33 @@ class _ShopFrontendTestPanelState extends State<ShopFrontendTestPanel> {
               ),
             ),
           ),
-          Container(
-            width: double.infinity,
-            color: const Color(0xFFFFF4E8),
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[
-                Icon(
-                  Icons.info_outline,
-                  size: 16,
-                  color: Colors.orange.shade800,
-                ),
-                const SizedBox(width: 6),
-                Expanded(
-                  child: Text(
-                    '目前使用正式前台流程，送出預約會建立正式訂單。',
-                    style: TextStyle(
-                      fontSize: 11.5,
-                      height: 1.25,
-                      color: Colors.orange.shade900,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
           Expanded(
-            child: LayoutBuilder(
-              builder: (BuildContext context, BoxConstraints constraints) {
-                final MediaQueryData parent = MediaQuery.of(context);
-                return MediaQuery(
-                  data: parent.copyWith(
-                    size: Size(constraints.maxWidth, constraints.maxHeight),
-                  ),
-                  child: ShopDashboardEmbeddedScope(
-                    onExitEmbedded: widget.onClose,
-                    child: HeroControllerScope.none(
-                      child: KeyedSubtree(
-                        key: ValueKey<int>(_refreshGeneration),
-                        child: Navigator(
-                          key: _navigatorKey,
-                          onGenerateInitialRoutes:
-                              (NavigatorState navigator, String initialRoute) {
-                                return <Route<dynamic>>[
-                                  MaterialPageRoute<void>(
-                                    settings: const RouteSettings(name: '/'),
-                                    builder: (_) => ShopPublicPage(
-                                      shopId: widget.shopId,
-                                      embeddedInDashboard: true,
-                                      onExitEmbedded: widget.onClose,
-                                    ),
-                                  ),
-                                ];
-                              },
-                        ),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(8, 8, 8, 8),
+              child: ShopFrontendPhoneFrame(
+                logicalSize: ShopFrontendTestPanel.liveFrontendSize,
+                child: ShopDashboardEmbeddedScope(
+                  onExitEmbedded: widget.onClose,
+                  embeddedInShopDashboard: true,
+                  child: HeroControllerScope.none(
+                    child: KeyedSubtree(
+                      key: ValueKey<int>(_refreshGeneration),
+                      child: Navigator(
+                        key: _navigatorKey,
+                        onGenerateInitialRoutes:
+                            (NavigatorState navigator, String initialRoute) {
+                              return <Route<dynamic>>[
+                                MaterialPageRoute<void>(
+                                  settings: const RouteSettings(name: '/'),
+                                  builder: (_) => _liveRoot(),
+                                ),
+                              ];
+                            },
                       ),
                     ),
                   ),
-                );
-              },
+                ),
+              ),
             ),
           ),
         ],
@@ -259,4 +240,10 @@ class _ToolbarIcon extends StatelessWidget {
       padding: EdgeInsets.zero,
     );
   }
+}
+
+class ShopDashboardLiveFrontendOverlay {
+  ShopDashboardLiveFrontendOverlay._();
+
+  static const Key overlayKey = Key('shop-dashboard-live-frontend-overlay');
 }
