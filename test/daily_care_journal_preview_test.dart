@@ -23,6 +23,7 @@ void main() {
     bool singleDayMode = false,
     bool singleSessionMode = false,
     bool showPhotos = true,
+    double textScale = 1.0,
   }) async {
     await tester.binding.setSurfaceSize(const Size(1400, 1100));
     addTearDown(() => tester.binding.setSurfaceSize(null));
@@ -43,6 +44,7 @@ void main() {
               phoneSize: phoneSize,
               singleDayMode: singleDayMode,
               singleSessionMode: singleSessionMode,
+              textScale: textScale,
             ),
           ),
         ),
@@ -82,6 +84,10 @@ void main() {
       find.byType(DailyCareJournalRenderer),
     );
     expect(MediaQuery.sizeOf(rendererContext), const Size(393, 852));
+    expect(
+      MediaQuery.textScalerOf(rendererContext),
+      const TextScaler.linear(1),
+    );
     expect(tester.getSize(find.byType(DailyCareJournalRenderer)).width, 393);
   });
 
@@ -249,7 +255,7 @@ void main() {
     }
   });
 
-  testWidgets('今日概況啟用但空白仍顯示無；大小便為直式名稱在上', (WidgetTester tester) async {
+  testWidgets('今日概況啟用但空白仍顯示無；大小便為左右名稱在上', (WidgetTester tester) async {
     await tester.binding.setSurfaceSize(const Size(360, 780));
     addTearDown(() => tester.binding.setSurfaceSize(null));
     final DailyCareStayInfo stay = DailyCareStayInfo(
@@ -310,12 +316,15 @@ void main() {
     expect(find.text('今日概況'), findsOneWidget);
     expect(find.text('無'), findsWidgets);
     expect(
-      find.byKey(const ValueKey<String>('journal-toilet-vertical')),
+      find.byKey(const ValueKey<String>('journal-toilet-horizontal')),
       findsOneWidget,
     );
     final Offset stool = tester.getTopLeft(find.text('大便').last);
+    final Offset urine = tester.getTopLeft(find.text('尿尿').last);
     final Offset stoolValue = tester.getTopLeft(find.text('正常').first);
     expect(stoolValue.dy, greaterThan(stool.dy));
+    expect(urine.dx, greaterThan(stool.dx));
+    expect((urine.dy - stool.dy).abs(), lessThan(12));
     expect(tester.takeException(), isNull);
   });
 
@@ -520,4 +529,186 @@ void main() {
     );
     expect(find.text(DailyCareFullJournalPreview.deviceNote), findsOneWidget);
   });
+
+  testWidgets('預覽隔離桌機文字倍率並依 360 邏輯寬排版', (WidgetTester tester) async {
+    await tester.binding.setSurfaceSize(const Size(300, 900));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await tester.pumpWidget(
+      MediaQuery(
+        data: const MediaQueryData(
+          size: Size(300, 900),
+          textScaler: TextScaler.linear(2),
+        ),
+        child: MaterialApp(
+          home: Scaffold(
+            body: SizedBox(
+              width: 300,
+              height: 900,
+              child: DailyCareFullJournalPreview(
+                setting: const DailyCareSettingModel(),
+                isDaycare: false,
+                sessionLabels: const <String>[],
+                sessionIndex: 0,
+                phoneSize: DailyCarePreviewPhoneSize.small,
+                textScale: 1.0,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+    final BuildContext rendererContext = tester.element(
+      find.byType(DailyCareJournalRenderer),
+    );
+    expect(MediaQuery.sizeOf(rendererContext), const Size(360, 780));
+    expect(
+      MediaQuery.textScalerOf(rendererContext),
+      const TextScaler.linear(1),
+    );
+    expect(find.text('飼料'), findsOneWidget);
+    expect(find.text('逗貓棒'), findsOneWidget);
+    expect(find.text('貓薄荷'), findsOneWidget);
+    expect(find.text('偏少'), findsWidgets);
+  });
+
+  testWidgets('預覽文字 1.2／1.4 倍套用 TextScaler', (WidgetTester tester) async {
+    await pumpPreview(tester, textScale: 1.2);
+    BuildContext ctx = tester.element(find.byType(DailyCareJournalRenderer));
+    expect(MediaQuery.textScalerOf(ctx), const TextScaler.linear(1.2));
+    expect(find.text('飼料'), findsOneWidget);
+
+    await pumpPreview(tester, textScale: 1.4);
+    ctx = tester.element(find.byType(DailyCareJournalRenderer));
+    expect(MediaQuery.textScalerOf(ctx), const TextScaler.linear(1.4));
+    expect(find.text('貓跳台'), findsOneWidget);
+    expect(find.text('木天蓼'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('360／393／430 與文字倍率下單位不拆行且項目名稱可見', (WidgetTester tester) async {
+    const List<double> widths = <double>[360, 393, 430];
+    const List<double> scales = <double>[1.0, 1.2, 1.4];
+    const List<String> names = <String>[
+      '飼料',
+      '罐頭',
+      '零食',
+      '逗貓棒',
+      '貓抓板',
+      '貓跳台',
+      '玩具球',
+      '貓屋',
+      '貓薄荷',
+      '木天蓼',
+    ];
+    for (final double width in widths) {
+      for (final double scale in scales) {
+        await _pumpJournalAt(tester, width: width, textScale: scale);
+        final Size tempSize = tester.getSize(
+          find.byKey(const ValueKey<String>('journal-metric-溫度')),
+        );
+        final Size humidSize = tester.getSize(
+          find.byKey(const ValueKey<String>('journal-metric-濕度')),
+        );
+        expect(tempSize.height, lessThan(22 * scale * 1.1 + 10));
+        expect(humidSize.height, lessThan(22 * scale * 1.1 + 10));
+        expect(find.text('28°C'), findsOneWidget);
+        expect(find.text('30%'), findsOneWidget);
+        final Size env = tester.getSize(
+          find.byKey(const ValueKey<String>('journal-card-environment')),
+        );
+        final Size toilet = tester.getSize(
+          find.byKey(const ValueKey<String>('journal-card-toilet')),
+        );
+        expect(env.height, closeTo(toilet.height, 1));
+        expect(env.width, closeTo(toilet.width, 1));
+        for (final String name in names) {
+          expect(
+            find.text(name, skipOffstage: false),
+            findsOneWidget,
+            reason: '$name @ $width x$scale',
+          );
+        }
+        expect(tester.takeException(), isNull);
+      }
+    }
+  });
+}
+
+Future<void> _pumpJournalAt(
+  WidgetTester tester, {
+  required double width,
+  double textScale = 1.0,
+  String humidity = '30',
+}) async {
+  await tester.binding.setSurfaceSize(Size(width, 1600));
+  addTearDown(() => tester.binding.setSurfaceSize(null));
+  final DailyCareStayInfo stay = DailyCareStayInfo(
+    roomName: 'A1',
+    pets: <DailyCareStayPet>[DailyCareStayPet(name: '小米', photoUrl: '')],
+    startDate: DateTime(2026, 9, 16),
+    endDate: DateTime(2026, 9, 16),
+  );
+  final DailyCareRecordModel record = DailyCareRecordModel(
+    id: 'r1',
+    shopId: 's1',
+    bookingId: 'b1',
+    roomId: 'room',
+    roomName: 'A1',
+    recordDate: DateTime(2026, 9, 16),
+    sessionIndex: 0,
+    sessionName: '上午場',
+    values: <String, dynamic>{
+      'temperature': '28',
+      'humidity': humidity,
+      'stool': '正常',
+      'urine': '偏少',
+      'water': '正常',
+      'dryFood': '正常',
+      'wetFood': '偏少',
+      'snack': '正常',
+      'wandToy': '有',
+      'scratchBoard': '有',
+      'jumpPlatform': '無',
+      'toyBall': '有',
+      'catHouse': '有',
+      'catnip': '無',
+      'silverVine': '無',
+      'catGrass': '有',
+    },
+    petNotes: const <String, String>{},
+    photoCount: 0,
+    createdAt: DateTime(2026, 9, 16, 10),
+    updatedAt: DateTime(2026, 9, 16, 10),
+  );
+  await tester.pumpWidget(
+    MediaQuery(
+      data: MediaQueryData(
+        size: Size(width, 1600),
+        textScaler: TextScaler.linear(textScale),
+      ),
+      child: MaterialApp(
+        home: Scaffold(
+          body: SizedBox(
+            width: width,
+            height: 1600,
+            child: DailyCareJournalRenderer(
+              setting: const DailyCareSettingModel(),
+              stay: stay,
+              dateKeys: const <String>['2026/09/16'],
+              selectedDateKey: '2026/09/16',
+              sessionTabs: const <DailyCareJournalSessionTab>[
+                DailyCareJournalSessionTab(sessionIndex: 0, sessionName: '上午場'),
+              ],
+              selectedSessionIndex: 0,
+              record: record,
+              fallbackRoomName: 'A1',
+              showPhotoSection: false,
+            ),
+          ),
+        ),
+      ),
+    ),
+  );
+  await tester.pump();
 }

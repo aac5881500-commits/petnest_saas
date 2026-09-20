@@ -80,7 +80,9 @@ class CustomerDailyCarePhotoPage extends StatelessWidget {
               <String, List<DailyCarePhotoModel>>{};
 
           for (final DailyCarePhotoModel photo in photos) {
-            final String dateKey = _dateKey(photo.recordDate);
+            final String dateKey = DailyCarePhotoMatch.photoDisplayDateKey(
+              photo,
+            );
 
             grouped.putIfAbsent(dateKey, () => <DailyCarePhotoModel>[]);
 
@@ -345,12 +347,6 @@ class CustomerDailyCarePhotoPage extends StatelessWidget {
         );
       },
     );
-  }
-
-  static String _dateKey(DateTime value) {
-    return '${value.year}/'
-        '${value.month.toString().padLeft(2, '0')}/'
-        '${value.day.toString().padLeft(2, '0')}';
   }
 }
 

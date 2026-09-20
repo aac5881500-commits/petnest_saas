@@ -58,6 +58,10 @@ class SafeParse {
     return fallback;
   }
 
+  static int parseInt(dynamic value, {int fallback = 0}) {
+    return parseMoney(value, fallback: fallback);
+  }
+
   static DateTime? parseDate(dynamic value) {
     if (value == null) {
       return null;

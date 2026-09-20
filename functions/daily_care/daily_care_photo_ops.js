@@ -21,6 +21,8 @@ const {
 const {
   bookingEnded,
   compactDateKey,
+  expectedDailyCareRecordId,
+  nextRecordPhotoCount,
   computeExpiresAt,
   isDaycare,
   stampExpiresForBooking,
@@ -81,9 +83,16 @@ function capacityRef(firestore, shopId, roomId, dateKey) {
       .doc(`${shopId}__${roomId}__${dateKey}`);
 }
 
-function recordRef(firestore, bookingId, dateKey, sessionIndex) {
-  return firestore.collection("daily_care_records")
-      .doc(`${bookingId}_${dateKey}_${sessionIndex}`);
+function resolvePhotoRecordId(photo) {
+  const bound = normalizeString(photo && photo.dailyCareRecordId);
+  if (bound) {
+    return bound;
+  }
+  const dateKey = normalizeString(photo && photo.dateKey) ||
+    compactDateKey(photo && photo.recordDate);
+  return expectedDailyCareRecordId(
+      photo && photo.bookingId, dateKey, toInt(photo && photo.sessionIndex, 0),
+  );
 }
 
 function isV2(booking) {
@@ -109,8 +118,12 @@ exports.reserveDailyCarePhoto = onCall(
       const roomId = normalizeString(data.roomId);
       const sessionIndex = toInt(data.sessionIndex, 0);
       const recordDate = toDate(data.recordDate) || new Date();
+      const clientRecordId = normalizeString(data.dailyCareRecordId);
       if (!shopId || !bookingId || !roomId) {
         throwHttp("invalid-argument", "缺少照片上傳資料");
+      }
+      if (!clientRecordId) {
+        throwHttp("invalid-argument", "缺少照護紀錄 ID");
       }
       await assertStaff(shopId, uid);
       const firestore = admin.firestore();
@@ -127,18 +140,25 @@ exports.reserveDailyCarePhoto = onCall(
         throwHttp("failed-precondition", "目前狀態不可上傳照護照片");
       }
       const dateKey = compactDateKey(recordDate);
+      const expectedRecordId = expectedDailyCareRecordId(
+          bookingId, dateKey, sessionIndex,
+      );
+      if (clientRecordId !== expectedRecordId) {
+        throwHttp("invalid-argument", "照護紀錄 ID 與日期場次不符");
+      }
       const sessions = entitlementSessionCount(booking);
       if (sessionIndex < 0 || sessionIndex >= sessions) {
         throwHttp("failed-precondition", "此場次不在訂單照護權益內");
       }
       const recSnap = await firestore.collection("daily_care_records")
-          .doc(`${bookingId}_${dateKey}_${sessionIndex}`).get();
+          .doc(expectedRecordId).get();
       if (recSnap.exists && recSnap.data().photosLocked === true) {
         throwHttp("failed-precondition", "此場照片已鎖定，不可追加或更換");
       }
       const v2 = isV2(booking);
       const quota = v2 ? PHOTOS_PER_SESSION : entitlementPhotos(booking);
-      const reservationId = firestore.collection("daily_care_photo_reservations")
+      const reservationId = firestore
+          .collection("daily_care_photo_reservations")
           .doc().id;
       const photoId = reservationId;
       const now = Date.now();
@@ -209,6 +229,7 @@ exports.reserveDailyCarePhoto = onCall(
           roomId,
           dateKey,
           sessionIndex,
+          dailyCareRecordId: expectedRecordId,
           photoId,
           photoRuleVersion: v2 ? PHOTO_RULE_V2 : 1,
           status: "reserved",
@@ -299,6 +320,14 @@ exports.completeDailyCarePhotoUpload = onCall(
           return;
         }
         const sessionIndex = toInt(reservation.sessionIndex, 0);
+        const dailyCareRecordId =
+          normalizeString(reservation.dailyCareRecordId) ||
+          expectedDailyCareRecordId(
+              bookingId, reservation.dateKey, sessionIndex,
+          );
+        const recRef = firestore.collection("daily_care_records")
+            .doc(dailyCareRecordId);
+        const recSnap = await tx.get(recRef);
         const v2 = toInt(reservation.photoRuleVersion, 1) >= PHOTO_RULE_V2 ||
           isV2(booking);
         if (v2) {
@@ -339,6 +368,7 @@ exports.completeDailyCarePhotoUpload = onCall(
           roomName,
           recordDate: admin.firestore.Timestamp.fromDate(recordDate),
           dateKey: reservation.dateKey,
+          dailyCareRecordId,
           sessionIndex: toInt(reservation.sessionIndex, 0),
           sessionName,
           previewUrl,
@@ -351,17 +381,26 @@ exports.completeDailyCarePhotoUpload = onCall(
             admin.firestore.Timestamp.fromDate(expiresAt) : null,
           createdAt: admin.firestore.FieldValue.serverTimestamp(),
         });
-        tx.set(firestore.collection("daily_care_photo_downloads").doc(photoId), {
-          shopId,
-          bookingId,
-          photoId,
-          downloadStoragePath,
-          downloadBytes,
-          published: false,
-          expiresAt: expiresAt ?
-            admin.firestore.Timestamp.fromDate(expiresAt) : null,
-          createdAt: admin.firestore.FieldValue.serverTimestamp(),
-        });
+        tx.set(
+            firestore.collection("daily_care_photo_downloads").doc(photoId),
+            {
+              shopId,
+              bookingId,
+              photoId,
+              downloadStoragePath,
+              downloadBytes,
+              published: false,
+              expiresAt: expiresAt ?
+                admin.firestore.Timestamp.fromDate(expiresAt) : null,
+              createdAt: admin.firestore.FieldValue.serverTimestamp(),
+            },
+        );
+        tx.set(recRef, {
+          photoCount: nextRecordPhotoCount(
+              recSnap.data() && recSnap.data().photoCount, 1,
+          ),
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        }, {merge: true});
         tx.update(resRef, {
           status: "completed",
           completedAt: admin.firestore.FieldValue.serverTimestamp(),
@@ -420,7 +459,7 @@ exports.deleteDailyCarePhoto = onCall(
       }
       const photo = photoSnap.data() || {};
       await assertStaff(photo.shopId, uid);
-      const recId = `${photo.bookingId}_${photo.dateKey || compactDateKey(photo.recordDate)}_${toInt(photo.sessionIndex, 0)}`;
+      const recId = resolvePhotoRecordId(photo);
       const recSnap = await firestore.collection("daily_care_records")
           .doc(recId).get();
       const locked = recSnap.exists && recSnap.data().photosLocked === true;
@@ -475,15 +514,19 @@ async function releaseReservation(firestore, reservationId, deleteFiles) {
       }, {merge: true});
     } else {
       const uRef = usageRef(firestore, data.bookingId, data.dateKey);
-      const cRef = capacityRef(firestore, data.shopId, data.roomId, data.dateKey);
+      const cRef = capacityRef(
+          firestore, data.shopId, data.roomId, data.dateKey,
+      );
       const uSnap = await tx.get(uRef);
       const cSnap = await tx.get(cRef);
       tx.set(uRef, {
-        reserved: Math.max(0, toInt(uSnap.data() && uSnap.data().reserved, 0) - 1),
+        reserved: Math.max(0,
+            toInt(uSnap.data() && uSnap.data().reserved, 0) - 1),
         updatedAt: admin.firestore.FieldValue.serverTimestamp(),
       }, {merge: true});
       tx.set(cRef, {
-        reserved: Math.max(0, toInt(cSnap.data() && cSnap.data().reserved, 0) - 1),
+        reserved: Math.max(0,
+            toInt(cSnap.data() && cSnap.data().reserved, 0) - 1),
         updatedAt: admin.firestore.FieldValue.serverTimestamp(),
       }, {merge: true});
     }
@@ -531,7 +574,10 @@ async function deletePhotoFilesAndDocs(firestore, photoId, photo, adjustCount) {
     const dateKey = normalizeString(photo.dateKey) ||
       compactDateKey(photo.recordDate);
     const sessionIndex = toInt(photo.sessionIndex, 0);
+    const recId = resolvePhotoRecordId(photo);
     await firestore.runTransaction(async (tx) => {
+      const recRef = firestore.collection("daily_care_records").doc(recId);
+      const recSnap = await tx.get(recRef);
       const sRef = sessionUsageRef(
           firestore, photo.bookingId, dateKey, sessionIndex,
       );
@@ -541,18 +587,26 @@ async function deletePhotoFilesAndDocs(firestore, photoId, photo, adjustCount) {
           used: Math.max(0, toInt(sSnap.data() && sSnap.data().used, 0) - 1),
           updatedAt: admin.firestore.FieldValue.serverTimestamp(),
         }, {merge: true});
-        return;
+      } else {
+        const uRef = usageRef(firestore, photo.bookingId, dateKey);
+        const cRef = capacityRef(
+            firestore, photo.shopId, photo.roomId, dateKey,
+        );
+        const uSnap = await tx.get(uRef);
+        const cSnap = await tx.get(cRef);
+        tx.set(uRef, {
+          used: Math.max(0, toInt(uSnap.data() && uSnap.data().used, 0) - 1),
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        }, {merge: true});
+        tx.set(cRef, {
+          used: Math.max(0, toInt(cSnap.data() && cSnap.data().used, 0) - 1),
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        }, {merge: true});
       }
-      const uRef = usageRef(firestore, photo.bookingId, dateKey);
-      const cRef = capacityRef(firestore, photo.shopId, photo.roomId, dateKey);
-      const uSnap = await tx.get(uRef);
-      const cSnap = await tx.get(cRef);
-      tx.set(uRef, {
-        used: Math.max(0, toInt(uSnap.data() && uSnap.data().used, 0) - 1),
-        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-      }, {merge: true});
-      tx.set(cRef, {
-        used: Math.max(0, toInt(cSnap.data() && cSnap.data().used, 0) - 1),
+      tx.set(recRef, {
+        photoCount: nextRecordPhotoCount(
+            recSnap.data() && recSnap.data().photoCount, -1,
+        ),
         updatedAt: admin.firestore.FieldValue.serverTimestamp(),
       }, {merge: true});
     });
@@ -588,13 +642,21 @@ exports.lockDailyCareSessionPhotos = onCall(
       const shopId = normalizeString(data.shopId);
       const bookingId = normalizeString(data.bookingId);
       const sessionIndex = toInt(data.sessionIndex, 0);
-      const dateKey = compactDateKey(toDate(data.recordDate) || new Date());
       if (!shopId || !bookingId) {
         throwHttp("invalid-argument", "缺少鎖定資料");
       }
+      const dateKey = compactDateKey(toDate(data.recordDate) || new Date());
+      const clientRecordId = normalizeString(data.dailyCareRecordId);
+      const expectedId = expectedDailyCareRecordId(
+          bookingId, dateKey, sessionIndex,
+      );
+      if (clientRecordId && clientRecordId !== expectedId) {
+        throwHttp("invalid-argument", "照護紀錄 ID 與日期場次不符");
+      }
+      const recId = clientRecordId || expectedId;
       await assertStaff(shopId, uid);
       const firestore = admin.firestore();
-      const recRef = recordRef(firestore, bookingId, dateKey, sessionIndex);
+      const recRef = firestore.collection("daily_care_records").doc(recId);
       await recRef.set({
         photosLocked: true,
         publishedAt: admin.firestore.FieldValue.serverTimestamp(),
@@ -602,11 +664,25 @@ exports.lockDailyCareSessionPhotos = onCall(
       }, {merge: true});
       const photos = await firestore.collection("daily_care_photos")
           .where("bookingId", "==", bookingId)
-          .where("dateKey", "==", dateKey)
-          .where("sessionIndex", "==", sessionIndex)
           .get();
       const batch = firestore.batch();
+      let photoCount = 0;
       photos.docs.forEach((doc) => {
+        const dataDoc = doc.data() || {};
+        const bound = normalizeString(dataDoc.dailyCareRecordId);
+        let matched = false;
+        if (bound) {
+          matched = bound === recId;
+        } else {
+          const key = normalizeString(dataDoc.dateKey) ||
+            compactDateKey(dataDoc.recordDate);
+          matched = key === dateKey &&
+            toInt(dataDoc.sessionIndex, 0) === sessionIndex;
+        }
+        if (!matched) {
+          return;
+        }
+        photoCount += 1;
         batch.set(doc.ref, {published: true}, {merge: true});
         batch.set(
             firestore.collection("daily_care_photo_downloads").doc(doc.id),
@@ -614,9 +690,9 @@ exports.lockDailyCareSessionPhotos = onCall(
             {merge: true},
         );
       });
-      if (!photos.empty) {
+      if (photoCount > 0) {
         await batch.commit();
       }
-      return {ok: true, photoCount: photos.size};
+      return {ok: true, photoCount};
     },
 );

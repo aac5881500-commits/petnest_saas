@@ -133,7 +133,7 @@ class DailyCareJournalDemoData {
       'wetFood': '偏少',
       'snack': '正常',
       'stool': '正常',
-      'urine': '正常',
+      'urine': '偏少',
       'wandToy': '有',
       'scratchBoard': '有',
       'jumpPlatform': '無',
@@ -220,6 +220,7 @@ class DailyCareFullJournalPreview extends StatefulWidget {
     this.phoneSize = DailyCarePreviewPhoneSize.standard,
     this.singleDayMode = false,
     this.singleSessionMode = false,
+    this.textScale = 1.0,
   });
 
   final DailyCareSettingModel setting;
@@ -233,6 +234,7 @@ class DailyCareFullJournalPreview extends StatefulWidget {
   final DailyCarePreviewPhoneSize phoneSize;
   final bool singleDayMode;
   final bool singleSessionMode;
+  final double textScale;
 
   static const String deviceNote =
       '此為標準手機比例預覽；不同廠牌、螢幕尺寸及瀏海／動態島設計，實際上下留白可能略有差異。';
@@ -345,21 +347,38 @@ class _DailyCareFullJournalPreviewState
     );
 
     if (!widget.usePhoneFrame) {
-      return Column(
-        children: <Widget>[
-          Expanded(child: phoneScreen),
-          deviceNote,
-        ],
+      return MediaQuery(
+        data: MediaQuery.of(
+          context,
+        ).copyWith(textScaler: TextScaler.linear(widget.textScale)),
+        child: Column(
+          children: <Widget>[
+            Expanded(child: phoneScreen),
+            deviceNote,
+          ],
+        ),
       );
     }
 
     final Size logical = widget.phoneSize.size;
-    final Widget viewport = MediaQuery(
-      data: MediaQuery.of(context).copyWith(
+    final MediaQueryData host = MediaQuery.of(context);
+    final Widget phoneAtLogicalSize = MediaQuery(
+      data: MediaQueryData(
         size: logical,
+        devicePixelRatio: host.devicePixelRatio,
+        textScaler: TextScaler.linear(widget.textScale),
         padding: _phoneSafePadding,
         viewPadding: _phoneSafePadding,
         viewInsets: EdgeInsets.zero,
+        platformBrightness: host.platformBrightness,
+        alwaysUse24HourFormat: true,
+        accessibleNavigation: host.accessibleNavigation,
+        invertColors: host.invertColors,
+        highContrast: host.highContrast,
+        disableAnimations: host.disableAnimations,
+        boldText: host.boldText,
+        navigationMode: host.navigationMode,
+        gestureSettings: host.gestureSettings,
       ),
       child: SizedBox(
         width: logical.width,
@@ -368,41 +387,62 @@ class _DailyCareFullJournalPreviewState
       ),
     );
 
-    return Align(
-      alignment: Alignment.topCenter,
-      child: SingleChildScrollView(
-        child: Column(
-          children: <Widget>[
-            SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
-                child: DecoratedBox(
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF2C241C),
-                    borderRadius: BorderRadius.circular(36),
-                    boxShadow: <BoxShadow>[
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.18),
-                        blurRadius: 18,
-                        offset: const Offset(0, 8),
+    const double bezel = 10;
+    final Widget framed = DecoratedBox(
+      decoration: BoxDecoration(
+        color: const Color(0xFF2C241C),
+        borderRadius: BorderRadius.circular(36),
+        boxShadow: <BoxShadow>[
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.18),
+            blurRadius: 18,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(bezel),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(26),
+          child: phoneAtLogicalSize,
+        ),
+      ),
+    );
+
+    return LayoutBuilder(
+      builder: (BuildContext context, BoxConstraints constraints) {
+        final double frameW = logical.width + bezel * 2;
+        final double frameH = logical.height + bezel * 2;
+        final double available = constraints.maxWidth.isFinite
+            ? constraints.maxWidth - 24
+            : frameW;
+        final double scale = (available / frameW).clamp(0.2, 1.0);
+        return Align(
+          alignment: Alignment.topCenter,
+          child: SingleChildScrollView(
+            child: Column(
+              children: <Widget>[
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+                  child: SizedBox(
+                    width: frameW * scale,
+                    height: frameH * scale,
+                    child: FittedBox(
+                      fit: BoxFit.fill,
+                      child: SizedBox(
+                        width: frameW,
+                        height: frameH,
+                        child: framed,
                       ),
-                    ],
-                  ),
-                  child: Padding(
-                    padding: const EdgeInsets.all(10),
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(26),
-                      child: viewport,
                     ),
                   ),
                 ),
-              ),
+                deviceNote,
+              ],
             ),
-            deviceNote,
-          ],
-        ),
-      ),
+          ),
+        );
+      },
     );
   }
 }

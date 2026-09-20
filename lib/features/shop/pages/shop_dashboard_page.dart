@@ -22,14 +22,12 @@ import 'package:petnest_saas/features/shop/pages/chat/shop_chat_inbox_page.dart'
 import 'package:petnest_saas/features/shop/widgets/chat/shop_chat_app_bar_button.dart';
 import 'package:petnest_saas/features/shop/widgets/shop_frontend_test_panel.dart';
 import 'package:petnest_saas/features/shop/pages/shop_basic_info_page.dart';
-import 'package:petnest_saas/features/shop/pages/shop_booking_settings_page.dart';
+import 'package:petnest_saas/features/shop/pages/shop_booking_setup_center_page.dart';
 import 'package:petnest_saas/features/shop/pages/shop_business_info_page.dart';
 import 'package:petnest_saas/features/shop/pages/shop_media_page.dart';
 import 'package:petnest_saas/features/shop/pages/shop_public_page.dart';
 import 'package:petnest_saas/features/shop/pages/shop_module_settings_page.dart';
 import 'package:petnest_saas/features/shop/pages/shop_permission_settings_page.dart';
-import 'package:petnest_saas/features/shop/pages/shop_room_type_page.dart';
-import 'package:petnest_saas/features/shop/pages/shop_room_page.dart';
 import 'package:petnest_saas/features/admin/pages/admin_booking_list_page.dart';
 import 'package:petnest_saas/features/admin/pages/admin_daycare_board_page.dart';
 import 'package:petnest_saas/features/shop/pages/shop_daycare_settings_page.dart';
@@ -1325,49 +1323,20 @@ class _CatHotelTab extends StatelessWidget {
         _DashboardSection(
           title: '預約與房型設定',
           children: [
-            if (_can(ShopPermissionKeys.manageBookingSettings))
+            if (_can(ShopPermissionKeys.manageBookingSettings) ||
+                _can(ShopPermissionKeys.manageRoomTypes) ||
+                _can(ShopPermissionKeys.manageRooms))
               _MenuTile(
-                title: '預約管理',
-                subtitle: isProfileComplete ? '管理房數開放預約時間設定' : '請先完成基本資料',
-                icon: Icons.calendar_month,
+                title: '房型與預約設定',
+                subtitle: isProfileComplete ? '依序設定房型、實體房間與預約開放規則' : '請先完成基本資料',
+                icon: Icons.home_work_outlined,
                 enabled: isProfileComplete,
                 onTap: () {
                   Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (_) => ShopBookingSettingsPage(shopId: shopId),
-                    ),
-                  );
-                },
-              ),
-
-            if (_can(ShopPermissionKeys.manageRoomTypes))
-              _MenuTile(
-                title: '房型管理',
-                subtitle: isProfileComplete ? '設定房型、容量、價格與介紹內容' : '請先完成基本資料',
-                icon: Icons.home_work,
-                enabled: isProfileComplete,
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => ShopRoomTypePage(shopId: shopId),
-                    ),
-                  );
-                },
-              ),
-
-            if (_can(ShopPermissionKeys.manageRooms))
-              _MenuTile(
-                title: '房間管理',
-                subtitle: isProfileComplete ? '管理實際房號與房間開關' : '請先完成基本資料',
-                icon: Icons.meeting_room,
-                enabled: isProfileComplete,
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => ShopRoomPage(shopId: shopId),
+                      builder: (_) =>
+                          ShopBookingSetupCenterPage(shopId: shopId),
                     ),
                   );
                 },

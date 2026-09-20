@@ -490,6 +490,26 @@ class _CustomerDailyCarePageState extends State<CustomerDailyCarePage> {
     return null;
   }
 
+  String _recordPhotoId({
+    required DailyCareRecordModel? record,
+    required String selectedDateKey,
+    required int selectedSessionIndex,
+  }) {
+    final String existing = (record?.id ?? '').trim();
+    if (existing.isNotEmpty) {
+      return existing;
+    }
+    final DateTime? date = DailyCareDateHelper.parseDateKey(selectedDateKey);
+    if (date == null) {
+      return '';
+    }
+    return DailyCareRecordService.recordId(
+      bookingId: widget.bookingId,
+      recordDate: date,
+      sessionIndex: selectedSessionIndex,
+    );
+  }
+
   Widget _journalRenderer({
     required DailyCareSettingModel setting,
     required DailyCareStayInfo stay,
@@ -541,8 +561,16 @@ class _CustomerDailyCarePageState extends State<CustomerDailyCarePage> {
     }
 
     return StreamBuilder<List<DailyCarePhotoModel>>(
-      stream: DailyCarePhotoService.instance.streamBookingPhotos(
+      stream: DailyCarePhotoService.instance.streamRecordPhotos(
         bookingId: widget.bookingId,
+        dailyCareRecordId: _recordPhotoId(
+          record: record,
+          selectedDateKey: selectedDateKey,
+          selectedSessionIndex: selectedSessionIndex,
+        ),
+        recordDate: DailyCareDateHelper.parseDateKey(selectedDateKey),
+        sessionIndex: selectedSessionIndex,
+        roomId: isDaycare ? '' : (record?.roomId ?? ''),
       ),
       builder:
           (
@@ -562,6 +590,7 @@ class _CustomerDailyCarePageState extends State<CustomerDailyCarePage> {
               photosLoading:
                   snapshot.connectionState == ConnectionState.waiting &&
                   !snapshot.hasData,
+              photosBoundToSelectedRecord: true,
               showPhotoSection: true,
               shopName: shopName,
               shopLogoUrl: shopLogoUrl,

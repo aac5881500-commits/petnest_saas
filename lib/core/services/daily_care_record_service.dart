@@ -62,29 +62,25 @@ class DailyCareRecordService {
       return Stream<DailyCareRecordModel?>.value(null);
     }
 
-    final DateTime normalizedDate = DateTime(
-      recordDate.year,
-      recordDate.month,
-      recordDate.day,
+    final String id = recordId(
+      bookingId: normalizedBookingId,
+      recordDate: recordDate,
+      sessionIndex: sessionIndex,
     );
 
-    return _collection
-        .where('shopId', isEqualTo: normalizedShopId)
-        .where('bookingId', isEqualTo: normalizedBookingId)
-        .where('recordDate', isEqualTo: Timestamp.fromDate(normalizedDate))
-        .where('sessionIndex', isEqualTo: sessionIndex)
-        .limit(1)
-        .snapshots()
-        .map((QuerySnapshot<Map<String, dynamic>> snapshot) {
-          if (snapshot.docs.isEmpty) {
-            return null;
-          }
-
-          final QueryDocumentSnapshot<Map<String, dynamic>> doc =
-              snapshot.docs.first;
-
-          return DailyCareRecordModel.fromMap(id: doc.id, map: doc.data());
-        });
+    return _collection.doc(id).snapshots().map((
+      DocumentSnapshot<Map<String, dynamic>> snapshot,
+    ) {
+      if (!snapshot.exists) {
+        return null;
+      }
+      final Map<String, dynamic> data = snapshot.data() ?? <String, dynamic>{};
+      if (normalizedShopId.isNotEmpty &&
+          (data['shopId'] ?? '').toString() != normalizedShopId) {
+        return null;
+      }
+      return DailyCareRecordModel.fromMap(id: snapshot.id, map: data);
+    });
   }
 
   /// 單次取得某一場紀錄
@@ -101,26 +97,22 @@ class DailyCareRecordService {
       return null;
     }
 
-    final QuerySnapshot<Map<String, dynamic>> snapshot = await _collection
-        .where('shopId', isEqualTo: normalizedShopId)
-        .where('bookingId', isEqualTo: normalizedBookingId)
-        .where(
-          'recordDate',
-          isEqualTo: Timestamp.fromDate(
-            DateTime(recordDate.year, recordDate.month, recordDate.day),
-          ),
-        )
-        .where('sessionIndex', isEqualTo: sessionIndex)
-        .limit(1)
+    final String id = recordId(
+      bookingId: normalizedBookingId,
+      recordDate: recordDate,
+      sessionIndex: sessionIndex,
+    );
+    final DocumentSnapshot<Map<String, dynamic>> snapshot = await _collection
+        .doc(id)
         .get();
-
-    if (snapshot.docs.isEmpty) {
+    if (!snapshot.exists) {
       return null;
     }
-
-    final QueryDocumentSnapshot<Map<String, dynamic>> doc = snapshot.docs.first;
-
-    return DailyCareRecordModel.fromMap(id: doc.id, map: doc.data());
+    final Map<String, dynamic> data = snapshot.data() ?? <String, dynamic>{};
+    if ((data['shopId'] ?? '').toString() != normalizedShopId) {
+      return null;
+    }
+    return DailyCareRecordModel.fromMap(id: snapshot.id, map: data);
   }
 
   /// 儲存或更新某一場照護紀錄
@@ -181,11 +173,10 @@ class DailyCareRecordService {
       recordId,
     );
 
-    final DateTime day = DateTime(
-      recordDate.year,
-      recordDate.month,
-      recordDate.day,
+    final DateTime taipei = DailyCareDateHelper.calendarDateInTaipei(
+      recordDate,
     );
+    final DateTime day = DateTime(taipei.year, taipei.month, taipei.day);
     final String serviceDate = DailyCareDateHelper.dateKey(
       day,
     ).replaceAll('/', '-');

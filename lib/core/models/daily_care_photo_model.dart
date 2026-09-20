@@ -22,6 +22,8 @@ class DailyCarePhotoModel {
     required this.previewUrl,
     required this.previewStoragePath,
     required this.createdAt,
+    this.dailyCareRecordId = '',
+    this.dateKey = '',
     this.previewBytes,
     this.uploadedByUid,
     this.uploadedByName,
@@ -35,6 +37,12 @@ class DailyCarePhotoModel {
 
   /// 此次住宿訂單 ID
   final String bookingId;
+
+  /// 對應 daily_care_records 文件 ID
+  final String dailyCareRecordId;
+
+  /// 台北照護日 yyyyMMdd
+  final String dateKey;
 
   /// 房間 ID
   final String roomId;
@@ -81,6 +89,8 @@ class DailyCarePhotoModel {
       id: id,
       shopId: _readString(map['shopId']),
       bookingId: _readString(map['bookingId']),
+      dailyCareRecordId: _readString(map['dailyCareRecordId']),
+      dateKey: _readCompactDateKey(map['dateKey']),
       roomId: _readString(map['roomId']),
       roomName: _readString(map['roomName']),
       recordDate: _readDateTime(map['recordDate']) ?? DateTime.now(),
@@ -99,10 +109,14 @@ class DailyCarePhotoModel {
     return <String, dynamic>{
       'shopId': shopId,
       'bookingId': bookingId,
+      'dailyCareRecordId': dailyCareRecordId,
+      'dateKey': dateKey.isNotEmpty
+          ? dateKey
+          : DailyCareDateHelper.recordIdDateKey(recordDate),
       'roomId': roomId,
       'roomName': roomName,
       'recordDate': Timestamp.fromDate(
-        DateTime(recordDate.year, recordDate.month, recordDate.day),
+        DailyCareDateHelper.calendarDateInTaipei(recordDate),
       ),
       'sessionIndex': sessionIndex,
       'sessionName': sessionName,
@@ -117,6 +131,16 @@ class DailyCarePhotoModel {
 
   static String _readString(Object? value) {
     return value?.toString().trim() ?? '';
+  }
+
+  static String _readCompactDateKey(Object? value) {
+    final String raw = _readString(
+      value,
+    ).replaceAll('/', '').replaceAll('-', '');
+    if (raw.length >= 8) {
+      return raw.substring(0, 8);
+    }
+    return raw;
   }
 
   static String? _readNullableString(Object? value) {
@@ -159,12 +183,7 @@ class DailyCarePhotoMatch {
   DailyCarePhotoMatch._();
 
   static String normalizeDateKey(String dateKey) {
-    String key = dateKey.trim().replaceAll('-', '/');
-    if (key.length == 8 && !key.contains('/')) {
-      key =
-          '${key.substring(0, 4)}/${key.substring(4, 6)}/${key.substring(6, 8)}';
-    }
-    return key;
+    return DailyCareDateHelper.displayDateKey(dateKey);
   }
 
   static String canonicalDateKey(DateTime recordDate) {
@@ -173,16 +192,19 @@ class DailyCarePhotoMatch {
     );
   }
 
+  static String photoDisplayDateKey(DailyCarePhotoModel photo) {
+    if (photo.dateKey.trim().isNotEmpty) {
+      return normalizeDateKey(photo.dateKey);
+    }
+    return canonicalDateKey(photo.recordDate);
+  }
+
   static bool matchesDate(DailyCarePhotoModel photo, String dateKey) {
     final String selected = normalizeDateKey(dateKey);
     if (selected.isEmpty) {
       return false;
     }
-    final String localKey = DailyCareDateHelper.dateKey(
-      DailyCareDateHelper.dateOnly(photo.recordDate),
-    );
-    final String taipeiKey = canonicalDateKey(photo.recordDate);
-    return localKey == selected || taipeiKey == selected;
+    return photoDisplayDateKey(photo) == selected;
   }
 
   static bool matchesSession({
@@ -227,5 +249,28 @@ class DailyCarePhotoMatch {
           ),
         )
         .toList();
+  }
+
+  /// 新資料只依 dailyCareRecordId；舊資料才用台北日＋場次＋房間。
+  static List<DailyCarePhotoModel> recordPhotos({
+    required List<DailyCarePhotoModel> photos,
+    required String dailyCareRecordId,
+    required String dateKey,
+    required int sessionIndex,
+    String roomId = '',
+  }) {
+    final String recordId = dailyCareRecordId.trim();
+    return photos.where((DailyCarePhotoModel photo) {
+      final String bound = photo.dailyCareRecordId.trim();
+      if (bound.isNotEmpty) {
+        return recordId.isNotEmpty && bound == recordId;
+      }
+      return matchesSession(
+        photo: photo,
+        dateKey: dateKey,
+        sessionIndex: sessionIndex,
+        roomId: roomId,
+      );
+    }).toList();
   }
 }

@@ -11,6 +11,9 @@ const {
   stampExpiresForBooking,
   nextRetryAt,
   STAMP_CHUNK,
+  compactDateKey,
+  expectedDailyCareRecordId,
+  nextRecordPhotoCount,
 } = require("./daily_care_expiry");
 
 if (!admin.apps.length) {
@@ -268,4 +271,24 @@ test("超過 40 筆時游標可繼續，前面 hold 不擋住後面刪除", () =
   assert.equal(deleted.length, 5);
   assert.equal(held.length, 40);
   assert.equal(batches, 2);
+});
+
+test("台北 9/20：UTC 9/19 16:00 產生相同 yyyyMMdd 與 record ID", () => {
+  const utc = new Date("2026-09-19T16:00:00.000Z");
+  assert.equal(compactDateKey(utc), "20260920");
+  assert.equal(
+      expectedDailyCareRecordId("booking123", utc, 0),
+      "booking123_20260920_0",
+  );
+  assert.equal(
+      expectedDailyCareRecordId("booking123", "20260920", 1),
+      "booking123_20260920_1",
+  );
+});
+
+test("完成上傳與刪除後 photoCount 不小於 0", () => {
+  assert.equal(nextRecordPhotoCount(0, 1), 1);
+  assert.equal(nextRecordPhotoCount(1, 1), 2);
+  assert.equal(nextRecordPhotoCount(1, -1), 0);
+  assert.equal(nextRecordPhotoCount(0, -1), 0);
 });

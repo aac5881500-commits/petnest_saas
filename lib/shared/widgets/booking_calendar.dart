@@ -116,14 +116,40 @@ class _BookingCalendarState extends State<BookingCalendar> {
             const SizedBox(height: 4),
             _buildWeekHeader(),
             const SizedBox(height: 8),
-            GridView.count(
-              crossAxisCount: 7,
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              crossAxisSpacing: 4,
-              mainAxisSpacing: widget.compactCells ? 4 : 8,
-              childAspectRatio: widget.compactCells ? 1.0 : 0.72,
-              children: dayCells,
+            LayoutBuilder(
+              builder: (BuildContext context, BoxConstraints constraints) {
+                double maxWidth = constraints.maxWidth;
+                if (!maxWidth.isFinite || maxWidth <= 0) {
+                  maxWidth = MediaQuery.sizeOf(context).width;
+                }
+                final double spacing = widget.compactCells ? 4 : 8;
+                final double cellWidth = ((maxWidth - spacing * 6) / 7).clamp(
+                  1.0,
+                  240.0,
+                );
+                final double minHeight = widget.compactCells ? 54 : 64;
+                final double maxHeight = widget.compactCells ? 64 : 82;
+                final double targetHeight;
+                if (widget.compactCells) {
+                  targetHeight = 58;
+                } else if (maxWidth < 720) {
+                  targetHeight = 58;
+                } else if (maxWidth < 1000) {
+                  targetHeight = 68;
+                } else {
+                  targetHeight = 74;
+                }
+                final double height = targetHeight.clamp(minHeight, maxHeight);
+                return GridView.count(
+                  crossAxisCount: 7,
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  crossAxisSpacing: 4,
+                  mainAxisSpacing: spacing,
+                  childAspectRatio: cellWidth / height,
+                  children: dayCells,
+                );
+              },
             ),
           ],
         ),

@@ -44,6 +44,7 @@ class DailyCarePhotoUploadService {
     required DateTime recordDate,
     required int sessionIndex,
     required String sessionName,
+    required String dailyCareRecordId,
   }) async {
     final String normalizedShopId = shopId.trim();
     final String normalizedBookingId = bookingId.trim();
@@ -80,6 +81,7 @@ class DailyCarePhotoUploadService {
           roomId: normalizedRoomId,
           recordDate: recordDate,
           sessionIndex: sessionIndex,
+          dailyCareRecordId: dailyCareRecordId,
         );
     final String reservationId = (reserved['reservationId'] ?? '').toString();
     final String photoId = (reserved['photoId'] ?? '').toString();

@@ -201,10 +201,23 @@ async function stampExpiresForBooking(firestore, bookingId, booking) {
 
 function compactDateKey(recordDate) {
   const date = toDate(recordDate) || new Date();
-  const y = date.getFullYear();
-  const m = String(date.getMonth() + 1).padStart(2, "0");
-  const d = String(date.getDate()).padStart(2, "0");
-  return `${y}${m}${d}`;
+  const formatted = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Taipei",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(date);
+  return String(formatted).replace(/-/g, "");
+}
+
+function expectedDailyCareRecordId(bookingId, dateOrKey, sessionIndex) {
+  const raw = String(dateOrKey == null ? "" : dateOrKey);
+  const dateKey = /^\d{8}$/.test(raw) ? raw : compactDateKey(dateOrKey);
+  return `${bookingId}_${dateKey}_${Number(sessionIndex) || 0}`;
+}
+
+function nextRecordPhotoCount(current, delta) {
+  return Math.max(0, (Number(current) || 0) + (Number(delta) || 0));
 }
 
 function assertStoragePath(path, shopId, bookingId, photoId) {
@@ -233,5 +246,7 @@ module.exports = {
   planStampWrites,
   stampExpiresForBooking,
   compactDateKey,
+  expectedDailyCareRecordId,
+  nextRecordPhotoCount,
   assertStoragePath,
 };

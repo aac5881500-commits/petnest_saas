@@ -188,35 +188,92 @@ class ShopRoomService {
     }).toList();
   }
 
+  Map<String, dynamic> _newRoomFields({
+    required String name,
+    required String roomTypeId,
+    required List<String> cameraIds,
+  }) {
+    return <String, dynamic>{
+      'name': name,
+      'roomTypeId': roomTypeId,
+      'enabled': true,
+      'permanentStatus': 'available',
+      'cameraIds': cameraIds,
+      'blockedDates': <String>[],
+      'priceRules': <Map<String, dynamic>>[],
+      'discountRules': <Map<String, dynamic>>[],
+      'createdAt': FieldValue.serverTimestamp(),
+      'updatedAt': FieldValue.serverTimestamp(),
+    };
+  }
+
+  void _enqueueNewRoom({
+    required WriteBatch batch,
+    required String shopId,
+    required String name,
+    required String roomTypeId,
+  }) {
+    final DocumentReference<Map<String, dynamic>> roomRef = roomsRef(
+      shopId,
+    ).doc();
+    final DocumentReference<Map<String, dynamic>> cameraRef = ShopDeviceService
+        .instance
+        .devicesRef(shopId)
+        .doc();
+    batch.set(
+      roomRef,
+      _newRoomFields(
+        name: name,
+        roomTypeId: roomTypeId,
+        cameraIds: <String>[cameraRef.id],
+      ),
+    );
+    batch.set(
+      cameraRef,
+      ShopDeviceService.instance.defaultCameraPayload(
+        shopId: shopId,
+        roomId: roomRef.id,
+        roomName: name,
+      ),
+    );
+  }
+
   Future<void> createRoom({
     required String shopId,
     required String name,
     required String roomTypeId,
   }) async {
-    final roomDoc = await roomsRef(shopId).add({
-      'name': name,
-      'roomTypeId': roomTypeId,
-      'enabled': true,
-      'permanentStatus': 'available',
-      'cameraIds': [],
-      'blockedDates': [],
-      'priceRules': [],
-      'discountRules': [],
-      'createdAt': FieldValue.serverTimestamp(),
-      'updatedAt': FieldValue.serverTimestamp(),
-    });
+    final WriteBatch batch = _firestore.batch();
+    _enqueueNewRoom(
+      batch: batch,
+      shopId: shopId,
+      name: name,
+      roomTypeId: roomTypeId,
+    );
+    await batch.commit();
+  }
 
-    final cameraId = await ShopDeviceService.instance
-        .createDefaultCameraForRoom(
-          shopId: shopId,
-          roomId: roomDoc.id,
-          roomName: name,
-        );
-
-    await roomDoc.update({
-      'cameraIds': [cameraId],
-      'updatedAt': FieldValue.serverTimestamp(),
-    });
+  Future<void> createRoomsBatch({
+    required String shopId,
+    required String roomTypeId,
+    required List<String> names,
+  }) async {
+    if (names.isEmpty) {
+      return;
+    }
+    if (names.length * 2 > 500) {
+      throw StateError('一次最多建立 250 間房間，請分批建立');
+    }
+    final WriteBatch batch = _firestore.batch();
+    for (final String name in names) {
+      _enqueueNewRoom(
+        batch: batch,
+        shopId: shopId,
+        name: name,
+        roomTypeId: roomTypeId,
+      );
+    }
+    await batch.commit();
   }
 
   Future<void> updateRoomStatus({
@@ -516,9 +573,7 @@ class ShopRoomService {
         .where('status', isEqualTo: 'active')
         .get();
     final List<Map<String, dynamic>> occupancies = occSnap.docs
-        .map(
-          (QueryDocumentSnapshot<Map<String, dynamic>> doc) => doc.data(),
-        )
+        .map((QueryDocumentSnapshot<Map<String, dynamic>> doc) => doc.data())
         .toList();
     final QuerySnapshot<Map<String, dynamic>> calendarSnap =
         await roomCalendarRef(shopId).get();

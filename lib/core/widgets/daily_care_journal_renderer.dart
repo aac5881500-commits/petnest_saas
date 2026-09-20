@@ -151,6 +151,7 @@ class DailyCareJournalRenderer extends StatelessWidget {
     this.fallbackRoomName = '',
     this.photos = const <DailyCarePhotoModel>[],
     this.photosLoading = false,
+    this.photosBoundToSelectedRecord = false,
     this.showPhotoSection = false,
     this.shopName = '',
     this.shopLogoUrl = '',
@@ -171,6 +172,7 @@ class DailyCareJournalRenderer extends StatelessWidget {
   final String fallbackRoomName;
   final List<DailyCarePhotoModel> photos;
   final bool photosLoading;
+  final bool photosBoundToSelectedRecord;
   final bool showPhotoSection;
   final String shopName;
   final String shopLogoUrl;
@@ -543,97 +545,117 @@ class DailyCareJournalRenderer extends StatelessWidget {
   }
 
   Widget _buildDateSelector({required ColorScheme colors}) {
-    final Color ink = _headerInk(colors);
-    return KeyedSubtree(
-      key: const ValueKey<String>('journal-header-dates'),
-      child: _headerSurface(
-        padding: const EdgeInsets.fromLTRB(8, 6, 8, 6),
-        child: SizedBox(
-          height: 46,
-          child: ListView.separated(
-            scrollDirection: Axis.horizontal,
-            itemCount: dateKeys.length,
-            separatorBuilder: (BuildContext context, int index) =>
-                const SizedBox(width: 8),
-            itemBuilder: (BuildContext context, int index) {
-              final String dateKey = dateKeys[index];
-              final bool selected = dateKey == selectedDateKey;
-              final DateTime? date = _parseDateKey(dateKey);
+    return Builder(
+      builder: (BuildContext context) {
+        final Color ink = _headerInk(colors);
+        final double textScale = MediaQuery.textScalerOf(context).scale(1);
+        return KeyedSubtree(
+          key: const ValueKey<String>('journal-header-dates'),
+          child: _headerSurface(
+            padding: const EdgeInsets.fromLTRB(8, 6, 8, 6),
+            child: SizedBox(
+              height: 56 * textScale,
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                itemCount: dateKeys.length,
+                separatorBuilder: (BuildContext context, int index) =>
+                    const SizedBox(width: 8),
+                itemBuilder: (BuildContext context, int index) {
+                  final String dateKey = dateKeys[index];
+                  final bool selected = dateKey == selectedDateKey;
+                  final DateTime? date = _parseDateKey(dateKey);
 
-              return Material(
-                color: Colors.transparent,
-                child: InkWell(
-                  borderRadius: BorderRadius.circular(14),
-                  onTap: onDateSelected == null
-                      ? null
-                      : () => onDateSelected!(dateKey),
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 160),
-                    width: 62,
-                    decoration: BoxDecoration(
-                      color: selected
-                          ? DailyCareJournalThemeTokens.primary
-                          : ink.withValues(alpha: 0.10),
+                  return Material(
+                    color: Colors.transparent,
+                    child: InkWell(
                       borderRadius: BorderRadius.circular(14),
-                      border: Border.all(
-                        color: selected
-                            ? DailyCareJournalThemeTokens.primary
-                            : ink.withValues(alpha: 0.22),
+                      onTap: onDateSelected == null
+                          ? null
+                          : () => onDateSelected!(dateKey),
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 160),
+                        width: 62,
+                        decoration: BoxDecoration(
+                          color: selected
+                              ? DailyCareJournalThemeTokens.primary
+                              : ink.withValues(alpha: 0.10),
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(
+                            color: selected
+                                ? DailyCareJournalThemeTokens.primary
+                                : ink.withValues(alpha: 0.22),
+                          ),
+                        ),
+                        child: FittedBox(
+                          fit: BoxFit.scaleDown,
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            mainAxisSize: MainAxisSize.min,
+                            children: <Widget>[
+                              Text(
+                                date == null
+                                    ? dateKey
+                                    : '${date.month}/${date.day}',
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w700,
+                                  color: selected ? Colors.white : ink,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                date == null ? '' : _weekdayShort(date),
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: selected
+                                      ? Colors.white.withValues(alpha: 0.86)
+                                      : ink.withValues(alpha: 0.62),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
                       ),
                     ),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: <Widget>[
-                        Text(
-                          date == null ? dateKey : '${date.month}/${date.day}',
-                          style: TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w700,
-                            color: selected ? Colors.white : ink,
-                          ),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          date == null ? '' : _weekdayShort(date),
-                          style: TextStyle(
-                            fontSize: 11,
-                            color: selected
-                                ? Colors.white.withValues(alpha: 0.86)
-                                : ink.withValues(alpha: 0.62),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              );
-            },
+                  );
+                },
+              ),
+            ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 
   Widget _buildSessionSelector({required ColorScheme colors}) {
-    return KeyedSubtree(
-      key: const ValueKey<String>('journal-header-sessions'),
-      child: _headerSurface(
-        padding: const EdgeInsets.all(4),
-        child: SizedBox(
-          height: 36,
-          child: ListView.separated(
-            scrollDirection: Axis.horizontal,
-            itemCount: sessionTabs.length,
-            separatorBuilder: (BuildContext context, int index) =>
-                const SizedBox(width: 6),
-            itemBuilder: (BuildContext context, int index) {
-              final DailyCareJournalSessionTab tab = sessionTabs[index];
-              final bool selected = tab.sessionIndex == selectedSessionIndex;
-              return _sessionChip(colors: colors, tab: tab, selected: selected);
-            },
+    return Builder(
+      builder: (BuildContext context) {
+        return KeyedSubtree(
+          key: const ValueKey<String>('journal-header-sessions'),
+          child: _headerSurface(
+            padding: const EdgeInsets.all(4),
+            child: SizedBox(
+              height: 36 * MediaQuery.textScalerOf(context).scale(1),
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                itemCount: sessionTabs.length,
+                separatorBuilder: (BuildContext context, int index) =>
+                    const SizedBox(width: 6),
+                itemBuilder: (BuildContext context, int index) {
+                  final DailyCareJournalSessionTab tab = sessionTabs[index];
+                  final bool selected =
+                      tab.sessionIndex == selectedSessionIndex;
+                  return _sessionChip(
+                    colors: colors,
+                    tab: tab,
+                    selected: selected,
+                  );
+                },
+              ),
+            ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 
@@ -717,20 +739,14 @@ class DailyCareJournalRenderer extends StatelessWidget {
         setting.resolvedJournalCards;
     final bool photoOn =
         showPhotoSection && setting.journalDisplay.showPhotoSection;
-    String sessionName = '';
-    for (final DailyCareJournalSessionTab tab in sessionTabs) {
-      if (tab.sessionIndex == selectedSessionIndex) {
-        sessionName = tab.sessionName;
-        break;
-      }
-    }
-    final List<DailyCarePhotoModel> sessionPhotos =
-        DailyCarePhotoMatch.sessionPhotos(
-          photos: photos,
-          dateKey: selectedDateKey,
-          sessionIndex: selectedSessionIndex,
-          sessionName: sessionName,
-        );
+    final List<DailyCarePhotoModel> sessionPhotos = photosBoundToSelectedRecord
+        ? photos
+        : DailyCarePhotoMatch.recordPhotos(
+            photos: photos,
+            dailyCareRecordId: record.id,
+            dateKey: selectedDateKey,
+            sessionIndex: selectedSessionIndex,
+          );
 
     final Map<String, _LaidCard> built = <String, _LaidCard>{};
     final Widget env = _buildEnvironmentCard(values: values);
@@ -859,16 +875,23 @@ class DailyCareJournalRenderer extends StatelessWidget {
         final List<Widget> rows = <Widget>[];
         if (envCard != null && toiletCard != null) {
           rows.add(
-            IntrinsicHeight(
-              child: Row(
-                key: const ValueKey<String>('daily-care-pinned-row'),
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: <Widget>[
-                  Expanded(child: envCard.child),
-                  const SizedBox(width: 10),
-                  Expanded(child: toiletCard.child),
-                ],
-              ),
+            Table(
+              key: const ValueKey<String>('daily-care-pinned-row'),
+              columnWidths: const <int, TableColumnWidth>{
+                0: FlexColumnWidth(),
+                1: FixedColumnWidth(10),
+                2: FlexColumnWidth(),
+              },
+              defaultVerticalAlignment: TableCellVerticalAlignment.fill,
+              children: <TableRow>[
+                TableRow(
+                  children: <Widget>[
+                    envCard.child,
+                    const SizedBox.shrink(),
+                    toiletCard.child,
+                  ],
+                ),
+              ],
             ),
           );
         }
@@ -1186,14 +1209,23 @@ class _EnvironmentMetrics extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 2),
-        Text(
-          value,
-          textAlign: TextAlign.center,
-          style: TextStyle(
-            fontSize: empty ? 13 : 22,
-            height: 1.1,
-            fontWeight: FontWeight.w800,
-            color: ink,
+        SizedBox(
+          width: double.infinity,
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Text(
+              value,
+              key: ValueKey<String>('journal-metric-$label'),
+              maxLines: 1,
+              softWrap: false,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: empty ? 13 : 22,
+                height: 1.1,
+                fontWeight: FontWeight.w800,
+                color: ink,
+              ),
+            ),
           ),
         ),
       ],
@@ -1237,13 +1269,27 @@ class _ToiletStatusCard extends StatelessWidget {
       title: '大小便狀況',
       fill: fill,
       ink: ink,
-      child: Column(
-        key: const ValueKey<String>('journal-toilet-vertical'),
+      child: Row(
+        key: const ValueKey<String>('journal-toilet-horizontal'),
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          _ToiletStatBlock(item: stool, ink: ink, fill: fill),
-          const SizedBox(height: 8),
-          _ToiletStatBlock(item: urine, ink: ink, fill: fill),
+          Expanded(
+            child: _ToiletStatBlock(item: stool, ink: ink, fill: fill),
+          ),
+          Padding(
+            padding: const EdgeInsets.only(top: 8),
+            child: SizedBox(
+              height: 36,
+              child: VerticalDivider(
+                width: 16,
+                thickness: 1,
+                color: ink.withValues(alpha: 0.18),
+              ),
+            ),
+          ),
+          Expanded(
+            child: _ToiletStatBlock(item: urine, ink: ink, fill: fill),
+          ),
         ],
       ),
     );
@@ -1267,36 +1313,33 @@ class _ToiletStatBlock extends StatelessWidget {
         ? '無'
         : item.value;
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
         Text(
           item.label,
+          textAlign: TextAlign.center,
           style: TextStyle(
-            fontSize: 12,
+            fontSize: 11,
             height: 1.2,
             fontWeight: FontWeight.w600,
             color: ink.withValues(alpha: 0.72),
           ),
         ),
         const SizedBox(height: 4),
-        Align(
-          alignment: Alignment.centerLeft,
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-            decoration: BoxDecoration(
-              color: DailyCareInk.chipFill(ink, fill),
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: Text(
-              value,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                fontSize: 14,
-                height: 1.2,
-                fontWeight: FontWeight.w800,
-                color: ink,
-              ),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+          decoration: BoxDecoration(
+            color: DailyCareInk.chipFill(ink, fill),
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Text(
+            value,
+            maxLines: 1,
+            overflow: TextOverflow.visible,
+            style: TextStyle(
+              fontSize: 14,
+              height: 1.2,
+              fontWeight: FontWeight.w800,
+              color: _statusColor(Theme.of(context).colorScheme, value),
             ),
           ),
         ),
@@ -1409,8 +1452,6 @@ class _CategoryCard extends StatelessWidget {
     final List<_CareItem> noteItems = items
         .where((_CareItem item) => item.longText)
         .toList();
-    final double width = MediaQuery.sizeOf(context).width;
-    final bool twoColumn = width >= 392 && compactItems.length > 1;
 
     return DailyCareIllustratedShell(
       setting: setting,
@@ -1418,17 +1459,26 @@ class _CategoryCard extends StatelessWidget {
       title: title,
       fill: fill,
       ink: ink,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
-          if (twoColumn)
-            ..._twoColumnRows(compactItems, ink, fill)
-          else
-            for (final _CareItem item in compactItems)
-              _CompactValueRow(item: item, ink: ink, fill: fill),
-          for (final _CareItem item in noteItems)
-            _CareNoteRow(item: item, ink: ink, fill: fill),
-        ],
+      child: LayoutBuilder(
+        builder: (BuildContext context, BoxConstraints constraints) {
+          final double textScale = MediaQuery.textScalerOf(context).scale(1);
+          final bool twoColumn =
+              compactItems.length > 1 &&
+              constraints.maxWidth >= 268 * textScale;
+          return Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              if (twoColumn)
+                ..._twoColumnRows(compactItems, ink, fill)
+              else
+                for (final _CareItem item in compactItems)
+                  _CareItemRow(item: item, ink: ink, fill: fill),
+              for (final _CareItem item in noteItems)
+                _CareNoteRow(item: item, ink: ink, fill: fill),
+            ],
+          );
+        },
       ),
     );
   }
@@ -1449,7 +1499,7 @@ class _CategoryCard extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: <Widget>[
               Expanded(
-                child: _CompactValueRow(
+                child: _CareItemRow(
                   item: left,
                   tight: true,
                   ink: ink,
@@ -1460,7 +1510,7 @@ class _CategoryCard extends StatelessWidget {
               Expanded(
                 child: right == null
                     ? const SizedBox.shrink()
-                    : _CompactValueRow(
+                    : _CareItemRow(
                         item: right,
                         tight: true,
                         ink: ink,
@@ -1477,8 +1527,8 @@ class _CategoryCard extends StatelessWidget {
   }
 }
 
-class _CompactValueRow extends StatelessWidget {
-  const _CompactValueRow({
+class _CareItemRow extends StatelessWidget {
+  const _CareItemRow({
     required this.item,
     this.tight = false,
     required this.ink,
@@ -1490,6 +1540,16 @@ class _CompactValueRow extends StatelessWidget {
   final Color ink;
   final Color fill;
 
+  static double _lineWidth(String text, TextStyle style, TextScaler scaler) {
+    final TextPainter painter = TextPainter(
+      text: TextSpan(text: text, style: style),
+      maxLines: 1,
+      textDirection: TextDirection.ltr,
+      textScaler: scaler,
+    )..layout();
+    return painter.width;
+  }
+
   @override
   Widget build(BuildContext context) {
     final Color tone = Color.alphaBlend(
@@ -1499,43 +1559,59 @@ class _CompactValueRow extends StatelessWidget {
       ).withValues(alpha: ink.computeLuminance() > 0.62 ? 0.35 : 0.0),
       ink,
     );
+    final TextStyle nameStyle = TextStyle(
+      fontSize: 13,
+      height: 1.25,
+      fontWeight: FontWeight.w600,
+      color: ink.withValues(alpha: 0.82),
+    );
+    final TextStyle valueStyle = TextStyle(
+      fontSize: 12,
+      height: 1.2,
+      fontWeight: FontWeight.w700,
+      color: tone,
+    );
+    final Widget chip = Container(
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+      decoration: BoxDecoration(
+        color: DailyCareInk.chipFill(ink, fill),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Text(
+        item.value,
+        maxLines: 1,
+        softWrap: false,
+        overflow: TextOverflow.visible,
+        textAlign: TextAlign.center,
+        style: valueStyle,
+      ),
+    );
     return Padding(
-      padding: EdgeInsets.only(bottom: tight ? 2 : 6),
-      child: Row(
-        children: <Widget>[
-          Expanded(
-            child: Text(
-              item.label,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w600,
-                color: ink.withValues(alpha: 0.82),
-              ),
-            ),
-          ),
-          const SizedBox(width: 6),
-          Container(
-            constraints: const BoxConstraints(maxWidth: 76),
-            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-            decoration: BoxDecoration(
-              color: DailyCareInk.chipFill(ink, fill),
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: Text(
-              item.value,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w700,
-                color: tone,
-              ),
-            ),
-          ),
-        ],
+      padding: EdgeInsets.only(bottom: tight ? 4 : 6),
+      child: LayoutBuilder(
+        builder: (BuildContext context, BoxConstraints constraints) {
+          final TextScaler scaler = MediaQuery.textScalerOf(context);
+          final double nameWidth = _lineWidth(item.label, nameStyle, scaler);
+          final double chipWidth =
+              _lineWidth(item.value, valueStyle, scaler) + 14;
+          final bool stackVertically =
+              constraints.maxWidth < nameWidth + 8 + chipWidth;
+          final Widget name = Text(item.label, style: nameStyle);
+          if (stackVertically) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[name, const SizedBox(height: 4), chip],
+            );
+          }
+          return Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Expanded(child: name),
+              const SizedBox(width: 6),
+              chip,
+            ],
+          );
+        },
       ),
     );
   }

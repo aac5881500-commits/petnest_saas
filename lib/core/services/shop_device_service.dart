@@ -61,16 +61,17 @@ class ShopDeviceService {
     });
   }
 
-  /// 替房間建立預設攝影機
-  /// 房間新增時自動建立，先不啟用，等店家填網址後再開啟
-  Future<String> createDefaultCameraForRoom({
+  CollectionReference<Map<String, dynamic>> devicesRef(String shopId) {
+    return _deviceRef(shopId);
+  }
+
+  Map<String, dynamic> defaultCameraPayload({
     required String shopId,
     required String roomId,
     required String roomName,
-  }) async {
-    final now = FieldValue.serverTimestamp();
-
-    final deviceDoc = await _deviceRef(shopId).add({
+  }) {
+    final FieldValue now = FieldValue.serverTimestamp();
+    return <String, dynamic>{
       'shopId': shopId,
       'type': 'camera',
       'name': '$roomName 攝影機',
@@ -84,7 +85,22 @@ class ShopDeviceService {
       'autoCreated': true,
       'createdAt': now,
       'updatedAt': now,
-    });
+    };
+  }
+
+  /// 替房間建立預設攝影機
+  /// 房間新增時自動建立，先不啟用，等店家填網址後再開啟
+  Future<String> createDefaultCameraForRoom({
+    required String shopId,
+    required String roomId,
+    required String roomName,
+  }) async {
+    final DocumentReference<Map<String, dynamic>> deviceDoc = _deviceRef(
+      shopId,
+    ).doc();
+    await deviceDoc.set(
+      defaultCameraPayload(shopId: shopId, roomId: roomId, roomName: roomName),
+    );
     return deviceDoc.id;
   }
 

@@ -1078,6 +1078,18 @@ class ShopService {
     );
   }
 
+  Future<void> createRoomsBatch({
+    required String shopId,
+    required String roomTypeId,
+    required List<String> names,
+  }) async {
+    return ShopRoomService.instance.createRoomsBatch(
+      shopId: shopId,
+      roomTypeId: roomTypeId,
+      names: names,
+    );
+  }
+
   Future<void> updateRoomStatus({
     required String shopId,
     required String roomId,

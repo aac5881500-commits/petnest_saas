@@ -16,6 +16,14 @@ void main() {
     ]);
   });
 
+  test('recordIdDateKey 使用台北日曆日', () {
+    expect(
+      DailyCareDateHelper.recordIdDateKey(DateTime.utc(2026, 9, 19, 16)),
+      '20260920',
+    );
+    expect(DailyCareDateHelper.displayDateKey('20260920'), '2026/09/20');
+  });
+
   test('同日入住退房為 0 天', () {
     expect(
       DailyCareDateHelper.careDates(

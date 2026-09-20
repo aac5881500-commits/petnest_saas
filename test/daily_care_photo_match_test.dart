@@ -29,6 +29,7 @@ void main() {
     expect(DailyCarePhotoMatch.matchesDate(photo, '2026/09/17'), isTrue);
     expect(DailyCarePhotoMatch.matchesDate(photo, '2026-09-17'), isTrue);
     expect(DailyCarePhotoMatch.matchesDate(photo, '20260917'), isTrue);
+    expect(DailyCarePhotoMatch.photoDisplayDateKey(photo), '2026/09/17');
   });
 
   test('本場只比 sessionIndex 與日期，不用場次名稱', () {

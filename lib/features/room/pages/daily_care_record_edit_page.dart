@@ -84,6 +84,14 @@ class _DailyCareRecordEditPageState extends State<DailyCareRecordEditPage> {
   /// 整房概況
   final TextEditingController _generalNoteController = TextEditingController();
 
+  String get _dailyCareRecordId {
+    return DailyCareRecordService.instance.buildRecordId(
+      bookingId: widget.bookingId,
+      recordDate: widget.recordDate,
+      sessionIndex: widget.sessionIndex,
+    );
+  }
+
   static const Map<String, String> _labels = <String, String>{
     'water': '飲水',
     'dryFood': '飼料',
@@ -404,6 +412,7 @@ class _DailyCareRecordEditPageState extends State<DailyCareRecordEditPage> {
             recordDate: widget.recordDate,
             sessionIndex: widget.sessionIndex,
             sessionName: widget.sessionName,
+            dailyCareRecordId: _dailyCareRecordId,
           );
         }
         _pendingPhotos.clear();
@@ -779,25 +788,21 @@ class _DailyCareRecordEditPageState extends State<DailyCareRecordEditPage> {
   }
 
   Widget _photoCard() {
-    final String dateKey = DailyCarePhotoMatch.canonicalDateKey(
-      widget.recordDate,
-    );
     final String roomFilter =
         widget.serviceType == DailyCareServiceTypes.daycare
         ? ''
         : widget.roomId;
     return StreamBuilder<List<DailyCarePhotoModel>>(
-      stream: DailyCarePhotoService.instance.streamBookingPhotos(
+      stream: DailyCarePhotoService.instance.streamRecordPhotos(
         bookingId: widget.bookingId,
+        dailyCareRecordId: _dailyCareRecordId,
+        recordDate: widget.recordDate,
+        sessionIndex: widget.sessionIndex,
+        roomId: roomFilter,
       ),
       builder: (context, snapshot) {
         final List<DailyCarePhotoModel> photos =
-            DailyCarePhotoMatch.sessionPhotos(
-              photos: snapshot.data ?? <DailyCarePhotoModel>[],
-              dateKey: dateKey,
-              sessionIndex: widget.sessionIndex,
-              roomId: roomFilter,
-            );
+            snapshot.data ?? <DailyCarePhotoModel>[];
 
         final int uploadedCount = photos.length;
         final int currentCount = uploadedCount + _pendingPhotos.length;

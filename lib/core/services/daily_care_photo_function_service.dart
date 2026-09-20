@@ -20,8 +20,9 @@ class DailyCarePhotoFunctionService {
     Map<String, dynamic> data,
   ) async {
     try {
-      final HttpsCallableResult<dynamic> result =
-          await _functions.httpsCallable(name).call(data);
+      final HttpsCallableResult<dynamic> result = await _functions
+          .httpsCallable(name)
+          .call(data);
       final Object? raw = result.data;
       if (raw is Map) {
         return Map<String, dynamic>.from(raw);
@@ -38,6 +39,7 @@ class DailyCarePhotoFunctionService {
     required String roomId,
     required DateTime recordDate,
     required int sessionIndex,
+    required String dailyCareRecordId,
   }) {
     return _call('reserveDailyCarePhoto', <String, dynamic>{
       'shopId': shopId,
@@ -45,6 +47,7 @@ class DailyCarePhotoFunctionService {
       'roomId': roomId,
       'recordDate': recordDate.toIso8601String(),
       'sessionIndex': sessionIndex,
+      'dailyCareRecordId': dailyCareRecordId,
     });
   }
 
@@ -80,9 +83,7 @@ class DailyCarePhotoFunctionService {
   }
 
   Future<void> deletePhoto(String photoId) {
-    return _call('deleteDailyCarePhoto', <String, dynamic>{
-      'photoId': photoId,
-    });
+    return _call('deleteDailyCarePhoto', <String, dynamic>{'photoId': photoId});
   }
 
   Future<void> lockSession({

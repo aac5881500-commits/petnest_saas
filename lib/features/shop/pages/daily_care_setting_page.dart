@@ -71,6 +71,7 @@ class _DailyCareSettingPageState extends State<DailyCareSettingPage> {
   bool _previewSingleSession = false;
   DailyCarePreviewPhoneSize _previewPhoneSize =
       DailyCarePreviewPhoneSize.standard;
+  double _previewTextScale = 1.0;
 
   String _backgroundType = DailyCareJournalTheme.typeSystem;
   String _backgroundColorKey = DailyCareJournalTheme.colorDefault;
@@ -1146,6 +1147,16 @@ class _DailyCareSettingPageState extends State<DailyCareSettingPage> {
                   });
                 },
               ),
+              for (final double scale in <double>[1.0, 1.2, 1.4])
+                ChoiceChip(
+                  label: Text('文字 ${scale.toStringAsFixed(1)} 倍'),
+                  selected: _previewTextScale == scale,
+                  onSelected: (_) {
+                    setState(() {
+                      _previewTextScale = scale;
+                    });
+                  },
+                ),
             ],
           ),
         ),
@@ -1162,6 +1173,7 @@ class _DailyCareSettingPageState extends State<DailyCareSettingPage> {
             phoneSize: _previewPhoneSize,
             singleDayMode: _previewSingleDay,
             singleSessionMode: _previewSingleSession,
+            textScale: _previewTextScale,
           ),
         ),
       ],
@@ -1187,6 +1199,7 @@ class _DailyCareSettingPageState extends State<DailyCareSettingPage> {
               shopLogoUrl: '',
               singleDayMode: _previewSingleDay,
               singleSessionMode: _previewSingleSession,
+              textScale: _previewTextScale,
             ),
           );
         },

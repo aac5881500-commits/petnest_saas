@@ -18,12 +18,40 @@ import 'package:petnest_saas/core/constants/shop_permission_keys.dart';
 import 'package:petnest_saas/core/services/shop_plan_service.dart';
 import 'package:petnest_saas/core/services/operator_display.dart';
 import 'package:petnest_saas/core/widgets/shop_task_center_button.dart';
+import 'package:petnest_saas/features/room/pages/room_dashboard_page.dart';
 import 'package:petnest_saas/features/shop/widgets/unsaved_booking_settings_dialog.dart';
 
+class ShopBookingSettingsLeaveGuard {
+  Future<bool> Function()? _confirmLeave;
+
+  void bind(Future<bool> Function() confirmLeave) {
+    _confirmLeave = confirmLeave;
+  }
+
+  void unbind() {
+    _confirmLeave = null;
+  }
+
+  Future<bool> confirmLeave() async {
+    final Future<bool> Function()? handler = _confirmLeave;
+    if (handler == null) {
+      return true;
+    }
+    return handler();
+  }
+}
+
 class ShopBookingSettingsPage extends StatefulWidget {
-  const ShopBookingSettingsPage({super.key, required this.shopId});
+  const ShopBookingSettingsPage({
+    super.key,
+    required this.shopId,
+    this.embeddedInSetupCenter = false,
+    this.leaveGuard,
+  });
 
   final String shopId;
+  final bool embeddedInSetupCenter;
+  final ShopBookingSettingsLeaveGuard? leaveGuard;
 
   @override
   State<ShopBookingSettingsPage> createState() =>
@@ -48,15 +76,27 @@ class _ShopBookingSettingsPageState extends State<ShopBookingSettingsPage> {
   Map<String, dynamic>? _memberData;
 
   DateTime? _selectedCalendarDate;
+  bool _showAllLogs = false;
 
   @override
   void initState() {
     super.initState();
+    widget.leaveGuard?.bind(_handleLeave);
     _loadRole();
   }
 
   @override
+  void didUpdateWidget(covariant ShopBookingSettingsPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.leaveGuard != widget.leaveGuard) {
+      oldWidget.leaveGuard?.unbind();
+      widget.leaveGuard?.bind(_handleLeave);
+    }
+  }
+
+  @override
   void dispose() {
+    widget.leaveGuard?.unbind();
     _maxAdvanceBookingDaysController.dispose();
     super.dispose();
   }
@@ -129,38 +169,9 @@ class _ShopBookingSettingsPageState extends State<ShopBookingSettingsPage> {
     }
   }
 
-  @override
-  Widget build(BuildContext context) {
-    if (!_roleLoaded) {
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
-    }
-
-    if (_currentUserRole == null) {
-      return const Scaffold(body: Center(child: Text('查無店家權限')));
-    }
-
-    final canManageBookings = ShopService.instance.hasPermission(
-      _memberData,
-      ShopPermissionKeys.manageBookingSettings,
-    );
-
-    if (!canManageBookings) {
-      return Scaffold(
-        appBar: AppBar(
-          title: const Text('權限限制'),
-          leading: IconButton(
-            icon: const Icon(Icons.arrow_back),
-            onPressed: () {
-              if (Navigator.canPop(context)) {
-                Navigator.pop(context);
-              } else {
-                Navigator.pushReplacementNamed(context, '/home');
-              }
-            },
-          ),
-        ),
-        body: const Center(child: Text('你沒有管理權限')),
-      );
+  Widget _wrapPage(Widget body) {
+    if (widget.embeddedInSetupCenter) {
+      return body;
     }
     return PopScope(
       canPop: !_dirty,
@@ -187,103 +198,206 @@ class _ShopBookingSettingsPageState extends State<ShopBookingSettingsPage> {
           ),
           actions: <Widget>[ShopTaskCenterButton(shopId: widget.shopId)],
         ),
-        body: StreamBuilder<Map<String, dynamic>?>(
-          stream: ShopService.instance.streamShop(widget.shopId),
-          builder: (context, shopSnapshot) {
-            if (shopSnapshot.connectionState == ConnectionState.waiting) {
-              return const Center(child: CircularProgressIndicator());
-            }
-
-            if (shopSnapshot.hasError) {
-              return Center(child: Text('店家資料載入失敗：${shopSnapshot.error}'));
-            }
-
-            final shop = shopSnapshot.data;
-            if (shop == null) {
-              return const Center(child: Text('找不到店家資料'));
-            }
-
-            if (!_settingsInitialized) {
-              _initSettingsIfNeeded(shop);
-            }
-
-            final today = _dateOnly(DateTime.now());
-            final savedMaxAdvanceBookingDays = _toInt(
-              shop['maxAdvanceBookingDays'],
-              fallback: 30,
-            );
-
-            final planLimit = ShopPlanService.bookingOpenDaysLimit(shop);
-            final draftDays = _toInt(
-              _maxAdvanceBookingDaysController.text,
-              fallback: savedMaxAdvanceBookingDays,
-            );
-            final maxAdvanceBookingDays = draftDays > planLimit
-                ? planLimit
-                : (draftDays <= 0 ? savedMaxAdvanceBookingDays : draftDays);
-
-            final lastDate = today.add(Duration(days: maxAdvanceBookingDays));
-            final _CalendarPayload payload = _CalendarPayload(
-              blockedDateKeys: Set<String>.from(_draftBlockedDates),
-              unbookableDateKeys: <String>{},
-              remainingRoomsMap: const <String, int>{},
-              occupiedRoomsMap: const <String, int>{},
-            );
-
-            return SingleChildScrollView(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _buildBookingSettingsCard(),
-                  const SizedBox(height: 16),
-                  _buildCalendarSection(
-                    shop: shop,
-                    firstDate: today,
-                    lastDate: lastDate,
-                    payload: payload,
-                  ),
-                  const SizedBox(height: 16),
-                  _buildBookingActionLogs(),
-                  const SizedBox(height: 16),
-                ],
-              ),
-            );
-          },
-        ),
+        body: body,
       ),
     );
   }
 
-  Widget _buildBookingSettingsCard() {
+  @override
+  Widget build(BuildContext context) {
+    if (!_roleLoaded) {
+      return _wrapPage(const Center(child: CircularProgressIndicator()));
+    }
+
+    if (_currentUserRole == null) {
+      return _wrapPage(const Center(child: Text('查無店家權限')));
+    }
+
+    final canManageBookings = ShopService.instance.hasPermission(
+      _memberData,
+      ShopPermissionKeys.manageBookingSettings,
+    );
+
+    if (!canManageBookings) {
+      if (widget.embeddedInSetupCenter) {
+        return const Center(child: Text('你沒有管理權限'));
+      }
+      return Scaffold(
+        appBar: AppBar(
+          title: const Text('權限限制'),
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back),
+            onPressed: () {
+              if (Navigator.canPop(context)) {
+                Navigator.pop(context);
+              } else {
+                Navigator.pushReplacementNamed(context, '/home');
+              }
+            },
+          ),
+        ),
+        body: const Center(child: Text('你沒有管理權限')),
+      );
+    }
+    return _wrapPage(
+      StreamBuilder<Map<String, dynamic>?>(
+        stream: ShopService.instance.streamShop(widget.shopId),
+        builder: (context, shopSnapshot) {
+          if (shopSnapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
+
+          if (shopSnapshot.hasError) {
+            return Center(child: Text('店家資料載入失敗：${shopSnapshot.error}'));
+          }
+
+          final shop = shopSnapshot.data;
+          if (shop == null) {
+            return const Center(child: Text('找不到店家資料'));
+          }
+
+          if (!_settingsInitialized) {
+            _initSettingsIfNeeded(shop);
+          }
+
+          final today = _dateOnly(DateTime.now());
+          final savedMaxAdvanceBookingDays = _toInt(
+            shop['maxAdvanceBookingDays'],
+            fallback: 30,
+          );
+
+          final planLimit = ShopPlanService.bookingOpenDaysLimit(shop);
+          final draftDays = _toInt(
+            _maxAdvanceBookingDaysController.text,
+            fallback: savedMaxAdvanceBookingDays,
+          );
+          final maxAdvanceBookingDays = draftDays > planLimit
+              ? planLimit
+              : (draftDays <= 0 ? savedMaxAdvanceBookingDays : draftDays);
+
+          final lastDate = today.add(Duration(days: maxAdvanceBookingDays));
+          final _CalendarPayload payload = _CalendarPayload(
+            blockedDateKeys: Set<String>.from(_draftBlockedDates),
+            unbookableDateKeys: <String>{},
+            remainingRoomsMap: const <String, int>{},
+            occupiedRoomsMap: const <String, int>{},
+          );
+
+          return LayoutBuilder(
+            builder: (BuildContext context, BoxConstraints constraints) {
+              final double width = constraints.maxWidth;
+              final bool twoColumn = width >= 1000;
+              final bool compact = width < 720;
+              return SingleChildScrollView(
+                key: const PageStorageKey<String>('shopBookingSettingsScroll'),
+                padding: const EdgeInsets.all(16),
+                child: Align(
+                  alignment: Alignment.topCenter,
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 1440),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: <Widget>[
+                        if (twoColumn)
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: <Widget>[
+                              SizedBox(
+                                width: (width * 0.34).clamp(340, 420),
+                                child: Column(
+                                  children: <Widget>[
+                                    _buildBookingSettingsCard(
+                                      planLimit: planLimit,
+                                      compact: compact,
+                                    ),
+                                    const SizedBox(height: 16),
+                                    _buildDateHelpCard(initiallyExpanded: true),
+                                    const SizedBox(height: 16),
+                                    _buildDateLegend(),
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(width: 16),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: <Widget>[
+                                    _buildCalendarSection(
+                                      firstDate: today,
+                                      lastDate: lastDate,
+                                      payload: payload,
+                                      compact: false,
+                                    ),
+                                    const SizedBox(height: 16),
+                                    _buildSelectedDateActions(),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          )
+                        else ...<Widget>[
+                          _buildBookingSettingsCard(
+                            planLimit: planLimit,
+                            compact: compact,
+                          ),
+                          const SizedBox(height: 16),
+                          _buildDateHelpCard(initiallyExpanded: !compact),
+                          const SizedBox(height: 16),
+                          _buildDateLegend(),
+                          const SizedBox(height: 16),
+                          _buildCalendarSection(
+                            firstDate: today,
+                            lastDate: lastDate,
+                            payload: payload,
+                            compact: compact,
+                          ),
+                          const SizedBox(height: 16),
+                          _buildSelectedDateActions(),
+                        ],
+                        const SizedBox(height: 16),
+                        _buildBookingActionLogs(compact: compact),
+                        const SizedBox(height: 16),
+                      ],
+                    ),
+                  ),
+                ),
+              );
+            },
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildBookingSettingsCard({
+    required int planLimit,
+    required bool compact,
+  }) {
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
+          children: <Widget>[
             const Text(
               '預約設定',
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
-            const SizedBox(height: 16),
-            SwitchListTile(
-              contentPadding: EdgeInsets.zero,
-              title: const Text('開放前台預約'),
-              subtitle: Text(_bookingEnabled ? '目前可預約' : '目前已關閉'),
+            const SizedBox(height: 8),
+            _buildSwitchRow(
+              title: '開放前台預約',
+              subtitle: _bookingEnabled ? '目前可預約' : '目前已關閉',
               value: _bookingEnabled,
-              onChanged: (value) {
+              onChanged: (bool value) {
                 setState(() {
                   _bookingEnabled = value;
                 });
               },
             ),
-            SwitchListTile(
-              contentPadding: EdgeInsets.zero,
-              title: const Text('開放安親服務'),
-              subtitle: const Text(
-                '關閉後，客戶端與店家後台的安親入口、設定與新增功能將暫時隱藏；既有安親訂單仍可查看及完成處理。',
-              ),
+            Divider(height: 24, color: Colors.grey.shade200),
+            _buildSwitchRow(
+              title: '開放安親服務',
+              subtitle: '關閉後，客戶端與店家後台的安親入口、設定與新增功能將暫時隱藏；既有安親訂單仍可查看及完成處理。',
               value: _daycareEnabled,
               onChanged: (bool value) {
                 setState(() {
@@ -291,23 +405,38 @@ class _ShopBookingSettingsPageState extends State<ShopBookingSettingsPage> {
                 });
               },
             ),
-
-            const SizedBox(height: 12),
-            TextFormField(
-              controller: _maxAdvanceBookingDaysController,
-              keyboardType: TextInputType.number,
-              decoration: const InputDecoration(
-                labelText: '最遠可預約天數',
-                hintText: '免費版30天｜999方案365天',
-                border: OutlineInputBorder(),
-              ),
-              onChanged: (_) => setState(() {}),
+            const SizedBox(height: 16),
+            const Text(
+              '最遠可預約天數',
+              style: TextStyle(fontWeight: FontWeight.w700),
             ),
-
+            const SizedBox(height: 6),
+            Text(
+              '目前方案最高可設定 $planLimit 天（免費版 30 天｜999 方案 365 天）',
+              style: TextStyle(fontSize: 13, color: Colors.grey.shade700),
+            ),
+            const SizedBox(height: 8),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: ConstrainedBox(
+                constraints: BoxConstraints(maxWidth: compact ? 400 : 280),
+                child: TextFormField(
+                  controller: _maxAdvanceBookingDaysController,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(
+                    hintText: '請輸入天數',
+                    border: OutlineInputBorder(),
+                    isDense: true,
+                  ),
+                  onChanged: (_) => setState(() {}),
+                ),
+              ),
+            ),
             const SizedBox(height: 16),
             SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
+              width: compact ? double.infinity : 220,
+              height: 48,
+              child: FilledButton(
                 onPressed: _savingSettings
                     ? null
                     : () {
@@ -328,34 +457,168 @@ class _ShopBookingSettingsPageState extends State<ShopBookingSettingsPage> {
     );
   }
 
+  Widget _buildSwitchRow({
+    required String title,
+    required String subtitle,
+    required bool value,
+    required ValueChanged<bool> onChanged,
+  }) {
+    return ConstrainedBox(
+      constraints: const BoxConstraints(minHeight: 44),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: <Widget>[
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Text(
+                  title,
+                  style: const TextStyle(fontWeight: FontWeight.w700),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  subtitle,
+                  style: TextStyle(
+                    fontSize: 13,
+                    height: 1.4,
+                    color: Colors.grey.shade700,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          Switch(value: value, onChanged: onChanged),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDateHelpCard({required bool initiallyExpanded}) {
+    return Card(
+      child: Theme(
+        data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+        child: ExpansionTile(
+          key: const PageStorageKey<String>('shopBookingDateHelp'),
+          initiallyExpanded: initiallyExpanded,
+          leading: Icon(Icons.info_outline, color: Colors.orange.shade800),
+          title: const Text(
+            '日期管理說明',
+            style: TextStyle(fontWeight: FontWeight.w700),
+          ),
+          subtitle: const Text('可關閉或重新開放前台可預約日期'),
+          childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+          children: <Widget>[
+            _helpLine('可開啟或關閉前台預約功能。'),
+            _helpLine('可設定客戶最遠可預約天數。'),
+            _helpLine('可點擊日期關閉或重新開放，變更保存在本機草稿，儲存後才生效。'),
+            _helpLine('關閉日期後，前台無法選擇該日期預約。'),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Icon(
+                  Icons.warning_amber_rounded,
+                  size: 18,
+                  color: Colors.orange.shade800,
+                ),
+                const SizedBox(width: 8),
+                const Expanded(
+                  child: Text(
+                    '單一房間維修或臨時關閉，請至房務管理設定個別房間日期。',
+                    style: TextStyle(
+                      fontSize: 13,
+                      height: 1.5,
+                      color: Color(0xFF424242),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: TextButton(
+                onPressed: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) => RoomDashboardPage(shopId: widget.shopId),
+                    ),
+                  );
+                },
+                child: const Text('前往房務管理'),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _helpLine(String text) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Text(
+        text,
+        style: const TextStyle(
+          fontSize: 13,
+          height: 1.5,
+          color: Color(0xFF424242),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDateLegend() {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Wrap(
+          spacing: 16,
+          runSpacing: 10,
+          children: <Widget>[
+            _legendItem(Colors.white, Colors.grey.shade300, '可預約'),
+            _legendItem(Colors.grey.shade200, Colors.red.shade200, '已關閉'),
+            _legendItem(Colors.blue, Colors.blue.shade900, '已選取'),
+            _legendItem(Colors.grey.shade100, Colors.grey.shade300, '不可選／超出範圍'),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _legendItem(Color fill, Color border, String label) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: <Widget>[
+        Container(
+          width: 16,
+          height: 16,
+          decoration: BoxDecoration(
+            color: fill,
+            borderRadius: BorderRadius.circular(4),
+            border: Border.all(color: border),
+          ),
+        ),
+        const SizedBox(width: 6),
+        Text(label, style: const TextStyle(fontSize: 13)),
+      ],
+    );
+  }
+
   Widget _buildCalendarSection({
-    required Map<String, dynamic> shop,
     required DateTime firstDate,
     required DateTime lastDate,
     required _CalendarPayload? payload,
+    required bool compact,
   }) {
     final loading = payload == null;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
+      children: <Widget>[
         const Text(
           '日期管理月曆',
           style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-        ),
-        const SizedBox(height: 8),
-        Text(
-          '1. 可開啟或關閉前台預約功能。\n'
-          '2. 可設定客戶最遠可預約天數。\n'
-          '3. 可點擊日期關閉單日預約（先留在本機，儲存後才生效）。\n'
-          '4. 關閉日期後，前台將無法選擇該日期預約。\n'
-          '5. 若只是單一房間維修或臨時關閉，請至房務管理設定個別房間日期。',
-          style: TextStyle(
-            color: Colors.red,
-            fontSize: 13,
-            height: 1.6,
-            fontWeight: FontWeight.w700,
-          ),
         ),
         const SizedBox(height: 12),
         if (loading)
@@ -371,10 +634,13 @@ class _ShopBookingSettingsPageState extends State<ShopBookingSettingsPage> {
             firstDate: firstDate,
             lastDate: lastDate,
             allowBlockedTap: true,
+            compactCells: compact,
+            rangeStart: _selectedCalendarDate,
+            rangeEnd: _selectedCalendarDate,
             blockedDateKeys: payload.blockedDateKeys,
             unbookableDateKeys: payload.unbookableDateKeys,
-            onDayTap: (date) {
-              final selected = _dateOnly(date);
+            onDayTap: (DateTime date) {
+              final DateTime selected = _dateOnly(date);
               _toggleDraftBlockedDate(date: selected);
               setState(() {
                 _selectedCalendarDate = selected;
@@ -385,7 +651,92 @@ class _ShopBookingSettingsPageState extends State<ShopBookingSettingsPage> {
     );
   }
 
-  Widget _buildBookingActionLogs() {
+  Widget _buildSelectedDateActions() {
+    final DateTime? selected = _selectedCalendarDate;
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: selected == null
+            ? const Text('請選擇要管理的日期')
+            : Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  Text(
+                    DateFormat('yyyy年M月d日').format(selected),
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text('目前草稿狀態：${_draftStatusLabel(selected)}'),
+                  if (_dirty)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 6),
+                      child: Text(
+                        '尚未儲存',
+                        style: TextStyle(
+                          color: Colors.orange.shade800,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                  const SizedBox(height: 12),
+                  Wrap(
+                    spacing: 8,
+                    children: <Widget>[
+                      if (!_isDraftBlocked(selected))
+                        FilledButton(
+                          onPressed: () => _setDraftBlocked(selected, true),
+                          child: const Text('關閉此日預約'),
+                        )
+                      else
+                        FilledButton.tonal(
+                          onPressed: () => _setDraftBlocked(selected, false),
+                          child: const Text('重新開放此日'),
+                        ),
+                    ],
+                  ),
+                ],
+              ),
+      ),
+    );
+  }
+
+  bool _isDraftBlocked(DateTime date) {
+    return _draftBlockedDates.contains(
+      ShopService.instance.formatDateKey(date),
+    );
+  }
+
+  String _draftStatusLabel(DateTime date) {
+    final String key = ShopService.instance.formatDateKey(date);
+    final bool inDraft = _draftBlockedDates.contains(key);
+    final bool inSaved = _savedBlockedDates.contains(key);
+    if (inDraft && !inSaved) {
+      return '將關閉';
+    }
+    if (!inDraft && inSaved) {
+      return '將重新開放';
+    }
+    if (inDraft) {
+      return '已關閉';
+    }
+    return '可預約';
+  }
+
+  void _setDraftBlocked(DateTime date, bool blocked) {
+    final String dateKey = ShopService.instance.formatDateKey(date);
+    setState(() {
+      if (blocked) {
+        _draftBlockedDates.add(dateKey);
+      } else {
+        _draftBlockedDates.remove(dateKey);
+      }
+    });
+  }
+
+  Widget _buildBookingActionLogs({required bool compact}) {
     return StreamBuilder<List<Map<String, dynamic>>>(
       stream: ActionLogService.instance.streamShopLogs(widget.shopId),
       builder: (context, snapshot) {
@@ -402,6 +753,11 @@ class _ShopBookingSettingsPageState extends State<ShopBookingSettingsPage> {
             .take(20)
             .toList();
 
+        final bool canExpand = compact && logs.length > 5;
+        final List<Map<String, dynamic>> visible = canExpand && !_showAllLogs
+            ? logs.take(5).toList()
+            : logs;
+
         return Card(
           child: Padding(
             padding: const EdgeInsets.all(12),
@@ -417,7 +773,7 @@ class _ShopBookingSettingsPageState extends State<ShopBookingSettingsPage> {
 
                 if (logs.isEmpty) const Text('目前沒有預約管理操作紀錄'),
 
-                ...logs.map((log) {
+                ...visible.map((log) {
                   final action = log['action']?.toString() ?? '';
 
                   final payload = Map<String, dynamic>.from(
@@ -458,6 +814,7 @@ class _ShopBookingSettingsPageState extends State<ShopBookingSettingsPage> {
 
                   return ListTile(
                     dense: true,
+                    contentPadding: EdgeInsets.zero,
                     leading: const Icon(Icons.history),
                     title: Text(title),
                     subtitle: Column(
@@ -470,11 +827,21 @@ class _ShopBookingSettingsPageState extends State<ShopBookingSettingsPage> {
                           shopId: widget.shopId,
                           log: log,
                           prefix: '操作人：',
+                          style: const TextStyle(height: 1.4),
                         ),
                       ],
                     ),
                   );
                 }),
+                if (canExpand)
+                  TextButton(
+                    onPressed: () {
+                      setState(() {
+                        _showAllLogs = !_showAllLogs;
+                      });
+                    },
+                    child: Text(_showAllLogs ? '收合' : '顯示更多'),
+                  ),
               ],
             ),
           ),
@@ -502,8 +869,6 @@ class _ShopBookingSettingsPageState extends State<ShopBookingSettingsPage> {
         .where((String e) => e.isNotEmpty)
         .toSet();
     _savedBlockedDates = Set<String>.from(_draftBlockedDates);
-
-    _selectedCalendarDate = _dateOnly(DateTime.now());
 
     _settingsInitialized = true;
 

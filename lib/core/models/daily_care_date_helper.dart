@@ -43,12 +43,24 @@ class DailyCareDateHelper {
     return DateTime(year, month, day);
   }
 
-  /// DailyCareRecordService.buildRecordId 使用的 yyyymmdd
+  /// DailyCareRecordService.buildRecordId 使用的 yyyymmdd（Asia/Taipei 日曆日）
   static String recordIdDateKey(DateTime value) {
-    final DateTime day = dateOnly(value);
+    final DateTime day = calendarDateInTaipei(value);
     return '${day.year.toString().padLeft(4, '0')}'
         '${day.month.toString().padLeft(2, '0')}'
         '${day.day.toString().padLeft(2, '0')}';
+  }
+
+  /// yyyyMMdd → yyyy/MM/dd
+  static String displayDateKey(String compactOrDisplay) {
+    String key = compactOrDisplay.trim().replaceAll('-', '');
+    if (key.contains('/')) {
+      return key;
+    }
+    if (key.length == 8) {
+      return '${key.substring(0, 4)}/${key.substring(4, 6)}/${key.substring(6, 8)}';
+    }
+    return compactOrDisplay.trim();
   }
 
   /// 住宿可填寫／可顯示的照護日期：入住日含、退房日不含。

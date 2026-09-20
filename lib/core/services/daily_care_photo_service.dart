@@ -7,6 +7,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 
 import '../models/daily_care_photo_model.dart';
+import '../models/daily_care_date_helper.dart';
 import 'daily_care_photo_function_service.dart';
 
 class DailyCarePhotoService {
@@ -171,6 +172,30 @@ class DailyCarePhotoService {
         });
   }
 
+  /// 本場照護紀錄照片：新資料依 record ID，舊資料 fallback 台北日＋場次＋房間。
+  Stream<List<DailyCarePhotoModel>> streamRecordPhotos({
+    required String bookingId,
+    required String dailyCareRecordId,
+    DateTime? recordDate,
+    int sessionIndex = 0,
+    String roomId = '',
+  }) {
+    final String dateKey = recordDate == null
+        ? ''
+        : DailyCarePhotoMatch.canonicalDateKey(recordDate);
+    return streamBookingPhotos(bookingId: bookingId).map((
+      List<DailyCarePhotoModel> photos,
+    ) {
+      return DailyCarePhotoMatch.recordPhotos(
+        photos: photos,
+        dailyCareRecordId: dailyCareRecordId,
+        dateKey: dateKey,
+        sessionIndex: sessionIndex,
+        roomId: roomId,
+      );
+    });
+  }
+
   /// 查詢某房某日目前已有幾張照片。
   Future<int> getRoomDayPhotoCount({
     required String shopId,
@@ -248,8 +273,11 @@ class DailyCarePhotoService {
       ).first;
       final String dateKey = DailyCarePhotoMatch.canonicalDateKey(recordDate);
       final String roomFilter = roomId.trim();
-      final int used = DailyCarePhotoMatch.sessionPhotos(
+      final String recordId =
+          '${bookingId.trim()}_${DailyCareDateHelper.recordIdDateKey(recordDate)}_$sessionIndex';
+      final int used = DailyCarePhotoMatch.recordPhotos(
         photos: photos,
+        dailyCareRecordId: recordId,
         dateKey: dateKey,
         sessionIndex: sessionIndex,
         roomId: roomFilter,
@@ -293,6 +321,7 @@ class DailyCarePhotoService {
     required int downloadBytes,
     required String? uploadedByUid,
     required String? uploadedByName,
+    String dailyCareRecordId = '',
   }) async {
     final String normalizedShopId = shopId.trim();
     final String normalizedBookingId = bookingId.trim();
@@ -347,11 +376,15 @@ class DailyCarePhotoService {
         .collection('daily_care_photo_downloads')
         .doc(ref.id);
 
-    final DateTime normalizedDate = DateTime(
-      recordDate.year,
-      recordDate.month,
-      recordDate.day,
+    final DateTime taipeiDay = DailyCareDateHelper.calendarDateInTaipei(
+      recordDate,
     );
+    final String compactDateKey = DailyCareDateHelper.recordIdDateKey(
+      recordDate,
+    );
+    final String boundRecordId = dailyCareRecordId.trim().isNotEmpty
+        ? dailyCareRecordId.trim()
+        : '${normalizedBookingId}_${compactDateKey}_$sessionIndex';
 
     // ============================================================
     // 📷 一般 Preview metadata
@@ -367,9 +400,11 @@ class DailyCarePhotoService {
     await ref.set(<String, dynamic>{
       'shopId': normalizedShopId,
       'bookingId': normalizedBookingId,
+      'dailyCareRecordId': boundRecordId,
+      'dateKey': compactDateKey,
       'roomId': normalizedRoomId,
       'roomName': roomName.trim(),
-      'recordDate': Timestamp.fromDate(normalizedDate),
+      'recordDate': Timestamp.fromDate(taipeiDay),
       'sessionIndex': sessionIndex,
       'sessionName': sessionName.trim(),
 
