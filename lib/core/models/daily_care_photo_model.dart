@@ -251,7 +251,7 @@ class DailyCarePhotoMatch {
         .toList();
   }
 
-  /// 新資料只依 dailyCareRecordId；舊資料才用台北日＋場次＋房間。
+  /// 新資料只依 dailyCareRecordId；舊資料或錯 ID 時才用台北日＋場次＋房間。
   static List<DailyCarePhotoModel> recordPhotos({
     required List<DailyCarePhotoModel> photos,
     required String dailyCareRecordId,
@@ -261,10 +261,17 @@ class DailyCarePhotoMatch {
   }) {
     final String recordId = dailyCareRecordId.trim();
     return photos.where((DailyCarePhotoModel photo) {
-      final String bound = photo.dailyCareRecordId.trim();
-      if (bound.isNotEmpty) {
-        return recordId.isNotEmpty && bound == recordId;
+      final String boundRecordId = photo.dailyCareRecordId.trim();
+      // 正常新資料：精準綁定同一筆照護紀錄。
+      if (recordId.isNotEmpty && boundRecordId == recordId) {
+        return true;
       }
+      // 相容舊資料與曾被舊版寫成不同 record ID 的照片：
+      // 只要同一個台北日、同一場次、同一房間（安親無房間限制），
+      // 就仍歸到目前這場照護紀錄。
+      //
+      // 這不能只在 boundRecordId 為空時才 fallback，
+      // 因為目前問題正是照片已有舊／錯 record ID 而被排除。
       return matchesSession(
         photo: photo,
         dateKey: dateKey,

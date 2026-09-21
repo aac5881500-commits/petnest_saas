@@ -60,6 +60,9 @@ import 'package:petnest_saas/features/admin/pages/admin_review_list_page.dart';
 import 'package:petnest_saas/features/admin/pages/admin_point_redemption_list_page.dart';
 import 'package:petnest_saas/features/shop/pages/inventory/shop_inventory_list_page.dart';
 import 'package:petnest_saas/features/shop/pages/inventory/shop_booking_supply_settings_page.dart';
+import 'package:petnest_saas/core/models/daily_care_report_center_snapshot.dart';
+import 'package:petnest_saas/core/services/daily_care_report_center_service.dart';
+import 'package:petnest_saas/features/shop/pages/daily_care_report_center_page.dart';
 
 class ShopDashboardPage extends StatefulWidget {
   const ShopDashboardPage({super.key, required this.shopId});
@@ -1331,6 +1334,11 @@ class _CatHotelTab extends StatelessWidget {
                   );
                 },
               ),
+            if (_can(ShopPermissionKeys.manageRoomDashboard))
+              _DailyCareReportCenterTile(
+                shopId: shopId,
+                profileComplete: isProfileComplete,
+              ),
           ],
         ),
         StreamBuilder<DaycareSettingsModel>(
@@ -2074,6 +2082,66 @@ class _RoomDashboardTile extends StatelessWidget {
           },
         );
       },
+    );
+  }
+}
+
+class _DailyCareReportCenterTile extends StatelessWidget {
+  const _DailyCareReportCenterTile({
+    required this.shopId,
+    required this.profileComplete,
+  });
+
+  final String shopId;
+  final bool profileComplete;
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<DailyCareReportCenterSnapshot>(
+      stream: DailyCareReportCenterService.instance.streamToday(
+        shopId: shopId,
+        canOperate: profileComplete,
+      ),
+      builder:
+          (
+            BuildContext context,
+            AsyncSnapshot<DailyCareReportCenterSnapshot> snapshot,
+          ) {
+            final DailyCareReportCenterSnapshot data =
+                snapshot.data ?? DailyCareReportCenterSnapshot.empty;
+            if (snapshot.hasError || data.hasError) {
+              return _MenuTile(
+                title: '每日回報中心',
+                subtitle: profileComplete ? '目前無法取得每日回報' : '請先完成基本資料',
+                icon: Icons.assignment_turned_in_outlined,
+                enabled: false,
+              );
+            }
+            if (!data.settingEnabled) {
+              return const SizedBox.shrink();
+            }
+            return _MenuTile(
+              title: '每日回報中心',
+              subtitle: DailyCareReportCenterMenuCopy.subtitle(
+                profileComplete: profileComplete,
+                snapshot: data,
+              ),
+              icon: Icons.assignment_turned_in_outlined,
+              enabled: profileComplete,
+              badgeCount: profileComplete ? data.pendingCount : 0,
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute<void>(
+                    builder: (_) => DailyCareReportCenterPage(
+                      shopId: shopId,
+                      canOperate: profileComplete,
+                    ),
+                  ),
+                );
+              },
+            );
+          },
     );
   }
 }

@@ -80,6 +80,8 @@ function assertActualTimes(actualStart, actualEnd, now) {
 }
 
 exports.assertActualTimes = assertActualTimes;
+exports.canManageDaycareBookings = canManageDaycareBookings;
+exports.resolveDaycareCancelActor = resolveDaycareCancelActor;
 
 /**
  * @param {string} uid
@@ -93,6 +95,35 @@ async function requirePerm(uid, shopId, key) {
   if (!ok) {
     throw new HttpsError("permission-denied", "沒有執行此操作的權限");
   }
+}
+
+async function canManageDaycareBookings(uid, shopId) {
+  return isRootAdmin(uid) ||
+    await hasShopPermission(shopId, uid, "manage_daycare_bookings") ||
+    await hasShopPermission(shopId, uid, "manage_bookings");
+}
+
+/**
+ * 取消身分：店家人員優先於訂單客戶。回傳 cancelBy。
+ * @param {{isStaff: boolean, isBookingOwner: boolean, status: string}} params
+ * @return {string}
+ */
+function resolveDaycareCancelActor(params) {
+  const isStaff = params.isStaff === true;
+  const isBookingOwner = params.isBookingOwner === true;
+  const status = normalizeString(params.status);
+  if (!isStaff) {
+    if (!isBookingOwner) {
+      throw new HttpsError("permission-denied", "沒有執行此操作的權限");
+    }
+    if (!["pending", "confirmed"].includes(status)) {
+      throw new HttpsError(
+          "failed-precondition",
+          "臨托開始後請聯絡店家取消",
+      );
+    }
+  }
+  return isStaff ? "staff" : "member";
 }
 
 /**
@@ -617,15 +648,15 @@ exports.manageDaycareBooking = onCall(
           };
         }
       } else if (action === "cancel") {
-        const isOwner = normalizeString(booking.userId) === uid;
-        if (!isOwner) {
-          await requirePerm(uid, shopId, "manage_daycare_bookings");
-        } else if (!["pending", "confirmed"].includes(booking.status)) {
-          throw new HttpsError(
-              "failed-precondition",
-              "臨托開始後請聯絡店家取消",
-          );
-        }
+        const isBookingOwner = normalizeString(booking.userId) === uid;
+        const isStaff = await canManageDaycareBookings(uid, shopId);
+        // 身兼客戶與店主／店員時，店家身份優先。
+        // 店主端必須可取消安親中訂單；純客戶才有取消時間限制。
+        const cancelBy = resolveDaycareCancelActor({
+          isStaff,
+          isBookingOwner,
+          status: booking.status,
+        });
         if (["completed", "cancelled"].includes(booking.status)) {
           throw new HttpsError("failed-precondition", "目前狀態不可取消");
         }
@@ -634,7 +665,7 @@ exports.manageDaycareBooking = onCall(
         const cancelUpdates = {
           status: "cancelled",
           cancelReason: normalizeString(payload.cancelReason),
-          cancelBy: isOwner ? "member" : "staff",
+          cancelBy,
           cancelledAt: now,
           updatedAt: now,
         };

@@ -117,37 +117,43 @@ class DailyCareTitleIcon extends StatelessWidget {
     required this.layout,
     required this.color,
     this.size = 22,
+    this.imageProviderBuilder,
   });
+
+  static const double frameSize = 24;
 
   final DailyCareJournalCardLayout layout;
   final Color color;
   final double size;
+  final ImageProvider Function(String url)? imageProviderBuilder;
 
   @override
   Widget build(BuildContext context) {
+    final double glyph = size;
+    final double frame = glyph <= 22 ? DailyCareTitleIcon.frameSize : glyph + 2;
     final Widget fallback = DailyCareSvgIcon(
       asset: DailyCareIllustrations.forCard(layout.key),
       color: color,
-      size: size,
+      size: glyph,
     );
     final String url = DailyCareJournalAppearance.titleIconUrl(
       layout,
       assetLookup: (String id) => PlatformMediaLibraryScope.lookup(context, id),
     );
-    if (url.isEmpty) {
-      return fallback;
-    }
+    final Widget child = url.isEmpty
+        ? fallback
+        : Image(
+            image: imageProviderBuilder?.call(url) ?? NetworkImage(url),
+            width: glyph,
+            height: glyph,
+            fit: BoxFit.contain,
+            filterQuality: FilterQuality.medium,
+            errorBuilder: (_, _, _) => fallback,
+          );
     return SizedBox(
-      width: size,
-      height: size,
-      child: Image.network(
-        url,
-        width: size,
-        height: size,
-        fit: BoxFit.contain,
-        filterQuality: FilterQuality.medium,
-        errorBuilder: (_, _, _) => fallback,
-      ),
+      width: frame,
+      height: frame,
+      child: Center(child: child),
     );
   }
 }
@@ -213,7 +219,7 @@ class DailyCareIllustratedShell extends StatelessWidget {
         ink ?? DailyCareInk.of(layout: layout, fill: fill, colors: colors);
     final Widget header = Row(
       children: <Widget>[
-        DailyCareTitleIcon(layout: layout, color: text, size: 22),
+        DailyCareTitleIcon(layout: layout, color: text),
         const SizedBox(width: 8),
         Expanded(
           child: Text(

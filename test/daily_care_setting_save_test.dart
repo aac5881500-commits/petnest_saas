@@ -153,6 +153,33 @@ void main() {
     expect(food.containsKey('imageUrl'), isFalse);
   });
 
+  test('journalCards.iconAssetId 寫入各卡且不含 URL', () {
+    final Map<String, dynamic> cards = <String, dynamic>{
+      for (final String key in DailyCareJournalCardKeys.ordered)
+        key: <String, dynamic>{'iconAssetId': 'icon-$key'},
+    };
+    final DailyCareSettingModel setting = const DailyCareSettingModel()
+        .copyWith(journalCards: DailyCareJournalCardLayout.mapFrom(cards));
+    final Map<String, dynamic> payload =
+        DailyCareSettingFirestoreValue.payloadForWrite(setting);
+    final Map<dynamic, dynamic> stored = payload['journalCards'] as Map;
+    for (final String key in DailyCareJournalCardKeys.ordered) {
+      expect((stored[key] as Map)['iconAssetId'], 'icon-$key');
+      expect((stored[key] as Map).containsKey('imageUrl'), isFalse);
+    }
+    final DailyCareSettingModel cleared = setting.copyWith(
+      journalCards: DailyCareJournalCardLayout.mapFrom(<String, dynamic>{
+        DailyCareJournalCardKeys.food: <String, dynamic>{'iconAssetId': ''},
+      }),
+    );
+    expect(
+      ((DailyCareSettingFirestoreValue.payloadForWrite(cleared)['journalCards']
+              as Map)[DailyCareJournalCardKeys.food]
+          as Map)['iconAssetId'],
+      '',
+    );
+  });
+
   test('圖庫 ID 空白時寫入安全 fallback，不拋錯', () {
     final DailyCareSettingModel setting = const DailyCareSettingModel()
         .copyWith(

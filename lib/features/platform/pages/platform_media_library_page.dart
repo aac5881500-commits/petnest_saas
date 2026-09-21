@@ -495,7 +495,8 @@ class _AssetEditorDialogState extends State<_AssetEditorDialog> {
                 alignment: Alignment.centerLeft,
                 child: Text(
                   '僅 JPG、PNG、WEBP，最大 5 MB。\n'
-                  '${PlatformMediaCategories.hint(_category)}；比例為建議與裁切提示，不符仍可上傳。',
+                  '${PlatformMediaCategories.hint(_category)}；比例為建議與裁切提示，不符仍可上傳。'
+                  '${_category == PlatformMediaCategories.dailyCareIcon ? '\n建議尺寸：256 × 256\n建議格式：透明背景 PNG 或 WebP\n四周請保留安全空間' : ''}',
                   style: TextStyle(
                     fontSize: 12.5,
                     height: 1.35,

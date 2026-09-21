@@ -10,6 +10,7 @@ import 'package:petnest_saas/core/models/platform_media_asset.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:petnest_saas/core/widgets/daily_care_card_surface.dart';
 import 'package:petnest_saas/core/widgets/daily_care_illustrations.dart';
+import 'package:petnest_saas/core/services/platform_media_library_service.dart';
 import 'package:petnest_saas/core/widgets/platform_media_library_scope.dart';
 
 void main() {
@@ -552,5 +553,170 @@ void main() {
     expect(find.byType(SvgPicture), findsOneWidget);
     expect(find.text('環境狀況'), findsOneWidget);
     expect(find.text('content'), findsOneWidget);
+    expect(find.byType(DailyCareTitleIcon), findsOneWidget);
+    expect(
+      find.byWidgetPredicate((Widget widget) {
+        return widget is SvgPicture && widget.toString().contains('paw_decor');
+      }),
+      findsNothing,
+    );
+    expect(
+      find.byWidgetPredicate((Widget widget) {
+        return widget is SvgPicture && widget.toString().contains('leaf_decor');
+      }),
+      findsNothing,
+    );
   });
+
+  test('iconAssetId fromMap / toMap / copyWith 與舊資料空白', () {
+    const DailyCareJournalCardLayout fallback = DailyCareJournalCardLayout(
+      key: DailyCareJournalCardKeys.activity,
+    );
+    final DailyCareJournalCardLayout parsed =
+        DailyCareJournalCardLayout.fromMap(
+          DailyCareJournalCardKeys.activity,
+          <String, dynamic>{'iconAssetId': 'icon-a'},
+          fallback: fallback,
+        );
+    expect(parsed.iconAssetId, 'icon-a');
+    expect(parsed.toMap()['iconAssetId'], 'icon-a');
+    expect(parsed.copyWith(visible: false).iconAssetId, 'icon-a');
+    expect(parsed.copyWith(iconAssetId: '').iconAssetId, isEmpty);
+    expect(
+      DailyCareJournalCardLayout.fromMap(
+        DailyCareJournalCardKeys.activity,
+        const <String, dynamic>{},
+        fallback: fallback,
+      ).iconAssetId,
+      isEmpty,
+    );
+  });
+
+  test('各卡片 iconAssetId 互不覆蓋且 round trip', () {
+    final Map<String, dynamic> raw = <String, dynamic>{
+      for (int i = 0; i < DailyCareJournalCardKeys.ordered.length; i++)
+        DailyCareJournalCardKeys.ordered[i]: <String, dynamic>{
+          'iconAssetId': 'icon-$i',
+        },
+    };
+    final DailyCareSettingModel parsed = DailyCareSettingModel.fromMap(
+      <String, dynamic>{'journalCards': raw},
+    );
+    for (int i = 0; i < DailyCareJournalCardKeys.ordered.length; i++) {
+      expect(
+        parsed
+            .resolvedJournalCards[DailyCareJournalCardKeys.ordered[i]]!
+            .iconAssetId,
+        'icon-$i',
+      );
+    }
+    expect(
+      DailyCareJournalAppearance.titleIconUrl(
+        parsed.resolvedJournalCards[DailyCareJournalCardKeys.photos]!,
+        assetLookup: (_) =>
+            PlatformMediaAsset.fromMap('icon-6', <String, dynamic>{
+              'enabled': true,
+              'category': PlatformMediaCategories.dailyCarePage,
+              'imageUrl': 'https://example.com/page.png',
+            }),
+      ),
+      isEmpty,
+    );
+  });
+
+  test('dailyCareIcon 提示文字與 PNG／WebP 副檔名', () {
+    expect(
+      PlatformMediaCategories.hint(PlatformMediaCategories.dailyCareIcon),
+      contains('256 × 256'),
+    );
+    expect(
+      PlatformMediaCategories.hint(PlatformMediaCategories.dailyCareIcon),
+      contains('透明背景 PNG 或 WebP'),
+    );
+    expect(
+      PlatformMediaLibraryService.normalizeContentTypeForTest('image/png'),
+      'image/png',
+    );
+    expect(PlatformMediaLibraryService.extensionForTest('image/png'), 'png');
+    expect(PlatformMediaLibraryService.extensionForTest('image/webp'), 'webp');
+    expect(PlatformMediaLibraryService.extensionForTest('image/jpeg'), 'jpg');
+    expect(
+      PlatformMediaLibraryService.normalizeContentTypeForTest('image/webp'),
+      isNot('image/jpeg'),
+    );
+  });
+
+  testWidgets('網路圖示失敗時 fallback 內建 SVG', (WidgetTester tester) async {
+    final PlatformMediaAsset asset =
+        PlatformMediaAsset.fromMap('i1', <String, dynamic>{
+          'name': '平台圖示',
+          'enabled': true,
+          'category': PlatformMediaCategories.dailyCareIcon,
+          'imageUrl': 'https://example.invalid/icon.png',
+        });
+    await tester.pumpWidget(
+      MaterialApp(
+        home: PlatformMediaLibraryScope(
+          assetsOverride: <String, PlatformMediaAsset>{'i1': asset},
+          child: DailyCareTitleIcon(
+            layout: const DailyCareJournalCardLayout(
+              key: DailyCareJournalCardKeys.food,
+              iconAssetId: 'i1',
+            ),
+            color: Colors.black,
+            imageProviderBuilder: (_) => const _FailingTitleIconProvider(),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+    expect(find.byType(DailyCareSvgIcon), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('標題圖示固定框不造成 overflow', (WidgetTester tester) async {
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: Scaffold(
+          body: SizedBox(
+            width: 180,
+            child: DailyCareIllustratedShell(
+              layout: DailyCareJournalCardLayout(
+                key: DailyCareJournalCardKeys.generalNote,
+              ),
+              title: '今日概況標題文字不要被圖示擠換行到 overflow',
+              fill: Color(0xFFFFFFFF),
+              child: Text('body'),
+            ),
+          ),
+        ),
+      ),
+    );
+    expect(tester.takeException(), isNull);
+    final Size size = tester.getSize(find.byType(DailyCareTitleIcon));
+    expect(size.width, DailyCareTitleIcon.frameSize);
+    expect(size.height, DailyCareTitleIcon.frameSize);
+  });
+}
+
+class _FailingTitleIconProvider
+    extends ImageProvider<_FailingTitleIconProvider> {
+  const _FailingTitleIconProvider();
+
+  @override
+  Future<_FailingTitleIconProvider> obtainKey(
+    ImageConfiguration configuration,
+  ) async {
+    return this;
+  }
+
+  @override
+  ImageStreamCompleter loadImage(
+    _FailingTitleIconProvider key,
+    ImageDecoderCallback decode,
+  ) {
+    return OneFrameImageStreamCompleter(
+      Future<ImageInfo>.error(Exception('network')),
+    );
+  }
 }

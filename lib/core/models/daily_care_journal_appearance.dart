@@ -222,21 +222,34 @@ class DailyCareJournalAppearance {
     DailyCareJournalCardLayout layout, {
     PlatformMediaAsset? Function(String id)? assetLookup,
   }) {
+    return resolveTitleIcon(layout, assetLookup: assetLookup).url;
+  }
+
+  static DailyCareTitleIconResolution resolveTitleIcon(
+    DailyCareJournalCardLayout layout, {
+    PlatformMediaAsset? Function(String id)? assetLookup,
+  }) {
     final String id = layout.iconAssetId.trim();
     if (id.isEmpty) {
-      return '';
+      return const DailyCareTitleIconResolution.preset();
     }
     final PlatformMediaAsset? asset = assetLookup?.call(id);
     if (asset == null ||
         !asset.enabled ||
         asset.category != PlatformMediaCategories.dailyCareIcon) {
-      return '';
+      return const DailyCareTitleIconResolution.invalid();
     }
     final String imageUrl = asset.imageUrl.trim();
-    if (imageUrl.isNotEmpty) {
-      return imageUrl;
+    final String url = imageUrl.isNotEmpty
+        ? imageUrl
+        : asset.thumbnailUrl.trim();
+    if (url.isEmpty) {
+      return const DailyCareTitleIconResolution.invalid();
     }
-    return asset.thumbnailUrl.trim();
+    return DailyCareTitleIconResolution.valid(
+      url: url,
+      assetName: asset.name.trim(),
+    );
   }
 
   static DailyCareResolvedCardLook _lookForMode(
@@ -300,5 +313,45 @@ class DailyCareJournalAppearance {
       mode: DailyCareJournalCardStyle.surfaceSolid,
       fill: fill,
     );
+  }
+}
+
+enum DailyCareTitleIconStatus { preset, valid, invalid }
+
+class DailyCareTitleIconResolution {
+  const DailyCareTitleIconResolution._({
+    required this.status,
+    this.url = '',
+    this.assetName = '',
+  });
+
+  const DailyCareTitleIconResolution.preset()
+    : this._(status: DailyCareTitleIconStatus.preset);
+
+  const DailyCareTitleIconResolution.invalid()
+    : this._(status: DailyCareTitleIconStatus.invalid);
+
+  const DailyCareTitleIconResolution.valid({
+    required String url,
+    required String assetName,
+  }) : this._(
+         status: DailyCareTitleIconStatus.valid,
+         url: url,
+         assetName: assetName,
+       );
+
+  final DailyCareTitleIconStatus status;
+  final String url;
+  final String assetName;
+
+  String get statusLabel {
+    switch (status) {
+      case DailyCareTitleIconStatus.preset:
+        return '目前使用預設圖示';
+      case DailyCareTitleIconStatus.valid:
+        return assetName.isEmpty ? '目前使用平台圖示' : '目前圖示：$assetName';
+      case DailyCareTitleIconStatus.invalid:
+        return '原選擇的小圖示已不可使用，目前顯示預設圖示';
+    }
   }
 }

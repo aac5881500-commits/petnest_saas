@@ -91,6 +91,35 @@ void main() {
     expect(mine.map((DailyCarePhotoModel p) => p.id), <String>['mine']);
   });
 
+  test('錯誤或舊 record ID 仍可依日期＋場次＋房間歸到本場', () {
+    final List<DailyCarePhotoModel> photos = <DailyCarePhotoModel>[
+      _photo(
+        id: 'legacy-wrong-id',
+        dailyCareRecordId: 'booking123_20260920_wrong',
+        dateKey: '20260920',
+        sessionIndex: 0,
+        roomId: 'roomA',
+      ),
+      _photo(
+        id: 'other-session',
+        dailyCareRecordId: 'booking123_20260920_1',
+        dateKey: '20260920',
+        sessionIndex: 1,
+        roomId: 'roomA',
+      ),
+    ];
+    final List<DailyCarePhotoModel> matched = DailyCarePhotoMatch.recordPhotos(
+      photos: photos,
+      dailyCareRecordId: 'booking123_20260920_0',
+      dateKey: '2026/09/20',
+      sessionIndex: 0,
+      roomId: 'roomA',
+    );
+    expect(matched.map((DailyCarePhotoModel p) => p.id), <String>[
+      'legacy-wrong-id',
+    ]);
+  });
+
   test('舊照片沒有 record ID 時以台北日＋場次＋房間 fallback', () {
     final List<DailyCarePhotoModel> photos = <DailyCarePhotoModel>[
       _photo(

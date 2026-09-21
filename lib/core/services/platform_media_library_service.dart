@@ -335,4 +335,14 @@ class PlatformMediaLibraryService {
         return 'jpg';
     }
   }
+
+  @visibleForTesting
+  static String normalizeContentTypeForTest(String contentType) {
+    return _normalizeContentType(contentType);
+  }
+
+  @visibleForTesting
+  static String extensionForTest(String contentType) {
+    return _extensionFor(contentType);
+  }
 }

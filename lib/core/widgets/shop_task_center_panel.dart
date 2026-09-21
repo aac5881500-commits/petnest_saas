@@ -3,12 +3,13 @@
 
 import 'package:flutter/material.dart';
 
+import '../models/daily_care_record_model.dart';
 import '../models/daily_care_setting_model.dart';
 import '../models/shop_task_item.dart';
 import '../services/daily_care_setting_service.dart';
 import '../services/shop_task_center_service.dart';
 import 'package:petnest_saas/core/navigation/admin_booking_route.dart';
-import '../../features/room/pages/daily_care_record_edit_page.dart';
+import '../../features/room/daily_care_record_edit_launcher.dart';
 
 class ShopTaskCenterPanel extends StatelessWidget {
   const ShopTaskCenterPanel({
@@ -269,8 +270,6 @@ class _CareTile extends StatelessWidget {
     final int sessionIndex = meta['sessionIndex'] is int
         ? meta['sessionIndex'] as int
         : int.tryParse('${meta['sessionIndex']}') ?? 0;
-    final String sessionName = (meta['sessionName'] ?? item.subtitle)
-        .toString();
     final DateTime recordDate = DateTime(
       meta['recordDateYear'] as int? ?? DateTime.now().year,
       meta['recordDateMonth'] as int? ?? DateTime.now().month,
@@ -290,22 +289,28 @@ class _CareTile extends StatelessWidget {
     if (!context.mounted) {
       return;
     }
-    await Navigator.of(context).push(
-      MaterialPageRoute<void>(
-        builder: (_) => DailyCareRecordEditPage(
-          shopId: item.shopId,
-          bookingId: bookingId,
-          roomId: roomId,
-          roomName: roomName,
-          recordDate: recordDate,
-          sessionIndex: sessionIndex,
-          sessionName: sessionName,
-          customFields: setting.customFields,
-          enabledFields: setting.enabledFields,
-          photoEnabled: setting.photoEnabled,
-        ),
-      ),
+    await DailyCareRecordEditLauncher.open(
+      context: context,
+      shopId: item.shopId,
+      bookingId: bookingId,
+      recordDate: recordDate,
+      sessionIndex: sessionIndex,
+      roomId: roomId,
+      roomName: roomName,
+      serviceType: DailyCareServiceTypes.parse(meta['serviceType']),
+      petIds: _readPetIds(meta['petIds']),
+      setting: setting,
     );
+  }
+
+  List<String> _readPetIds(Object? raw) {
+    if (raw is Iterable) {
+      return raw
+          .map((dynamic item) => item.toString().trim())
+          .where((String item) => item.isNotEmpty)
+          .toList();
+    }
+    return const <String>[];
   }
 }
 

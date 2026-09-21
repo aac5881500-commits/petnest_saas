@@ -3,7 +3,8 @@
 
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const {assertActualTimes} = require("./manage_daycare_booking");
+const {assertActualTimes, resolveDaycareCancelActor} =
+    require("./manage_daycare_booking");
 const {shopLatePickupBreakdown} = require("./daycare_pricing");
 
 test("未來 actualEndAt 被 Function 拒絕", () => {
@@ -47,4 +48,40 @@ test("提早接回不產生晚接回費", () => {
   const actualEnd = new Date("2026-09-13T09:00:00.000Z");
   const pickup = shopLatePickupBreakdown(settings, scheduledEnd, actualEnd);
   assert.equal(pickup.amount, 0);
+});
+
+test("同一 uid 兼店主與客戶時，checked_in 取消成功且 cancelBy 為 staff", () => {
+  const booking = {
+    userId: "uid-owner",
+    status: "checked_in",
+  };
+  const uid = "uid-owner";
+  const isBookingOwner = booking.userId === uid;
+  const isStaff = true;
+  const cancelBy = resolveDaycareCancelActor({
+    isStaff,
+    isBookingOwner,
+    status: booking.status,
+  });
+  assert.equal(isBookingOwner, true);
+  assert.equal(cancelBy, "staff");
+  assert.equal(
+      {status: "cancelled", cancelBy}.status,
+      "cancelled",
+  );
+});
+
+test("純客戶取消 checked_in 安親訂單維持 failed-precondition", () => {
+  assert.throws(
+      () => resolveDaycareCancelActor({
+        isStaff: false,
+        isBookingOwner: true,
+        status: "checked_in",
+      }),
+      (error) => {
+        assert.equal(error.code, "failed-precondition");
+        assert.match(error.message, /臨托開始後請聯絡店家取消/);
+        return true;
+      },
+  );
 });

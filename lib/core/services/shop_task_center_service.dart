@@ -9,11 +9,12 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../models/booking_kind.dart';
 import '../models/daily_care_date_helper.dart';
+import '../models/daily_care_report_center_item.dart';
 import '../models/daily_care_setting_model.dart';
 import '../models/daily_care_stay_info.dart';
 import '../models/shop_task_item.dart';
 import 'booking_service.dart';
-import 'daily_care_record_service.dart';
+import 'daily_care_report_eligibility.dart';
 import 'daily_care_setting_service.dart';
 
 class ShopTaskCenterService {
@@ -95,41 +96,30 @@ class ShopTaskCenterService {
       final DateTime today = DailyCareDateHelper.dateOnly(
         careDate ?? DailyCareDateHelper.todayInTaipei(),
       );
-      final DailyCareRecordService records = DailyCareRecordService.instance;
 
       for (final Map<String, dynamic> booking in checkedIn) {
-        final DateTime? start = _readDate(booking['startDate']);
-        final DateTime? end = _readDate(booking['endDate']);
-        if (!DailyCareDateHelper.isCareDate(
-          date: today,
-          checkIn: start,
-          checkOut: end,
-        )) {
-          continue;
-        }
-
-        final String bookingId = (booking['bookingId'] ?? '').toString().trim();
-        if (bookingId.isEmpty) {
-          continue;
-        }
-
-        for (int index = 0; index < setting.sessionCount; index++) {
-          final String recordId = records.buildRecordId(
-            bookingId: bookingId,
-            recordDate: today,
-            sessionIndex: index,
-          );
+        final bool daycare = BookingKind.isDaycare(booking);
+        final List<DailyCareReportCenterItem> sessions =
+            DailyCareReportEligibility.expandBooking(
+              shopId: normalizedShopId,
+              booking: booking,
+              setting: setting,
+              today: today,
+              canOperate: canFillDailyCare,
+              daycare: daycare,
+            );
+        for (final DailyCareReportCenterItem session in sessions) {
           recordSubscriptions.add(
             FirebaseFirestore.instance
                 .collection('daily_care_records')
-                .doc(recordId)
+                .doc(session.id)
                 .snapshots()
                 .listen(
                   (DocumentSnapshot<Map<String, dynamic>> snapshot) {
                     if (snapshot.exists) {
-                      filledRecordIds.add(recordId);
+                      filledRecordIds.add(session.id);
                     } else {
-                      filledRecordIds.remove(recordId);
+                      filledRecordIds.remove(session.id);
                     }
                     emit();
                   },
@@ -238,83 +228,81 @@ class ShopTaskCenterService {
 
     if (setting.enabled) {
       for (final Map<String, dynamic> booking in checkedIn) {
-        if (_isStayDailyCareSkip(booking)) {
-          continue;
-        }
-        final DateTime? start = _readDate(booking['startDate']);
-        final DateTime? end = _readDate(booking['endDate']);
-        if (!DailyCareDateHelper.isCareDate(
-          date: today,
-          checkIn: start,
-          checkOut: end,
-        )) {
-          continue;
-        }
-
-        final String bookingId = (booking['bookingId'] ?? '').toString().trim();
-        final String roomId = (booking['roomId'] ?? '').toString().trim();
-        if (bookingId.isEmpty) {
-          continue;
-        }
-        if (roomId.isNotEmpty) {
-          checkedInRooms.add(roomId);
-        }
-
-        final DailyCareStayInfo stay = DailyCareStayInfo.fromBookingMap(
-          booking,
-        );
-        int filled = 0;
-        for (int index = 0; index < setting.sessionCount; index++) {
-          final String recordId = DailyCareRecordService.instance.buildRecordId(
-            bookingId: bookingId,
-            recordDate: today,
-            sessionIndex: index,
-          );
-          if (filledRecordIds.contains(recordId)) {
-            filled++;
+        try {
+          final bool daycare = BookingKind.isDaycare(booking);
+          final List<DailyCareReportCenterItem> sessions =
+              DailyCareReportEligibility.expandBooking(
+                shopId: shopId,
+                booking: booking,
+                setting: setting,
+                today: today,
+                canOperate: canFillDailyCare,
+                daycare: daycare,
+                completedIds: filledRecordIds,
+              );
+          if (sessions.isEmpty) {
+            if (!daycare) {
+              final String roomId = (booking['roomId'] ?? '').toString().trim();
+              if (roomId.isNotEmpty) {
+                checkedInRooms.add(roomId);
+              }
+            }
             continue;
           }
-
-          items.add(
-            ShopTaskItem(
-              id: 'dailyCare_$recordId',
-              type: ShopTaskType.dailyCare,
-              shopId: shopId,
-              title: [
-                if (stay.roomName.isNotEmpty) stay.roomName,
-                if (stay.pets.isNotEmpty) stay.petNamesText,
-              ].join(' '),
-              subtitle: setting.sessionLabel(index),
-              statusLabel: '待填',
-              createdAt: _readDate(
-                booking['checkedInAt'] ?? booking['checkInAt'],
+          int filled = 0;
+          for (final DailyCareReportCenterItem session in sessions) {
+            if (session.roomId.isNotEmpty) {
+              checkedInRooms.add(session.roomId);
+            }
+            if (session.isCompleted) {
+              filled++;
+              continue;
+            }
+            items.add(
+              ShopTaskItem(
+                id: 'dailyCare_${session.id}',
+                type: ShopTaskType.dailyCare,
+                shopId: shopId,
+                title: [
+                  session.placeLabel,
+                  if (session.petNamesText.isNotEmpty) session.petNamesText,
+                ].join(' '),
+                subtitle: session.sessionName,
+                statusLabel: '待填',
+                createdAt: _readDate(
+                  booking['checkedInAt'] ?? booking['checkInAt'],
+                ),
+                priority: session.sessionIndex,
+                iconKey: 'dailyCare',
+                targetType: 'dailyCareRecord',
+                targetId: session.id,
+                canOpen: canFillDailyCare,
+                metadata: <String, dynamic>{
+                  'bookingId': session.bookingId,
+                  'roomId': session.roomId,
+                  'roomName': session.roomName,
+                  'sessionIndex': session.sessionIndex,
+                  'sessionName': session.sessionName,
+                  'serviceType': session.serviceType,
+                  'petIds': session.petIds,
+                  'recordDateYear': today.year,
+                  'recordDateMonth': today.month,
+                  'recordDateDay': today.day,
+                },
               ),
-              priority: index,
-              iconKey: 'dailyCare',
-              targetType: 'dailyCareRecord',
-              targetId: recordId,
-              canOpen: canFillDailyCare,
-              metadata: <String, dynamic>{
-                'bookingId': bookingId,
-                'roomId': roomId,
-                'roomName': stay.roomName,
-                'sessionIndex': index,
-                'sessionName': setting.sessionLabel(index),
-                'recordDateYear': today.year,
-                'recordDateMonth': today.month,
-                'recordDateDay': today.day,
-              },
-            ),
-          );
-        }
-
-        if (roomId.isNotEmpty) {
-          roomProgress[roomId] = ShopRoomCareProgress(
-            roomId: roomId,
-            bookingId: bookingId,
-            filled: filled,
-            total: setting.sessionCount,
-          );
+            );
+          }
+          final String roomId = sessions.first.roomId;
+          if (roomId.isNotEmpty) {
+            roomProgress[roomId] = ShopRoomCareProgress(
+              roomId: roomId,
+              bookingId: sessions.first.bookingId,
+              filled: filled,
+              total: sessions.length,
+            );
+          }
+        } catch (_) {
+          continue;
         }
       }
     } else {
@@ -425,11 +413,6 @@ class ShopTaskCenterService {
       return '${diff.inHours} 小時前建立';
     }
     return '${createdAt.month}/${createdAt.day} 建立';
-  }
-
-  static bool _isStayDailyCareSkip(Map<String, dynamic> booking) {
-    return (booking['bookingKind'] ?? '').toString() == BookingKind.daycare ||
-        (booking['serviceType'] ?? '').toString() == BookingKind.daycare;
   }
 
   static DateTime? _readDate(Object? value) {

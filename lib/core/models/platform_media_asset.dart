@@ -35,7 +35,7 @@ abstract final class PlatformMediaCategories {
       case dailyCareCard:
         return '建議橫式 4:3 或 3:2';
       case dailyCareIcon:
-        return '建議正方形小圖示，透明 PNG 較佳';
+        return '建議 256 × 256 正方形、透明背景 PNG 或 WebP，四周保留安全空間';
       default:
         return '';
     }

@@ -5,6 +5,7 @@
 
 import 'package:flutter/material.dart';
 
+import '../../../core/models/daily_care_journal_appearance.dart';
 import '../../../core/models/daily_care_journal_layout.dart';
 import '../../../core/models/daily_care_offer_quota.dart';
 import '../../../core/models/daily_care_paid_plan.dart';
@@ -15,7 +16,6 @@ import '../../../core/services/daily_care_setting_service.dart';
 import '../../../core/services/daycare_enabled.dart';
 import '../../../core/services/shop_room_service.dart';
 import '../../../core/services/shop_service.dart';
-import '../../../core/widgets/daily_care_card_surface.dart';
 import '../../../core/widgets/daily_care_illustrations.dart';
 import '../../../core/widgets/platform_media_library_scope.dart';
 import '../../../core/widgets/shop_task_center_button.dart';
@@ -521,6 +521,87 @@ class _DailyCareSettingPageState extends State<DailyCareSettingPage> {
     setState(() {
       _patchCard(item.copyWith(iconAssetId: asset.id));
     });
+  }
+
+  Widget _cardTitleIconEditor(DailyCareJournalCardLayout item) {
+    final DailyCareTitleIconResolution resolved =
+        DailyCareJournalAppearance.resolveTitleIcon(
+          item,
+          assetLookup: (String id) =>
+              PlatformMediaLibraryScope.lookup(context, id),
+        );
+    final bool invalid = resolved.status == DailyCareTitleIconStatus.invalid;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          children: <Widget>[
+            DailyCareTitleIcon(
+              layout: item,
+              color: DailyCareInk.dark,
+              size: 22,
+            ),
+            if (!invalid)
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 280),
+                child: Text(
+                  resolved.statusLabel,
+                  style: const TextStyle(
+                    fontSize: 12.5,
+                    height: 1.35,
+                    color: Color(0xFF4B5563),
+                  ),
+                ),
+              ),
+          ],
+        ),
+        if (invalid)
+          const Padding(
+            padding: EdgeInsets.only(top: 6),
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                color: Color(0xFFFFF4E5),
+                borderRadius: BorderRadius.all(Radius.circular(8)),
+              ),
+              child: Padding(
+                padding: EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                child: Text(
+                  '原選擇的小圖示已不可使用，目前顯示預設圖示',
+                  style: TextStyle(fontSize: 12, color: Color(0xFFB45309)),
+                ),
+              ),
+            ),
+          ),
+        const SizedBox(height: 8),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: <Widget>[
+            OutlinedButton.icon(
+              onPressed: () => _pickCardIconFor(item),
+              icon: const Icon(Icons.collections_outlined),
+              label: Text(
+                item.iconAssetId.isEmpty
+                    ? '從圖庫選擇'
+                    : (invalid ? '重新選擇' : '更換圖示'),
+              ),
+            ),
+            if (item.iconAssetId.isNotEmpty)
+              TextButton(
+                onPressed: () {
+                  setState(() {
+                    _patchCard(item.copyWith(iconAssetId: ''));
+                  });
+                },
+                child: const Text('使用預設圖示'),
+              ),
+          ],
+        ),
+      ],
+    );
   }
 
   Future<void> _pickCardAssetFor(DailyCareJournalCardLayout item) async {
@@ -1521,40 +1602,8 @@ class _DailyCareSettingPageState extends State<DailyCareSettingPage> {
                     '標題小圖示',
                     style: TextStyle(fontWeight: FontWeight.w700),
                   ),
-                  const SizedBox(height: 4),
-                  const Text(
-                    '未選擇時使用內建圖示。圖庫圖片失效時也會自動改回內建圖示。',
-                    style: TextStyle(fontSize: 12, color: Colors.black54),
-                  ),
                   const SizedBox(height: 8),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    crossAxisAlignment: WrapCrossAlignment.center,
-                    children: <Widget>[
-                      DailyCareTitleIcon(
-                        layout: item,
-                        color: DailyCareInk.dark,
-                        size: 28,
-                      ),
-                      OutlinedButton.icon(
-                        onPressed: () => _pickCardIconFor(item),
-                        icon: const Icon(Icons.collections_outlined),
-                        label: Text(
-                          item.iconAssetId.isEmpty ? '從圖庫選擇' : '更換圖示',
-                        ),
-                      ),
-                      if (item.iconAssetId.isNotEmpty)
-                        TextButton(
-                          onPressed: () {
-                            setState(() {
-                              _patchCard(item.copyWith(iconAssetId: ''));
-                            });
-                          },
-                          child: const Text('使用預設圖示'),
-                        ),
-                    ],
-                  ),
+                  _cardTitleIconEditor(item),
                 ],
               ),
             ),

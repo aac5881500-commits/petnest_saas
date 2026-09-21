@@ -9,6 +9,8 @@ import 'package:petnest_saas/core/models/daily_care_record_model.dart';
 import 'package:petnest_saas/core/models/daily_care_setting_model.dart';
 import 'package:petnest_saas/core/models/daily_care_stay_info.dart';
 import 'package:petnest_saas/core/widgets/daily_care_card_surface.dart';
+import 'package:flutter_svg/flutter_svg.dart';
+import 'package:petnest_saas/core/widgets/daily_care_illustrations.dart';
 import 'package:petnest_saas/core/widgets/daily_care_journal_renderer.dart';
 import 'package:petnest_saas/features/shop/widgets/daily_care_full_journal_preview.dart';
 
@@ -650,6 +652,22 @@ void main() {
       }
       expect(tester.takeException(), isNull);
     }
+  });
+
+  testWidgets('預覽與客戶端卡片共用 DailyCareTitleIcon 且無腳印樹葉', (
+    WidgetTester tester,
+  ) async {
+    await pumpPreview(tester);
+    expect(find.byType(DailyCareTitleIcon), findsWidgets);
+    expect(find.byType(DailyCareIllustratedShell), findsWidgets);
+    expect(
+      find.byWidgetPredicate((Widget widget) {
+        final String text = widget.toString();
+        return widget is SvgPicture &&
+            (text.contains('paw_decor') || text.contains('leaf_decor'));
+      }),
+      findsNothing,
+    );
   });
 }
 
