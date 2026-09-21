@@ -19,6 +19,7 @@ class ShopChatMessageList extends StatelessWidget {
     this.onLoadOlder,
     this.loadingOlder = false,
     this.controller,
+    this.bubbleWidthFactor = 0.72,
   });
 
   final List<ShopChatMessageModel> messages;
@@ -30,79 +31,86 @@ class ShopChatMessageList extends StatelessWidget {
   final VoidCallback? onLoadOlder;
   final bool loadingOlder;
   final ScrollController? controller;
+  final double bubbleWidthFactor;
 
   @override
   Widget build(BuildContext context) {
-    return NotificationListener<ScrollNotification>(
-      onNotification: (ScrollNotification notification) {
-        if (onLoadOlder != null &&
-            notification.metrics.maxScrollExtent > 40 &&
-            notification.metrics.pixels >=
-                notification.metrics.maxScrollExtent - 80) {
-          onLoadOlder!();
-        }
-        return false;
-      },
-      child: ListView.builder(
-        controller: controller,
-        reverse: true,
-        padding: const EdgeInsets.fromLTRB(12, 12, 12, 8),
-        itemCount: messages.length + (loadingOlder ? 1 : 0),
-        itemBuilder: (BuildContext context, int index) {
-          if (loadingOlder && index == messages.length) {
-            return const Padding(
-              padding: EdgeInsets.all(12),
-              child: Center(
-                child: SizedBox(
-                  width: 22,
-                  height: 22,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                ),
-              ),
-            );
-          }
-          final int reversedIndex = messages.length - 1 - index;
-          final ShopChatMessageModel message = messages[reversedIndex];
-          final ShopChatMessageModel? previous = reversedIndex > 0
-              ? messages[reversedIndex - 1]
-              : null;
-          final bool showDate =
-              previous == null ||
-              !_sameDay(previous.createdAt, message.createdAt);
-          final bool isLastCustomer =
-              reversedIndex == messages.length - 1 &&
-              message.senderType == ShopChatSenderTypes.customer;
-          return Column(
-            children: <Widget>[
-              if (showDate)
-                _DateDivider(
-                  time: message.createdAt,
-                  color: appearance?.subtitleColor,
-                ),
-              _Bubble(
-                message: message,
-                shopName: shopName,
-                primaryColor: primaryColor,
-                appearance: appearance,
-              ),
-              if (showShopReadReceipt && isLastCustomer && shopHasReadLast)
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: Padding(
-                    padding: const EdgeInsets.only(right: 8, bottom: 6),
-                    child: Text(
-                      '已讀',
-                      style: TextStyle(
-                        fontSize: 11,
-                        color: appearance?.subtitleColor ?? Colors.grey,
-                      ),
+    return LayoutBuilder(
+      builder: (BuildContext context, BoxConstraints constraints) {
+        final double bubbleMaxWidth = constraints.maxWidth * bubbleWidthFactor;
+        return NotificationListener<ScrollNotification>(
+          onNotification: (ScrollNotification notification) {
+            if (onLoadOlder != null &&
+                notification.metrics.maxScrollExtent > 40 &&
+                notification.metrics.pixels >=
+                    notification.metrics.maxScrollExtent - 80) {
+              onLoadOlder!();
+            }
+            return false;
+          },
+          child: ListView.builder(
+            controller: controller,
+            reverse: true,
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
+            itemCount: messages.length + (loadingOlder ? 1 : 0),
+            itemBuilder: (BuildContext context, int index) {
+              if (loadingOlder && index == messages.length) {
+                return const Padding(
+                  padding: EdgeInsets.all(12),
+                  child: Center(
+                    child: SizedBox(
+                      width: 22,
+                      height: 22,
+                      child: CircularProgressIndicator(strokeWidth: 2),
                     ),
                   ),
-                ),
-            ],
-          );
-        },
-      ),
+                );
+              }
+              final int reversedIndex = messages.length - 1 - index;
+              final ShopChatMessageModel message = messages[reversedIndex];
+              final ShopChatMessageModel? previous = reversedIndex > 0
+                  ? messages[reversedIndex - 1]
+                  : null;
+              final bool showDate =
+                  previous == null ||
+                  !_sameDay(previous.createdAt, message.createdAt);
+              final bool isLastCustomer =
+                  reversedIndex == messages.length - 1 &&
+                  message.senderType == ShopChatSenderTypes.customer;
+              return Column(
+                children: <Widget>[
+                  if (showDate)
+                    _DateDivider(
+                      time: message.createdAt,
+                      color: appearance?.subtitleColor,
+                    ),
+                  _Bubble(
+                    message: message,
+                    shopName: shopName,
+                    primaryColor: primaryColor,
+                    appearance: appearance,
+                    maxWidth: bubbleMaxWidth,
+                  ),
+                  if (showShopReadReceipt && isLastCustomer && shopHasReadLast)
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: Padding(
+                        padding: const EdgeInsets.only(right: 8, bottom: 6),
+                        child: Text(
+                          '已讀',
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: appearance?.subtitleColor ?? Colors.grey,
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
+              );
+            },
+          ),
+        );
+      },
     );
   }
 
@@ -153,12 +161,14 @@ class _Bubble extends StatelessWidget {
     required this.message,
     required this.shopName,
     required this.primaryColor,
+    required this.maxWidth,
     this.appearance,
   });
 
   final ShopChatMessageModel message;
   final String shopName;
   final Color primaryColor;
+  final double maxWidth;
   final ShopFrontendTheme? appearance;
 
   @override
@@ -174,7 +184,6 @@ class _Bubble extends StatelessWidget {
     final Color timeColor = mine
         ? textColor.withValues(alpha: 0.78)
         : (appearance?.subtitleColor ?? Colors.grey.shade600);
-    final double maxW = MediaQuery.sizeOf(context).width * 0.78;
     final Widget content = message.isImage
         ? GestureDetector(
             onTap: () {
@@ -205,7 +214,7 @@ class _Bubble extends StatelessWidget {
     return Align(
       alignment: mine ? Alignment.centerRight : Alignment.centerLeft,
       child: ConstrainedBox(
-        constraints: BoxConstraints(maxWidth: maxW.clamp(200, 420)),
+        constraints: BoxConstraints(maxWidth: maxWidth),
         child: Container(
           margin: const EdgeInsets.only(bottom: 8),
           padding: message.isImage

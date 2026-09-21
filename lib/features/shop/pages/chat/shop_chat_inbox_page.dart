@@ -1,5 +1,5 @@
 // 檔案名稱：lib/features/shop/pages/chat/shop_chat_inbox_page.dart
-// 功能說明：保留完整收件匣頁給無 Dashboard 範圍時使用；後台入口改走左側浮層。
+// 功能說明：全螢幕店家聊天收件匣；窄螢幕由此進入單一對話頁，不開抽屜或 Dock。
 
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/models/shop_chat_thread_model.dart';
@@ -11,10 +11,12 @@ class ShopChatInboxPage extends StatefulWidget {
   const ShopChatInboxPage({
     super.key,
     required this.shopId,
+    this.fullScreenFlow = false,
     this.onConversationSelected,
   });
 
   final String shopId;
+  final bool fullScreenFlow;
   final void Function(ShopChatThreadModel thread)? onConversationSelected;
 
   @override
@@ -29,7 +31,7 @@ class _ShopChatInboxPageState extends State<ShopChatInboxPage> {
   Widget build(BuildContext context) {
     final ShopAdminWorkspaceController? workspace =
         ShopAdminWorkspaceScope.maybeOf(context);
-    if (workspace == null) {
+    if (workspace == null || widget.fullScreenFlow) {
       return _buildScaffold(
         filter: _filter,
         query: _query,
@@ -63,6 +65,15 @@ class _ShopChatInboxPageState extends State<ShopChatInboxPage> {
       widget.onConversationSelected!(thread);
       return;
     }
+    if (widget.fullScreenFlow) {
+      Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (_) =>
+              ShopChatThreadPage(shopId: widget.shopId, threadId: thread.id),
+        ),
+      );
+      return;
+    }
     final ShopAdminWorkspaceController? workspace =
         ShopAdminWorkspaceScope.maybeOf(context);
     if (workspace != null) {
@@ -87,10 +98,10 @@ class _ShopChatInboxPageState extends State<ShopChatInboxPage> {
     required ValueChanged<String> onQueryChanged,
   }) {
     return Scaffold(
-      appBar: AppBar(title: const Text('店家聊天')),
+      appBar: AppBar(title: const Text('全部聊天')),
       body: ShopChatInboxList(
         shopId: widget.shopId,
-        compact: true,
+        compact: false,
         filter: filter,
         query: query,
         onFilterChanged: onFilterChanged,

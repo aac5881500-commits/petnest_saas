@@ -15,6 +15,8 @@ class ShopChatInboxList extends StatefulWidget {
     this.filter = 'inbox',
     this.query = '',
     this.compact = false,
+    this.selectedThreadId,
+    this.openedThreadIds = const <String>{},
     this.onFilterChanged,
     this.onQueryChanged,
   });
@@ -24,6 +26,8 @@ class ShopChatInboxList extends StatefulWidget {
   final String filter;
   final String query;
   final bool compact;
+  final String? selectedThreadId;
+  final Set<String> openedThreadIds;
   final ValueChanged<String>? onFilterChanged;
   final ValueChanged<String>? onQueryChanged;
 
@@ -166,14 +170,26 @@ class _ShopChatInboxListState extends State<ShopChatInboxList> {
                     ),
                   ),
                 Padding(
-                  padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+                  padding: EdgeInsets.fromLTRB(
+                    widget.compact ? 6 : 12,
+                    8,
+                    widget.compact ? 6 : 12,
+                    8,
+                  ),
                   child: TextField(
                     controller: _search,
-                    decoration: const InputDecoration(
-                      prefixIcon: Icon(Icons.search),
-                      hintText: '搜尋會員名稱或電話',
+                    decoration: InputDecoration(
+                      prefixIcon: Icon(
+                        Icons.search,
+                        size: widget.compact ? 18 : 24,
+                      ),
+                      prefixIconConstraints: widget.compact
+                          ? const BoxConstraints(minWidth: 32, minHeight: 32)
+                          : null,
+                      hintText: widget.compact ? '搜尋會員' : '搜尋會員名稱或電話',
+                      hintMaxLines: 1,
                       isDense: true,
-                      border: OutlineInputBorder(),
+                      border: const OutlineInputBorder(),
                     ),
                     onChanged: (String value) {
                       widget.onQueryChanged?.call(value);
@@ -182,21 +198,36 @@ class _ShopChatInboxListState extends State<ShopChatInboxList> {
                   ),
                 ),
                 Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 12),
-                  child: SegmentedButton<String>(
-                    showSelectedIcon: false,
-                    segments: const <ButtonSegment<String>>[
-                      ButtonSegment<String>(value: 'inbox', label: Text('收件匣')),
-                      ButtonSegment<String>(value: 'unread', label: Text('未讀')),
-                      ButtonSegment<String>(
-                        value: 'archived',
-                        label: Text('已封存'),
+                  padding: EdgeInsets.symmetric(
+                    horizontal: widget.compact ? 6 : 12,
+                  ),
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: SegmentedButton<String>(
+                      showSelectedIcon: false,
+                      style: const ButtonStyle(
+                        visualDensity: VisualDensity.compact,
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                       ),
-                    ],
-                    selected: <String>{filter},
-                    onSelectionChanged: (Set<String> value) {
-                      widget.onFilterChanged?.call(value.first);
-                    },
+                      segments: const <ButtonSegment<String>>[
+                        ButtonSegment<String>(
+                          value: 'inbox',
+                          label: Text('收件匣'),
+                        ),
+                        ButtonSegment<String>(
+                          value: 'unread',
+                          label: Text('未讀'),
+                        ),
+                        ButtonSegment<String>(
+                          value: 'archived',
+                          label: Text('已封存'),
+                        ),
+                      ],
+                      selected: <String>{filter},
+                      onSelectionChanged: (Set<String> value) {
+                        widget.onFilterChanged?.call(value.first);
+                      },
+                    ),
                   ),
                 ),
                 const SizedBox(height: 8),
@@ -257,7 +288,12 @@ class _ShopChatInboxListState extends State<ShopChatInboxList> {
                               final ShopChatThreadModel thread = threads[index];
                               return _ThreadTile(
                                 thread: thread,
-                                minHeight: widget.compact ? 56 : 64,
+                                selected: widget.selectedThreadId == thread.id,
+                                opened: widget.openedThreadIds.contains(
+                                  thread.id,
+                                ),
+                                compact: widget.compact,
+                                minHeight: widget.compact ? 52 : 64,
                                 onTap: () => widget.onOpenThread(thread),
                                 onArchive: filter == 'archived'
                                     ? null
@@ -280,12 +316,18 @@ class _ThreadTile extends StatelessWidget {
     required this.thread,
     required this.onTap,
     required this.minHeight,
+    this.compact = false,
+    this.selected = false,
+    this.opened = false,
     this.onArchive,
   });
 
   final ShopChatThreadModel thread;
   final VoidCallback onTap;
   final double minHeight;
+  final bool compact;
+  final bool selected;
+  final bool opened;
   final VoidCallback? onArchive;
 
   @override
@@ -297,90 +339,120 @@ class _ThreadTile extends StatelessWidget {
     return InkWell(
       onTap: onTap,
       onLongPress: onArchive,
-      child: ConstrainedBox(
-        constraints: BoxConstraints(minHeight: minHeight),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-          child: Row(
-            children: <Widget>[
-              CircleAvatar(
-                backgroundImage: thread.customerPhotoUrl.isNotEmpty
-                    ? NetworkImage(thread.customerPhotoUrl)
-                    : null,
-                child: thread.customerPhotoUrl.isEmpty
-                    ? Text(name.characters.first)
-                    : null,
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: <Widget>[
-                    Row(
-                      children: <Widget>[
-                        Expanded(
-                          child: Text(
-                            name,
+      child: ColoredBox(
+        color: selected ? const Color(0xFFEFF6FF) : Colors.transparent,
+        child: ConstrainedBox(
+          constraints: BoxConstraints(minHeight: minHeight),
+          child: Padding(
+            padding: EdgeInsets.symmetric(
+              horizontal: compact ? 6 : 12,
+              vertical: 8,
+            ),
+            child: Row(
+              children: <Widget>[
+                CircleAvatar(
+                  radius: compact ? 14 : 20,
+                  backgroundImage: thread.customerPhotoUrl.isNotEmpty
+                      ? NetworkImage(thread.customerPhotoUrl)
+                      : null,
+                  child: thread.customerPhotoUrl.isEmpty
+                      ? Text(
+                          name.characters.first,
+                          style: TextStyle(fontSize: compact ? 12 : 14),
+                        )
+                      : null,
+                ),
+                SizedBox(width: compact ? 6 : 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: <Widget>[
+                      Row(
+                        children: <Widget>[
+                          Expanded(
+                            child: Text(
+                              name,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontSize: compact ? 13 : 14,
+                                fontWeight: thread.shopUnreadCount > 0
+                                    ? FontWeight.w800
+                                    : FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            _timeLabel(thread.lastMessageAt),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: TextStyle(
-                              fontWeight: thread.shopUnreadCount > 0
-                                  ? FontWeight.w800
-                                  : FontWeight.w600,
-                            ),
-                          ),
-                        ),
-                        Text(
-                          _timeLabel(thread.lastMessageAt),
-                          style: const TextStyle(
-                            fontSize: 12,
-                            color: Colors.grey,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 2),
-                    Row(
-                      children: <Widget>[
-                        Expanded(
-                          child: Text(
-                            thread.lastMessage,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(color: Color(0xFF6B7280)),
-                          ),
-                        ),
-                        if (thread.isArchived)
-                          const Padding(
-                            padding: EdgeInsets.only(left: 6),
-                            child: Text(
-                              '已封存',
-                              style: TextStyle(
-                                fontSize: 11,
-                                color: Colors.grey,
-                              ),
-                            ),
-                          ),
-                        if (badge.isNotEmpty) ...<Widget>[
-                          const SizedBox(width: 6),
-                          CircleAvatar(
-                            radius: 10,
-                            backgroundColor: Colors.red,
-                            child: Text(
-                              badge,
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 10,
-                              ),
+                              fontSize: compact ? 11 : 12,
+                              color: Colors.grey,
                             ),
                           ),
                         ],
-                      ],
-                    ),
-                  ],
+                      ),
+                      const SizedBox(height: 2),
+                      Row(
+                        children: <Widget>[
+                          Expanded(
+                            child: Text(
+                              thread.lastMessage,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontSize: compact ? 12 : 14,
+                                color: const Color(0xFF6B7280),
+                              ),
+                            ),
+                          ),
+                          if (opened)
+                            const Padding(
+                              padding: EdgeInsets.only(left: 4),
+                              child: Text(
+                                '已開啟',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  color: Color(0xFF1565C0),
+                                ),
+                              ),
+                            ),
+                          if (thread.isArchived)
+                            const Padding(
+                              padding: EdgeInsets.only(left: 6),
+                              child: Text(
+                                '已封存',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: Colors.grey,
+                                ),
+                              ),
+                            ),
+                          if (badge.isNotEmpty) ...<Widget>[
+                            const SizedBox(width: 6),
+                            CircleAvatar(
+                              radius: 10,
+                              backgroundColor: Colors.red,
+                              child: Text(
+                                badge,
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 10,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
@@ -397,6 +469,6 @@ class _ThreadTile extends StatelessWidget {
     if (day == today) {
       return DateFormat('HH:mm').format(time);
     }
-    return DateFormat('M/d HH:mm').format(time);
+    return DateFormat(compact ? 'M/d' : 'M/d HH:mm').format(time);
   }
 }

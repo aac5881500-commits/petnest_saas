@@ -598,6 +598,29 @@ class ShopChatService {
     return null;
   }
 
+  Future<List<Map<String, dynamic>>> listRecentBookings({
+    required String shopId,
+    required String customerUid,
+    int limit = 5,
+  }) async {
+    if (shopId.trim().isEmpty || customerUid.trim().isEmpty) {
+      return const <Map<String, dynamic>>[];
+    }
+    final QuerySnapshot<Map<String, dynamic>> snapshot = await _firestore
+        .collection('bookings')
+        .where('shopId', isEqualTo: shopId)
+        .where('userId', isEqualTo: customerUid)
+        .orderBy('createdAt', descending: true)
+        .limit(limit)
+        .get();
+    return snapshot.docs
+        .map(
+          (QueryDocumentSnapshot<Map<String, dynamic>> doc) =>
+              <String, dynamic>{'id': doc.id, ...doc.data()},
+        )
+        .toList();
+  }
+
   Future<Map<String, String>> loadCustomerSnapshot() async {
     final User user = _requireUser();
     String name = (user.displayName ?? '').trim();

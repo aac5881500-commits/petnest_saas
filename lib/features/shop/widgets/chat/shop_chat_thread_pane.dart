@@ -6,6 +6,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
+import 'package:petnest_saas/core/models/booking_kind.dart';
 import 'package:petnest_saas/core/models/shop_chat_message_model.dart';
 import 'package:petnest_saas/core/models/shop_chat_thread_model.dart';
 import 'package:petnest_saas/core/navigation/admin_booking_route.dart';
@@ -14,6 +15,7 @@ import 'package:petnest_saas/core/services/shop_chat_service.dart';
 import 'package:petnest_saas/core/services/shop_service.dart';
 import 'package:petnest_saas/features/shop/widgets/chat/shop_chat_composer.dart';
 import 'package:petnest_saas/features/shop/widgets/chat/shop_chat_member_snapshot.dart';
+import 'package:petnest_saas/features/shop/widgets/chat/shop_chat_recent_orders.dart';
 import 'package:petnest_saas/features/shop/widgets/chat/shop_chat_message_list.dart';
 import 'package:petnest_saas/features/shop/widgets/shop_admin_workspace.dart';
 
@@ -25,6 +27,9 @@ class ShopChatThreadPane extends StatefulWidget {
     this.active = true,
     this.showToolbar = true,
     this.compact = false,
+    this.slotMode = false,
+    this.showBookingBanner = true,
+    this.highlighted = false,
     this.onBack,
     this.onClose,
     this.onMinimize,
@@ -38,6 +43,9 @@ class ShopChatThreadPane extends StatefulWidget {
   final bool active;
   final bool showToolbar;
   final bool compact;
+  final bool slotMode;
+  final bool showBookingBanner;
+  final bool highlighted;
   final VoidCallback? onBack;
   final VoidCallback? onClose;
   final VoidCallback? onMinimize;
@@ -303,6 +311,23 @@ class _ShopChatThreadPaneState extends State<ShopChatThreadPane> {
     }
   }
 
+  Future<void> _openBooking() {
+    final Map<String, dynamic>? booking = _booking;
+    if (booking == null) {
+      return Future<void>.value();
+    }
+    final String bookingId = (booking['id'] ?? '').toString();
+    if (bookingId.isEmpty) {
+      return Future<void>.value();
+    }
+    return Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) =>
+            AdminBookingRoute.page(bookingId: bookingId, data: booking),
+      ),
+    );
+  }
+
   Future<void> _openMember(ShopChatThreadModel? thread) {
     return showShopChatMemberSnapshot(
       context: context,
@@ -310,6 +335,7 @@ class _ShopChatThreadPaneState extends State<ShopChatThreadPane> {
       userId: widget.threadId,
       fallbackName: thread?.customerName ?? '',
       fallbackPhone: thread?.customerPhone ?? '',
+      fallbackPhoto: thread?.customerPhotoUrl ?? '',
       asBottomSheet: widget.compact || MediaQuery.sizeOf(context).width < 900,
     );
   }
@@ -351,103 +377,156 @@ class _ShopChatThreadPaneState extends State<ShopChatThreadPane> {
                         _markRead();
                       });
                     }
-                    return Column(
-                      children: <Widget>[
-                        if (widget.showToolbar)
-                          _ThreadToolbar(
-                            name: customerName,
-                            phone: thread?.customerPhone ?? '',
-                            photo: photo,
-                            compact: widget.compact,
-                            onBack: widget.onBack,
-                            onMember: () => _openMember(thread),
-                            onOpenFull: widget.onOpenFull,
-                            onMinimize: widget.onMinimize,
-                            onClose: widget.onClose,
-                          ),
-                        if (!enabled)
-                          Material(
-                            color: Colors.orange.shade50,
-                            child: const SizedBox(
-                              width: double.infinity,
-                              child: Padding(
-                                padding: EdgeInsets.all(10),
-                                child: Text('店家聊天目前已關閉'),
+                    return DecoratedBox(
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        border: widget.slotMode
+                            ? Border.all(
+                                color: widget.highlighted
+                                    ? Theme.of(context).colorScheme.primary
+                                    : const Color(0xFFE6EAF0),
+                                width: widget.highlighted ? 2 : 1,
+                              )
+                            : null,
+                      ),
+                      child: Column(
+                        children: <Widget>[
+                          if (widget.showToolbar)
+                            DecoratedBox(
+                              decoration: const BoxDecoration(
+                                color: Colors.white,
+                                border: Border(
+                                  bottom: BorderSide(color: Color(0xFFE6EAF0)),
+                                ),
+                              ),
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: <Widget>[
+                                  _ThreadToolbar(
+                                    name: customerName,
+                                    phone: thread?.customerPhone ?? '',
+                                    photo: photo,
+                                    compact: widget.compact || widget.slotMode,
+                                    slotMode: widget.slotMode,
+                                    onBack: widget.slotMode
+                                        ? null
+                                        : widget.onBack,
+                                    onMember: () => _openMember(thread),
+                                    onOpenRecentOrders: () =>
+                                        showShopChatRecentOrders(
+                                          context: context,
+                                          shopId: widget.shopId,
+                                          customerUid: widget.threadId,
+                                        ),
+                                    onOpenBooking: widget.slotMode
+                                        ? null
+                                        : (_booking == null
+                                              ? null
+                                              : _openBooking),
+                                    onOpenFull: widget.slotMode
+                                        ? null
+                                        : widget.onOpenFull,
+                                    onMinimize: widget.slotMode
+                                        ? null
+                                        : widget.onMinimize,
+                                    onClose: widget.onClose,
+                                  ),
+                                  if (_booking != null &&
+                                      widget.showBookingBanner)
+                                    _BookingBanner(
+                                      booking: _booking!,
+                                      onOpenBooking: _openBooking,
+                                    ),
+                                ],
                               ),
                             ),
-                          ),
-                        if (_booking != null)
-                          _BookingBanner(booking: _booking!),
-                        Expanded(
-                          child: StreamBuilder<List<ShopChatMessageModel>>(
-                            stream: ShopChatService.instance
-                                .watchLatestMessages(
-                                  shopId: widget.shopId,
-                                  threadId: widget.threadId,
+                          if (!enabled)
+                            Material(
+                              color: Colors.orange.shade50,
+                              child: const SizedBox(
+                                width: double.infinity,
+                                child: Padding(
+                                  padding: EdgeInsets.all(10),
+                                  child: Text('店家聊天目前已關閉'),
                                 ),
-                            builder:
-                                (
-                                  BuildContext context,
-                                  AsyncSnapshot<List<ShopChatMessageModel>>
-                                  snapshot,
-                                ) {
-                                  final List<ShopChatMessageModel> latest =
-                                      snapshot.data ??
-                                      const <ShopChatMessageModel>[];
-                                  final List<ShopChatMessageModel> all = _merge(
-                                    latest,
-                                  );
-                                  _noteIncoming(all);
-                                  if (all.isEmpty) {
-                                    return const Center(child: Text('尚無訊息'));
-                                  }
-                                  return Stack(
-                                    children: <Widget>[
-                                      ShopChatMessageList(
-                                        messages: all,
-                                        shopName: shopName,
-                                        primaryColor: primary,
-                                        loadingOlder: _loadingOlder,
-                                        controller: _scroll,
-                                        onLoadOlder: () => _loadOlder(latest),
-                                      ),
-                                      if (_showNew)
-                                        Positioned(
-                                          bottom: 12,
-                                          left: 0,
-                                          right: 0,
-                                          child: Center(
-                                            child: FilledButton.tonal(
-                                              onPressed: () {
-                                                _scroll.animateTo(
-                                                  0,
-                                                  duration: const Duration(
-                                                    milliseconds: 220,
-                                                  ),
-                                                  curve: Curves.easeOut,
-                                                );
-                                                setState(() {
-                                                  _showNew = false;
-                                                });
-                                              },
-                                              child: const Text('有新訊息'),
+                              ),
+                            ),
+                          Expanded(
+                            child: StreamBuilder<List<ShopChatMessageModel>>(
+                              stream: ShopChatService.instance
+                                  .watchLatestMessages(
+                                    shopId: widget.shopId,
+                                    threadId: widget.threadId,
+                                  ),
+                              builder:
+                                  (
+                                    BuildContext context,
+                                    AsyncSnapshot<List<ShopChatMessageModel>>
+                                    snapshot,
+                                  ) {
+                                    final List<ShopChatMessageModel> latest =
+                                        snapshot.data ??
+                                        const <ShopChatMessageModel>[];
+                                    final List<ShopChatMessageModel> all =
+                                        _merge(latest);
+                                    _noteIncoming(all);
+                                    if (all.isEmpty) {
+                                      return const ColoredBox(
+                                        color: Color(0xFFF8FAFC),
+                                        child: Center(child: Text('尚無訊息')),
+                                      );
+                                    }
+                                    return Stack(
+                                      children: <Widget>[
+                                        ShopChatMessageList(
+                                          messages: all,
+                                          shopName: shopName,
+                                          primaryColor: primary,
+                                          loadingOlder: _loadingOlder,
+                                          controller: _scroll,
+                                          bubbleWidthFactor: 0.72,
+                                          onLoadOlder: () => _loadOlder(latest),
+                                        ),
+                                        if (_showNew)
+                                          Positioned(
+                                            bottom: 12,
+                                            left: 0,
+                                            right: 0,
+                                            child: Center(
+                                              child: FilledButton.tonal(
+                                                onPressed: () {
+                                                  _scroll.animateTo(
+                                                    0,
+                                                    duration: const Duration(
+                                                      milliseconds: 220,
+                                                    ),
+                                                    curve: Curves.easeOut,
+                                                  );
+                                                  setState(() {
+                                                    _showNew = false;
+                                                  });
+                                                },
+                                                child: const Text('有新訊息'),
+                                              ),
                                             ),
                                           ),
-                                        ),
-                                    ],
-                                  );
-                                },
+                                      ],
+                                    );
+                                  },
+                            ),
                           ),
-                        ),
-                        ShopChatComposer(
-                          controller: _input,
-                          focusNode: widget.focusNode,
-                          enabled: true,
-                          sending: _sending,
-                          onSendText: _sendText,
-                          onPickImage: _sendImage,
-                        ),
-                      ],
+                          ShopChatComposer(
+                            controller: _input,
+                            focusNode: widget.focusNode,
+                            enabled: true,
+                            sending: _sending,
+                            onSendText: _sendText,
+                            onPickImage: _sendImage,
+                            showAttach: !widget.slotMode,
+                            compact: widget.slotMode,
+                          ),
+                        ],
+                      ),
                     );
                   },
             );
@@ -462,8 +541,11 @@ class _ThreadToolbar extends StatelessWidget {
     required this.phone,
     required this.photo,
     required this.compact,
+    this.slotMode = false,
     this.onBack,
     this.onMember,
+    this.onOpenRecentOrders,
+    this.onOpenBooking,
     this.onOpenFull,
     this.onMinimize,
     this.onClose,
@@ -473,8 +555,11 @@ class _ThreadToolbar extends StatelessWidget {
   final String phone;
   final String photo;
   final bool compact;
+  final bool slotMode;
   final VoidCallback? onBack;
   final VoidCallback? onMember;
+  final VoidCallback? onOpenRecentOrders;
+  final VoidCallback? onOpenBooking;
   final VoidCallback? onOpenFull;
   final VoidCallback? onMinimize;
   final VoidCallback? onClose;
@@ -484,16 +569,17 @@ class _ThreadToolbar extends StatelessWidget {
     return Material(
       color: Colors.white,
       child: SizedBox(
-        height: compact ? 56 : 64,
+        height: slotMode ? 46 : (compact ? 56 : 64),
         child: Row(
           children: <Widget>[
-            IconButton(
-              tooltip: '返回對話列表',
-              onPressed: onBack ?? () => Navigator.of(context).maybePop(),
-              icon: const Icon(Icons.arrow_back),
-            ),
+            if (onBack != null)
+              IconButton(
+                tooltip: '返回對話列表',
+                onPressed: onBack,
+                icon: const Icon(Icons.arrow_back),
+              ),
             CircleAvatar(
-              radius: 16,
+              radius: slotMode ? 14 : 16,
               backgroundImage: photo.isNotEmpty ? NetworkImage(photo) : null,
               child: photo.isEmpty ? Text(name.characters.first) : null,
             ),
@@ -507,9 +593,12 @@ class _ThreadToolbar extends StatelessWidget {
                     name,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontWeight: FontWeight.w700),
+                    style: TextStyle(
+                      fontWeight: FontWeight.w700,
+                      fontSize: slotMode ? 13 : 14,
+                    ),
                   ),
-                  if (phone.isNotEmpty)
+                  if (!slotMode && phone.isNotEmpty)
                     Text(
                       phone,
                       maxLines: 1,
@@ -524,9 +613,22 @@ class _ThreadToolbar extends StatelessWidget {
             ),
             IconButton(
               tooltip: '會員資料',
+              visualDensity: VisualDensity.compact,
               onPressed: onMember,
               icon: const Icon(Icons.person_outline),
             ),
+            IconButton(
+              tooltip: '最近訂單',
+              visualDensity: VisualDensity.compact,
+              onPressed: onOpenRecentOrders,
+              icon: const Icon(Icons.receipt_long_outlined),
+            ),
+            if (onOpenBooking != null)
+              IconButton(
+                tooltip: '查看訂單',
+                onPressed: onOpenBooking,
+                icon: const Icon(Icons.hotel_outlined),
+              ),
             if (onOpenFull != null)
               IconButton(
                 tooltip: '開啟完整聊天頁',
@@ -541,7 +643,8 @@ class _ThreadToolbar extends StatelessWidget {
               ),
             if (onClose != null)
               IconButton(
-                tooltip: '關閉',
+                tooltip: '關閉此對話',
+                visualDensity: VisualDensity.compact,
                 onPressed: onClose,
                 icon: const Icon(Icons.close),
               ),
@@ -553,20 +656,26 @@ class _ThreadToolbar extends StatelessWidget {
 }
 
 class _BookingBanner extends StatelessWidget {
-  const _BookingBanner({required this.booking});
+  const _BookingBanner({required this.booking, required this.onOpenBooking});
 
   final Map<String, dynamic> booking;
+  final VoidCallback onOpenBooking;
 
   @override
   Widget build(BuildContext context) {
+    final bool daycare = BookingKind.isDaycare(booking);
     final String status = (booking['status'] ?? '').toString();
     final String roomName = (booking['roomName'] ?? '').toString().trim();
-    final String title = status == 'checked_in' ? '目前入住' : '目前訂單';
-    final String stay = _stayLabel(booking);
+    final String title = daycare
+        ? '安親'
+        : (status == 'checked_in' ? '目前入住' : '目前訂單');
+    final String detail = daycare
+        ? _daycareLabel(booking)
+        : _stayLabel(booking);
     return Material(
       color: const Color(0xFFEFF6FF),
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 10, 8, 10),
+        padding: const EdgeInsets.fromLTRB(16, 8, 8, 10),
         child: Row(
           children: <Widget>[
             Expanded(
@@ -574,33 +683,25 @@ class _BookingBanner extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
                   Text(
-                    title,
+                    <String>[
+                      title,
+                      if (!daycare && roomName.isNotEmpty) roomName,
+                    ].join('・'),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                     style: const TextStyle(fontWeight: FontWeight.w700),
                   ),
-                  if (roomName.isNotEmpty)
-                    Text(roomName, style: const TextStyle(fontSize: 13)),
-                  if (stay.isNotEmpty)
-                    Text(stay, style: const TextStyle(fontSize: 13)),
+                  if (detail.isNotEmpty)
+                    Text(
+                      detail,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontSize: 13),
+                    ),
                 ],
               ),
             ),
-            TextButton(
-              onPressed: () {
-                final String bookingId = (booking['id'] ?? '').toString();
-                if (bookingId.isEmpty) {
-                  return;
-                }
-                Navigator.of(context).push(
-                  MaterialPageRoute<void>(
-                    builder: (_) => AdminBookingRoute.page(
-                      bookingId: bookingId,
-                      data: booking,
-                    ),
-                  ),
-                );
-              },
-              child: const Text('查看訂單'),
-            ),
+            TextButton(onPressed: onOpenBooking, child: const Text('查看訂單')),
           ],
         ),
       ),
@@ -614,6 +715,23 @@ class _BookingBanner extends StatelessWidget {
       return '';
     }
     return '${DateFormat('M/d').format(start)}～${DateFormat('M/d').format(end)}';
+  }
+
+  String _daycareLabel(Map<String, dynamic> data) {
+    final DateTime? start =
+        _dateOf(data['actualStartAt']) ?? _dateOf(data['scheduledStartAt']);
+    final DateTime? end =
+        _dateOf(data['actualEndAt']) ?? _dateOf(data['scheduledEndAt']);
+    if (start == null && end == null) {
+      return '';
+    }
+    if (start != null && end != null) {
+      return '${DateFormat('HH:mm').format(start)}～${DateFormat('HH:mm').format(end)}';
+    }
+    if (start != null) {
+      return '送達 ${DateFormat('HH:mm').format(start)}';
+    }
+    return '接回 ${DateFormat('HH:mm').format(end!)}';
   }
 
   DateTime? _dateOf(dynamic value) {

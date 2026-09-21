@@ -7,6 +7,7 @@ import 'package:petnest_saas/core/models/daily_care_date_helper.dart';
 import 'package:petnest_saas/core/models/daily_care_entitlement.dart';
 import 'package:petnest_saas/core/models/daily_care_record_model.dart';
 import 'package:petnest_saas/core/models/daily_care_report_center_item.dart';
+import 'package:petnest_saas/core/models/daily_care_report_center_room_group.dart';
 import 'package:petnest_saas/core/models/daily_care_report_center_snapshot.dart';
 import 'package:petnest_saas/core/models/daily_care_setting_model.dart';
 import 'package:petnest_saas/core/services/daily_care_record_service.dart';
@@ -36,8 +37,14 @@ void main() {
       'roomName': 'A1',
       'customerName': '王小明',
       'petIds': <String>['p1'],
+      'bookingCode': 'PN1001',
+      'roomTypeName': '豪華套房',
       'pets': <Map<String, dynamic>>[
-        <String, dynamic>{'name': '小米', 'petId': 'p1'},
+        <String, dynamic>{
+          'name': '小米',
+          'petId': 'p1',
+          'photoUrl': 'https://img.example/cat.png',
+        },
       ],
       'startDate': checkIn ?? DateTime(2026, 9, 20),
       'endDate': checkOut ?? DateTime(2026, 9, 22),
@@ -62,6 +69,8 @@ void main() {
         <String, dynamic>{'name': '橘子', 'petId': 'd1'},
       ],
       'serviceDate': serviceDate,
+      'scheduledStartAt': DateTime(2026, 9, 21, 1, 0),
+      'scheduledEndAt': DateTime(2026, 9, 21, 10, 0),
       if (entitlement != null) 'dailyCareEntitlement': entitlement,
     };
   }
@@ -132,6 +141,11 @@ void main() {
     expect(snapshot.items.first.roomId, 'r-1');
     expect(snapshot.items.first.roomName, 'A1');
     expect(snapshot.items.first.petIds, <String>['p1']);
+    expect(snapshot.items.first.bookingCode, 'PN1001');
+    expect(snapshot.items.first.roomTypeName, '豪華套房');
+    expect(snapshot.items.first.petPhotoUrl, 'https://img.example/cat.png');
+    expect(snapshot.items.first.stayDayTotal, 2);
+    expect(snapshot.items.first.stayDayIndex, 2);
     expect(
       snapshot.items.first.serviceType,
       DailyCareServiceTypes.accommodation,
@@ -281,6 +295,211 @@ void main() {
         sessionIndex: 1,
       ),
       'stay-1_20260921_1',
+    );
+  });
+
+  DailyCareReportCenterItem session({
+    required String id,
+    required String bookingId,
+    required int sessionIndex,
+    required bool completed,
+    String roomName = 'A1',
+    bool daycare = false,
+    String customer = '王小明',
+    DateTime? daycareStart,
+    String sessionName = '',
+  }) {
+    return DailyCareReportCenterItem(
+      id: id,
+      shopId: 's1',
+      bookingId: bookingId,
+      sessionIndex: sessionIndex,
+      sessionName: sessionName.isEmpty
+          ? '第 ${sessionIndex + 1} 場'
+          : sessionName,
+      recordDate: today,
+      entitlement: const DailyCareEntitlement(enabled: true, finalReports: 2),
+      isCompleted: completed,
+      roomName: roomName,
+      customerName: customer,
+      serviceType: daycare
+          ? DailyCareServiceTypes.daycare
+          : DailyCareServiceTypes.accommodation,
+      daycareStartAt: daycareStart,
+    );
+  }
+
+  test('同一訂單多場次回報組成一張房間卡並計算 completed / pending', () {
+    final List<DailyCareReportCenterRoomGroup> groups =
+        DailyCareReportCenterGrouping.groupByBooking(
+          <DailyCareReportCenterItem>[
+            session(
+              id: 'a0',
+              bookingId: 'stay-1',
+              sessionIndex: 1,
+              completed: true,
+            ),
+            session(
+              id: 'a1',
+              bookingId: 'stay-1',
+              sessionIndex: 0,
+              completed: false,
+            ),
+            session(
+              id: 'b0',
+              bookingId: 'stay-2',
+              sessionIndex: 0,
+              completed: true,
+              roomName: 'B2',
+            ),
+          ],
+        );
+    expect(groups.length, 2);
+    final DailyCareReportCenterRoomGroup stay1 = groups.firstWhere(
+      (DailyCareReportCenterRoomGroup g) => g.bookingId == 'stay-1',
+    );
+    expect(
+      stay1.sessions.map((DailyCareReportCenterItem e) => e.sessionIndex),
+      <int>[0, 1],
+    );
+    expect(stay1.pendingCount, 1);
+    expect(stay1.completedCount, 1);
+    expect(stay1.nextPending?.sessionIndex, 0);
+    expect(stay1.primaryActionLabel, '立即填寫');
+    expect(stay1.primaryActionSession.sessionIndex, 0);
+  });
+
+  test('多場待填按鈕為填寫下一場，並帶正確 sessionIndex', () {
+    final DailyCareReportCenterRoomGroup group =
+        DailyCareReportCenterGrouping.groupByBooking(
+          <DailyCareReportCenterItem>[
+            session(
+              id: 'a0',
+              bookingId: 'stay-1',
+              sessionIndex: 0,
+              completed: false,
+            ),
+            session(
+              id: 'a1',
+              bookingId: 'stay-1',
+              sessionIndex: 1,
+              completed: false,
+            ),
+          ],
+        ).single;
+    expect(group.pendingCount, 2);
+    expect(group.primaryActionLabel, '填寫下一場');
+    expect(group.primaryActionSession.sessionIndex, 0);
+  });
+
+  test('篩選待填／已完成與住宿／安親以房間卡為單位', () {
+    final List<DailyCareReportCenterItem> items = <DailyCareReportCenterItem>[
+      session(
+        id: 'a0',
+        bookingId: 's-a',
+        sessionIndex: 0,
+        completed: false,
+        roomName: 'A10',
+      ),
+      session(
+        id: 'a1',
+        bookingId: 's-a',
+        sessionIndex: 1,
+        completed: true,
+        roomName: 'A10',
+      ),
+      session(
+        id: 'b0',
+        bookingId: 's-b',
+        sessionIndex: 0,
+        completed: true,
+        roomName: 'A2',
+      ),
+      session(
+        id: 'd0',
+        bookingId: 'd-1',
+        sessionIndex: 0,
+        completed: false,
+        daycare: true,
+        customer: '李安親',
+        daycareStart: DateTime(2026, 9, 21, 8),
+      ),
+    ];
+    final List<DailyCareReportCenterRoomGroup> pendingStay =
+        DailyCareReportCenterGrouping.visible(
+          items: items,
+          status: DailyCareReportCenterStatusFilter.pending,
+          type: DailyCareReportCenterTypeFilter.accommodation,
+        );
+    expect(
+      pendingStay.map((DailyCareReportCenterRoomGroup g) => g.bookingId),
+      <String>['s-a'],
+    );
+    final List<DailyCareReportCenterRoomGroup> done =
+        DailyCareReportCenterGrouping.visible(
+          items: items,
+          status: DailyCareReportCenterStatusFilter.completed,
+          type: DailyCareReportCenterTypeFilter.all,
+        );
+    expect(
+      done.map((DailyCareReportCenterRoomGroup g) => g.bookingId),
+      <String>['s-b'],
+    );
+    final List<DailyCareReportCenterRoomGroup> daycare =
+        DailyCareReportCenterGrouping.visible(
+          items: items,
+          status: DailyCareReportCenterStatusFilter.all,
+          type: DailyCareReportCenterTypeFilter.daycare,
+        );
+    expect(daycare.single.bookingId, 'd-1');
+  });
+
+  test('排序：待填較多在前，住宿房號自然排序，安親在住宿後，全完成最後', () {
+    final List<DailyCareReportCenterRoomGroup> groups =
+        DailyCareReportCenterGrouping.visible(
+          items: <DailyCareReportCenterItem>[
+            session(
+              id: 'done',
+              bookingId: 'z',
+              sessionIndex: 0,
+              completed: true,
+              roomName: 'A1',
+            ),
+            session(
+              id: 'a2-0',
+              bookingId: 'a2',
+              sessionIndex: 0,
+              completed: false,
+              roomName: 'A2',
+            ),
+            session(
+              id: 'a10-0',
+              bookingId: 'a10',
+              sessionIndex: 0,
+              completed: false,
+              roomName: 'A10',
+            ),
+            session(
+              id: 'a10-1',
+              bookingId: 'a10',
+              sessionIndex: 1,
+              completed: false,
+              roomName: 'A10',
+            ),
+            session(
+              id: 'day',
+              bookingId: 'day',
+              sessionIndex: 0,
+              completed: false,
+              daycare: true,
+              daycareStart: DateTime(2026, 9, 21, 9),
+            ),
+          ],
+          status: DailyCareReportCenterStatusFilter.all,
+        );
+    expect(
+      groups.map((DailyCareReportCenterRoomGroup g) => g.bookingId).toList(),
+      <String>['a10', 'a2', 'day', 'z'],
     );
   });
 }

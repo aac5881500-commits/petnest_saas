@@ -3,6 +3,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/services/shop_chat_service.dart';
+import 'package:petnest_saas/features/shop/widgets/chat/shop_chat_entry.dart';
 import 'package:petnest_saas/features/shop/widgets/shop_admin_workspace.dart';
 
 class ShopChatAppBarButton extends StatelessWidget {
@@ -25,7 +26,7 @@ class ShopChatAppBarButton extends StatelessWidget {
       return IconButton(
         tooltip: count > 0 ? '$count 則未讀訊息' : '店家聊天',
         onPressed: () {
-          workspace?.toggleInbox();
+          ShopChatEntry.open(context, shopId: shopId);
         },
         icon: Badge(
           isLabelVisible: badge.isNotEmpty,

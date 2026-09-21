@@ -7,9 +7,10 @@ import 'dart:convert';
 import 'package:flutter/widgets.dart';
 import 'package:petnest_saas/core/models/shop_chat_thread_model.dart';
 import 'package:petnest_saas/core/services/shop_chat_service.dart';
+import 'package:petnest_saas/features/shop/widgets/chat/shop_chat_layout.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-enum ShopChatOpenKind { added, focusedExisting, replaced }
+enum ShopChatOpenKind { added, focusedExisting, replaced, rejectedFull }
 
 class ShopChatOpenResult {
   const ShopChatOpenResult({
@@ -61,6 +62,9 @@ class ShopChatMultiDockController extends ChangeNotifier {
 
   /// 顯示順序：index 0 為左上（最近使用）。
   final List<String> openIds = <String>[];
+
+  /// 桌機右側最多三格，由上到下為開啟順序。
+  final List<String> slotIds = <String>[];
   final Map<String, DateTime> lastActiveAt = <String, DateTime>{};
   final Map<String, ShopChatThreadModel> snapshots =
       <String, ShopChatThreadModel>{};
@@ -75,6 +79,7 @@ class ShopChatMultiDockController extends ChangeNotifier {
   bool dockMinimized = false;
   String? highlightId;
   String? lastReplacedId;
+  String? focusedThreadId;
 
   StreamSubscription<List<ShopChatThreadModel>>? _inboxSub;
   String _shopId = '';
@@ -155,6 +160,14 @@ class ShopChatMultiDockController extends ChangeNotifier {
               .where((String id) => id.isNotEmpty)
               .take(maxSlots),
         );
+      slotIds
+        ..clear()
+        ..addAll(
+          ((map['slotIds'] as List?) ?? const <dynamic>[])
+              .map((dynamic item) => item.toString())
+              .where((String id) => id.isNotEmpty)
+              .take(ShopChatLayout.desktopSlotMax),
+        );
       lastActiveAt
         ..clear()
         ..addAll(_readTimes(map['active']));
@@ -164,7 +177,7 @@ class ShopChatMultiDockController extends ChangeNotifier {
       inboxOpen = map['inboxOpen'] == true;
       dockOpen = map['dockOpen'] == true;
       dockMinimized = map['dockMinimized'] == true;
-      for (final String id in openIds) {
+      for (final String id in <String>{...openIds, ...slotIds}) {
         _inputs[id] = TextEditingController(text: drafts[id] ?? '');
       }
     } catch (_) {
@@ -183,6 +196,7 @@ class ShopChatMultiDockController extends ChangeNotifier {
       prefsKey(_uid, _shopId),
       jsonEncode(<String, dynamic>{
         'ids': openIds,
+        'slotIds': slotIds,
         'active': <String, int>{
           for (final MapEntry<String, DateTime> entry in lastActiveAt.entries)
             entry.key: entry.value.millisecondsSinceEpoch,
@@ -208,6 +222,12 @@ class ShopChatMultiDockController extends ChangeNotifier {
       } else if (threads.isNotEmpty) {
         _detachWindow(id, keepDraft: true);
         staleInputs.add(id);
+      }
+    }
+    for (final String id in List<String>.from(slotIds)) {
+      final ShopChatThreadModel? thread = byId[id];
+      if (thread != null) {
+        snapshots[id] = thread;
       }
     }
     notifyListeners();
@@ -318,6 +338,70 @@ class ShopChatMultiDockController extends ChangeNotifier {
     notifyListeners();
   }
 
+  ShopChatOpenResult openDesktopSlot(ShopChatThreadModel thread) {
+    if (thread.id.isEmpty) {
+      return const ShopChatOpenResult(
+        kind: ShopChatOpenKind.added,
+        threadId: '',
+      );
+    }
+    snapshots[thread.id] = thread;
+    inboxOpen = true;
+    if (slotIds.contains(thread.id)) {
+      focusedThreadId = thread.id;
+      _flash(thread.id);
+      persist();
+      notifyListeners();
+      return ShopChatOpenResult(
+        kind: ShopChatOpenKind.focusedExisting,
+        threadId: thread.id,
+      );
+    }
+    if (slotIds.length >= ShopChatLayout.desktopSlotMax) {
+      return ShopChatOpenResult(
+        kind: ShopChatOpenKind.rejectedFull,
+        threadId: thread.id,
+      );
+    }
+    slotIds.add(thread.id);
+    focusedThreadId = thread.id;
+    inputOf(thread.id);
+    persist();
+    notifyListeners();
+    return ShopChatOpenResult(
+      kind: ShopChatOpenKind.added,
+      threadId: thread.id,
+    );
+  }
+
+  void closeDesktopSlot(String threadId) {
+    if (!slotIds.contains(threadId)) {
+      return;
+    }
+    _captureDraft(threadId);
+    slotIds.remove(threadId);
+    if (focusedThreadId == threadId) {
+      focusedThreadId = slotIds.isEmpty ? null : slotIds.last;
+    }
+    if (highlightId == threadId) {
+      highlightId = null;
+    }
+    persist();
+    notifyListeners();
+  }
+
+  void selectDesktopThread(ShopChatThreadModel thread) {
+    openDesktopSlot(thread);
+  }
+
+  void clearFocusedThread() {
+    if (focusedThreadId == null) {
+      return;
+    }
+    focusedThreadId = null;
+    notifyListeners();
+  }
+
   void toggleDock() {
     if (!dockOpen) {
       dockOpen = true;
@@ -379,7 +463,7 @@ class ShopChatMultiDockController extends ChangeNotifier {
   }
 
   void _captureAllDrafts() {
-    for (final String id in openIds) {
+    for (final String id in <String>{...openIds, ...slotIds}) {
       _captureDraft(id);
     }
   }
@@ -407,6 +491,7 @@ class ShopChatMultiDockController extends ChangeNotifier {
     }
     _inputs.clear();
     openIds.clear();
+    slotIds.clear();
     lastActiveAt.clear();
     snapshots.clear();
     drafts.clear();
@@ -417,6 +502,7 @@ class ShopChatMultiDockController extends ChangeNotifier {
     dockMinimized = false;
     highlightId = null;
     lastReplacedId = null;
+    focusedThreadId = null;
   }
 
   static Map<String, DateTime> _readTimes(Object? raw) {

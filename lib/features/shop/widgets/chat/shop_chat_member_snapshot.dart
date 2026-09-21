@@ -1,9 +1,12 @@
 // 檔案名稱：lib/features/shop/widgets/chat/shop_chat_member_snapshot.dart
-// 功能說明：聊天視窗內單筆會員摘要，只讀目前對話的會員文件。
+// 功能說明：聊天視窗內單筆會員摘要，只讀會員文件與一筆進行中訂單，不另查寵物 collection。
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
+import 'package:petnest_saas/core/models/booking_kind.dart';
+import 'package:petnest_saas/core/services/daycare_status_labels.dart';
 import 'package:petnest_saas/core/services/shop_chat_service.dart';
 import 'package:petnest_saas/features/admin/pages/admin_member_detail_page.dart';
 
@@ -12,21 +15,83 @@ class ShopChatMemberSnapshot {
     required this.name,
     required this.phone,
     required this.email,
+    required this.photoUrl,
     required this.vip,
     required this.regular,
     required this.blacklisted,
+    required this.emergencyName,
+    required this.emergencyPhone,
     required this.petNames,
-    required this.recentOrderLabel,
+    required this.currentServiceLabel,
   });
 
   final String name;
   final String phone;
   final String email;
+  final String photoUrl;
   final bool vip;
   final bool regular;
   final bool blacklisted;
+  final String emergencyName;
+  final String emergencyPhone;
   final List<String> petNames;
-  final String recentOrderLabel;
+  final String currentServiceLabel;
+
+  String get memberTag {
+    if (blacklisted) {
+      return '黑名單';
+    }
+    if (vip) {
+      return 'VIP';
+    }
+    return '一般會員';
+  }
+
+  String get petSummary {
+    if (petNames.isEmpty) {
+      return '';
+    }
+    if (petNames.length <= 3) {
+      return '${petNames.length} 隻・${petNames.join('、')}';
+    }
+    return '${petNames.length} 隻・${petNames.take(3).join('、')} ＋${petNames.length - 3} 隻';
+  }
+
+  static List<String> petNamesFromMember(Map<String, dynamic> data) {
+    final List<String> names = <String>[];
+    void add(String value) {
+      final String trimmed = value.trim();
+      if (trimmed.isNotEmpty && !names.contains(trimmed)) {
+        names.add(trimmed);
+      }
+    }
+
+    final Object? petNames = data['petNames'];
+    if (petNames is Iterable) {
+      for (final Object? item in petNames) {
+        add(item.toString());
+      }
+    }
+    for (final String key in <String>[
+      'pets',
+      'petNameSnapshots',
+      'petSummaries',
+    ]) {
+      final Object? raw = data[key];
+      if (raw is! Iterable) {
+        continue;
+      }
+      for (final Object? item in raw) {
+        if (item is Map) {
+          add((item['name'] ?? item['petName'] ?? '').toString());
+        } else {
+          add(item.toString());
+        }
+      }
+    }
+    add((data['petName'] ?? '').toString());
+    return names;
+  }
 }
 
 class ShopChatMemberSnapshotLoader {
@@ -37,6 +102,7 @@ class ShopChatMemberSnapshotLoader {
     required String userId,
     String fallbackName = '',
     String fallbackPhone = '',
+    String fallbackPhoto = '',
   }) async {
     Map<String, dynamic> data = const <String, dynamic>{};
     try {
@@ -61,38 +127,16 @@ class ShopChatMemberSnapshotLoader {
         data['isBlacklisted'] == true ||
         data['blocked'] == true;
 
-    final List<String> pets = <String>[];
-    try {
-      final QuerySnapshot<Map<String, dynamic>> petSnap =
-          await FirebaseFirestore.instance
-              .collection('shops')
-              .doc(shopId)
-              .collection('members')
-              .doc(userId)
-              .collection('pets')
-              .limit(8)
-              .get();
-      for (final QueryDocumentSnapshot<Map<String, dynamic>> pet
-          in petSnap.docs) {
-        final String name = (pet.data()['name'] ?? '').toString().trim();
-        if (name.isNotEmpty) {
-          pets.add(name);
-        }
-      }
-    } catch (_) {}
+    final Map<String, dynamic> emergency = data['emergencyContact'] is Map
+        ? Map<String, dynamic>.from(data['emergencyContact'] as Map)
+        : const <String, dynamic>{};
 
-    String orderLabel = '';
+    String serviceLabel = '目前沒有服務中的訂單';
     try {
       final Map<String, dynamic>? booking = await ShopChatService.instance
           .findActiveBooking(shopId: shopId, customerUid: userId);
       if (booking != null) {
-        final String room = (booking['roomName'] ?? '').toString().trim();
-        final String status = (booking['status'] ?? '').toString();
-        orderLabel = <String>[
-          if (room.isNotEmpty) room,
-          if (status.isNotEmpty) status,
-          _stay(booking),
-        ].where((String item) => item.isNotEmpty).join(' · ');
+        serviceLabel = _serviceLine(booking);
       }
     } catch (_) {}
 
@@ -108,12 +152,58 @@ class ShopChatMemberSnapshotLoader {
         fallbackPhone,
       ], ''),
       email: (data['email'] ?? '').toString().trim(),
+      photoUrl: _firstNonEmpty(<String>[
+        (data['avatarUrl'] ?? '').toString(),
+        (data['photoUrl'] ?? '').toString(),
+        fallbackPhoto,
+      ], ''),
       vip: vip,
       regular: regular,
       blacklisted: blacklisted,
-      petNames: pets,
-      recentOrderLabel: orderLabel,
+      emergencyName: (emergency['name'] ?? '').toString().trim(),
+      emergencyPhone: (emergency['phone'] ?? '').toString().trim(),
+      petNames: ShopChatMemberSnapshot.petNamesFromMember(data),
+      currentServiceLabel: serviceLabel,
     );
+  }
+
+  static String _serviceLine(Map<String, dynamic> booking) {
+    final bool daycare = BookingKind.isDaycare(booking);
+    final String status = daycare
+        ? DaycareStatusLabels.primary(booking)
+        : _stayStatus(booking);
+    if (daycare) {
+      final DateTime? start =
+          _dateOf(booking['actualStartAt']) ??
+          _dateOf(booking['scheduledStartAt']);
+      final DateTime? end =
+          _dateOf(booking['actualEndAt']) ?? _dateOf(booking['scheduledEndAt']);
+      final String time = start != null && end != null
+          ? '${DateFormat('HH:mm').format(start)}～${DateFormat('HH:mm').format(end)}'
+          : '';
+      return <String>['安親', if (time.isNotEmpty) time, status].join('・');
+    }
+    final String room = (booking['roomName'] ?? '').toString().trim();
+    final String stay = _stay(booking);
+    return <String>[
+      if (room.isNotEmpty) room,
+      if (stay.isNotEmpty) stay,
+      status,
+    ].join('・');
+  }
+
+  static String _stayStatus(Map<String, dynamic> data) {
+    switch ((data['status'] ?? '').toString()) {
+      case 'checked_in':
+        return '入住中';
+      case 'confirmed':
+        return '已確認';
+      case 'pending':
+      case 'unpaid':
+        return '待確認';
+      default:
+        return (data['status'] ?? '').toString();
+    }
   }
 
   static List<String> _stringList(dynamic raw) {
@@ -159,6 +249,7 @@ Future<void> showShopChatMemberSnapshot({
   required String userId,
   String fallbackName = '',
   String fallbackPhone = '',
+  String fallbackPhoto = '',
   bool asBottomSheet = false,
 }) async {
   final Widget body = FutureBuilder<ShopChatMemberSnapshot>(
@@ -167,6 +258,7 @@ Future<void> showShopChatMemberSnapshot({
       userId: userId,
       fallbackName: fallbackName,
       fallbackPhone: fallbackPhone,
+      fallbackPhoto: fallbackPhoto,
     ),
     builder:
         (BuildContext context, AsyncSnapshot<ShopChatMemberSnapshot> snapshot) {
@@ -183,38 +275,63 @@ Future<void> showShopChatMemberSnapshot({
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
-                Text(
-                  data.name,
-                  style: const TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w800,
-                  ),
+                Row(
+                  children: <Widget>[
+                    CircleAvatar(
+                      radius: 22,
+                      backgroundImage: data.photoUrl.isNotEmpty
+                          ? NetworkImage(data.photoUrl)
+                          : null,
+                      child: data.photoUrl.isEmpty
+                          ? Text(data.name.characters.first)
+                          : null,
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        data.name,
+                        style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 8),
-                if (data.phone.isNotEmpty) Text('電話：${data.phone}'),
-                if (data.email.isNotEmpty) Text('Email：${data.email}'),
-                const SizedBox(height: 8),
+                const SizedBox(height: 10),
                 Wrap(
                   spacing: 6,
                   runSpacing: 6,
                   children: <Widget>[
-                    if (data.vip) _chip('VIP', Colors.amber),
-                    if (data.regular) _chip('常客', Colors.blue),
-                    if (data.blacklisted) _chip('黑名單', Colors.red),
-                    if (!data.vip && !data.regular && !data.blacklisted)
-                      _chip('一般會員', Colors.grey),
+                    _chip(
+                      data.memberTag,
+                      data.blacklisted ? Colors.red : Colors.blueGrey,
+                    ),
+                    if (data.regular && !data.blacklisted)
+                      _chip('常客', Colors.blue),
                   ],
                 ),
+                if (data.phone.isNotEmpty)
+                  _copyRow(context, label: '電話', value: data.phone),
+                if (data.email.isNotEmpty)
+                  _copyRow(context, label: 'Email', value: data.email),
+                if (data.emergencyName.isNotEmpty ||
+                    data.emergencyPhone.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 6),
+                    child: Text(
+                      '緊急聯絡人：${<String>[if (data.emergencyName.isNotEmpty) data.emergencyName, if (data.emergencyPhone.isNotEmpty) data.emergencyPhone].join(' ')}',
+                    ),
+                  ),
+                if (data.petSummary.isNotEmpty) ...<Widget>[
+                  const SizedBox(height: 8),
+                  Text('寵物：${data.petSummary}'),
+                ],
                 const SizedBox(height: 8),
                 Text(
-                  data.petNames.isEmpty
-                      ? '寵物：尚未建檔'
-                      : '寵物：${data.petNames.join('、')}',
-                ),
-                Text(
-                  data.recentOrderLabel.isEmpty
-                      ? '最近訂單：無進行中訂單'
-                      : '最近訂單：${data.recentOrderLabel}',
+                  data.currentServiceLabel == '目前沒有服務中的訂單'
+                      ? data.currentServiceLabel
+                      : '目前服務中：${data.currentServiceLabel}',
                 ),
                 const SizedBox(height: 12),
                 Align(
@@ -262,6 +379,33 @@ Future<void> showShopChatMemberSnapshot({
         ),
       );
     },
+  );
+}
+
+Widget _copyRow(
+  BuildContext context, {
+  required String label,
+  required String value,
+}) {
+  return Padding(
+    padding: const EdgeInsets.only(top: 6),
+    child: Row(
+      children: <Widget>[
+        Expanded(child: Text('$label：$value')),
+        IconButton(
+          tooltip: '複製$label',
+          onPressed: () async {
+            await Clipboard.setData(ClipboardData(text: value));
+            if (context.mounted) {
+              ScaffoldMessenger.of(
+                context,
+              ).showSnackBar(SnackBar(content: Text('已複製$label')));
+            }
+          },
+          icon: const Icon(Icons.copy, size: 18),
+        ),
+      ],
+    ),
   );
 }
 

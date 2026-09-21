@@ -18,10 +18,10 @@ import 'package:petnest_saas/core/models/daycare_settings_model.dart';
 import 'package:petnest_saas/core/services/shop_task_center_service.dart';
 import 'package:petnest_saas/core/services/daycare_settings_service.dart';
 import 'package:petnest_saas/core/widgets/shop_task_center_button.dart';
-import 'package:petnest_saas/features/shop/controllers/shop_chat_multi_dock_controller.dart';
 import 'package:petnest_saas/features/shop/widgets/chat/shop_chat_app_bar_button.dart';
-import 'package:petnest_saas/features/shop/widgets/chat/shop_chat_inbox_drawer.dart';
-import 'package:petnest_saas/features/shop/widgets/chat/shop_chat_side_panel.dart';
+import 'package:petnest_saas/features/shop/widgets/chat/shop_chat_desktop_workspace.dart';
+import 'package:petnest_saas/features/shop/widgets/chat/shop_chat_entry.dart';
+import 'package:petnest_saas/features/shop/widgets/chat/shop_chat_layout.dart';
 import 'package:petnest_saas/features/shop/widgets/shop_admin_workspace.dart';
 import 'package:petnest_saas/features/shop/widgets/shop_frontend_test_panel.dart';
 import 'package:petnest_saas/features/shop/widgets/shop_frontend_phone_preview.dart';
@@ -758,12 +758,6 @@ class _ShopDashboardPageState extends State<ShopDashboardPage> {
                                 _frontendPrefsLoaded &&
                                 _frontendOpenPref &&
                                 canOpenFrontend;
-                            final double chatWidth =
-                                pageWidth < ShopChatMultiDockPlacement.dockWidth
-                                ? pageWidth
-                                : ShopChatMultiDockPlacement.dockWidth;
-                            final double inboxWidth =
-                                ShopChatMultiDockPlacement.inboxWidth;
                             final double frontendScale =
                                 ShopFrontendPhoneFrame.scaleFor(
                                   availableWidth: 430,
@@ -791,15 +785,12 @@ class _ShopDashboardPageState extends State<ShopDashboardPage> {
                                 _workspace.chat,
                               ]),
                               builder: (BuildContext context, Widget? child) {
-                                final bool dockOpen =
+                                final bool desktopChatOpen =
                                     chatAllowed &&
-                                    _workspace.chat.showDockWindows;
-                                final bool inboxOpen =
-                                    chatAllowed && _workspace.chat.inboxOpen;
-                                final bool dockMinimized =
-                                    chatAllowed &&
-                                    _workspace.chat.dockOpen &&
-                                    _workspace.chat.dockMinimized;
+                                    ShopChatLayout.shouldShowDesktopDock(
+                                      pageWidth: pageWidth,
+                                      inboxOpen: _workspace.chat.inboxOpen,
+                                    );
                                 final Widget frontendLayer = Positioned(
                                   key: ShopDashboardLiveFrontendOverlay
                                       .overlayKey,
@@ -819,32 +810,14 @@ class _ShopDashboardPageState extends State<ShopDashboardPage> {
                                   ),
                                 );
                                 final List<Widget> chatLayers = <Widget>[
-                                  if (dockOpen)
+                                  if (desktopChatOpen)
                                     Positioned(
                                       right: 0,
                                       top: 0,
                                       bottom: 0,
-                                      width: chatWidth,
-                                      child: Listener(
-                                        onPointerDown: (_) {
-                                          if (!_chatSurfacesOnTop) {
-                                            setState(() {
-                                              _chatSurfacesOnTop = true;
-                                            });
-                                          }
-                                        },
-                                        child: ShopChatSidePanel(
-                                          shopId: widget.shopId,
-                                          overlay: true,
-                                        ),
+                                      width: ShopChatLayout.dockWidthFor(
+                                        pageWidth,
                                       ),
-                                    ),
-                                  if (inboxOpen)
-                                    Positioned(
-                                      left: 0,
-                                      top: 0,
-                                      bottom: 0,
-                                      width: inboxWidth,
                                       child: Listener(
                                         onPointerDown: (_) {
                                           if (!_chatSurfacesOnTop) {
@@ -853,35 +826,9 @@ class _ShopDashboardPageState extends State<ShopDashboardPage> {
                                             });
                                           }
                                         },
-                                        child: ShopChatInboxDrawer(
+                                        child: ShopChatDesktopWorkspace(
                                           shopId: widget.shopId,
                                           controller: _workspace.chat,
-                                          onReplaced:
-                                              (ShopChatOpenResult result) {
-                                                ScaffoldMessenger.of(
-                                                  context,
-                                                ).showSnackBar(
-                                                  const SnackBar(
-                                                    content: Text(
-                                                      '已將最久未使用的對話收起',
-                                                    ),
-                                                  ),
-                                                );
-                                              },
-                                        ),
-                                      ),
-                                    ),
-                                  if (dockMinimized)
-                                    Positioned(
-                                      right: 16,
-                                      bottom: 16,
-                                      child: FilledButton.tonalIcon(
-                                        onPressed: _workspace.chat.expandDock,
-                                        icon: const Icon(
-                                          Icons.chat_bubble_outline,
-                                        ),
-                                        label: Text(
-                                          '聊天 ${_workspace.chat.openIds.length}',
                                         ),
                                       ),
                                     ),
@@ -1304,7 +1251,11 @@ class _CatHotelTab extends StatelessWidget {
                       icon: Icons.chat_bubble_outline,
                       badgeCount: unread > 99 ? 99 : unread,
                       onTap: () {
-                        workspace?.openInbox();
+                        ShopChatEntry.open(
+                          context,
+                          shopId: shopId,
+                          toggleDesktop: false,
+                        );
                       },
                     );
                   }

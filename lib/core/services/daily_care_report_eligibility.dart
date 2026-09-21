@@ -171,10 +171,34 @@ class DailyCareReportEligibility {
         .map((DailyCareStayPet pet) => pet.name.trim())
         .where((String name) => name.isNotEmpty)
         .toList();
+    final String petPhotoUrl = stay.pets
+        .map((DailyCareStayPet pet) => pet.photoUrl.trim())
+        .firstWhere((String url) => url.isNotEmpty, orElse: () => '');
     final String roomName = daycare ? '' : stay.roomName.trim();
     final String roomId = daycare
         ? ''
         : (booking['roomId'] ?? '').toString().trim();
+    final String bookingCode = (booking['bookingCode'] ?? '').toString().trim();
+    final String roomTypeName = _roomTypeNameOf(booking);
+    int? stayDayIndex;
+    int? stayDayTotal;
+    if (!daycare) {
+      final List<String> careKeys = stay.careDateKeys();
+      stayDayTotal = careKeys.isEmpty ? null : careKeys.length;
+      final int idx = careKeys.indexOf(DailyCareDateHelper.dateKey(today));
+      stayDayIndex = idx >= 0 ? idx + 1 : null;
+    }
+    final DateTime? daycareStart = daycare
+        ? (_readInstant(booking['actualStartAt']) ??
+              _readInstant(booking['scheduledStartAt']))
+        : null;
+    final DateTime? daycareEnd = daycare
+        ? (_readInstant(booking['actualEndAt']) ??
+              _readInstant(booking['scheduledEndAt']))
+        : null;
+    final String daycareTimeLabel = daycare
+        ? _daycareTimeLabel(start: daycareStart, end: daycareEnd)
+        : '';
     final int sessions = entitlement.finalReports;
     final List<DailyCareReportCenterItem> items = <DailyCareReportCenterItem>[];
     for (int index = 0; index < sessions; index++) {
@@ -194,9 +218,19 @@ class DailyCareReportEligibility {
               : DailyCareServiceTypes.accommodation,
           roomId: roomId,
           roomName: roomName,
+          roomTypeName: roomTypeName,
+          bookingCode: bookingCode,
           customerName: customerNameOf(booking),
           petIds: petIds,
           petNames: petNames,
+          petPhotoUrl: petPhotoUrl,
+          checkInDate: daycare ? null : stay.startDate,
+          checkOutDate: daycare ? null : stay.endDate,
+          stayDayIndex: stayDayIndex,
+          stayDayTotal: stayDayTotal,
+          daycareStartAt: daycareStart,
+          daycareEndAt: daycareEnd,
+          daycareTimeLabel: daycareTimeLabel,
           recordDate: today,
           sessionIndex: index,
           sessionName: sessionName(
@@ -212,6 +246,60 @@ class DailyCareReportEligibility {
       );
     }
     return items;
+  }
+
+  static String _roomTypeNameOf(Map<String, dynamic> booking) {
+    for (final String key in <String>[
+      'roomTypeName',
+      'roomTypeNameSnapshot',
+      'typeName',
+    ]) {
+      final String value = (booking[key] ?? '').toString().trim();
+      if (value.isNotEmpty) {
+        return value;
+      }
+    }
+    final Object? raw = booking['roomType'];
+    if (raw is Map) {
+      final String name = (raw['name'] ?? '').toString().trim();
+      if (name.isNotEmpty) {
+        return name;
+      }
+    }
+    return '';
+  }
+
+  static DateTime? _readInstant(Object? raw) {
+    if (raw == null) {
+      return null;
+    }
+    if (raw is DateTime) {
+      return raw;
+    }
+    try {
+      return (raw as dynamic).toDate() as DateTime?;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  static String _clock(DateTime value) {
+    final DateTime taipei = value.toUtc().add(const Duration(hours: 8));
+    return '${taipei.hour.toString().padLeft(2, '0')}:'
+        '${taipei.minute.toString().padLeft(2, '0')}';
+  }
+
+  static String _daycareTimeLabel({DateTime? start, DateTime? end}) {
+    if (start != null && end != null) {
+      return '${_clock(start)} ～ ${_clock(end)}';
+    }
+    if (start != null) {
+      return '送達 ${_clock(start)}';
+    }
+    if (end != null) {
+      return '接回 ${_clock(end)}';
+    }
+    return '';
   }
 
   static bool _isTodayCovered({
