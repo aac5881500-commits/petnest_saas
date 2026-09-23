@@ -942,20 +942,32 @@ async function releaseStayRoomTypeHoldsInTransaction(
   if (!shopId || !roomTypeId || !bookingId || nights.length === 0) {
     return;
   }
+
+  // 第一段：所有 Firestore 讀取先全部完成
+  const holdStates = [];
   for (const dateKey of nights) {
     const holdRef = holdDocRef(firestore, shopId, roomTypeId, dateKey);
     const holdSnap = await transaction.get(holdRef);
-    if (!holdSnap.exists) {
-      continue;
+
+    if (holdSnap.exists) {
+      holdStates.push({
+        holdRef,
+        holdData: holdSnap.data(),
+        dateKey,
+      });
     }
+  }
+
+  // 第二段：讀完後才開始寫入
+  for (const state of holdStates) {
     releaseHoldEntries(
         transaction,
-        holdRef,
-        holdSnap.data(),
+        state.holdRef,
+        state.holdData,
         bookingId,
         shopId,
         roomTypeId,
-        dateKey,
+        state.dateKey,
     );
   }
 }

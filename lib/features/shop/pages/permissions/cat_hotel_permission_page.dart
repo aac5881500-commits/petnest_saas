@@ -137,6 +137,18 @@ class _CatHotelPermissionPageState extends State<CatHotelPermissionPage> {
           ),
 
           PermissionSwitchTile(
+            title: '會員點數與結算發點調整',
+            subtitle: '可在住宿／安親結算時調整最終發放點數，並寫入點數流水',
+            value:
+                widget.permissions[ShopPermissionKeys.manageMemberPoints] ??
+                false,
+            enabled: widget.isOwner,
+            onChanged: (value) {
+              _updatePermission(ShopPermissionKeys.manageMemberPoints, value);
+            },
+          ),
+
+          PermissionSwitchTile(
             title: '實體商品核銷中心',
             subtitle: '可查看待領取商品、搜尋領取碼、完成交付及取消退點',
             value:

@@ -37,6 +37,7 @@ class AdminCreateBookingConfirmSection extends StatelessWidget {
     required this.paymentMethod,
     required this.paymentCatalog,
     this.isManualMember = false,
+    this.pointAmount = 0,
     required this.onPayAmountTypeChanged,
     required this.onPaymentMethodChanged,
 
@@ -83,6 +84,7 @@ class AdminCreateBookingConfirmSection extends StatelessWidget {
 
   final ShopPaymentCatalog paymentCatalog;
   final bool isManualMember;
+  final int pointAmount;
 
   final ValueChanged<String> onPayAmountTypeChanged;
 
@@ -180,9 +182,12 @@ class AdminCreateBookingConfirmSection extends StatelessWidget {
         dailyTimedAddonTotal;
     final totalPrice =
         (price * nights) + extraPetTotal + addonTotal + dailyCareAmount;
-    final finalTotal = discountInfo != null
+    final couponFinal = discountInfo != null
         ? ((discountInfo!['finalTotal'] ?? totalPrice) as num).toInt()
         : totalPrice;
+    final finalTotal = couponFinal - pointAmount < 0
+        ? 0
+        : couponFinal - pointAmount;
 
     final int specialDateSurchargeAmount = discountInfo == null
         ? 0
@@ -294,6 +299,8 @@ class AdminCreateBookingConfirmSection extends StatelessWidget {
               const Divider(height: 24),
 
               _confirmRow('訂單總金額', 'NT\$ $finalTotal'),
+
+              if (pointAmount > 0) _confirmRow('點數折抵', '-NT\$ $pointAmount'),
 
               _confirmRow(
                 payAmountType == 'full' ? '本次收全額' : '本次收訂金',
@@ -526,9 +533,9 @@ class AdminCreateBookingConfirmSection extends StatelessWidget {
                   _confirmRow(
                     '照護加購',
                     '${dailyCareEntitlement!.addonName}／'
-                    '單價 ${ShopReportFormat.money(dailyCareEntitlement!.unitPrice)}'
-                    ' × ${dailyCareEntitlement!.quantity}／'
-                    '${ShopReportFormat.money(dailyCareAmount)}',
+                        '單價 ${ShopReportFormat.money(dailyCareEntitlement!.unitPrice)}'
+                        ' × ${dailyCareEntitlement!.quantity}／'
+                        '${ShopReportFormat.money(dailyCareAmount)}',
                   ),
               ],
 
@@ -551,8 +558,11 @@ class AdminCreateBookingConfirmSection extends StatelessWidget {
                   ),
                 ],
                 _confirmRow('折扣後金額', 'NT\$ ${discountInfo!['finalTotal']}'),
+                if (pointAmount > 0) _confirmRow('點數折抵', '-NT\$ $pointAmount'),
+                _confirmRow('應付總額', 'NT\$ $finalTotal'),
               ] else ...[
                 _confirmRow('總金額', 'NT\$ $finalTotal'),
+                if (pointAmount > 0) _confirmRow('點數折抵', '-NT\$ $pointAmount'),
               ],
             ],
           ),

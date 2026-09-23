@@ -31,6 +31,7 @@ class BookingSummaryCard extends StatelessWidget {
     this.specialDateSurchargeDetails = const [],
     this.couponName = '',
     this.couponDiscountAmount = 0,
+    this.pointAmount = 0,
     this.petNames = const <String>[],
     required this.timeAddon,
     required this.valueServices,
@@ -64,6 +65,7 @@ class BookingSummaryCard extends StatelessWidget {
   final List<Map<String, dynamic>> specialDateSurchargeDetails;
   final String couponName;
   final int couponDiscountAmount;
+  final int pointAmount;
   final List<String> petNames;
   final Map<String, dynamic>? timeAddon;
   final List<Map<String, dynamic>> valueServices;
@@ -232,6 +234,10 @@ class BookingSummaryCard extends StatelessWidget {
                 couponName.trim().isEmpty ? '優惠券' : couponName.trim(),
                 '-NT\$ $couponDiscountAmount',
               ),
+            ],
+            if (pointAmount > 0) ...<Widget>[
+              const SizedBox(height: 6),
+              _infoRow('點數折抵', '-NT\$ $pointAmount'),
             ],
             const SizedBox(height: 10),
             _infoRow('折後總額', 'NT\$ $totalPrice', emphasize: true),

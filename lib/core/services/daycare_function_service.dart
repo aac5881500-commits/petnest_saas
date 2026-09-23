@@ -17,7 +17,7 @@ class DaycareFunctionException implements Exception {
     if (error is DaycareFunctionException) {
       return error.message;
     }
-    return ChatErrorProbe.describe(error);
+    return ChatErrorProbe.userFacing(error);
   }
 }
 

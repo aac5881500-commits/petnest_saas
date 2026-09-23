@@ -2,6 +2,7 @@
 // 功能說明：結帳：店內自取 + 共用綠界付款
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/constants/store_constants.dart';
 import 'package:petnest_saas/core/models/create_payment_request_model.dart';
@@ -21,6 +22,7 @@ import 'package:petnest_saas/features/shop/widgets/store/store_product_price_vie
 import 'package:petnest_saas/features/shop/widgets/store/storefront_theme.dart';
 import 'package:petnest_saas/features/payment/pages/ecpay_payment_page.dart';
 import 'package:petnest_saas/features/shop/pages/storefront/my_store_order_detail_page.dart';
+import 'package:petnest_saas/features/shop/widgets/booking/booking_points_redeem_section.dart';
 
 class StoreCheckoutPage extends StatefulWidget {
   const StoreCheckoutPage({
@@ -49,6 +51,8 @@ class _StoreCheckoutPageState extends State<StoreCheckoutPage> {
   final TextEditingController _phone = TextEditingController();
   String _paymentMethod = '';
   bool _submitting = false;
+  int _requestedPoints = 0;
+  int _pointDiscountNtd = 0;
 
   @override
   void dispose() {
@@ -151,6 +155,7 @@ class _StoreCheckoutPageState extends State<StoreCheckoutPage> {
             fulfillmentType: StoreConstants.fulfillmentPickup,
             customerName: _name.text.trim(),
             customerPhone: _phone.text.trim(),
+            requestedPoints: _requestedPoints,
           );
 
       final String orderId = (created['orderId'] ?? '').toString();
@@ -505,9 +510,42 @@ class _StoreCheckoutPageState extends State<StoreCheckoutPage> {
                                                   '-NT\$ ${quote.bundleDiscount}',
                                             ),
                                           const Divider(),
+                                          BookingPointsRedeemSection(
+                                            shopId: widget.shopId,
+                                            userId:
+                                                FirebaseAuth
+                                                    .instance
+                                                    .currentUser
+                                                    ?.uid ??
+                                                '',
+                                            channel: 'store',
+                                            payableAfterCoupon: subtotal,
+                                            requestedPoints: _requestedPoints,
+                                            onRequestedPointsChanged:
+                                                (int value) {
+                                                  if (_requestedPoints !=
+                                                      value) {
+                                                    setState(
+                                                      () => _requestedPoints =
+                                                          value,
+                                                    );
+                                                  }
+                                                },
+                                            onPreview: (int ntd, int used) {
+                                              if (_pointDiscountNtd != ntd ||
+                                                  _requestedPoints != used) {
+                                                setState(() {
+                                                  _pointDiscountNtd = ntd;
+                                                  _requestedPoints = used;
+                                                });
+                                              }
+                                            },
+                                          ),
+                                          const SizedBox(height: 8),
                                           _CheckoutTotalRow(
                                             label: '應付金額',
-                                            value: 'NT\$ $subtotal',
+                                            value:
+                                                'NT\$ ${subtotal - _pointDiscountNtd < 0 ? 0 : subtotal - _pointDiscountNtd}',
                                             emphasize: true,
                                             color: theme.primaryColor,
                                           ),

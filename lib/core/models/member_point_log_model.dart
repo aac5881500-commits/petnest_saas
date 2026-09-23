@@ -188,6 +188,8 @@ class MemberPointLogModel {
 
 enum MemberPointLogType {
   bookingEarned('bookingEarned'),
+  bookingSpent('bookingSpent'),
+  bookingAdjusted('bookingAdjusted'),
   manualAdded('manualAdded'),
   manualDeducted('manualDeducted'),
   rewardExchange('rewardExchange'),
@@ -203,7 +205,13 @@ enum MemberPointLogType {
   String get label {
     switch (this) {
       case MemberPointLogType.bookingEarned:
-        return '完成住宿獲得點數';
+        return '完成訂單獲得點數';
+
+      case MemberPointLogType.bookingSpent:
+        return '訂單折抵點數';
+
+      case MemberPointLogType.bookingAdjusted:
+        return '訂單點數調整';
 
       case MemberPointLogType.manualAdded:
         return '店家手動增加';

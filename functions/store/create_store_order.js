@@ -10,6 +10,13 @@ const {
   mergeInventoryLines,
 } = require("./store_inventory");
 const {quoteBundle, quoteCart} = require("./store_pricing");
+const {toInt} = require("../daycare/daycare_utils");
+const {
+  loadAppMemberState,
+  prepareSpendDeduct,
+  commitSpendDeduct,
+  spendStoreLogId,
+} = require("../points/sync_booking_points");
 
 const RESERVATION_MINUTES = 20;
 
@@ -401,6 +408,16 @@ exports.createStoreOrder = onCall(
 
       mergeInventoryLines(reservationLines);
 
+      const pointSettingSnap = await firestore
+          .collection("shops")
+          .doc(shopId)
+          .collection("settings")
+          .doc("points")
+          .get();
+      const pointSetting = pointSettingSnap.data() || {};
+      const memberState = await loadAppMemberState(firestore, shopId, userId);
+      const requestedPoints = toInt(requestData.requestedPoints, 0);
+
       const orderRef = firestore
           .collection("shops")
           .doc(shopId)
@@ -425,6 +442,24 @@ exports.createStoreOrder = onCall(
           const next = current + 1;
           const orderCode = `${shopId}-S${String(next).padStart(6, "0")}`;
 
+          const spendPlan = await prepareSpendDeduct(transaction, {
+            firestore,
+            shopId,
+            userId,
+            bookingId: orderRef.id,
+            setting: pointSetting,
+            channel: "store",
+            isAppMember: memberState.isAppMember,
+            requestedPoints,
+            payableAfterCoupon: subtotal,
+            operatorUid: userId,
+            spendLogId: spendStoreLogId(orderRef.id),
+            extraRef: orderRef,
+          });
+          const pointAmount = spendPlan.pointAmount || 0;
+          const pointsUsed = spendPlan.pointsUsed || 0;
+          const totalAmount = Math.max(0, subtotal - pointAmount);
+
           if (reservationLines.length > 0) {
             await applyReservation({
               transaction,
@@ -435,6 +470,8 @@ exports.createStoreOrder = onCall(
               userId,
             });
           }
+
+          commitSpendDeduct(transaction, spendPlan);
 
           transaction.set(counterRef, {
             current: next,
@@ -473,7 +510,10 @@ exports.createStoreOrder = onCall(
             finalSubtotal: pricedCart.finalSubtotal,
             subtotal,
             shippingFee: 0,
-            totalAmount: subtotal,
+            totalAmount,
+            pointAmount,
+            pointsUsed,
+            pointsDiscountAmount: pointAmount,
             quantityPromotionId: pricedCart.quantityPromotion ?
               normalizeString(pricedCart.quantityPromotion.id) : "",
             quantityPromotionName: pricedCart.quantityPromotion ?
@@ -496,7 +536,13 @@ exports.createStoreOrder = onCall(
             updatedAt: admin.firestore.FieldValue.serverTimestamp(),
           });
 
-          return {orderId: orderRef.id, orderCode};
+          return {
+            orderId: orderRef.id,
+            orderCode,
+            totalAmount,
+            pointAmount,
+            pointsUsed,
+          };
         });
       } catch (error) {
         if (error instanceof HttpsError) {
@@ -512,7 +558,9 @@ exports.createStoreOrder = onCall(
         orderId: result.orderId,
         orderCode: result.orderCode,
         shopId,
-        totalAmount: subtotal,
+        totalAmount: result.totalAmount != null ? result.totalAmount : subtotal,
+        pointAmount: result.pointAmount || 0,
+        pointsUsed: result.pointsUsed || 0,
         reservationExpireAt: expireAt.toISOString(),
       };
     },

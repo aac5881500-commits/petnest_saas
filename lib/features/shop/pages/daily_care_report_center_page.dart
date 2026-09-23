@@ -3,10 +3,14 @@
 
 import 'package:flutter/material.dart';
 
+import '../../../core/models/daily_care_date_helper.dart';
+import '../../../core/models/daily_care_record_model.dart';
+import '../../../core/models/daily_care_report_center_item.dart';
 import '../../../core/models/daily_care_report_center_snapshot.dart';
 import '../../../core/models/daily_care_setting_model.dart';
 import '../../../core/services/daily_care_report_center_service.dart';
 import '../../../core/services/daily_care_setting_service.dart';
+import '../../room/daily_care_record_edit_launcher.dart';
 import '../widgets/daily_care_report_center_board.dart';
 
 class DailyCareReportCenterPage extends StatefulWidget {
@@ -14,10 +18,22 @@ class DailyCareReportCenterPage extends StatefulWidget {
     super.key,
     required this.shopId,
     this.canOperate = true,
+    this.focusBookingId = '',
+    this.focusRoomId = '',
+    this.focusRoomName = '',
+    this.focusRoomTypeName = '',
+    this.focusCheckIn,
+    this.focusCheckOut,
   });
 
   final String shopId;
   final bool canOperate;
+  final String focusBookingId;
+  final String focusRoomId;
+  final String focusRoomName;
+  final String focusRoomTypeName;
+  final DateTime? focusCheckIn;
+  final DateTime? focusCheckOut;
 
   @override
   State<DailyCareReportCenterPage> createState() =>
@@ -26,9 +42,16 @@ class DailyCareReportCenterPage extends StatefulWidget {
 
 class _DailyCareReportCenterPageState extends State<DailyCareReportCenterPage> {
   int _retry = 0;
-  DailyCareReportCenterStatusFilter _status =
-      DailyCareReportCenterStatusFilter.pending;
+  late DailyCareReportCenterStatusFilter _status;
   DailyCareReportCenterTypeFilter _type = DailyCareReportCenterTypeFilter.all;
+
+  @override
+  void initState() {
+    super.initState();
+    _status = widget.focusBookingId.trim().isEmpty
+        ? DailyCareReportCenterStatusFilter.pending
+        : DailyCareReportCenterStatusFilter.all;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -95,8 +118,14 @@ class _DailyCareReportCenterPageState extends State<DailyCareReportCenterPage> {
                           ),
                         );
                       }
+                      final DailyCareReportCenterSnapshot view =
+                          _focusedSnapshot(data);
+                      if (widget.focusBookingId.trim().isNotEmpty &&
+                          view.items.isEmpty) {
+                        return _focusFallback(setting);
+                      }
                       return DailyCareReportCenterBoard(
-                        snapshot: data,
+                        snapshot: view,
                         setting: setting,
                         status: _status,
                         type: _type,
@@ -116,6 +145,81 @@ class _DailyCareReportCenterPageState extends State<DailyCareReportCenterPage> {
             },
       ),
     );
+  }
+
+  DailyCareReportCenterSnapshot _focusedSnapshot(
+    DailyCareReportCenterSnapshot data,
+  ) {
+    final String bookingId = widget.focusBookingId.trim();
+    if (bookingId.isEmpty) {
+      return data;
+    }
+    final String roomId = widget.focusRoomId.trim();
+    return DailyCareReportCenterSnapshot.fromItems(
+      data.items.where((DailyCareReportCenterItem item) {
+        if (item.bookingId != bookingId) {
+          return false;
+        }
+        if (roomId.isEmpty) {
+          return true;
+        }
+        return item.roomId == roomId || item.roomId.isEmpty;
+      }).toList(),
+      settingEnabled: data.settingEnabled,
+    );
+  }
+
+  Widget _focusFallback(DailyCareSettingModel setting) {
+    final String typeName = widget.focusRoomTypeName.trim();
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            Text(
+              typeName.isEmpty
+                  ? '此訂單今日沒有待填場次，仍可進入既有填寫頁'
+                  : '此訂單（$typeName）今日沒有待填場次，仍可進入既有填寫頁',
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+            ),
+            const SizedBox(height: 16),
+            FilledButton(
+              onPressed: () {
+                DailyCareRecordEditLauncher.open(
+                  context: context,
+                  shopId: widget.shopId,
+                  bookingId: widget.focusBookingId,
+                  recordDate: _focusRecordDate(),
+                  sessionIndex: 0,
+                  roomId: widget.focusRoomId,
+                  roomName: widget.focusRoomName,
+                  serviceType: DailyCareServiceTypes.accommodation,
+                  setting: setting,
+                );
+              },
+              child: const Text('前往每日照護填寫'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  DateTime _focusRecordDate() {
+    final DateTime today = DailyCareDateHelper.todayInTaipei();
+    if (DailyCareDateHelper.isCareDate(
+      date: today,
+      checkIn: widget.focusCheckIn,
+      checkOut: widget.focusCheckOut,
+    )) {
+      return DailyCareDateHelper.dateOnly(today);
+    }
+    if (widget.focusCheckIn != null) {
+      return DailyCareDateHelper.dateOnly(widget.focusCheckIn!);
+    }
+    return today;
   }
 
   void _reload() {

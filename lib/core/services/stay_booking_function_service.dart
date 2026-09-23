@@ -17,7 +17,7 @@ class StayBookingFunctionException implements Exception {
     if (error is StayBookingFunctionException) {
       return error.message;
     }
-    return ChatErrorProbe.describe(error);
+    return ChatErrorProbe.userFacing(error);
   }
 }
 
@@ -58,7 +58,9 @@ class StayBookingFunctionService {
         stack,
         operation: name,
       );
-      throw StayBookingFunctionException(StayBookingFunctionException.from(error));
+      throw StayBookingFunctionException(
+        StayBookingFunctionException.from(error),
+      );
     }
   }
 
@@ -72,19 +74,18 @@ class StayBookingFunctionService {
     String source = 'customer',
     String userId = '',
   }) async {
-    final Map<String, dynamic> result = await _call(
-      'createStayBooking',
-      <String, dynamic>{
-        'shopId': shopId,
-        'roomTypeId': roomTypeId,
-        'startDate': startDate.toIso8601String(),
-        'endDate': endDate.toIso8601String(),
-        'requestId': requestId,
-        'source': source,
-        'userId': userId,
-        'booking': booking,
-      },
-    );
+    final Map<String, dynamic> result =
+        await _call('createStayBooking', <String, dynamic>{
+          'shopId': shopId,
+          'roomTypeId': roomTypeId,
+          'startDate': startDate.toIso8601String(),
+          'endDate': endDate.toIso8601String(),
+          'requestId': requestId,
+          'source': source,
+          'userId': userId,
+          'requestedPoints': booking['requestedPoints'] ?? 0,
+          'booking': booking,
+        });
     return (result['bookingId'] ?? '').toString();
   }
 

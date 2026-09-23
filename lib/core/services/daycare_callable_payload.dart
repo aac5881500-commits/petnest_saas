@@ -131,6 +131,7 @@ class DaycareCallablePayload {
     Map<String, dynamic>? adminPetFormAnswersByPetId,
     required String requestId,
     String dailyCareAddonId = '',
+    int requestedPoints = 0,
   }) {
     return <String, dynamic>{
       'shopId': shopId,
@@ -165,6 +166,7 @@ class DaycareCallablePayload {
           adminPetFormAnswersByPetId.isNotEmpty)
         'adminPetFormAnswersByPetId': adminPetFormAnswersByPetId,
       'requestId': requestId,
+      'requestedPoints': requestedPoints,
     };
   }
 }

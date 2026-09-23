@@ -31,7 +31,7 @@ const {
   releaseOccupancyDocs,
   writeHoldEntries,
 } = require("./daycare_occupancy");
-const {computeEarnPoints} = require("./daycare_points");
+const {syncBookingPoints} = require("../points/sync_booking_points");
 
 function formatLogTime(value) {
   const date = toDate(value);
@@ -246,6 +246,8 @@ exports.manageDaycareBooking = onCall(
         throw new HttpsError("invalid-argument", "缺少必要參數");
       }
 
+      try {
+
       const firestore = admin.firestore();
       const bookingRef = firestore.collection("bookings").doc(bookingId);
       if (requestId) {
@@ -364,6 +366,10 @@ exports.manageDaycareBooking = onCall(
         );
         if (manualAdjust !== 0 && !manualReason) {
           throw new HttpsError("invalid-argument", "請填寫手動調整原因");
+        }
+        if (payload.rewardPointsAdjusted === true &&
+            !normalizeString(payload.rewardPointsAdjustReason)) {
+          throw new HttpsError("invalid-argument", "請填寫點數調整原因");
         }
         const originalSettlementAmount = quoted;
         const finalSettlementAmount = Math.max(
@@ -593,21 +599,6 @@ exports.manageDaycareBooking = onCall(
               }
               transaction.update(bookingRef, bookingUpdate);
             });
-            await issueOrRevokeDaycarePoints(firestore, {
-              shopId,
-              bookingId,
-              booking: {
-                ...booking,
-                totalPrice: finalSettlementAmount,
-                source: booking.source,
-                userId: booking.userId,
-                addons: booking.addons,
-                overtimeAmount: overtimeAmt,
-                specialDateSurchargeAmount: booking.specialDateSurchargeAmount,
-                status: bookingUpdate.status || booking.status,
-              },
-              mode: "issue",
-            });
           } else {
             const payQuery = firestore.collection("payments")
                 .where("bookingId", "==", bookingId);
@@ -629,6 +620,27 @@ exports.manageDaycareBooking = onCall(
               transaction.update(bookingRef, bookingUpdate);
             });
           }
+          if (payload.rewardPointsAdjusted === true) {
+            await bookingRef.update({
+              rewardPointsAdjusted: true,
+              rewardPointsFinal: toInt(payload.rewardPointsFinal, 0),
+              rewardPointsAdjustReason:
+                normalizeString(payload.rewardPointsAdjustReason),
+              rewardPointsAdjustByEmail: normalizeString(
+                  request.auth.token && request.auth.token.email,
+              ),
+            });
+          }
+          const latestSettle = (await bookingRef.get()).data() || {};
+          await syncBookingPoints(firestore, {
+            shopId,
+            bookingId,
+            booking: latestSettle,
+            operatorUid: uid,
+            operatorEmail: normalizeString(
+                request.auth.token && request.auth.token.email,
+            ),
+          });
           result = {
             ok: true,
             action,
@@ -690,16 +702,11 @@ exports.manageDaycareBooking = onCall(
           );
           transaction.update(bookingRef, cancelUpdates);
         });
-        await restoreDaycareSpend(firestore, {
+        await syncBookingPoints(firestore, {
           shopId,
           bookingId,
-          booking,
-        });
-        await issueOrRevokeDaycarePoints(firestore, {
-          shopId,
-          bookingId,
-          booking,
-          mode: "revoke",
+          booking: {...booking, ...cancelUpdates},
+          operatorUid: uid,
         });
       } else if (action === "noShow") {
         // 舊訂單 status=no_show / noShow=true 仍可讀取；不可再新增此狀態。
@@ -847,11 +854,11 @@ exports.manageDaycareBooking = onCall(
         });
         result.totalPrice = total;
         if (booking.status === "completed") {
-          await issueOrRevokeDaycarePoints(firestore, {
+          await syncBookingPoints(firestore, {
             shopId,
             bookingId,
             booking: {...booking, totalPrice: total},
-            mode: "recalc",
+            operatorUid: uid,
           });
         }
       } else {
@@ -929,183 +936,19 @@ exports.manageDaycareBooking = onCall(
         }
       }
       return result;
+      } catch (error) {
+        if (error instanceof HttpsError) {
+          throw error;
+        }
+        console.error("[manageDaycareBooking] unexpected", {
+          action,
+          shopId,
+          bookingId,
+          requestId,
+          message: error && error.message ? error.message : String(error),
+          stack: error && error.stack,
+        });
+        throw new HttpsError("internal", "系統忙碌，請稍後再試");
+      }
     },
 );
-
-/**
- * 取消安親訂單時返還折抵點數（只返還一次）
- * @param {FirebaseFirestore.Firestore} firestore
- * @param {Object} params
- */
-async function restoreDaycareSpend(firestore, params) {
-  const booking = params.booking || {};
-  const userId = normalizeString(booking.userId);
-  const spent = toInt(booking.pointAmount, 0);
-  if (!userId || spent <= 0) {
-    return;
-  }
-  const spendRef = firestore.collection("shops").doc(params.shopId)
-      .collection("member_point_logs")
-      .doc(`spend_booking_${params.bookingId}`);
-  const pointRef = firestore.collection("shops").doc(params.shopId)
-      .collection("member_points").doc(userId);
-  const bookingRef = firestore.collection("bookings").doc(params.bookingId);
-  await firestore.runTransaction(async (transaction) => {
-    const spendSnap = await transaction.get(spendRef);
-    if (!spendSnap.exists || spendSnap.data().returned === true) {
-      return;
-    }
-    const pointSnap = await transaction.get(pointRef);
-    const current = toInt(
-        pointSnap.exists ? pointSnap.data().points : 0, 0,
-    );
-    transaction.update(spendRef, {
-      returned: true,
-      returnedAt: admin.firestore.FieldValue.serverTimestamp(),
-    });
-    transaction.set(pointRef, {
-      points: current + spent,
-      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-    }, {merge: true});
-    transaction.update(bookingRef, {
-      pointsReturned: true,
-    });
-  });
-}
-
-/**
- * @param {FirebaseFirestore.Firestore} firestore
- * @param {Object} params
- */
-async function issueOrRevokeDaycarePoints(firestore, params) {
-  const booking = params.booking || {};
-  const userId = normalizeString(booking.userId);
-  if (!userId) {
-    return;
-  }
-  let isAppMember = false;
-  try {
-    await admin.auth().getUser(userId);
-    isAppMember = true;
-  } catch (error) {
-    isAppMember = false;
-  }
-  if (!isAppMember) {
-    return;
-  }
-  const settingSnap = await firestore.collection("shops").doc(params.shopId)
-      .collection("settings").doc("points").get();
-  const setting = settingSnap.data() || {};
-  const logRef = firestore.collection("shops").doc(params.shopId)
-      .collection("member_point_logs").doc(`booking_${params.bookingId}`);
-  const pointRef = firestore.collection("shops").doc(params.shopId)
-      .collection("member_points").doc(userId);
-  const bookingRef = firestore.collection("bookings").doc(params.bookingId);
-
-  if (params.mode === "revoke") {
-    await firestore.runTransaction(async (transaction) => {
-      const logSnap = await transaction.get(logRef);
-      if (!logSnap.exists) {
-        return;
-      }
-      const issued = toInt(logSnap.data().pointsChange, 0);
-      if (issued <= 0 || logSnap.data().revoked === true) {
-        return;
-      }
-      const pointSnap = await transaction.get(pointRef);
-      const current = toInt(
-        pointSnap.exists ? pointSnap.data().points : 0, 0,
-      );
-      transaction.update(logRef, {
-        revoked: true,
-        revokedAt: admin.firestore.FieldValue.serverTimestamp(),
-      });
-      if (pointSnap.exists) {
-        transaction.update(pointRef, {
-          points: Math.max(0, current - issued),
-          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-        });
-      }
-      transaction.update(bookingRef, {
-        pointsIssued: false,
-        pointsIssuedAmount: 0,
-      });
-    });
-    return;
-  }
-
-  if (setting.enabled !== true || setting.daycareEarnEnabled !== true) {
-    return;
-  }
-  if (setting.issueAfterCompleted === false) {
-    return;
-  }
-  const points = computeEarnPoints(setting, booking);
-
-  await firestore.runTransaction(async (transaction) => {
-    const logSnap = await transaction.get(logRef);
-    const pointSnap = await transaction.get(pointRef);
-    const current = toInt(
-      pointSnap.exists ? pointSnap.data().points : 0, 0,
-    );
-    const already = logSnap.exists && logSnap.data().revoked !== true ?
-      toInt(logSnap.data().pointsChange, 0) : 0;
-    if (params.mode === "recalc" && already > 0) {
-      const delta = points - already;
-      if (delta === 0) {
-        return;
-      }
-      transaction.set(logRef, {
-        pointsChange: points,
-        changeType: "earn",
-        logType: "booking",
-        bookingId: params.bookingId,
-        userId,
-        shopId: params.shopId,
-        revoked: false,
-        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-      }, {merge: true});
-      transaction.set(pointRef, {
-        points: Math.max(0, current + delta),
-        shopId: params.shopId,
-        userId,
-        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-      }, {merge: true});
-      transaction.update(bookingRef, {
-        pointsIssued: points > 0,
-        pointsIssuedAmount: points,
-      });
-      return;
-    }
-    if (already > 0 || points <= 0) {
-      return;
-    }
-    transaction.set(logRef, {
-      pointsChange: points,
-      changeType: "earn",
-      logType: "booking",
-      bookingId: params.bookingId,
-      userId,
-      shopId: params.shopId,
-      revoked: false,
-      createdAt: admin.firestore.FieldValue.serverTimestamp(),
-      snapshot: {
-        finalSettlementAmount: toInt(booking.finalSettlementAmount, 0),
-        totalPrice: toInt(booking.totalPrice, 0),
-        overtimeAmount: toInt(booking.overtimeAmount, 0),
-        specialDateSurchargeAmount:
-          toInt(booking.specialDateSurchargeAmount, 0),
-      },
-    });
-    transaction.set(pointRef, {
-      points: current + points,
-      shopId: params.shopId,
-      userId,
-      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-    }, {merge: true});
-    transaction.update(bookingRef, {
-      pointsIssued: true,
-      pointsIssuedAmount: points,
-    });
-  });
-}

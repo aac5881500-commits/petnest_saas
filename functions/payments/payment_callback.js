@@ -578,6 +578,21 @@ exports.ecpayPaymentCallback = onRequest(
         } catch (reportError) {
           console.error("營運摘要更新失敗", reportError);
         }
+        try {
+          const bookedSnap = await bookingRef.get();
+          if (bookedSnap.exists) {
+            const {syncBookingPoints} =
+              require("../points/sync_booking_points");
+            await syncBookingPoints(firestore, {
+              shopId: normalizeString((bookedSnap.data() || {}).shopId),
+              bookingId: bookingRef.id,
+              booking: bookedSnap.data() || {},
+              operatorUid: "system",
+            });
+          }
+        } catch (pointError) {
+          console.error("付款後點數同步失敗", pointError);
+        }
 
         console.info("ECPay Callback write ok", {
           merchantTradeNo,

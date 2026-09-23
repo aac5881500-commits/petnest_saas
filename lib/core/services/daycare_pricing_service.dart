@@ -538,12 +538,20 @@ class DaycarePricingService {
         ),
       );
     }
-    final int otherDiscount = quote.discountAmount + quote.pointAmount;
-    if (otherDiscount > 0) {
+    if (quote.discountAmount > 0) {
       lines.add(
         BookingFeeLineItem(
           label: '優惠折抵',
-          amount: -otherDiscount,
+          amount: -quote.discountAmount,
+          kind: BookingFeeLineKind.discount,
+        ),
+      );
+    }
+    if (quote.pointAmount > 0) {
+      lines.add(
+        BookingFeeLineItem(
+          label: '點數折抵',
+          amount: -quote.pointAmount,
           kind: BookingFeeLineKind.discount,
         ),
       );

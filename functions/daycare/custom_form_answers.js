@@ -241,7 +241,32 @@ function validateAndNormalizeAdminCreateAnswers({
   });
 }
 
+function stampSubmittedAt(value, FieldValue) {
+  if (!value || typeof value !== "object") {
+    return value;
+  }
+  if (Array.isArray(value)) {
+    return value.map((item) => stampSubmittedAt(item, FieldValue));
+  }
+  const out = {...value};
+  if (Object.prototype.hasOwnProperty.call(out, "submittedAt")) {
+    out.submittedAt = FieldValue.serverTimestamp();
+  }
+  const keys = Object.keys(out);
+  for (let i = 0; i < keys.length; i++) {
+    const key = keys[i];
+    if (key === "submittedAt") {
+      continue;
+    }
+    if (out[key] && typeof out[key] === "object") {
+      out[key] = stampSubmittedAt(out[key], FieldValue);
+    }
+  }
+  return out;
+}
+
 module.exports = {
   validateAndNormalizeBookingSubmitAnswers,
   validateAndNormalizeAdminCreateAnswers,
+  stampSubmittedAt,
 };

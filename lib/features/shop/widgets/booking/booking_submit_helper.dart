@@ -124,6 +124,7 @@ class BookingSubmitHelper {
     required String couponName,
     required String couponType,
     required int couponDiscountAmount,
+    int requestedPoints = 0,
     required List<Map<String, dynamic>> addons,
     required String address,
     required String emergencyName,
@@ -253,6 +254,7 @@ class BookingSubmitHelper {
       couponName: couponName,
       couponType: couponType,
       couponDiscountAmount: couponDiscountAmount,
+      requestedPoints: requestedPoints,
       depositAmount: depositAmount,
       paymentMethod: paymentMethod,
       payAmountType: payAmountType,
@@ -267,7 +269,7 @@ class BookingSubmitHelper {
       requestId: requestId,
       customFormAnswers: customFormAnswers == null
           ? null
-          : customFormAnswers.toFirestoreMap(),
+          : customFormAnswers.toCallableMap(),
       petFormAnswersByPetId: petFormAnswersByPetId.isEmpty
           ? null
           : petFormAnswersByPetId,

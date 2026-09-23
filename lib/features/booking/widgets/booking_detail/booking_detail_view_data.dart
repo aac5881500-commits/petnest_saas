@@ -834,16 +834,34 @@ class BookingDetailViewData {
 
   int get earnedPoints => BookingDetailParse.parseMoney(
     raw['issuedPoints'] ??
+        raw['pointsIssuedAmount'] ??
+        raw['rewardPointAmount'] ??
         raw['pointsIssued'] ??
         raw['rewardPoints'] ??
         raw['earnedPoints'],
   );
 
-  bool get showEarnedPoints =>
-      (isDaycare
-          ? BookingSettlementMath.isOrderComplete(raw)
-          : status == 'completed') &&
-      earnedPoints > 0;
+  int get expectedEarnPoints => BookingDetailParse.parseMoney(
+    raw['rewardPointsSystem'] ?? raw['expectedRewardPoints'],
+  );
+
+  int get pointsUsedCount => BookingDetailParse.parseMoney(raw['pointsUsed']);
+
+  int get pointsDiscountNtd => BookingDetailParse.parseMoney(
+    raw['pointAmount'] ?? raw['pointsDiscountAmount'],
+  );
+
+  bool get showExpectedPoints {
+    if (status == 'cancelled' || status == 'no_show') {
+      return false;
+    }
+    if (earnedPoints > 0) {
+      return false;
+    }
+    return expectedEarnPoints > 0;
+  }
+
+  bool get showEarnedPoints => earnedPoints > 0;
 
   bool get showReview => isDaycare
       ? BookingSettlementMath.isOrderComplete(raw)

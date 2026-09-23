@@ -24,6 +24,9 @@ class AdminDaycareSettleResult {
     this.refundMethod = '',
     this.refundNote = '',
     required this.lockIfClear,
+    this.rewardPointsAdjusted = false,
+    this.rewardPointsFinal = 0,
+    this.rewardPointsAdjustReason = '',
   });
 
   final DateTime actualEndAt;
@@ -33,6 +36,9 @@ class AdminDaycareSettleResult {
   final String refundMethod;
   final String refundNote;
   final bool lockIfClear;
+  final bool rewardPointsAdjusted;
+  final int rewardPointsFinal;
+  final String rewardPointsAdjustReason;
 }
 
 Future<AdminDaycareSettleResult?> showAdminDaycareSettleSheet({
@@ -82,6 +88,9 @@ class _AdminDaycareSettleSheetState extends State<AdminDaycareSettleSheet> {
   final TextEditingController _unsignedAdjust = TextEditingController();
   final TextEditingController _manualReason = TextEditingController();
   final TextEditingController _refundNote = TextEditingController();
+  final TextEditingController _rewardPoints = TextEditingController();
+  final TextEditingController _rewardReason = TextEditingController();
+  bool _adjustPoints = false;
   final ScrollController _sheetScroll = ScrollController();
   final FocusNode _reasonFocus = FocusNode();
   final GlobalKey _reasonFieldKey = GlobalKey();
@@ -122,6 +131,8 @@ class _AdminDaycareSettleSheetState extends State<AdminDaycareSettleSheet> {
     _unsignedAdjust.dispose();
     _manualReason.dispose();
     _refundNote.dispose();
+    _rewardPoints.dispose();
+    _rewardReason.dispose();
     _sheetScroll.dispose();
     _reasonFocus.dispose();
     super.dispose();
@@ -368,6 +379,12 @@ class _AdminDaycareSettleSheetState extends State<AdminDaycareSettleSheet> {
     if (!mounted) {
       return;
     }
+    if (_adjustPoints && _rewardReason.text.trim().isEmpty) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('請填寫點數調整原因')));
+      return;
+    }
     Navigator.pop(
       context,
       AdminDaycareSettleResult(
@@ -382,6 +399,9 @@ class _AdminDaycareSettleSheetState extends State<AdminDaycareSettleSheet> {
             ? _refundNote.text.trim()
             : '',
         lockIfClear: lockIfClear,
+        rewardPointsAdjusted: _adjustPoints,
+        rewardPointsFinal: int.tryParse(_rewardPoints.text.trim()) ?? 0,
+        rewardPointsAdjustReason: _rewardReason.text.trim(),
       ),
     );
   }
@@ -841,6 +861,38 @@ class _AdminDaycareSettleSheetState extends State<AdminDaycareSettleSheet> {
           _moneyRow(theme, '成功收款總額', _paid),
           _moneyRow(theme, '待補款', _remaining),
           _moneyRow(theme, '待退款', _refundDue),
+          const SizedBox(height: 12),
+          Text(
+            '系統計算可得 ${widget.booking['rewardPointsSystem'] ?? widget.booking['expectedRewardPoints'] ?? 0} 點',
+          ),
+          Text(_adjustPoints ? '最終發放以手動輸入為準（後端仍會依實收上限處理）' : '最終發放將使用系統計算值'),
+          SwitchListTile(
+            contentPadding: EdgeInsets.zero,
+            title: const Text('手動調整點數'),
+            subtitle: const Text('需填寫調整原因；後端會驗證並寫入點數流水。'),
+            value: _adjustPoints,
+            onChanged: (bool value) {
+              setState(() => _adjustPoints = value);
+            },
+          ),
+          if (_adjustPoints) ...<Widget>[
+            TextField(
+              controller: _rewardPoints,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(
+                labelText: '最終發放點數',
+                isDense: true,
+              ),
+            ),
+            const SizedBox(height: 8),
+            TextField(
+              controller: _rewardReason,
+              decoration: const InputDecoration(
+                labelText: '調整原因（必填）',
+                isDense: true,
+              ),
+            ),
+          ],
         ],
       ),
     );

@@ -36,6 +36,7 @@ const {
   applySettlementPaymentDirection,
   assertRefundMethod,
 } = require("./settlement_payment_direction");
+const {syncBookingPoints} = require("../points/sync_booking_points");
 
 const ALLOWED_COLLECT = ["cash", "transfer"];
 
@@ -352,6 +353,11 @@ exports.adjustBookingSettlement = onCall(
         throw new HttpsError("permission-denied", "訂單店家不一致");
       }
       await requireBookingPerm(uid, shopId, booking0);
+      if (data.rewardPointsAdjusted === true) {
+        if (!normalizeString(data.rewardPointsAdjustReason)) {
+          throw new HttpsError("invalid-argument", "請填寫點數調整原因");
+        }
+      }
       const shop = await loadShop(shopId);
 
       if (action === "preview") {
@@ -1041,6 +1047,40 @@ exports.adjustBookingSettlement = onCall(
           operatorRole: isRootAdmin(uid) ? "root" : "staff",
           payload: result,
         });
+      }
+      try {
+        const latestSnap = await firestore.collection("bookings")
+            .doc(bookingId).get();
+        const latest = latestSnap.data() || booking0;
+        if (data.rewardPointsAdjusted === true) {
+          await latestSnap.ref.update({
+            rewardPointsAdjusted: true,
+            rewardPointsFinal: toInt(data.rewardPointsFinal, 0),
+            rewardPointsAdjustReason:
+              normalizeString(data.rewardPointsAdjustReason),
+            rewardPointsAdjustByEmail: normalizeString(
+                request.auth.token && request.auth.token.email,
+            ),
+          });
+        }
+        const merged = data.rewardPointsAdjusted === true ? {
+          ...latest,
+          rewardPointsAdjusted: true,
+          rewardPointsFinal: toInt(data.rewardPointsFinal, 0),
+          rewardPointsAdjustReason:
+            normalizeString(data.rewardPointsAdjustReason),
+        } : latest;
+        await syncBookingPoints(firestore, {
+          shopId,
+          bookingId,
+          booking: merged,
+          operatorUid: uid,
+          operatorEmail: normalizeString(
+              request.auth.token && request.auth.token.email,
+          ),
+        });
+      } catch (pointError) {
+        console.error("結算後點數同步失敗", pointError);
       }
       return result;
     },

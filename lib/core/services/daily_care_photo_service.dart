@@ -127,49 +127,60 @@ class DailyCarePhotoService {
 
   /// 取得某次住宿全部照護照片。
   ///
-  /// 客戶端照護照片頁會使用這個 Stream，
-  /// 再由畫面依日期與場次整理。
+  /// `shopId` 為空：只查 bookingId，給客戶端使用。
+  /// `shopId` 非空：shopId + bookingId，符合店主端 Firestore 權限。
   Stream<List<DailyCarePhotoModel>> streamBookingPhotos({
     required String bookingId,
+    String? shopId,
   }) {
     final String normalizedBookingId = bookingId.trim();
+    final String normalizedShopId = shopId?.trim() ?? '';
 
     if (normalizedBookingId.isEmpty) {
       return Stream<List<DailyCarePhotoModel>>.value(<DailyCarePhotoModel>[]);
     }
 
-    return _collection
-        .where('bookingId', isEqualTo: normalizedBookingId)
-        .snapshots()
-        .map((QuerySnapshot<Map<String, dynamic>> snapshot) {
-          final List<DailyCarePhotoModel> photos = snapshot.docs.map((
-            QueryDocumentSnapshot<Map<String, dynamic>> doc,
-          ) {
-            return DailyCarePhotoModel.fromMap(id: doc.id, map: doc.data());
-          }).toList();
+    Query<Map<String, dynamic>> query = _collection.where(
+      'bookingId',
+      isEqualTo: normalizedBookingId,
+    );
+    if (normalizedShopId.isNotEmpty) {
+      query = _collection
+          .where('shopId', isEqualTo: normalizedShopId)
+          .where('bookingId', isEqualTo: normalizedBookingId);
+    }
 
-          photos.sort((DailyCarePhotoModel a, DailyCarePhotoModel b) {
-            final int dateCompare = a.recordDate.compareTo(b.recordDate);
+    return query.snapshots().map((
+      QuerySnapshot<Map<String, dynamic>> snapshot,
+    ) {
+      final List<DailyCarePhotoModel> photos = snapshot.docs.map((
+        QueryDocumentSnapshot<Map<String, dynamic>> doc,
+      ) {
+        return DailyCarePhotoModel.fromMap(id: doc.id, map: doc.data());
+      }).toList();
 
-            if (dateCompare != 0) {
-              return dateCompare;
-            }
+      photos.sort((DailyCarePhotoModel a, DailyCarePhotoModel b) {
+        final int dateCompare = a.recordDate.compareTo(b.recordDate);
 
-            final int sessionCompare = a.sessionIndex.compareTo(b.sessionIndex);
+        if (dateCompare != 0) {
+          return dateCompare;
+        }
 
-            if (sessionCompare != 0) {
-              return sessionCompare;
-            }
+        final int sessionCompare = a.sessionIndex.compareTo(b.sessionIndex);
 
-            final DateTime aTime = a.createdAt ?? DateTime(1970);
+        if (sessionCompare != 0) {
+          return sessionCompare;
+        }
 
-            final DateTime bTime = b.createdAt ?? DateTime(1970);
+        final DateTime aTime = a.createdAt ?? DateTime(1970);
 
-            return aTime.compareTo(bTime);
-          });
+        final DateTime bTime = b.createdAt ?? DateTime(1970);
 
-          return photos;
-        });
+        return aTime.compareTo(bTime);
+      });
+
+      return photos;
+    });
   }
 
   /// 本場照護紀錄照片：新資料依 record ID，舊資料 fallback 台北日＋場次＋房間。
@@ -179,11 +190,12 @@ class DailyCarePhotoService {
     DateTime? recordDate,
     int sessionIndex = 0,
     String roomId = '',
+    String? shopId,
   }) {
     final String dateKey = recordDate == null
         ? ''
         : DailyCarePhotoMatch.canonicalDateKey(recordDate);
-    return streamBookingPhotos(bookingId: bookingId).map((
+    return streamBookingPhotos(bookingId: bookingId, shopId: shopId).map((
       List<DailyCarePhotoModel> photos,
     ) {
       return DailyCarePhotoMatch.recordPhotos(

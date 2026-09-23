@@ -20,6 +20,7 @@ class StoreFunctionService {
     String fulfillmentType = 'pickup',
     String customerName = '',
     String customerPhone = '',
+    int requestedPoints = 0,
   }) async {
     final HttpsCallableResult<dynamic> result = await _functions
         .httpsCallable('createStoreOrder')
@@ -29,6 +30,7 @@ class StoreFunctionService {
           'fulfillmentType': fulfillmentType,
           'customerName': customerName,
           'customerPhone': customerPhone,
+          'requestedPoints': requestedPoints,
         });
 
     final Object? data = result.data;

@@ -1,6 +1,5 @@
 // 檔案名稱：lib/features/shop/pages/shop_point_setting_page.dart
-// 功能說明：設定點數開關、發點計算方式、有效期限與兌換權限
-// 🪙 店家點數設定頁
+// 功能說明：點數制度、安親發點與折抵設定；發點固定訂單完成後才入點。
 
 import 'package:flutter/material.dart';
 import '../../../core/models/daycare_settings_model.dart';
@@ -25,56 +24,41 @@ class ShopPointSettingPage extends StatefulWidget {
 
 class _ShopPointSettingPageState extends State<ShopPointSettingPage> {
   final PointSettingService _service = PointSettingService.instance;
-
   final TextEditingController _amountPerPointController =
       TextEditingController();
-
   final TextEditingController _pointsPerNightController =
       TextEditingController();
-
   final TextEditingController _minimumOrderAmountController =
       TextEditingController();
-
   final TextEditingController _maximumPointsController =
       TextEditingController();
-
   final TextEditingController _expireDaysController = TextEditingController();
-
   final TextEditingController _pointNameController = TextEditingController();
-
   final TextEditingController _descriptionController = TextEditingController();
   final TextEditingController _daycareAmountPerPointController =
-      TextEditingController();
-  final TextEditingController _daycarePointsPerOrderController =
       TextEditingController();
   final TextEditingController _daycareMinimumController =
       TextEditingController();
   final TextEditingController _daycareMaximumController =
       TextEditingController();
+  final TextEditingController _pointsPerNtdController = TextEditingController();
 
   bool _initialized = false;
   bool _saving = false;
-
   bool _enabled = false;
-  bool _issueAfterCompleted = true;
-  bool _allowManualAdjustment = true;
   bool _allowPointsExchange = true;
-
   String _calculationType = PointSettingModel.calculationTypeAmount;
   bool _daycareEarnEnabled = false;
+  bool _spendEnabled = false;
+  bool _staySpendEnabled = false;
   bool _daycareSpendEnabled = false;
-  String _daycareCalculationType =
-      PointSettingModel.daycareCalculationTypeAmount;
-  bool _daycareIncludeAddons = true;
-  bool _daycareIncludeSurcharge = true;
-  bool _daycareIncludeOvertime = false;
-  bool _daycareIncludeExpanded = false;
+  bool _storeSpendEnabled = false;
+  bool _basicOpen = true;
+  bool _daycareOpen = true;
+  bool _spendOpen = true;
 
   bool get _isAmountCalculation =>
       _calculationType == PointSettingModel.calculationTypeAmount;
-
-  bool get _isNightCalculation =>
-      _calculationType == PointSettingModel.calculationTypeNight;
 
   @override
   void dispose() {
@@ -86,9 +70,9 @@ class _ShopPointSettingPageState extends State<ShopPointSettingPage> {
     _pointNameController.dispose();
     _descriptionController.dispose();
     _daycareAmountPerPointController.dispose();
-    _daycarePointsPerOrderController.dispose();
     _daycareMinimumController.dispose();
     _daycareMaximumController.dispose();
+    _pointsPerNtdController.dispose();
     super.dispose();
   }
 
@@ -96,98 +80,78 @@ class _ShopPointSettingPageState extends State<ShopPointSettingPage> {
     if (_initialized) {
       return;
     }
-
     _initialized = true;
-
     _enabled = setting.enabled;
     _calculationType = setting.calculationType;
-    _issueAfterCompleted = setting.issueAfterCompleted;
-    _allowManualAdjustment = setting.allowManualAdjustment;
     _allowPointsExchange = setting.allowPointsExchange;
-
     _amountPerPointController.text = setting.amountPerPoint.toString();
-
     _pointsPerNightController.text = setting.pointsPerNight.toString();
-
     _minimumOrderAmountController.text = setting.minimumOrderAmount.toString();
-
     _maximumPointsController.text = setting.maximumPointsPerBooking.toString();
-
     _expireDaysController.text = setting.pointExpireDays.toString();
-
     _pointNameController.text = setting.pointName;
     _descriptionController.text = setting.description;
     _daycareEarnEnabled = setting.daycareEarnEnabled;
     _daycareSpendEnabled = setting.daycareSpendEnabled;
-    _daycareCalculationType = setting.daycareCalculationType;
+    _staySpendEnabled = setting.staySpendEnabled;
+    _storeSpendEnabled = setting.storeSpendEnabled;
+    _spendEnabled = setting.spendEnabled;
+    _pointsPerNtdController.text =
+        (setting.pointsPerNtd > 0 ? setting.pointsPerNtd : 1).toString();
     _daycareAmountPerPointController.text = setting.daycareAmountPerPoint
-        .toString();
-    _daycarePointsPerOrderController.text = setting.daycarePointsPerOrder
         .toString();
     _daycareMinimumController.text = setting.daycareMinimumOrderAmount
         .toString();
     _daycareMaximumController.text = setting.daycareMaximumPointsPerBooking
         .toString();
-    _daycareIncludeAddons = setting.daycareIncludeAddons;
-    _daycareIncludeSurcharge = setting.daycareIncludeSurcharge;
-    _daycareIncludeOvertime = setting.daycareIncludeOvertime;
   }
 
   Future<void> _save() async {
     final int? amountPerPoint = int.tryParse(
       _amountPerPointController.text.trim(),
     );
-
     final int? pointsPerNight = int.tryParse(
       _pointsPerNightController.text.trim(),
     );
-
     final int? minimumOrderAmount = int.tryParse(
       _minimumOrderAmountController.text.trim(),
     );
-
     final int? maximumPoints = int.tryParse(
       _maximumPointsController.text.trim(),
     );
-
     final int? expireDays = int.tryParse(_expireDaysController.text.trim());
-
+    final int? pointsPerNtd = int.tryParse(_pointsPerNtdController.text.trim());
     if (_isAmountCalculation &&
         (amountPerPoint == null || amountPerPoint <= 0)) {
       _showMessage('每點消費金額必須大於 0');
       return;
     }
-
-    if (_isNightCalculation &&
+    if (!_isAmountCalculation &&
         (pointsPerNight == null || pointsPerNight <= 0)) {
       _showMessage('每晚發放點數必須大於 0');
       return;
     }
-
     if (minimumOrderAmount == null || minimumOrderAmount < 0) {
       _showMessage('最低消費金額不能小於 0');
       return;
     }
-
     if (maximumPoints == null || maximumPoints < 0) {
       _showMessage('單筆最多點數不能小於 0');
       return;
     }
-
     if (expireDays == null || expireDays < 0) {
       _showMessage('點數有效天數不能小於 0');
       return;
     }
-
+    if (pointsPerNtd == null || pointsPerNtd <= 0) {
+      _showMessage('折抵比例必須大於 0');
+      return;
+    }
     if (_pointNameController.text.trim().isEmpty) {
       _showMessage('請輸入點數名稱');
       return;
     }
-
-    setState(() {
-      _saving = true;
-    });
-
+    setState(() => _saving = true);
     try {
       await _service.savePointSetting(
         shopId: widget.shopId,
@@ -198,186 +162,62 @@ class _ShopPointSettingPageState extends State<ShopPointSettingPage> {
         minimumOrderAmount: minimumOrderAmount,
         maximumPointsPerBooking: maximumPoints,
         pointExpireDays: expireDays,
-        issueAfterCompleted: _issueAfterCompleted,
-        allowManualAdjustment: _allowManualAdjustment,
+        issueAfterCompleted: true,
+        allowManualAdjustment: true,
         allowPointsExchange: _allowPointsExchange,
         pointName: _pointNameController.text.trim(),
         description: _descriptionController.text.trim(),
         daycareEarnEnabled: _daycareEarnEnabled,
         daycareSpendEnabled: _daycareSpendEnabled,
-        daycareCalculationType: _daycareCalculationType,
+        staySpendEnabled: _staySpendEnabled,
+        storeSpendEnabled: _storeSpendEnabled,
+        spendEnabled: _spendEnabled,
+        pointsPerNtd: pointsPerNtd,
+        daycareCalculationType: PointSettingModel.daycareCalculationTypeAmount,
         daycareAmountPerPoint:
             int.tryParse(_daycareAmountPerPointController.text.trim()) ?? 100,
-        daycarePointsPerOrder:
-            int.tryParse(_daycarePointsPerOrderController.text.trim()) ?? 0,
+        daycarePointsPerOrder: 0,
         daycareMinimumOrderAmount:
             int.tryParse(_daycareMinimumController.text.trim()) ?? 0,
         daycareMaximumPointsPerBooking:
             int.tryParse(_daycareMaximumController.text.trim()) ?? 0,
-        daycareIncludeAddons: _daycareIncludeAddons,
-        daycareIncludeSurcharge: _daycareIncludeSurcharge,
-        daycareIncludeOvertime: _daycareIncludeOvertime,
       );
-
-      if (!mounted) {
-        return;
+      if (mounted) {
+        _showMessage('點數設定已儲存');
       }
-
-      _showMessage('點數設定已儲存');
     } catch (error) {
-      if (!mounted) {
-        return;
+      if (mounted) {
+        _showMessage('儲存失敗：$error');
       }
-
-      _showMessage('儲存失敗：$error');
     } finally {
       if (mounted) {
-        setState(() {
-          _saving = false;
-        });
+        setState(() => _saving = false);
       }
     }
-  }
-
-  Widget _buildDaycarePointsSection() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: <Widget>[
-        const Divider(),
-        const Text(
-          '安親點數',
-          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
-        ),
-        const SizedBox(height: 4),
-        Text(
-          _enabled
-              ? '點數只在訂單完成後發一次；取消、退款或未完成不發，且不會重複發點。'
-              : '請先開啟全店點數制度，才能設定安親發點與折抵。',
-          style: const TextStyle(fontSize: 13, color: Colors.black54),
-        ),
-        SwitchListTile(
-          contentPadding: EdgeInsets.zero,
-          title: const Text('安親完成後發放點數'),
-          subtitle: const Text('訂單完成時依下方規則發點，取消與未完成不發。'),
-          value: _daycareEarnEnabled,
-          onChanged: !_enabled
-              ? null
-              : (bool value) => setState(() => _daycareEarnEnabled = value),
-        ),
-        SwitchListTile(
-          contentPadding: EdgeInsets.zero,
-          title: const Text('安親預約可使用點數折抵'),
-          subtitle: const Text('沿用全店點數餘額，1 點折抵 NT\$1，不可讓應付變負數。'),
-          value: _daycareSpendEnabled,
-          onChanged: !_enabled
-              ? null
-              : (bool value) => setState(() => _daycareSpendEnabled = value),
-        ),
-        if (_daycareEarnEnabled && _enabled) ...<Widget>[
-          const Text('發點計算方式'),
-          RadioListTile<String>(
-            contentPadding: EdgeInsets.zero,
-            title: const Text('每消費 NT\$ N 得 1 點（推薦）'),
-            value: PointSettingModel.daycareCalculationTypeAmount,
-            groupValue: _daycareCalculationType,
-            onChanged: (String? value) {
-              if (value == null) {
-                return;
-              }
-              setState(() => _daycareCalculationType = value);
-            },
-          ),
-          RadioListTile<String>(
-            contentPadding: EdgeInsets.zero,
-            title: const Text('每筆完成安親固定得 N 點'),
-            value: PointSettingModel.daycareCalculationTypeFixed,
-            groupValue: _daycareCalculationType,
-            onChanged: (String? value) {
-              if (value == null) {
-                return;
-              }
-              setState(() => _daycareCalculationType = value);
-            },
-          ),
-          if (_daycareCalculationType ==
-              PointSettingModel.daycareCalculationTypeAmount)
-            TextField(
-              controller: _daycareAmountPerPointController,
-              keyboardType: TextInputType.number,
-              decoration: const InputDecoration(
-                labelText: '每消費多少元獲得 1 點',
-                border: OutlineInputBorder(),
-              ),
-            )
-          else
-            TextField(
-              controller: _daycarePointsPerOrderController,
-              keyboardType: TextInputType.number,
-              decoration: const InputDecoration(
-                labelText: '每筆完成安親獲得點數',
-                border: OutlineInputBorder(),
-              ),
-            ),
-          const SizedBox(height: 12),
-          TextField(
-            controller: _daycareMinimumController,
-            keyboardType: TextInputType.number,
-            decoration: const InputDecoration(
-              labelText: '最低消費金額（0 為不限制）',
-              border: OutlineInputBorder(),
-            ),
-          ),
-          const SizedBox(height: 12),
-          TextField(
-            controller: _daycareMaximumController,
-            keyboardType: TextInputType.number,
-            decoration: const InputDecoration(
-              labelText: '單筆發點上限（0 為不限制）',
-              border: OutlineInputBorder(),
-            ),
-          ),
-          ExpansionTile(
-            tilePadding: EdgeInsets.zero,
-            title: const Text('計算金額包含項目'),
-            initiallyExpanded: _daycareIncludeExpanded,
-            onExpansionChanged: (bool open) =>
-                setState(() => _daycareIncludeExpanded = open),
-            children: <Widget>[
-              SwitchListTile(
-                contentPadding: EdgeInsets.zero,
-                title: const Text('加購'),
-                subtitle: const Text('預設包含'),
-                value: _daycareIncludeAddons,
-                onChanged: (bool value) =>
-                    setState(() => _daycareIncludeAddons = value),
-              ),
-              SwitchListTile(
-                contentPadding: EdgeInsets.zero,
-                title: const Text('特殊日期加價'),
-                subtitle: const Text('預設包含'),
-                value: _daycareIncludeSurcharge,
-                onChanged: (bool value) =>
-                    setState(() => _daycareIncludeSurcharge = value),
-              ),
-              SwitchListTile(
-                contentPadding: EdgeInsets.zero,
-                title: const Text('超時接回費'),
-                subtitle: const Text('預設不包含'),
-                value: _daycareIncludeOvertime,
-                onChanged: (bool value) =>
-                    setState(() => _daycareIncludeOvertime = value),
-              ),
-            ],
-          ),
-        ],
-      ],
-    );
   }
 
   void _showMessage(String message) {
     ScaffoldMessenger.of(
       context,
     ).showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  Widget _card({
+    required String title,
+    required bool open,
+    required ValueChanged<bool> onOpen,
+    required List<Widget> children,
+  }) {
+    return Card(
+      margin: const EdgeInsets.only(bottom: 12),
+      child: ExpansionTile(
+        initiallyExpanded: open,
+        onExpansionChanged: onOpen,
+        title: Text(title, style: const TextStyle(fontWeight: FontWeight.w800)),
+        childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+        children: children,
+      ),
+    );
   }
 
   @override
@@ -389,231 +229,260 @@ class _ShopPointSettingPageState extends State<ShopPointSettingPage> {
             if (snapshot.hasError) {
               return Center(child: Text('讀取點數設定失敗：${snapshot.error}'));
             }
-
             if (!snapshot.hasData) {
               return const Center(child: CircularProgressIndicator());
             }
-
             _applySetting(snapshot.data!);
-
-            return ListView(
-              padding: const EdgeInsets.all(16),
+            final double width = MediaQuery.sizeOf(context).width;
+            final bool desktop = width >= 1024;
+            final Widget basic = _card(
+              title: '基本制度',
+              open: _basicOpen,
+              onOpen: (bool v) => setState(() => _basicOpen = v),
               children: <Widget>[
                 SwitchListTile(
                   contentPadding: EdgeInsets.zero,
                   title: const Text('啟用點數制度'),
-                  subtitle: const Text('開啟後，完成訂單可依設定發放點數'),
                   value: _enabled,
-                  onChanged: (bool value) {
-                    setState(() {
-                      _enabled = value;
-                    });
-                  },
+                  onChanged: (bool value) => setState(() => _enabled = value),
                 ),
-                const Divider(),
                 TextField(
                   controller: _pointNameController,
                   maxLength: 10,
                   decoration: const InputDecoration(
                     labelText: '點數名稱',
-                    hintText: '例如：點、毛幣',
+                    isDense: true,
+                  ),
+                ),
+                TextField(
+                  controller: _expireDaysController,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(
+                    labelText: '點數有效天數（0 為永久）',
+                    isDense: true,
                   ),
                 ),
                 const SizedBox(height: 8),
-                Text('點數計算方式', style: Theme.of(context).textTheme.titleMedium),
-                const SizedBox(height: 8),
+                const Text('住宿發點方式'),
                 RadioListTile<String>(
                   contentPadding: EdgeInsets.zero,
-                  title: const Text('依消費金額計算'),
-                  subtitle: const Text('例如：每消費 100 元獲得 1 點'),
+                  title: const Text('依消費金額'),
                   value: PointSettingModel.calculationTypeAmount,
                   groupValue: _calculationType,
                   onChanged: (String? value) {
-                    if (value == null) {
-                      return;
+                    if (value != null) {
+                      setState(() => _calculationType = value);
                     }
-
-                    setState(() {
-                      _calculationType = value;
-                    });
                   },
                 ),
                 RadioListTile<String>(
                   contentPadding: EdgeInsets.zero,
-                  title: const Text('依住宿晚數計算'),
-                  subtitle: const Text('例如：每住宿 1 晚獲得 5 點'),
+                  title: const Text('依住宿晚數'),
                   value: PointSettingModel.calculationTypeNight,
                   groupValue: _calculationType,
                   onChanged: (String? value) {
-                    if (value == null) {
-                      return;
+                    if (value != null) {
+                      setState(() => _calculationType = value);
                     }
-
-                    setState(() {
-                      _calculationType = value;
-                    });
                   },
                 ),
-                const SizedBox(height: 8),
                 if (_isAmountCalculation)
                   TextField(
                     controller: _amountPerPointController,
                     keyboardType: TextInputType.number,
                     decoration: const InputDecoration(
-                      labelText: '消費多少元獲得 1 點',
-                      helperText: '例如填入 100，代表每消費 100 元獲得 1 點',
-                      border: OutlineInputBorder(),
+                      labelText: '每消費 NT\$ N 得 1 點',
+                      isDense: true,
                     ),
-                  ),
-                if (_isNightCalculation)
+                  )
+                else
                   TextField(
                     controller: _pointsPerNightController,
                     keyboardType: TextInputType.number,
                     decoration: const InputDecoration(
-                      labelText: '每住宿 1 晚獲得多少點',
-                      helperText: '例如填入 5，住宿 3 晚會獲得 15 點',
-                      border: OutlineInputBorder(),
+                      labelText: '每晚 N 點',
+                      isDense: true,
                     ),
                   ),
-                const SizedBox(height: 16),
+                const SizedBox(height: 8),
                 TextField(
                   controller: _minimumOrderAmountController,
                   keyboardType: TextInputType.number,
                   decoration: const InputDecoration(
-                    labelText: '最低消費金額',
-                    helperText: '訂單未達此金額不發點，填 0 代表不限制',
+                    labelText: '住宿最低消費門檻',
+                    isDense: true,
                   ),
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: 8),
                 TextField(
                   controller: _maximumPointsController,
                   keyboardType: TextInputType.number,
                   decoration: const InputDecoration(
-                    labelText: '單筆訂單最多發放點數',
-                    helperText: '填 0 代表不限制',
+                    labelText: '住宿單筆發點上限（0 不限）',
+                    isDense: true,
                   ),
                 ),
-                const SizedBox(height: 12),
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('允許會員兌換商品'),
+                  subtitle: const Text('與商城結帳折抵分開，這是點數商城兌換商品。'),
+                  value: _allowPointsExchange,
+                  onChanged: (bool value) =>
+                      setState(() => _allowPointsExchange = value),
+                ),
+                const Text(
+                  '發點固定在訂單完成且無待補／待退後入帳，店主無需再選擇。',
+                  style: TextStyle(fontSize: 12, color: Colors.black54),
+                ),
+              ],
+            );
+            final Widget daycare = StreamBuilder<Map<String, dynamic>?>(
+              stream: ShopService.instance.streamShop(widget.shopId),
+              builder:
+                  (
+                    BuildContext context,
+                    AsyncSnapshot<Map<String, dynamic>?> shopSnap,
+                  ) {
+                    return StreamBuilder<DaycareSettingsModel>(
+                      stream: DaycareSettingsService.instance.stream(
+                        widget.shopId,
+                      ),
+                      builder:
+                          (
+                            BuildContext context,
+                            AsyncSnapshot<DaycareSettingsModel> daycareSnap,
+                          ) {
+                            final bool show =
+                                _enabled &&
+                                DaycareSettingsService.instance
+                                    .isEnabledForShop(
+                                      shop: shopSnap.data,
+                                      settings:
+                                          daycareSnap.data ??
+                                          const DaycareSettingsModel(),
+                                    );
+                            if (!show) {
+                              return const SizedBox.shrink();
+                            }
+                            return _card(
+                              title: '安親發點',
+                              open: _daycareOpen,
+                              onOpen: (bool v) =>
+                                  setState(() => _daycareOpen = v),
+                              children: <Widget>[
+                                SwitchListTile(
+                                  contentPadding: EdgeInsets.zero,
+                                  title: const Text('安親完成後發放點數'),
+                                  value: _daycareEarnEnabled,
+                                  onChanged: (bool value) => setState(
+                                    () => _daycareEarnEnabled = value,
+                                  ),
+                                ),
+                                TextField(
+                                  controller: _daycareAmountPerPointController,
+                                  keyboardType: TextInputType.number,
+                                  decoration: const InputDecoration(
+                                    labelText: '每消費 NT\$ N 得 1 點',
+                                    isDense: true,
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+                                TextField(
+                                  controller: _daycareMinimumController,
+                                  keyboardType: TextInputType.number,
+                                  decoration: const InputDecoration(
+                                    labelText: '安親最低消費門檻',
+                                    isDense: true,
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+                                TextField(
+                                  controller: _daycareMaximumController,
+                                  keyboardType: TextInputType.number,
+                                  decoration: const InputDecoration(
+                                    labelText: '安親單筆發點上限（0 不限）',
+                                    isDense: true,
+                                  ),
+                                ),
+                              ],
+                            );
+                          },
+                    );
+                  },
+            );
+            final Widget spend = _card(
+              title: '點數折抵',
+              open: _spendOpen,
+              onOpen: (bool v) => setState(() => _spendOpen = v),
+              children: <Widget>[
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('啟用點數折抵'),
+                  value: _spendEnabled,
+                  onChanged: (bool value) =>
+                      setState(() => _spendEnabled = value),
+                ),
                 TextField(
-                  controller: _expireDaysController,
+                  controller: _pointsPerNtdController,
                   keyboardType: TextInputType.number,
                   decoration: const InputDecoration(
-                    labelText: '點數有效天數',
-                    helperText: '填 0 代表永久有效',
+                    labelText: 'N 點折抵 NT\$1',
+                    helperText: '例如 10 代表 10 點折抵 1 元',
+                    isDense: true,
                   ),
-                ),
-                const SizedBox(height: 8),
-                SwitchListTile(
-                  contentPadding: EdgeInsets.zero,
-                  title: const Text('訂單完成後才發放點數'),
-                  value: _issueAfterCompleted,
-                  onChanged: (bool value) {
-                    setState(() {
-                      _issueAfterCompleted = value;
-                    });
-                  },
                 ),
                 SwitchListTile(
                   contentPadding: EdgeInsets.zero,
-                  title: const Text('允許後台手動調整點數'),
-                  value: _allowManualAdjustment,
-                  onChanged: (bool value) {
-                    setState(() {
-                      _allowManualAdjustment = value;
-                    });
-                  },
+                  title: const Text('住宿可使用點數折抵'),
+                  value: _staySpendEnabled,
+                  onChanged: !_spendEnabled
+                      ? null
+                      : (bool value) =>
+                            setState(() => _staySpendEnabled = value),
                 ),
                 SwitchListTile(
                   contentPadding: EdgeInsets.zero,
-                  title: const Text('允許會員使用點數兌換'),
-                  subtitle: Text(
-                    _allowPointsExchange
-                        ? '會員可以在點數商城兌換商品'
-                        : '兌換商品仍可先建立，但會員暫時看不到',
-                  ),
-                  value: _allowPointsExchange,
-                  onChanged: (bool value) {
-                    setState(() {
-                      _allowPointsExchange = value;
-                    });
-                  },
+                  title: const Text('安親可使用點數折抵'),
+                  value: _daycareSpendEnabled,
+                  onChanged: !_spendEnabled
+                      ? null
+                      : (bool value) =>
+                            setState(() => _daycareSpendEnabled = value),
                 ),
-
-                if (!_allowPointsExchange) ...<Widget>[
-                  const SizedBox(height: 8),
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: Colors.orange.shade50,
-                      borderRadius: BorderRadius.circular(10),
-                      border: Border.all(color: Colors.orange.shade200),
-                    ),
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: <Widget>[
-                        Icon(
-                          Icons.info_outline,
-                          size: 20,
-                          color: Colors.orange.shade800,
-                        ),
-                        const SizedBox(width: 8),
-                        const Expanded(
-                          child: Text(
-                            '目前尚未開放會員點數兌換。你仍可先建立商品，'
-                            '等設定完成後再開啟兌換功能。',
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-
-                const SizedBox(height: 16),
-                StreamBuilder<Map<String, dynamic>?>(
-                  stream: ShopService.instance.streamShop(widget.shopId),
-                  builder:
-                      (
-                        BuildContext context,
-                        AsyncSnapshot<Map<String, dynamic>?> shopSnap,
-                      ) {
-                        return StreamBuilder<DaycareSettingsModel>(
-                          stream: DaycareSettingsService.instance.stream(
-                            widget.shopId,
-                          ),
-                          builder:
-                              (
-                                BuildContext context,
-                                AsyncSnapshot<DaycareSettingsModel> daycareSnap,
-                              ) {
-                                final bool showDaycare =
-                                    _enabled &&
-                                    DaycareSettingsService.instance
-                                        .isEnabledForShop(
-                                          shop: shopSnap.data,
-                                          settings:
-                                              daycareSnap.data ??
-                                              const DaycareSettingsModel(),
-                                        );
-                                if (!showDaycare) {
-                                  return const SizedBox.shrink();
-                                }
-                                return _buildDaycarePointsSection();
-                              },
-                        );
-                      },
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('商城可使用點數折抵'),
+                  subtitle: const Text('僅限結帳折抵，與兌換商品權限分開。'),
+                  value: _storeSpendEnabled,
+                  onChanged: !_spendEnabled
+                      ? null
+                      : (bool value) =>
+                            setState(() => _storeSpendEnabled = value),
                 ),
-
-                const SizedBox(height: 16),
                 TextField(
                   controller: _descriptionController,
-                  maxLines: 4,
+                  maxLines: 3,
                   decoration: const InputDecoration(
                     labelText: '點數制度說明',
-                    hintText: '例如：完成住宿後發放，點數可兌換優惠券',
-                    border: OutlineInputBorder(),
+                    isDense: true,
                   ),
                 ),
-                const SizedBox(height: 24),
+              ],
+            );
+            return ListView(
+              padding: const EdgeInsets.all(16),
+              children: <Widget>[
+                if (desktop)
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: <Widget>[
+                      Expanded(child: basic),
+                      const SizedBox(width: 12),
+                      Expanded(child: daycare),
+                    ],
+                  )
+                else ...<Widget>[basic, daycare],
+                spend,
                 FilledButton.icon(
                   onPressed: _saving ? null : _save,
                   icon: _saving
@@ -629,11 +498,9 @@ class _ShopPointSettingPageState extends State<ShopPointSettingPage> {
             );
           },
     );
-
     if (widget.embedded) {
       return content;
     }
-
     return Scaffold(
       appBar: AppBar(title: const Text('點數設定')),
       body: content,

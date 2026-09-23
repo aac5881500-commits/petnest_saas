@@ -183,6 +183,7 @@ class BookingSummaryHelper {
     List<Map<String, dynamic>> specialDateSurchargeDetails = const [],
     String couponName = '',
     int couponDiscountAmount = 0,
+    int pointAmount = 0,
 
     required Map<String, dynamic>? selectedTimeAddon,
     required List<Map<String, dynamic>> selectedValueServices,
@@ -255,6 +256,7 @@ class BookingSummaryHelper {
       specialDateSurchargeDetails: specialDateSurchargeDetails,
       couponName: couponName,
       couponDiscountAmount: couponDiscountAmount,
+      pointAmount: pointAmount,
 
       timeAddon: selectedTimeAddon,
       valueServices: selectedValueServices,

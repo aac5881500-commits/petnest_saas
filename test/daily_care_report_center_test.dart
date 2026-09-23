@@ -12,6 +12,7 @@ import 'package:petnest_saas/core/models/daily_care_report_center_snapshot.dart'
 import 'package:petnest_saas/core/models/daily_care_setting_model.dart';
 import 'package:petnest_saas/core/services/daily_care_record_service.dart';
 import 'package:petnest_saas/core/services/daily_care_report_center_service.dart';
+import 'package:petnest_saas/core/services/daily_care_report_eligibility.dart';
 import 'package:petnest_saas/features/shop/pages/daily_care_report_center_page.dart';
 
 void main() {
@@ -48,7 +49,7 @@ void main() {
       ],
       'startDate': checkIn ?? DateTime(2026, 9, 20),
       'endDate': checkOut ?? DateTime(2026, 9, 22),
-      if (entitlement != null) 'dailyCareEntitlement': entitlement,
+      'dailyCareEntitlement': ?entitlement,
     };
   }
 
@@ -71,7 +72,7 @@ void main() {
       'serviceDate': serviceDate,
       'scheduledStartAt': DateTime(2026, 9, 21, 1, 0),
       'scheduledEndAt': DateTime(2026, 9, 21, 10, 0),
-      if (entitlement != null) 'dailyCareEntitlement': entitlement,
+      'dailyCareEntitlement': ?entitlement,
     };
   }
 
@@ -500,6 +501,46 @@ void main() {
     expect(
       groups.map((DailyCareReportCenterRoomGroup g) => g.bookingId).toList(),
       <String>['a10', 'a2', 'day', 'z'],
+    );
+  });
+
+  test('住宿場次數為照護日期乘每日 finalReports，不硬寫', () {
+    final Map<String, dynamic> booking = stayBooking(
+      checkIn: DateTime(2026, 9, 21),
+      checkOut: DateTime(2026, 9, 22),
+      entitlement: entitled(reports: 3, labels: <String>['上午場', '下午場', '晚場']),
+    );
+    expect(DailyCareReportEligibility.stayScheduledSessionTotal(booking), 3);
+  });
+
+  test('第一個未完成場次依既有紀錄判斷，全完成才回到第 0 場', () {
+    expect(
+      DailyCareReportEligibility.firstIncompleteSessionIndex(
+        sessionCount: 3,
+        completedIndexes: const <int>{},
+      ),
+      0,
+    );
+    expect(
+      DailyCareReportEligibility.firstIncompleteSessionIndex(
+        sessionCount: 3,
+        completedIndexes: const <int>{0},
+      ),
+      1,
+    );
+    expect(
+      DailyCareReportEligibility.firstIncompleteSessionIndex(
+        sessionCount: 3,
+        completedIndexes: const <int>{0, 1},
+      ),
+      2,
+    );
+    expect(
+      DailyCareReportEligibility.firstIncompleteSessionIndex(
+        sessionCount: 3,
+        completedIndexes: const <int>{0, 1, 2},
+      ),
+      0,
     );
   });
 }

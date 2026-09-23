@@ -81,6 +81,18 @@ exports.returnBookingInventory = onCall(
       }
 
       try {
+        const {syncBookingPoints} = require("../points/sync_booking_points");
+        await syncBookingPoints(firestore, {
+          shopId,
+          bookingId,
+          booking: {...booking, status: "cancelled"},
+          operatorUid: userId,
+        });
+      } catch (pointError) {
+        console.error("取消訂單點數同步失敗", pointError);
+      }
+
+      try {
         await firestore.runTransaction(async (transaction) => {
           const addonPrepared = await prepareReturnFromDeduct(transaction, {
             shopId,

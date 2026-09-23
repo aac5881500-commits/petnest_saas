@@ -23,6 +23,9 @@ class AdminStaySettleResult {
     this.refundNote = '',
     required this.lockIfClear,
     required this.images,
+    this.rewardPointsAdjusted = false,
+    this.rewardPointsFinal = 0,
+    this.rewardPointsAdjustReason = '',
   });
 
   final int manualAdjust;
@@ -32,6 +35,9 @@ class AdminStaySettleResult {
   final String refundNote;
   final bool lockIfClear;
   final List<XFile> images;
+  final bool rewardPointsAdjusted;
+  final int rewardPointsFinal;
+  final String rewardPointsAdjustReason;
 }
 
 Future<AdminStaySettleResult?> showAdminStaySettleSheet({
@@ -76,6 +82,9 @@ class _AdminStaySettleSheetState extends State<AdminStaySettleSheet> {
   final TextEditingController _unsignedAdjust = TextEditingController();
   final TextEditingController _manualReason = TextEditingController();
   final TextEditingController _refundNote = TextEditingController();
+  final TextEditingController _rewardPoints = TextEditingController();
+  final TextEditingController _rewardReason = TextEditingController();
+  bool _adjustPoints = false;
   final ScrollController _sheetScroll = ScrollController();
   final FocusNode _reasonFocus = FocusNode();
   final GlobalKey _reasonFieldKey = GlobalKey();
@@ -108,6 +117,8 @@ class _AdminStaySettleSheetState extends State<AdminStaySettleSheet> {
     _unsignedAdjust.dispose();
     _manualReason.dispose();
     _refundNote.dispose();
+    _rewardPoints.dispose();
+    _rewardReason.dispose();
     _sheetScroll.dispose();
     _reasonFocus.dispose();
     super.dispose();
@@ -186,6 +197,12 @@ class _AdminStaySettleSheetState extends State<AdminStaySettleSheet> {
       });
       return;
     }
+    if (_adjustPoints && _rewardReason.text.trim().isEmpty) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('請填寫點數調整原因')));
+      return;
+    }
     if (_showTopUp && _topUpMethod.isEmpty) {
       ScaffoldMessenger.of(
         context,
@@ -249,6 +266,9 @@ class _AdminStaySettleSheetState extends State<AdminStaySettleSheet> {
             : '',
         lockIfClear: lockIfClear,
         images: List<XFile>.from(_images),
+        rewardPointsAdjusted: _adjustPoints,
+        rewardPointsFinal: int.tryParse(_rewardPoints.text.trim()) ?? 0,
+        rewardPointsAdjustReason: _rewardReason.text.trim(),
       ),
     );
   }
@@ -548,6 +568,42 @@ class _AdminStaySettleSheetState extends State<AdminStaySettleSheet> {
                               onChanged: (String value) {
                                 setState(() => _refundMethod = value);
                               },
+                            ),
+                          ],
+                          const SizedBox(height: 16),
+                          Text(
+                            '系統計算可得 ${widget.booking['rewardPointsSystem'] ?? widget.booking['expectedRewardPoints'] ?? 0} 點',
+                          ),
+                          Text(
+                            _adjustPoints
+                                ? '最終發放以手動輸入為準（後端仍會依實收上限處理）'
+                                : '最終發放將使用系統計算值',
+                          ),
+                          SwitchListTile(
+                            contentPadding: EdgeInsets.zero,
+                            title: const Text('手動調整點數'),
+                            subtitle: const Text('需填寫調整原因；後端會驗證並寫入點數流水。'),
+                            value: _adjustPoints,
+                            onChanged: (bool value) {
+                              setState(() => _adjustPoints = value);
+                            },
+                          ),
+                          if (_adjustPoints) ...<Widget>[
+                            TextField(
+                              controller: _rewardPoints,
+                              keyboardType: TextInputType.number,
+                              decoration: const InputDecoration(
+                                labelText: '最終發放點數',
+                                isDense: true,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            TextField(
+                              controller: _rewardReason,
+                              decoration: const InputDecoration(
+                                labelText: '調整原因（必填）',
+                                isDense: true,
+                              ),
                             ),
                           ],
                           const SizedBox(height: 16),

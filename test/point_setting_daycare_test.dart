@@ -42,7 +42,7 @@ void main() {
     );
   });
 
-  test('臨托固定點數與上限', () {
+  test('臨托固定點數欄位不再發點，改走金額', () {
     expect(
       setting(
         type: PointSettingModel.daycareCalculationTypeFixed,

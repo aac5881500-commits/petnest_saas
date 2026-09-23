@@ -83,36 +83,41 @@ class DailyCareRecordService {
     });
   }
 
-  /// 單次取得某一場紀錄
+  /// 單次取得某一場紀錄。直接讀固定 document id，不走集合 where 查詢。
   Future<DailyCareRecordModel?> getRecord({
-    required String shopId,
     required String bookingId,
+    required String shopId,
     required DateTime recordDate,
     required int sessionIndex,
   }) async {
-    final String normalizedShopId = shopId.trim();
     final String normalizedBookingId = bookingId.trim();
-
-    if (normalizedShopId.isEmpty || normalizedBookingId.isEmpty) {
+    final String normalizedShopId = shopId.trim();
+    if (normalizedBookingId.isEmpty || normalizedShopId.isEmpty) {
       return null;
     }
-
-    final String id = recordId(
+    final String id = buildRecordId(
       bookingId: normalizedBookingId,
       recordDate: recordDate,
       sessionIndex: sessionIndex,
     );
-    final DocumentSnapshot<Map<String, dynamic>> snapshot = await _collection
-        .doc(id)
-        .get();
-    if (!snapshot.exists) {
-      return null;
+    try {
+      final DocumentSnapshot<Map<String, dynamic>> snapshot = await _collection
+          .doc(id)
+          .get();
+      if (!snapshot.exists) {
+        return null;
+      }
+      final Map<String, dynamic> data = snapshot.data() ?? <String, dynamic>{};
+      if ((data['shopId'] ?? '').toString() != normalizedShopId) {
+        return null;
+      }
+      return DailyCareRecordModel.fromMap(id: snapshot.id, map: data);
+    } on FirebaseException catch (error) {
+      if (error.code == 'permission-denied') {
+        return null;
+      }
+      rethrow;
     }
-    final Map<String, dynamic> data = snapshot.data() ?? <String, dynamic>{};
-    if ((data['shopId'] ?? '').toString() != normalizedShopId) {
-      return null;
-    }
-    return DailyCareRecordModel.fromMap(id: snapshot.id, map: data);
   }
 
   /// 儲存或更新某一場照護紀錄
@@ -224,14 +229,17 @@ class DailyCareRecordService {
     int sessionCount = 3,
   }) {
     final String normalizedBookingId = bookingId.trim();
+    final String normalizedShopId = (shopId ?? '').trim();
+
     if (normalizedBookingId.isEmpty) {
       return Stream<List<DailyCareRecordModel>>.value(
         const <DailyCareRecordModel>[],
       );
     }
 
-    if ((shopId ?? '').trim().isNotEmpty) {
+    if (normalizedShopId.isNotEmpty) {
       return _streamRecordsByDeterministicIds(
+        shopId: normalizedShopId,
         bookingId: normalizedBookingId,
         careDates: careDates ?? const <DateTime>[],
         sessionCount: sessionCount,
@@ -260,10 +268,12 @@ class DailyCareRecordService {
       }
       return a.sessionIndex.compareTo(b.sessionIndex);
     });
+
     return records;
   }
 
   Stream<List<DailyCareRecordModel>> _streamRecordsByDeterministicIds({
+    required String shopId,
     required String bookingId,
     required List<DateTime> careDates,
     required int sessionCount,
@@ -279,18 +289,21 @@ class DailyCareRecordService {
         : sessionCount > 3
         ? 3
         : sessionCount;
+
     final StreamController<List<DailyCareRecordModel>> controller =
         StreamController<List<DailyCareRecordModel>>();
+
     final Map<String, DailyCareRecordModel> byId =
         <String, DailyCareRecordModel>{};
-    final List<StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>>
-    subscriptions =
-        <StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>>[];
+
+    final List<StreamSubscription<QuerySnapshot<Map<String, dynamic>>>>
+    subscriptions = <StreamSubscription<QuerySnapshot<Map<String, dynamic>>>>[];
 
     void emit() {
       if (controller.isClosed) {
         return;
       }
+
       final List<DailyCareRecordModel> records = byId.values.toList()
         ..sort((DailyCareRecordModel a, DailyCareRecordModel b) {
           final int dateCompare = a.recordDate.compareTo(b.recordDate);
@@ -299,6 +312,7 @@ class DailyCareRecordService {
           }
           return a.sessionIndex.compareTo(b.sessionIndex);
         });
+
       controller.add(records);
     }
 
@@ -309,31 +323,38 @@ class DailyCareRecordService {
           recordDate: date,
           sessionIndex: index,
         );
+
         subscriptions.add(
           _collection
-              .doc(recordId)
+              .where(FieldPath.documentId, isEqualTo: recordId)
+              .where('shopId', isEqualTo: shopId)
+              .limit(1)
               .snapshots()
               .listen(
-                (DocumentSnapshot<Map<String, dynamic>> snapshot) {
-                  final Map<String, dynamic>? data = snapshot.data();
-                  if (snapshot.exists && data != null) {
-                    byId[recordId] = DailyCareRecordModel.fromMap(
-                      id: snapshot.id,
-                      map: data,
-                    );
-                  } else {
+                (QuerySnapshot<Map<String, dynamic>> snapshot) {
+                  if (snapshot.docs.isEmpty) {
                     byId.remove(recordId);
+                  } else {
+                    final QueryDocumentSnapshot<Map<String, dynamic>> document =
+                        snapshot.docs.first;
+
+                    byId[recordId] = DailyCareRecordModel.fromMap(
+                      id: document.id,
+                      map: document.data(),
+                    );
                   }
+
                   emit();
                 },
                 onError: (Object error, StackTrace stackTrace) {
                   _logQueryFailure(
                     bookingId: bookingId,
-                    shopId: null,
+                    shopId: shopId,
                     error: error,
                     stackTrace: stackTrace,
                     extra: 'recordId=$recordId',
                   );
+
                   if (!controller.isClosed) {
                     controller.addError(error, stackTrace);
                   }
@@ -344,13 +365,15 @@ class DailyCareRecordService {
     }
 
     emit();
+
     controller.onCancel = () async {
-      for (final StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>
+      for (final StreamSubscription<QuerySnapshot<Map<String, dynamic>>>
           subscription
           in subscriptions) {
         await subscription.cancel();
       }
     };
+
     return controller.stream;
   }
 

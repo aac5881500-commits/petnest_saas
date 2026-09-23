@@ -26,6 +26,38 @@ class ChatErrorProbe {
   /// 二分：未登入也可開聊天頁 header。正式路徑關閉。
   static const bool allowAnonymousHeader = false;
 
+  /// 給使用者看的中文；完整 plugin／code 請用 [describe] 寫入 debugPrint。
+  static String userFacing(Object? error) {
+    try {
+      if (error is FirebaseFunctionsException) {
+        final String text = (error.message ?? '').trim();
+        switch (error.code) {
+          case 'failed-precondition':
+            return text.isEmpty ? '目前無法完成此操作' : text;
+          case 'invalid-argument':
+            return text.isEmpty ? '資料格式錯誤' : text;
+          case 'already-exists':
+            return text.isEmpty ? '請勿重複送出' : text;
+          case 'not-found':
+            return text.isEmpty ? '找不到資料' : text;
+          case 'permission-denied':
+            return text.isEmpty ? '沒有權限執行此操作' : text;
+          case 'unauthenticated':
+            return '請先登入';
+          case 'resource-exhausted':
+            return text.isEmpty ? '點數不足或超過可折抵上限' : text;
+          case 'internal':
+            return text.isEmpty ? '系統忙碌，請稍後再試' : text;
+          default:
+            return text.isEmpty ? describe(error) : text;
+        }
+      }
+      return describe(error);
+    } catch (_) {
+      return '系統忙碌，請稍後再試';
+    }
+  }
+
   /// 終端機與 SnackBar 共用的可讀錯誤（含 plugin／code／路徑）。
   static String describe(Object? error) {
     try {

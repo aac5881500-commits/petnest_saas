@@ -18,17 +18,40 @@ class BookingDetailCompletionSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (view.status != 'completed' && !view.showCustomerNote) {
+    if (view.status != 'completed' &&
+        !view.showCustomerNote &&
+        !view.showExpectedPoints &&
+        view.pointsDiscountNtd <= 0) {
       return const SizedBox.shrink();
     }
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
+        if (view.pointsDiscountNtd > 0)
+          BookingDetailCard(
+            child: Text(
+              '本筆使用 ${view.pointsUsedCount} 點折抵 NT\$${view.pointsDiscountNtd}',
+              style: TextStyle(
+                fontSize: BookingDetailUi.bodySize,
+                color: BookingDetailUi.of(context).text,
+              ),
+            ),
+          ),
+        if (view.showExpectedPoints)
+          BookingDetailCard(
+            child: Text(
+              '完成結清後預計獲得 ${view.expectedEarnPoints} 點',
+              style: TextStyle(
+                fontSize: BookingDetailUi.bodySize,
+                color: BookingDetailUi.of(context).text,
+              ),
+            ),
+          ),
         if (view.showEarnedPoints)
           BookingDetailCard(
             child: Text(
-              '本次獲得點數：${view.earnedPoints}',
+              '本筆訂單獲得 ${view.earnedPoints} 點',
               style: TextStyle(
                 fontSize: BookingDetailUi.bodySize,
                 color: BookingDetailUi.of(context).text,

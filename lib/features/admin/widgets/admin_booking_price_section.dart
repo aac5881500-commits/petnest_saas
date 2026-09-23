@@ -7,6 +7,7 @@ import 'package:petnest_saas/core/models/booking_fee_line_item.dart';
 import 'package:petnest_saas/core/models/booking_kind.dart';
 import 'package:petnest_saas/core/services/daycare_payment_display.dart';
 import 'package:petnest_saas/core/services/daycare_pricing_service.dart';
+import 'package:petnest_saas/core/utils/safe_parse.dart';
 import 'package:petnest_saas/core/widgets/booking_payment_deadline_banner.dart';
 import 'package:petnest_saas/features/admin/widgets/admin_booking_date_helpers.dart';
 import 'package:petnest_saas/features/admin/widgets/admin_booking_text_helpers.dart';
@@ -93,6 +94,11 @@ class AdminBookingPriceSection extends StatelessWidget {
         couponId.isNotEmpty && couponDiscountAmount > 0;
 
     final bool hasAnyDiscount = hasCampaignDiscount || hasCouponDiscount;
+    final int pointsUsed = _safeNtd(data['pointsUsed']);
+    final int pointAmount = _safeNtd(
+      data['pointAmount'] ?? data['pointsDiscountAmount'],
+    );
+    final int displayTotal = _safeNtd(data['totalPrice']);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -178,11 +184,6 @@ class AdminBookingPriceSection extends StatelessWidget {
 
         const SizedBox(height: 10),
         DailyCareEntitlementSnapshot(booking: data),
-        AdminDailyCareReportShortcut(
-          shopId: (data['shopId'] ?? '').toString(),
-          bookingId: bookingId,
-          booking: data,
-        ),
 
         if ((data['addons'] ?? []).isNotEmpty)
           Theme(
@@ -530,15 +531,39 @@ class AdminBookingPriceSection extends StatelessWidget {
                 const Divider(height: 20),
               ],
 
+              if (pointAmount > 0) ...[
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        '點數折抵（$pointsUsed 點）',
+                        style: const TextStyle(
+                          color: Colors.orange,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                    Text(
+                      '-NT\$ $pointAmount',
+                      style: const TextStyle(
+                        color: Colors.orange,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
+                const Divider(height: 20),
+              ],
+
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text(
-                    hasAnyDiscount ? '折後總價' : '總價',
-                    style: const TextStyle(fontSize: 16, color: Colors.grey),
+                  const Text(
+                    '總價',
+                    style: TextStyle(fontSize: 16, color: Colors.grey),
                   ),
                   Text(
-                    'NT\$ ${data['totalPrice'] ?? 0}',
+                    'NT\$ $displayTotal',
                     style: const TextStyle(
                       fontSize: 24,
                       fontWeight: FontWeight.bold,
@@ -848,6 +873,14 @@ class AdminBookingPriceSection extends StatelessWidget {
         );
       },
     );
+  }
+
+  static int _safeNtd(Object? raw) {
+    if (raw is num && !raw.isFinite) {
+      return 0;
+    }
+    final int value = SafeParse.parseMoney(raw);
+    return value < 0 ? 0 : value;
   }
 }
 

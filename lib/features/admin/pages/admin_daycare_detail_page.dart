@@ -35,6 +35,7 @@ import 'package:petnest_saas/features/booking/widgets/booking_detail/booking_det
 import 'package:petnest_saas/features/admin/widgets/admin_daycare_assign_room_dialog.dart';
 import 'package:petnest_saas/features/admin/widgets/admin_daycare_care_report_section.dart';
 import 'package:petnest_saas/features/admin/widgets/admin_daycare_settle_sheet.dart';
+import 'package:petnest_saas/features/admin/widgets/admin_booking_points_card.dart';
 
 class AdminDaycareDetailPage extends StatelessWidget {
   const AdminDaycareDetailPage({
@@ -101,14 +102,14 @@ class _DaycareDetailBodyState extends State<_DaycareDetailBody> {
   bool _busy = false;
 
   Future<void> _confirmDepositFromProof() async {
-    final Map<String, dynamic> result = await DaycareFunctionService.instance
-        .manage(
-          shopId: widget.shopId,
-          bookingId: widget.bookingId,
-          action: 'confirmDeposit',
-          requestId:
-              '${widget.bookingId}_confirmDeposit_${DateTime.now().millisecondsSinceEpoch}',
-        );
+    final Map<String, dynamic>
+    result = await DaycareFunctionService.instance.manage(
+      shopId: widget.shopId,
+      bookingId: widget.bookingId,
+      action: 'confirmDeposit',
+      requestId:
+          '${widget.bookingId}_confirmDeposit_${DateTime.now().millisecondsSinceEpoch}',
+    );
     final bool written =
         result['depositPaid'] == true ||
         (result['depositStatus'] ?? '').toString() == 'confirmed';
@@ -193,9 +194,9 @@ class _DaycareDetailBodyState extends State<_DaycareDetailBody> {
         operation: 'manageDaycareBooking bookings/${widget.bookingId}',
       );
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(ChatErrorProbe.describe(error))),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(ChatErrorProbe.describe(error))));
       }
     } finally {
       if (mounted) {
@@ -235,6 +236,11 @@ class _DaycareDetailBodyState extends State<_DaycareDetailBody> {
         'settlementRefundMethod': choice.refundMethod,
         'settlementRefundNote': choice.refundNote,
         'lockIfClear': choice.lockIfClear,
+        if (choice.rewardPointsAdjusted) ...<String, dynamic>{
+          'rewardPointsAdjusted': true,
+          'rewardPointsFinal': choice.rewardPointsFinal,
+          'rewardPointsAdjustReason': choice.rewardPointsAdjustReason,
+        },
       },
     );
   }
@@ -252,7 +258,9 @@ class _DaycareDetailBodyState extends State<_DaycareDetailBody> {
     );
     final List<Map<String, dynamic>> pets =
         AdminBookingFormAnswersSection.petsOf(data);
-    final bool settlementLocked = BookingSettlementMath.isSettlementLocked(data);
+    final bool settlementLocked = BookingSettlementMath.isSettlementLocked(
+      data,
+    );
     final bool cancelled = status == 'cancelled';
     final bool locked = cancelled || settlementLocked;
     final bool roomBased = DaycareAssignRoomRules.isRoomBased(data);
@@ -393,6 +401,14 @@ class _DaycareDetailBodyState extends State<_DaycareDetailBody> {
               ),
             ),
             AdminBookingDetailSection(
+              title: '點數',
+              child: AdminBookingPointsCard(
+                shopId: widget.shopId,
+                bookingId: widget.bookingId,
+                booking: data,
+              ),
+            ),
+            AdminBookingDetailSection(
               title: '安親時間',
               child: AdminBookingDetailCard(
                 child: Column(
@@ -481,39 +497,39 @@ class _DaycareDetailBodyState extends State<_DaycareDetailBody> {
             ),
           ],
           progress: AdminBookingDetailSection(
-              title: '訂單進度',
-              collapsible: true,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: <Widget>[
-                  AdminBookingStatusChip(
-                    status: status,
-                    daycare: true,
-                    data: data,
-                  ),
-                  const SizedBox(height: 10),
-                  AdminBookingTimeline(
-                    data: data,
-                    status: status,
-                    depositRequired: data['depositRequired'] == true,
-                    daycare: true,
-                  ),
-                  if (status == 'cancelled') ...<Widget>[
-                    const SizedBox(height: 8),
-                    Text(
-                      '取消原因：${(data['cancelReason'] ?? '').toString().trim().isEmpty ? '未填' : data['cancelReason']}',
-                      style: const TextStyle(
-                        color: Colors.red,
-                        fontWeight: FontWeight.bold,
-                      ),
+            title: '訂單進度',
+            collapsible: true,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                AdminBookingStatusChip(
+                  status: status,
+                  daycare: true,
+                  data: data,
+                ),
+                const SizedBox(height: 10),
+                AdminBookingTimeline(
+                  data: data,
+                  status: status,
+                  depositRequired: data['depositRequired'] == true,
+                  daycare: true,
+                ),
+                if (status == 'cancelled') ...<Widget>[
+                  const SizedBox(height: 8),
+                  Text(
+                    '取消原因：${(data['cancelReason'] ?? '').toString().trim().isEmpty ? '未填' : data['cancelReason']}',
+                    style: const TextStyle(
+                      color: Colors.red,
+                      fontWeight: FontWeight.bold,
                     ),
-                    Text(
-                      '取消來源：${(data['cancelBy'] ?? '').toString().trim().isEmpty ? '未填' : data['cancelBy']}',
-                    ),
-                  ],
+                  ),
+                  Text(
+                    '取消來源：${(data['cancelBy'] ?? '').toString().trim().isEmpty ? '未填' : data['cancelBy']}',
+                  ),
                 ],
-              ),
+              ],
             ),
+          ),
           forms: <Widget>[
             AdminBookingFormAnswersSection(
               shopId: widget.shopId,
@@ -553,7 +569,8 @@ class _DaycareDetailBodyState extends State<_DaycareDetailBody> {
               shopId: widget.shopId,
               bookingId: widget.bookingId,
               data: data,
-              onReadjust: settlementLocked ||
+              onReadjust:
+                  settlementLocked ||
                       !BookingSettlementMath.isSettlementConfirmed(data)
                   ? null
                   : _openSettlement,
@@ -561,7 +578,8 @@ class _DaycareDetailBodyState extends State<_DaycareDetailBody> {
             AdminBookingDetailPaymentAside(
               data: data,
               bookingId: widget.bookingId,
-              onConfirmDeposit: widget.canEdit &&
+              onConfirmDeposit:
+                  widget.canEdit &&
                       !locked &&
                       (status == 'pending' ||
                           status == 'pending_confirmation') &&

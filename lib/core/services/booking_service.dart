@@ -83,6 +83,7 @@ class BookingService {
     String couponName = '',
     String couponType = '',
     int couponDiscountAmount = 0,
+    int requestedPoints = 0,
 
     int depositAmount = 0,
     String paymentMethod = '',
@@ -255,6 +256,7 @@ class BookingService {
       'couponName': couponName,
       'couponType': couponType,
       'couponDiscountAmount': couponDiscountAmount,
+      'requestedPoints': requestedPoints,
       'depositAmount': depositAmount,
       'paymentMethod': normalizedPaymentMethod.isNotEmpty
           ? normalizedPaymentMethod
@@ -274,8 +276,8 @@ class BookingService {
       if (petFormAnswersByPetId != null && petFormAnswersByPetId.isNotEmpty)
         'petFormAnswersByPetId': petFormAnswersByPetId,
     };
-    final String bookingId =
-        await StayBookingFunctionService.instance.createStayBooking(
+    final String bookingId = await StayBookingFunctionService.instance
+        .createStayBooking(
           shopId: shopId,
           roomTypeId: roomId,
           startDate: normalizedStart,
@@ -339,6 +341,7 @@ class BookingService {
     String discountValueType = '',
     num discountValue = 0,
     bool allowCouponTogether = false,
+    int requestedPoints = 0,
     int depositAmount = 0,
     String paymentMethod = '',
     String payAmountType = '', // deposit / full
@@ -413,8 +416,8 @@ class BookingService {
               )
               .toIso8601String()
         : null;
-    final String bookingId =
-        await StayBookingFunctionService.instance.createStayBooking(
+    final String bookingId = await StayBookingFunctionService.instance
+        .createStayBooking(
           shopId: shopId,
           roomTypeId: roomId,
           startDate: normalizedStart,
@@ -494,6 +497,7 @@ class BookingService {
             'discountValueType': discountValueType,
             'discountValue': discountValue,
             'allowCouponTogether': allowCouponTogether,
+            'requestedPoints': requestedPoints,
             'depositAmount': depositAmount,
             'paymentMethod': normalizedPaymentMethod.isNotEmpty
                 ? normalizedPaymentMethod
@@ -1061,9 +1065,7 @@ class BookingService {
         final DateTime? otherStart = _timestampToDate(
           booking['scheduledStartAt'],
         );
-        final DateTime? otherEnd = _timestampToDate(
-          booking['scheduledEndAt'],
-        );
+        final DateTime? otherEnd = _timestampToDate(booking['scheduledEndAt']);
         if (otherStart == null || otherEnd == null) {
           continue;
         }
@@ -1101,7 +1103,8 @@ class BookingService {
         .where('roomId', isEqualTo: roomId)
         .where('status', isEqualTo: 'active')
         .get();
-    for (final QueryDocumentSnapshot<Map<String, dynamic>> doc in occSnap.docs) {
+    for (final QueryDocumentSnapshot<Map<String, dynamic>> doc
+        in occSnap.docs) {
       final Map<String, dynamic> occ = doc.data();
       final DateTime? occStart = _timestampToDate(occ['startAt']);
       final DateTime? occEnd = _timestampToDate(occ['endAt']);
@@ -1127,8 +1130,9 @@ class BookingService {
       }
     }
 
-    final String roomTypeId =
-        (roomSnap.data()?['roomTypeId'] ?? '').toString().trim();
+    final String roomTypeId = (roomSnap.data()?['roomTypeId'] ?? '')
+        .toString()
+        .trim();
     if (roomTypeId.isNotEmpty) {
       final QuerySnapshot<Map<String, dynamic>> roomTypeSnap = await _firestore
           .collection('shops')
@@ -1149,10 +1153,7 @@ class BookingService {
           .where('status', isEqualTo: 'active')
           .get();
       final List<Map<String, dynamic>> occupancies = typeOccSnap.docs
-          .map(
-            (QueryDocumentSnapshot<Map<String, dynamic>> doc) =>
-                doc.data(),
-          )
+          .map((QueryDocumentSnapshot<Map<String, dynamic>> doc) => doc.data())
           .toList();
       final List<Map<String, dynamic>> bookingMaps = bookings
           .map(
@@ -1175,9 +1176,7 @@ class BookingService {
             return true;
           }
           final String held =
-              ((booking['requestedRoomTypeId'] ??
-                          booking['roomTypeId'] ??
-                          '')
+              ((booking['requestedRoomTypeId'] ?? booking['roomTypeId'] ?? '')
                       .toString())
                   .trim();
           return held != roomTypeId;
@@ -1193,7 +1192,13 @@ class BookingService {
               },
             ];
         final DateTime slotStart = DateTime(date.year, date.month, date.day, 0);
-        final DateTime slotEnd = DateTime(date.year, date.month, date.day, 23, 59);
+        final DateTime slotEnd = DateTime(
+          date.year,
+          date.month,
+          date.day,
+          23,
+          59,
+        );
         final DaycareRoomRemaining computed =
             DaycareOccupancyService.remainingRoomsResultFromData(
               rooms: typeRooms,

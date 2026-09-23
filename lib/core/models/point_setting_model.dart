@@ -26,6 +26,10 @@ class PointSettingModel {
     this.updatedBy = '',
     this.daycareEarnEnabled = false,
     this.daycareSpendEnabled = false,
+    this.staySpendEnabled = false,
+    this.storeSpendEnabled = false,
+    this.spendEnabled = false,
+    this.pointsPerNtd = 1,
     this.daycareCalculationType = daycareCalculationTypeAmount,
     this.daycareAmountPerPoint = 100,
     this.daycarePointsPerOrder = 0,
@@ -113,6 +117,18 @@ class PointSettingModel {
   /// 臨托是否允許點數折抵
   final bool daycareSpendEnabled;
 
+  /// 住宿下單可否點數折抵
+  final bool staySpendEnabled;
+
+  /// 商城結帳可否點數折抵（與兌換商品 allowPointsExchange 分開）
+  final bool storeSpendEnabled;
+
+  /// 點數折抵總開關
+  final bool spendEnabled;
+
+  /// N 點折抵 NT$1
+  final int pointsPerNtd;
+
   /// 臨托點數計算方式：amount / fixed
   final String daycareCalculationType;
 
@@ -197,15 +213,10 @@ class PointSettingModel {
         orderAmount < daycareMinimumOrderAmount) {
       return 0;
     }
-    int points = 0;
-    if (daycareCalculationType == daycareCalculationTypeFixed) {
-      points = daycarePointsPerOrder > 0 ? daycarePointsPerOrder : 0;
-    } else {
-      if (orderAmount <= 0 || daycareAmountPerPoint <= 0) {
-        return 0;
-      }
-      points = orderAmount ~/ daycareAmountPerPoint;
+    if (orderAmount <= 0 || daycareAmountPerPoint <= 0) {
+      return 0;
     }
+    int points = orderAmount ~/ daycareAmountPerPoint;
     if (daycareMaximumPointsPerBooking > 0 &&
         points > daycareMaximumPointsPerBooking) {
       points = daycareMaximumPointsPerBooking;
@@ -224,17 +235,18 @@ class PointSettingModel {
       'minimumOrderAmount': minimumOrderAmount,
       'maximumPointsPerBooking': maximumPointsPerBooking,
       'pointExpireDays': pointExpireDays,
-      'issueAfterCompleted': issueAfterCompleted,
+      'issueAfterCompleted': true,
       'allowManualAdjustment': allowManualAdjustment,
       'allowPointsExchange': allowPointsExchange,
       'pointName': pointName.trim().isEmpty ? '點' : pointName.trim(),
       'description': description.trim(),
       'daycareEarnEnabled': daycareEarnEnabled,
       'daycareSpendEnabled': daycareSpendEnabled,
-      'daycareCalculationType':
-          daycareCalculationType == daycareCalculationTypeFixed
-          ? daycareCalculationTypeFixed
-          : daycareCalculationTypeAmount,
+      'staySpendEnabled': staySpendEnabled,
+      'storeSpendEnabled': storeSpendEnabled,
+      'spendEnabled': spendEnabled,
+      'pointsPerNtd': pointsPerNtd > 0 ? pointsPerNtd : 1,
+      'daycareCalculationType': daycareCalculationTypeAmount,
       'daycareAmountPerPoint': daycareAmountPerPoint,
       'daycarePointsPerOrder': daycarePointsPerOrder,
       'daycareMinimumOrderAmount': daycareMinimumOrderAmount,
@@ -273,19 +285,22 @@ class PointSettingModel {
         data['pointExpireDays'],
         defaultValue: 365,
       ),
-      issueAfterCompleted: data['issueAfterCompleted'] != false,
+      issueAfterCompleted: true,
       allowManualAdjustment: data['allowManualAdjustment'] != false,
       allowPointsExchange: data['allowPointsExchange'] != false,
       pointName: (data['pointName'] ?? '點').toString(),
       description: (data['description'] ?? '').toString(),
       daycareEarnEnabled: data['daycareEarnEnabled'] == true,
       daycareSpendEnabled: data['daycareSpendEnabled'] == true,
-      daycareCalculationType:
-          (data['daycareCalculationType'] ?? daycareCalculationTypeAmount)
-                  .toString() ==
-              daycareCalculationTypeFixed
-          ? daycareCalculationTypeFixed
-          : daycareCalculationTypeAmount,
+      staySpendEnabled: data['staySpendEnabled'] == true,
+      storeSpendEnabled: data['storeSpendEnabled'] == true,
+      spendEnabled:
+          data['spendEnabled'] == true ||
+          data['daycareSpendEnabled'] == true ||
+          data['staySpendEnabled'] == true ||
+          data['storeSpendEnabled'] == true,
+      pointsPerNtd: _intFromValue(data['pointsPerNtd'], defaultValue: 1),
+      daycareCalculationType: daycareCalculationTypeAmount,
       daycareAmountPerPoint: _intFromValue(
         data['daycareAmountPerPoint'],
         defaultValue: _intFromValue(data['amountPerPoint'], defaultValue: 100),
@@ -328,6 +343,10 @@ class PointSettingModel {
     DateTime? updatedAt,
     bool? daycareEarnEnabled,
     bool? daycareSpendEnabled,
+    bool? staySpendEnabled,
+    bool? storeSpendEnabled,
+    bool? spendEnabled,
+    int? pointsPerNtd,
     String? daycareCalculationType,
     int? daycareAmountPerPoint,
     int? daycarePointsPerOrder,
@@ -360,6 +379,10 @@ class PointSettingModel {
       updatedAt: updatedAt ?? this.updatedAt,
       daycareEarnEnabled: daycareEarnEnabled ?? this.daycareEarnEnabled,
       daycareSpendEnabled: daycareSpendEnabled ?? this.daycareSpendEnabled,
+      staySpendEnabled: staySpendEnabled ?? this.staySpendEnabled,
+      storeSpendEnabled: storeSpendEnabled ?? this.storeSpendEnabled,
+      spendEnabled: spendEnabled ?? this.spendEnabled,
+      pointsPerNtd: pointsPerNtd ?? this.pointsPerNtd,
       daycareCalculationType:
           daycareCalculationType ?? this.daycareCalculationType,
       daycareAmountPerPoint:
@@ -377,6 +400,67 @@ class PointSettingModel {
           daycareIncludeOvertime ?? this.daycareIncludeOvertime,
     );
   }
+
+  /// 總開關＋折抵總開關（相容舊資料只開 daycareSpendEnabled）。
+  bool get spendMasterEnabled =>
+      enabled && (spendEnabled || daycareSpendEnabled);
+
+  bool canSpendOn(String channel) {
+    if (!spendMasterEnabled) {
+      return false;
+    }
+    switch (channel) {
+      case 'stay':
+        return staySpendEnabled;
+      case 'daycare':
+        return daycareSpendEnabled;
+      case 'store':
+        return storeSpendEnabled;
+      default:
+        return false;
+    }
+  }
+
+  int get spendRatePointsPerNtd => pointsPerNtd > 0 ? pointsPerNtd : 1;
+
+  /// 與 Cloud Function `capSpend` 相同：N 點＝NT$1，不可把餘額當台幣。
+  PointSpendCap capSpend({
+    required int requestedPoints,
+    required int balance,
+    required int payableAfterCoupon,
+  }) {
+    final int payable = payableAfterCoupon < 0 ? 0 : payableAfterCoupon;
+    final int bal = balance < 0 ? 0 : balance;
+    final int requested = requestedPoints < 0 ? 0 : requestedPoints;
+    final int per = spendRatePointsPerNtd;
+    int ntd = requested ~/ per;
+    final int fromBalance = bal ~/ per;
+    if (fromBalance < ntd) {
+      ntd = fromBalance;
+    }
+    if (payable < ntd) {
+      ntd = payable;
+    }
+    if (ntd < 0) {
+      ntd = 0;
+    }
+    return PointSpendCap(pointAmount: ntd, pointsUsed: ntd * per);
+  }
+
+  static int payableAfterPoints({
+    required int afterCoupon,
+    required int pointAmount,
+  }) {
+    final int total = afterCoupon - pointAmount;
+    return total < 0 ? 0 : total;
+  }
+}
+
+class PointSpendCap {
+  const PointSpendCap({required this.pointAmount, required this.pointsUsed});
+
+  final int pointAmount;
+  final int pointsUsed;
 }
 
 DateTime? _dateTimeFromValue(dynamic value) {

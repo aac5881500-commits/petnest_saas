@@ -89,7 +89,7 @@ class MemberPointModel {
     return MemberPointModel(
       shopId: (data['shopId'] ?? shopId).toString(),
       userId: (data['userId'] ?? userId).toString(),
-      currentPoints: _intFromValue(data['currentPoints']),
+      currentPoints: _intFromValue(data['currentPoints'] ?? data['points']),
       totalEarnedPoints: _intFromValue(data['totalEarnedPoints']),
       totalUsedPoints: _intFromValue(data['totalUsedPoints']),
       totalExpiredPoints: _intFromValue(data['totalExpiredPoints']),

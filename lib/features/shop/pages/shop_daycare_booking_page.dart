@@ -50,6 +50,7 @@ import 'package:petnest_saas/features/booking/pages/booking_success_page.dart';
 import 'package:petnest_saas/features/payment/pages/ecpay_payment_page.dart';
 import 'package:petnest_saas/features/shop/widgets/booking/booking_calendar_dialog.dart';
 import 'package:petnest_saas/features/shop/widgets/booking/booking_member_coupon_ui.dart';
+import 'package:petnest_saas/features/shop/widgets/booking/booking_points_redeem_section.dart';
 import 'package:petnest_saas/features/shop/widgets/booking/booking_pet_section.dart';
 import 'package:petnest_saas/features/shop/widgets/booking/booking_step_widgets.dart';
 import 'package:petnest_saas/features/shop/widgets/booking/daycare_addon_selector.dart';
@@ -131,6 +132,8 @@ class _ShopDaycareBookingPageState extends State<ShopDaycareBookingPage> {
   final TextEditingController _note = TextEditingController();
   List<MemberCouponModel> _coupons = const <MemberCouponModel>[];
   MemberCouponModel? _selectedCoupon;
+  int _requestedPoints = 0;
+  int _pointDiscountNtd = 0;
   bool _loadingCoupons = false;
   String? _bookingRequestId;
   String? _bookingRequestSignature;
@@ -462,6 +465,7 @@ class _ShopDaycareBookingPageState extends State<ShopDaycareBookingPage> {
           extraPetAmount: roomQuote.extraPetAmount,
           addonAmount: addonAmount,
         ),
+        pointAmount: _pointDiscountNtd,
       );
     }
     final DaycareQuote draft = DaycarePricingService.instance.quote(
@@ -484,6 +488,7 @@ class _ShopDaycareBookingPageState extends State<ShopDaycareBookingPage> {
         extraPetAmount: draft.extraPetAmount,
         addonAmount: addonAmount,
       ),
+      pointAmount: _pointDiscountNtd,
     );
   }
 
@@ -1147,6 +1152,7 @@ class _ShopDaycareBookingPageState extends State<ShopDaycareBookingPage> {
         if (_selectedCoupon != null) 'couponId': _selectedCoupon!.id,
         if (_selectedCoupon != null) 'couponName': _selectedCoupon!.name,
         'couponDiscountAmount': quote.couponAmount,
+        'requestedPoints': _requestedPoints,
         if (data.customFormAnswers != null)
           'customFormAnswers': data.customFormAnswers!.toCallableMap(),
         if (data.petFormAnswersByPetId.isNotEmpty)
@@ -1967,6 +1973,26 @@ class _ShopDaycareBookingPageState extends State<ShopDaycareBookingPage> {
         couponDiscountAmount: quote.couponAmount,
         onClear: () => setState(() => _selectedCoupon = null),
         onPick: _pickCoupon,
+      ),
+      BookingPointsRedeemSection(
+        shopId: widget.shopId,
+        userId: FirebaseAuth.instance.currentUser?.uid ?? '',
+        channel: 'daycare',
+        payableAfterCoupon: quote.totalAmount + quote.pointAmount,
+        requestedPoints: _requestedPoints,
+        onRequestedPointsChanged: (int value) {
+          if (_requestedPoints != value) {
+            setState(() => _requestedPoints = value);
+          }
+        },
+        onPreview: (int ntd, int used) {
+          if (_pointDiscountNtd != ntd || _requestedPoints != used) {
+            setState(() {
+              _pointDiscountNtd = ntd;
+              _requestedPoints = used;
+            });
+          }
+        },
       ),
       const SizedBox(height: 12),
       DaycareBookingSummaryCard(

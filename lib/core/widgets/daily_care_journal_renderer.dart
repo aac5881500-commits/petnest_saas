@@ -151,6 +151,7 @@ class DailyCareJournalRenderer extends StatelessWidget {
     this.fallbackRoomName = '',
     this.photos = const <DailyCarePhotoModel>[],
     this.photosLoading = false,
+    this.photosError = '',
     this.photosBoundToSelectedRecord = false,
     this.showPhotoSection = false,
     this.shopName = '',
@@ -172,6 +173,7 @@ class DailyCareJournalRenderer extends StatelessWidget {
   final String fallbackRoomName;
   final List<DailyCarePhotoModel> photos;
   final bool photosLoading;
+  final String photosError;
   final bool photosBoundToSelectedRecord;
   final bool showPhotoSection;
   final String shopName;
@@ -824,6 +826,7 @@ class DailyCareJournalRenderer extends StatelessWidget {
           layout: layouts[DailyCareJournalCardKeys.photos]!,
           photos: sessionPhotos,
           photosLoading: photosLoading,
+          photosError: photosError,
           bookingHasPhotos: photos.isNotEmpty,
         ),
       );
@@ -1698,6 +1701,7 @@ class _SessionPhotoCard extends StatelessWidget {
     required this.layout,
     required this.photos,
     required this.photosLoading,
+    this.photosError = '',
     required this.bookingHasPhotos,
   });
 
@@ -1705,6 +1709,7 @@ class _SessionPhotoCard extends StatelessWidget {
   final DailyCareJournalCardLayout layout;
   final List<DailyCarePhotoModel> photos;
   final bool photosLoading;
+  final String photosError;
   final bool bookingHasPhotos;
 
   @override
@@ -1716,7 +1721,12 @@ class _SessionPhotoCard extends StatelessWidget {
       colors: Theme.of(context).colorScheme,
     );
     Widget body;
-    if (photosLoading) {
+    if (photosError.trim().isNotEmpty) {
+      body = Text(
+        photosError.trim(),
+        style: TextStyle(fontSize: 12, color: ink.withValues(alpha: 0.7)),
+      );
+    } else if (photosLoading) {
       body = Text(
         '載入照護照片…',
         style: TextStyle(fontSize: 12, color: ink.withValues(alpha: 0.7)),

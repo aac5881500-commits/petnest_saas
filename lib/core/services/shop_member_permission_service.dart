@@ -41,6 +41,7 @@ class ShopMemberPermissionService {
       ShopPermissionKeys.editMedia: true,
       ShopPermissionKeys.manageBookings: true,
       ShopPermissionKeys.manageChat: true,
+      ShopPermissionKeys.manageMemberPoints: true,
       ShopPermissionKeys.managePointRedemptions: true,
       ShopPermissionKeys.viewInventory: true,
       ShopPermissionKeys.receiveInventory: true,
@@ -65,6 +66,7 @@ class ShopMemberPermissionService {
       ShopPermissionKeys.editMedia: false,
       ShopPermissionKeys.manageBookings: true,
       ShopPermissionKeys.manageChat: true,
+      ShopPermissionKeys.manageMemberPoints: true,
 
       // 店員預設可以處理會員到店領取實體商品。
       ShopPermissionKeys.managePointRedemptions: true,
@@ -441,11 +443,12 @@ class ShopMemberPermissionService {
               .get();
       canonicalExists = canonical.exists;
       canonicalRole = (canonical.data()?['role'] ?? '').toString();
-      final QuerySnapshot<Map<String, dynamic>> fieldMembers = await _shopMembers
-          .where('shopId', isEqualTo: shopId)
-          .where('uid', isEqualTo: uid)
-          .limit(10)
-          .get();
+      final QuerySnapshot<Map<String, dynamic>> fieldMembers =
+          await _shopMembers
+              .where('shopId', isEqualTo: shopId)
+              .where('uid', isEqualTo: uid)
+              .limit(10)
+              .get();
       fieldMemberDocIds = fieldMembers.docs.map((d) => d.id).toList();
     }
 
@@ -506,11 +509,11 @@ class ShopMemberPermissionService {
     final QuerySnapshot<Map<String, dynamic>> existing = await _shopMembers
         .where('shopId', isEqualTo: shopId)
         .get();
-    final List<Map<String, dynamic>> members = existing.docs
-        .map((QueryDocumentSnapshot<Map<String, dynamic>> doc) {
-          return <String, dynamic>{'id': doc.id, ...doc.data()};
-        })
-        .toList();
+    final List<Map<String, dynamic>> members = existing.docs.map((
+      QueryDocumentSnapshot<Map<String, dynamic>> doc,
+    ) {
+      return <String, dynamic>{'id': doc.id, ...doc.data()};
+    }).toList();
 
     Map<String, dynamic> seed = <String, dynamic>{};
     for (final Map<String, dynamic> member in members) {
@@ -617,10 +620,7 @@ class ShopMemberPermissionService {
       action: 'transfer_shop_owner',
       operatorUid: operator.uid,
       operatorRole: 'root',
-      payload: {
-        'previousOwnerUid': previousUid,
-        'newOwnerUid': nextUid,
-      },
+      payload: {'previousOwnerUid': previousUid, 'newOwnerUid': nextUid},
     );
   }
 }

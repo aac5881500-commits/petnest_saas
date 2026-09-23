@@ -60,9 +60,16 @@ const {
 const {
   validateAndNormalizeBookingSubmitAnswers,
   validateAndNormalizeAdminCreateAnswers,
+  stampSubmittedAt,
 } = require("./custom_form_answers");
+const {
+  loadAppMemberState,
+  prepareSpendDeduct,
+  commitSpendDeduct,
+} = require("../points/sync_booking_points");
 const {calculateDaycareSurcharge} = require("./special_date_surcharge");
-const {capSpendAmount, canSpend} = require("./daycare_points");
+const {capSpend, canSpend, pointsBalance, computeEarnPoints} =
+  require("../points/booking_points");
 const {
   effectiveMethodIds,
   isCustomerMethodAvailable,
@@ -304,6 +311,17 @@ async function syncMemberAfterDaycareBooking(params) {
  * @param {Object} plan
  * @param {Date} startAt
  */
+function logUnexpected(action, ctx, error) {
+  console.error(`[${action}] unexpected`, {
+    action,
+    shopId: ctx && ctx.shopId || "",
+    bookingId: ctx && ctx.bookingId || "",
+    requestId: ctx && ctx.requestId || "",
+    message: error && error.message ? error.message : String(error),
+    stack: error && error.stack,
+  });
+}
+
 function assertPlanWindow(plan, startAt) {
   if (!plan || plan.enabled === false) {
     throw new HttpsError("failed-precondition", "安親方案未啟用");
@@ -329,9 +347,43 @@ exports.createDaycareBooking = onCall(
       const data = request.data || {};
       const shopId = normalizeString(data.shopId);
       const requestId = normalizeString(data.requestId);
+      let bookingId = "";
       if (!shopId) {
         throw new HttpsError("invalid-argument", "缺少店家編號");
       }
+      try {
+        return await createDaycareBookingBody({
+          uid,
+          data,
+          shopId,
+          requestId,
+          setBookingId: (id) => {
+            bookingId = id;
+          },
+        });
+      } catch (error) {
+        if (error instanceof HttpsError) {
+          throw error;
+        }
+        logUnexpected("createDaycareBooking", {
+          shopId,
+          bookingId: bookingId || requestId,
+          requestId,
+        }, error);
+        throw new HttpsError("internal", "系統忙碌，請稍後再試");
+      }
+    },
+);
+
+/**
+ * @param {Object} params
+ * @return {Promise<Object>}
+ */
+async function createDaycareBookingBody(params) {
+      const uid = params.uid;
+      const data = params.data;
+      const shopId = params.shopId;
+      const requestId = params.requestId;
 
       const firestore = admin.firestore();
       const shopSnap = await firestore.collection("shops").doc(shopId).get();
@@ -588,35 +640,42 @@ exports.createDaycareBooking = onCall(
       const pointSettingSnap = await firestore.collection("shops").doc(shopId)
           .collection("settings").doc("points").get();
       const pointSetting = pointSettingSnap.data() || {};
+      const memberState = await loadAppMemberState(firestore, shopId, userId);
       let pointBalance = 0;
       const pointRef = userId ?
         firestore.collection("shops").doc(shopId)
             .collection("member_points").doc(userId) : null;
       if (pointRef) {
         const pointSnap = await pointRef.get();
-        pointBalance = toInt(pointSnap.exists ? pointSnap.data().points : 0, 0);
+        pointBalance = pointsBalance(pointSnap.exists ? pointSnap.data() : {});
       }
+      const payableBeforePoints = roomBased ?
+        Math.max(0, toInt(draftQuote.cappedRoomAmount, 0) + addonAmount +
+          surchargeAmount +
+          (source === "admin" ? toInt(data.manualAdjust, 0) : 0) -
+          discountAmount - couponAmount) :
+        Math.max(0, toInt(draftQuote.baseAmount, 0) +
+          toInt(draftQuote.extraPetAmount, 0) + addonAmount +
+          surchargeAmount +
+          (source === "admin" ? toInt(data.manualAdjust, 0) : 0) -
+          discountAmount - couponAmount);
       let pointAmount = 0;
-      if (canSpend(pointSetting) && source !== "admin") {
-        const payable = roomBased ?
-          Math.max(0, toInt(draftQuote.cappedRoomAmount, 0) + addonAmount +
-            surchargeAmount +
-            (source === "admin" ? toInt(data.manualAdjust, 0) : 0) -
-            discountAmount - couponAmount) :
-          Math.max(0, toInt(draftQuote.baseAmount, 0) +
-            toInt(draftQuote.extraPetAmount, 0) + addonAmount +
-            surchargeAmount +
-            (source === "admin" ? toInt(data.manualAdjust, 0) : 0) -
-            discountAmount - couponAmount);
-        pointAmount = capSpendAmount({
-          requested: toInt(data.pointAmount, 0),
+      let pointsUsed = 0;
+      if (canSpend(pointSetting, "daycare") && memberState.isAppMember) {
+        const spend = capSpend({
+          requestedPoints: toInt(
+              data.requestedPoints != null ? data.requestedPoints :
+                data.pointAmount, 0,
+          ),
           balance: pointBalance,
-          payableAfterCoupon: payable,
-          maxPerBooking: toInt(pointSetting.maximumPointsPerBooking, 0),
+          payableAfterCoupon: payableBeforePoints,
+          setting: pointSetting,
         });
+        pointAmount = spend.pointAmount;
+        pointsUsed = spend.pointsUsed;
       }
 
-      const computed = roomBased ? (() => {
+      let computed = roomBased ? (() => {
         const overtimeAmount = 0;
         const manualAdjust = source === "admin" ?
           toInt(data.manualAdjust, 0) : 0;
@@ -701,6 +760,9 @@ exports.createDaycareBooking = onCall(
       const bookingRef = requestId ?
         firestore.collection("bookings").doc(requestId) :
         firestore.collection("bookings").doc();
+      if (typeof params.setBookingId === "function") {
+        params.setBookingId(bookingRef.id);
+      }
 
       const existing = await bookingRef.get();
       if (existing.exists) {
@@ -834,24 +896,21 @@ exports.createDaycareBooking = onCall(
               throw new HttpsError("failed-precondition", "找不到優惠券");
             }
           }
-          let spendLogRef = null;
-          let currentPoints = 0;
-          if (pointAmount > 0 && pointRef) {
-            const pointInTx = await transaction.get(pointRef);
-            currentPoints = toInt(
-              pointInTx.exists ? pointInTx.data().points : 0, 0,
-            );
-            if (currentPoints < pointAmount) {
-              throw new HttpsError("failed-precondition", "點數餘額不足");
-            }
-            spendLogRef = firestore.collection("shops").doc(shopId)
-                .collection("member_point_logs")
-                .doc(`spend_booking_${bookingRef.id}`);
-            const spendSnap = await transaction.get(spendLogRef);
-            if (spendSnap.exists) {
-              throw new HttpsError("already-exists", "此訂單已折抵點數");
-            }
-          }
+          const spendPlan = await prepareSpendDeduct(transaction, {
+            firestore,
+            shopId,
+            userId,
+            bookingId: bookingRef.id,
+            setting: pointSetting,
+            channel: "daycare",
+            isAppMember: memberState.isAppMember,
+            requestedPoints: toInt(
+                data.requestedPoints != null ? data.requestedPoints :
+                  data.pointAmount, 0,
+            ),
+            payableAfterCoupon: payableBeforePoints,
+            operatorUid: uid,
+          });
           let holdState = null;
           if (roomBased) {
             holdState = await loadRoomTypeHoldState(transaction, firestore, {
@@ -872,27 +931,20 @@ exports.createDaycareBooking = onCall(
             note: "預約加購扣庫存",
             lines: buildDaycareAddonDeductLines(addonSnapshot, catalogDoc),
           });
-          if (pointAmount > 0 && pointRef) {
-            transaction.set(pointRef, {
-              points: currentPoints - pointAmount,
-              updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-            }, {merge: true});
-            transaction.set(spendLogRef, {
-              shopId,
-              userId,
-              bookingId: bookingRef.id,
-              type: "spend",
-              source: "daycare_booking",
-              pointsChange: -pointAmount,
-              amount: pointAmount,
-              snapshot: {
-                pointAmount,
-                totalAmount: computed.totalAmount,
-              },
-              createdAt: admin.firestore.FieldValue.serverTimestamp(),
-            });
-          }
           const bookingCode = await generateBookingCode(transaction, shopId);
+          commitSpendDeduct(transaction, spendPlan);
+          pointAmount = spendPlan.pointAmount || 0;
+          pointsUsed = spendPlan.pointsUsed || 0;
+          const total = Math.max(0, payableBeforePoints - pointAmount);
+          const deposit = depositAmount(settings, total);
+          computed = {
+            ...computed,
+            pointAmount,
+            pointsUsed,
+            totalAmount: total,
+            depositAmount: deposit,
+            remainingAmount: Math.max(0, total - deposit),
+          };
           if (holdState) {
             commitRoomTypeHold(transaction, holdState);
           }
@@ -957,16 +1009,16 @@ exports.createDaycareBooking = onCall(
             adminOrderSource: source === "admin" ?
             (normalizeString(data.adminOrderSource) || "電話預約") : "",
             ...(customFormChecked.snapshot ? {
-              customFormAnswers: {
-                ...customFormChecked.snapshot,
-                submittedAt: admin.firestore.FieldValue.serverTimestamp(),
-              },
+              customFormAnswers: stampSubmittedAt(
+                  customFormChecked.snapshot,
+                  admin.firestore.FieldValue,
+              ),
             } : {}),
             ...(adminCustomFormChecked.snapshot ? {
-              adminCustomFormAnswers: {
-                ...adminCustomFormChecked.snapshot,
-                submittedAt: admin.firestore.FieldValue.serverTimestamp(),
-              },
+              adminCustomFormAnswers: stampSubmittedAt(
+                  adminCustomFormChecked.snapshot,
+                  admin.firestore.FieldValue,
+              ),
             } : {}),
             totalPrice: computed.totalAmount,
             originalTotal: computed.baseAmount + computed.extraPetAmount +
@@ -981,6 +1033,20 @@ exports.createDaycareBooking = onCall(
             couponName,
             couponDiscountAmount: computed.couponAmount,
             pointAmount: computed.pointAmount,
+            pointsUsed,
+            pointsDiscountAmount: computed.pointAmount,
+            expectedRewardPoints: computeEarnPoints(pointSetting, {
+              bookingKind: BOOKING_KIND_DAYCARE,
+              totalPrice: computed.totalAmount,
+              paidAmount: 0,
+              nights: 0,
+            }, {isAppMember: memberState.isAppMember, preview: true}),
+            rewardPointsSystem: computeEarnPoints(pointSetting, {
+              bookingKind: BOOKING_KIND_DAYCARE,
+              totalPrice: computed.totalAmount,
+              paidAmount: 0,
+              nights: 0,
+            }, {isAppMember: memberState.isAppMember, preview: true}),
             overtimeMinutes: 0,
             overtimeAmount: 0,
             manualAdjust: computed.manualAdjust,
@@ -1112,5 +1178,4 @@ exports.createDaycareBooking = onCall(
         status,
         pricingMode: persistPricingMode(settings),
       };
-    },
-);
+}

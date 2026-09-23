@@ -102,8 +102,8 @@ void main() {
         expect(find.byType(Scrollbar), findsNWidgets(2));
       }
       expect(find.textContaining('SHOP0001-B000105'), findsWidgets);
-      expect(find.text('目前安排'), findsWidgets);
-      expect(find.text('尚未分配實體房間'), findsWidgets);
+      expect(find.text('目前安排'), findsOneWidget);
+      expect(find.text('尚未安排房間'), findsOneWidget);
       expect(find.textContaining('點擊查看'), findsNothing);
       expect(find.text('寵物照護資料提醒'), findsNothing);
     }

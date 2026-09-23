@@ -39,6 +39,7 @@ import 'package:petnest_saas/core/services/daily_care_addon_service.dart';
 import 'package:petnest_saas/core/services/daily_care_entitlement_math.dart';
 import 'package:petnest_saas/core/services/daily_care_setting_service.dart';
 import 'package:petnest_saas/features/shop/widgets/booking/daily_care_upgrade_card.dart';
+import 'package:petnest_saas/features/shop/widgets/booking/booking_points_redeem_section.dart';
 import 'package:petnest_saas/features/admin/widgets/admin_create_payment_section.dart';
 import 'package:petnest_saas/features/admin/widgets/admin_member_search_section.dart';
 import 'package:petnest_saas/features/admin/widgets/admin_quick_create_member_dialog.dart';
@@ -89,6 +90,8 @@ class _AdminCreateDaycareBookingPageState
   final Map<String, GlobalKey> _addonKeys = <String, GlobalKey>{};
   Set<String> _addonPetErrors = <String>{};
   bool _submitting = false;
+  int _requestedPoints = 0;
+  int _pointDiscountNtd = 0;
   String? _submitRequestId;
   final int _manualAdjust = 0;
   bool _policyRequired = false;
@@ -242,9 +245,7 @@ class _AdminCreateDaycareBookingPageState
       careSetting = await DailyCareSettingService.instance.getSetting(
         widget.shopId,
       );
-      carePlans = await DailyCareAddonService.instance.listPlans(
-        widget.shopId,
-      );
+      carePlans = await DailyCareAddonService.instance.listPlans(widget.shopId);
     } catch (_) {}
     if (!mounted) {
       return;
@@ -430,7 +431,8 @@ class _AdminCreateDaycareBookingPageState
             ? (_selectedRoomTypeId ?? '')
             : (_plan?.id ?? ''),
         offerName: (_settings?.isRoomBased ?? false) ? '' : (_plan?.name ?? ''),
-        purchaseAddon: _selectedDailyCareAddonId != null &&
+        purchaseAddon:
+            _selectedDailyCareAddonId != null &&
             _selectedDailyCareAddonId!.isNotEmpty,
         nights: 1,
         startDate: _startAt,
@@ -515,6 +517,7 @@ class _AdminCreateDaycareBookingPageState
         room: roomQuote,
         addonAmount: addonAmount,
         manualAdjust: _manualAdjust,
+        pointAmount: _pointDiscountNtd,
       );
     }
     if (_plan == null) {
@@ -528,6 +531,7 @@ class _AdminCreateDaycareBookingPageState
       petCount: petCount,
       addonAmount: addonAmount,
       manualAdjust: _manualAdjust,
+      pointAmount: _pointDiscountNtd,
     );
   }
 
@@ -684,9 +688,8 @@ class _AdminCreateDaycareBookingPageState
   List<Map<String, dynamic>> get _selectedPets {
     return _pets
         .where(
-          (Map<String, dynamic> pet) => _petIds.contains(
-            (pet['id'] ?? pet['petId'] ?? '').toString(),
-          ),
+          (Map<String, dynamic> pet) =>
+              _petIds.contains((pet['id'] ?? pet['petId'] ?? '').toString()),
         )
         .toList();
   }
@@ -1021,6 +1024,7 @@ class _AdminCreateDaycareBookingPageState
                 : null,
             requestId: _submitRequestId!,
             dailyCareAddonId: _selectedDailyCareAddonId ?? '',
+            requestedPoints: _requestedPoints,
           );
       final Map<String, dynamic> created = await DaycareFunctionService.instance
           .createBooking(payload);
@@ -1623,6 +1627,29 @@ class _AdminCreateDaycareBookingPageState
             setState(() => _paymentMethod = id);
           },
         ),
+      ),
+      const SizedBox(height: 12),
+      BookingPointsRedeemSection(
+        shopId: widget.shopId,
+        userId: (_member?['userId'] ?? '').toString(),
+        channel: 'daycare',
+        payableAfterCoupon:
+            (quote?.totalAmount ?? 0) + (quote?.pointAmount ?? 0),
+        requestedPoints: _requestedPoints,
+        onRequestedPointsChanged: (int value) {
+          if (_requestedPoints != value) {
+            setState(() => _requestedPoints = value);
+          }
+        },
+        onPreview: (int ntd, int used) {
+          if (_pointDiscountNtd != ntd || _requestedPoints != used) {
+            setState(() {
+              _pointDiscountNtd = ntd;
+              _requestedPoints = used;
+            });
+          }
+        },
+        member: _member,
       ),
       const SizedBox(height: 12),
       AdminCreateCustomFormSection(

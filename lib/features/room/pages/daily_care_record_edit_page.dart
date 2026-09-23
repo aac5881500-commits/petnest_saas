@@ -799,8 +799,17 @@ class _DailyCareRecordEditPageState extends State<DailyCareRecordEditPage> {
         recordDate: widget.recordDate,
         sessionIndex: widget.sessionIndex,
         roomId: roomFilter,
+        shopId: widget.shopId,
       ),
       builder: (context, snapshot) {
+        if (snapshot.hasError) {
+          debugPrint('daily care photos stream error: ${snapshot.error}');
+          return _illustratedSection(
+            cardKey: DailyCareJournalCardKeys.photos,
+            title: '照護照片',
+            children: const <Widget>[Text('照片讀取失敗，請重新整理後再試')],
+          );
+        }
         final List<DailyCarePhotoModel> photos =
             snapshot.data ?? <DailyCarePhotoModel>[];
 
@@ -811,7 +820,11 @@ class _DailyCareRecordEditPageState extends State<DailyCareRecordEditPage> {
             ? 0
             : maxCount - currentCount;
         final bool reachedLimit = remaining <= 0;
-        final String quotaText = remaining > 0
+        final int pendingCount = _pendingPhotos.length;
+
+        final String quotaText = pendingCount > 0
+            ? '本場照片 $currentCount / $maxCount 張（已上傳 $uploadedCount、待儲存 $pendingCount）'
+            : remaining > 0
             ? '本場已上傳 $uploadedCount / $maxCount 張，尚可上傳 $remaining 張'
             : '本場已上傳 $uploadedCount / $maxCount 張，照片額度已用完';
 

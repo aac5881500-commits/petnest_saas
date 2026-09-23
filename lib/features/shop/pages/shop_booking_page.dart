@@ -34,6 +34,8 @@ import 'package:petnest_saas/features/shop/widgets/booking/booking_addons_helper
 import 'package:petnest_saas/features/shop/widgets/booking/booking_calendar_dialog.dart';
 import 'package:petnest_saas/features/shop/widgets/booking/booking_campaign_ui.dart';
 import 'package:petnest_saas/features/shop/widgets/booking/booking_member_coupon_ui.dart';
+import 'package:petnest_saas/core/models/point_setting_model.dart';
+import 'package:petnest_saas/features/shop/widgets/booking/booking_points_redeem_section.dart';
 import 'package:petnest_saas/features/shop/widgets/booking/front_calendar_helper.dart';
 import 'package:petnest_saas/features/shop/widgets/booking/booking_submit_helper.dart';
 import 'package:petnest_saas/core/models/discount_campaign_model.dart';
@@ -88,6 +90,8 @@ class _ShopBookingPageState extends State<ShopBookingPage> {
   List<MemberCouponModel> _availableMemberCoupons = const <MemberCouponModel>[];
   MemberCouponModel? _selectedMemberCoupon;
   bool _memberCouponsLoading = true;
+  int _requestedPoints = 0;
+  int _pointDiscountNtd = 0;
   Map<String, dynamic>? _currentShopData;
 
   final ScrollController _scrollController = ScrollController();
@@ -517,12 +521,23 @@ class _ShopBookingPageState extends State<ShopBookingPage> {
     }
   }
 
+  int _couponTotal(Map<String, dynamic> shop) {
+    return (_calculateMemberCouponInfo(shop)['finalTotalAfterCoupon'] ?? 0)
+        .toInt();
+  }
+
+  int _payableTotal(Map<String, dynamic> shop) {
+    return PointSettingModel.payableAfterPoints(
+      afterCoupon: _couponTotal(shop),
+      pointAmount: _pointDiscountNtd,
+    );
+  }
+
   int _estimatedTotal(Map<String, dynamic> shop) {
     if (_selectedRoomType == null) {
       return _addonTotalAmount();
     }
-    return (_calculateMemberCouponInfo(shop)['finalTotalAfterCoupon'] ?? 0)
-        .toInt();
+    return _payableTotal(shop);
   }
 
   String? get _step1Hint {
@@ -937,6 +952,26 @@ class _ShopBookingPageState extends State<ShopBookingPage> {
             _startDate != null &&
             _endDate != null) ...<Widget>[
           _buildMemberCouponSection(),
+          BookingPointsRedeemSection(
+            shopId: widget.shopId,
+            userId: FirebaseAuth.instance.currentUser?.uid ?? '',
+            channel: 'stay',
+            payableAfterCoupon: _couponTotal(shop),
+            requestedPoints: _requestedPoints,
+            onRequestedPointsChanged: (int value) {
+              if (_requestedPoints != value) {
+                setState(() => _requestedPoints = value);
+              }
+            },
+            onPreview: (int ntd, int used) {
+              if (_pointDiscountNtd != ntd || _requestedPoints != used) {
+                setState(() {
+                  _pointDiscountNtd = ntd;
+                  _requestedPoints = used;
+                });
+              }
+            },
+          ),
           const SizedBox(height: 4),
           _buildBookingSummary(shop),
         ] else
@@ -1041,10 +1076,7 @@ class _ShopBookingPageState extends State<ShopBookingPage> {
               'selectedPetCount': _selectedPetIds.length,
             },
       nights: _nights,
-      totalPrice: _selectedRoomType == null
-          ? 0
-          : (_calculateMemberCouponInfo(shop)['finalTotalAfterCoupon'] ?? 0)
-                .toInt(),
+      totalPrice: _selectedRoomType == null ? 0 : _payableTotal(shop),
       originalTotal: _selectedRoomType == null
           ? 0
           : (_calculateDiscountInfo(shop)['originalTotal'] ?? 0).toInt(),
@@ -1551,7 +1583,7 @@ class _ShopBookingPageState extends State<ShopBookingPage> {
         endDate: _endDate!,
         nights: _nights,
         note: _noteController.text,
-        totalPrice: (discountInfo['finalTotalAfterCoupon'] ?? 0).toInt(),
+        totalPrice: _couponTotal(shop),
 
         originalTotal: discountInfo['originalTotal'] ?? 0,
         specialDateSurchargeAmount:
@@ -1590,6 +1622,7 @@ class _ShopBookingPageState extends State<ShopBookingPage> {
         couponType: (discountInfo['couponType'] ?? '').toString(),
         couponDiscountAmount: (discountInfo['couponDiscountAmount'] ?? 0)
             .toInt(),
+        requestedPoints: _requestedPoints,
 
         addons: _buildAddonsData(),
         dailyCareEntitlement: _dailyCareQuote()?.toMap(),
@@ -1621,8 +1654,7 @@ class _ShopBookingPageState extends State<ShopBookingPage> {
 
       if (isEcpayPayment) {
         debugPrint('[BookingSubmit] 14 processing payment');
-        final int finalTotal = (discountInfo['finalTotalAfterCoupon'] ?? 0)
-            .toInt();
+        final int finalTotal = _payableTotal(shop);
 
         final int requestedAmount =
             resolvedPayAmountType == PaymentAmountType.deposit
@@ -2350,7 +2382,7 @@ class _ShopBookingPageState extends State<ShopBookingPage> {
   Widget _buildBookingSummary(Map<String, dynamic> shop) {
     final Map<String, dynamic> discountInfo = _calculateMemberCouponInfo(shop);
 
-    final int totalPrice = (discountInfo['finalTotalAfterCoupon'] ?? 0).toInt();
+    final int totalPrice = _payableTotal(shop);
 
     final MemberCouponModel? selectedCoupon = _selectedMemberCoupon;
 
@@ -2402,6 +2434,7 @@ class _ShopBookingPageState extends State<ShopBookingPage> {
           couponName: (discountInfo['couponName'] ?? '').toString(),
           couponDiscountAmount: (discountInfo['couponDiscountAmount'] ?? 0)
               .toInt(),
+          pointAmount: _pointDiscountNtd,
 
           selectedTimeAddon: _selectedTimeAddon,
           selectedValueServices: _selectedValueServices,

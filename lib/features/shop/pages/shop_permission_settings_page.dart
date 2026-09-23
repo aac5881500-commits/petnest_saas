@@ -165,6 +165,8 @@ class _ShopPermissionSettingsPageState
         return '房間管理';
       case 'manage_payment_settings':
         return '付款 / 訂金設定';
+      case 'manage_member_points':
+        return '會員點數與結算發點調整';
       case 'manage_point_redemptions':
         return '實體商品核銷';
       case 'view_inventory':

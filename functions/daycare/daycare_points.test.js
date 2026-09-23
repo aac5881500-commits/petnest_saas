@@ -1,41 +1,44 @@
 const {describe, it} = require("node:test");
 const assert = require("node:assert/strict");
-const {computeEarnPoints, capSpendAmount} = require("./daycare_points");
+const {computeEarnPoints, capSpendAmount, canSpend} = require("./daycare_points");
 
 describe("computeEarnPoints", () => {
   const setting = {
     enabled: true,
     daycareEarnEnabled: true,
-    daycareCalculationType: "amount",
     daycareAmountPerPoint: 100,
-    daycareIncludeAddons: true,
-    daycareIncludeSurcharge: true,
-    daycareIncludeOvertime: false,
     daycareMaximumPointsPerBooking: 10,
   };
 
-  it("uses amount mode and caps points", () => {
+  it("uses net collected and caps points", () => {
     const points = computeEarnPoints(setting, {
-      finalSettlementAmount: 2500,
-      overtimeAmount: 400,
-      specialDateSurchargeAmount: 200,
+      bookingKind: "daycare",
+      paidAmount: 2500,
+      refundAmount: 0,
+      status: "completed",
     });
     assert.equal(points, 10);
   });
 
-  it("uses fixed points", () => {
+  it("does not use fixed per-order points", () => {
     const points = computeEarnPoints({
       ...setting,
       daycareCalculationType: "fixed",
       daycarePointsPerOrder: 3,
       daycareMaximumPointsPerBooking: 0,
-    }, {finalSettlementAmount: 10});
-    assert.equal(points, 3);
+    }, {
+      bookingKind: "daycare",
+      paidAmount: 10,
+      status: "completed",
+    });
+    assert.equal(points, 0);
   });
 
   it("does not earn when disabled", () => {
     const points = computeEarnPoints({...setting, daycareEarnEnabled: false}, {
-      finalSettlementAmount: 900,
+      bookingKind: "daycare",
+      paidAmount: 900,
+      status: "completed",
     });
     assert.equal(points, 0);
   });
@@ -49,5 +52,20 @@ describe("capSpendAmount", () => {
       payableAfterCoupon: 100,
       maxPerBooking: 50,
     }), 50);
+  });
+});
+
+describe("canSpend", () => {
+  it("requires daycare spend flag", () => {
+    assert.equal(canSpend({
+      enabled: true,
+      spendEnabled: true,
+      daycareSpendEnabled: true,
+    }), true);
+    assert.equal(canSpend({
+      enabled: true,
+      spendEnabled: true,
+      daycareSpendEnabled: false,
+    }), false);
   });
 });

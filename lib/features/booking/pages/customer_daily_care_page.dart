@@ -571,12 +571,18 @@ class _CustomerDailyCarePageState extends State<CustomerDailyCarePage> {
         recordDate: DailyCareDateHelper.parseDateKey(selectedDateKey),
         sessionIndex: selectedSessionIndex,
         roomId: isDaycare ? '' : (record?.roomId ?? ''),
+        shopId: widget.shopId,
       ),
       builder:
           (
             BuildContext context,
             AsyncSnapshot<List<DailyCarePhotoModel>> snapshot,
           ) {
+            if (snapshot.hasError) {
+              debugPrint(
+                'daily care journal photos stream error: ${snapshot.error}',
+              );
+            }
             return DailyCareJournalRenderer(
               setting: setting,
               stay: stay,
@@ -586,10 +592,14 @@ class _CustomerDailyCarePageState extends State<CustomerDailyCarePage> {
               selectedSessionIndex: selectedSessionIndex,
               record: record,
               fallbackRoomName: widget.roomName,
-              photos: snapshot.data ?? const <DailyCarePhotoModel>[],
+              photos: snapshot.hasError
+                  ? const <DailyCarePhotoModel>[]
+                  : snapshot.data ?? const <DailyCarePhotoModel>[],
               photosLoading:
+                  !snapshot.hasError &&
                   snapshot.connectionState == ConnectionState.waiting &&
                   !snapshot.hasData,
+              photosError: snapshot.hasError ? '照片讀取失敗，請重新整理後再試' : '',
               photosBoundToSelectedRecord: true,
               showPhotoSection: true,
               shopName: shopName,

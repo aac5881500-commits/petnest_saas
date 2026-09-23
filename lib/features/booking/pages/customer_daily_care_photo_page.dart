@@ -51,6 +51,7 @@ class CustomerDailyCarePhotoPage extends StatelessWidget {
       body: StreamBuilder<List<DailyCarePhotoModel>>(
         stream: DailyCarePhotoService.instance.streamBookingPhotos(
           bookingId: bookingId,
+          shopId: shopId,
         ),
         builder: (context, snapshot) {
           if (snapshot.hasError) {

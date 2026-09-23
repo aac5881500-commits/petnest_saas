@@ -179,7 +179,7 @@ class DailyCareReportEligibility {
         ? ''
         : (booking['roomId'] ?? '').toString().trim();
     final String bookingCode = (booking['bookingCode'] ?? '').toString().trim();
-    final String roomTypeName = _roomTypeNameOf(booking);
+    final String roomTypeName = roomTypeNameOf(booking);
     int? stayDayIndex;
     int? stayDayTotal;
     if (!daycare) {
@@ -248,7 +248,7 @@ class DailyCareReportEligibility {
     return items;
   }
 
-  static String _roomTypeNameOf(Map<String, dynamic> booking) {
+  static String roomTypeNameOf(Map<String, dynamic> booking) {
     for (final String key in <String>[
       'roomTypeName',
       'roomTypeNameSnapshot',
@@ -327,6 +327,104 @@ class DailyCareReportEligibility {
       checkIn: stay.startDate,
       checkOut: stay.endDate,
     );
+  }
+
+  /// 整筆住宿應填場次數：照護日期 × 每日場次（`finalReports`）。
+  static int stayScheduledSessionTotal(
+    Map<String, dynamic> booking, {
+    DailyCareSettingModel? setting,
+  }) {
+    final DailyCareEntitlement entitlement = entitlementOf(booking);
+    int perDay = entitlement.finalReports;
+    if (perDay < 1) {
+      perDay = setting?.sessionCount ?? 0;
+    }
+    if (perDay < 1) {
+      perDay = entitlement.sessionLabels.length;
+    }
+    if (perDay < 1) {
+      return 0;
+    }
+    final List<DateTime> dates = stayCareDates(booking);
+    final int days = dates.isEmpty ? 0 : dates.length;
+    return days * perDay;
+  }
+
+  static int staySessionPerDay(
+    Map<String, dynamic> booking, {
+    DailyCareSettingModel? setting,
+  }) {
+    final DailyCareEntitlement entitlement = entitlementOf(booking);
+    if (entitlement.finalReports >= 1) {
+      return entitlement.finalReports;
+    }
+    if (setting != null && setting.sessionCount >= 1) {
+      return setting.sessionCount;
+    }
+    return entitlement.sessionLabels.length;
+  }
+
+  static List<DateTime> stayCareDates(Map<String, dynamic> booking) {
+    final DailyCareEntitlement entitlement = entitlementOf(booking);
+    if (entitlement.serviceDates.isNotEmpty) {
+      final List<DateTime> parsed = <DateTime>[];
+      for (final String raw in entitlement.serviceDates) {
+        final DateTime? date = DailyCareDateHelper.parseDateKey(
+          raw.replaceAll('-', '/'),
+        );
+        if (date != null) {
+          parsed.add(date);
+        }
+      }
+      if (parsed.isNotEmpty) {
+        return parsed;
+      }
+    }
+    final DailyCareStayInfo stay = DailyCareStayInfo.fromBookingMap(booking);
+    return stay
+        .careDateKeys()
+        .map(DailyCareDateHelper.parseDateKey)
+        .whereType<DateTime>()
+        .toList();
+  }
+
+  static int completedSessionCount(List<DailyCareRecordModel> records) {
+    final Set<String> keys = <String>{};
+    for (final DailyCareRecordModel record in records) {
+      keys.add(
+        '${DailyCareDateHelper.dateKey(record.recordDate)}#${record.sessionIndex}',
+      );
+    }
+    return keys.length;
+  }
+
+  /// 本日可填場次數範圍內，第一個尚未有紀錄的 sessionIndex；全完成則回 0。
+  static int firstIncompleteSessionIndex({
+    required int sessionCount,
+    required Iterable<int> completedIndexes,
+  }) {
+    final int count = sessionCount < 1 ? 1 : sessionCount;
+    final Set<int> done = completedIndexes.toSet();
+    for (int index = 0; index < count; index++) {
+      if (!done.contains(index)) {
+        return index;
+      }
+    }
+    return 0;
+  }
+
+  /// 優先今天（若為照護日），否則用既有 currentCareDate。
+  static DateTime stayFillDate(Map<String, dynamic> booking) {
+    final DateTime today = DailyCareDateHelper.todayInTaipei();
+    final String todayKey = DailyCareDateHelper.dateKey(today);
+    for (final DateTime date in stayCareDates(booking)) {
+      if (DailyCareDateHelper.dateKey(date) == todayKey) {
+        return DailyCareDateHelper.dateOnly(date);
+      }
+    }
+    return DailyCareStayInfo.fromBookingMap(
+      booking,
+    ).currentCareDate(now: today);
   }
 
   static bool containsServiceDate(List<String> dates, DateTime today) {

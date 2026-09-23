@@ -41,11 +41,25 @@ class AdminBookingHeaderCard extends StatelessWidget {
         theme.primaryColor;
     final Color panel =
         Color.lerp(ink, Colors.white, 0.88) ?? theme.primarySoft;
+    final Widget identity = _identityRow(
+      context,
+      theme: theme,
+      phone: phone,
+      name: name,
+      code: code,
+    );
+    final Widget roomPanel = BookingCurrentRoomPanel(
+      data: data,
+      audience: BookingCurrentRoomAudience.staff,
+      compact: daycare ? phone : true,
+      tight: !daycare,
+      unassignedStaffLabel: daycare ? null : '尚未安排房間',
+    );
     return AdminBookingDetailCard(
       tint: panel,
       padding: EdgeInsets.symmetric(
-        horizontal: phone ? 14 : 18,
-        vertical: phone ? 12 : 14,
+        horizontal: phone ? 14 : 16,
+        vertical: daycare ? (phone ? 12 : 14) : (phone ? 10 : 12),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -67,100 +81,60 @@ class AdminBookingHeaderCard extends StatelessWidget {
                 _pill('手動建立', ShopFrontendTheme.warningColor),
             ],
           ),
-          const SizedBox(height: 12),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: <Widget>[
-              ShopMemberLiveAvatar(
-                shopId: (data['shopId'] ?? '').toString(),
-                userId: (data['userId'] ?? '').toString(),
-                name: name.isEmpty ? '會員' : name,
-                size: phone ? 40 : 48,
-                booking: data,
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: <Widget>[
-                    Text(
-                      name.isEmpty ? '未填客戶姓名' : name,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w800,
-                        color: theme.titleColor,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    InkWell(
-                      onTap: () async {
-                        await Clipboard.setData(ClipboardData(text: code));
-                        if (context.mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('已複製訂單編號')),
-                          );
-                        }
-                      },
-                      child: Row(
-                        children: <Widget>[
-                          Flexible(
-                            child: Text(
-                              code,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w700,
-                                color: theme.muted,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 4),
-                          Icon(
-                            Icons.copy_rounded,
-                            size: 14,
-                            color: theme.muted,
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          if (phone) ...<Widget>[
-            BookingCurrentRoomPanel(
-              data: data,
-              audience: BookingCurrentRoomAudience.staff,
-              compact: true,
-            ),
-            const SizedBox(height: 12),
-            _dateRow(context, daycare: daycare, phone: true),
-          ] else
+          SizedBox(height: daycare ? 12 : 10),
+          if (!daycare && !phone)
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
                 Expanded(
                   flex: 5,
-                  child: ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 420),
-                    child: BookingCurrentRoomPanel(
-                      data: data,
-                      audience: BookingCurrentRoomAudience.staff,
-                    ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: <Widget>[
+                      identity,
+                      const SizedBox(height: 10),
+                      ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 420),
+                        child: roomPanel,
+                      ),
+                    ],
                   ),
                 ),
                 const SizedBox(width: 16),
                 Expanded(
                   flex: 4,
-                  child: _dateRow(context, daycare: daycare, phone: false),
+                  child: _stayDateJourney(context, theme, phone: false),
                 ),
               ],
-            ),
+            )
+          else ...<Widget>[
+            identity,
+            SizedBox(height: daycare ? 12 : 10),
+            if (phone) ...<Widget>[
+              roomPanel,
+              SizedBox(height: daycare ? 12 : 10),
+              daycare
+                  ? _dateRow(context, daycare: true, phone: true)
+                  : _stayDateJourney(context, theme, phone: true),
+            ] else
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  Expanded(
+                    flex: 5,
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 420),
+                      child: roomPanel,
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    flex: 4,
+                    child: _dateRow(context, daycare: true, phone: false),
+                  ),
+                ],
+              ),
+          ],
           const SizedBox(height: 8),
           Wrap(
             spacing: 12,
@@ -188,15 +162,163 @@ class AdminBookingHeaderCard extends StatelessWidget {
               ],
               if (daycare && _planLabel(data).isNotEmpty)
                 _meta(theme, '方案', _planLabel(data)),
-              _meta(
-                theme,
-                daycare ? '時數' : '晚數',
-                _durationLabel(data, daycare),
-              ),
+              if (daycare) _meta(theme, '時數', _durationLabel(data, true)),
             ],
           ),
         ],
       ),
+    );
+  }
+
+  Widget _identityRow(
+    BuildContext context, {
+    required ShopFrontendTheme theme,
+    required bool phone,
+    required String name,
+    required String code,
+  }) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        ShopMemberLiveAvatar(
+          shopId: (data['shopId'] ?? '').toString(),
+          userId: (data['userId'] ?? '').toString(),
+          name: name.isEmpty ? '會員' : name,
+          size: phone ? 40 : 48,
+          booking: data,
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Text(
+                name.isEmpty ? '未填客戶姓名' : name,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w800,
+                  color: theme.titleColor,
+                ),
+              ),
+              const SizedBox(height: 2),
+              InkWell(
+                onTap: () async {
+                  await Clipboard.setData(ClipboardData(text: code));
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(
+                      context,
+                    ).showSnackBar(const SnackBar(content: Text('已複製訂單編號')));
+                  }
+                },
+                child: Row(
+                  children: <Widget>[
+                    Flexible(
+                      child: Text(
+                        code,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                          color: theme.muted,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                    Icon(Icons.copy_rounded, size: 14, color: theme.muted),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _stayDateJourney(
+    BuildContext context,
+    ShopFrontendTheme theme, {
+    required bool phone,
+  }) {
+    final String start = _formatStay(data['startDate']);
+    final String end = _formatStay(data['endDate']);
+    final String nights = _durationLabel(data, false);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: <Widget>[
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            Expanded(child: _stayDateCell(theme, '入住', start)),
+            Padding(
+              padding: EdgeInsets.fromLTRB(6, phone ? 16 : 18, 6, 0),
+              child: Icon(
+                Icons.arrow_forward_rounded,
+                size: 20,
+                color: theme.primaryColor,
+              ),
+            ),
+            Expanded(child: _stayDateCell(theme, '退房', end, alignEnd: true)),
+          ],
+        ),
+        const SizedBox(height: 8),
+        Align(
+          alignment: Alignment.centerRight,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+            decoration: BoxDecoration(
+              color: theme.primaryColor.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(999),
+            ),
+            child: Text(
+              '晚數 $nights',
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w800,
+                color: theme.primaryColor,
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _stayDateCell(
+    ShopFrontendTheme theme,
+    String label,
+    String value, {
+    bool alignEnd = false,
+  }) {
+    return Column(
+      crossAxisAlignment: alignEnd
+          ? CrossAxisAlignment.end
+          : CrossAxisAlignment.start,
+      children: <Widget>[
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 12.5,
+            fontWeight: FontWeight.w600,
+            color: theme.muted,
+          ),
+        ),
+        const SizedBox(height: 2),
+        Text(
+          value,
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w600,
+            height: 1.2,
+            color: theme.titleColor,
+          ),
+        ),
+      ],
     );
   }
 

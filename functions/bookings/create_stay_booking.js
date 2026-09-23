@@ -15,6 +15,7 @@ const {
   writeActionLogInTransaction,
 } = require("../daycare/daycare_utils");
 const {bookingSearchFields} = require("../search/normalize_fields");
+const {stampSubmittedAt} = require("../daycare/custom_form_answers");
 const {
   calendarBlocksRoom,
   commitRoomTypeHold,
@@ -25,21 +26,37 @@ const {
   stayNightKeys,
   ROOM_TYPE_SOLD_OUT,
 } = require("../daycare/daycare_occupancy");
+const {
+  loadAppMemberState,
+  prepareSpendDeduct,
+  commitSpendDeduct,
+} = require("../points/sync_booking_points");
+const {computeEarnPoints} = require("../points/booking_points");
 
 /**
  * @param {Error} error
+ * @param {Object=} ctx
  * @return {HttpsError}
  */
-function asHttps(error) {
+function asHttps(error, ctx) {
   if (error instanceof HttpsError) {
     return error;
   }
-  const code = error && error.code === "failed-precondition" ?
-    "failed-precondition" : "internal";
-  return new HttpsError(
-      code,
-      (error && error.message) || ROOM_TYPE_SOLD_OUT,
-  );
+  if (error && error.code === "failed-precondition") {
+    return new HttpsError(
+        "failed-precondition",
+        (error && error.message) || ROOM_TYPE_SOLD_OUT,
+    );
+  }
+  console.error("[createStayBooking] unexpected", {
+    action: ctx && ctx.action || "createStayBooking",
+    shopId: ctx && ctx.shopId || "",
+    bookingId: ctx && ctx.bookingId || "",
+    requestId: ctx && ctx.requestId || "",
+    message: error && error.message ? error.message : String(error),
+    stack: error && error.stack,
+  });
+  return new HttpsError("internal", "系統忙碌，請稍後再試");
 }
 
 /**
@@ -186,6 +203,10 @@ exports.createStayBooking = onCall(
       }
       const booking = data.booking && typeof data.booking === "object" ?
         data.booking : {};
+      const pointSettingSnap = await firestore.collection("shops").doc(shopId)
+          .collection("settings").doc("points").get();
+      const pointSetting = pointSettingSnap.data() || {};
+      const memberState = await loadAppMemberState(firestore, shopId, userId);
       try {
         await firestore.runTransaction(async (transaction) => {
           const again = await transaction.get(bookingRef);
@@ -201,9 +222,44 @@ exports.createStayBooking = onCall(
                 bookingId: bookingRef.id,
               },
           );
+          const payableAfterCoupon = Math.max(0, toInt(booking.totalPrice, 0));
+          const spendPlan = await prepareSpendDeduct(transaction, {
+            firestore,
+            shopId,
+            userId,
+            bookingId: bookingRef.id,
+            setting: pointSetting,
+            channel: "stay",
+            isAppMember: memberState.isAppMember,
+            requestedPoints: toInt(
+                data.requestedPoints != null ?
+                  data.requestedPoints : booking.requestedPoints, 0,
+            ),
+            payableAfterCoupon,
+            operatorUid: uid,
+          });
           const bookingCode = await generateBookingCode(transaction, shopId);
+          commitSpendDeduct(transaction, spendPlan);
           states.forEach((state) => commitRoomTypeHold(transaction, state));
           const depositExpireAt = toDate(booking.depositExpireAt);
+          const pointAmount = spendPlan.pointAmount || 0;
+          const pointsUsed = spendPlan.pointsUsed || 0;
+          const totalPrice = Math.max(0, payableAfterCoupon - pointAmount);
+          let depositAmount = toInt(booking.depositAmount, 0);
+          if (depositAmount < 0) {
+            depositAmount = 0;
+          }
+          if (depositAmount > totalPrice) {
+            depositAmount = totalPrice;
+          }
+          const expectedRewardPoints = computeEarnPoints(pointSetting, {
+            ...booking,
+            nights: toInt(booking.nights, stayNightKeys(startDate, endDate)
+                .length),
+            totalPrice,
+            paidAmount: 0,
+            pointAmount,
+          }, {isAppMember: memberState.isAppMember, preview: true});
           transaction.set(bookingRef, {
             ...booking,
             requestId: requestId || bookingRef.id,
@@ -221,6 +277,14 @@ exports.createStayBooking = onCall(
             endDate: admin.firestore.Timestamp.fromDate(endDate),
             nights: toInt(booking.nights, stayNightKeys(startDate, endDate)
                 .length),
+            totalPrice,
+            remainingAmount: totalPrice,
+            depositAmount,
+            pointAmount,
+            pointsUsed,
+            pointsDiscountAmount: pointAmount,
+            expectedRewardPoints,
+            rewardPointsSystem: expectedRewardPoints,
             status: "pending",
             depositExpireAt: depositExpireAt ?
               admin.firestore.Timestamp.fromDate(depositExpireAt) : null,
@@ -232,10 +296,39 @@ exports.createStayBooking = onCall(
               bookingCode,
               pets: booking.pets,
             }),
+            ...(booking.customFormAnswers ? {
+              customFormAnswers: stampSubmittedAt(
+                  booking.customFormAnswers,
+                  admin.firestore.FieldValue,
+              ),
+            } : {}),
+            ...(booking.adminCustomFormAnswers ? {
+              adminCustomFormAnswers: stampSubmittedAt(
+                  booking.adminCustomFormAnswers,
+                  admin.firestore.FieldValue,
+              ),
+            } : {}),
+            ...(booking.petFormAnswersByPetId ? {
+              petFormAnswersByPetId: stampSubmittedAt(
+                  booking.petFormAnswersByPetId,
+                  admin.firestore.FieldValue,
+              ),
+            } : {}),
+            ...(booking.adminPetFormAnswersByPetId ? {
+              adminPetFormAnswersByPetId: stampSubmittedAt(
+                  booking.adminPetFormAnswersByPetId,
+                  admin.firestore.FieldValue,
+              ),
+            } : {}),
           });
         });
       } catch (error) {
-        throw asHttps(error);
+        throw asHttps(error, {
+          action: "createStayBooking",
+          shopId,
+          bookingId: bookingRef.id,
+          requestId,
+        });
       }
       return {bookingId: bookingRef.id, reused: false};
     },
@@ -319,24 +412,37 @@ exports.manageStayInventory = onCall(
               excludeBookingId: bookingId,
             });
             const nights = stayNightKeys(startDate, endDate);
-            const oldRoomId = normalizeString(liveData.roomId);
-            if ((action === "change" || oldRoomId) &&
-                oldRoomId && oldRoomId !== roomId) {
-              deleteStayCalendar(
-                  transaction, firestore, shopId, oldRoomId, nights,
-              );
-            }
-            writeStayCalendar(
-                transaction, firestore, shopId, roomId, nights, bookingId,
-                "booked",
-            );
-            await releaseStayRoomTypeHoldsInTransaction(
-                transaction, firestore, {
-                  ...liveData,
-                  id: bookingId,
-                  shopId,
-                },
-            );
+const oldRoomId = normalizeString(liveData.roomId);
+
+// 重要：Firestore transaction 的所有讀取都要在任何寫入前完成。
+// releaseStayRoomTypeHoldsInTransaction 內部會讀取保留資料，
+// 所以必須放在刪除舊日曆、寫入新日曆之前。
+await releaseStayRoomTypeHoldsInTransaction(
+    transaction,
+    firestore,
+    {
+      ...liveData,
+      id: bookingId,
+      shopId,
+    },
+);
+
+if ((action === "change" || oldRoomId) &&
+    oldRoomId && oldRoomId !== roomId) {
+  deleteStayCalendar(
+      transaction, firestore, shopId, oldRoomId, nights,
+  );
+}
+
+writeStayCalendar(
+    transaction,
+    firestore,
+    shopId,
+    roomId,
+    nights,
+    bookingId,
+    "booked",
+);
             const roomTypeName = normalizeString(liveData.roomTypeName) ||
               normalizeString(liveData.roomTypeNameSnapshot);
             transaction.update(bookingRef, {
@@ -380,7 +486,12 @@ exports.manageStayInventory = onCall(
         }
         throw new HttpsError("invalid-argument", "不支援的住宿庫存操作");
       } catch (error) {
-        throw asHttps(error);
+        throw asHttps(error, {
+          action: action || "manageStayInventory",
+          shopId,
+          bookingId,
+          requestId: normalizeString(data.requestId),
+        });
       }
     },
 );

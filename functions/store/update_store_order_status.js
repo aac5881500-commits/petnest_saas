@@ -13,6 +13,10 @@ const {
 const {
   applyReportContribution,
 } = require("../reports/shop_report_summary");
+const {
+  restoreSpend,
+  spendStoreLogId,
+} = require("../points/sync_booking_points");
 
 /**
  * @param {string} value
@@ -53,6 +57,15 @@ function hasPermission(member, key) {
   return member.permissions && member.permissions[key] === true;
 }
 
+/**
+ * @param {*} value
+ * @return {number}
+ */
+function toIntSafe(value) {
+  const n = Number(value || 0);
+  return Number.isFinite(n) ? Math.trunc(n) : 0;
+}
+
 exports.updateStoreOrderStatus = onCall(
     {region: "asia-east1"},
     async (request) => {
@@ -78,6 +91,10 @@ exports.updateStoreOrderStatus = onCall(
           .doc(orderId);
       const member = await getShopMember(shopId, uid);
       let completedOrder = null;
+      let restorePoints = false;
+      let restoreUserId = "";
+      let restorePointAmount = 0;
+      const expiredOrderIds = [];
 
       await firestore.runTransaction(async (transaction) => {
         const orderSnapshot = await transaction.get(orderRef);
@@ -136,6 +153,10 @@ exports.updateStoreOrderStatus = onCall(
           update.status = "cancelled";
           update.cancelledAt = now;
           update.cancelReason = reason || "取消訂單";
+          restorePoints = toIntSafe(order.pointAmount) > 0 ||
+            toIntSafe(order.pointsUsed) > 0;
+          restoreUserId = normalizeString(order.userId);
+          restorePointAmount = toIntSafe(order.pointAmount);
         } else if (action === "start_preparing") {
           if (!canManage) {
             throw new HttpsError("permission-denied", "沒有權限管理商城訂單。");
@@ -174,11 +195,16 @@ exports.updateStoreOrderStatus = onCall(
           const itemIds = Array.isArray(order.items) ?
             order.items.map((item) => String(item.inventoryItemId || "")) :
             [];
-          await expireRelatedHeldReservations(transaction, {
-            shopId,
-            itemIds,
-            extraReservationIds: [orderId],
-            userId: uid,
+          const expiredTouch = await expireRelatedHeldReservations(
+              transaction, {
+                shopId,
+                itemIds,
+                extraReservationIds: [orderId],
+                userId: uid,
+              },
+          );
+          (expiredTouch.cancelledOrderIds || []).forEach((id) => {
+            expiredOrderIds.push(id);
           });
         } else if (action === "release_expired") {
           if (!isOwner && !canView) {
@@ -187,14 +213,19 @@ exports.updateStoreOrderStatus = onCall(
           if (status !== "pending_payment") {
             return;
           }
-          const itemIds = Array.isArray(order.items) ?
+          const releaseItemIds = Array.isArray(order.items) ?
             order.items.map((item) => String(item.inventoryItemId || "")) :
             [];
-          await expireRelatedHeldReservations(transaction, {
-            shopId,
-            itemIds,
-            extraReservationIds: [orderId],
-            userId: uid,
+          const expiredRelease = await expireRelatedHeldReservations(
+              transaction, {
+                shopId,
+                itemIds: releaseItemIds,
+                extraReservationIds: [orderId],
+                userId: uid,
+              },
+          );
+          (expiredRelease.cancelledOrderIds || []).forEach((id) => {
+            expiredOrderIds.push(id);
           });
         } else {
           throw new HttpsError("invalid-argument", "不支援的訂單操作。");
@@ -202,6 +233,35 @@ exports.updateStoreOrderStatus = onCall(
 
         transaction.set(orderRef, update, {merge: true});
       });
+
+      const restoreIds = [];
+      if (restorePoints) {
+        restoreIds.push(orderId);
+      }
+      expiredOrderIds.forEach((id) => {
+        if (!restoreIds.includes(id)) {
+          restoreIds.push(id);
+        }
+      });
+      for (const id of restoreIds) {
+        const snap = await firestore
+            .collection("shops")
+            .doc(shopId)
+            .collection("store_orders")
+            .doc(id)
+            .get();
+        const order = snap.data() || {};
+        await restoreSpend(firestore, {
+          shopId,
+          bookingId: id,
+          booking: {
+            userId: normalizeString(order.userId) || restoreUserId,
+            pointAmount: toIntSafe(order.pointAmount) || restorePointAmount,
+          },
+          extraRef: snap.ref,
+          spendLogId: spendStoreLogId(id),
+        });
+      }
 
       if (completedOrder) {
         try {

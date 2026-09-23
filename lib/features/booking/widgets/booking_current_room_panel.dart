@@ -11,17 +11,25 @@ class BookingCurrentRoomPanel extends StatelessWidget {
     required this.data,
     required this.audience,
     this.compact = false,
+    this.tight = false,
+    this.unassignedStaffLabel,
   });
 
   final Map<String, dynamic> data;
   final BookingCurrentRoomAudience audience;
   final bool compact;
+  final bool tight;
+  final String? unassignedStaffLabel;
 
   @override
   Widget build(BuildContext context) {
     final BookingCurrentRoom room = BookingCurrentRoom.fromBooking(data);
     if (!room.needsRoomNameLookup) {
-      return _panel(context, room, room.physicalDisplay(audience));
+      return _panel(
+        context,
+        room,
+        _physicalLabel(room, room.physicalDisplay(audience)),
+      );
     }
     return FutureBuilder<Map<String, String>>(
       future: ShopRoomNameLookup.resolve(
@@ -29,18 +37,27 @@ class BookingCurrentRoomPanel extends StatelessWidget {
         roomIds: <String>[room.roomId],
       ),
       builder:
-          (
-            BuildContext context,
-            AsyncSnapshot<Map<String, String>> snapshot,
-          ) {
+          (BuildContext context, AsyncSnapshot<Map<String, String>> snapshot) {
             final String resolved = (snapshot.data?[room.roomId] ?? '').trim();
-            final String physical = snapshot.connectionState ==
-                    ConnectionState.waiting
+            final String physical =
+                snapshot.connectionState == ConnectionState.waiting
                 ? '讀取房號中'
-                : room.physicalDisplay(audience, resolvedRoomName: resolved);
+                : _physicalLabel(
+                    room,
+                    room.physicalDisplay(audience, resolvedRoomName: resolved),
+                  );
             return _panel(context, room, physical);
           },
     );
+  }
+
+  String _physicalLabel(BookingCurrentRoom room, String physical) {
+    if (audience == BookingCurrentRoomAudience.staff &&
+        !room.hasPhysicalRoom &&
+        (unassignedStaffLabel ?? '').trim().isNotEmpty) {
+      return unassignedStaffLabel!.trim();
+    }
+    return physical;
   }
 
   Widget _panel(
@@ -63,14 +80,11 @@ class BookingCurrentRoomPanel extends StatelessWidget {
     final ColorScheme scheme = theme.colorScheme;
     final Color ink = scheme.onSurface;
     final Color muted = ink.withValues(alpha: 0.62);
+    final bool dense = tight || compact;
+    final double pad = tight ? 13 : (compact ? 10 : 12);
     return Container(
       width: double.infinity,
-      padding: EdgeInsets.fromLTRB(
-        compact ? 10 : 12,
-        compact ? 10 : 12,
-        compact ? 10 : 12,
-        compact ? 10 : 12,
-      ),
+      padding: EdgeInsets.all(pad),
       decoration: BoxDecoration(
         color: scheme.primary.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(14),
@@ -80,16 +94,18 @@ class BookingCurrentRoomPanel extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
           Container(
-            width: compact ? 36 : 40,
-            height: compact ? 36 : 40,
+            width: tight ? 32 : (compact ? 36 : 40),
+            height: tight ? 32 : (compact ? 36 : 40),
             decoration: BoxDecoration(
               color: scheme.primary.withValues(alpha: 0.14),
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: BorderRadius.circular(10),
             ),
             child: Icon(
-              room.hasPhysicalRoom ? Icons.vpn_key_outlined : Icons.meeting_room_outlined,
+              room.hasPhysicalRoom
+                  ? Icons.vpn_key_outlined
+                  : Icons.meeting_room_outlined,
               color: scheme.primary,
-              size: compact ? 20 : 22,
+              size: tight ? 18 : (compact ? 20 : 22),
             ),
           ),
           const SizedBox(width: 10),
@@ -103,37 +119,36 @@ class BookingCurrentRoomPanel extends StatelessWidget {
                     fontSize: 12,
                     fontWeight: FontWeight.w800,
                     color: ink,
+                    height: 1.2,
                   ),
                 ),
-                const SizedBox(height: 8),
-                Text(
-                  '房型',
-                  style: TextStyle(fontSize: 11, color: muted),
-                ),
+                SizedBox(height: dense ? 4 : 8),
+                Text('房型', style: TextStyle(fontSize: 11, color: muted)),
                 Text(
                   room.typeDisplay(),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
                   style: TextStyle(
-                    fontSize: compact ? 14 : 15,
+                    fontSize: compact || tight ? 14 : 15,
                     fontWeight: FontWeight.w700,
                     color: ink,
+                    height: 1.25,
                   ),
                 ),
-                const SizedBox(height: 8),
-                Text(
-                  '實際房間',
-                  style: TextStyle(fontSize: 11, color: muted),
-                ),
+                SizedBox(height: dense ? 6 : 8),
+                Text('實際房間', style: TextStyle(fontSize: 11, color: muted)),
                 const SizedBox(height: 4),
                 Align(
                   alignment: Alignment.centerLeft,
                   child: Container(
                     padding: const EdgeInsets.symmetric(
                       horizontal: 10,
-                      vertical: 5,
+                      vertical: 4,
                     ),
                     decoration: BoxDecoration(
                       color: room.hasPhysicalRoom
-                          ? scheme.primary
+                          ? Color.lerp(scheme.primary, ink, 0.35) ??
+                                scheme.primary
                           : Colors.white.withValues(alpha: 0.9),
                       borderRadius: BorderRadius.circular(999),
                       border: room.hasPhysicalRoom
@@ -145,9 +160,7 @@ class BookingCurrentRoomPanel extends StatelessWidget {
                       style: TextStyle(
                         fontSize: 13,
                         fontWeight: FontWeight.w800,
-                        color: room.hasPhysicalRoom
-                            ? scheme.onPrimary
-                            : muted,
+                        color: room.hasPhysicalRoom ? scheme.onPrimary : muted,
                       ),
                     ),
                   ),

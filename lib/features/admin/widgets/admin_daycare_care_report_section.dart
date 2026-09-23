@@ -10,7 +10,7 @@ import 'package:petnest_saas/core/services/daily_care_setting_service.dart';
 import 'package:petnest_saas/features/booking/pages/customer_daily_care_page.dart';
 import 'package:petnest_saas/features/room/daily_care_record_edit_launcher.dart';
 
-class AdminDaycareCareReportSection extends StatelessWidget {
+class AdminDaycareCareReportSection extends StatefulWidget {
   const AdminDaycareCareReportSection({
     super.key,
     required this.shopId,
@@ -24,8 +24,18 @@ class AdminDaycareCareReportSection extends StatelessWidget {
   final Map<String, dynamic> booking;
   final bool compact;
 
+  @override
+  State<AdminDaycareCareReportSection> createState() =>
+      _AdminDaycareCareReportSectionState();
+}
+
+class _AdminDaycareCareReportSectionState
+    extends State<AdminDaycareCareReportSection> {
+  final Set<int> _locallyFilledSessions = <int>{};
+  int _streamEpoch = 0;
+
   List<String> get _petIds {
-    final Object? raw = booking['petIds'];
+    final Object? raw = widget.booking['petIds'];
     if (raw is! Iterable) {
       return const <String>[];
     }
@@ -35,10 +45,17 @@ class AdminDaycareCareReportSection extends StatelessWidget {
         .toList();
   }
 
+  Set<int> _filledSessions(List<DailyCareRecordModel> records) {
+    return <int>{
+      for (final DailyCareRecordModel record in records) record.sessionIndex,
+      ..._locallyFilledSessions,
+    };
+  }
+
   @override
   Widget build(BuildContext context) {
     return StreamBuilder<DailyCareSettingModel>(
-      stream: DailyCareSettingService.instance.streamSetting(shopId),
+      stream: DailyCareSettingService.instance.streamSetting(widget.shopId),
       builder:
           (
             BuildContext context,
@@ -49,19 +66,20 @@ class AdminDaycareCareReportSection extends StatelessWidget {
             if (!setting.daycareEnabled) {
               return const SizedBox.shrink();
             }
-            if (!DailyCareDaycareAccess.hasStartedCare(booking)) {
+            if (!DailyCareDaycareAccess.hasStartedCare(widget.booking)) {
               return const SizedBox.shrink();
             }
             final bool canFill = DailyCareDaycareAccess.canOperate(
               setting: setting,
-              booking: booking,
+              booking: widget.booking,
             );
             return StreamBuilder<List<DailyCareRecordModel>>(
+              key: ValueKey<int>(_streamEpoch),
               stream: DailyCareRecordService.instance.streamBookingRecords(
-                bookingId: bookingId,
-                shopId: shopId,
+                bookingId: widget.bookingId,
+                shopId: widget.shopId,
                 careDates: <DateTime>[
-                  DailyCareDaycareAccess.serviceCalendarDate(booking) ??
+                  DailyCareDaycareAccess.serviceCalendarDate(widget.booking) ??
                       DateTime.now(),
                 ],
                 sessionCount: setting.daycareSessionCount,
@@ -73,9 +91,10 @@ class AdminDaycareCareReportSection extends StatelessWidget {
                   ) {
                     final List<DailyCareRecordModel> records =
                         recordSnap.data ?? const <DailyCareRecordModel>[];
-                    final int filled = records.length;
+                    final Set<int> filledSessions = _filledSessions(records);
+                    final int filled = filledSessions.length;
                     final int total = setting.daycareSessionCount;
-                    if (compact) {
+                    if (widget.compact) {
                       return _compactActions(
                         context,
                         setting: setting,
@@ -102,10 +121,7 @@ class AdminDaycareCareReportSection extends StatelessWidget {
                                     ? () => _openFill(context, setting, index)
                                     : null,
                                 child: Text(
-                                  records.any(
-                                        (DailyCareRecordModel e) =>
-                                            e.sessionIndex == index,
-                                      )
+                                  filledSessions.contains(index)
                                       ? '編輯${setting.sessionLabelAt(index)}'
                                       : '填寫${setting.sessionLabelAt(index)}',
                                 ),
@@ -163,29 +179,39 @@ class AdminDaycareCareReportSection extends StatelessWidget {
     BuildContext context,
     DailyCareSettingModel setting,
     int sessionIndex,
-  ) {
-    return DailyCareRecordEditLauncher.open(
+  ) async {
+    final bool? saved = await DailyCareRecordEditLauncher.open(
       context: context,
-      shopId: shopId,
-      bookingId: bookingId,
+      shopId: widget.shopId,
+      bookingId: widget.bookingId,
       recordDate:
-          DailyCareDaycareAccess.serviceCalendarDate(booking) ?? DateTime.now(),
+          DailyCareDaycareAccess.serviceCalendarDate(widget.booking) ??
+          DateTime.now(),
       sessionIndex: sessionIndex,
-      roomId: (booking['roomId'] ?? '').toString(),
-      roomName: (booking['roomName'] ?? '').toString(),
+      roomId: (widget.booking['roomId'] ?? '').toString(),
+      roomName: (widget.booking['roomName'] ?? '').toString(),
       serviceType: DailyCareServiceTypes.daycare,
       petIds: _petIds,
       setting: setting,
     );
+    if (!mounted) {
+      return;
+    }
+    if (saved == true) {
+      setState(() {
+        _locallyFilledSessions.add(sessionIndex);
+        _streamEpoch += 1;
+      });
+    }
   }
 
   Future<void> _openView(BuildContext context) {
     return Navigator.of(context).push(
       MaterialPageRoute<void>(
         builder: (_) => CustomerDailyCarePage(
-          shopId: shopId,
-          bookingId: bookingId,
-          roomName: (booking['roomName'] ?? '').toString(),
+          shopId: widget.shopId,
+          bookingId: widget.bookingId,
+          roomName: (widget.booking['roomName'] ?? '').toString(),
           previewMode: true,
           journalTitle: '本次安親回報',
         ),

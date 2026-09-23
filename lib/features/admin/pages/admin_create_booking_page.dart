@@ -50,6 +50,8 @@ import 'package:petnest_saas/core/services/daily_care_entitlement_math.dart';
 import 'package:petnest_saas/core/services/daily_care_photo_function_service.dart';
 import 'package:petnest_saas/core/services/daily_care_setting_service.dart';
 import 'package:petnest_saas/features/shop/widgets/booking/daily_care_upgrade_card.dart';
+import 'package:petnest_saas/core/models/point_setting_model.dart';
+import 'package:petnest_saas/features/shop/widgets/booking/booking_points_redeem_section.dart';
 
 class AdminCreateBookingPage extends StatefulWidget {
   const AdminCreateBookingPage({super.key, required this.shopId});
@@ -103,6 +105,8 @@ class _AdminCreateBookingPageState extends State<AdminCreateBookingPage> {
   String? _paymentMethod;
   String _payAmountType = 'deposit';
   bool _submitting = false;
+  int _requestedPoints = 0;
+  int _pointDiscountNtd = 0;
   bool _policyRequired = false;
   int _policyVersion = 0;
   String? _policySignMethod;
@@ -343,12 +347,12 @@ class _AdminCreateBookingPageState extends State<AdminCreateBookingPage> {
         setting: _dailyCareSetting,
         isDaycare: false,
         shopDaycareOn: true,
-        offerId: (_selectedRoomType?['roomTypeId'] ??
-                _selectedRoomType?['id'] ??
-                '')
-            .toString(),
+        offerId:
+            (_selectedRoomType?['roomTypeId'] ?? _selectedRoomType?['id'] ?? '')
+                .toString(),
         offerName: (_selectedRoomType?['name'] ?? '').toString(),
-        purchaseAddon: _selectedDailyCareAddonId != null &&
+        purchaseAddon:
+            _selectedDailyCareAddonId != null &&
             _selectedDailyCareAddonId!.isNotEmpty,
         nights: _startDate != null && _endDate != null
             ? _endDate!.difference(_startDate!).inDays
@@ -691,11 +695,10 @@ class _AdminCreateBookingPageState extends State<AdminCreateBookingPage> {
                       },
                       onPetChanged: (String petId, Map<String, dynamic> next) {
                         setState(() {
-                          _adminPetFormAnswers =
-                              <String, Map<String, dynamic>>{
-                                ..._adminPetFormAnswers,
-                                petId: next,
-                              };
+                          _adminPetFormAnswers = <String, Map<String, dynamic>>{
+                            ..._adminPetFormAnswers,
+                            petId: next,
+                          };
                         });
                       },
                     ),
@@ -2040,7 +2043,12 @@ class _AdminCreateBookingPageState extends State<AdminCreateBookingPage> {
               (_selectedPetIds.length > 1 ? _selectedPetIds.length - 1 : 0) *
               nights) +
           ((discountInfo['specialDateSurchargeAmount'] ?? 0) as num).toInt();
-      final finalTotal = ((discountInfo['finalTotal'] ?? 0) as num).toInt();
+      final int couponFinal = ((discountInfo['finalTotal'] ?? 0) as num)
+          .toInt();
+      final finalTotal = PointSettingModel.payableAfterPoints(
+        afterCoupon: couponFinal,
+        pointAmount: _pointDiscountNtd,
+      );
 
       final calculatedDepositAmount = _calculateDepositAmount(
         roomSubtotal: roomSubtotal,
@@ -2066,8 +2074,7 @@ class _AdminCreateBookingPageState extends State<AdminCreateBookingPage> {
           quotedCare['entitlement'] is Map
           ? Map<String, dynamic>.from(quotedCare['entitlement'] as Map)
           : <String, dynamic>{};
-      final int quotedCareAmount = ((quotedCare['amount'] ?? 0) as num)
-          .toInt();
+      final int quotedCareAmount = ((quotedCare['amount'] ?? 0) as num).toInt();
       if (quotedCareAmount != (_dailyCareQuote()?.amount ?? 0)) {
         throw Exception('照護加購金額與後端核對不一致，請重新選擇後再送出');
       }
@@ -2115,7 +2122,7 @@ class _AdminCreateBookingPageState extends State<AdminCreateBookingPage> {
         roomSubtotal: roomSubtotal,
         roomImages: roomType['images'] ?? [],
 
-        totalPrice: finalTotal,
+        totalPrice: couponFinal,
         originalTotal: ((discountInfo['originalTotal'] ?? 0) as num).toInt(),
         specialDateSurchargeAmount:
             ((discountInfo['specialDateSurchargeAmount'] ?? 0) as num).toInt(),
@@ -2151,6 +2158,7 @@ class _AdminCreateBookingPageState extends State<AdminCreateBookingPage> {
             : 0,
 
         allowCouponTogether: discountInfo['allowCouponTogether'] == true,
+        requestedPoints: _requestedPoints,
         pets: _pets,
         addons: bookingAddons,
         dailyCareEntitlement: careEntitlement,
@@ -2160,10 +2168,9 @@ class _AdminCreateBookingPageState extends State<AdminCreateBookingPage> {
         adminOrderSource: _adminOrderSource,
         adminCustomFormAnswers: _adminForm?.shouldCollectAnswers == true
             ? BookingOrderFormAnswers.buildOrderSnapshot(
-                    form: _adminForm!,
-                    answersByQuestionId: _adminFormAnswers,
-                  )
-                  ?.toFirestoreMap()
+                form: _adminForm!,
+                answersByQuestionId: _adminFormAnswers,
+              )?.toCallableMap()
             : null,
         adminPetFormAnswersByPetId: _adminForm?.shouldCollectAnswers == true
             ? BookingOrderFormAnswers.encodeByPetId(
@@ -2244,63 +2251,96 @@ class _AdminCreateBookingPageState extends State<AdminCreateBookingPage> {
               )
             : null;
 
-        return AdminCreateBookingConfirmSection(
-          member: _selectedMember,
-          roomType: _selectedRoomType,
-          startDate: _startDate,
-          endDate: _endDate,
-          selectedPetIds: _selectedPetIds,
-          selectedTimeAddon: _selectedTimeAddon,
-          selectedValueServices: _selectedValueServices,
-          selectedCustomServices: _selectedCustomServices,
-          selectedDailyTimedServices: _selectedDailyTimedServices,
-          dailyCareAmount: _dailyCareQuote()?.amount ?? 0,
-          dailyCareEntitlement: _dailyCareQuote(),
-          pets: _pets,
-          addonData: _addonData,
-          adminOrderSource: _adminOrderSource,
-          applyLongStayDiscount: _applyLongStayDiscount,
-          onApplyLongStayDiscountChanged: (value) {
-            setState(() {
-              _applyLongStayDiscount = value;
-            });
-          },
-          discountInfo: discountInfo,
-          noteController: _noteController,
-          depositEnabled: _depositEnabled,
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: <Widget>[
+            AdminCreateBookingConfirmSection(
+              member: _selectedMember,
+              roomType: _selectedRoomType,
+              startDate: _startDate,
+              endDate: _endDate,
+              selectedPetIds: _selectedPetIds,
+              selectedTimeAddon: _selectedTimeAddon,
+              selectedValueServices: _selectedValueServices,
+              selectedCustomServices: _selectedCustomServices,
+              selectedDailyTimedServices: _selectedDailyTimedServices,
+              dailyCareAmount: _dailyCareQuote()?.amount ?? 0,
+              dailyCareEntitlement: _dailyCareQuote(),
+              pets: _pets,
+              addonData: _addonData,
+              adminOrderSource: _adminOrderSource,
+              applyLongStayDiscount: _applyLongStayDiscount,
+              onApplyLongStayDiscountChanged: (value) {
+                setState(() {
+                  _applyLongStayDiscount = value;
+                });
+              },
+              discountInfo: discountInfo,
+              noteController: _noteController,
+              depositEnabled: _depositEnabled,
 
-          depositAmount: _payAmountType == 'full'
-              ? (discountInfo?['finalTotal'] ?? 0) as int
-              : _calculateDepositAmount(
-                  roomSubtotal:
-                      ((_selectedRoomType?['price'] ?? 0) as int) * nights,
-                  finalTotal: (discountInfo?['finalTotal'] ?? 0) as int,
-                ),
+              depositAmount: _payAmountType == 'full'
+                  ? PointSettingModel.payableAfterPoints(
+                      afterCoupon: (discountInfo?['finalTotal'] ?? 0) as int,
+                      pointAmount: _pointDiscountNtd,
+                    )
+                  : _calculateDepositAmount(
+                      roomSubtotal:
+                          ((_selectedRoomType?['price'] ?? 0) as int) * nights,
+                      finalTotal: PointSettingModel.payableAfterPoints(
+                        afterCoupon: (discountInfo?['finalTotal'] ?? 0) as int,
+                        pointAmount: _pointDiscountNtd,
+                      ),
+                    ),
 
-          payAmountType: _payAmountType,
+              payAmountType: _payAmountType,
 
-          paymentMethod: _paymentMethod,
+              paymentMethod: _paymentMethod,
 
-          paymentCatalog: _paymentCatalog,
-          isManualMember: ShopMemberKind.isManualMember(_selectedMember),
+              paymentCatalog: _paymentCatalog,
+              isManualMember: ShopMemberKind.isManualMember(_selectedMember),
+              pointAmount: _pointDiscountNtd,
 
-          onPayAmountTypeChanged: (value) {
-            setState(() {
-              _payAmountType = value;
-            });
-          },
+              onPayAmountTypeChanged: (value) {
+                setState(() {
+                  _payAmountType = value;
+                });
+              },
 
-          onPaymentMethodChanged: (value) {
-            setState(() {
-              _paymentMethod = value;
-            });
-          },
-          formatDate: _formatDate,
-          onOrderSourceChanged: (value) {
-            setState(() {
-              _adminOrderSource = value;
-            });
-          },
+              onPaymentMethodChanged: (value) {
+                setState(() {
+                  _paymentMethod = value;
+                });
+              },
+              formatDate: _formatDate,
+              onOrderSourceChanged: (value) {
+                setState(() {
+                  _adminOrderSource = value;
+                });
+              },
+            ),
+            BookingPointsRedeemSection(
+              shopId: widget.shopId,
+              userId: (_selectedMember?['userId'] ?? '').toString(),
+              channel: 'stay',
+              payableAfterCoupon: (discountInfo?['finalTotal'] ?? 0) as int,
+              requestedPoints: _requestedPoints,
+              onRequestedPointsChanged: (int value) {
+                if (_requestedPoints != value) {
+                  setState(() => _requestedPoints = value);
+                }
+              },
+              onPreview: (int ntd, int used) {
+                if (_pointDiscountNtd != ntd || _requestedPoints != used) {
+                  setState(() {
+                    _pointDiscountNtd = ntd;
+                    _requestedPoints = used;
+                  });
+                }
+              },
+              member: _selectedMember,
+            ),
+          ],
         );
       },
     );
