@@ -24,6 +24,14 @@ void main() {
     expect(DailyCareDateHelper.displayDateKey('20260920'), '2026/09/20');
   });
 
+  test('taipeiTodayUtcRange 是台灣日 00:00 到隔日 00:00', () {
+    final DateTime now = DateTime.utc(2026, 9, 21, 16, 5);
+    final ({DateTime startUtc, DateTime endUtc}) range =
+        DailyCareDateHelper.taipeiTodayUtcRange(now);
+    expect(range.startUtc, DateTime.utc(2026, 9, 21, 16));
+    expect(range.endUtc, DateTime.utc(2026, 9, 22, 16));
+  });
+
   test('同日入住退房為 0 天', () {
     expect(
       DailyCareDateHelper.careDates(

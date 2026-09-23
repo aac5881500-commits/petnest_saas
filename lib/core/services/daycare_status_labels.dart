@@ -2,6 +2,7 @@
 // 功能說明：安親訂單狀態中文顯示（資料庫原始值不改）
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:petnest_saas/core/models/daily_care_date_helper.dart';
 import 'package:petnest_saas/core/services/booking_settlement_math.dart';
 
 class DaycareStatusLabels {
@@ -41,14 +42,7 @@ class DaycareStatusLabels {
     if (status != 'confirmed' && status != 'checked_in') {
       return false;
     }
-    final String assign = (data['assignStatus'] ?? '').toString();
-    if (assign == 'assigned') {
-      return false;
-    }
-    if (assign == 'unassigned') {
-      return true;
-    }
-    return (data['roomId'] ?? '').toString().trim().isEmpty;
+    return (data['assignStatus'] ?? '').toString() == 'unassigned';
   }
 
   static bool isDepositReview(Map<String, dynamic> data) {
@@ -113,28 +107,27 @@ class DaycareStatusLabels {
     return fallback;
   }
 
+  static DateTime? asDate(dynamic raw) {
+    if (raw is Timestamp) {
+      return raw.toDate();
+    }
+    if (raw is DateTime) {
+      return raw;
+    }
+    return null;
+  }
+
   static bool matchesFilter(Map<String, dynamic> data, String filter) {
     if (filter == 'all' || filter.isEmpty) {
       return true;
     }
     final String status = (data['status'] ?? '').toString();
-    final DateTime now = DateTime.now();
-    final DateTime todayStart = DateTime(now.year, now.month, now.day);
-    final DateTime todayEnd = todayStart.add(const Duration(days: 1));
-    DateTime? asDate(dynamic raw) {
-      if (raw is Timestamp) {
-        return raw.toDate();
-      }
-      if (raw is DateTime) {
-        return raw;
-      }
-      return null;
-    }
-
-    final DateTime? start =
+    final DateTime? dropOff =
         asDate(data['scheduledStartAt']) ?? asDate(data['startDate']);
-    final DateTime? end =
+    final DateTime? pickUp =
         asDate(data['scheduledEndAt']) ?? asDate(data['endDate']);
+    final DateTime? stayStart = asDate(data['startDate']);
+    final DateTime? stayEnd = asDate(data['endDate']);
     switch (filter) {
       case 'pending':
         return !isHistory(data) &&
@@ -148,20 +141,27 @@ class DaycareStatusLabels {
       case 'awaitingRoom':
         return isAwaitingRoom(data);
       case 'checked_in':
-        return !isHistory(data) &&
-            (status == 'checked_in' ||
-                status == 'checked_out' ||
-                BookingSettlementMath.isAwaitingClear(data));
+        return !isHistory(data) && status == 'checked_in';
       case 'todayDropOff':
         return !isHistory(data) &&
-            start != null &&
-            !start.isBefore(todayStart) &&
-            start.isBefore(todayEnd);
+            dropOff != null &&
+            DailyCareDateHelper.isOnTaipeiToday(dropOff);
       case 'todayPickUp':
         return !isHistory(data) &&
-            end != null &&
-            !end.isBefore(todayStart) &&
-            end.isBefore(todayEnd);
+            pickUp != null &&
+            DailyCareDateHelper.isOnTaipeiToday(pickUp);
+      case 'todayCheckIn':
+        return !isHistory(data) &&
+            stayStart != null &&
+            DailyCareDateHelper.isOnTaipeiToday(stayStart);
+      case 'todayCheckOut':
+        return !isHistory(data) &&
+            stayEnd != null &&
+            DailyCareDateHelper.isOnTaipeiToday(stayEnd);
+      case 'futureCheckIn':
+        return !isHistory(data) &&
+            stayStart != null &&
+            DailyCareDateHelper.isAfterTaipeiToday(stayStart);
       case 'history':
         return isHistory(data);
       case 'completed':

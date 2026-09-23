@@ -22,6 +22,35 @@ class DailyCareDateHelper {
     return calendarDateInTaipei(now ?? DateTime.now());
   }
 
+  /// Asia/Taipei 該日曆日 00:00 對應的 UTC 瞬間（Firestore Timestamp 範圍用）。
+  static DateTime taipeiDayStartUtc(DateTime day) {
+    return DateTime.utc(
+      day.year,
+      day.month,
+      day.day,
+    ).subtract(const Duration(hours: 8));
+  }
+
+  /// 台灣今天 00:00（含）到隔天 00:00（不含）。
+  static ({DateTime startUtc, DateTime endUtc}) taipeiTodayUtcRange([
+    DateTime? now,
+  ]) {
+    final DateTime startUtc = taipeiDayStartUtc(todayInTaipei(now));
+    return (startUtc: startUtc, endUtc: startUtc.add(const Duration(days: 1)));
+  }
+
+  static bool isOnTaipeiToday(DateTime instant, [DateTime? now]) {
+    final DateTime day = calendarDateInTaipei(instant);
+    final DateTime today = todayInTaipei(now);
+    return day.year == today.year &&
+        day.month == today.month &&
+        day.day == today.day;
+  }
+
+  static bool isAfterTaipeiToday(DateTime instant, [DateTime? now]) {
+    return calendarDateInTaipei(instant).isAfter(todayInTaipei(now));
+  }
+
   static String dateKey(DateTime value) {
     final DateTime day = dateOnly(value);
     return '${day.year}/'

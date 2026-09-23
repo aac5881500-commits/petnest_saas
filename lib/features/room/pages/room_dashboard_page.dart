@@ -1,22 +1,63 @@
 // 檔案名稱：lib/features/room/pages/room_dashboard_page.dart
-// 功能說明：房務管理（最終穩定版 小日曆 + 防呆）
+// 功能說明：房務管理工作台（手機清單／桌機雙欄），即時監聽與操作回饋。
 
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:petnest_saas/core/constants/shop_permission_keys.dart';
+import 'package:petnest_saas/core/models/shop_task_item.dart';
+import 'package:petnest_saas/core/navigation/admin_booking_route.dart';
+import 'package:petnest_saas/core/presentation/room_status_presentation.dart';
 import 'package:petnest_saas/core/services/daycare_occupancy_service.dart';
 import 'package:petnest_saas/core/services/shop_room_service.dart';
 import 'package:petnest_saas/core/services/shop_service.dart';
-import 'package:petnest_saas/features/auth/pages/room_calendar_page.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:petnest_saas/core/constants/shop_permission_keys.dart';
-import 'package:petnest_saas/core/navigation/admin_booking_route.dart';
-import 'package:petnest_saas/core/presentation/room_status_presentation.dart';
-import 'package:petnest_saas/core/utils/natural_sort.dart';
-import 'package:petnest_saas/features/room/pages/housekeeping_setting_page.dart';
-import 'package:petnest_saas/core/models/shop_task_item.dart';
 import 'package:petnest_saas/core/services/shop_task_center_service.dart';
+import 'package:petnest_saas/core/utils/natural_sort.dart';
 import 'package:petnest_saas/core/widgets/shop_task_center_button.dart';
+import 'package:petnest_saas/features/admin/widgets/admin_daily_care_report_shortcut.dart';
+import 'package:petnest_saas/features/auth/pages/room_calendar_page.dart';
+import 'package:petnest_saas/features/room/pages/housekeeping_setting_page.dart';
+import 'package:petnest_saas/features/room/widgets/room_status_chip.dart';
+
+enum _RoomQuickFilter { all, needs, checkedIn, vacant }
+
+class _DashRoom {
+  const _DashRoom({
+    required this.room,
+    required this.label,
+    required this.presentation,
+    this.booking,
+    this.bookingId = '',
+    this.care,
+  });
+
+  final Map<String, dynamic> room;
+  final String label;
+  final RoomStatusPresentation presentation;
+  final Map<String, dynamic>? booking;
+  final String bookingId;
+  final ShopRoomCareProgress? care;
+
+  String get id => (room['id'] ?? '').toString();
+  String get name => (room['name'] ?? '').toString();
+  String get typeName {
+    final String name = (room['roomTypeName'] ?? '').toString().trim();
+    return name.isEmpty ? '未分類' : name;
+  }
+
+  bool get needsAction {
+    if (label == DaycareOccupancyService.cleaningLabel ||
+        label == DaycareOccupancyService.maintenanceLabel ||
+        label == DaycareOccupancyService.closedLabel) {
+      return true;
+    }
+    if (label == '入住中' && care != null && !care!.isComplete) {
+      return true;
+    }
+    return false;
+  }
+}
 
 class RoomDashboardPage extends StatefulWidget {
   const RoomDashboardPage({super.key, required this.shopId});
@@ -28,29 +69,40 @@ class RoomDashboardPage extends StatefulWidget {
 }
 
 class _RoomDashboardPageState extends State<RoomDashboardPage> {
-  DateTime selectedDate = DateTime.now();
+  static const double _desktopMin = 700;
+  static const double _contentMax = 1520;
 
+  DateTime selectedDate = DateTime.now();
   bool _loadingPermission = true;
   bool _hasPermission = false;
-  bool _showUnassignedBookings = false;
   String _selectedRoomTypeFilter = '__all__';
+  _RoomQuickFilter _quickFilter = _RoomQuickFilter.all;
+  final Set<String> _collapsedTypes = <String>{};
+  final Set<String> _busyKeys = <String>{};
+  int _streamRetry = 0;
 
   DateTime get weekStart {
-    final d = selectedDate;
-    return DateTime(
-      d.year,
-      d.month,
-      d.day,
-    ).subtract(Duration(days: d.weekday - 1));
+    final DateTime d = DateTime(
+      selectedDate.year,
+      selectedDate.month,
+      selectedDate.day,
+    );
+    return d.subtract(Duration(days: d.weekday - 1));
   }
 
   List<DateTime> get weekDays {
-    return List.generate(7, (index) => weekStart.add(Duration(days: index)));
+    return List<DateTime>.generate(
+      7,
+      (int index) => weekStart.add(Duration(days: index)),
+    );
   }
 
-  Future<void> _checkPermission() async {
-    final user = FirebaseAuth.instance.currentUser;
+  String get dateStr => DateFormat('yyyy-MM-dd').format(selectedDate);
 
+  String _actionKey(String roomId) => '$roomId|$dateStr';
+
+  Future<void> _checkPermission() async {
+    final User? user = FirebaseAuth.instance.currentUser;
     if (user == null) {
       setState(() {
         _loadingPermission = false;
@@ -58,26 +110,20 @@ class _RoomDashboardPageState extends State<RoomDashboardPage> {
       });
       return;
     }
-
-    final memberData = await ShopService.instance.getUserMemberInShop(
-      shopId: widget.shopId,
-      uid: user.uid,
-    );
-
-    final hasPermission = ShopService.instance.hasPermission(
+    final Map<String, dynamic>? memberData = await ShopService.instance
+        .getUserMemberInShop(shopId: widget.shopId, uid: user.uid);
+    final bool hasPermission = ShopService.instance.hasPermission(
       memberData,
       ShopPermissionKeys.manageRoomDashboard,
     );
-
-    if (!mounted) return;
-
+    if (!mounted) {
+      return;
+    }
     setState(() {
       _loadingPermission = false;
       _hasPermission = hasPermission;
     });
   }
-
-  String get dateStr => DateFormat('yyyy-MM-dd').format(selectedDate);
 
   @override
   void initState() {
@@ -90,7 +136,6 @@ class _RoomDashboardPageState extends State<RoomDashboardPage> {
     if (_loadingPermission) {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
-
     if (!_hasPermission) {
       return Scaffold(
         appBar: AppBar(title: const Text('權限限制')),
@@ -98,9 +143,10 @@ class _RoomDashboardPageState extends State<RoomDashboardPage> {
       );
     }
     return Scaffold(
+      backgroundColor: const Color(0xFFF6F7F9),
       appBar: AppBar(
         title: const Text('房務管理'),
-        actions: [
+        actions: <Widget>[
           ShopTaskCenterButton(shopId: widget.shopId),
           IconButton(
             tooltip: '房務設定',
@@ -116,1003 +162,501 @@ class _RoomDashboardPageState extends State<RoomDashboardPage> {
           ),
         ],
       ),
-      body: Column(
-        children: [
-          /// 📅 週日期切換
-          SizedBox(
-            height: 76,
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(8, 6, 8, 6),
-              child: Row(
-                children: [
-                  IconButton(
-                    icon: const Icon(Icons.chevron_left),
-                    onPressed: () {
-                      setState(() {
-                        selectedDate = selectedDate.subtract(
-                          const Duration(days: 7),
-                        );
-                      });
-                    },
-                  ),
-                  Expanded(
-                    child: Row(
-                      children: List.generate(7, (i) {
-                        final day = weekDays[i];
-                        final isSelected =
-                            day.year == selectedDate.year &&
-                            day.month == selectedDate.month &&
-                            day.day == selectedDate.day;
-
-                        final weekNames = ['一', '二', '三', '四', '五', '六', '日'];
-
-                        return Expanded(
-                          child: GestureDetector(
-                            onTap: () {
-                              setState(() {
-                                selectedDate = day;
-                              });
-                            },
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 2,
-                                vertical: 5,
-                              ),
-                              decoration: BoxDecoration(
-                                color: isSelected
-                                    ? Colors.blue.withValues(alpha: 0.08)
-                                    : Colors.transparent,
-                                borderRadius: BorderRadius.circular(12),
-                                border: Border.all(
-                                  color: isSelected
-                                      ? Colors.blue
-                                      : Colors.transparent,
-                                ),
-                              ),
-                              child: Column(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Text(
-                                    '${day.month}/${day.day}',
-                                    style: const TextStyle(
-                                      fontSize: 13,
-                                      fontWeight: FontWeight.w800,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 2),
-                                  Text(
-                                    weekNames[i],
-                                    style: const TextStyle(
-                                      fontSize: 11,
-                                      color: Colors.grey,
-                                      fontWeight: FontWeight.w700,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        );
-                      }),
-                    ),
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.chevron_right),
-                    onPressed: () {
-                      setState(() {
-                        selectedDate = selectedDate.add(
-                          const Duration(days: 7),
-                        );
-                      });
-                    },
-                  ),
-                ],
-              ),
-            ),
-          ),
-
-          /// 🏠 房間列表
-          Expanded(
-            child: StreamBuilder<List<Map<String, dynamic>>>(
-              stream: ShopService.instance.streamRooms(widget.shopId),
-              builder: (context, snapshot) {
-                final rooms = snapshot.data ?? [];
-
-                rooms.sort((a, b) {
-                  final aRoomType = (a['roomTypeName'] ?? a['roomTypeId'] ?? '')
-                      .toString();
-
-                  final bRoomType = (b['roomTypeName'] ?? b['roomTypeId'] ?? '')
-                      .toString();
-
-                  final roomTypeResult = naturalCompare(aRoomType, bRoomType);
-
-                  if (roomTypeResult != 0) {
-                    return roomTypeResult;
+      body: LayoutBuilder(
+        builder: (BuildContext context, BoxConstraints constraints) {
+          final bool desktop = constraints.maxWidth >= _desktopMin;
+          return StreamBuilder<List<Map<String, dynamic>>>(
+            key: ValueKey<int>(_streamRetry),
+            stream: ShopService.instance.streamRooms(widget.shopId),
+            builder:
+                (
+                  BuildContext context,
+                  AsyncSnapshot<List<Map<String, dynamic>>> roomSnap,
+                ) {
+                  if (roomSnap.hasError) {
+                    return _errorPane('房間資料讀取失敗', roomSnap.error);
                   }
-
-                  final aName = (a['name'] ?? '').toString();
-                  final bName = (b['name'] ?? '').toString();
-
-                  return naturalCompare(aName, bName);
-                });
-                if (rooms.isEmpty) {
-                  return const Center(child: Text('尚無房間'));
-                }
-                final roomTypeNames =
-                    rooms
-                        .map((room) {
-                          final name = (room['roomTypeName'] ?? '')
-                              .toString()
-                              .trim();
-
-                          return name.isEmpty ? '未分類' : name;
-                        })
-                        .toSet()
-                        .toList()
-                      ..sort(naturalCompare);
-
-                final effectiveRoomTypeFilter =
-                    _selectedRoomTypeFilter == '__all__' ||
-                        roomTypeNames.contains(_selectedRoomTypeFilter)
-                    ? _selectedRoomTypeFilter
-                    : '__all__';
-
-                final filteredRooms = effectiveRoomTypeFilter == '__all__'
-                    ? rooms
-                    : rooms.where((room) {
-                        final name = (room['roomTypeName'] ?? '')
-                            .toString()
-                            .trim();
-                        final roomTypeName = name.isEmpty ? '未分類' : name;
-
-                        return roomTypeName == effectiveRoomTypeFilter;
-                      }).toList();
-
-                return StreamBuilder<ShopTaskCenterSnapshot>(
-                  stream: ShopTaskCenterService.instance.streamSnapshot(
-                    shopId: widget.shopId,
-                    canViewBookings: false,
-                    canFillDailyCare: true,
-                    careDate: DateTime(
-                      selectedDate.year,
-                      selectedDate.month,
-                      selectedDate.day,
+                  if (!roomSnap.hasData) {
+                    return const Center(child: CircularProgressIndicator());
+                  }
+                  final List<Map<String, dynamic>> rooms =
+                      List<Map<String, dynamic>>.from(roomSnap.data!)
+                        ..sort(_compareRooms);
+                  return StreamBuilder<ShopTaskCenterSnapshot>(
+                    stream: ShopTaskCenterService.instance.streamSnapshot(
+                      shopId: widget.shopId,
+                      canViewBookings: false,
+                      canFillDailyCare: true,
+                      careDate: DateTime(
+                        selectedDate.year,
+                        selectedDate.month,
+                        selectedDate.day,
+                      ),
                     ),
-                  ),
-                  builder: (context, careSnap) {
-                    final Map<String, ShopRoomCareProgress> careProgress =
-                        careSnap.data?.roomCareProgress ??
-                        const <String, ShopRoomCareProgress>{};
-
-                    return StreamBuilder<QuerySnapshot>(
-                      stream: FirebaseFirestore.instance
-                          .collection('bookings')
-                          .where('shopId', isEqualTo: widget.shopId)
-                          .where(
-                            'status',
-                            whereIn: [
-                              'pending',
-                              'confirmed',
-                              'checked_in',
-                              'completed',
-                            ],
-                          )
-                          .snapshots(),
-                      builder: (context, bookingSnap) {
-                        final bookings = bookingSnap.data?.docs ?? [];
-                        final unassignedBookings = bookings.where((doc) {
-                          final data = doc.data() as Map<String, dynamic>;
-
-                          return data['assignStatus'] == 'unassigned' &&
-                              data['status'] != 'cancelled' &&
-                              data['status'] != 'completed';
-                        }).toList();
-
-                        return StreamBuilder<QuerySnapshot>(
-                          stream: ShopService.instance
-                              .roomCalendarRef(widget.shopId)
-                              .snapshots(),
-                          builder: (context, calendarSnap) {
-                            final calendarDocs = calendarSnap.data?.docs ?? [];
-
-                            final roomCalendarStatus = <String, String>{};
-
-                            for (var doc in calendarDocs) {
-                              final data = doc.data() as Map<String, dynamic>;
-                              final roomId = (data['roomId'] ?? '').toString();
-                              final date = (data['date'] ?? '').toString();
-                              final status = (data['status'] ?? '').toString();
-
-                              roomCalendarStatus['$roomId|$date'] = status;
-                            }
-
-                            final roomStatusList = filteredRooms.map((room) {
-                              Map<String, dynamic>? todayBooking;
-
-                              for (var doc in bookings) {
-                                final data = doc.data() as Map<String, dynamic>;
-
-                                if (data['roomId'] != room['id']) continue;
-
-                                final start = (data['startDate'] as Timestamp)
-                                    .toDate();
-                                final end = (data['endDate'] as Timestamp)
-                                    .toDate();
-                                final now = DateTime.parse(dateStr);
-
-                                if (now.isAfter(
-                                      start.subtract(const Duration(days: 1)),
-                                    ) &&
-                                    now.isBefore(end)) {
-                                  todayBooking = data;
-                                  break;
-                                }
-                              }
-
-                              return _housekeepingLabelFor(
-                                room: room,
-                                dateKey: dateStr,
-                                roomCalendarStatus: roomCalendarStatus,
-                                booking: todayBooking,
-                              );
-                            }).toList();
-
-                            final emptyCount = roomStatusList
+                    builder:
+                        (
+                          BuildContext context,
+                          AsyncSnapshot<ShopTaskCenterSnapshot> careSnap,
+                        ) {
+                          final Map<String, ShopRoomCareProgress> careProgress =
+                              careSnap.data?.roomCareProgress ??
+                              const <String, ShopRoomCareProgress>{};
+                          return StreamBuilder<QuerySnapshot>(
+                            stream: FirebaseFirestore.instance
+                                .collection('bookings')
+                                .where('shopId', isEqualTo: widget.shopId)
                                 .where(
-                                  (status) =>
-                                      status ==
-                                      DaycareOccupancyService.vacantLabel,
+                                  'status',
+                                  whereIn: <String>[
+                                    'pending',
+                                    'confirmed',
+                                    'checked_in',
+                                    'completed',
+                                  ],
                                 )
-                                .length;
-
-                            final disabledCount = roomStatusList
-                                .where(
-                                  (status) =>
-                                      status ==
-                                      DaycareOccupancyService.disabledLabel,
-                                )
-                                .length;
-
-                            final usingCount = roomStatusList.where((status) {
-                              return status == '已訂' ||
-                                  status == '入住中' ||
-                                  status == '已完成';
-                            }).length;
-
-                            final cleaningCount = roomStatusList
-                                .where((status) => status == '清潔中')
-                                .length;
-
-                            final closedCount = roomStatusList
-                                .where((status) => status == '今日關閉')
-                                .length;
-
-                            final blockedCount = roomStatusList
-                                .where((status) => status == '維修中')
-                                .length;
-
-                            return Column(
-                              children: [
-                                SizedBox(
-                                  height: 52,
-                                  child: ListView(
-                                    scrollDirection: Axis.horizontal,
-                                    padding: const EdgeInsets.fromLTRB(
-                                      12,
-                                      6,
-                                      12,
-                                      6,
-                                    ),
-                                    children: [
-                                      Padding(
-                                        padding: const EdgeInsets.only(
-                                          right: 8,
-                                        ),
-                                        child: ChoiceChip(
-                                          label: Text('全部 (${rooms.length})'),
-                                          selected:
-                                              effectiveRoomTypeFilter ==
-                                              '__all__',
-                                          onSelected: (_) {
-                                            setState(() {
-                                              _selectedRoomTypeFilter =
-                                                  '__all__';
-                                            });
-                                          },
-                                        ),
-                                      ),
-                                      ...roomTypeNames.map((roomTypeName) {
-                                        final count = rooms.where((room) {
-                                          final name =
-                                              (room['roomTypeName'] ?? '')
-                                                  .toString()
-                                                  .trim();
-                                          final currentRoomTypeName =
-                                              name.isEmpty ? '未分類' : name;
-
-                                          return currentRoomTypeName ==
-                                              roomTypeName;
-                                        }).length;
-
-                                        return Padding(
-                                          padding: const EdgeInsets.only(
-                                            right: 8,
-                                          ),
-                                          child: ChoiceChip(
-                                            label: Text(
-                                              '$roomTypeName ($count)',
-                                            ),
-                                            selected:
-                                                effectiveRoomTypeFilter ==
-                                                roomTypeName,
-                                            onSelected: (_) {
-                                              setState(() {
-                                                _selectedRoomTypeFilter =
-                                                    roomTypeName;
-                                              });
-                                            },
-                                          ),
-                                        );
-                                      }),
-                                    ],
-                                  ),
-                                ),
-                                if (unassignedBookings.isNotEmpty)
-                                  Container(
-                                    width: double.infinity,
-                                    margin: const EdgeInsets.fromLTRB(
-                                      12,
-                                      8,
-                                      12,
-                                      4,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color: Colors.orange.shade50,
-                                      borderRadius: BorderRadius.circular(14),
-                                      border: Border.all(
-                                        color: Colors.orange.shade200,
-                                      ),
-                                    ),
-                                    child: Column(
-                                      children: [
-                                        InkWell(
-                                          borderRadius: BorderRadius.circular(
-                                            14,
-                                          ),
-                                          onTap: () {
-                                            setState(() {
-                                              _showUnassignedBookings =
-                                                  !_showUnassignedBookings;
-                                            });
-                                          },
-                                          child: Padding(
-                                            padding: const EdgeInsets.symmetric(
-                                              horizontal: 12,
-                                              vertical: 10,
-                                            ),
-                                            child: Row(
-                                              children: [
-                                                Icon(
-                                                  Icons.warning_amber_rounded,
-                                                  color: Colors.orange.shade800,
-                                                  size: 20,
-                                                ),
-                                                const SizedBox(width: 8),
-                                                Expanded(
-                                                  child: Text(
-                                                    '待分房訂單 (${unassignedBookings.length})',
-                                                    style: TextStyle(
-                                                      color: Colors
-                                                          .orange
-                                                          .shade800,
-                                                      fontWeight:
-                                                          FontWeight.w900,
-                                                      fontSize: 15,
-                                                    ),
-                                                  ),
-                                                ),
-                                                Icon(
-                                                  _showUnassignedBookings
-                                                      ? Icons.keyboard_arrow_up
-                                                      : Icons
-                                                            .keyboard_arrow_down,
-                                                  color: Colors.orange.shade800,
-                                                ),
-                                              ],
-                                            ),
-                                          ),
-                                        ),
-
-                                        if (_showUnassignedBookings) ...[
-                                          const Divider(height: 1),
-                                          Padding(
-                                            padding: const EdgeInsets.fromLTRB(
-                                              10,
-                                              8,
-                                              10,
-                                              10,
-                                            ),
-                                            child: Column(
-                                              children: unassignedBookings.map((
-                                                doc,
-                                              ) {
-                                                final data =
-                                                    doc.data()
-                                                        as Map<String, dynamic>;
-
-                                                final customerName =
-                                                    data['customerName'] ?? '';
-                                                final roomTypeName =
-                                                    data['roomTypeName'] ?? '';
-
-                                                final start =
-                                                    (data['startDate']
-                                                            as Timestamp)
-                                                        .toDate();
-                                                final end =
-                                                    (data['endDate']
-                                                            as Timestamp)
-                                                        .toDate();
-
-                                                return InkWell(
-                                                  onTap: () {
-                                                    AdminBookingRoute.open(
-                                                      context,
-                                                      bookingId: doc.id,
-                                                      data: data,
-                                                      canEdit: true,
-                                                    );
-                                                  },
-                                                  child: Container(
-                                                    margin:
-                                                        const EdgeInsets.only(
-                                                          bottom: 8,
-                                                        ),
-                                                    padding:
-                                                        const EdgeInsets.all(
-                                                          10,
-                                                        ),
-                                                    decoration: BoxDecoration(
-                                                      color: Colors.white,
-                                                      borderRadius:
-                                                          BorderRadius.circular(
-                                                            12,
-                                                          ),
-                                                    ),
-                                                    child: Row(
-                                                      children: [
-                                                        const Icon(
-                                                          Icons
-                                                              .warning_amber_rounded,
-                                                          color: Colors.orange,
-                                                        ),
-                                                        const SizedBox(
-                                                          width: 10,
-                                                        ),
-                                                        Expanded(
-                                                          child: Column(
-                                                            crossAxisAlignment:
-                                                                CrossAxisAlignment
-                                                                    .start,
-                                                            children: [
-                                                              Text(
-                                                                customerName,
-                                                                style: const TextStyle(
-                                                                  fontWeight:
-                                                                      FontWeight
-                                                                          .w800,
-                                                                ),
-                                                              ),
-                                                              const SizedBox(
-                                                                height: 2,
-                                                              ),
-                                                              Text(
-                                                                '$roomTypeName ｜ '
-                                                                '${DateFormat('MM/dd').format(start)}'
-                                                                ' - '
-                                                                '${DateFormat('MM/dd').format(end)}',
-                                                                style: TextStyle(
-                                                                  fontSize: 12,
-                                                                  color: Colors
-                                                                      .grey
-                                                                      .shade700,
-                                                                ),
-                                                              ),
-                                                            ],
-                                                          ),
-                                                        ),
-                                                      ],
-                                                    ),
-                                                  ),
-                                                );
-                                              }).toList(),
-                                            ),
-                                          ),
-                                        ],
-                                      ],
-                                    ),
-                                  ),
-                                Padding(
-                                  padding: const EdgeInsets.fromLTRB(
-                                    12,
-                                    4,
-                                    12,
-                                    8,
-                                  ),
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        '目前顯示：${DateFormat('yyyy-MM-dd').format(selectedDate)} 當日房況',
-                                        style: const TextStyle(
-                                          fontSize: 15,
-                                          color: Colors.black87,
-                                          fontWeight: FontWeight.w700,
-                                        ),
-                                      ),
-                                      const SizedBox(height: 6),
-                                      Row(
-                                        children: [
-                                          _buildSummaryCard(
-                                            '空房',
-                                            emptyCount,
-                                            Colors.green,
-                                          ),
-                                          if (disabledCount > 0) ...[
-                                            const SizedBox(width: 6),
-                                            _buildSummaryCard(
-                                              '未啟用',
-                                              disabledCount,
-                                              Colors.blueGrey,
-                                            ),
-                                          ],
-                                          const SizedBox(width: 6),
-                                          _buildSummaryCard(
-                                            '使用中',
-                                            usingCount,
-                                            Colors.blue,
-                                          ),
-                                          const SizedBox(width: 6),
-                                          _buildSummaryCard(
-                                            '清潔中',
-                                            cleaningCount,
-                                            Colors.orange,
-                                          ),
-                                          const SizedBox(width: 6),
-                                          _buildSummaryCard(
-                                            '今日關閉',
-                                            closedCount,
-                                            const Color(0xFF6D4C41),
-                                          ),
-                                          const SizedBox(width: 6),
-                                          _buildSummaryCard(
-                                            '維修中',
-                                            blockedCount,
-                                            Colors.black,
-                                          ),
-                                        ],
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                Expanded(
-                                  child: ListView.builder(
-                                    itemCount: filteredRooms.length,
-                                    itemBuilder: (context, index) {
-                                      final room = filteredRooms[index];
-
-                                      /// 🔍 找今天訂單
-                                      Map<String, dynamic>? todayBooking;
-
-                                      for (var doc in bookings) {
-                                        final data =
-                                            doc.data() as Map<String, dynamic>;
-
-                                        if (data['roomId'] != room['id'])
-                                          continue;
-
-                                        final start =
-                                            (data['startDate'] as Timestamp)
-                                                .toDate();
-                                        final end =
-                                            (data['endDate'] as Timestamp)
-                                                .toDate();
-
-                                        final now = DateTime.parse(dateStr);
-
-                                        if (now.isAfter(
-                                              start.subtract(
-                                                const Duration(days: 1),
-                                              ),
-                                            ) &&
-                                            now.isBefore(end)) {
-                                          todayBooking = data;
-                                          break;
-                                        }
-                                      }
-
-                                      final String roomId =
-                                          (room['id'] ?? '').toString();
-                                      final String statusLabel =
-                                          _housekeepingLabelFor(
-                                            room: room,
-                                            dateKey: dateStr,
-                                            roomCalendarStatus:
-                                                roomCalendarStatus,
-                                            booking: todayBooking,
-                                          );
-                                      final Color color =
-                                          _colorForHousekeepingLabel(
-                                            statusLabel,
-                                          );
-                                      return InkWell(
-                                        onTap: () async {
-                                          String roomTypeName = '未設定房型';
-                                          String roomImageUrl = '';
-
-                                          final roomTypeId =
-                                              room['roomTypeId'] ?? '';
-
-                                          if (roomTypeId
-                                              .toString()
-                                              .isNotEmpty) {
-                                            final roomTypeDoc =
-                                                await FirebaseFirestore.instance
-                                                    .collection('shops')
-                                                    .doc(widget.shopId)
-                                                    .collection('room_types')
-                                                    .doc(roomTypeId)
-                                                    .get();
-
-                                            final roomTypeData = roomTypeDoc
-                                                .data();
-
-                                            if (roomTypeData != null) {
-                                              roomTypeName =
-                                                  roomTypeData['name'] ??
-                                                  '未設定房型';
-
-                                              final images =
-                                                  roomTypeData['images'];
-
-                                              if (images is List &&
-                                                  images.isNotEmpty) {
-                                                final firstImage = images.first;
-
-                                                if (firstImage is String) {
-                                                  roomImageUrl = firstImage;
-                                                } else if (firstImage is Map) {
-                                                  roomImageUrl =
-                                                      firstImage['imageUrl']
-                                                          ?.toString() ??
-                                                      '';
-                                                }
-                                              }
-                                            }
+                                .snapshots(),
+                            builder:
+                                (
+                                  BuildContext context,
+                                  AsyncSnapshot<QuerySnapshot> bookingSnap,
+                                ) {
+                                  if (bookingSnap.hasError) {
+                                    return _errorPane(
+                                      '訂單資料讀取失敗',
+                                      bookingSnap.error,
+                                    );
+                                  }
+                                  if (!bookingSnap.hasData) {
+                                    return const Center(
+                                      child: CircularProgressIndicator(),
+                                    );
+                                  }
+                                  return StreamBuilder<QuerySnapshot>(
+                                    stream: ShopService.instance
+                                        .roomCalendarRef(widget.shopId)
+                                        .snapshots(),
+                                    builder:
+                                        (
+                                          BuildContext context,
+                                          AsyncSnapshot<QuerySnapshot>
+                                          calendarSnap,
+                                        ) {
+                                          if (calendarSnap.hasError) {
+                                            return _errorPane(
+                                              '房況日曆讀取失敗',
+                                              calendarSnap.error,
+                                            );
                                           }
-
-                                          if (!context.mounted) return;
-
-                                          Navigator.push(
-                                            context,
-                                            MaterialPageRoute(
-                                              builder: (_) => RoomCalendarPage(
-                                                shopId: widget.shopId,
-                                                roomId: room['id'],
-                                                roomName: room['name'] ?? '',
-                                                roomTypeName: roomTypeName,
-                                                roomImageUrl: roomImageUrl,
-                                              ),
-                                            ),
+                                          if (!calendarSnap.hasData) {
+                                            return const Center(
+                                              child:
+                                                  CircularProgressIndicator(),
+                                            );
+                                          }
+                                          return _workspace(
+                                            desktop: desktop,
+                                            rooms: rooms,
+                                            bookings: bookingSnap.data!.docs,
+                                            calendarDocs:
+                                                calendarSnap.data!.docs,
+                                            careProgress: careProgress,
                                           );
                                         },
-                                        child: Container(
-                                          margin: const EdgeInsets.symmetric(
-                                            horizontal: 12,
-                                            vertical: 4,
-                                          ),
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: 12,
-                                            vertical: 10,
-                                          ),
-                                          decoration: BoxDecoration(
-                                            color: Colors.white,
-                                            borderRadius: BorderRadius.circular(
-                                              14,
-                                            ),
-                                            border: Border.all(
-                                              color: Colors.grey.shade200,
-                                            ),
-                                          ),
-                                          child: Row(
-                                            children: [
-                                              /// 房號
-                                              SizedBox(
-                                                width: 78,
-                                                child: Column(
-                                                  crossAxisAlignment:
-                                                      CrossAxisAlignment.start,
-                                                  children: [
-                                                    Text(
-                                                      room['roomTypeName'] ??
-                                                          '未分類',
-                                                      maxLines: 1,
-                                                      overflow:
-                                                          TextOverflow.ellipsis,
-                                                      style: const TextStyle(
-                                                        fontSize: 11,
-                                                        fontWeight:
-                                                            FontWeight.w600,
-                                                        color: Colors.grey,
-                                                      ),
-                                                    ),
+                                  );
+                                },
+                          );
+                        },
+                  );
+                },
+          );
+        },
+      ),
+    );
+  }
 
-                                                    const SizedBox(height: 2),
+  Widget _workspace({
+    required bool desktop,
+    required List<Map<String, dynamic>> rooms,
+    required List<QueryDocumentSnapshot> bookings,
+    required List<QueryDocumentSnapshot> calendarDocs,
+    required Map<String, ShopRoomCareProgress> careProgress,
+  }) {
+    final Map<String, String> calendarStatus = <String, String>{};
+    for (final QueryDocumentSnapshot doc in calendarDocs) {
+      final Object? raw = doc.data();
+      if (raw is! Map) {
+        continue;
+      }
+      final Map<String, dynamic> data = Map<String, dynamic>.from(raw);
+      final String roomId = (data['roomId'] ?? '').toString();
+      final String date = (data['date'] ?? '').toString();
+      if (roomId.isEmpty || date.isEmpty) {
+        continue;
+      }
+      calendarStatus['$roomId|$date'] = (data['status'] ?? '').toString();
+    }
+    final List<_DashRoom> allRows = rooms
+        .map(
+          (Map<String, dynamic> room) => _buildRow(
+            room: room,
+            bookings: bookings,
+            calendarStatus: calendarStatus,
+            careProgress: careProgress,
+          ),
+        )
+        .toList();
+    final List<String> typeNames =
+        rooms
+            .map((Map<String, dynamic> room) {
+              final String name = (room['roomTypeName'] ?? '')
+                  .toString()
+                  .trim();
+              return name.isEmpty ? '未分類' : name;
+            })
+            .toSet()
+            .toList()
+          ..sort(naturalCompare);
+    final String typeFilter =
+        _selectedRoomTypeFilter == '__all__' ||
+            typeNames.contains(_selectedRoomTypeFilter)
+        ? _selectedRoomTypeFilter
+        : '__all__';
+    final List<_DashRoom> filtered = allRows.where((_DashRoom row) {
+      if (typeFilter != '__all__' && row.typeName != typeFilter) {
+        return false;
+      }
+      switch (_quickFilter) {
+        case _RoomQuickFilter.all:
+          return true;
+        case _RoomQuickFilter.needs:
+          return row.needsAction;
+        case _RoomQuickFilter.checkedIn:
+          return row.label == '入住中';
+        case _RoomQuickFilter.vacant:
+          return row.label == DaycareOccupancyService.vacantLabel;
+      }
+    }).toList();
+    final List<QueryDocumentSnapshot> unassigned = bookings.where((
+      QueryDocumentSnapshot doc,
+    ) {
+      final Object? raw = doc.data();
+      if (raw is! Map) {
+        return false;
+      }
+      final Map<String, dynamic> data = Map<String, dynamic>.from(raw);
+      return data['assignStatus'] == 'unassigned' &&
+          data['status'] != 'cancelled' &&
+          data['status'] != 'completed';
+    }).toList();
+    final int emptyCount = _count(allRows, DaycareOccupancyService.vacantLabel);
+    final int disabledCount = _count(
+      allRows,
+      DaycareOccupancyService.disabledLabel,
+    );
+    final int usingCount = allRows
+        .where(
+          (_DashRoom row) => RoomStatusPresentation.isInUseLabel(row.label),
+        )
+        .length;
+    final int cleaningCount = _count(
+      allRows,
+      DaycareOccupancyService.cleaningLabel,
+    );
+    final int closedCount = _count(
+      allRows,
+      DaycareOccupancyService.closedLabel,
+    );
+    final int blockedCount = _count(
+      allRows,
+      DaycareOccupancyService.maintenanceLabel,
+    );
+    final List<_DashRoom> cleaningRows = allRows
+        .where(
+          (_DashRoom row) => row.label == DaycareOccupancyService.cleaningLabel,
+        )
+        .toList();
+    final List<_DashRoom> careRows = allRows
+        .where(
+          (_DashRoom row) =>
+              row.label == '入住中' && row.care != null && !row.care!.isComplete,
+        )
+        .toList();
 
-                                                    Text(
-                                                      room['name'] ?? '',
-                                                      style: const TextStyle(
-                                                        fontSize: 22,
-                                                        fontWeight:
-                                                            FontWeight.w900,
-                                                        color: Color(
-                                                          0xFF222222,
-                                                        ),
-                                                      ),
-                                                    ),
-                                                  ],
-                                                ),
-                                              ),
+    final Widget header = Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: <Widget>[
+        _dateBar(desktop: desktop),
+        _filters(rooms: rooms, typeNames: typeNames, typeFilter: typeFilter),
+        _summaries(
+          desktop: desktop,
+          emptyCount: emptyCount,
+          disabledCount: disabledCount,
+          usingCount: usingCount,
+          cleaningCount: cleaningCount,
+          closedCount: closedCount,
+          blockedCount: blockedCount,
+        ),
+      ],
+    );
 
-                                              const SizedBox(width: 8),
+    if (!desktop) {
+      return Column(
+        children: <Widget>[
+          header,
+          Expanded(
+            child: rooms.isEmpty
+                ? const Center(child: Text('尚無房間'))
+                : _groupedList(
+                    filtered: filtered,
+                    allRows: allRows,
+                    bookings: bookings,
+                    calendarStatus: calendarStatus,
+                    dense: true,
+                  ),
+          ),
+        ],
+      );
+    }
 
-                                              /// 中間資訊
-                                              Expanded(
-                                                child: Column(
-                                                  crossAxisAlignment:
-                                                      CrossAxisAlignment.start,
-                                                  children: [
-                                                    if (todayBooking !=
-                                                        null) ...[
-                                                      Text(
-                                                        todayBooking['customerName'] ??
-                                                            '',
-                                                        style: const TextStyle(
-                                                          fontSize: 13,
-                                                          fontWeight:
-                                                              FontWeight.w600,
-                                                          color: Color(
-                                                            0xFF555555,
-                                                          ),
-                                                        ),
-                                                      ),
-                                                      const SizedBox(height: 2),
-                                                      Text(
-                                                        '${DateFormat('MM/dd').format((todayBooking['startDate'] as Timestamp).toDate())} - ${DateFormat('MM/dd').format((todayBooking['endDate'] as Timestamp).toDate())}',
-                                                        style: const TextStyle(
-                                                          fontSize: 12,
-                                                          color:
-                                                              Colors.blueGrey,
-                                                        ),
-                                                      ),
-                                                      const SizedBox(height: 6),
-                                                    ] else ...[
-                                                      Text(
-                                                        statusLabel,
-                                                        style: const TextStyle(
-                                                          fontSize: 13,
-                                                          color: Colors.grey,
-                                                        ),
-                                                      ),
-                                                      const SizedBox(height: 8),
-                                                    ],
+    return Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: _contentMax),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+          child: Column(
+            children: <Widget>[
+              header,
+              const SizedBox(height: 8),
+              Expanded(
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Expanded(
+                      flex: 7,
+                      child: rooms.isEmpty
+                          ? const Center(child: Text('尚無房間'))
+                          : _groupedList(
+                              filtered: filtered,
+                              allRows: allRows,
+                              bookings: bookings,
+                              calendarStatus: calendarStatus,
+                              dense: false,
+                            ),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      flex: 3,
+                      child: _todoPane(
+                        unassigned: unassigned,
+                        cleaningRows: cleaningRows,
+                        careRows: careRows,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 
-                                                    /// 近 7 天小圓點
-                                                    /// 星期 + 近 7 天狀態
-                                                    Column(
-                                                      crossAxisAlignment:
-                                                          CrossAxisAlignment
-                                                              .start,
-                                                      children: [
-                                                        Row(
-                                                          children: const [
-                                                            _WeekText('一'),
-                                                            _WeekText('二'),
-                                                            _WeekText('三'),
-                                                            _WeekText('四'),
-                                                            _WeekText('五'),
-                                                            _WeekText('六'),
-                                                            _WeekText('日'),
-                                                          ],
-                                                        ),
-
-                                                        const SizedBox(
-                                                          height: 4,
-                                                        ),
-
-                                                        Row(
-                                                          children: List.generate(7, (
-                                                            i,
-                                                          ) {
-                                                            final day =
-                                                                weekDays[i];
-                                                            final dayKey =
-                                                                DateFormat(
-                                                                  'yyyy-MM-dd',
-                                                                ).format(day);
-                                                            Map<
-                                                              String,
-                                                              dynamic
-                                                            >?
-                                                            dayBooking;
-                                                            for (var doc
-                                                                in bookings) {
-                                                              final data =
-                                                                  doc.data()
-                                                                      as Map<
-                                                                        String,
-                                                                        dynamic
-                                                                      >;
-                                                              if (data['roomId'] !=
-                                                                  room['id']) {
-                                                                continue;
-                                                              }
-                                                              final start =
-                                                                  (data['startDate']
-                                                                          as Timestamp)
-                                                                      .toDate();
-                                                              final end =
-                                                                  (data['endDate']
-                                                                          as Timestamp)
-                                                                      .toDate();
-                                                              final dayOnly =
-                                                                  DateTime(
-                                                                    day.year,
-                                                                    day.month,
-                                                                    day.day,
-                                                                  );
-                                                              final startOnly =
-                                                                  DateTime(
-                                                                    start.year,
-                                                                    start.month,
-                                                                    start.day,
-                                                                  );
-                                                              final endOnly =
-                                                                  DateTime(
-                                                                    end.year,
-                                                                    end.month,
-                                                                    end.day,
-                                                                  );
-                                                              if (!dayOnly
-                                                                      .isBefore(
-                                                                        startOnly,
-                                                                      ) &&
-                                                                  dayOnly
-                                                                      .isBefore(
-                                                                        endOnly,
-                                                                      )) {
-                                                                dayBooking =
-                                                                    data;
-                                                                break;
-                                                              }
-                                                            }
-                                                            final String
-                                                            dayLabel =
-                                                                _housekeepingLabelFor(
-                                                                  room: room,
-                                                                  dateKey:
-                                                                      dayKey,
-                                                                  roomCalendarStatus:
-                                                                      roomCalendarStatus,
-                                                                  booking:
-                                                                      dayBooking,
-                                                                );
-                                                            return _buildDot(
-                                                              _colorForHousekeepingLabel(
-                                                                dayLabel,
-                                                              ),
-                                                            );
-                                                          }),
-                                                        ),
-                                                      ],
-                                                    ),
-                                                  ],
-                                                ),
-                                              ),
-
-                                              const SizedBox(width: 8),
-
-                                              if (todayBooking != null &&
-                                                  (todayBooking['status'] ?? '')
-                                                          .toString() ==
-                                                      'checked_in' &&
-                                                  careProgress[roomId] != null)
-                                                Padding(
-                                                  padding:
-                                                      const EdgeInsets.only(
-                                                        right: 6,
-                                                      ),
-                                                  child: _careHint(
-                                                    careProgress[roomId]!,
-                                                  ),
-                                                ),
-
-                                              if (statusLabel ==
-                                                  DaycareOccupancyService
-                                                      .disabledLabel)
-                                                Tooltip(
-                                                  message: '啟用此房間',
-                                                  child: GestureDetector(
-                                                    onTap: () {},
-                                                    behavior:
-                                                        HitTestBehavior
-                                                            .deferToChild,
-                                                    child: Switch(
-                                                      value: false,
-                                                      materialTapTargetSize:
-                                                          MaterialTapTargetSize
-                                                              .shrinkWrap,
-                                                      onChanged: (bool value) {
-                                                        if (!value) {
-                                                          return;
-                                                        }
-                                                        ShopService.instance
-                                                            .updateRoomStatus(
-                                                              shopId:
-                                                                  widget.shopId,
-                                                              roomId: roomId,
-                                                              enabled: true,
-                                                            );
-                                                      },
-                                                    ),
-                                                  ),
-                                                ),
-
-                                              if (statusLabel ==
-                                                  DaycareOccupancyService
-                                                      .cleaningLabel)
-                                                TextButton(
-                                                  onPressed: () {
-                                                    ShopRoomService.instance
-                                                        .completeCleaning(
-                                                          shopId: widget.shopId,
-                                                          roomId: roomId,
-                                                          date: selectedDate,
-                                                        );
-                                                  },
-                                                  child: const Text('完成清潔'),
-                                                ),
-
-                                              /// 右邊狀態
-                                              _buildStatusChip(
-                                                color: color,
-                                                text: statusLabel,
-                                              ),
-                                              const SizedBox(width: 4),
-
-                                              const Icon(
-                                                Icons.chevron_right,
-                                                size: 20,
-                                                color: Colors.grey,
-                                              ),
-                                            ],
-                                          ),
-                                        ),
-                                      );
-                                    },
-                                  ),
-                                ),
-                              ],
-                            );
-                          },
-                        );
-                      },
-                    );
-                  },
+  Widget _dateBar({required bool desktop}) {
+    final bool isToday = DateUtils.isSameDay(selectedDate, DateTime.now());
+    return Padding(
+      padding: EdgeInsets.fromLTRB(desktop ? 0 : 8, 6, desktop ? 0 : 8, 4),
+      child: Row(
+        children: <Widget>[
+          IconButton(
+            tooltip: '上一週',
+            icon: const Icon(Icons.chevron_left),
+            onPressed: () {
+              setState(() {
+                selectedDate = selectedDate.subtract(const Duration(days: 7));
+              });
+            },
+          ),
+          Expanded(
+            child: Row(
+              children: List<Widget>.generate(7, (int i) {
+                final DateTime day = weekDays[i];
+                final bool selected = DateUtils.isSameDay(day, selectedDate);
+                final bool today = DateUtils.isSameDay(day, DateTime.now());
+                const List<String> weekNames = <String>[
+                  '一',
+                  '二',
+                  '三',
+                  '四',
+                  '五',
+                  '六',
+                  '日',
+                ];
+                return Expanded(
+                  child: GestureDetector(
+                    onTap: () {
+                      setState(() {
+                        selectedDate = day;
+                      });
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(vertical: 6),
+                      decoration: BoxDecoration(
+                        color: selected
+                            ? RoomStatusPresentation.checkedInColor.withValues(
+                                alpha: 0.10,
+                              )
+                            : Colors.transparent,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: selected
+                              ? RoomStatusPresentation.checkedInColor
+                              : today
+                              ? RoomStatusPresentation.checkedInColor
+                                    .withValues(alpha: 0.45)
+                              : Colors.transparent,
+                          width: selected || today ? 1.4 : 1,
+                        ),
+                      ),
+                      child: Column(
+                        children: <Widget>[
+                          Text(
+                            '${day.month}/${day.day}',
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w800,
+                              color: selected
+                                  ? RoomStatusPresentation.checkedInColor
+                                  : null,
+                            ),
+                          ),
+                          Text(
+                            weekNames[i],
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                              color: today
+                                  ? RoomStatusPresentation.checkedInColor
+                                  : Colors.grey,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
                 );
-              },
+              }),
+            ),
+          ),
+          IconButton(
+            tooltip: '下一週',
+            icon: const Icon(Icons.chevron_right),
+            onPressed: () {
+              setState(() {
+                selectedDate = selectedDate.add(const Duration(days: 7));
+              });
+            },
+          ),
+          TextButton(
+            onPressed: isToday
+                ? null
+                : () {
+                    setState(() {
+                      selectedDate = DateTime(
+                        DateTime.now().year,
+                        DateTime.now().month,
+                        DateTime.now().day,
+                      );
+                    });
+                  },
+            child: const Text('今天'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _filters({
+    required List<Map<String, dynamic>> rooms,
+    required List<String> typeNames,
+    required String typeFilter,
+  }) {
+    Widget chip({
+      required String label,
+      required bool selected,
+      required VoidCallback onTap,
+    }) {
+      return Padding(
+        padding: const EdgeInsets.only(right: 8),
+        child: ChoiceChip(
+          label: Text(label),
+          selected: selected,
+          onSelected: (_) => onTap(),
+        ),
+      );
+    }
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 0, 12, 4),
+      child: Column(
+        children: <Widget>[
+          SizedBox(
+            height: 44,
+            child: ListView(
+              scrollDirection: Axis.horizontal,
+              children: <Widget>[
+                chip(
+                  label: '全部',
+                  selected: _quickFilter == _RoomQuickFilter.all,
+                  onTap: () =>
+                      setState(() => _quickFilter = _RoomQuickFilter.all),
+                ),
+                chip(
+                  label: '需處理',
+                  selected: _quickFilter == _RoomQuickFilter.needs,
+                  onTap: () =>
+                      setState(() => _quickFilter = _RoomQuickFilter.needs),
+                ),
+                chip(
+                  label: '入住中',
+                  selected: _quickFilter == _RoomQuickFilter.checkedIn,
+                  onTap: () =>
+                      setState(() => _quickFilter = _RoomQuickFilter.checkedIn),
+                ),
+                chip(
+                  label: '空房',
+                  selected: _quickFilter == _RoomQuickFilter.vacant,
+                  onTap: () =>
+                      setState(() => _quickFilter = _RoomQuickFilter.vacant),
+                ),
+              ],
+            ),
+          ),
+          SizedBox(
+            height: 44,
+            child: ListView(
+              scrollDirection: Axis.horizontal,
+              children: <Widget>[
+                chip(
+                  label: '全部 (${rooms.length})',
+                  selected: typeFilter == '__all__',
+                  onTap: () =>
+                      setState(() => _selectedRoomTypeFilter = '__all__'),
+                ),
+                ...typeNames.map((String name) {
+                  final int count = rooms.where((Map<String, dynamic> room) {
+                    final String current = (room['roomTypeName'] ?? '')
+                        .toString()
+                        .trim();
+                    return (current.isEmpty ? '未分類' : current) == name;
+                  }).length;
+                  return chip(
+                    label: '$name ($count)',
+                    selected: typeFilter == name,
+                    onTap: () => setState(() => _selectedRoomTypeFilter = name),
+                  );
+                }),
+              ],
             ),
           ),
         ],
@@ -1120,140 +664,772 @@ class _RoomDashboardPageState extends State<RoomDashboardPage> {
     );
   }
 
-  Widget _careHint(ShopRoomCareProgress progress) {
-    final bool done = progress.isComplete;
-    return Text(
-      done
-          ? '照護 ${progress.filled}/${progress.total} ✓'
-          : '照護待填 ${progress.pending}',
-      style: TextStyle(
-        fontSize: 11,
-        fontWeight: FontWeight.w700,
-        color: done ? const Color(0xFF2E7D32) : const Color(0xFFEF6C00),
-      ),
-    );
-  }
-
-  /// 🔵 小圓點
-  Widget _buildDot(Color color) {
-    return Container(
-      width: 14,
-      height: 14,
-      margin: const EdgeInsets.only(right: 4),
-      decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-    );
-  }
-
-  String _housekeepingLabelFor({
-    required Map room,
-    required String dateKey,
-    required Map<String, String> roomCalendarStatus,
-    Map<String, dynamic>? booking,
+  Widget _summaries({
+    required bool desktop,
+    required int emptyCount,
+    required int disabledCount,
+    required int usingCount,
+    required int cleaningCount,
+    required int closedCount,
+    required int blockedCount,
   }) {
-    return DaycareOccupancyService.housekeepingLabel(
-      room: Map<String, dynamic>.from(room),
-      calendarStatus:
-          (roomCalendarStatus['${room['id']}|$dateKey'] ?? '').toString(),
-      stayBooking: booking,
-    );
-  }
-
-  Color _colorForHousekeepingLabel(String label) {
-    switch (label) {
-      case DaycareOccupancyService.disabledLabel:
-        return Colors.blueGrey;
-      case DaycareOccupancyService.closedLabel:
-        return const Color(0xFF6D4C41);
-      case DaycareOccupancyService.maintenanceLabel:
-        return Colors.black;
-      case DaycareOccupancyService.cleaningLabel:
-        return Colors.orange;
-      case '入住中':
-        return RoomStatusPresentation.checkedInColor;
-      case '已訂':
-        return RoomStatusPresentation.stayColor;
-      case '已完成':
-        return RoomStatusPresentation.completedColor;
-      default:
-        return RoomStatusPresentation.availableColor;
-    }
-  }
-
-  /// 🔥 狀態膠囊
-  Widget _buildStatusChip({required Color color, required String text}) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.15),
-        borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: color.withValues(alpha: 0.4)),
+    final List<Widget> cards = <Widget>[
+      _summaryCard(
+        title: '空房',
+        count: emptyCount,
+        presentation: RoomStatusPresentation.available(),
+        onTap: () => setState(() => _quickFilter = _RoomQuickFilter.vacant),
       ),
-      child: Text(
-        text,
-        style: TextStyle(
-          fontSize: 12,
-          fontWeight: FontWeight.w700,
-          color: color,
-        ),
+      _summaryCard(
+        title: '使用中',
+        count: usingCount,
+        presentation: RoomStatusPresentation.stayCheckedIn(),
+        onTap: () => setState(() => _quickFilter = _RoomQuickFilter.checkedIn),
       ),
-    );
-  }
-
-  /// 🔥 今日統計卡
-  Widget _buildSummaryCard(String title, int count, Color color) {
-    return Expanded(
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 10),
-        decoration: BoxDecoration(
-          color: color.withValues(alpha: 0.12),
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: color.withValues(alpha: 0.25)),
+      _summaryCard(
+        title: '清潔中',
+        count: cleaningCount,
+        presentation: RoomStatusPresentation.cleaning(),
+        onTap: () => setState(() => _quickFilter = _RoomQuickFilter.needs),
+      ),
+      _summaryCard(
+        title: '今日關閉',
+        count: closedCount,
+        presentation: RoomStatusPresentation.closed(),
+        onTap: () => setState(() => _quickFilter = _RoomQuickFilter.needs),
+      ),
+      _summaryCard(
+        title: '維修中',
+        count: blockedCount,
+        presentation: RoomStatusPresentation.maintenance(),
+        onTap: () => setState(() => _quickFilter = _RoomQuickFilter.needs),
+      ),
+      if (disabledCount > 0)
+        _summaryCard(
+          title: '未啟用',
+          count: disabledCount,
+          presentation: RoomStatusPresentation.disabled(),
+          onTap: () => setState(() => _quickFilter = _RoomQuickFilter.all),
         ),
-        child: Column(
-          children: [
-            Text(
-              '$count',
-              style: TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.w800,
-                color: color,
+    ];
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 4, 12, 8),
+      child: desktop
+          ? Wrap(spacing: 8, runSpacing: 8, children: cards)
+          : SizedBox(
+              height: 78,
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                itemCount: cards.length,
+                separatorBuilder: (BuildContext context, int index) =>
+                    const SizedBox(width: 8),
+                itemBuilder: (_, int i) =>
+                    SizedBox(width: 108, child: cards[i]),
               ),
             ),
-            const SizedBox(height: 2),
-            Text(
-              title,
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-                color: color,
+    );
+  }
+
+  Widget _summaryCard({
+    required String title,
+    required int count,
+    required RoomStatusPresentation presentation,
+    required VoidCallback onTap,
+  }) {
+    return Material(
+      color: presentation.background,
+      borderRadius: BorderRadius.circular(14),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(14),
+        child: Container(
+          width: 120,
+          padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: presentation.border),
+          ),
+          child: Column(
+            children: <Widget>[
+              Text(
+                '$count',
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w800,
+                  color: presentation.color,
+                ),
               ),
+              Text(
+                title,
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  color: presentation.color,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _groupedList({
+    required List<_DashRoom> filtered,
+    required List<_DashRoom> allRows,
+    required List<QueryDocumentSnapshot> bookings,
+    required Map<String, String> calendarStatus,
+    required bool dense,
+  }) {
+    if (filtered.isEmpty) {
+      return const Center(child: Text('沒有符合篩選的房間'));
+    }
+    final Map<String, List<_DashRoom>> groups = <String, List<_DashRoom>>{};
+    for (final _DashRoom row in filtered) {
+      groups.putIfAbsent(row.typeName, () => <_DashRoom>[]).add(row);
+    }
+    final List<String> keys = groups.keys.toList()..sort(naturalCompare);
+    return ListView.builder(
+      padding: const EdgeInsets.only(bottom: 24),
+      itemCount: keys.length,
+      itemBuilder: (BuildContext context, int index) {
+        final String type = keys[index];
+        final List<_DashRoom> rows = groups[type]!;
+        final int need = rows.where((_DashRoom row) => row.needsAction).length;
+        final bool collapsed = _collapsedTypes.contains(type);
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: <Widget>[
+            InkWell(
+              onTap: () {
+                setState(() {
+                  if (collapsed) {
+                    _collapsedTypes.remove(type);
+                  } else {
+                    _collapsedTypes.add(type);
+                  }
+                });
+              },
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 10, 16, 6),
+                child: Row(
+                  children: <Widget>[
+                    Icon(
+                      collapsed
+                          ? Icons.keyboard_arrow_right
+                          : Icons.keyboard_arrow_down,
+                      size: 20,
+                    ),
+                    const SizedBox(width: 4),
+                    Expanded(
+                      child: Text(
+                        '$type　${rows.length} 間${need > 0 ? '　需處理 $need' : ''}',
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w800,
+                          fontSize: 14,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            if (!collapsed)
+              ...rows.map(
+                (_DashRoom row) => _roomTile(
+                  row: row,
+                  bookings: bookings,
+                  calendarStatus: calendarStatus,
+                  dense: dense,
+                ),
+              ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _roomTile({
+    required _DashRoom row,
+    required List<QueryDocumentSnapshot> bookings,
+    required Map<String, String> calendarStatus,
+    required bool dense,
+  }) {
+    final bool busy = _busyKeys.contains(_actionKey(row.id));
+    final bool vacant = row.label == DaycareOccupancyService.vacantLabel;
+    final List<Color> dots = weekDays.map((DateTime day) {
+      final Map<String, dynamic>? dayBooking = _bookingOnDate(
+        bookings: bookings,
+        roomId: row.id,
+        day: day,
+      );
+      final String dayLabel = DaycareOccupancyService.housekeepingLabel(
+        room: Map<String, dynamic>.from(row.room),
+        calendarStatus:
+            (calendarStatus['${row.id}|${DateFormat('yyyy-MM-dd').format(day)}'] ??
+                    '')
+                .toString(),
+        stayBooking: dayBooking,
+      );
+      return RoomStatusPresentation.fromHousekeepingLabel(
+        dayLabel,
+        booking: dayBooking,
+      ).color;
+    }).toList();
+    final Widget actions = _rowActions(row: row, busy: busy);
+    final Widget body = Padding(
+      padding: EdgeInsets.symmetric(horizontal: 12, vertical: vacant ? 8 : 10),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          SizedBox(
+            width: 78,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Text(
+                  row.typeName,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.grey,
+                  ),
+                ),
+                Text(
+                  row.name,
+                  style: TextStyle(
+                    fontSize: vacant ? 18 : 22,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                if (row.booking != null) ...<Widget>[
+                  Text(
+                    (row.booking!['customerName'] ?? '').toString(),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  Text(
+                    _stayRange(row.booking!),
+                    style: const TextStyle(
+                      fontSize: 12,
+                      color: Colors.blueGrey,
+                    ),
+                  ),
+                ] else
+                  Text(
+                    row.presentation.label,
+                    style: const TextStyle(fontSize: 13, color: Colors.grey),
+                  ),
+                const SizedBox(height: 6),
+                RoomWeekDots(colors: dots),
+                if (row.care != null && row.label == '入住中') ...<Widget>[
+                  const SizedBox(height: 6),
+                  Text(
+                    row.care!.isComplete
+                        ? '照護 ${row.care!.filled}/${row.care!.total} ✓'
+                        : '照護待填 ${row.care!.pending} 場',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w800,
+                      color: row.care!.isComplete
+                          ? RoomStatusPresentation.availableColor
+                          : RoomStatusPresentation.cleaningColor,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: <Widget>[
+              RoomStatusChip(presentation: row.presentation, compact: dense),
+              const SizedBox(height: 6),
+              actions,
+            ],
+          ),
+        ],
+      ),
+    );
+    return Material(
+      color: Colors.white,
+      child: InkWell(
+        onTap: () => _openCalendar(row.room),
+        child: Container(
+          margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+              color: row.needsAction
+                  ? row.presentation.border
+                  : Colors.grey.shade200,
+            ),
+          ),
+          child: body,
+        ),
+      ),
+    );
+  }
+
+  Widget _rowActions({required _DashRoom row, required bool busy}) {
+    Widget button({required String label, required VoidCallback? onPressed}) {
+      return TextButton(
+        onPressed: busy ? null : onPressed,
+        style: TextButton.styleFrom(
+          visualDensity: VisualDensity.compact,
+          padding: const EdgeInsets.symmetric(horizontal: 8),
+        ),
+        child: busy
+            ? const SizedBox(
+                width: 16,
+                height: 16,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              )
+            : Text(label),
+      );
+    }
+
+    if (row.label == DaycareOccupancyService.cleaningLabel) {
+      return button(
+        label: '完成清潔',
+        onPressed: () => _runRoomAction(
+          roomId: row.id,
+          successMessage: '${row.name} 已完成清潔，房間已恢復開放',
+          action: () => ShopRoomService.instance.completeCleaning(
+            shopId: widget.shopId,
+            roomId: row.id,
+            date: selectedDate,
+          ),
+        ),
+      );
+    }
+    if (row.label == DaycareOccupancyService.disabledLabel) {
+      return button(
+        label: '啟用房間',
+        onPressed: () => _runRoomAction(
+          roomId: row.id,
+          successMessage: '${row.name} 已啟用',
+          action: () => ShopService.instance.updateRoomStatus(
+            shopId: widget.shopId,
+            roomId: row.id,
+            enabled: true,
+          ),
+        ),
+      );
+    }
+    if (row.label == '入住中') {
+      return Wrap(
+        spacing: 0,
+        children: <Widget>[
+          button(
+            label: '查看訂單',
+            onPressed: row.bookingId.isEmpty
+                ? null
+                : () => AdminBookingRoute.open(
+                    context,
+                    bookingId: row.bookingId,
+                    data: row.booking,
+                    canEdit: true,
+                  ),
+          ),
+          if (row.care != null && !row.care!.isComplete)
+            button(
+              label: '填寫回報',
+              onPressed: row.booking == null
+                  ? null
+                  : () => AdminDailyCareReportShortcut.openStayEntry(
+                      context: context,
+                      shopId: widget.shopId,
+                      bookingId: row.bookingId,
+                      booking: row.booking!,
+                    ),
+            ),
+        ],
+      );
+    }
+    return button(label: '查看房間', onPressed: () => _openCalendar(row.room));
+  }
+
+  Widget _todoPane({
+    required List<QueryDocumentSnapshot> unassigned,
+    required List<_DashRoom> cleaningRows,
+    required List<_DashRoom> careRows,
+  }) {
+    final bool empty =
+        unassigned.isEmpty && cleaningRows.isEmpty && careRows.isEmpty;
+    return SingleChildScrollView(
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: Colors.grey.shade200),
+        ),
+        child: empty
+            ? Padding(
+                padding: const EdgeInsets.symmetric(vertical: 28),
+                child: Column(
+                  children: <Widget>[
+                    Icon(
+                      Icons.check_circle_outline,
+                      color: RoomStatusPresentation.availableColor,
+                      size: 36,
+                    ),
+                    const SizedBox(height: 10),
+                    const Text(
+                      '今日房務已處理完成',
+                      style: TextStyle(fontWeight: FontWeight.w800),
+                    ),
+                  ],
+                ),
+              )
+            : Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  const Text(
+                    '今天要處理',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900),
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    '待分房訂單（${unassigned.length}）',
+                    style: const TextStyle(fontWeight: FontWeight.w800),
+                  ),
+                  const SizedBox(height: 6),
+                  if (unassigned.isEmpty)
+                    const Text('無', style: TextStyle(color: Colors.grey))
+                  else
+                    ...unassigned.map((QueryDocumentSnapshot doc) {
+                      final Map<String, dynamic> data =
+                          Map<String, dynamic>.from(doc.data() as Map);
+                      return ListTile(
+                        dense: true,
+                        contentPadding: EdgeInsets.zero,
+                        title: Text(
+                          (data['customerName'] ?? '').toString(),
+                          style: const TextStyle(fontWeight: FontWeight.w700),
+                        ),
+                        subtitle: Text(
+                          '${data['roomTypeName'] ?? ''}｜${_stayRange(data)}',
+                        ),
+                        onTap: () => AdminBookingRoute.open(
+                          context,
+                          bookingId: doc.id,
+                          data: data,
+                          canEdit: true,
+                        ),
+                      );
+                    }),
+                  const Divider(height: 24),
+                  Text(
+                    '清潔中（${cleaningRows.length}）',
+                    style: const TextStyle(fontWeight: FontWeight.w800),
+                  ),
+                  const SizedBox(height: 6),
+                  if (cleaningRows.isEmpty)
+                    const Text('無', style: TextStyle(color: Colors.grey))
+                  else
+                    ...cleaningRows.map((_DashRoom row) {
+                      final bool busy = _busyKeys.contains(_actionKey(row.id));
+                      return ListTile(
+                        dense: true,
+                        contentPadding: EdgeInsets.zero,
+                        title: Text(row.name),
+                        trailing: TextButton(
+                          onPressed: busy
+                              ? null
+                              : () => _runRoomAction(
+                                  roomId: row.id,
+                                  successMessage: '${row.name} 已完成清潔，房間已恢復開放',
+                                  action: () =>
+                                      ShopRoomService.instance.completeCleaning(
+                                        shopId: widget.shopId,
+                                        roomId: row.id,
+                                        date: selectedDate,
+                                      ),
+                                ),
+                          child: busy
+                              ? const SizedBox(
+                                  width: 16,
+                                  height: 16,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
+                                )
+                              : const Text('完成清潔'),
+                        ),
+                      );
+                    }),
+                  const Divider(height: 24),
+                  Text(
+                    '照護待填（${careRows.length}）',
+                    style: const TextStyle(fontWeight: FontWeight.w800),
+                  ),
+                  const SizedBox(height: 6),
+                  if (careRows.isEmpty)
+                    const Text('無', style: TextStyle(color: Colors.grey))
+                  else
+                    ...careRows.map((_DashRoom row) {
+                      return ListTile(
+                        dense: true,
+                        contentPadding: EdgeInsets.zero,
+                        title: Text(
+                          '${row.name}　${row.booking?['customerName'] ?? ''}',
+                        ),
+                        subtitle: Text('剩餘 ${row.care?.pending ?? 0} 場'),
+                        onTap: row.booking == null
+                            ? null
+                            : () => AdminDailyCareReportShortcut.openStayEntry(
+                                context: context,
+                                shopId: widget.shopId,
+                                bookingId: row.bookingId,
+                                booking: row.booking!,
+                              ),
+                      );
+                    }),
+                ],
+              ),
+      ),
+    );
+  }
+
+  Widget _errorPane(String title, Object? error) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            Text(title, style: const TextStyle(fontWeight: FontWeight.w800)),
+            const SizedBox(height: 8),
+            Text(
+              '$error',
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: Colors.grey),
+            ),
+            const SizedBox(height: 16),
+            FilledButton(
+              onPressed: () => setState(() => _streamRetry += 1),
+              child: const Text('重新載入畫面'),
             ),
           ],
         ),
       ),
     );
   }
-}
 
-class _WeekText extends StatelessWidget {
-  const _WeekText(this.text);
+  _DashRoom _buildRow({
+    required Map<String, dynamic> room,
+    required List<QueryDocumentSnapshot> bookings,
+    required Map<String, String> calendarStatus,
+    required Map<String, ShopRoomCareProgress> careProgress,
+  }) {
+    final String roomId = (room['id'] ?? '').toString();
+    final _BookingHit hit = _bookingHit(
+      bookings: bookings,
+      roomId: roomId,
+      day: selectedDate,
+    );
+    final String label = DaycareOccupancyService.housekeepingLabel(
+      room: Map<String, dynamic>.from(room),
+      calendarStatus: (calendarStatus['$roomId|$dateStr'] ?? '').toString(),
+      stayBooking: hit.data,
+    );
+    return _DashRoom(
+      room: room,
+      label: label,
+      presentation: RoomStatusPresentation.fromHousekeepingLabel(
+        label,
+        booking: hit.data,
+      ),
+      booking: hit.data,
+      bookingId: hit.id,
+      care: careProgress[roomId],
+    );
+  }
 
-  final String text;
+  Future<void> _runRoomAction({
+    required String roomId,
+    required String successMessage,
+    required Future<void> Function() action,
+  }) async {
+    final String key = _actionKey(roomId);
+    if (_busyKeys.contains(key)) {
+      return;
+    }
+    setState(() {
+      _busyKeys.add(key);
+    });
+    try {
+      await action();
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(successMessage)));
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          backgroundColor: Colors.red.shade700,
+          content: Text('操作失敗：$error'),
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _busyKeys.remove(key);
+        });
+      }
+    }
+  }
 
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      width: 18,
-      child: Center(
-        child: Text(
-          text,
-          style: const TextStyle(
-            fontSize: 10,
-            fontWeight: FontWeight.w700,
-            color: Colors.grey,
-          ),
+  Future<void> _openCalendar(Map<String, dynamic> room) async {
+    String roomTypeName = (room['roomTypeName'] ?? '未設定房型').toString();
+    String roomImageUrl = '';
+    final String roomTypeId = (room['roomTypeId'] ?? '').toString();
+    if (roomTypeId.isNotEmpty) {
+      try {
+        final DocumentSnapshot<Map<String, dynamic>> roomTypeDoc =
+            await FirebaseFirestore.instance
+                .collection('shops')
+                .doc(widget.shopId)
+                .collection('room_types')
+                .doc(roomTypeId)
+                .get();
+        final Map<String, dynamic>? roomTypeData = roomTypeDoc.data();
+        if (roomTypeData != null) {
+          roomTypeName = (roomTypeData['name'] ?? roomTypeName).toString();
+          final Object? images = roomTypeData['images'];
+          if (images is List && images.isNotEmpty) {
+            final Object? firstImage = images.first;
+            if (firstImage is String) {
+              roomImageUrl = firstImage;
+            } else if (firstImage is Map) {
+              roomImageUrl = (firstImage['imageUrl'] ?? '').toString();
+            }
+          }
+        }
+      } catch (_) {}
+    }
+    if (!mounted) {
+      return;
+    }
+    await Navigator.push(
+      context,
+      MaterialPageRoute<void>(
+        builder: (_) => RoomCalendarPage(
+          shopId: widget.shopId,
+          roomId: room['id'],
+          roomName: room['name'] ?? '',
+          roomTypeName: roomTypeName,
+          roomImageUrl: roomImageUrl,
         ),
       ),
     );
   }
+
+  int _count(List<_DashRoom> rows, String label) {
+    return rows.where((_DashRoom row) => row.label == label).length;
+  }
+
+  int _compareRooms(Map<String, dynamic> a, Map<String, dynamic> b) {
+    final int type = naturalCompare(
+      (a['roomTypeName'] ?? a['roomTypeId'] ?? '').toString(),
+      (b['roomTypeName'] ?? b['roomTypeId'] ?? '').toString(),
+    );
+    if (type != 0) {
+      return type;
+    }
+    return naturalCompare(
+      (a['name'] ?? '').toString(),
+      (b['name'] ?? '').toString(),
+    );
+  }
+
+  Map<String, dynamic>? _bookingOnDate({
+    required List<QueryDocumentSnapshot> bookings,
+    required String roomId,
+    required DateTime day,
+  }) {
+    return _bookingHit(bookings: bookings, roomId: roomId, day: day).data;
+  }
+
+  _BookingHit _bookingHit({
+    required List<QueryDocumentSnapshot> bookings,
+    required String roomId,
+    required DateTime day,
+  }) {
+    for (final QueryDocumentSnapshot doc in bookings) {
+      final Object? raw = doc.data();
+      if (raw is! Map) {
+        continue;
+      }
+      final Map<String, dynamic> data = Map<String, dynamic>.from(raw);
+      if ((data['roomId'] ?? '').toString() != roomId) {
+        continue;
+      }
+      if (_occupiesDate(data, day)) {
+        return _BookingHit(id: doc.id, data: data);
+      }
+    }
+    return const _BookingHit();
+  }
+
+  bool _occupiesDate(Map<String, dynamic> booking, DateTime day) {
+    final DateTime? start = _asDate(booking['startDate']);
+    final DateTime? end = _asDate(booking['endDate']);
+    if (start == null || end == null) {
+      return false;
+    }
+    final DateTime dayOnly = DateTime(day.year, day.month, day.day);
+    final DateTime startOnly = DateTime(start.year, start.month, start.day);
+    final DateTime endOnly = DateTime(end.year, end.month, end.day);
+    return !dayOnly.isBefore(startOnly) && dayOnly.isBefore(endOnly);
+  }
+
+  DateTime? _asDate(Object? raw) {
+    if (raw is Timestamp) {
+      return raw.toDate();
+    }
+    if (raw is DateTime) {
+      return raw;
+    }
+    return null;
+  }
+
+  String _stayRange(Map<String, dynamic> data) {
+    final DateTime? start = _asDate(data['startDate']);
+    final DateTime? end = _asDate(data['endDate']);
+    if (start == null || end == null) {
+      return '';
+    }
+    return '${DateFormat('MM/dd').format(start)} - ${DateFormat('MM/dd').format(end)}';
+  }
+}
+
+class _BookingHit {
+  const _BookingHit({this.id = '', this.data});
+
+  final String id;
+  final Map<String, dynamic>? data;
 }

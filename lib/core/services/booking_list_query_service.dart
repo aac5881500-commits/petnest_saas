@@ -3,6 +3,7 @@
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:petnest_saas/core/models/booking_kind.dart';
+import 'package:petnest_saas/core/models/daily_care_date_helper.dart';
 import 'package:petnest_saas/core/services/booking_search_fields.dart';
 import 'package:petnest_saas/core/services/daycare_status_labels.dart';
 
@@ -18,11 +19,74 @@ class BookingListPageResult {
   final bool hasMore;
 }
 
+class BookingListCountResult {
+  const BookingListCountResult({required this.counts, this.error});
+
+  final Map<String, int> counts;
+  final Object? error;
+}
+
 class BookingListQueryService {
   BookingListQueryService._();
   static final BookingListQueryService instance = BookingListQueryService._();
 
   static const int pageSize = 20;
+
+  static const List<String> stayChipKeys = <String>[
+    'pending',
+    'depositReview',
+    'confirmed',
+    'awaitingRoom',
+    'checked_in',
+    'todayCheckIn',
+    'todayCheckOut',
+    'futureCheckIn',
+    'history',
+  ];
+
+  static const List<String> daycareChipKeys = <String>[
+    'pending',
+    'depositReview',
+    'confirmed',
+    'awaitingRoom',
+    'checked_in',
+    'todayDropOff',
+    'todayPickUp',
+    'history',
+  ];
+
+  static const List<String> _pendingStatuses = <String>[
+    'pending',
+    'pending_confirmation',
+    'unpaid',
+  ];
+
+  static const List<String> _depositReviewStatuses = <String>[
+    'pending',
+    'pending_confirmation',
+    'unpaid',
+    'confirmed',
+    'checked_in',
+  ];
+
+  /// 住宿今日／未來入住退房：排除 completed、cancelled、no_show。
+  static const List<String> _stayOpenStatuses = <String>[
+    'pending',
+    'pending_confirmation',
+    'unpaid',
+    'confirmed',
+    'checked_in',
+  ];
+
+  /// 安親今日送達／接回：可通過 !isHistory 的常見狀態（不含 completed／cancelled／no_show）。
+  static const List<String> _daycareOpenStatuses = <String>[
+    'pending',
+    'pending_confirmation',
+    'unpaid',
+    'confirmed',
+    'checked_in',
+    'checked_out',
+  ];
 
   CollectionReference<Map<String, dynamic>> get _bookings =>
       FirebaseFirestore.instance.collection('bookings');
@@ -38,10 +102,7 @@ class BookingListQueryService {
     if (kind == BookingKind.daycare) {
       query = query.where('bookingKind', isEqualTo: BookingKind.daycare);
     } else {
-      query = query.where(
-        'bookingKind',
-        isEqualTo: BookingKind.accommodation,
-      );
+      query = query.where('bookingKind', isEqualTo: BookingKind.accommodation);
     }
     return query;
   }
@@ -65,6 +126,7 @@ class BookingListQueryService {
     }
     Query<Map<String, dynamic>> query = _filterQuery(
       _base(shopId: shopId, kind: kind),
+      kind: kind,
       filter: filter,
     );
     query = query.limit(pageSize);
@@ -94,45 +156,41 @@ class BookingListQueryService {
     }
     return _filterQuery(
       _base(shopId: shopId, kind: kind),
+      kind: kind,
       filter: filter,
     ).limit(pageSize).snapshots();
   }
 
-  Future<Map<String, int>> attentionCounts({
+  Future<BookingListCountResult> attentionCounts({
     required String shopId,
     required String kind,
   }) async {
-    final Map<String, int> result = <String, int>{
-      'pending': await _count(
-        _base(shopId: shopId, kind: kind).where(
-          'status',
-          whereIn: <String>['pending', 'pending_confirmation', 'unpaid'],
-        ),
-      ),
-      'depositReview': await _count(
-        _base(
-          shopId: shopId,
-          kind: kind,
-        )
-            .where('depositStatus', isEqualTo: 'pending_review')
-            .where(
-              'status',
-              whereIn: <String>[
-                'pending',
-                'pending_confirmation',
-                'unpaid',
-                'confirmed',
-                'checked_in',
-              ],
-            ),
-      ),
-      'awaitingRoom': await _count(
-        _base(shopId: shopId, kind: kind)
-            .where('status', isEqualTo: 'confirmed')
-            .where('assignStatus', isEqualTo: 'unassigned'),
-      ),
-    };
-    return result;
+    final List<String> keys = kind == BookingKind.daycare
+        ? daycareChipKeys
+        : stayChipKeys;
+    final Query<Map<String, dynamic>> base = _base(shopId: shopId, kind: kind);
+    final Map<String, int> counts = <String, int>{};
+    Object? error;
+    await Future.wait(
+      keys.map((String key) async {
+        try {
+          counts[key] = await _count(
+            _filterQuery(base, kind: kind, filter: key),
+          );
+        } catch (e) {
+          error = e;
+        }
+      }),
+    );
+    return BookingListCountResult(counts: counts, error: error);
+  }
+
+  bool matchesListFilter(
+    Map<String, dynamic> data,
+    String kind,
+    String filter,
+  ) {
+    return _matchesKindAndFilter(data, kind, filter);
   }
 
   Future<int> _count(Query<Map<String, dynamic>> query) async {
@@ -149,43 +207,41 @@ class BookingListQueryService {
         filter == 'todayDropOff' ||
         filter == 'todayPickUp' ||
         filter == 'todayCheckIn' ||
-        filter == 'todayCheckOut';
+        filter == 'todayCheckOut' ||
+        filter == 'futureCheckIn' ||
+        filter == 'history';
   }
 
-    Query<Map<String, dynamic>> _filterQuery(
+  Query<Map<String, dynamic>> _filterQuery(
     Query<Map<String, dynamic>> base, {
+    required String kind,
     required String filter,
   }) {
-    final DateTime now = DateTime.now();
-    final DateTime todayStart = DateTime(now.year, now.month, now.day);
-    final DateTime todayEnd = todayStart.add(const Duration(days: 1));
+    final ({DateTime startUtc, DateTime endUtc}) taipei =
+        DailyCareDateHelper.taipeiTodayUtcRange();
+    final Timestamp todayStart = Timestamp.fromDate(taipei.startUtc);
+    final Timestamp todayEnd = Timestamp.fromDate(taipei.endUtc);
     switch (filter) {
       case 'pending':
         return base
-            .where(
-              'status',
-              whereIn: <String>['pending', 'pending_confirmation', 'unpaid'],
-            )
+            .where('status', whereIn: _pendingStatuses)
             .orderBy('createdAt', descending: true);
       case 'depositReview':
         return base
             .where('depositStatus', isEqualTo: 'pending_review')
-            .where(
-              'status',
-              whereIn: <String>[
-                'pending',
-                'pending_confirmation',
-                'unpaid',
-                'confirmed',
-                'checked_in',
-              ],
-            )
+            .where('status', whereIn: _depositReviewStatuses)
             .orderBy('createdAt', descending: true);
       case 'confirmed':
         return base
             .where('status', isEqualTo: 'confirmed')
             .orderBy('createdAt', descending: true);
       case 'awaitingRoom':
+        if (kind == BookingKind.daycare) {
+          return base
+              .where('status', whereIn: <String>['confirmed', 'checked_in'])
+              .where('assignStatus', isEqualTo: 'unassigned')
+              .orderBy('createdAt', descending: true);
+        }
         return base
             .where('status', isEqualTo: 'confirmed')
             .where('assignStatus', isEqualTo: 'unassigned')
@@ -196,42 +252,32 @@ class BookingListQueryService {
             .orderBy('createdAt', descending: true);
       case 'todayDropOff':
         return base
-            .where(
-              'scheduledStartAt',
-              isGreaterThanOrEqualTo: Timestamp.fromDate(todayStart),
-            )
-            .where('scheduledStartAt', isLessThan: Timestamp.fromDate(todayEnd))
+            .where('status', whereIn: _daycareOpenStatuses)
+            .where('scheduledStartAt', isGreaterThanOrEqualTo: todayStart)
+            .where('scheduledStartAt', isLessThan: todayEnd)
             .orderBy('scheduledStartAt', descending: true);
       case 'todayPickUp':
         return base
-            .where(
-              'scheduledEndAt',
-              isGreaterThanOrEqualTo: Timestamp.fromDate(todayStart),
-            )
-            .where('scheduledEndAt', isLessThan: Timestamp.fromDate(todayEnd))
+            .where('status', whereIn: _daycareOpenStatuses)
+            .where('scheduledEndAt', isGreaterThanOrEqualTo: todayStart)
+            .where('scheduledEndAt', isLessThan: todayEnd)
             .orderBy('scheduledEndAt', descending: true);
       case 'todayCheckIn':
         return base
-            .where(
-              'startDate',
-              isGreaterThanOrEqualTo: Timestamp.fromDate(todayStart),
-            )
-            .where('startDate', isLessThan: Timestamp.fromDate(todayEnd))
+            .where('status', whereIn: _stayOpenStatuses)
+            .where('startDate', isGreaterThanOrEqualTo: todayStart)
+            .where('startDate', isLessThan: todayEnd)
             .orderBy('startDate', descending: true);
       case 'todayCheckOut':
         return base
-            .where(
-              'endDate',
-              isGreaterThanOrEqualTo: Timestamp.fromDate(todayStart),
-            )
-            .where('endDate', isLessThan: Timestamp.fromDate(todayEnd))
+            .where('status', whereIn: _stayOpenStatuses)
+            .where('endDate', isGreaterThanOrEqualTo: todayStart)
+            .where('endDate', isLessThan: todayEnd)
             .orderBy('endDate', descending: true);
       case 'futureCheckIn':
         return base
-            .where(
-              'startDate',
-              isGreaterThanOrEqualTo: Timestamp.fromDate(todayEnd),
-            )
+            .where('status', whereIn: _stayOpenStatuses)
+            .where('startDate', isGreaterThanOrEqualTo: todayEnd)
             .orderBy('startDate');
       case 'history':
         return base
@@ -259,16 +305,16 @@ class BookingListQueryService {
     if (!BookingKind.isAccommodation(data)) {
       return false;
     }
-    if (filter == 'history') {
-      return DaycareStatusLabels.isHistory(data);
+    if (filter == 'awaitingRoom') {
+      return (data['status'] ?? '').toString() == 'confirmed' &&
+          (data['assignStatus'] ?? '').toString() == 'unassigned' &&
+          !DaycareStatusLabels.isHistory(data);
     }
-    if (DaycareStatusLabels.isHistory(data)) {
-      return false;
+    if (filter == 'checked_in') {
+      return !DaycareStatusLabels.isHistory(data) &&
+          (data['status'] ?? '').toString() == 'checked_in';
     }
-    if (filter == 'depositReview') {
-      return DaycareStatusLabels.isDepositReview(data);
-    }
-    return true;
+    return DaycareStatusLabels.matchesFilter(data, filter);
   }
 
   Future<BookingListPageResult> _search({
@@ -309,7 +355,8 @@ class BookingListQueryService {
       if (cursor != null) {
         nameQuery = nameQuery.startAfterDocument(cursor);
       }
-      final QuerySnapshot<Map<String, dynamic>> nameSnap = await nameQuery.get();
+      final QuerySnapshot<Map<String, dynamic>> nameSnap = await nameQuery
+          .get();
       final List<QueryDocumentSnapshot<Map<String, dynamic>>> docs = nameSnap
           .docs
           .where(
@@ -332,9 +379,10 @@ class BookingListQueryService {
     final QuerySnapshot<Map<String, dynamic>> snap = await query.get();
     if (snap.docs.isEmpty &&
         BookingSearchFields.normalizeCode(keyword).isNotEmpty) {
-      Query<Map<String, dynamic>> legacy = _base(shopId: shopId, kind: kind)
-          .where('bookingCode', isEqualTo: keyword.trim())
-          .limit(pageSize);
+      Query<Map<String, dynamic>> legacy = _base(
+        shopId: shopId,
+        kind: kind,
+      ).where('bookingCode', isEqualTo: keyword.trim()).limit(pageSize);
       final QuerySnapshot<Map<String, dynamic>> legacySnap = await legacy.get();
       return BookingListPageResult(
         docs: legacySnap.docs

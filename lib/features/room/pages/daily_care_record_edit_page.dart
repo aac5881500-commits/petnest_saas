@@ -7,6 +7,7 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import '../../../core/models/daily_care_entitlement.dart';
 import '../../../core/models/daily_care_setting_model.dart';
 import '../../../core/models/daily_care_journal_layout.dart';
 import '../../../core/models/daily_care_record_model.dart';
@@ -34,6 +35,7 @@ class DailyCareRecordEditPage extends StatefulWidget {
     required this.photoEnabled,
     this.serviceType = DailyCareServiceTypes.accommodation,
     this.petIds = const <String>[],
+    this.entitlement,
   });
 
   final String shopId;
@@ -53,6 +55,7 @@ class DailyCareRecordEditPage extends StatefulWidget {
   final List<String> enabledFields;
   final String serviceType;
   final List<String> petIds;
+  final DailyCareEntitlement? entitlement;
 
   @override
   State<DailyCareRecordEditPage> createState() =>
@@ -443,6 +446,8 @@ class _DailyCareRecordEditPageState extends State<DailyCareRecordEditPage> {
         '${widget.recordDate.month.toString().padLeft(2, '0')}/'
         '${widget.recordDate.day.toString().padLeft(2, '0')}';
 
+    final Widget? quotaBanner = _entitlementBanner();
+
     return Scaffold(
       backgroundColor: const Color(0xFFF7F7F7),
       appBar: AppBar(title: Text('${widget.sessionName}照護紀錄')),
@@ -452,6 +457,10 @@ class _DailyCareRecordEditPageState extends State<DailyCareRecordEditPage> {
               padding: const EdgeInsets.all(16),
               children: <Widget>[
                 _headerCard(dateText),
+                if (quotaBanner != null) ...<Widget>[
+                  const SizedBox(height: 14),
+                  quotaBanner,
+                ],
 
                 const SizedBox(height: 14),
 
@@ -660,6 +669,50 @@ class _DailyCareRecordEditPageState extends State<DailyCareRecordEditPage> {
                 Text(dateText, style: TextStyle(color: Colors.grey.shade600)),
               ],
             ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget? _entitlementBanner() {
+    final DailyCareEntitlement? entitlement = widget.entitlement;
+    if (entitlement == null || entitlement.finalReports < 1) {
+      return null;
+    }
+    final int total = entitlement.finalReports;
+    final int current = widget.sessionIndex + 1;
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFFE5E7EB)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Text(
+            '本日第 $current／$total 場：${widget.sessionName}',
+            style: const TextStyle(fontWeight: FontWeight.w800),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            '基本包含：${entitlement.baseReports} 場',
+            style: const TextStyle(color: Colors.black54),
+          ),
+          if (entitlement.addonReports > 0) ...<Widget>[
+            const SizedBox(height: 4),
+            Text(
+              '加購增加：${entitlement.addonReports} 場・${entitlement.addonName}',
+              style: const TextStyle(color: Colors.black54),
+            ),
+          ],
+          const SizedBox(height: 4),
+          Text(
+            '本日應回報：$total 場',
+            style: const TextStyle(fontWeight: FontWeight.w800),
           ),
         ],
       ),

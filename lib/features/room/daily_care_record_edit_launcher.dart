@@ -3,6 +3,7 @@
 
 import 'package:flutter/material.dart';
 
+import '../../core/models/daily_care_entitlement.dart';
 import '../../core/models/daily_care_record_model.dart';
 import '../../core/models/daily_care_setting_model.dart';
 import '../../core/services/daily_care_setting_service.dart';
@@ -22,12 +23,21 @@ class DailyCareRecordEditLauncher {
     String serviceType = DailyCareServiceTypes.accommodation,
     List<String> petIds = const <String>[],
     DailyCareSettingModel? setting,
+    DailyCareEntitlement? entitlement,
   }) async {
     final DailyCareSettingModel resolved =
         setting ?? await DailyCareSettingService.instance.getSetting(shopId);
     if (!context.mounted) {
       return null;
     }
+    final bool daycare = serviceType == DailyCareServiceTypes.daycare;
+    final String fromEntitlement =
+        entitlement?.sessionLabelAt(sessionIndex).trim() ?? '';
+    final String sessionName = fromEntitlement.isNotEmpty
+        ? fromEntitlement
+        : (daycare
+              ? resolved.daycareSessionLabelAt(sessionIndex)
+              : resolved.sessionLabelAt(sessionIndex));
     return Navigator.of(context).push<bool>(
       MaterialPageRoute<bool>(
         builder: (_) => DailyCareRecordEditPage(
@@ -37,12 +47,13 @@ class DailyCareRecordEditLauncher {
           roomName: roomName,
           recordDate: recordDate,
           sessionIndex: sessionIndex,
-          sessionName: resolved.sessionLabelAt(sessionIndex),
+          sessionName: sessionName,
           customFields: resolved.customFields,
           enabledFields: resolved.enabledFields,
           photoEnabled: resolved.photoEnabled,
           serviceType: serviceType,
           petIds: petIds,
+          entitlement: entitlement,
         ),
       ),
     );

@@ -296,8 +296,9 @@ class DailyCareRecordService {
     final Map<String, DailyCareRecordModel> byId =
         <String, DailyCareRecordModel>{};
 
-    final List<StreamSubscription<QuerySnapshot<Map<String, dynamic>>>>
-    subscriptions = <StreamSubscription<QuerySnapshot<Map<String, dynamic>>>>[];
+    final List<StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>>
+    subscriptions =
+        <StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>>[];
 
     void emit() {
       if (controller.isClosed) {
@@ -326,22 +327,23 @@ class DailyCareRecordService {
 
         subscriptions.add(
           _collection
-              .where(FieldPath.documentId, isEqualTo: recordId)
-              .where('shopId', isEqualTo: shopId)
-              .limit(1)
+              .doc(recordId)
               .snapshots()
               .listen(
-                (QuerySnapshot<Map<String, dynamic>> snapshot) {
-                  if (snapshot.docs.isEmpty) {
+                (DocumentSnapshot<Map<String, dynamic>> snapshot) {
+                  if (!snapshot.exists) {
                     byId.remove(recordId);
                   } else {
-                    final QueryDocumentSnapshot<Map<String, dynamic>> document =
-                        snapshot.docs.first;
-
-                    byId[recordId] = DailyCareRecordModel.fromMap(
-                      id: document.id,
-                      map: document.data(),
-                    );
+                    final Map<String, dynamic> data =
+                        snapshot.data() ?? <String, dynamic>{};
+                    if (data['shopId'].toString() == shopId) {
+                      byId[recordId] = DailyCareRecordModel.fromMap(
+                        id: snapshot.id,
+                        map: data,
+                      );
+                    } else {
+                      byId.remove(recordId);
+                    }
                   }
 
                   emit();
@@ -355,6 +357,7 @@ class DailyCareRecordService {
                     extra: 'recordId=$recordId',
                   );
 
+                  emit();
                   if (!controller.isClosed) {
                     controller.addError(error, stackTrace);
                   }
@@ -367,7 +370,7 @@ class DailyCareRecordService {
     emit();
 
     controller.onCancel = () async {
-      for (final StreamSubscription<QuerySnapshot<Map<String, dynamic>>>
+      for (final StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>
           subscription
           in subscriptions) {
         await subscription.cancel();

@@ -90,18 +90,8 @@ class DailyCareReportCenterGrouping {
     required List<DailyCareReportCenterItem> items,
     DailyCareReportCenterStatusFilter status =
         DailyCareReportCenterStatusFilter.pending,
-    DailyCareReportCenterTypeFilter type = DailyCareReportCenterTypeFilter.all,
   }) {
-    final List<DailyCareReportCenterItem> typed = items.where((
-      DailyCareReportCenterItem item,
-    ) {
-      return switch (type) {
-        DailyCareReportCenterTypeFilter.all => true,
-        DailyCareReportCenterTypeFilter.accommodation => !item.isDaycare,
-        DailyCareReportCenterTypeFilter.daycare => item.isDaycare,
-      };
-    }).toList();
-    final List<DailyCareReportCenterRoomGroup> groups = groupByBooking(typed)
+    final List<DailyCareReportCenterRoomGroup> groups = groupByBooking(items)
       ..sort(compareGroups);
     return groups.where((DailyCareReportCenterRoomGroup group) {
       return switch (status) {

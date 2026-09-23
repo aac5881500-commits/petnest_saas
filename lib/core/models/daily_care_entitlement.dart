@@ -33,8 +33,7 @@ class DailyCareEntitlement {
     this.photoRuleVersion = DailyCareReportMode.photoRuleVersion,
   });
 
-  static const String stayCareDateRule =
-      '回報日期依住宿晚數計算：入住日包含，退房日不包含。';
+  static const String stayCareDateRule = '回報日期依住宿晚數計算：入住日包含，退房日不包含。';
   static const String daycareCareDateRule = '每筆安親服務於服務當日提供回報。';
 
   final bool enabled;
@@ -71,6 +70,23 @@ class DailyCareEntitlement {
   bool get isLegacyPhotoRule =>
       photoRuleVersion < DailyCareReportMode.photoRuleVersion;
 
+  String sessionLabelAt(int index) {
+    if (index >= 0 && index < sessionLabels.length) {
+      final String label = sessionLabels[index].trim();
+      if (label.isNotEmpty) {
+        return label;
+      }
+    }
+    return '';
+  }
+
+  String get dailyQuotaLine {
+    if (addonReports > 0) {
+      return '基本 $baseReports 場 + 加購 $addonReports 場 = 本日 $finalReports 場';
+    }
+    return '本日應回報 $finalReports 場';
+  }
+
   factory DailyCareEntitlement.fromMap(Map<String, dynamic>? map) {
     if (map == null) {
       return const DailyCareEntitlement();
@@ -103,8 +119,9 @@ class DailyCareEntitlement {
       offerId: (map['offerId'] ?? '').toString(),
       offerName: (map['offerName'] ?? '').toString(),
       careDateRule: (map['careDateRule'] ?? stayCareDateRule).toString(),
-      photoShareNote: (map['photoShareNote'] ?? DailyCareReportMode.photoShareNote)
-          .toString(),
+      photoShareNote:
+          (map['photoShareNote'] ?? DailyCareReportMode.photoShareNote)
+              .toString(),
       includeCheckInDay: map['includeCheckInDay'] != false,
       includeCheckOutDay: map['includeCheckOutDay'] == true,
       serviceDates: DailyCareReportMode.readLabels(map['serviceDates']),

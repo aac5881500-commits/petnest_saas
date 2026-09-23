@@ -3,6 +3,7 @@
 
 import 'package:flutter/material.dart';
 
+import '../models/daily_care_entitlement.dart';
 import '../models/daily_care_record_model.dart';
 import '../models/daily_care_setting_model.dart';
 import '../models/shop_task_item.dart';
@@ -289,6 +290,13 @@ class _CareTile extends StatelessWidget {
     if (!context.mounted) {
       return;
     }
+    DailyCareEntitlement? entitlement;
+    final Object? rawEntitlement = meta['entitlement'];
+    if (rawEntitlement is Map) {
+      entitlement = DailyCareEntitlement.fromMap(
+        Map<String, dynamic>.from(rawEntitlement),
+      );
+    }
     await DailyCareRecordEditLauncher.open(
       context: context,
       shopId: item.shopId,
@@ -300,6 +308,7 @@ class _CareTile extends StatelessWidget {
       serviceType: DailyCareServiceTypes.parse(meta['serviceType']),
       petIds: _readPetIds(meta['petIds']),
       setting: setting,
+      entitlement: entitlement,
     );
   }
 

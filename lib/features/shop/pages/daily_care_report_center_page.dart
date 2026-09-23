@@ -43,7 +43,6 @@ class DailyCareReportCenterPage extends StatefulWidget {
 class _DailyCareReportCenterPageState extends State<DailyCareReportCenterPage> {
   int _retry = 0;
   late DailyCareReportCenterStatusFilter _status;
-  DailyCareReportCenterTypeFilter _type = DailyCareReportCenterTypeFilter.all;
 
   @override
   void initState() {
@@ -75,7 +74,7 @@ class _DailyCareReportCenterPageState extends State<DailyCareReportCenterPage> {
                   settingSnap.data == null) {
                 return const Center(child: CircularProgressIndicator());
               }
-              if (!setting.enabled) {
+              if (!setting.enabled && !setting.daycareEnabled) {
                 return const Center(
                   child: Padding(
                     padding: EdgeInsets.all(24),
@@ -128,15 +127,9 @@ class _DailyCareReportCenterPageState extends State<DailyCareReportCenterPage> {
                         snapshot: view,
                         setting: setting,
                         status: _status,
-                        type: _type,
                         onStatus: (DailyCareReportCenterStatusFilter value) {
                           setState(() {
                             _status = value;
-                          });
-                        },
-                        onType: (DailyCareReportCenterTypeFilter value) {
-                          setState(() {
-                            _type = value;
                           });
                         },
                       );

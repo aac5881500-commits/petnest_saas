@@ -90,7 +90,7 @@ class DailyCareReportCenterService {
       completedIds.clear();
       updatedAtById.clear();
 
-      if (!setting.enabled) {
+      if (!setting.enabled && !setting.daycareEnabled) {
         emit();
         return;
       }
@@ -208,7 +208,7 @@ class DailyCareReportCenterService {
     Set<String> completedIds = const <String>{},
     Map<String, DateTime?> updatedAtById = const <String, DateTime?>{},
   }) {
-    if (!setting.enabled) {
+    if (!setting.enabled && !setting.daycareEnabled) {
       return const DailyCareReportCenterSnapshot(settingEnabled: false);
     }
     final List<DailyCareReportCenterItem> items = <DailyCareReportCenterItem>[];
@@ -231,7 +231,10 @@ class DailyCareReportCenterService {
         continue;
       }
     }
-    return DailyCareReportCenterSnapshot.fromItems(items, settingEnabled: true);
+    return DailyCareReportCenterSnapshot.fromItems(
+      items,
+      settingEnabled: setting.enabled || setting.daycareEnabled,
+    );
   }
 
   static DateTime? _readDate(Object? value) {

@@ -8,13 +8,15 @@ import 'package:petnest_saas/core/services/shop_service.dart';
 import 'package:petnest_saas/core/navigation/admin_booking_route.dart';
 import 'package:petnest_saas/core/presentation/room_status_presentation.dart';
 import 'package:petnest_saas/core/models/daily_care_date_helper.dart';
+import 'package:petnest_saas/core/models/daily_care_entitlement.dart';
 import 'package:petnest_saas/core/models/daily_care_setting_model.dart';
 import 'package:petnest_saas/core/models/daily_care_stay_info.dart';
+import 'package:petnest_saas/core/services/daily_care_report_eligibility.dart';
 import 'package:petnest_saas/core/services/daily_care_setting_service.dart';
 import 'package:petnest_saas/core/models/daily_care_record_model.dart';
 import 'package:petnest_saas/core/services/daily_care_record_service.dart';
 import 'package:petnest_saas/features/booking/pages/customer_daily_care_page.dart';
-import 'package:petnest_saas/features/room/pages/daily_care_record_edit_page.dart';
+import 'package:petnest_saas/features/room/daily_care_record_edit_launcher.dart';
 import 'package:petnest_saas/core/widgets/shop_task_center_button.dart';
 
 class RoomCalendarPage extends StatefulWidget {
@@ -47,9 +49,12 @@ class _RoomCalendarPageState extends State<RoomCalendarPage> {
 
   int bookingRangeDays = 30;
 
+  String? _busyActionKey;
+
   DailyCareSettingModel _dailyCareSetting = const DailyCareSettingModel();
 
   bool _dailyCareSettingLoaded = false;
+  int _queryEpoch = 0;
 
   @override
   void initState() {
@@ -84,6 +89,72 @@ class _RoomCalendarPageState extends State<RoomCalendarPage> {
 
   String get _nextMonthStartKey => _format(_nextMonthStart);
 
+  bool _isMissingIndexError(Object error) {
+    String code = '';
+    String message = '';
+    if (error is FirebaseException) {
+      code = error.code.toLowerCase();
+      message = (error.message ?? '').toLowerCase();
+    }
+    final String text = error.toString().toLowerCase();
+    final String haystack = '$code $message $text';
+    return haystack.contains('requires an index') ||
+        haystack.contains('index is currently building') ||
+        haystack.contains('indexes are currently building') ||
+        ((haystack.contains('failed-precondition') ||
+                haystack.contains('failed_precondition')) &&
+            haystack.contains('index'));
+  }
+
+  Widget _calendarErrorCard(Object error) {
+    final bool indexError = _isMissingIndexError(error);
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 420),
+          child: Material(
+            color: Colors.orange.shade50,
+            borderRadius: BorderRadius.circular(12),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 16, 12, 12),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: <Widget>[
+                  Text(
+                    indexError ? '房間日曆索引建立中' : '房間日曆暫時無法載入',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: Colors.orange.shade900,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    indexError ? '首次建立索引約需幾分鐘，完成後請重新整理。' : '請檢查網路後再試。',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: Colors.orange.shade900,
+                      fontSize: 14,
+                      height: 1.4,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  TextButton(
+                    onPressed: () => setState(() => _queryEpoch++),
+                    child: const Text('重新載入'),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final today = DateTime.now();
@@ -96,6 +167,7 @@ class _RoomCalendarPageState extends State<RoomCalendarPage> {
       ),
 
       body: StreamBuilder(
+        key: ValueKey<int>(_queryEpoch),
         stream: ShopService.instance
             .roomCalendarRef(widget.shopId)
             .where('roomId', isEqualTo: widget.roomId)
@@ -103,9 +175,13 @@ class _RoomCalendarPageState extends State<RoomCalendarPage> {
             .where('date', isLessThan: _nextMonthStartKey)
             .snapshots(),
         builder: (context, snapshot) {
+          if (snapshot.hasError) {
+            debugPrint('房間日曆載入失敗：${snapshot.error}');
+            return _calendarErrorCard(snapshot.error!);
+          }
           final docs = snapshot.data?.docs ?? [];
 
-          final map = Map<String, String>.from(_calendarStatusCache);
+          final Map<String, String> map = <String, String>{};
 
           for (var doc in docs) {
             final data = doc.data();
@@ -115,13 +191,7 @@ class _RoomCalendarPageState extends State<RoomCalendarPage> {
 
             if (dateKey.isEmpty) continue;
 
-            final oldStatus = map[dateKey];
-
-            // Firestore 狀態有改變時，一律使用最新狀態。
-            // 避免 cleaning → closed、closed → available 時被舊快取擋住。
-            if (oldStatus != status) {
-              map[dateKey] = status;
-            }
+            map[dateKey] = status;
           }
 
           _calendarStatusCache
@@ -744,17 +814,28 @@ class _RoomCalendarPageState extends State<RoomCalendarPage> {
               width: double.infinity,
               child: FilledButton.icon(
                 style: FilledButton.styleFrom(
-                  backgroundColor: Colors.orange,
+                  backgroundColor: RoomStatusPresentation.cleaningColor,
                   foregroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(vertical: 13),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),
                   ),
                 ),
-                onPressed: () {
-                  _showCleaningCompleteDialog(dateKey: key);
-                },
-                icon: const Icon(Icons.check_circle_outline),
+                onPressed: _busyActionKey == 'clean:$key'
+                    ? null
+                    : () {
+                        _showCleaningCompleteDialog(dateKey: key);
+                      },
+                icon: _busyActionKey == 'clean:$key'
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
+                      )
+                    : const Icon(Icons.check_circle_outline),
                 label: const Text(
                   '清潔完成',
                   style: TextStyle(fontWeight: FontWeight.w800),
@@ -770,7 +851,7 @@ class _RoomCalendarPageState extends State<RoomCalendarPage> {
                 Expanded(
                   child: _smallActionButton(
                     label: '恢復開放',
-                    color: Colors.green,
+                    color: RoomStatusPresentation.availableColor,
                     status: 'available',
                     dateKey: key,
                     enabled: !lockedByBooking,
@@ -780,7 +861,7 @@ class _RoomCalendarPageState extends State<RoomCalendarPage> {
                 Expanded(
                   child: _smallActionButton(
                     label: '轉為維修中',
-                    color: Colors.black,
+                    color: RoomStatusPresentation.maintenanceColor,
                     status: 'maintenance',
                     dateKey: key,
                     enabled: !lockedByBooking,
@@ -797,7 +878,7 @@ class _RoomCalendarPageState extends State<RoomCalendarPage> {
                 Expanded(
                   child: _smallActionButton(
                     label: '維修完成並開放',
-                    color: Colors.green,
+                    color: RoomStatusPresentation.availableColor,
                     status: 'available',
                     dateKey: key,
                     enabled: !lockedByBooking,
@@ -807,7 +888,7 @@ class _RoomCalendarPageState extends State<RoomCalendarPage> {
                 Expanded(
                   child: _smallActionButton(
                     label: '維修完成但今日關閉',
-                    color: const Color(0xFF6D4C41),
+                    color: RoomStatusPresentation.closedColor,
                     status: 'closed',
                     dateKey: key,
                     enabled: !lockedByBooking,
@@ -826,7 +907,7 @@ class _RoomCalendarPageState extends State<RoomCalendarPage> {
                 Expanded(
                   child: _smallActionButton(
                     label: '關閉此日',
-                    color: const Color(0xFF6D4C41),
+                    color: RoomStatusPresentation.closedColor,
                     status: 'closed',
                     dateKey: key,
                     enabled: !lockedByBooking,
@@ -836,7 +917,7 @@ class _RoomCalendarPageState extends State<RoomCalendarPage> {
                 Expanded(
                   child: _smallActionButton(
                     label: '設為維修中',
-                    color: Colors.black,
+                    color: RoomStatusPresentation.maintenanceColor,
                     status: 'maintenance',
                     dateKey: key,
                     enabled: !lockedByBooking,
@@ -864,7 +945,17 @@ class _RoomCalendarPageState extends State<RoomCalendarPage> {
   /// 店家已啟用功能，而且房間目前正在入住時才會顯示。
   /// 退房日不產生、也不顯示填寫入口。
   Widget _dailyCarePanel() {
-    final int sessionCount = _dailyCareSetting.sessionCount;
+    final Map<String, dynamic> booking =
+        _selectedBooking ?? const <String, dynamic>{};
+    final DailyCareEntitlement entitlement =
+        DailyCareReportEligibility.resolvedEntitlement(
+          booking: booking,
+          setting: _dailyCareSetting,
+          daycare: false,
+        );
+    final int sessionCount = entitlement.finalReports >= 1
+        ? entitlement.finalReports
+        : _dailyCareSetting.sessionCount;
 
     return Container(
       width: double.infinity,
@@ -915,7 +1006,11 @@ class _RoomCalendarPageState extends State<RoomCalendarPage> {
           const SizedBox(height: 14),
 
           ...List.generate(sessionCount, (index) {
-            final String sessionName = _dailyCareSetting.sessionLabel(index);
+            final String sessionName = DailyCareReportEligibility.sessionName(
+              entitlement: entitlement,
+              setting: _dailyCareSetting,
+              sessionIndex: index,
+            );
 
             final String? bookingId = _selectedBookingId;
             final DateTime? selectedDate = _selectedDate;
@@ -944,12 +1039,16 @@ class _RoomCalendarPageState extends State<RoomCalendarPage> {
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
                     color: completed
-                        ? Colors.green.withValues(alpha: 0.04)
+                        ? RoomStatusPresentation.availableColor.withValues(
+                            alpha: 0.04,
+                          )
                         : Colors.grey.shade50,
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(
                       color: completed
-                          ? Colors.green.withValues(alpha: 0.20)
+                          ? RoomStatusPresentation.availableColor.withValues(
+                              alpha: 0.20,
+                            )
                           : Colors.grey.shade200,
                     ),
                   ),
@@ -960,7 +1059,8 @@ class _RoomCalendarPageState extends State<RoomCalendarPage> {
                         height: 38,
                         decoration: BoxDecoration(
                           color: completed
-                              ? Colors.green.withValues(alpha: 0.12)
+                              ? RoomStatusPresentation.availableColor
+                                    .withValues(alpha: 0.12)
                               : const Color(0xFF3D6F9F).withValues(alpha: 0.10),
                           shape: BoxShape.circle,
                         ),
@@ -973,7 +1073,7 @@ class _RoomCalendarPageState extends State<RoomCalendarPage> {
                                 ),
                           size: 20,
                           color: completed
-                              ? Colors.green
+                              ? RoomStatusPresentation.availableColor
                               : const Color(0xFF3D6F9F),
                         ),
                       ),
@@ -998,7 +1098,9 @@ class _RoomCalendarPageState extends State<RoomCalendarPage> {
                               completed ? '已填寫' : '尚未填寫',
                               style: TextStyle(
                                 fontSize: 12,
-                                color: completed ? Colors.green : Colors.orange,
+                                color: completed
+                                    ? RoomStatusPresentation.availableColor
+                                    : RoomStatusPresentation.cleaningColor,
                                 fontWeight: FontWeight.w700,
                               ),
                             ),
@@ -1042,25 +1144,16 @@ class _RoomCalendarPageState extends State<RoomCalendarPage> {
                               ),
                             ),
                             onPressed: () async {
-                              await Navigator.push<bool>(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (_) => DailyCareRecordEditPage(
-                                    shopId: widget.shopId,
-                                    bookingId: bookingId,
-                                    roomId: widget.roomId,
-                                    roomName: widget.roomName,
-                                    recordDate: selectedDate,
-                                    sessionIndex: index,
-                                    sessionName: sessionName,
-                                    enabledFields:
-                                        _dailyCareSetting.enabledFields,
-                                    customFields:
-                                        _dailyCareSetting.customFields,
-                                    photoEnabled:
-                                        _dailyCareSetting.photoEnabled,
-                                  ),
-                                ),
+                              await DailyCareRecordEditLauncher.open(
+                                context: context,
+                                shopId: widget.shopId,
+                                bookingId: bookingId,
+                                recordDate: selectedDate,
+                                sessionIndex: index,
+                                roomId: widget.roomId,
+                                roomName: widget.roomName,
+                                setting: _dailyCareSetting,
+                                entitlement: entitlement,
                               );
                             },
                             child: Text(completed ? '修改' : '填寫'),
@@ -1292,35 +1385,35 @@ class _RoomCalendarPageState extends State<RoomCalendarPage> {
     switch (type) {
       case 'room_cleaning_started':
         icon = Icons.cleaning_services_outlined;
-        iconColor = Colors.orange;
+        iconColor = RoomStatusPresentation.cleaningColor;
         title = '開始清潔';
         detail = '房間已進入清潔中';
         break;
 
       case 'room_cleaning_completed':
         icon = Icons.check_circle_outline;
-        iconColor = Colors.green;
+        iconColor = RoomStatusPresentation.availableColor;
         title = '清潔完成';
         detail = reopened ? '完成後已立即開放' : '完成後今日維持關閉';
         break;
 
       case 'room_maintenance_started':
         icon = Icons.build_outlined;
-        iconColor = Colors.black;
+        iconColor = RoomStatusPresentation.maintenanceColor;
         title = '開始維修';
         detail = '$fromStatus → 維修中';
         break;
 
       case 'room_maintenance_completed':
         icon = Icons.handyman_outlined;
-        iconColor = Colors.green;
+        iconColor = RoomStatusPresentation.availableColor;
         title = '維修完成';
         detail = '維修完成並恢復開放';
         break;
 
       case 'room_maintenance_completed_closed':
         icon = Icons.handyman_outlined;
-        iconColor = const Color(0xFF6D4C41);
+        iconColor = RoomStatusPresentation.closedColor;
         title = '維修完成';
         detail = '維修完成，但今日維持關閉';
         break;
@@ -1400,7 +1493,10 @@ class _RoomCalendarPageState extends State<RoomCalendarPage> {
             return AlertDialog(
               title: const Row(
                 children: [
-                  Icon(Icons.cleaning_services_outlined, color: Colors.orange),
+                  Icon(
+                    Icons.cleaning_services_outlined,
+                    color: RoomStatusPresentation.cleaningColor,
+                  ),
                   SizedBox(width: 8),
                   Text('清潔完成'),
                 ],
@@ -1411,7 +1507,7 @@ class _RoomCalendarPageState extends State<RoomCalendarPage> {
                   RadioListTile<String>(
                     value: 'available',
                     groupValue: selectedResult,
-                    activeColor: Colors.green,
+                    activeColor: RoomStatusPresentation.availableColor,
                     title: const Text(
                       '完成並立即開放',
                       style: TextStyle(fontWeight: FontWeight.w700),
@@ -1466,30 +1562,46 @@ class _RoomCalendarPageState extends State<RoomCalendarPage> {
 
     if (confirmed != true) return;
 
-    await ShopService.instance.setRoomStatus(
-      shopId: widget.shopId,
-      roomId: widget.roomId,
-      roomName: widget.roomName,
-      date: dateKey,
-      status: selectedResult,
-
-      cleaningCompleted: true,
-      reopened: selectedResult == 'available',
-    );
-
-    if (!mounted) return;
-
+    final String actionKey = 'clean:$dateKey';
     setState(() {
-      _selectedStatus = selectedResult;
+      _busyActionKey = actionKey;
     });
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          selectedResult == 'available' ? '清潔完成，房間已恢復開放' : '清潔完成，今日繼續維持關閉',
+    try {
+      await ShopService.instance.setRoomStatus(
+        shopId: widget.shopId,
+        roomId: widget.roomId,
+        roomName: widget.roomName,
+        date: dateKey,
+        status: selectedResult,
+        cleaningCompleted: true,
+        reopened: selectedResult == 'available',
+      );
+      if (!mounted) return;
+      setState(() {
+        _selectedStatus = selectedResult;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            selectedResult == 'available' ? '清潔完成，房間已恢復開放' : '清潔完成，今日繼續維持關閉',
+          ),
         ),
-      ),
-    );
+      );
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          backgroundColor: Colors.red.shade700,
+          content: Text('操作失敗：$error'),
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _busyActionKey = null;
+        });
+      }
+    }
   }
 
   /// 🔥 下方小操作按鈕
@@ -1500,6 +1612,8 @@ class _RoomCalendarPageState extends State<RoomCalendarPage> {
     required String dateKey,
     bool enabled = true,
   }) {
+    final String actionKey = '$status:$dateKey';
+    final bool busy = _busyActionKey == actionKey;
     return OutlinedButton(
       style: OutlinedButton.styleFrom(
         foregroundColor: color,
@@ -1507,28 +1621,88 @@ class _RoomCalendarPageState extends State<RoomCalendarPage> {
         padding: const EdgeInsets.symmetric(vertical: 12),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       ),
-      onPressed: enabled
-          ? () async {
-              await ShopService.instance.setRoomStatus(
-                shopId: widget.shopId,
-                roomId: widget.roomId,
-                roomName: widget.roomName,
-                date: dateKey,
-                status: status,
-              );
-
-              if (!mounted) return;
-
-              setState(() {
-                _selectedStatus = status;
-              });
-            }
+      onPressed: enabled && !busy && _busyActionKey == null
+          ? () => _runCalendarAction(
+              actionKey: actionKey,
+              dateKey: dateKey,
+              status: status,
+              successMessage: _statusActionMessage(status),
+            )
           : null,
-      child: Text(
-        label,
-        style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
-      ),
+      child: busy
+          ? SizedBox(
+              width: 18,
+              height: 18,
+              child: CircularProgressIndicator(strokeWidth: 2, color: color),
+            )
+          : Text(
+              label,
+              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
+            ),
     );
+  }
+
+  String _statusActionMessage(String status) {
+    switch (status) {
+      case 'available':
+        return '已恢復開放';
+      case 'closed':
+        return '已關閉此日';
+      case 'maintenance':
+      case 'blocked':
+      case 'unavailable':
+        return '已設為維修中';
+      default:
+        return '房間狀態已更新';
+    }
+  }
+
+  Future<void> _runCalendarAction({
+    required String actionKey,
+    required String dateKey,
+    required String status,
+    required String successMessage,
+  }) async {
+    if (_busyActionKey != null) {
+      return;
+    }
+    setState(() {
+      _busyActionKey = actionKey;
+    });
+    try {
+      await ShopService.instance.setRoomStatus(
+        shopId: widget.shopId,
+        roomId: widget.roomId,
+        roomName: widget.roomName,
+        date: dateKey,
+        status: status,
+      );
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _selectedStatus = status;
+      });
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(successMessage)));
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          backgroundColor: Colors.red.shade700,
+          content: Text('操作失敗：$error'),
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _busyActionKey = null;
+        });
+      }
+    }
   }
 
   bool _isBlockedStatus(String status) {

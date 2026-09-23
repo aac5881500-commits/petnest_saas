@@ -9,10 +9,31 @@ import '../models/daily_care_report_center_item.dart';
 import '../models/daily_care_setting_model.dart';
 import '../models/daily_care_stay_info.dart';
 import 'daily_care_daycare_access.dart';
+import 'daily_care_entitlement_math.dart';
 import 'daily_care_record_service.dart';
 
 class DailyCareReportEligibility {
   DailyCareReportEligibility._();
+
+  static DailyCareEntitlement resolvedEntitlement({
+    required Map<String, dynamic> booking,
+    required DailyCareSettingModel setting,
+    required bool daycare,
+  }) {
+    final Object? raw = booking['dailyCareEntitlement'];
+    if (raw is Map) {
+      try {
+        return DailyCareEntitlement.fromMap(Map<String, dynamic>.from(raw));
+      } catch (_) {
+        // 快照壞掉時才退回設定，不寫回訂單。
+      }
+    }
+    return DailyCareEntitlementMath.fallbackFromSetting(
+      setting: setting,
+      isDaycare: daycare,
+      booking: booking,
+    );
+  }
 
   static DailyCareEntitlement entitlementOf(Map<String, dynamic> booking) {
     final Object? raw = booking['dailyCareEntitlement'];
@@ -82,11 +103,12 @@ class DailyCareReportEligibility {
     required DailyCareSettingModel setting,
     required int sessionIndex,
   }) {
-    if (sessionIndex >= 0 && sessionIndex < entitlement.sessionLabels.length) {
-      final String label = entitlement.sessionLabels[sessionIndex].trim();
-      if (label.isNotEmpty) {
-        return label;
-      }
+    final String fromEntitlement = entitlement.sessionLabelAt(sessionIndex);
+    if (fromEntitlement.isNotEmpty) {
+      return fromEntitlement;
+    }
+    if (entitlement.service == 'daycare') {
+      return setting.daycareSessionLabelAt(sessionIndex);
     }
     return setting.sessionLabelAt(sessionIndex);
   }
@@ -145,7 +167,17 @@ class DailyCareReportEligibility {
     Set<String> completedIds = const <String>{},
     Map<String, DateTime?> updatedAtById = const <String, DateTime?>{},
   }) {
-    final DailyCareEntitlement entitlement = entitlementOf(booking);
+    if (daycare && !setting.daycareEnabled) {
+      return const <DailyCareReportCenterItem>[];
+    }
+    if (!daycare && !setting.enabled) {
+      return const <DailyCareReportCenterItem>[];
+    }
+    final DailyCareEntitlement entitlement = resolvedEntitlement(
+      booking: booking,
+      setting: setting,
+      daycare: daycare,
+    );
     final bool qualifies = daycare
         ? daycareQualifiesToday(
             setting: setting,
@@ -174,10 +206,8 @@ class DailyCareReportEligibility {
     final String petPhotoUrl = stay.pets
         .map((DailyCareStayPet pet) => pet.photoUrl.trim())
         .firstWhere((String url) => url.isNotEmpty, orElse: () => '');
-    final String roomName = daycare ? '' : stay.roomName.trim();
-    final String roomId = daycare
-        ? ''
-        : (booking['roomId'] ?? '').toString().trim();
+    final String roomName = stay.roomName.trim();
+    final String roomId = (booking['roomId'] ?? '').toString().trim();
     final String bookingCode = (booking['bookingCode'] ?? '').toString().trim();
     final String roomTypeName = roomTypeNameOf(booking);
     int? stayDayIndex;
@@ -253,17 +283,24 @@ class DailyCareReportEligibility {
       'roomTypeName',
       'roomTypeNameSnapshot',
       'typeName',
+      'daycarePlanName',
     ]) {
       final String value = (booking[key] ?? '').toString().trim();
       if (value.isNotEmpty) {
         return value;
       }
     }
-    final Object? raw = booking['roomType'];
-    if (raw is Map) {
-      final String name = (raw['name'] ?? '').toString().trim();
-      if (name.isNotEmpty) {
-        return name;
+    for (final String key in <String>[
+      'roomType',
+      'daycarePlanSnapshot',
+      'daycarePlanPriceSnapshot',
+    ]) {
+      final Object? raw = booking[key];
+      if (raw is Map) {
+        final String name = (raw['name'] ?? '').toString().trim();
+        if (name.isNotEmpty) {
+          return name;
+        }
       }
     }
     return '';

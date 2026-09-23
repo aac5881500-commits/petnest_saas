@@ -6,8 +6,6 @@ import 'daily_care_report_center_item.dart';
 
 enum DailyCareReportCenterStatusFilter { all, pending, completed }
 
-enum DailyCareReportCenterTypeFilter { all, accommodation, daycare }
-
 class DailyCareReportCenterSnapshot {
   const DailyCareReportCenterSnapshot({
     this.items = const <DailyCareReportCenterItem>[],
@@ -32,21 +30,13 @@ class DailyCareReportCenterSnapshot {
   List<DailyCareReportCenterItem> filtered({
     DailyCareReportCenterStatusFilter status =
         DailyCareReportCenterStatusFilter.pending,
-    DailyCareReportCenterTypeFilter type = DailyCareReportCenterTypeFilter.all,
   }) {
     return items.where((DailyCareReportCenterItem item) {
-      final bool statusOk = switch (status) {
+      return switch (status) {
         DailyCareReportCenterStatusFilter.all => true,
         DailyCareReportCenterStatusFilter.pending => !item.isCompleted,
         DailyCareReportCenterStatusFilter.completed => item.isCompleted,
       };
-      final bool typeOk = switch (type) {
-        DailyCareReportCenterTypeFilter.all => true,
-        DailyCareReportCenterTypeFilter.accommodation =>
-          item.serviceType == DailyCareServiceTypes.accommodation,
-        DailyCareReportCenterTypeFilter.daycare => item.isDaycare,
-      };
-      return statusOk && typeOk;
     }).toList();
   }
 

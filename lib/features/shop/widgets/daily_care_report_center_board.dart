@@ -15,9 +15,7 @@ class DailyCareReportCenterBoard extends StatelessWidget {
     required this.snapshot,
     required this.setting,
     required this.status,
-    required this.type,
     required this.onStatus,
-    required this.onType,
   });
 
   static const double phoneMax = 600;
@@ -28,9 +26,7 @@ class DailyCareReportCenterBoard extends StatelessWidget {
   final DailyCareReportCenterSnapshot snapshot;
   final DailyCareSettingModel setting;
   final DailyCareReportCenterStatusFilter status;
-  final DailyCareReportCenterTypeFilter type;
   final ValueChanged<DailyCareReportCenterStatusFilter> onStatus;
-  final ValueChanged<DailyCareReportCenterTypeFilter> onType;
 
   @override
   Widget build(BuildContext context) {
@@ -39,7 +35,6 @@ class DailyCareReportCenterBoard extends StatelessWidget {
         DailyCareReportCenterGrouping.visible(
           items: snapshot.items,
           status: status,
-          type: type,
         );
     if (width >= desktopMin) {
       return _DesktopBoard(
@@ -47,9 +42,7 @@ class DailyCareReportCenterBoard extends StatelessWidget {
         setting: setting,
         groups: groups,
         status: status,
-        type: type,
         onStatus: onStatus,
-        onType: onType,
       );
     }
     if (width >= phoneMax) {
@@ -58,9 +51,7 @@ class DailyCareReportCenterBoard extends StatelessWidget {
         setting: setting,
         groups: groups,
         status: status,
-        type: type,
         onStatus: onStatus,
-        onType: onType,
       );
     }
     return _PhoneBoard(
@@ -68,9 +59,7 @@ class DailyCareReportCenterBoard extends StatelessWidget {
       setting: setting,
       groups: groups,
       status: status,
-      type: type,
       onStatus: onStatus,
-      onType: onType,
     );
   }
 }
@@ -104,18 +93,14 @@ class _PhoneBoard extends StatelessWidget {
     required this.setting,
     required this.groups,
     required this.status,
-    required this.type,
     required this.onStatus,
-    required this.onType,
   });
 
   final DailyCareReportCenterSnapshot snapshot;
   final DailyCareSettingModel setting;
   final List<DailyCareReportCenterRoomGroup> groups;
   final DailyCareReportCenterStatusFilter status;
-  final DailyCareReportCenterTypeFilter type;
   final ValueChanged<DailyCareReportCenterStatusFilter> onStatus;
-  final ValueChanged<DailyCareReportCenterTypeFilter> onType;
 
   @override
   Widget build(BuildContext context) {
@@ -130,9 +115,7 @@ class _PhoneBoard extends StatelessWidget {
           child: _FilterRows(
             snapshot: snapshot,
             status: status,
-            type: type,
             onStatus: onStatus,
-            onType: onType,
           ),
         ),
         Expanded(
@@ -164,18 +147,14 @@ class _TabletBoard extends StatelessWidget {
     required this.setting,
     required this.groups,
     required this.status,
-    required this.type,
     required this.onStatus,
-    required this.onType,
   });
 
   final DailyCareReportCenterSnapshot snapshot;
   final DailyCareSettingModel setting;
   final List<DailyCareReportCenterRoomGroup> groups;
   final DailyCareReportCenterStatusFilter status;
-  final DailyCareReportCenterTypeFilter type;
   final ValueChanged<DailyCareReportCenterStatusFilter> onStatus;
-  final ValueChanged<DailyCareReportCenterTypeFilter> onType;
 
   @override
   Widget build(BuildContext context) {
@@ -190,9 +169,7 @@ class _TabletBoard extends StatelessWidget {
           child: _FilterRows(
             snapshot: snapshot,
             status: status,
-            type: type,
             onStatus: onStatus,
-            onType: onType,
           ),
         ),
         Expanded(
@@ -224,18 +201,14 @@ class _DesktopBoard extends StatelessWidget {
     required this.setting,
     required this.groups,
     required this.status,
-    required this.type,
     required this.onStatus,
-    required this.onType,
   });
 
   final DailyCareReportCenterSnapshot snapshot;
   final DailyCareSettingModel setting;
   final List<DailyCareReportCenterRoomGroup> groups;
   final DailyCareReportCenterStatusFilter status;
-  final DailyCareReportCenterTypeFilter type;
   final ValueChanged<DailyCareReportCenterStatusFilter> onStatus;
-  final ValueChanged<DailyCareReportCenterTypeFilter> onType;
 
   @override
   Widget build(BuildContext context) {
@@ -274,9 +247,7 @@ class _DesktopBoard extends StatelessWidget {
                       child: _FilterRail(
                         snapshot: snapshot,
                         status: status,
-                        type: type,
                         onStatus: onStatus,
-                        onType: onType,
                       ),
                     ),
                     const SizedBox(width: 16),
@@ -476,78 +447,41 @@ class _FilterRows extends StatelessWidget {
   const _FilterRows({
     required this.snapshot,
     required this.status,
-    required this.type,
     required this.onStatus,
-    required this.onType,
   });
 
   final DailyCareReportCenterSnapshot snapshot;
   final DailyCareReportCenterStatusFilter status;
-  final DailyCareReportCenterTypeFilter type;
   final ValueChanged<DailyCareReportCenterStatusFilter> onStatus;
-  final ValueChanged<DailyCareReportCenterTypeFilter> onType;
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      children: <Widget>[
-        SizedBox(
-          width: double.infinity,
-          child: SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: SegmentedButton<DailyCareReportCenterStatusFilter>(
-              showSelectedIcon: false,
-              segments: <ButtonSegment<DailyCareReportCenterStatusFilter>>[
-                ButtonSegment<DailyCareReportCenterStatusFilter>(
-                  value: DailyCareReportCenterStatusFilter.all,
-                  label: Text('全部 ${snapshot.totalCount}'),
-                ),
-                ButtonSegment<DailyCareReportCenterStatusFilter>(
-                  value: DailyCareReportCenterStatusFilter.pending,
-                  label: Text('待填 ${snapshot.pendingCount}'),
-                ),
-                ButtonSegment<DailyCareReportCenterStatusFilter>(
-                  value: DailyCareReportCenterStatusFilter.completed,
-                  label: Text('已完成 ${snapshot.completedCount}'),
-                ),
-              ],
-              selected: <DailyCareReportCenterStatusFilter>{status},
-              onSelectionChanged:
-                  (Set<DailyCareReportCenterStatusFilter> value) {
-                    onStatus(value.first);
-                  },
+    return SizedBox(
+      width: double.infinity,
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: SegmentedButton<DailyCareReportCenterStatusFilter>(
+          showSelectedIcon: false,
+          segments: <ButtonSegment<DailyCareReportCenterStatusFilter>>[
+            ButtonSegment<DailyCareReportCenterStatusFilter>(
+              value: DailyCareReportCenterStatusFilter.all,
+              label: Text('全部 ${snapshot.totalCount}'),
             ),
-          ),
-        ),
-        const SizedBox(height: 8),
-        SizedBox(
-          width: double.infinity,
-          child: SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: SegmentedButton<DailyCareReportCenterTypeFilter>(
-              showSelectedIcon: false,
-              segments: const <ButtonSegment<DailyCareReportCenterTypeFilter>>[
-                ButtonSegment<DailyCareReportCenterTypeFilter>(
-                  value: DailyCareReportCenterTypeFilter.all,
-                  label: Text('全部'),
-                ),
-                ButtonSegment<DailyCareReportCenterTypeFilter>(
-                  value: DailyCareReportCenterTypeFilter.accommodation,
-                  label: Text('住宿'),
-                ),
-                ButtonSegment<DailyCareReportCenterTypeFilter>(
-                  value: DailyCareReportCenterTypeFilter.daycare,
-                  label: Text('安親'),
-                ),
-              ],
-              selected: <DailyCareReportCenterTypeFilter>{type},
-              onSelectionChanged: (Set<DailyCareReportCenterTypeFilter> value) {
-                onType(value.first);
-              },
+            ButtonSegment<DailyCareReportCenterStatusFilter>(
+              value: DailyCareReportCenterStatusFilter.pending,
+              label: Text('待填 ${snapshot.pendingCount}'),
             ),
-          ),
+            ButtonSegment<DailyCareReportCenterStatusFilter>(
+              value: DailyCareReportCenterStatusFilter.completed,
+              label: Text('已完成 ${snapshot.completedCount}'),
+            ),
+          ],
+          selected: <DailyCareReportCenterStatusFilter>{status},
+          onSelectionChanged: (Set<DailyCareReportCenterStatusFilter> value) {
+            onStatus(value.first);
+          },
         ),
-      ],
+      ),
     );
   }
 }
@@ -556,16 +490,12 @@ class _FilterRail extends StatelessWidget {
   const _FilterRail({
     required this.snapshot,
     required this.status,
-    required this.type,
     required this.onStatus,
-    required this.onType,
   });
 
   final DailyCareReportCenterSnapshot snapshot;
   final DailyCareReportCenterStatusFilter status;
-  final DailyCareReportCenterTypeFilter type;
   final ValueChanged<DailyCareReportCenterStatusFilter> onStatus;
-  final ValueChanged<DailyCareReportCenterTypeFilter> onType;
 
   @override
   Widget build(BuildContext context) {
@@ -596,26 +526,6 @@ class _FilterRail extends StatelessWidget {
             badge: snapshot.completedCount,
             selected: status == DailyCareReportCenterStatusFilter.completed,
             onTap: () => onStatus(DailyCareReportCenterStatusFilter.completed),
-          ),
-          const Divider(),
-          const Padding(
-            padding: EdgeInsets.fromLTRB(16, 8, 16, 4),
-            child: Text('類型', style: TextStyle(fontWeight: FontWeight.w800)),
-          ),
-          _railTile(
-            label: '全部',
-            selected: type == DailyCareReportCenterTypeFilter.all,
-            onTap: () => onType(DailyCareReportCenterTypeFilter.all),
-          ),
-          _railTile(
-            label: '住宿',
-            selected: type == DailyCareReportCenterTypeFilter.accommodation,
-            onTap: () => onType(DailyCareReportCenterTypeFilter.accommodation),
-          ),
-          _railTile(
-            label: '安親',
-            selected: type == DailyCareReportCenterTypeFilter.daycare,
-            onTap: () => onType(DailyCareReportCenterTypeFilter.daycare),
           ),
         ],
       ),
@@ -790,6 +700,14 @@ class _RoomCard extends StatelessWidget {
                         ),
                       ),
                     ],
+                    const SizedBox(height: 6),
+                    Text(
+                      item.entitlement.dailyQuotaLine,
+                      style: const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
                     if (!compact) ...<Widget>[
                       if (item.bookingCode.isNotEmpty) ...<Widget>[
                         const SizedBox(height: 4),
@@ -881,6 +799,7 @@ class _RoomCard extends StatelessWidget {
       serviceType: session.serviceType,
       petIds: session.petIds,
       setting: setting,
+      entitlement: session.entitlement,
     );
   }
 

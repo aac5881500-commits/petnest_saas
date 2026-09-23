@@ -22,12 +22,14 @@ class BookingStatusFilter extends StatelessWidget {
     required this.counts,
     required this.onChanged,
     required this.items,
+    this.countsIncomplete = false,
   });
 
   final String selectedType;
   final Map<String, int> counts;
   final ValueChanged<String> onChanged;
   final List<BookingFilterChipSpec> items;
+  final bool countsIncomplete;
 
   static const List<BookingFilterChipSpec> stayItems = <BookingFilterChipSpec>[
     BookingFilterChipSpec(type: 'pending', label: '待確認', attention: true),
@@ -38,6 +40,7 @@ class BookingStatusFilter extends StatelessWidget {
     ),
     BookingFilterChipSpec(type: 'confirmed', label: '已確認'),
     BookingFilterChipSpec(type: 'awaitingRoom', label: '待分房', attention: true),
+    BookingFilterChipSpec(type: 'checked_in', label: '入住中', attention: true),
     BookingFilterChipSpec(type: 'todayCheckIn', label: '今日入住', attention: true),
     BookingFilterChipSpec(
       type: 'todayCheckOut',
@@ -73,8 +76,13 @@ class BookingStatusFilter extends StatelessWidget {
         runSpacing: 10,
         children: items.map((BookingFilterChipSpec item) {
           final bool selected = selectedType == item.type;
-          final int count = counts[item.type] ?? 0;
-          final bool showRed = item.attention && count > 0 && !selected;
+          final bool hasCount = counts.containsKey(item.type);
+          final int count = hasCount ? counts[item.type]! : 0;
+          final String countText = hasCount
+              ? count.toString()
+              : (countsIncomplete ? '—' : '0');
+          final bool showRed =
+              item.attention && hasCount && count > 0 && !selected;
           final Color chipColor = selected
               ? Theme.of(context).colorScheme.primary
               : Colors.brown.shade100;
@@ -97,7 +105,9 @@ class BookingStatusFilter extends StatelessWidget {
                       fontWeight: FontWeight.bold,
                     ),
                   ),
-                  if (item.type != 'history' || count > 0) ...<Widget>[
+                  if (item.type != 'history' ||
+                      count > 0 ||
+                      !hasCount) ...<Widget>[
                     const SizedBox(width: 8),
                     Container(
                       padding: const EdgeInsets.symmetric(
@@ -113,7 +123,7 @@ class BookingStatusFilter extends StatelessWidget {
                         borderRadius: BorderRadius.circular(20),
                       ),
                       child: Text(
-                        count.toString(),
+                        countText,
                         style: TextStyle(
                           color: showRed
                               ? Colors.white

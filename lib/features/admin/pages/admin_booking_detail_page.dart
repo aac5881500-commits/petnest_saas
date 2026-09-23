@@ -255,9 +255,8 @@ class AdminBookingDetailPage extends StatelessWidget {
                                   );
                                 },
                                 onOpenDailyCareReport:
-                                    AdminDailyCareReportShortcut.shouldShow(
-                                      data,
-                                    )
+                                    (data['status'] ?? '').toString() ==
+                                        'checked_in'
                                     ? () =>
                                           AdminDailyCareReportShortcut.openStayEntry(
                                             context: context,
@@ -307,6 +306,14 @@ class AdminBookingDetailPage extends StatelessWidget {
                             bookingId: bookingId,
                           ),
                         ),
+                        AdminBookingDetailSection(
+                          title: '每日照護摘要',
+                          child: AdminDailyCareReportShortcut(
+                            shopId: shopId,
+                            bookingId: bookingId,
+                            booking: data,
+                          ),
+                        ),
                         if (data['extraCharges'] is List &&
                             (data['extraCharges'] as List).isNotEmpty)
                           AdminBookingDetailSection(
@@ -314,15 +321,6 @@ class AdminBookingDetailPage extends StatelessWidget {
                             collapsible: true,
                             initiallyExpanded: false,
                             child: AdminBookingExtraChargeSection(data: data),
-                          ),
-                        if (AdminDailyCareReportShortcut.shouldShow(data))
-                          AdminBookingDetailSection(
-                            title: '每日回報',
-                            child: AdminDailyCareReportShortcut(
-                              shopId: shopId,
-                              bookingId: bookingId,
-                              booking: data,
-                            ),
                           ),
                       ],
                       progress: AdminBookingDetailSection(

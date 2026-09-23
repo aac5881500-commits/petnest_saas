@@ -2,10 +2,12 @@
 // 功能說明：安親訂單照護回報入口，共用既有每日照護填寫／查看頁
 
 import 'package:flutter/material.dart';
+import 'package:petnest_saas/core/models/daily_care_entitlement.dart';
 import 'package:petnest_saas/core/models/daily_care_record_model.dart';
 import 'package:petnest_saas/core/models/daily_care_setting_model.dart';
 import 'package:petnest_saas/core/services/daily_care_daycare_access.dart';
 import 'package:petnest_saas/core/services/daily_care_record_service.dart';
+import 'package:petnest_saas/core/services/daily_care_report_eligibility.dart';
 import 'package:petnest_saas/core/services/daily_care_setting_service.dart';
 import 'package:petnest_saas/features/booking/pages/customer_daily_care_page.dart';
 import 'package:petnest_saas/features/room/daily_care_record_edit_launcher.dart';
@@ -56,93 +58,129 @@ class _AdminDaycareCareReportSectionState
   Widget build(BuildContext context) {
     return StreamBuilder<DailyCareSettingModel>(
       stream: DailyCareSettingService.instance.streamSetting(widget.shopId),
-      builder:
-          (
-            BuildContext context,
-            AsyncSnapshot<DailyCareSettingModel> settingSnap,
-          ) {
-            final DailyCareSettingModel setting =
-                settingSnap.data ?? const DailyCareSettingModel();
-            if (!setting.daycareEnabled) {
-              return const SizedBox.shrink();
-            }
-            if (!DailyCareDaycareAccess.hasStartedCare(widget.booking)) {
-              return const SizedBox.shrink();
-            }
-            final bool canFill = DailyCareDaycareAccess.canOperate(
-              setting: setting,
+      builder: (BuildContext context, AsyncSnapshot<DailyCareSettingModel> settingSnap) {
+        final DailyCareSettingModel setting =
+            settingSnap.data ?? const DailyCareSettingModel();
+        if (!setting.daycareEnabled) {
+          return const SizedBox.shrink();
+        }
+        if (!DailyCareDaycareAccess.hasStartedCare(widget.booking)) {
+          return const SizedBox.shrink();
+        }
+        final DailyCareEntitlement entitlement =
+            DailyCareReportEligibility.resolvedEntitlement(
               booking: widget.booking,
+              setting: setting,
+              daycare: true,
             );
-            return StreamBuilder<List<DailyCareRecordModel>>(
-              key: ValueKey<int>(_streamEpoch),
-              stream: DailyCareRecordService.instance.streamBookingRecords(
-                bookingId: widget.bookingId,
-                shopId: widget.shopId,
-                careDates: <DateTime>[
-                  DailyCareDaycareAccess.serviceCalendarDate(widget.booking) ??
-                      DateTime.now(),
-                ],
-                sessionCount: setting.daycareSessionCount,
-              ),
-              builder:
-                  (
-                    BuildContext context,
-                    AsyncSnapshot<List<DailyCareRecordModel>> recordSnap,
-                  ) {
-                    final List<DailyCareRecordModel> records =
-                        recordSnap.data ?? const <DailyCareRecordModel>[];
-                    final Set<int> filledSessions = _filledSessions(records);
-                    final int filled = filledSessions.length;
-                    final int total = setting.daycareSessionCount;
-                    if (widget.compact) {
-                      return _compactActions(
-                        context,
-                        setting: setting,
-                        canFill: canFill,
-                        filled: filled,
-                        total: total,
-                      );
-                    }
-                    return Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+        if (!DailyCareReportEligibility.isEntitled(entitlement)) {
+          return const Padding(
+            padding: EdgeInsets.only(top: 4),
+            child: Text(
+              '本訂單未包含每日照護回報',
+              style: TextStyle(color: Colors.black54),
+            ),
+          );
+        }
+        final bool canFill = DailyCareDaycareAccess.canOperate(
+          setting: setting,
+          booking: widget.booking,
+        );
+        final int total = entitlement.finalReports;
+        return StreamBuilder<List<DailyCareRecordModel>>(
+          key: ValueKey<int>(_streamEpoch),
+          stream: DailyCareRecordService.instance.streamBookingRecords(
+            bookingId: widget.bookingId,
+            shopId: widget.shopId,
+            careDates: <DateTime>[
+              DailyCareDaycareAccess.serviceCalendarDate(widget.booking) ??
+                  DateTime.now(),
+            ],
+            sessionCount: total < 1 ? 1 : total,
+          ),
+          builder:
+              (
+                BuildContext context,
+                AsyncSnapshot<List<DailyCareRecordModel>> recordSnap,
+              ) {
+                final List<DailyCareRecordModel> records =
+                    recordSnap.data ?? const <DailyCareRecordModel>[];
+                final Set<int> filledSessions = _filledSessions(records);
+                final int filled = filledSessions.length;
+                final int total = entitlement.finalReports;
+                if (widget.compact) {
+                  return _compactActions(
+                    context,
+                    setting: setting,
+                    entitlement: entitlement,
+                    canFill: canFill,
+                    filled: filled,
+                    total: total,
+                  );
+                }
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Text(
+                      '每日基本包含：${entitlement.baseReports} 場',
+                      style: const TextStyle(color: Colors.black54),
+                    ),
+                    if (entitlement.addonReports > 0) ...<Widget>[
+                      const SizedBox(height: 4),
+                      Text(
+                        '加購增加：${entitlement.addonReports} 場　名稱：${entitlement.addonName}',
+                        style: const TextStyle(color: Colors.black54),
+                      ),
+                    ],
+                    const SizedBox(height: 4),
+                    Text(
+                      '每日應回報：${entitlement.finalReports} 場',
+                      style: const TextStyle(color: Colors.black54),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      '已填 $filled / $total 次',
+                      style: const TextStyle(color: Colors.black54),
+                    ),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
                       children: <Widget>[
-                        Text(
-                          '已填 $filled / $total 次',
-                          style: const TextStyle(color: Colors.black54),
-                        ),
-                        const SizedBox(height: 8),
-                        Wrap(
-                          spacing: 8,
-                          runSpacing: 8,
-                          children: <Widget>[
-                            for (int index = 0; index < total; index++)
-                              OutlinedButton(
-                                onPressed: canFill
-                                    ? () => _openFill(context, setting, index)
-                                    : null,
-                                child: Text(
-                                  filledSessions.contains(index)
-                                      ? '編輯${setting.sessionLabelAt(index)}'
-                                      : '填寫${setting.sessionLabelAt(index)}',
-                                ),
-                              ),
-                            TextButton(
-                              onPressed: () => _openView(context),
-                              child: const Text('查看紀錄'),
+                        for (int index = 0; index < total; index++)
+                          OutlinedButton(
+                            onPressed: canFill
+                                ? () => _openFill(
+                                    context,
+                                    setting,
+                                    entitlement,
+                                    index,
+                                  )
+                                : null,
+                            child: Text(
+                              filledSessions.contains(index)
+                                  ? '編輯${DailyCareReportEligibility.sessionName(entitlement: entitlement, setting: setting, sessionIndex: index)}'
+                                  : '填寫${DailyCareReportEligibility.sessionName(entitlement: entitlement, setting: setting, sessionIndex: index)}',
                             ),
-                          ],
+                          ),
+                        TextButton(
+                          onPressed: () => _openView(context),
+                          child: const Text('查看紀錄'),
                         ),
                       ],
-                    );
-                  },
-            );
-          },
+                    ),
+                  ],
+                );
+              },
+        );
+      },
     );
   }
 
   Widget _compactActions(
     BuildContext context, {
     required DailyCareSettingModel setting,
+    required DailyCareEntitlement entitlement,
     required bool canFill,
     required int filled,
     required int total,
@@ -162,7 +200,7 @@ class _AdminDaycareCareReportSectionState
           OutlinedButton(
             onPressed: () {
               final int next = filled >= total ? 0 : filled;
-              _openFill(context, setting, next);
+              _openFill(context, setting, entitlement, next);
             },
             child: Text(label),
           ),
@@ -178,6 +216,7 @@ class _AdminDaycareCareReportSectionState
   Future<void> _openFill(
     BuildContext context,
     DailyCareSettingModel setting,
+    DailyCareEntitlement entitlement,
     int sessionIndex,
   ) async {
     final bool? saved = await DailyCareRecordEditLauncher.open(
@@ -193,6 +232,7 @@ class _AdminDaycareCareReportSectionState
       serviceType: DailyCareServiceTypes.daycare,
       petIds: _petIds,
       setting: setting,
+      entitlement: entitlement,
     );
     if (!mounted) {
       return;

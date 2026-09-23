@@ -285,6 +285,7 @@ class ShopTaskCenterService {
                   'sessionName': session.sessionName,
                   'serviceType': session.serviceType,
                   'petIds': session.petIds,
+                  'entitlement': session.entitlement.toMap(),
                   'recordDateYear': today.year,
                   'recordDateMonth': today.month,
                   'recordDateDay': today.day,

@@ -100,7 +100,7 @@ void main() {
     expect(snapshot.pendingCount, 0);
   });
 
-  test('住宿沒有有效 entitlement 不列入', () {
+  test('舊住宿訂單沒有快照時依住宿設定 fallback 列入', () {
     final DailyCareReportCenterSnapshot snapshot =
         DailyCareReportCenterService.buildTodaySnapshot(
           shopId: 's1',
@@ -118,7 +118,13 @@ void main() {
           canOperate: true,
           today: today,
         );
-    expect(snapshot.items, isEmpty);
+    expect(
+      snapshot.items.every(
+        (DailyCareReportCenterItem item) => item.bookingId == 'stay-1',
+      ),
+      isTrue,
+    );
+    expect(snapshot.totalCount, enabledSetting.sessionCount);
   });
 
   test('住宿場次數以 entitlement.finalReports 為準，不受 setting.sessionCount 影響', () {
@@ -223,6 +229,59 @@ void main() {
           today: today,
         );
     expect(snapshot.items, isEmpty);
+  });
+
+  test('住宿與安親同時列入，互不因對方關閉而消失', () {
+    final DailyCareReportCenterSnapshot both =
+        DailyCareReportCenterService.buildTodaySnapshot(
+          shopId: 's1',
+          setting: enabledSetting,
+          checkedIn: <Map<String, dynamic>>[
+            stayBooking(entitlement: entitled(reports: 2)),
+            daycareBooking(entitlement: entitled(reports: 1)),
+          ],
+          canOperate: true,
+          today: today,
+        );
+    expect(
+      both.items.any(
+        (DailyCareReportCenterItem item) =>
+            item.serviceType == DailyCareServiceTypes.accommodation,
+      ),
+      isTrue,
+    );
+    expect(
+      both.items.any(
+        (DailyCareReportCenterItem item) =>
+            item.serviceType == DailyCareServiceTypes.daycare,
+      ),
+      isTrue,
+    );
+    expect(both.totalCount, 3);
+
+    final DailyCareReportCenterSnapshot daycareOnly =
+        DailyCareReportCenterService.buildTodaySnapshot(
+          shopId: 's1',
+          setting: const DailyCareSettingModel(
+            enabled: false,
+            daycareEnabled: true,
+            daycareSessionCount: 1,
+          ),
+          checkedIn: <Map<String, dynamic>>[
+            stayBooking(entitlement: entitled(reports: 2)),
+            daycareBooking(entitlement: entitled(reports: 1)),
+          ],
+          canOperate: true,
+          today: today,
+        );
+    expect(daycareOnly.settingEnabled, isTrue);
+    expect(
+      daycareOnly.items.every(
+        (DailyCareReportCenterItem item) => item.isDaycare,
+      ),
+      isTrue,
+    );
+    expect(daycareOnly.totalCount, 1);
   });
 
   test('Dashboard 副標題與 badge 使用待填數', () {
@@ -430,29 +489,29 @@ void main() {
         DailyCareReportCenterGrouping.visible(
           items: items,
           status: DailyCareReportCenterStatusFilter.pending,
-          type: DailyCareReportCenterTypeFilter.accommodation,
         );
     expect(
       pendingStay.map((DailyCareReportCenterRoomGroup g) => g.bookingId),
-      <String>['s-a'],
+      <String>['s-a', 'd-1'],
     );
     final List<DailyCareReportCenterRoomGroup> done =
         DailyCareReportCenterGrouping.visible(
           items: items,
           status: DailyCareReportCenterStatusFilter.completed,
-          type: DailyCareReportCenterTypeFilter.all,
         );
     expect(
       done.map((DailyCareReportCenterRoomGroup g) => g.bookingId),
       <String>['s-b'],
     );
-    final List<DailyCareReportCenterRoomGroup> daycare =
+    final List<DailyCareReportCenterRoomGroup> all =
         DailyCareReportCenterGrouping.visible(
           items: items,
           status: DailyCareReportCenterStatusFilter.all,
-          type: DailyCareReportCenterTypeFilter.daycare,
         );
-    expect(daycare.single.bookingId, 'd-1');
+    expect(
+      all.map((DailyCareReportCenterRoomGroup g) => g.bookingId).toSet(),
+      <String>{'s-a', 's-b', 'd-1'},
+    );
   });
 
   test('排序：待填較多在前，住宿房號自然排序，安親在住宿後，全完成最後', () {

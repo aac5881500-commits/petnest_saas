@@ -3,6 +3,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/models/booking_kind.dart';
+import 'package:petnest_saas/core/services/daycare_occupancy_service.dart';
 
 class RoomStatusPresentation {
   const RoomStatusPresentation({
@@ -29,6 +30,72 @@ class RoomStatusPresentation {
   static const Color cleaningColor = Color(0xFFEF6C00);
   static const Color closedColor = Color(0xFF6D4C41);
   static const Color maintenanceColor = Color(0xFF424242);
+  static const Color disabledColor = Color(0xFF607D8B);
+
+  static RoomStatusPresentation available() {
+    return _item(
+      'available',
+      '空房',
+      availableColor,
+      Icons.meeting_room_outlined,
+    );
+  }
+
+  static RoomStatusPresentation stayBooked() {
+    return _item('occupied', '住宿・已訂', stayColor, Icons.hotel_outlined);
+  }
+
+  static RoomStatusPresentation daycareBooked() {
+    return _item('daycare', '安親・已訂', daycareColor, Icons.pets_outlined);
+  }
+
+  static RoomStatusPresentation stayCheckedIn() {
+    return _item('checked_in', '入住中', checkedInColor, Icons.login);
+  }
+
+  static RoomStatusPresentation daycareCheckedIn() {
+    return _item(
+      'daycare_checked_in',
+      '安親中',
+      daycareColor,
+      Icons.pets_outlined,
+    );
+  }
+
+  static RoomStatusPresentation completed() {
+    return _item(
+      'completed',
+      '退房／完成',
+      completedColor,
+      Icons.check_circle_outline,
+    );
+  }
+
+  static RoomStatusPresentation cleaning() {
+    return _item(
+      'cleaning',
+      '清潔中',
+      cleaningColor,
+      Icons.cleaning_services_outlined,
+    );
+  }
+
+  static RoomStatusPresentation closed() {
+    return _item('closed', '今日關閉', closedColor, Icons.event_busy);
+  }
+
+  static RoomStatusPresentation maintenance() {
+    return _item('maintenance', '維修中', maintenanceColor, Icons.build_outlined);
+  }
+
+  static RoomStatusPresentation disabled() {
+    return _item(
+      'disabled',
+      '未啟用',
+      disabledColor,
+      Icons.power_settings_new_outlined,
+    );
+  }
 
   static RoomStatusPresentation of({
     required String roomStatus,
@@ -36,113 +103,111 @@ class RoomStatusPresentation {
   }) {
     final String status = roomStatus.trim().toLowerCase();
     if (status == 'cleaning') {
-      return _item(
-        'cleaning',
-        '清潔中',
-        cleaningColor,
-        Icons.cleaning_services_outlined,
-      );
+      return cleaning();
     }
     if (status == 'closed') {
-      return _item('closed', '今日關閉', closedColor, Icons.event_busy);
+      return closed();
     }
     if (status == 'blocked' ||
         status == 'maintenance' ||
         status == 'unavailable') {
-      return _item(
-        'maintenance',
-        '維修中',
-        maintenanceColor,
-        Icons.build_outlined,
-      );
+      return maintenance();
+    }
+    if (status == 'disabled' || status == 'inactive') {
+      return disabled();
     }
     if (booking == null || booking.isEmpty) {
-      return _item(
-        'available',
-        '空房',
-        availableColor,
-        Icons.meeting_room_outlined,
-      );
+      return available();
     }
     final String bookingStatus = (booking['status'] ?? '').toString();
     if (bookingStatus == 'completed') {
-      return _item(
-        'completed',
-        '退房／完成',
-        completedColor,
-        Icons.check_circle_outline,
-      );
+      return completed();
     }
+    final bool daycare = BookingKind.isDaycare(booking);
     if (bookingStatus == 'checked_in') {
-      return _item('checked_in', '入住', checkedInColor, Icons.login);
+      return daycare ? daycareCheckedIn() : stayCheckedIn();
     }
-    if (BookingKind.isDaycare(booking)) {
-      return _item('daycare', '安親', daycareColor, Icons.pets_outlined);
+    if (daycare) {
+      return daycareBooked();
     }
-    if (bookingStatus == 'pending' || bookingStatus == 'confirmed') {
-      return _item('occupied', '住宿', stayColor, Icons.hotel_outlined);
+    return stayBooked();
+  }
+
+  /// 房務首頁：DaycareOccupancyService.housekeepingLabel 的中文狀態。
+  static RoomStatusPresentation fromHousekeepingLabel(
+    String label, {
+    Map<String, dynamic>? booking,
+  }) {
+    switch (label.trim()) {
+      case DaycareOccupancyService.disabledLabel:
+        return disabled();
+      case DaycareOccupancyService.cleaningLabel:
+        return cleaning();
+      case DaycareOccupancyService.maintenanceLabel:
+        return maintenance();
+      case DaycareOccupancyService.closedLabel:
+        return closed();
+      case DaycareOccupancyService.vacantLabel:
+        return available();
+      case '已完成':
+        return completed();
+      case '已訂':
+        return BookingKind.isDaycare(booking) ? daycareBooked() : stayBooked();
+      case '入住中':
+        return BookingKind.isDaycare(booking)
+            ? daycareCheckedIn()
+            : stayCheckedIn();
+      default:
+        return available();
     }
-    return _item('occupied', '住宿', stayColor, Icons.hotel_outlined);
+  }
+
+  static bool isInUseLabel(String label) {
+    return label.trim() == '已訂' || label.trim() == '入住中';
   }
 
   static RoomStatusPresentation calendarDot(String calendarStatus) {
     switch (calendarStatus) {
       case 'booked_daycare':
       case 'daycare':
-        return _item('daycare', '安親', daycareColor, Icons.pets_outlined);
+        return daycareBooked();
       case 'booked':
       case 'occupied_stay':
-        return _item('occupied', '住宿', stayColor, Icons.hotel_outlined);
+        return stayBooked();
       case 'occupied':
       case 'checked_in':
-        return _item('checked_in', '入住', checkedInColor, Icons.login);
+        return stayCheckedIn();
       case 'occupied_daycare':
-        return _item('daycare', '安親', daycareColor, Icons.pets_outlined);
+        return daycareCheckedIn();
       case 'completed':
-        return _item(
-          'completed',
-          '退房／完成',
-          completedColor,
-          Icons.check_circle_outline,
-        );
+        return completed();
       case 'cleaning':
-        return _item(
-          'cleaning',
-          '清潔中',
-          cleaningColor,
-          Icons.cleaning_services_outlined,
-        );
+        return cleaning();
       case 'closed':
-        return _item('closed', '今日關閉', closedColor, Icons.event_busy);
+        return closed();
       case 'blocked':
       case 'maintenance':
       case 'unavailable':
-        return _item(
-          'maintenance',
-          '維修中',
-          maintenanceColor,
-          Icons.build_outlined,
-        );
+        return maintenance();
+      case 'disabled':
+      case 'inactive':
+        return disabled();
       default:
-        return _item(
-          'available',
-          '空房',
-          availableColor,
-          Icons.meeting_room_outlined,
-        );
+        return available();
     }
   }
 
   static List<RoomStatusPresentation> legendItems() {
     return <RoomStatusPresentation>[
-      _item('available', '空房', availableColor, Icons.meeting_room_outlined),
+      available(),
       _item('occupied', '住宿', stayColor, Icons.hotel_outlined),
       _item('daycare', '安親', daycareColor, Icons.pets_outlined),
-      _item('checked_in', '入住', checkedInColor, Icons.login),
-      _item('completed', '退房／完成', completedColor, Icons.check_circle_outline),
-      _item('cleaning', '清潔中', cleaningColor, Icons.cleaning_services_outlined),
-      _item('closed', '今日關閉', closedColor, Icons.event_busy),
-      _item('maintenance', '維修中', maintenanceColor, Icons.build_outlined),
+      stayCheckedIn(),
+      completed(),
+      cleaning(),
+      closed(),
+      maintenance(),
+      disabled(),
     ];
   }
 

@@ -58,6 +58,7 @@ void main() {
         daycare: true,
         customer: '李安親',
         pets: const <String>['橘子'],
+        roomName: '',
       ),
     ]);
   }
@@ -67,7 +68,6 @@ void main() {
     required Size size,
     DailyCareReportCenterStatusFilter status =
         DailyCareReportCenterStatusFilter.pending,
-    DailyCareReportCenterTypeFilter type = DailyCareReportCenterTypeFilter.all,
   }) async {
     await tester.binding.setSurfaceSize(size);
     addTearDown(() => tester.binding.setSurfaceSize(null));
@@ -80,9 +80,7 @@ void main() {
               snapshot: snapshot(),
               setting: setting,
               status: status,
-              type: type,
               onStatus: (_) {},
-              onType: (_) {},
             ),
           ),
         ),
@@ -98,6 +96,10 @@ void main() {
     expect(find.text('晚間照護 已完成'), findsOneWidget);
     expect(find.text('立即填寫'), findsWidgets);
     expect(find.textContaining('小米、橘子 +1'), findsOneWidget);
+    expect(find.textContaining('本日應回報'), findsWidgets);
+    expect(find.text('類型'), findsNothing);
+    expect(find.text('住宿'), findsWidgets);
+    expect(find.text('安親'), findsWidgets);
   });
 
   testWidgets('手機、平板、桌機三種寬度都不 overflow', (WidgetTester tester) async {
@@ -133,9 +135,7 @@ void main() {
               ),
               setting: setting,
               status: DailyCareReportCenterStatusFilter.pending,
-              type: DailyCareReportCenterTypeFilter.all,
               onStatus: (_) {},
-              onType: (_) {},
             ),
           ),
         ),

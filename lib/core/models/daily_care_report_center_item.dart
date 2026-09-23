@@ -70,6 +70,12 @@ class DailyCareReportCenterItem {
 
   String get placeLabel {
     if (isDaycare) {
+      if (roomName.trim().isNotEmpty) {
+        return roomName.trim();
+      }
+      if (roomTypeName.trim().isNotEmpty) {
+        return roomTypeName.trim();
+      }
       return '安親';
     }
     return roomName.trim().isEmpty ? '住宿' : roomName.trim();

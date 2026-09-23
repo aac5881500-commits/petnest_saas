@@ -677,6 +677,76 @@
   "density": "SPARSE_ALL"
 },
 {
+  "collectionGroup": "bookings",
+  "queryScope": "COLLECTION",
+  "fields": [
+    { "fieldPath": "shopId", "order": "ASCENDING" },
+    { "fieldPath": "bookingKind", "order": "ASCENDING" },
+    { "fieldPath": "status", "order": "ASCENDING" },
+    { "fieldPath": "startDate", "order": "DESCENDING" },
+    { "fieldPath": "__name__", "order": "DESCENDING" }
+  ],
+  "density": "SPARSE_ALL"
+},
+{
+  "collectionGroup": "bookings",
+  "queryScope": "COLLECTION",
+  "fields": [
+    { "fieldPath": "shopId", "order": "ASCENDING" },
+    { "fieldPath": "bookingKind", "order": "ASCENDING" },
+    { "fieldPath": "status", "order": "ASCENDING" },
+    { "fieldPath": "startDate", "order": "ASCENDING" },
+    { "fieldPath": "__name__", "order": "ASCENDING" }
+  ],
+  "density": "SPARSE_ALL"
+},
+{
+  "collectionGroup": "bookings",
+  "queryScope": "COLLECTION",
+  "fields": [
+    { "fieldPath": "shopId", "order": "ASCENDING" },
+    { "fieldPath": "bookingKind", "order": "ASCENDING" },
+    { "fieldPath": "status", "order": "ASCENDING" },
+    { "fieldPath": "endDate", "order": "DESCENDING" },
+    { "fieldPath": "__name__", "order": "DESCENDING" }
+  ],
+  "density": "SPARSE_ALL"
+},
+{
+  "collectionGroup": "bookings",
+  "queryScope": "COLLECTION",
+  "fields": [
+    { "fieldPath": "shopId", "order": "ASCENDING" },
+    { "fieldPath": "bookingKind", "order": "ASCENDING" },
+    { "fieldPath": "status", "order": "ASCENDING" },
+    { "fieldPath": "scheduledStartAt", "order": "DESCENDING" },
+    { "fieldPath": "__name__", "order": "DESCENDING" }
+  ],
+  "density": "SPARSE_ALL"
+},
+{
+  "collectionGroup": "bookings",
+  "queryScope": "COLLECTION",
+  "fields": [
+    { "fieldPath": "shopId", "order": "ASCENDING" },
+    { "fieldPath": "bookingKind", "order": "ASCENDING" },
+    { "fieldPath": "status", "order": "ASCENDING" },
+    { "fieldPath": "scheduledEndAt", "order": "DESCENDING" },
+    { "fieldPath": "__name__", "order": "DESCENDING" }
+  ],
+  "density": "SPARSE_ALL"
+},
+{
+  "collectionGroup": "room_calendar",
+  "queryScope": "COLLECTION",
+  "fields": [
+    { "fieldPath": "roomId", "order": "ASCENDING" },
+    { "fieldPath": "date", "order": "ASCENDING" },
+    { "fieldPath": "__name__", "order": "ASCENDING" }
+  ],
+  "density": "SPARSE_ALL"
+},
+{
   "collectionGroup": "members",
   "queryScope": "COLLECTION",
   "fields": [
