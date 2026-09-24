@@ -69,6 +69,7 @@ const {
   commitSpendDeduct,
 } = require("../points/sync_booking_points");
 const {calculateDaycareSurcharge} = require("./special_date_surcharge");
+const {findBestDaycareCampaign} = require("./discount_campaign");
 const {capSpend, canSpend, pointsBalance, computeEarnPoints} =
   require("../points/booking_points");
 const {
@@ -549,9 +550,89 @@ async function createDaycareBookingBody(params) {
           },
       );
       const surchargeAmount = surchargeCalc.total;
-      let discountAmount = toInt(data.discountAmount, 0);
-      if (!surchargeCalc.allowCampaign) {
-        discountAmount = 0;
+      let discountAmount = 0;
+      let discountCampaignId = "";
+      let discountCampaignName = "";
+      if (surchargeCalc.allowCampaign) {
+        const campSnap = await firestore.collection("shops").doc(shopId)
+            .collection("discount_campaigns")
+            .where("enabled", "==", true).get();
+        const campaigns = campSnap.docs.map((doc) => {
+          const data = doc.data() || {};
+          return {
+            id: doc.id,
+            ...data,
+            startAt: toDate(data.startAt),
+            endAt: toDate(data.endAt),
+            createdAt: toDate(data.createdAt) || new Date(0),
+          };
+        });
+        const memberCampaignUsage = {};
+        let isFirstBooking = true;
+        let memberJoinedAt = null;
+        if (userId) {
+          const usedSnap = await firestore.collection("bookings")
+              .where("shopId", "==", shopId)
+              .where("userId", "==", userId).get();
+          usedSnap.docs.forEach((doc) => {
+            const data = doc.data() || {};
+            const status = normalizeString(data.status);
+            const valid = status === "pending" || status === "confirmed" ||
+                status === "checked_in" || status === "completed";
+            if (!valid) {
+              return;
+            }
+            isFirstBooking = false;
+            const cid = normalizeString(data.discountCampaignId);
+            if (cid) {
+              memberCampaignUsage[cid] = (memberCampaignUsage[cid] || 0) + 1;
+            }
+          });
+          const memberSnap = await firestore.collection("shops").doc(shopId)
+              .collection("members").doc(userId).get();
+          memberJoinedAt = toDate((memberSnap.data() || {}).createdAt);
+        }
+        const planAmount = roomBased ?
+          toInt(quoteRoom({
+            roomSetting: requestedRoomSetting,
+            startAt,
+            endAt,
+            petCount: petIds.length,
+          }).timeCharge, 0) :
+          toInt(quote({
+            settings,
+            plan,
+            startAt,
+            endAt,
+            petCount: petIds.length,
+            roomTypeExtra: 0,
+            addonAmount,
+            surchargeAmount: 0,
+            discountAmount: 0,
+            couponAmount: 0,
+            pointAmount: 0,
+            overtimeAmount: 0,
+            manualAdjust: 0,
+          }).timeCharge, 0);
+        const best = findBestDaycareCampaign({
+          campaigns,
+          input: {
+            checkInDate: startAt,
+            checkOutDate: new Date(startAt.getTime() + 24 * 60 * 60 * 1000),
+            roomTypeId: roomBased ? requestedRoomTypeId : normalizeString(plan.id),
+            roomAmount: planAmount + surchargeAmount,
+            petAmount: 0,
+            extraServiceAmount: addonAmount,
+            isFirstBooking,
+            memberJoinedAt,
+            memberCampaignUsage,
+          },
+        });
+        if (best) {
+          discountAmount = best.discountAmount;
+          discountCampaignId = best.campaign.id;
+          discountCampaignName = normalizeString(best.campaign.name);
+        }
       }
 
       const draftQuote = roomBased ? quoteRoom({
@@ -1031,8 +1112,8 @@ async function createDaycareBookingBody(params) {
             specialDateSurchargeAmount: computed.surchargeAmount,
             specialDateSurchargeDetails: surchargeCalc.details,
             discountAmount: computed.discountAmount,
-            discountCampaignId: normalizeString(data.discountCampaignId),
-            discountCampaignName: normalizeString(data.discountCampaignName),
+            discountCampaignId,
+            discountCampaignName,
             couponId,
             couponName,
             couponDiscountAmount: computed.couponAmount,

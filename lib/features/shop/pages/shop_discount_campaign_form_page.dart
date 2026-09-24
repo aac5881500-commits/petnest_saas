@@ -5,18 +5,23 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/models/discount_campaign_model.dart';
+import '../../../core/models/policy_applicable_service.dart';
 import '../../../core/services/discount_campaign_service.dart';
+import '../../../core/services/discount_promo_preview.dart';
 import '../../../core/services/shop_room_service.dart';
+import '../../../features/shop/widgets/discount_promo_preview_card.dart';
 
 class ShopDiscountCampaignFormPage extends StatefulWidget {
   const ShopDiscountCampaignFormPage({
     super.key,
     required this.shopId,
     required this.campaignType,
+    this.campaign,
   });
 
   final String shopId;
   final DiscountCampaignType campaignType;
+  final DiscountCampaignModel? campaign;
 
   @override
   State<ShopDiscountCampaignFormPage> createState() =>
@@ -85,6 +90,9 @@ class _ShopDiscountCampaignFormPageState
 
   bool _allowCouponTogether = false;
   bool _saving = false;
+  List<String> _applicableServices = List<String>.from(
+    PolicyApplicableService.accommodationOnly,
+  );
 
   bool get _needsDateRange {
     return widget.campaignType == DiscountCampaignType.stayDate ||
@@ -110,7 +118,45 @@ class _ShopDiscountCampaignFormPageState
   @override
   void initState() {
     super.initState();
-    _setDefaultName();
+    final DiscountCampaignModel? campaign = widget.campaign;
+    if (campaign == null) {
+      _setDefaultName();
+      if (widget.campaignType == DiscountCampaignType.longStay) {
+        _applicableServices = List<String>.from(
+          PolicyApplicableService.accommodationOnly,
+        );
+      }
+      return;
+    }
+    _nameController.text = campaign.name;
+    _descriptionController.text = campaign.description;
+    _discountValueController.text = campaign.discountValue.toString();
+    _valueType = campaign.valueType;
+    _applyTarget = campaign.applyTarget;
+    _enabled = campaign.enabled;
+    _startAt = campaign.startAt;
+    _endAt = campaign.endAt;
+    _dateMatchType =
+        campaign.dateMatchType ?? DiscountDateMatchType.matchingStayDates;
+    _minimumNightsController.text = campaign.minimumNights.toString();
+    _minimumAmountController.text = campaign.minimumAmount.toString();
+    _maximumDiscountController.text = campaign.maximumDiscountAmount.toString();
+    _memberUsageLimitController.text = campaign.memberUsageLimit.toString();
+    _totalUsageLimitController.text = campaign.totalUsageLimit.toString();
+    _newMemberDiscountNightsController.text = campaign.newMemberDiscountNights
+        .toString();
+    _newMemberEligibilityMode = campaign.newMemberEligibilityMode;
+    _allowCouponTogether = campaign.allowCouponTogether;
+    _selectedRoomTypeIds.addAll(campaign.roomTypeIds);
+    _limitStayDate = campaign.limitStayDate;
+    _stayStartAt = campaign.stayStartAt;
+    _stayEndAt = campaign.stayEndAt;
+    _applicableServices = List<String>.from(campaign.applicableServices);
+    if (widget.campaignType == DiscountCampaignType.longStay) {
+      _applicableServices = List<String>.from(
+        PolicyApplicableService.accommodationOnly,
+      );
+    }
   }
 
   void _setDefaultName() {
@@ -128,7 +174,7 @@ class _ShopDiscountCampaignFormPageState
         break;
 
       case DiscountCampaignType.stayDate:
-        _nameController.text = '特定住宿日期優惠';
+        _nameController.text = '指定服務日期優惠';
         break;
 
       case DiscountCampaignType.roomType:
@@ -174,7 +220,7 @@ class _ShopDiscountCampaignFormPageState
         return 'Google 評論優惠';
 
       case DiscountCampaignType.stayDate:
-        return '特定住宿日期';
+        return '指定服務日期優惠';
 
       case DiscountCampaignType.roomType:
         return '指定房型';
@@ -324,7 +370,9 @@ class _ShopDiscountCampaignFormPageState
       return false;
     }
 
-    if (_isNewMember && _readInt(_newMemberDiscountNightsController) <= 0) {
+    if (_isNewMember &&
+        _includesStay &&
+        _readInt(_newMemberDiscountNightsController) <= 0) {
       _showMessage('請設定新會員優惠晚數');
       return false;
     }
@@ -354,7 +402,56 @@ class _ShopDiscountCampaignFormPageState
     return true;
   }
 
-  Future<void> _createCampaign() async {
+  bool get _includesStay {
+    return PolicyApplicableService.appliesTo(
+      _applicableServices,
+      PolicyApplicableService.accommodation,
+    );
+  }
+
+  bool get _includesDaycare {
+    return PolicyApplicableService.appliesTo(
+      _applicableServices,
+      PolicyApplicableService.daycare,
+    );
+  }
+
+  DiscountCampaignModel get _previewCampaign {
+    return DiscountCampaignModel(
+      id: widget.campaign?.id ?? 'preview',
+      shopId: widget.shopId,
+      name: _nameController.text.trim().isEmpty
+          ? _campaignTypeLabel()
+          : _nameController.text.trim(),
+      type: widget.campaignType,
+      valueType: _valueType,
+      applyTarget: _applyTarget,
+      discountValue: num.tryParse(_discountValueController.text.trim()) ?? 0,
+      enabled: true,
+      createdAt: widget.campaign?.createdAt ?? DateTime(2026, 1, 1),
+      updatedAt: DateTime.now(),
+      description: _descriptionController.text.trim(),
+      startAt: _startAt,
+      endAt: _endAt,
+      dateMatchType: widget.campaignType == DiscountCampaignType.stayDate
+          ? _dateMatchType
+          : null,
+      minimumNights: _readInt(_minimumNightsController),
+      minimumAmount: _readInt(_minimumAmountController),
+      maximumDiscountAmount: _readInt(_maximumDiscountController),
+      memberUsageLimit: _readInt(_memberUsageLimitController),
+      newMemberEligibilityMode: _newMemberEligibilityMode,
+      allowCouponTogether: _allowCouponTogether,
+      roomTypeIds: _selectedRoomTypeIds.toList(),
+      applicableServices: _applicableServices,
+      newMemberDiscountNights: _readInt(_newMemberDiscountNightsController),
+      limitStayDate: _limitStayDate,
+      stayStartAt: _stayStartAt,
+      stayEndAt: _stayEndAt,
+    );
+  }
+
+  Future<void> _saveCampaign() async {
     FocusScope.of(context).unfocus();
 
     if (!(_formKey.currentState?.validate() ?? false)) {
@@ -374,44 +471,94 @@ class _ShopDiscountCampaignFormPageState
     });
 
     try {
-      await _campaignService.createCampaign(
-        shopId: widget.shopId,
-        name: _nameController.text.trim(),
-        description: _descriptionController.text.trim(),
-        type: widget.campaignType,
-        valueType: _valueType,
-        applyTarget: (_isNewMember || _needsRoomTypes)
-            ? DiscountApplyTarget.room
-            : _applyTarget,
-        discountValue: num.parse(_discountValueController.text.trim()),
-        enabled: _enabled,
-        startAt: _startAt,
-        endAt: _endAt,
-        dateMatchType: widget.campaignType == DiscountCampaignType.stayDate
-            ? _dateMatchType
-            : null,
-        minimumNights: _needsMinimumNights
-            ? _readInt(_minimumNightsController)
-            : 0,
-        minimumAmount: _needsMinimumAmount
-            ? _readInt(_minimumAmountController)
-            : 0,
-        maximumDiscountAmount: _valueType == DiscountValueType.percent
-            ? _readInt(_maximumDiscountController)
-            : 0,
-        memberUsageLimit: _readInt(_memberUsageLimitController),
-        totalUsageLimit: _readInt(_totalUsageLimitController),
-        firstBookingOnly: false,
-        newMemberEligibilityMode: _newMemberEligibilityMode,
-        allowCouponTogether: _allowCouponTogether,
-        roomTypeIds: _selectedRoomTypeIds.toList(),
-        newMemberDiscountNights: _isNewMember
-            ? _readInt(_newMemberDiscountNightsController)
-            : 0,
-        limitStayDate: _needsRoomTypes ? _limitStayDate : false,
-        stayStartAt: _needsRoomTypes && _limitStayDate ? _stayStartAt : null,
-        stayEndAt: _needsRoomTypes && _limitStayDate ? _stayEndAt : null,
-      );
+      final List<String> services =
+          widget.campaignType == DiscountCampaignType.longStay
+          ? List<String>.from(PolicyApplicableService.accommodationOnly)
+          : PolicyApplicableService.parse(_applicableServices);
+      if (widget.campaign == null) {
+        await _campaignService.createCampaign(
+          shopId: widget.shopId,
+          name: _nameController.text.trim(),
+          description: _descriptionController.text.trim(),
+          type: widget.campaignType,
+          valueType: _valueType,
+          applyTarget: (_isNewMember || _needsRoomTypes)
+              ? DiscountApplyTarget.room
+              : _applyTarget,
+          discountValue: num.parse(_discountValueController.text.trim()),
+          enabled: _enabled,
+          startAt: _startAt,
+          endAt: _endAt,
+          dateMatchType: widget.campaignType == DiscountCampaignType.stayDate
+              ? _dateMatchType
+              : null,
+          minimumNights: _needsMinimumNights
+              ? _readInt(_minimumNightsController)
+              : 0,
+          minimumAmount: _needsMinimumAmount
+              ? _readInt(_minimumAmountController)
+              : 0,
+          maximumDiscountAmount: _valueType == DiscountValueType.percent
+              ? _readInt(_maximumDiscountController)
+              : 0,
+          memberUsageLimit: _readInt(_memberUsageLimitController),
+          totalUsageLimit: _readInt(_totalUsageLimitController),
+          firstBookingOnly: false,
+          newMemberEligibilityMode: _newMemberEligibilityMode,
+          allowCouponTogether: _allowCouponTogether,
+          roomTypeIds: _selectedRoomTypeIds.toList(),
+          applicableServices: services,
+          newMemberDiscountNights: _isNewMember && _includesStay
+              ? _readInt(_newMemberDiscountNightsController)
+              : (_isNewMember
+                    ? widget.campaign?.newMemberDiscountNights ?? 0
+                    : 0),
+          limitStayDate: _needsRoomTypes ? _limitStayDate : false,
+          stayStartAt: _needsRoomTypes && _limitStayDate ? _stayStartAt : null,
+          stayEndAt: _needsRoomTypes && _limitStayDate ? _stayEndAt : null,
+        );
+      } else {
+        await _campaignService.updateCampaign(
+          shopId: widget.shopId,
+          campaignId: widget.campaign!.id,
+          name: _nameController.text.trim(),
+          description: _descriptionController.text.trim(),
+          type: widget.campaignType,
+          valueType: _valueType,
+          applyTarget: (_isNewMember || _needsRoomTypes)
+              ? DiscountApplyTarget.room
+              : _applyTarget,
+          discountValue: num.parse(_discountValueController.text.trim()),
+          enabled: _enabled,
+          startAt: _startAt,
+          endAt: _endAt,
+          dateMatchType: widget.campaignType == DiscountCampaignType.stayDate
+              ? _dateMatchType
+              : null,
+          minimumNights: _needsMinimumNights
+              ? _readInt(_minimumNightsController)
+              : 0,
+          minimumAmount: _needsMinimumAmount
+              ? _readInt(_minimumAmountController)
+              : 0,
+          maximumDiscountAmount: _valueType == DiscountValueType.percent
+              ? _readInt(_maximumDiscountController)
+              : 0,
+          memberUsageLimit: _readInt(_memberUsageLimitController),
+          totalUsageLimit: _readInt(_totalUsageLimitController),
+          firstBookingOnly: false,
+          newMemberEligibilityMode: _newMemberEligibilityMode,
+          allowCouponTogether: _allowCouponTogether,
+          roomTypeIds: _selectedRoomTypeIds.toList(),
+          applicableServices: services,
+          newMemberDiscountNights: _isNewMember && _includesStay
+              ? _readInt(_newMemberDiscountNightsController)
+              : widget.campaign!.newMemberDiscountNights,
+          limitStayDate: _needsRoomTypes ? _limitStayDate : false,
+          stayStartAt: _needsRoomTypes && _limitStayDate ? _stayStartAt : null,
+          stayEndAt: _needsRoomTypes && _limitStayDate ? _stayEndAt : null,
+        );
+      }
 
       if (!mounted) {
         return;
@@ -419,15 +566,17 @@ class _ShopDiscountCampaignFormPageState
 
       Navigator.pop(context, true);
 
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('優惠活動建立成功')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(widget.campaign == null ? '優惠活動建立成功' : '優惠活動已更新'),
+        ),
+      );
     } catch (error) {
       if (!mounted) {
         return;
       }
 
-      _showMessage('建立失敗：$error');
+      _showMessage('儲存失敗，請稍後再試');
     } finally {
       if (mounted) {
         setState(() {
@@ -472,13 +621,87 @@ class _ShopDiscountCampaignFormPageState
             border: OutlineInputBorder(),
           ),
         ),
+        const SizedBox(height: 8),
+        SwitchListTile(
+          contentPadding: EdgeInsets.zero,
+          title: const Text('啟用'),
+          subtitle: const Text('關閉時會先保存活動，但會員預約不會套用。'),
+          value: _enabled,
+          onChanged: (bool value) {
+            setState(() {
+              _enabled = value;
+            });
+          },
+        ),
       ],
     );
   }
 
+  Widget _buildServiceSection() {
+    final bool longStay = widget.campaignType == DiscountCampaignType.longStay;
+    return _SectionCard(
+      title: '適用服務與條件',
+      children: <Widget>[
+        if (longStay)
+          const Text('長住優惠僅適用住宿，不會套用到安親。')
+        else ...<Widget>[
+          RadioListTile<String>(
+            contentPadding: EdgeInsets.zero,
+            title: const Text('住宿'),
+            value: 'stay',
+            groupValue: _serviceGroup,
+            onChanged: (_) {
+              setState(() {
+                _applicableServices = List<String>.from(
+                  PolicyApplicableService.accommodationOnly,
+                );
+              });
+            },
+          ),
+          RadioListTile<String>(
+            contentPadding: EdgeInsets.zero,
+            title: const Text('安親'),
+            value: 'daycare',
+            groupValue: _serviceGroup,
+            onChanged: (_) {
+              setState(() {
+                _applicableServices = List<String>.from(
+                  PolicyApplicableService.daycareOnly,
+                );
+              });
+            },
+          ),
+          RadioListTile<String>(
+            contentPadding: EdgeInsets.zero,
+            title: const Text('住宿與安親'),
+            value: 'both',
+            groupValue: _serviceGroup,
+            onChanged: (_) {
+              setState(() {
+                _applicableServices = List<String>.from(
+                  PolicyApplicableService.shared,
+                );
+              });
+            },
+          ),
+        ],
+      ],
+    );
+  }
+
+  String get _serviceGroup {
+    if (_includesStay && _includesDaycare) {
+      return 'both';
+    }
+    if (_includesDaycare) {
+      return 'daycare';
+    }
+    return 'stay';
+  }
+
   Widget _buildDiscountSection() {
     return _SectionCard(
-      title: '折扣內容',
+      title: '優惠內容',
       children: <Widget>[
         DropdownButtonFormField<DiscountValueType>(
           initialValue: _valueType,
@@ -647,25 +870,26 @@ class _ShopDiscountCampaignFormPageState
           ),
 
           const SizedBox(height: 14),
-          TextFormField(
-            controller: _newMemberDiscountNightsController,
-            keyboardType: TextInputType.number,
-            decoration: const InputDecoration(
-              labelText: '新會員優惠總晚數',
-              hintText: '例如：輸入 3，代表共有 3 晚優惠額度',
-              suffixText: '晚',
-              border: OutlineInputBorder(),
+          if (_includesStay)
+            TextFormField(
+              controller: _newMemberDiscountNightsController,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(
+                labelText: '新會員優惠總晚數',
+                hintText: '例如：輸入 3，代表共有 3 晚優惠額度',
+                suffixText: '晚',
+                border: OutlineInputBorder(),
+              ),
+              validator: (String? value) {
+                final int nights = int.tryParse(value?.trim() ?? '') ?? 0;
+
+                if (nights <= 0) {
+                  return '請輸入正確的優惠晚數';
+                }
+
+                return null;
+              },
             ),
-            validator: (String? value) {
-              final int nights = int.tryParse(value?.trim() ?? '') ?? 0;
-
-              if (nights <= 0) {
-                return '請輸入正確的優惠晚數';
-              }
-
-              return null;
-            },
-          ),
           const SizedBox(height: 12),
           const ListTile(
             contentPadding: EdgeInsets.zero,
@@ -985,17 +1209,6 @@ class _ShopDiscountCampaignFormPageState
             });
           },
         ),
-        SwitchListTile(
-          contentPadding: EdgeInsets.zero,
-          title: const Text('建立後立即啟用'),
-          subtitle: const Text('關閉時會先保存活動，但會員預約不會套用。'),
-          value: _enabled,
-          onChanged: (bool value) {
-            setState(() {
-              _enabled = value;
-            });
-          },
-        ),
       ],
     );
   }
@@ -1003,7 +1216,13 @@ class _ShopDiscountCampaignFormPageState
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text('建立${_campaignTypeLabel()}')),
+      appBar: AppBar(
+        title: Text(
+          widget.campaign == null
+              ? '建立${_campaignTypeLabel()}'
+              : '編輯${_campaignTypeLabel()}',
+        ),
+      ),
       body: Form(
         key: _formKey,
         child: ListView(
@@ -1015,9 +1234,15 @@ class _ShopDiscountCampaignFormPageState
             const SizedBox(height: 14),
             _buildDiscountSection(),
             const SizedBox(height: 14),
+            _buildServiceSection(),
+            const SizedBox(height: 14),
             _buildTypeConditionSection(),
             const SizedBox(height: 14),
             _buildLimitSection(),
+            const SizedBox(height: 14),
+            DiscountPromoPreviewCard(
+              lines: DiscountPromoPreview.forCampaign(_previewCampaign),
+            ),
           ],
         ),
       ),
@@ -1025,7 +1250,7 @@ class _ShopDiscountCampaignFormPageState
         child: Padding(
           padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
           child: FilledButton.icon(
-            onPressed: _saving ? null : _createCampaign,
+            onPressed: _saving ? null : _saveCampaign,
             icon: _saving
                 ? const SizedBox(
                     width: 20,

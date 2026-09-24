@@ -117,8 +117,8 @@ class _ShopDiscountCampaignPageState extends State<ShopDiscountCampaignPage> {
                 ),
                 _CampaignTypeTile(
                   icon: Icons.date_range_outlined,
-                  title: '特定住宿日期',
-                  subtitle: '指定日期入住或住宿，可享活動優惠',
+                  title: '指定服務日期優惠',
+                  subtitle: '指定住宿或安親服務日期，可享活動優惠',
                   onTap: () {
                     Navigator.pop(context, DiscountCampaignType.stayDate);
                   },
@@ -315,7 +315,7 @@ class _ShopDiscountCampaignPageState extends State<ShopDiscountCampaignPage> {
         return 'Google 評論優惠';
 
       case DiscountCampaignType.stayDate:
-        return '特定住宿日期';
+        return '指定服務日期優惠';
 
       case DiscountCampaignType.roomType:
         return '指定房型';
@@ -468,6 +468,19 @@ class _ShopDiscountCampaignPageState extends State<ShopDiscountCampaignPage> {
                                   onDelete: () {
                                     _confirmDeleteCampaign(campaign);
                                   },
+                                  onOpen: () {
+                                    Navigator.of(context).push<void>(
+                                      MaterialPageRoute<void>(
+                                        builder: (BuildContext context) {
+                                          return ShopDiscountCampaignFormPage(
+                                            shopId: widget.shopId,
+                                            campaignType: campaign.type,
+                                            campaign: campaign,
+                                          );
+                                        },
+                                      ),
+                                    );
+                                  },
                                 );
                               },
                             );
@@ -537,6 +550,7 @@ class _CampaignCard extends StatelessWidget {
     required this.processing,
     required this.onEnabledChanged,
     required this.onDelete,
+    required this.onOpen,
   });
 
   final DiscountCampaignModel campaign;
@@ -548,6 +562,7 @@ class _CampaignCard extends StatelessWidget {
   final bool processing;
   final ValueChanged<bool> onEnabledChanged;
   final VoidCallback onDelete;
+  final VoidCallback onOpen;
   String? _conditionLabel() {
     switch (campaign.type) {
       case DiscountCampaignType.longStay:
@@ -613,159 +628,165 @@ class _CampaignCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Card(
       clipBehavior: Clip.antiAlias,
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: <Widget>[
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[
-                Container(
-                  width: 44,
-                  height: 44,
-                  decoration: BoxDecoration(
-                    color: campaign.enabled
-                        ? Colors.green.withValues(alpha: 0.12)
-                        : Colors.grey.withValues(alpha: 0.14),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Icon(
-                    Icons.local_offer_outlined,
-                    color: campaign.enabled
-                        ? Colors.green.shade700
-                        : Colors.grey.shade600,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: <Widget>[
-                      Text(
-                        campaign.name,
-                        style: const TextStyle(
-                          fontSize: 17,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        typeLabel,
-                        style: TextStyle(color: Colors.grey.shade700),
-                      ),
-                    ],
-                  ),
-                ),
-                if (processing)
-                  const Padding(
-                    padding: EdgeInsets.all(10),
-                    child: SizedBox(
-                      width: 20,
-                      height: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2),
+      child: InkWell(
+        onTap: onOpen,
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  Container(
+                    width: 44,
+                    height: 44,
+                    decoration: BoxDecoration(
+                      color: campaign.enabled
+                          ? Colors.green.withValues(alpha: 0.12)
+                          : Colors.grey.withValues(alpha: 0.14),
+                      borderRadius: BorderRadius.circular(12),
                     ),
-                  )
-                else
-                  Switch(value: campaign.enabled, onChanged: onEnabledChanged),
-              ],
-            ),
-            const SizedBox(height: 14),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: <Widget>[
-                _InfoChip(icon: Icons.discount_outlined, label: valueLabel),
-                _InfoChip(
-                  icon: Icons.account_balance_wallet_outlined,
-                  label: applyTargetLabel,
+                    child: Icon(
+                      Icons.local_offer_outlined,
+                      color: campaign.enabled
+                          ? Colors.green.shade700
+                          : Colors.grey.shade600,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: <Widget>[
+                        Text(
+                          campaign.name,
+                          style: const TextStyle(
+                            fontSize: 17,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          typeLabel,
+                          style: TextStyle(color: Colors.grey.shade700),
+                        ),
+                      ],
+                    ),
+                  ),
+                  if (processing)
+                    const Padding(
+                      padding: EdgeInsets.all(10),
+                      child: SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      ),
+                    )
+                  else
+                    Switch(
+                      value: campaign.enabled,
+                      onChanged: onEnabledChanged,
+                    ),
+                ],
+              ),
+              const SizedBox(height: 14),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: <Widget>[
+                  _InfoChip(icon: Icons.discount_outlined, label: valueLabel),
+                  _InfoChip(
+                    icon: Icons.account_balance_wallet_outlined,
+                    label: applyTargetLabel,
+                  ),
+                  if (campaign.valueType == DiscountValueType.percent &&
+                      campaign.maximumDiscountAmount > 0)
+                    _InfoChip(
+                      icon: Icons.price_check_outlined,
+                      label: '最高折 \$${campaign.maximumDiscountAmount}',
+                    ),
+                  if (_conditionLabel() != null)
+                    _InfoChip(
+                      icon: Icons.rule_outlined,
+                      label: _conditionLabel()!,
+                    ),
+                  if (campaign.startAt != null || campaign.endAt != null)
+                    _InfoChip(
+                      icon: campaign.type == DiscountCampaignType.limitedTime
+                          ? Icons.schedule_outlined
+                          : Icons.calendar_month_outlined,
+                      label: dateRangeLabel,
+                    ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: <Widget>[
+                  if (campaign.type == DiscountCampaignType.newMember)
+                    _InfoChip(
+                      icon: Icons.person_add_alt_1_outlined,
+                      label:
+                          campaign.newMemberEligibilityMode ==
+                              NewMemberEligibilityMode.createdAfterCampaign
+                          ? '活動建立後加入的新會員'
+                          : '本店尚未有有效訂單的會員',
+                    )
+                  else
+                    _InfoChip(
+                      icon: Icons.person_outline,
+                      label: _memberUsageLabel(),
+                    ),
+                  _InfoChip(
+                    icon: Icons.confirmation_number_outlined,
+                    label: _totalUsageLabel(),
+                  ),
+                  if (campaign.allowCouponTogether)
+                    const _InfoChip(
+                      icon: Icons.loyalty_outlined,
+                      label: '可搭配折價券',
+                    ),
+                ],
+              ),
+              if (campaign.description.trim().isNotEmpty) ...[
+                const SizedBox(height: 12),
+                Text(
+                  campaign.description,
+                  style: TextStyle(color: Colors.grey.shade700, height: 1.4),
                 ),
-                if (campaign.valueType == DiscountValueType.percent &&
-                    campaign.maximumDiscountAmount > 0)
-                  _InfoChip(
-                    icon: Icons.price_check_outlined,
-                    label: '最高折 \$${campaign.maximumDiscountAmount}',
-                  ),
-                if (_conditionLabel() != null)
-                  _InfoChip(
-                    icon: Icons.rule_outlined,
-                    label: _conditionLabel()!,
-                  ),
-                if (campaign.startAt != null || campaign.endAt != null)
-                  _InfoChip(
-                    icon: campaign.type == DiscountCampaignType.limitedTime
-                        ? Icons.schedule_outlined
-                        : Icons.calendar_month_outlined,
-                    label: dateRangeLabel,
-                  ),
               ],
-            ),
-            const SizedBox(height: 10),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: <Widget>[
-                if (campaign.type == DiscountCampaignType.newMember)
-                  _InfoChip(
-                    icon: Icons.person_add_alt_1_outlined,
-                    label:
-                        campaign.newMemberEligibilityMode ==
-                            NewMemberEligibilityMode.createdAfterCampaign
-                        ? '活動建立後加入的新會員'
-                        : '本店尚未有有效訂單的會員',
-                  )
-                else
-                  _InfoChip(
-                    icon: Icons.person_outline,
-                    label: _memberUsageLabel(),
-                  ),
-                _InfoChip(
-                  icon: Icons.confirmation_number_outlined,
-                  label: _totalUsageLabel(),
-                ),
-                if (campaign.allowCouponTogether)
-                  const _InfoChip(
-                    icon: Icons.loyalty_outlined,
-                    label: '可搭配折價券',
-                  ),
-              ],
-            ),
-            if (campaign.description.trim().isNotEmpty) ...[
               const SizedBox(height: 12),
-              Text(
-                campaign.description,
-                style: TextStyle(color: Colors.grey.shade700, height: 1.4),
+              const Divider(height: 1),
+              Row(
+                children: <Widget>[
+                  Text(
+                    campaign.isUsageLimitReached
+                        ? '已達使用上限'
+                        : campaign.enabled
+                        ? '目前啟用中'
+                        : '目前已停用',
+                    style: TextStyle(
+                      color: campaign.isUsageLimitReached
+                          ? Colors.orange.shade700
+                          : campaign.enabled
+                          ? Colors.green.shade700
+                          : Colors.grey.shade600,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const Spacer(),
+                  TextButton.icon(
+                    onPressed: processing ? null : onDelete,
+                    icon: const Icon(Icons.delete_outline),
+                    label: const Text('刪除'),
+                    style: TextButton.styleFrom(foregroundColor: Colors.red),
+                  ),
+                ],
               ),
             ],
-            const SizedBox(height: 12),
-            const Divider(height: 1),
-            Row(
-              children: <Widget>[
-                Text(
-                  campaign.isUsageLimitReached
-                      ? '已達使用上限'
-                      : campaign.enabled
-                      ? '目前啟用中'
-                      : '目前已停用',
-                  style: TextStyle(
-                    color: campaign.isUsageLimitReached
-                        ? Colors.orange.shade700
-                        : campaign.enabled
-                        ? Colors.green.shade700
-                        : Colors.grey.shade600,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                const Spacer(),
-                TextButton.icon(
-                  onPressed: processing ? null : onDelete,
-                  icon: const Icon(Icons.delete_outline),
-                  label: const Text('刪除'),
-                  style: TextButton.styleFrom(foregroundColor: Colors.red),
-                ),
-              ],
-            ),
-          ],
+          ),
         ),
       ),
     );

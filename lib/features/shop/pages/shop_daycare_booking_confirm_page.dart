@@ -13,6 +13,9 @@ import 'package:petnest_saas/core/models/daycare_plan_model.dart';
 import 'package:petnest_saas/core/models/daycare_settings_model.dart';
 import 'package:petnest_saas/core/models/member_coupon_model.dart';
 import 'package:petnest_saas/core/models/payment_gateway_status.dart';
+import 'package:petnest_saas/core/models/discount_campaign_model.dart';
+import 'package:petnest_saas/core/services/daycare_auto_offer.dart';
+import 'package:petnest_saas/core/services/discount_campaign_service.dart';
 import 'package:petnest_saas/core/services/daycare_addon_catalog.dart';
 import 'package:petnest_saas/core/services/daycare_addon_line.dart';
 import 'package:petnest_saas/core/services/daycare_booking_validator.dart';
@@ -26,7 +29,7 @@ import 'package:petnest_saas/core/services/daycare_settings_service.dart';
 import 'package:petnest_saas/core/services/daycare_time_helper.dart';
 import 'package:petnest_saas/core/services/member_coupon_service.dart';
 import 'package:petnest_saas/core/services/payment_function_service.dart';
-import 'package:petnest_saas/core/services/special_date_surcharge_calculator.dart';
+import 'package:petnest_saas/core/models/special_date_surcharge_model.dart';
 import 'package:petnest_saas/core/services/special_date_surcharge_service.dart';
 import 'package:petnest_saas/core/services/home_banner_service.dart';
 import 'package:petnest_saas/core/services/shop_service.dart';
@@ -80,8 +83,9 @@ class _ShopDaycareBookingConfirmPageState
   bool _loadingCoupons = true;
   int _requestedPoints = 0;
   int _pointDiscountNtd = 0;
-  int _surchargeAmount = 0;
-  bool _surchargeAllowsCoupon = true;
+  List<DiscountCampaignModel> _campaigns = const <DiscountCampaignModel>[];
+  List<SpecialDateSurchargeModel> _surcharges =
+      const <SpecialDateSurchargeModel>[];
   bool _submitting = false;
 
   @override
@@ -119,23 +123,22 @@ class _ShopDaycareBookingConfirmPageState
   }
 
   Future<void> _loadSurcharge() async {
-    final surcharges = await SpecialDateSurchargeService.instance
-        .getEnabledSurcharges(widget.shopId);
-    final calc = SpecialDateSurchargeCalculator.calculateDaycare(
-      serviceDate: widget.startAt,
-      isRoomBased: widget.settings.isRoomBased,
-      roomTypeId: widget.requestedRoomTypeId,
-      surcharges: surcharges,
-    );
+    final List<SpecialDateSurchargeModel> surcharges =
+        await SpecialDateSurchargeService.instance.getEnabledSurcharges(
+          widget.shopId,
+        );
+    List<DiscountCampaignModel> campaigns = const <DiscountCampaignModel>[];
+    try {
+      campaigns = await DiscountCampaignService.instance.getEnabledCampaigns(
+        widget.shopId,
+      );
+    } catch (_) {}
     if (!mounted) {
       return;
     }
     setState(() {
-      _surchargeAmount = calc.totalAmount;
-      _surchargeAllowsCoupon = calc.nightDetails.every(
-        (SpecialDateSurchargeNightDetail d) =>
-            d.surcharges.every((s) => s.allowCoupon),
-      );
+      _surcharges = surcharges;
+      _campaigns = campaigns;
     });
   }
 
@@ -219,30 +222,42 @@ class _ShopDaycareBookingConfirmPageState
         addonAmount: addonAmount,
       );
     }
-    final int resolvedCoupon =
-        _selectedCoupon == null || !_surchargeAllowsCoupon
+    final DaycareAutoOffer offer = DaycareAutoOfferResolver.resolve(
+      serviceStartAt: widget.startAt,
+      isRoomBased: widget.settings.isRoomBased,
+      roomTypeId: widget.requestedRoomTypeId,
+      planId: widget.plan.id,
+      planAmount: draft.timeCharge,
+      extraPetAmount: draft.extraPetAmount,
+      addonAmount: addonAmount,
+      surcharges: _surcharges,
+      campaigns: _campaigns,
+    );
+    final int resolvedCoupon = _selectedCoupon == null || !offer.allowCoupon
         ? 0
         : DaycareCouponHelper.discountAmount(
             coupon: _selectedCoupon!,
-            planAmount: draft.baseAmount,
+            planAmount: draft.timeCharge,
             extraPetAmount: draft.extraPetAmount,
             addonAmount: addonAmount,
-            surchargeAmount: _surchargeAmount,
-            campaignDiscountAmount: draft.discountAmount,
+            surchargeAmount: offer.surchargeAmount,
+            campaignDiscountAmount: offer.campaignAmount,
             selectedAddons: _addonLines,
-            specialDateAllowsCoupon: _surchargeAllowsCoupon,
+            specialDateAllowsCoupon: offer.allowCoupon,
           );
     int payable =
-        draft.baseAmount +
+        draft.timeCharge +
         draft.extraPetAmount +
         addonAmount +
-        _surchargeAmount -
+        offer.surchargeAmount -
+        offer.campaignAmount -
         resolvedCoupon;
     if (widget.settings.isRoomBased) {
       payable =
           draft.totalAmount +
-          _surchargeAmount -
+          offer.surchargeAmount -
           draft.surchargeAmount -
+          offer.campaignAmount -
           resolvedCoupon;
     }
     final int pointAmount = _pointDiscountNtd.clamp(
@@ -262,7 +277,8 @@ class _ShopDaycareBookingConfirmPageState
           petCount: widget.selectedPetIds.length,
         ),
         addonAmount: addonAmount,
-        surchargeAmount: _surchargeAmount,
+        surchargeAmount: offer.surchargeAmount,
+        discountAmount: offer.campaignAmount,
         couponAmount: resolvedCoupon,
         pointAmount: pointAmount,
       );
@@ -274,7 +290,8 @@ class _ShopDaycareBookingConfirmPageState
       endAt: widget.endAt,
       petCount: widget.selectedPetIds.length,
       addonAmount: addonAmount,
-      surchargeAmount: _surchargeAmount,
+      surchargeAmount: offer.surchargeAmount,
+      discountAmount: offer.campaignAmount,
       couponAmount: resolvedCoupon,
       pointAmount: pointAmount,
     );

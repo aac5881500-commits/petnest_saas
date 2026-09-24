@@ -43,6 +43,19 @@ class PolicyApplicableService {
     return '僅住宿';
   }
 
+  /// 優惠／加價設定用的短標籤，不含「僅」「共用」。
+  static String displayLabel(List<String> services) {
+    final bool stay = services.contains(accommodation);
+    final bool daycareOn = services.contains(daycare);
+    if (stay && daycareOn) {
+      return '住宿與安親';
+    }
+    if (daycareOn) {
+      return '安親';
+    }
+    return '住宿';
+  }
+
   static List<Map<String, dynamic>> normalizeCustomPolicies(dynamic raw) {
     if (raw is! List) {
       return const <Map<String, dynamic>>[];

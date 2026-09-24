@@ -36,7 +36,7 @@ class DiscountCampaignCustomerCopy {
       case DiscountCampaignType.longStay:
         return '入住滿 ${campaign.minimumNights} 晚享 $off';
       case DiscountCampaignType.stayDate:
-        return '指定住宿日期享 $off';
+        return '指定服務日期享 $off';
       case DiscountCampaignType.limitedTime:
         return '限時優惠 $off';
       case DiscountCampaignType.googleReview:

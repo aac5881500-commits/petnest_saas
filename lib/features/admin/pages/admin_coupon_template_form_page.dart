@@ -9,6 +9,8 @@ import 'package:flutter/services.dart';
 import 'package:petnest_saas/core/models/coupon_template_model.dart';
 import 'package:petnest_saas/core/models/member_coupon_model.dart';
 import 'package:petnest_saas/core/services/coupon_template_service.dart';
+import 'package:petnest_saas/core/services/discount_promo_preview.dart';
+import 'package:petnest_saas/features/shop/widgets/discount_promo_preview_card.dart';
 
 class AdminCouponTemplateFormPage extends StatefulWidget {
   const AdminCouponTemplateFormPage({
@@ -447,6 +449,24 @@ class _AdminCouponTemplateFormPageState
             _buildRoomTypeSection(),
             const SizedBox(height: 16),
             _buildUsageSection(),
+            const SizedBox(height: 16),
+            DiscountPromoPreviewCard(
+              lines: <DiscountPromoPreviewLine>[
+                const DiscountPromoPreviewLine(
+                  label: '住宿 2 晚 NT\$3,000',
+                  amount: 3000,
+                ),
+                DiscountPromoPreviewLine(
+                  label:
+                      '${_nameController.text.trim().isEmpty ? '優惠券' : _nameController.text.trim()} 折抵（示意）',
+                  amount: -100,
+                ),
+                const DiscountPromoPreviewLine(
+                  label: '應付金額依券類型與訂單資格計算',
+                  amount: 0,
+                ),
+              ],
+            ),
             const SizedBox(height: 24),
             SizedBox(
               height: 52,

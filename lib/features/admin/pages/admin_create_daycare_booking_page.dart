@@ -8,6 +8,11 @@ import 'package:petnest_saas/core/models/daycare_settings_model.dart';
 import 'package:petnest_saas/core/models/home_theme_model.dart';
 import 'package:petnest_saas/core/models/policy_applicable_service.dart';
 import 'package:petnest_saas/core/navigation/admin_booking_route.dart';
+import 'package:petnest_saas/core/models/discount_campaign_model.dart';
+import 'package:petnest_saas/core/models/special_date_surcharge_model.dart';
+import 'package:petnest_saas/core/services/daycare_auto_offer.dart';
+import 'package:petnest_saas/core/services/discount_campaign_service.dart';
+import 'package:petnest_saas/core/services/special_date_surcharge_service.dart';
 import 'package:petnest_saas/core/services/daycare_addon_catalog.dart';
 import 'package:petnest_saas/core/services/daycare_addon_line.dart';
 import 'package:petnest_saas/core/services/daycare_addon_pet_guard.dart';
@@ -115,6 +120,9 @@ class _AdminCreateDaycareBookingPageState
   DailyCareSettingModel _dailyCareSetting = const DailyCareSettingModel();
   List<DailyCareAddonPlan> _dailyCarePlans = <DailyCareAddonPlan>[];
   String? _selectedDailyCareAddonId;
+  List<SpecialDateSurchargeModel> _surcharges =
+      const <SpecialDateSurchargeModel>[];
+  List<DiscountCampaignModel> _campaigns = const <DiscountCampaignModel>[];
 
   @override
   void initState() {
@@ -247,6 +255,16 @@ class _AdminCreateDaycareBookingPageState
       );
       carePlans = await DailyCareAddonService.instance.listPlans(widget.shopId);
     } catch (_) {}
+    List<SpecialDateSurchargeModel> surcharges =
+        const <SpecialDateSurchargeModel>[];
+    List<DiscountCampaignModel> campaigns = const <DiscountCampaignModel>[];
+    try {
+      surcharges = await SpecialDateSurchargeService.instance
+          .getEnabledSurcharges(widget.shopId);
+      campaigns = await DiscountCampaignService.instance.getEnabledCampaigns(
+        widget.shopId,
+      );
+    } catch (_) {}
     if (!mounted) {
       return;
     }
@@ -260,6 +278,8 @@ class _AdminCreateDaycareBookingPageState
       _adminForm = adminForm;
       _dailyCareSetting = careSetting;
       _dailyCarePlans = carePlans;
+      _surcharges = surcharges;
+      _campaigns = campaigns;
       _paymentMethod = ShopPaymentMethods.coerceAdminCreateMethod(
         catalog: catalog,
         selected: _paymentMethod,
@@ -516,10 +536,23 @@ class _AdminCreateDaycareBookingPageState
             endAt: _endAt!,
             petCount: petCount,
           );
+      final DaycareAutoOffer offer = DaycareAutoOfferResolver.resolve(
+        serviceStartAt: _startAt!,
+        isRoomBased: true,
+        roomTypeId: _selectedRoomTypeId ?? '',
+        planId: '',
+        planAmount: roomQuote.timeCharge,
+        extraPetAmount: roomQuote.extraPetAmount,
+        addonAmount: addonAmount,
+        surcharges: _surcharges,
+        campaigns: _campaigns,
+      );
       return DaycarePricingService.instance.quoteFromRoom(
         settings: settings,
         room: roomQuote,
         addonAmount: addonAmount,
+        surchargeAmount: offer.surchargeAmount,
+        discountAmount: offer.campaignAmount,
         manualAdjust: _manualAdjust,
         pointAmount: _pointDiscountNtd,
       );
@@ -527,6 +560,25 @@ class _AdminCreateDaycareBookingPageState
     if (_plan == null) {
       return null;
     }
+    final DaycareQuote draft = DaycarePricingService.instance.quote(
+      settings: settings,
+      plan: _plan!,
+      startAt: _startAt!,
+      endAt: _endAt!,
+      petCount: petCount,
+      addonAmount: addonAmount,
+    );
+    final DaycareAutoOffer offer = DaycareAutoOfferResolver.resolve(
+      serviceStartAt: _startAt!,
+      isRoomBased: false,
+      roomTypeId: '',
+      planId: _plan!.id,
+      planAmount: draft.timeCharge,
+      extraPetAmount: draft.extraPetAmount,
+      addonAmount: addonAmount,
+      surcharges: _surcharges,
+      campaigns: _campaigns,
+    );
     return DaycarePricingService.instance.quote(
       settings: settings,
       plan: _plan!,
@@ -534,6 +586,8 @@ class _AdminCreateDaycareBookingPageState
       endAt: _endAt!,
       petCount: petCount,
       addonAmount: addonAmount,
+      surchargeAmount: offer.surchargeAmount,
+      discountAmount: offer.campaignAmount,
       manualAdjust: _manualAdjust,
       pointAmount: _pointDiscountNtd,
     );
@@ -1031,6 +1085,13 @@ class _AdminCreateDaycareBookingPageState
             dailyCareEntitlement: _dailyCareQuoteForSubmit().toMap(),
             requestedPoints: _requestedPoints,
           );
+      final DaycareQuote? quote = _quote;
+      if (quote != null) {
+        payload['discountAmount'] = quote.discountAmount;
+        payload['discountCampaignName'] = quote.discountAmount > 0
+            ? '自動優惠'
+            : '';
+      }
       final Map<String, dynamic> created = await DaycareFunctionService.instance
           .createBooking(payload);
       if (!mounted) {

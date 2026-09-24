@@ -3,6 +3,7 @@
 // 🧮 優惠活動計算器
 
 import '../models/discount_campaign_model.dart';
+import '../models/policy_applicable_service.dart';
 
 /// 訂單優惠計算所需資料
 class DiscountCampaignCalculationInput {
@@ -18,6 +19,7 @@ class DiscountCampaignCalculationInput {
     this.hasVerifiedGoogleReview = false,
     this.memberCampaignUsage = const <String, int>{},
     this.memberCampaignUsedNights = const <String, int>{},
+    this.serviceType = PolicyApplicableService.accommodation,
   });
 
   /// 入住日
@@ -61,6 +63,13 @@ class DiscountCampaignCalculationInput {
   /// key：campaignId
   /// value：該活動過去已使用的優惠晚數
   final Map<String, int> memberCampaignUsedNights;
+
+  /// 住宿或安親。預設住宿，與舊訂單／舊活動相容。
+  final String serviceType;
+
+  bool get isDaycare {
+    return serviceType == PolicyApplicableService.daycare;
+  }
 
   int get nights {
     final DateTime start = _dateOnly(checkInDate);
@@ -214,6 +223,14 @@ class DiscountCampaignCalculator {
       return null;
     }
 
+    if (!campaign.appliesToService(input.serviceType)) {
+      return null;
+    }
+
+    if (campaign.type == DiscountCampaignType.longStay && input.isDaycare) {
+      return null;
+    }
+
     if (!_isWithinCampaignPeriod(campaign, calculationTime)) {
       return null;
     }
@@ -230,7 +247,7 @@ class DiscountCampaignCalculator {
 
     num discountBaseAmount = _discountBaseAmount(campaign, input);
 
-    if (campaign.type == DiscountCampaignType.newMember) {
+    if (campaign.type == DiscountCampaignType.newMember && !input.isDaycare) {
       final int remainingNights = remainingNewMemberDiscountNights(
         campaign: campaign,
         input: input,
@@ -284,6 +301,9 @@ class DiscountCampaignCalculator {
   ) {
     switch (campaign.type) {
       case DiscountCampaignType.longStay:
+        if (input.isDaycare) {
+          return false;
+        }
         return campaign.minimumNights > 0 &&
             input.nights >= campaign.minimumNights;
 
@@ -356,6 +376,10 @@ class DiscountCampaignCalculator {
     DiscountCampaignModel campaign,
     DiscountCampaignCalculationInput input,
   ) {
+    if (input.isDaycare) {
+      return _matchesNewMemberJoinRule(campaign, input);
+    }
+
     if (input.nights <= 0) {
       return false;
     }
@@ -377,6 +401,13 @@ class DiscountCampaignCalculator {
       return true;
     }
 
+    return _matchesNewMemberJoinRule(campaign, input);
+  }
+
+  static bool _matchesNewMemberJoinRule(
+    DiscountCampaignModel campaign,
+    DiscountCampaignCalculationInput input,
+  ) {
     switch (campaign.newMemberEligibilityMode) {
       case NewMemberEligibilityMode.createdAfterCampaign:
         final DateTime? memberJoinedAt = input.memberJoinedAt;
@@ -460,6 +491,13 @@ class DiscountCampaignCalculator {
     // 新會員優惠改用「優惠總晚數」限制，
     // 允許會員分多筆訂單使用，不再受使用次數限制阻擋。
     if (campaign.type == DiscountCampaignType.newMember) {
+      if (input.isDaycare) {
+        if (campaign.memberUsageLimit <= 0) {
+          return true;
+        }
+        final int usedCount = input.memberCampaignUsage[campaign.id] ?? 0;
+        return usedCount < campaign.memberUsageLimit;
+      }
       return remainingNewMemberDiscountNights(
             campaign: campaign,
             input: input,
@@ -639,5 +677,57 @@ class DiscountCampaignCalculator {
         memberCampaignUsedNights: <String, int>{campaign.id: usedNights},
       ),
     );
+  }
+
+  /// 不符合資格時的店主／客戶可讀原因；符合時回傳 null。
+  static String? ineligibilityReason({
+    required DiscountCampaignModel campaign,
+    required DiscountCampaignCalculationInput input,
+    DateTime? now,
+  }) {
+    if (calculateCampaign(campaign: campaign, input: input, now: now) != null) {
+      return null;
+    }
+    if (!campaign.enabled) {
+      return '活動未啟用';
+    }
+    if (campaign.isUsageLimitReached) {
+      return '已達活動使用上限';
+    }
+    if (!campaign.appliesToService(input.serviceType)) {
+      if (campaign.appliesToAccommodation && !campaign.appliesToDaycare) {
+        return '此優惠僅適用住宿';
+      }
+      if (campaign.appliesToDaycare && !campaign.appliesToAccommodation) {
+        return '此優惠僅適用安親';
+      }
+      return '此優惠不適用目前服務';
+    }
+    if (campaign.type == DiscountCampaignType.longStay && input.isDaycare) {
+      return '長住優惠僅適用住宿';
+    }
+    final DateTime calculationTime = now ?? DateTime.now();
+    if (!_isWithinCampaignPeriod(campaign, calculationTime)) {
+      return '不在活動期間';
+    }
+    if (!_isMemberUsageAvailable(campaign, input)) {
+      return '已達會員使用次數';
+    }
+    switch (campaign.type) {
+      case DiscountCampaignType.longStay:
+        return '未達最低入住晚數';
+      case DiscountCampaignType.newMember:
+        return '不符合新會員資格';
+      case DiscountCampaignType.googleReview:
+        return '尚未完成評論驗證';
+      case DiscountCampaignType.stayDate:
+        return '服務日期不符合活動期間';
+      case DiscountCampaignType.roomType:
+        return '不符合指定房型或方案';
+      case DiscountCampaignType.minimumAmount:
+        return '未達最低消費金額';
+      case DiscountCampaignType.limitedTime:
+        return '不在活動期間';
+    }
   }
 }

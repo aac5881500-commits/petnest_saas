@@ -10,11 +10,15 @@ import 'package:petnest_saas/core/models/create_payment_request_model.dart';
 import 'package:petnest_saas/core/models/daycare_date_override_model.dart';
 import 'package:petnest_saas/core/models/daycare_plan_model.dart';
 import 'package:petnest_saas/core/models/daycare_settings_model.dart';
+import 'package:petnest_saas/core/models/discount_campaign_model.dart';
 import 'package:petnest_saas/core/models/member_coupon_model.dart';
 import 'package:petnest_saas/core/models/payment_gateway_status.dart';
 import 'package:petnest_saas/core/models/policy_applicable_service.dart';
 import 'package:petnest_saas/core/models/terms_consent_snapshot.dart';
+import 'package:petnest_saas/core/models/special_date_surcharge_model.dart';
+import 'package:petnest_saas/core/services/daycare_auto_offer.dart';
 import 'package:petnest_saas/core/services/daycare_addon_catalog.dart';
+import 'package:petnest_saas/core/services/daycare_enabled.dart';
 import 'package:petnest_saas/core/models/daily_care_addon_plan.dart';
 import 'package:petnest_saas/core/models/daily_care_entitlement.dart';
 import 'package:petnest_saas/core/models/daily_care_setting_model.dart';
@@ -35,7 +39,8 @@ import 'package:petnest_saas/core/services/daycare_occupancy_service.dart';
 import 'package:petnest_saas/core/services/daycare_pricing_service.dart';
 import 'package:petnest_saas/core/services/daycare_room_type_option.dart';
 import 'package:petnest_saas/core/services/daycare_settings_service.dart';
-import 'package:petnest_saas/core/services/daycare_enabled.dart';
+import 'package:petnest_saas/core/services/discount_campaign_service.dart';
+import 'package:petnest_saas/core/services/special_date_surcharge_service.dart';
 import 'package:petnest_saas/features/shop/widgets/daycare_feature_off_scaffold.dart';
 import 'package:petnest_saas/core/services/daycare_time_helper.dart';
 import 'package:petnest_saas/core/models/home_theme_model.dart';
@@ -139,6 +144,13 @@ class _ShopDaycareBookingPageState extends State<ShopDaycareBookingPage> {
   bool _loadingCoupons = false;
   String? _bookingRequestId;
   String? _bookingRequestSignature;
+  List<SpecialDateSurchargeModel> _surcharges =
+      const <SpecialDateSurchargeModel>[];
+  List<DiscountCampaignModel> _campaigns = const <DiscountCampaignModel>[];
+  Map<String, int> _memberCampaignUsage = <String, int>{};
+  Map<String, int> _memberCampaignUsedNights = <String, int>{};
+  bool _isFirstBooking = false;
+  DateTime? _memberJoinedAt;
 
   @override
   void initState() {
@@ -148,6 +160,7 @@ class _ShopDaycareBookingPageState extends State<ShopDaycareBookingPage> {
       _loadBlacklist();
       _loadMember();
       _loadCoupons();
+      _loadAutoOffers();
     }
     _refreshRoomOptions();
     if (widget.debugDate != null) {
@@ -448,6 +461,114 @@ class _ShopDaycareBookingPageState extends State<ShopDaycareBookingPage> {
     return DaycareTimeHelper.combineDateAndTime(_date!, _pickUp!);
   }
 
+  Future<void> _loadAutoOffers() async {
+    try {
+      final User? user = FirebaseAuth.instance.currentUser;
+      final List<Object> loaded = await Future.wait<Object>(<Future<Object>>[
+        SpecialDateSurchargeService.instance.getEnabledSurcharges(
+          widget.shopId,
+        ),
+        DiscountCampaignService.instance.getEnabledCampaigns(widget.shopId),
+        if (user != null)
+          DiscountCampaignService.instance.getMemberCampaignUsage(
+            shopId: widget.shopId,
+            userId: user.uid,
+          )
+        else
+          Future<Map<String, int>>.value(const <String, int>{}),
+        if (user != null)
+          DiscountCampaignService.instance.getMemberCampaignUsedNights(
+            shopId: widget.shopId,
+            userId: user.uid,
+          )
+        else
+          Future<Map<String, int>>.value(const <String, int>{}),
+      ]);
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _surcharges = loaded[0] as List<SpecialDateSurchargeModel>;
+        _campaigns = loaded[1] as List<DiscountCampaignModel>;
+        _memberCampaignUsage = loaded[2] as Map<String, int>;
+        _memberCampaignUsedNights = loaded[3] as Map<String, int>;
+      });
+      if (user != null) {
+        final QuerySnapshot<Map<String, dynamic>> bookings =
+            await FirebaseFirestore.instance
+                .collection('bookings')
+                .where('shopId', isEqualTo: widget.shopId)
+                .where('userId', isEqualTo: user.uid)
+                .get();
+        final bool hasValid = bookings.docs.any((
+          QueryDocumentSnapshot<Map<String, dynamic>> doc,
+        ) {
+          final String status = (doc.data()['status'] ?? '').toString();
+          return status == 'pending' ||
+              status == 'confirmed' ||
+              status == 'checked_in' ||
+              status == 'completed';
+        });
+        final DocumentSnapshot<Map<String, dynamic>> memberDoc =
+            await FirebaseFirestore.instance
+                .collection('shops')
+                .doc(widget.shopId)
+                .collection('members')
+                .doc(user.uid)
+                .get();
+        DateTime? joined;
+        final dynamic raw = memberDoc.data()?['createdAt'];
+        if (raw is Timestamp) {
+          joined = raw.toDate();
+        }
+        if (!mounted) {
+          return;
+        }
+        setState(() {
+          _isFirstBooking = !hasValid;
+          _memberJoinedAt = joined;
+        });
+      }
+    } catch (_) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _surcharges = const <SpecialDateSurchargeModel>[];
+        _campaigns = const <DiscountCampaignModel>[];
+      });
+    }
+  }
+
+  DaycareAutoOffer _offerFor({
+    required int planAmount,
+    required int extraPetAmount,
+    required int addonAmount,
+  }) {
+    if (_startAt == null) {
+      return const DaycareAutoOffer(
+        surchargeAmount: 0,
+        allowCampaign: true,
+        allowCoupon: true,
+      );
+    }
+    return DaycareAutoOfferResolver.resolve(
+      serviceStartAt: _startAt!,
+      isRoomBased: widget.settings.isRoomBased,
+      roomTypeId: _selectedRoomTypeId ?? '',
+      planId: _plan?.id ?? '',
+      planAmount: planAmount,
+      extraPetAmount: extraPetAmount,
+      addonAmount: addonAmount,
+      surcharges: _surcharges,
+      campaigns: _campaigns,
+      isFirstBooking: _isFirstBooking,
+      memberJoinedAt: _memberJoinedAt,
+      memberCampaignUsage: _memberCampaignUsage,
+      memberCampaignUsedNights: _memberCampaignUsedNights,
+    );
+  }
+
   DaycareQuote? get _quote {
     if (_startAt == null || _endAt == null) {
       return null;
@@ -476,14 +597,24 @@ class _ShopDaycareBookingPageState extends State<ShopDaycareBookingPage> {
             endAt: _endAt!,
             petCount: petCount,
           );
+      final DaycareAutoOffer offer = _offerFor(
+        planAmount: roomQuote.timeCharge,
+        extraPetAmount: roomQuote.extraPetAmount,
+        addonAmount: addonAmount,
+      );
       return DaycarePricingService.instance.quoteFromRoom(
         settings: widget.settings,
         room: roomQuote,
         addonAmount: addonAmount,
+        surchargeAmount: offer.surchargeAmount,
+        discountAmount: offer.campaignAmount,
         couponAmount: _resolvedCouponAmount(
           planAmount: roomQuote.timeCharge,
           extraPetAmount: roomQuote.extraPetAmount,
           addonAmount: addonAmount,
+          surchargeAmount: offer.surchargeAmount,
+          campaignAmount: offer.campaignAmount,
+          allowCoupon: offer.allowCoupon,
         ),
         pointAmount: _pointDiscountNtd,
       );
@@ -496,6 +627,11 @@ class _ShopDaycareBookingPageState extends State<ShopDaycareBookingPage> {
       petCount: petCount,
       addonAmount: addonAmount,
     );
+    final DaycareAutoOffer offer = _offerFor(
+      planAmount: draft.timeCharge,
+      extraPetAmount: draft.extraPetAmount,
+      addonAmount: addonAmount,
+    );
     return DaycarePricingService.instance.quote(
       settings: widget.settings,
       plan: _plan!,
@@ -503,12 +639,33 @@ class _ShopDaycareBookingPageState extends State<ShopDaycareBookingPage> {
       endAt: _endAt!,
       petCount: petCount,
       addonAmount: addonAmount,
+      surchargeAmount: offer.surchargeAmount,
+      discountAmount: offer.campaignAmount,
       couponAmount: _resolvedCouponAmount(
         planAmount: draft.timeCharge,
         extraPetAmount: draft.extraPetAmount,
         addonAmount: addonAmount,
+        surchargeAmount: offer.surchargeAmount,
+        campaignAmount: offer.campaignAmount,
+        allowCoupon: offer.allowCoupon,
       ),
       pointAmount: _pointDiscountNtd,
+    );
+  }
+
+  DaycareAutoOffer get _currentOffer {
+    final DaycareQuote? quote = _quote;
+    if (quote == null) {
+      return const DaycareAutoOffer(
+        surchargeAmount: 0,
+        allowCampaign: true,
+        allowCoupon: true,
+      );
+    }
+    return _offerFor(
+      planAmount: quote.timeCharge,
+      extraPetAmount: quote.extraPetAmount,
+      addonAmount: quote.addonAmount,
     );
   }
 
@@ -516,8 +673,11 @@ class _ShopDaycareBookingPageState extends State<ShopDaycareBookingPage> {
     required int planAmount,
     required int extraPetAmount,
     required int addonAmount,
+    required int surchargeAmount,
+    required int campaignAmount,
+    required bool allowCoupon,
   }) {
-    if (_selectedCoupon == null) {
+    if (_selectedCoupon == null || !allowCoupon) {
       return 0;
     }
     return DaycareCouponHelper.discountAmount(
@@ -525,10 +685,10 @@ class _ShopDaycareBookingPageState extends State<ShopDaycareBookingPage> {
       planAmount: planAmount,
       extraPetAmount: extraPetAmount,
       addonAmount: addonAmount,
-      surchargeAmount: 0,
-      campaignDiscountAmount: 0,
+      surchargeAmount: surchargeAmount,
+      campaignDiscountAmount: campaignAmount,
       selectedAddons: _selectedAddonMaps,
-      specialDateAllowsCoupon: true,
+      specialDateAllowsCoupon: allowCoupon,
     );
   }
 
@@ -621,6 +781,7 @@ class _ShopDaycareBookingPageState extends State<ShopDaycareBookingPage> {
             ),
           )
           .toList(),
+      campaignName: _currentOffer.campaignName,
     );
   }
 
@@ -1000,7 +1161,9 @@ class _ShopDaycareBookingPageState extends State<ShopDaycareBookingPage> {
               quote.addonAmount +
               quote.surchargeAmount,
           discountAmount: quote.discountAmount + quote.couponAmount,
-          discountCampaignName: _selectedCoupon?.name ?? '',
+          discountCampaignName: _currentOffer.campaignName.isNotEmpty
+              ? _currentOffer.campaignName
+              : (_selectedCoupon?.name ?? ''),
           roomPrice: quote.timeCharge + quote.extraPetAmount,
           addons: _addonLines,
           formKey: _formKey,
@@ -1173,6 +1336,9 @@ class _ShopDaycareBookingPageState extends State<ShopDaycareBookingPage> {
         if (_selectedCoupon != null) 'couponId': _selectedCoupon!.id,
         if (_selectedCoupon != null) 'couponName': _selectedCoupon!.name,
         'couponDiscountAmount': quote.couponAmount,
+        'discountAmount': quote.discountAmount,
+        'discountCampaignId': _currentOffer.campaignId,
+        'discountCampaignName': _currentOffer.campaignName,
         'requestedPoints': _requestedPoints,
         if (data.customFormAnswers != null)
           'customFormAnswers': data.customFormAnswers!.toCallableMap(),

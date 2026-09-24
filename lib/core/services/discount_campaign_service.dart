@@ -8,6 +8,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
 import '../models/discount_campaign_model.dart';
+import '../models/policy_applicable_service.dart';
 import 'discount_campaign_calculator.dart';
 
 class DiscountCampaignService {
@@ -452,6 +453,7 @@ class DiscountCampaignService {
         NewMemberEligibilityMode.createdAfterCampaign,
     bool allowCouponTogether = false,
     List<String> roomTypeIds = const <String>[],
+    List<String> applicableServices = PolicyApplicableService.accommodationOnly,
     int newMemberDiscountNights = 0,
     bool limitStayDate = false,
     DateTime? stayStartAt,
@@ -501,6 +503,7 @@ class DiscountCampaignService {
       newMemberEligibilityMode: newMemberEligibilityMode,
       allowCouponTogether: allowCouponTogether,
       roomTypeIds: roomTypeIds,
+      applicableServices: PolicyApplicableService.parse(applicableServices),
       newMemberDiscountNights: newMemberDiscountNights,
       limitStayDate: limitStayDate,
       stayStartAt: stayStartAt,
@@ -539,6 +542,7 @@ class DiscountCampaignService {
         NewMemberEligibilityMode.createdAfterCampaign,
     bool allowCouponTogether = false,
     List<String> roomTypeIds = const <String>[],
+    List<String> applicableServices = PolicyApplicableService.accommodationOnly,
     int newMemberDiscountNights = 0,
     bool limitStayDate = false,
     DateTime? stayStartAt,
@@ -583,6 +587,7 @@ class DiscountCampaignService {
       'newMemberEligibilityMode': newMemberEligibilityMode.name,
       'allowCouponTogether': allowCouponTogether,
       'roomTypeIds': roomTypeIds,
+      'applicableServices': PolicyApplicableService.parse(applicableServices),
       'newMemberDiscountNights': newMemberDiscountNights,
       'limitStayDate': limitStayDate,
       'stayStartAt': stayStartAt == null

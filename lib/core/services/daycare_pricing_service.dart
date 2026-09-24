@@ -507,6 +507,7 @@ class DaycarePricingService {
     String depositType = DaycareDepositTypes.none,
     bool isRoomBased = false,
     bool includePayable = true,
+    String campaignName = '',
   }) {
     final List<BookingFeeLineItem> lines = timeChargeItemLines(
       baseAmount: quote.baseAmount,
@@ -529,20 +530,20 @@ class DaycarePricingService {
     if (addonLines.isNotEmpty) {
       lines.addAll(addonLines);
     }
+    if (quote.discountAmount > 0) {
+      lines.add(
+        BookingFeeLineItem(
+          label: campaignName.trim().isEmpty ? '優惠折抵' : campaignName.trim(),
+          amount: -quote.discountAmount,
+          kind: BookingFeeLineKind.discount,
+        ),
+      );
+    }
     if (quote.couponAmount > 0) {
       lines.add(
         BookingFeeLineItem(
           label: '優惠券折抵',
           amount: -quote.couponAmount,
-          kind: BookingFeeLineKind.discount,
-        ),
-      );
-    }
-    if (quote.discountAmount > 0) {
-      lines.add(
-        BookingFeeLineItem(
-          label: '優惠折抵',
-          amount: -quote.discountAmount,
           kind: BookingFeeLineKind.discount,
         ),
       );

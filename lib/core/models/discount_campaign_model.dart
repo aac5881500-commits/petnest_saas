@@ -4,6 +4,8 @@
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+import 'policy_applicable_service.dart';
+
 /// 優惠活動類型
 enum DiscountCampaignType {
   longStay,
@@ -69,6 +71,7 @@ class DiscountCampaignModel {
         NewMemberEligibilityMode.createdAfterCampaign,
     this.allowCouponTogether = false,
     this.roomTypeIds = const <String>[],
+    this.applicableServices = PolicyApplicableService.accommodationOnly,
     this.newMemberDiscountNights = 0,
     this.limitStayDate = false,
     this.stayStartAt,
@@ -142,6 +145,9 @@ class DiscountCampaignModel {
   /// 空陣列代表全部房型
   final List<String> roomTypeIds;
 
+  /// 適用服務。舊活動沒有此欄時視為僅住宿，不可自動套用安親。
+  final List<String> applicableServices;
+
   /// 新會員可享有的總優惠晚數
   ///
   /// 例如設定 3：
@@ -181,6 +187,20 @@ class DiscountCampaignModel {
 
   bool get hasNewMemberNightLimit => newMemberDiscountNights > 0;
 
+  bool get appliesToAccommodation => PolicyApplicableService.appliesTo(
+    applicableServices,
+    PolicyApplicableService.accommodation,
+  );
+
+  bool get appliesToDaycare => PolicyApplicableService.appliesTo(
+    applicableServices,
+    PolicyApplicableService.daycare,
+  );
+
+  bool appliesToService(String serviceType) {
+    return PolicyApplicableService.appliesTo(applicableServices, serviceType);
+  }
+
   bool get hasTotalUsageLimit => totalUsageLimit > 0;
 
   bool get hasMaximumDiscount => maximumDiscountAmount > 0;
@@ -216,6 +236,7 @@ class DiscountCampaignModel {
       'newMemberEligibilityMode': newMemberEligibilityMode.name,
       'allowCouponTogether': allowCouponTogether,
       'roomTypeIds': roomTypeIds,
+      'applicableServices': List<String>.from(applicableServices),
       'newMemberDiscountNights': newMemberDiscountNights,
       'limitStayDate': limitStayDate,
       'stayStartAt': stayStartAt == null
@@ -264,6 +285,9 @@ class DiscountCampaignModel {
       ),
       allowCouponTogether: data['allowCouponTogether'] == true,
       roomTypeIds: _stringListFromValue(data['roomTypeIds']),
+      applicableServices: PolicyApplicableService.parse(
+        data['applicableServices'],
+      ),
       newMemberDiscountNights: ((data['newMemberDiscountNights'] ?? 0) as num)
           .toInt(),
       limitStayDate: data['limitStayDate'] == true,
@@ -298,6 +322,7 @@ class DiscountCampaignModel {
     NewMemberEligibilityMode? newMemberEligibilityMode,
     bool? allowCouponTogether,
     List<String>? roomTypeIds,
+    List<String>? applicableServices,
     int? newMemberDiscountNights,
     bool? limitStayDate,
     DateTime? stayStartAt,
@@ -331,6 +356,7 @@ class DiscountCampaignModel {
           newMemberEligibilityMode ?? this.newMemberEligibilityMode,
       allowCouponTogether: allowCouponTogether ?? this.allowCouponTogether,
       roomTypeIds: roomTypeIds ?? this.roomTypeIds,
+      applicableServices: applicableServices ?? this.applicableServices,
       newMemberDiscountNights:
           newMemberDiscountNights ?? this.newMemberDiscountNights,
       limitStayDate: limitStayDate ?? this.limitStayDate,
