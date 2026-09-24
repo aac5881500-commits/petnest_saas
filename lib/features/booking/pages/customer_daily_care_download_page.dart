@@ -174,7 +174,8 @@ class _CustomerDailyCareDownloadPageState
               const Duration(hours: 24),
             );
 
-            final bool isExpired = actualDownloadDeadline != null &&
+            final bool isExpired =
+                actualDownloadDeadline != null &&
                 !DateTime.now().isBefore(actualDownloadDeadline);
 
             return Scaffold(
@@ -607,9 +608,9 @@ class _CustomerDailyCareDownloadPageState
     if (_zipCooldownUntil != null &&
         DateTime.now().isBefore(_zipCooldownUntil!)) {
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('全部下載冷卻中，請稍候再試（約 60 秒）。')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('全部下載冷卻中，請稍候再試（約 60 秒）。')));
       }
       return;
     }

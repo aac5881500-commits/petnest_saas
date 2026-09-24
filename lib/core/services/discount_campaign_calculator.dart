@@ -583,4 +583,61 @@ class DiscountCampaignCalculator {
   static bool _isAfter(DateTime first, DateTime second) {
     return first.isAfter(second);
   }
+
+  /// 客戶端公開列表：啟用中、未額滿、且活動期間尚未過期。
+  ///
+  /// 指定住宿日期活動的 startAt／endAt 是住宿日期，不是下單期間；
+  /// 住宿結束日已過的活動不再對客戶曝光。
+  static bool isCampaignCurrentlyActive(
+    DiscountCampaignModel campaign, {
+    DateTime? now,
+  }) {
+    if (!campaign.enabled || campaign.isUsageLimitReached) {
+      return false;
+    }
+
+    final DateTime calculationTime = now ?? DateTime.now();
+
+    if (campaign.type == DiscountCampaignType.stayDate) {
+      if (campaign.endAt != null &&
+          _dateOnly(calculationTime).isAfter(_dateOnly(campaign.endAt!))) {
+        return false;
+      }
+      return true;
+    }
+
+    return _isWithinCampaignPeriod(campaign, calculationTime);
+  }
+
+  /// 未登入視為可看新會員規則；已登入則沿用既有資格判斷。
+  static bool isNewMemberEligibleForDisplay({
+    required DiscountCampaignModel campaign,
+    required bool isLoggedIn,
+    DateTime? memberJoinedAt,
+    bool isFirstBooking = false,
+    int usedNights = 0,
+  }) {
+    if (campaign.type != DiscountCampaignType.newMember) {
+      return true;
+    }
+    if (!isLoggedIn) {
+      return true;
+    }
+
+    final DateTime today = _dateOnly(DateTime.now());
+    return _matchesNewMemberEligibility(
+      campaign,
+      DiscountCampaignCalculationInput(
+        checkInDate: today,
+        checkOutDate: today.add(const Duration(days: 1)),
+        roomTypeId: '',
+        roomAmount: 1,
+        petAmount: 0,
+        extraServiceAmount: 0,
+        isFirstBooking: isFirstBooking,
+        memberJoinedAt: memberJoinedAt,
+        memberCampaignUsedNights: <String, int>{campaign.id: usedNights},
+      ),
+    );
+  }
 }

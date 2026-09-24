@@ -284,6 +284,26 @@ function filterNonDailyCareAddons(addons) {
   });
 }
 
+function entitlementLooksComplete(snap) {
+  const map = snap && typeof snap === "object" ? snap : {};
+  const reports = toInt(map.finalReports, 0);
+  const labels = Array.isArray(map.sessionLabels) ? map.sessionLabels : [];
+  return map.enabled === true && reports >= 1 && labels.length >= reports;
+}
+
+function pickEntitlementSnapshot(incoming, resolved) {
+  const snap = incoming && typeof incoming === "object" ? incoming : {};
+  const resolvedMap = resolved && typeof resolved === "object" ? resolved : {};
+  const mode = normalizeMode(snap.mode || resolvedMap.mode);
+  if (mode === MODE_PAID && toInt(snap.finalReports, 0) < 1) {
+    return resolvedMap;
+  }
+  if (entitlementLooksComplete(snap)) {
+    return snap;
+  }
+  return resolvedMap;
+}
+
 function photoRuleVersion(booking) {
   const snap = (booking && booking.dailyCareEntitlement) || {};
   return toInt(snap.photoRuleVersion, 1);
@@ -309,6 +329,8 @@ module.exports = {
   STAY_PAID_ID,
   DAYCARE_PAID_ID,
   resolveDailyCareEntitlement,
+  pickEntitlementSnapshot,
+  entitlementLooksComplete,
   filterNonDailyCareAddons,
   requestedAddonId,
   serviceDates,

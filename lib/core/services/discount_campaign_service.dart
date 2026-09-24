@@ -2,10 +2,13 @@
 // 功能說明：管理店家的自動優惠活動，包含新增、修改、啟用、停用、刪除與查詢
 // 🏷️ 優惠活動 Service
 
+import 'dart:async';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
 import '../models/discount_campaign_model.dart';
+import 'discount_campaign_calculator.dart';
 
 class DiscountCampaignService {
   DiscountCampaignService._();
@@ -75,6 +78,68 @@ class DiscountCampaignService {
 
           return campaigns;
         });
+  }
+
+  /// 客戶端公開活動：啟用中、未過期、未額滿。
+  Stream<List<DiscountCampaignModel>> streamPublicCampaigns(String shopId) {
+    final String normalizedShopId = shopId.trim();
+    if (normalizedShopId.isEmpty) {
+      return Stream<List<DiscountCampaignModel>>.value(
+        const <DiscountCampaignModel>[],
+      );
+    }
+
+    final StreamController<List<DiscountCampaignModel>> controller =
+        StreamController<List<DiscountCampaignModel>>();
+
+    List<DiscountCampaignModel> enabled = const <DiscountCampaignModel>[];
+    Map<String, int> usage = const <String, int>{};
+    bool enabledReady = false;
+    bool usageReady = false;
+
+    void emit() {
+      if (controller.isClosed || !enabledReady || !usageReady) {
+        return;
+      }
+      final DateTime now = DateTime.now();
+      final List<DiscountCampaignModel> publicCampaigns = enabled
+          .map((DiscountCampaignModel campaign) {
+            return campaign.copyWith(usedCount: usage[campaign.id] ?? 0);
+          })
+          .where((DiscountCampaignModel campaign) {
+            return DiscountCampaignCalculator.isCampaignCurrentlyActive(
+              campaign,
+              now: now,
+            );
+          })
+          .toList();
+      controller.add(publicCampaigns);
+    }
+
+    final StreamSubscription<List<DiscountCampaignModel>> enabledSub =
+        streamEnabledCampaigns(normalizedShopId).listen((
+          List<DiscountCampaignModel> next,
+        ) {
+          enabled = next;
+          enabledReady = true;
+          emit();
+        }, onError: controller.addError);
+
+    final StreamSubscription<Map<String, int>> usageSub =
+        streamCampaignTotalUsage(shopId: normalizedShopId).listen((
+          Map<String, int> next,
+        ) {
+          usage = next;
+          usageReady = true;
+          emit();
+        }, onError: controller.addError);
+
+    controller.onCancel = () async {
+      await enabledSub.cancel();
+      await usageSub.cancel();
+    };
+
+    return controller.stream;
   }
 
   /// 一次取得店家目前啟用中的優惠活動

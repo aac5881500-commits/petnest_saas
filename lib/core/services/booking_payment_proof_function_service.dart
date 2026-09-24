@@ -43,8 +43,7 @@ class BookingPaymentProofFunctionService {
     }
   }
 
-  static const String writeFailedMessage =
-      '照片已上傳，但付款資料寫入失敗，請重新送出付款資料。';
+  static const String writeFailedMessage = '照片已上傳，但付款資料寫入失敗，請重新送出付款資料。';
   static const String storageFailedMessage = '照片上傳失敗，請重試。';
 
   static String userMessage(Object error) {

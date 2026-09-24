@@ -46,7 +46,10 @@ class AdminBookingPetCareForms extends StatelessWidget {
             BuildContext context,
             AsyncSnapshot<List<BookingPetCareFormItem>> snap,
           ) {
-            return _cards(context, snap.data ?? const <BookingPetCareFormItem>[]);
+            return _cards(
+              context,
+              snap.data ?? const <BookingPetCareFormItem>[],
+            );
           },
     );
   }

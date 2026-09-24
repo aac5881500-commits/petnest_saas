@@ -59,8 +59,10 @@ class InternalHandoverNoteService {
       shopId: shopId,
       bookingId: bookingId,
     );
-    final DocumentReference<Map<String, dynamic>> bookingRef =
-        FirebaseFirestore.instance.collection('bookings').doc(bookingId);
+    final DocumentReference<Map<String, dynamic>> bookingRef = FirebaseFirestore
+        .instance
+        .collection('bookings')
+        .doc(bookingId);
 
     int nextRevision = 1;
 

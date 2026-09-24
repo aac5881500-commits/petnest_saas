@@ -47,13 +47,20 @@ async function assertStaff(shopId, uid) {
 
 function canWriteBooking(booking) {
   const status = normalizeString(booking.status);
-  if (status === "cancelled") {
+  if (status !== "checked_in") {
     return false;
   }
-  if (isDaycare(booking)) {
-    return true;
+  if (status === "cancelled" || status === "no_show" ||
+      status === "rejected" || status === "expired" ||
+      status === "checked_out" || status === "completed") {
+    return false;
   }
-  return status === "checked_in";
+  if (booking.settlementConfirmed === true ||
+      booking.settledAt != null ||
+      booking.finalSettlementAmount != null) {
+    return false;
+  }
+  return true;
 }
 
 function entitlementPhotos(booking) {
@@ -305,6 +312,9 @@ exports.completeDailyCarePhotoUpload = onCall(
       const bookingSnap = await firestore.collection("bookings")
           .doc(bookingId).get();
       const booking = bookingSnap.data() || {};
+      if (!canWriteBooking(booking)) {
+        throwHttp("failed-precondition", "訂單已結清，回報已鎖定");
+      }
       let expiresAt = computeExpiresAt(booking);
       if (!bookingEnded(booking)) {
         expiresAt = null;
@@ -459,6 +469,18 @@ exports.deleteDailyCarePhoto = onCall(
       }
       const photo = photoSnap.data() || {};
       await assertStaff(photo.shopId, uid);
+      const bookingId = normalizeString(photo.bookingId);
+      if (bookingId) {
+        const bookingSnap = await firestore.collection("bookings")
+            .doc(bookingId).get();
+        if (!bookingSnap.exists) {
+          throwHttp("not-found", "找不到訂單");
+        }
+        const booking = bookingSnap.data() || {};
+        if (!canWriteBooking(booking)) {
+          throwHttp("failed-precondition", "訂單已結清，回報已鎖定");
+        }
+      }
       const recId = resolvePhotoRecordId(photo);
       const recSnap = await firestore.collection("daily_care_records")
           .doc(recId).get();

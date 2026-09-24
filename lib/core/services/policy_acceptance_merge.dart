@@ -93,7 +93,9 @@ class PolicyAcceptanceMerge {
     String sourceCollection = 'bookings',
   }) {
     final int version = ShopPolicyHistory.parseVersion(
-      data['termsVersion'] ?? data['policyVersion'] ?? data['policySnapshotVersion'],
+      data['termsVersion'] ??
+          data['policyVersion'] ??
+          data['policySnapshotVersion'],
     );
     if (version <= 0) {
       return null;

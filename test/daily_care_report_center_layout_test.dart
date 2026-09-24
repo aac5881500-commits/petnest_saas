@@ -1,5 +1,5 @@
 // 檔案名稱：test/daily_care_report_center_layout_test.dart
-// 功能說明：每日回報中心房卡呈現與手機／平板／桌機寬度不 overflow。
+// 功能說明：每日回報中心訂單摘要卡與手機／平板／桌機寬度不 overflow。
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -22,6 +22,7 @@ void main() {
     bool daycare = false,
     String customer = '王小明',
     List<String> pets = const <String>['小米', '橘子', '牛奶'],
+    DateTime? recordDate,
   }) {
     return DailyCareReportCenterItem(
       id: '${bookingId}_$sessionIndex',
@@ -29,12 +30,14 @@ void main() {
       bookingId: bookingId,
       sessionIndex: sessionIndex,
       sessionName: daycare ? '日間安親' : (sessionIndex == 0 ? '晨間照護' : '晚間照護'),
-      recordDate: today,
+      recordDate: recordDate ?? today,
       entitlement: const DailyCareEntitlement(enabled: true, finalReports: 2),
       isCompleted: completed,
+      reportsLocked: false,
+      photoCount: completed ? 1 : 0,
       roomName: roomName,
-      roomTypeName: '豪華套房',
-      bookingCode: 'PN1001',
+      roomTypeName: daycare ? '日間安親方案' : '豪華套房',
+      bookingCode: daycare ? 'PN2001' : 'PN1001',
       customerName: customer,
       petNames: pets,
       serviceType: daycare
@@ -68,6 +71,7 @@ void main() {
     required Size size,
     DailyCareReportCenterStatusFilter status =
         DailyCareReportCenterStatusFilter.pending,
+    DailyCareReportCenterSnapshot? data,
   }) async {
     await tester.binding.setSurfaceSize(size);
     addTearDown(() => tester.binding.setSurfaceSize(null));
@@ -77,10 +81,12 @@ void main() {
           data: MediaQueryData(size: size),
           child: Scaffold(
             body: DailyCareReportCenterBoard(
-              snapshot: snapshot(),
+              snapshot: data ?? snapshot(),
               setting: setting,
               status: status,
               onStatus: (_) {},
+              type: DailyCareReportCenterTypeFilter.all,
+              onType: (_) {},
             ),
           ),
         ),
@@ -89,17 +95,22 @@ void main() {
     await tester.pump();
   }
 
-  testWidgets('同一訂單多場次只顯示一張房間卡', (WidgetTester tester) async {
+  testWidgets('訂單摘要卡顯示分類、訂單與進度，展開後才出現填寫', (WidgetTester tester) async {
     await pumpBoard(tester, size: const Size(400, 900));
-    expect(find.text('A1'), findsOneWidget);
-    expect(find.text('晨間照護 待填'), findsOneWidget);
-    expect(find.text('晚間照護 已完成'), findsOneWidget);
-    expect(find.text('立即填寫'), findsWidgets);
-    expect(find.textContaining('小米、橘子 +1'), findsOneWidget);
-    expect(find.textContaining('本日應回報'), findsWidgets);
+    expect(find.textContaining('9/21（週一）'), findsWidgets);
+    expect(find.text('全部 3'), findsWidgets);
+    expect(find.text('住宿 2'), findsWidgets);
+    expect(find.text('安親 1'), findsWidgets);
+    expect(find.text('訂單 PN1001'), findsNothing);
+    expect(find.text('PN1001'), findsOneWidget);
+    expect(find.textContaining('A1'), findsWidgets);
+    expect(find.text('填寫回報'), findsNothing);
+    await tester.tap(find.text('PN1001'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('晨間照護'), findsOneWidget);
+    expect(find.text('填寫'), findsWidgets);
     expect(find.text('類型'), findsNothing);
-    expect(find.text('住宿'), findsWidgets);
-    expect(find.text('安親'), findsWidgets);
+    expect(find.text('今日回報'), findsNothing);
   });
 
   testWidgets('手機、平板、桌機三種寬度都不 overflow', (WidgetTester tester) async {
@@ -114,34 +125,66 @@ void main() {
     }
   });
 
-  testWidgets('待填空狀態與已完成空狀態有文案', (WidgetTester tester) async {
-    await tester.binding.setSurfaceSize(const Size(400, 800));
-    addTearDown(() => tester.binding.setSurfaceSize(null));
-    await tester.pumpWidget(
-      MaterialApp(
-        home: MediaQuery(
-          data: const MediaQueryData(size: Size(400, 800)),
-          child: Scaffold(
-            body: DailyCareReportCenterBoard(
-              snapshot: DailyCareReportCenterSnapshot.fromItems(
-                <DailyCareReportCenterItem>[
-                  item(
-                    bookingId: 'stay-1',
-                    sessionIndex: 0,
-                    completed: true,
-                    pets: const <String>['小米'],
-                  ),
-                ],
-              ),
-              setting: setting,
-              status: DailyCareReportCenterStatusFilter.pending,
-              onStatus: (_) {},
-            ),
-          ),
+  testWidgets('待填空狀態與完全空白文案', (WidgetTester tester) async {
+    await pumpBoard(
+      tester,
+      size: const Size(400, 800),
+      data: DailyCareReportCenterSnapshot.fromItems(<DailyCareReportCenterItem>[
+        item(
+          bookingId: 'stay-1',
+          sessionIndex: 0,
+          completed: true,
+          pets: const <String>['小米'],
         ),
+      ]),
+    );
+    expect(find.text('目前沒有待填的每日回報'), findsOneWidget);
+    expect(find.text('今天沒有待填的照護回報'), findsNothing);
+
+    await pumpBoard(
+      tester,
+      size: const Size(400, 800),
+      data: DailyCareReportCenterSnapshot.fromItems(
+        const <DailyCareReportCenterItem>[],
       ),
     );
-    expect(find.text('今天沒有待填的照護回報'), findsOneWidget);
-    expect(find.textContaining('已完成'), findsWidgets);
+    expect(find.text('目前沒有需處理的每日回報'), findsOneWidget);
+  });
+
+  testWidgets('已完成卡片可查看編輯回報', (WidgetTester tester) async {
+    await pumpBoard(
+      tester,
+      size: const Size(400, 900),
+      status: DailyCareReportCenterStatusFilter.completed,
+    );
+    await tester.tap(find.text('PN1001'));
+    await tester.pumpAndSettle();
+    expect(find.text('查看／編輯'), findsOneWidget);
+    expect(find.textContaining('照片 1/3 張'), findsWidgets);
+  });
+
+  testWidgets('結清未完成顯示鎖定且沒有填寫按鈕', (WidgetTester tester) async {
+    await pumpBoard(
+      tester,
+      size: const Size(400, 900),
+      status: DailyCareReportCenterStatusFilter.all,
+      data: DailyCareReportCenterSnapshot.fromItems(<DailyCareReportCenterItem>[
+        item(
+          bookingId: 'stay-1',
+          sessionIndex: 0,
+          completed: false,
+        ).copyWith(reportsLocked: true, canOperate: false),
+        item(
+          bookingId: 'stay-1',
+          sessionIndex: 1,
+          completed: true,
+        ).copyWith(reportsLocked: true, canOperate: false, photoCount: 3),
+      ]),
+    );
+    await tester.tap(find.text('PN1001'));
+    await tester.pumpAndSettle();
+    expect(find.text('填寫'), findsNothing);
+    expect(find.textContaining('未完成｜訂單已結清｜已鎖定'), findsOneWidget);
+    expect(find.textContaining('已完成｜照片 3/3 張｜唯讀'), findsOneWidget);
   });
 }

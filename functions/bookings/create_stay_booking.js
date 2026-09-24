@@ -31,7 +31,20 @@ const {
   prepareSpendDeduct,
   commitSpendDeduct,
 } = require("../points/sync_booking_points");
-const {computeEarnPoints} = require("../points/booking_points");
+const {resolveDailyCareEntitlement, pickEntitlementSnapshot, STAY_PAID_ID} =
+  require("../daily_care/daily_care_entitlement");
+
+function requestedStayCareAddonId(booking) {
+  const addons = Array.isArray(booking && booking.addons) ? booking.addons : [];
+  for (let i = 0; i < addons.length; i++) {
+    const item = addons[i] || {};
+    const id = String(item.id || item.addonId || "").trim();
+    if (id === STAY_PAID_ID) {
+      return id;
+    }
+  }
+  return "";
+}
 
 /**
  * @param {Error} error
@@ -207,6 +220,31 @@ exports.createStayBooking = onCall(
           .collection("settings").doc("points").get();
       const pointSetting = pointSettingSnap.data() || {};
       const memberState = await loadAppMemberState(firestore, shopId, userId);
+      const shopSnap = await firestore.collection("shops").doc(shopId).get();
+      const shopData = shopSnap.data() || {};
+      let stayCareEntitlement = {};
+      try {
+        const quotedCare = resolveDailyCareEntitlement({
+          setting: shopData.dailyCareSetting || {},
+          isDaycare: false,
+          shopDaycareOn: true,
+          offerId: roomTypeId,
+          offerName: normalizeString(booking.roomTypeName),
+          addonId: requestedStayCareAddonId(booking),
+          startDate,
+          endDate,
+          nights: toInt(booking.nights, 1),
+        });
+        stayCareEntitlement = pickEntitlementSnapshot(
+            booking.dailyCareEntitlement,
+            quotedCare.entitlement,
+        );
+      } catch (error) {
+        throw new HttpsError(
+            "failed-precondition",
+            error && error.message ? error.message : "照護回報無法使用",
+        );
+      }
       try {
         await firestore.runTransaction(async (transaction) => {
           const again = await transaction.get(bookingRef);
@@ -269,6 +307,7 @@ exports.createStayBooking = onCall(
             userId,
             source,
             roomTypeId,
+            dailyCareEntitlement: stayCareEntitlement,
             roomId: null,
             roomName: null,
             assignStatus: "unassigned",

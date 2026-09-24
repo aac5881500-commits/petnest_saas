@@ -70,10 +70,7 @@ class CustomFormFillPreview extends StatelessWidget {
 }
 
 class CustomFormDesktopFillPreview extends StatefulWidget {
-  const CustomFormDesktopFillPreview({
-    super.key,
-    required this.form,
-  });
+  const CustomFormDesktopFillPreview({super.key, required this.form});
 
   final CustomFormModel form;
 

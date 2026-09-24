@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import '../../core/models/daily_care_entitlement.dart';
 import '../../core/models/daily_care_record_model.dart';
 import '../../core/models/daily_care_setting_model.dart';
+import '../../core/services/daily_care_report_eligibility.dart';
 import '../../core/services/daily_care_setting_service.dart';
 import 'pages/daily_care_record_edit_page.dart';
 
@@ -24,6 +25,7 @@ class DailyCareRecordEditLauncher {
     List<String> petIds = const <String>[],
     DailyCareSettingModel? setting,
     DailyCareEntitlement? entitlement,
+    bool readOnly = false,
   }) async {
     final DailyCareSettingModel resolved =
         setting ?? await DailyCareSettingService.instance.getSetting(shopId);
@@ -31,6 +33,13 @@ class DailyCareRecordEditLauncher {
       return null;
     }
     final bool daycare = serviceType == DailyCareServiceTypes.daycare;
+    if (entitlement != null &&
+        !DailyCareReportEligibility.isEntitled(entitlement)) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('本訂單未包含每日照護回報')));
+      return null;
+    }
     final String fromEntitlement =
         entitlement?.sessionLabelAt(sessionIndex).trim() ?? '';
     final String sessionName = fromEntitlement.isNotEmpty
@@ -54,6 +63,7 @@ class DailyCareRecordEditLauncher {
           serviceType: serviceType,
           petIds: petIds,
           entitlement: entitlement,
+          readOnly: readOnly,
         ),
       ),
     );

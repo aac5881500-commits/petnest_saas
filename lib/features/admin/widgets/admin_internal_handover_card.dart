@@ -131,9 +131,8 @@ class _AdminInternalHandoverCardState extends State<AdminInternalHandoverCard>
               if (email.isEmpty && at == null) {
                 _meta = '尚未填寫';
               } else {
-                final String when = DaycareTimeHelper.formatDateTimeOrUnrecorded(
-                  at,
-                );
+                final String when =
+                    DaycareTimeHelper.formatDateTimeOrUnrecorded(at);
                 _meta = email.isEmpty ? '最後修改：$when' : '最後修改：$email　$when';
               }
             }
@@ -152,9 +151,7 @@ class _AdminInternalHandoverCardState extends State<AdminInternalHandoverCard>
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    locked
-                        ? '訂單已鎖定，內部交接備註為唯讀。'
-                        : '客戶交代、待辦、下一班注意事項。僅店內可見。',
+                    locked ? '訂單已鎖定，內部交接備註為唯讀。' : '客戶交代、待辦、下一班注意事項。僅店內可見。',
                     style: TextStyle(fontSize: 12, color: theme.muted),
                   ),
                   const SizedBox(height: 8),

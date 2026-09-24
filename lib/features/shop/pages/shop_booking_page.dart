@@ -1,6 +1,8 @@
 // 檔案名稱：lib/features/shop/pages/shop_booking_page.dart
 // 功能說明：前台住宿預約主頁，負責日期、寵物、房型、加值服務、優惠與送單流程。
 
+import 'dart:async';
+
 import 'package:petnest_saas/core/exceptions/inventory_exception.dart';
 import 'package:petnest_saas/core/models/create_payment_request_model.dart';
 import 'package:petnest_saas/core/services/payment_function_service.dart';
@@ -13,6 +15,8 @@ import 'package:petnest_saas/core/services/shop_service.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:petnest_saas/features/booking/pages/booking_success_page.dart';
+import 'package:petnest_saas/features/booking/widgets/customer_active_campaigns_section.dart';
+import 'package:petnest_saas/features/shop/pages/shop_announcement_page.dart';
 import 'package:petnest_saas/core/widgets/app_drawer.dart';
 import 'package:petnest_saas/features/shop/widgets/modern_home/modern_app_drawer.dart';
 import 'package:petnest_saas/features/shop/widgets/booking/booking_room_type_section.dart';
@@ -75,6 +79,8 @@ class _ShopBookingPageState extends State<ShopBookingPage> {
   List<DiscountCampaignModel> _enabledCampaigns =
       const <DiscountCampaignModel>[];
   bool _campaignsLoading = true;
+  bool _campaignsError = false;
+  StreamSubscription<List<DiscountCampaignModel>>? _campaignsSub;
   List<SpecialDateSurchargeModel> _enabledSpecialDateSurcharges =
       const <SpecialDateSurchargeModel>[];
   bool _specialDateSurchargesLoading = true;
@@ -103,7 +109,7 @@ class _ShopBookingPageState extends State<ShopBookingPage> {
 
     _loadMemberData();
     _loadAddons();
-    _loadDiscountCampaigns();
+    _listenPublicCampaigns();
     _loadSpecialDateSurcharges();
     _loadFirstBookingStatus();
     _loadMemberCampaignUsage();
@@ -232,33 +238,31 @@ class _ShopBookingPageState extends State<ShopBookingPage> {
     } catch (_) {}
   }
 
-  Future<void> _loadDiscountCampaigns() async {
-    try {
-      final List<DiscountCampaignModel> campaigns =
-          await DiscountCampaignService.instance.getEnabledCampaigns(
-            widget.shopId,
-          );
-
-      if (!mounted) {
-        return;
-      }
-
-      setState(() {
-        _enabledCampaigns = campaigns;
-        _campaignsLoading = false;
-      });
-    } catch (error) {
-      if (!mounted) {
-        return;
-      }
-
-      setState(() {
-        _enabledCampaigns = const <DiscountCampaignModel>[];
-        _campaignsLoading = false;
-      });
-
-      debugPrint('讀取優惠活動失敗：$error');
-    }
+  void _listenPublicCampaigns() {
+    _campaignsSub?.cancel();
+    _campaignsSub = DiscountCampaignService.instance
+        .streamPublicCampaigns(widget.shopId)
+        .listen(
+          (List<DiscountCampaignModel> campaigns) {
+            if (!mounted) {
+              return;
+            }
+            setState(() {
+              _enabledCampaigns = campaigns;
+              _campaignsLoading = false;
+              _campaignsError = false;
+            });
+          },
+          onError: (_) {
+            if (!mounted) {
+              return;
+            }
+            setState(() {
+              _campaignsLoading = false;
+              _campaignsError = true;
+            });
+          },
+        );
   }
 
   Future<void> _loadSpecialDateSurcharges() async {
@@ -447,6 +451,7 @@ class _ShopBookingPageState extends State<ShopBookingPage> {
 
   @override
   void dispose() {
+    _campaignsSub?.cancel();
     _scrollController.dispose();
     _customerNameController.dispose();
     _customerPhoneController.dispose();
@@ -503,22 +508,26 @@ class _ShopBookingPageState extends State<ShopBookingPage> {
 
   DailyCareEntitlement? _dailyCareQuote() {
     try {
-      return DailyCareEntitlementMath.resolve(
-        setting: _dailyCareSetting,
-        isDaycare: false,
-        shopDaycareOn: true,
-        offerId: (_selectedRoomType?['id'] ?? '').toString(),
-        offerName: (_selectedRoomType?['name'] ?? '').toString(),
-        purchaseAddon:
-            _selectedDailyCareAddonId != null &&
-            _selectedDailyCareAddonId!.isNotEmpty,
-        nights: _nights,
-        startDate: _startDate,
-        endDate: _endDate,
-      );
+      return _dailyCareQuoteForSubmit();
     } catch (_) {
       return null;
     }
+  }
+
+  DailyCareEntitlement _dailyCareQuoteForSubmit() {
+    return DailyCareEntitlementMath.resolve(
+      setting: _dailyCareSetting,
+      isDaycare: false,
+      shopDaycareOn: true,
+      offerId: (_selectedRoomType?['id'] ?? '').toString(),
+      offerName: (_selectedRoomType?['name'] ?? '').toString(),
+      purchaseAddon:
+          _selectedDailyCareAddonId != null &&
+          _selectedDailyCareAddonId!.isNotEmpty,
+      nights: _nights,
+      startDate: _startDate,
+      endDate: _endDate,
+    );
   }
 
   int _couponTotal(Map<String, dynamic> shop) {
@@ -767,6 +776,21 @@ class _ShopBookingPageState extends State<ShopBookingPage> {
             nights: _nights,
             onOpenCalendar: () async {
               await _openCalendarDialog(shop);
+            },
+          ),
+          CustomerBookingCampaignTeaser(
+            theme: widget.theme,
+            loading: _campaignsLoading,
+            hasError: _campaignsError,
+            campaigns: _enabledCampaigns,
+            snapshot: _campaignBookingSnapshot(shop),
+            onOpen: () => _openCampaignsPage(shop),
+            onRetry: () {
+              setState(() {
+                _campaignsLoading = true;
+                _campaignsError = false;
+              });
+              _listenPublicCampaigns();
             },
           ),
           if (_startDate == null || _endDate == null)
@@ -1625,7 +1649,7 @@ class _ShopBookingPageState extends State<ShopBookingPage> {
         requestedPoints: _requestedPoints,
 
         addons: _buildAddonsData(),
-        dailyCareEntitlement: _dailyCareQuote()?.toMap(),
+        dailyCareEntitlement: _dailyCareQuoteForSubmit().toMap(),
         address: address,
         emergencyName: emergencyName,
         emergencyPhone: emergencyPhone,
@@ -1888,6 +1912,98 @@ class _ShopBookingPageState extends State<ShopBookingPage> {
           },
         );
       },
+    );
+  }
+
+  bool get _campaignSelectionComplete {
+    return _startDate != null &&
+        _endDate != null &&
+        _selectedRoomType != null &&
+        _selectedPetIds.isNotEmpty;
+  }
+
+  CustomerCampaignBookingSnapshot _campaignBookingSnapshot(
+    Map<String, dynamic> shop,
+  ) {
+    if (!_campaignSelectionComplete) {
+      return const CustomerCampaignBookingSnapshot(selectionComplete: false);
+    }
+    final Map<String, dynamic> discountInfo = _calculateDiscountInfo(shop);
+    final String campaignId = (discountInfo['discountCampaignId'] ?? '')
+        .toString()
+        .trim();
+    final int discountAmount = (discountInfo['discountAmount'] ?? 0) is num
+        ? (discountInfo['discountAmount'] as num).toInt()
+        : 0;
+    final bool blocked =
+        (discountInfo['campaignBlockedBySpecialDate'] ?? false) == true;
+    final Set<String> eligible = <String>{};
+    if (!blocked &&
+        _startDate != null &&
+        _endDate != null &&
+        _selectedRoomType != null) {
+      final String roomTypeId =
+          (_selectedRoomType?['id'] ?? _selectedRoomType?['roomTypeId'] ?? '')
+              .toString()
+              .trim();
+      final int baseRoomTotal = (discountInfo['baseRoomTotal'] ?? 0) is num
+          ? (discountInfo['baseRoomTotal'] as num).toInt()
+          : 0;
+      final int surchargeAmount =
+          (discountInfo['specialDateSurchargeAmount'] ?? 0) is num
+          ? (discountInfo['specialDateSurchargeAmount'] as num).toInt()
+          : 0;
+      final int petTotal = (discountInfo['petTotal'] ?? 0) is num
+          ? (discountInfo['petTotal'] as num).toInt()
+          : 0;
+      final int baseSubtotal = (discountInfo['baseSubtotal'] ?? 0) is num
+          ? (discountInfo['baseSubtotal'] as num).toInt()
+          : 0;
+      final int extraServiceTotal = (baseSubtotal - baseRoomTotal - petTotal)
+          .clamp(0, baseSubtotal)
+          .toInt();
+      final List<DiscountCampaignCalculationResult> results =
+          DiscountCampaignCalculator.calculateEligibleCampaigns(
+            campaigns: _enabledCampaigns,
+            input: DiscountCampaignCalculationInput(
+              checkInDate: _startDate!,
+              checkOutDate: _endDate!,
+              roomTypeId: roomTypeId,
+              roomAmount: baseRoomTotal + surchargeAmount,
+              petAmount: petTotal,
+              extraServiceAmount: extraServiceTotal,
+              isFirstBooking: !_firstBookingLoading && _isFirstBooking,
+              memberJoinedAt: _memberJoinedAt,
+              memberCampaignUsage: _memberCampaignUsage,
+              memberCampaignUsedNights: _memberCampaignUsedNights,
+            ),
+          );
+      for (final DiscountCampaignCalculationResult result in results) {
+        eligible.add(result.campaign.id);
+      }
+    }
+    return CustomerCampaignBookingSnapshot(
+      selectionComplete: true,
+      appliedCampaignId: campaignId,
+      appliedDiscountAmount: discountAmount,
+      eligibleCampaignIds: eligible,
+    );
+  }
+
+  void _openCampaignsPage(Map<String, dynamic> shop) {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => ShopAnnouncementPage(
+          shopId: widget.shopId,
+          theme: widget.theme,
+          initialSection: ShopAnnouncementSection.campaigns,
+          returnToBookingOnReserve: true,
+          bookingSnapshot: _campaignBookingSnapshot(shop),
+          memberJoinedAt: _memberJoinedAt,
+          isFirstBooking: !_firstBookingLoading && _isFirstBooking,
+          memberCampaignUsedNights: _memberCampaignUsedNights,
+        ),
+      ),
     );
   }
 

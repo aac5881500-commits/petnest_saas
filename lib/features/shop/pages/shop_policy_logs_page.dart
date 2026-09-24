@@ -150,10 +150,8 @@ class _ShopPolicyLogsPageState extends State<ShopPolicyLogsPage>
     await Navigator.push<void>(
       context,
       MaterialPageRoute<void>(
-        builder: (_) => PolicyVersionDetailPage(
-          data: data,
-          serviceType: serviceType,
-        ),
+        builder: (_) =>
+            PolicyVersionDetailPage(data: data, serviceType: serviceType),
       ),
     );
   }

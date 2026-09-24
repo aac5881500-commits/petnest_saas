@@ -50,8 +50,7 @@ class DaycareRoomTypeOption {
     return '每多 1 隻 +NT\$${setting.extraPetPrice}';
   }
 
-  String get capacitySummary =>
-      capacity > 0 ? '最多 $capacity 隻' : '請確認房型容納數';
+  String get capacitySummary => capacity > 0 ? '最多 $capacity 隻' : '請確認房型容納數';
 }
 
 class DaycareRoomTypeCatalog {
@@ -172,8 +171,7 @@ class DaycareRoomTypeCatalog {
               <String, dynamic>{'id': doc.id, ...doc.data()},
         )
         .toList();
-    final List<Map<String, dynamic>> calendarEntries =
-        <Map<String, dynamic>>[];
+    final List<Map<String, dynamic>> calendarEntries = <Map<String, dynamic>>[];
     if (timesComplete) {
       for (final Map<String, dynamic> room in rooms) {
         final String roomId = (room['id'] ?? '').toString();

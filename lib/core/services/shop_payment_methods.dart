@@ -170,12 +170,13 @@ class ShopPaymentMethods {
     if (PaymentMethodType.isOnlinePayment(method)) {
       return true;
     }
-    final String tradeNo = (data['merchantTradeNo'] ??
-            data['ecpayTradeNo'] ??
-            data['TradeNo'] ??
-            '')
-        .toString()
-        .trim();
+    final String tradeNo =
+        (data['merchantTradeNo'] ??
+                data['ecpayTradeNo'] ??
+                data['TradeNo'] ??
+                '')
+            .toString()
+            .trim();
     return tradeNo.isNotEmpty;
   }
 
@@ -436,8 +437,7 @@ class ShopPaymentMethods {
     return ShopPaymentCatalog(
       methods: full.methods
           .where(
-            (ShopPaymentMethodOption item) =>
-                isSettlementTopUpMethod(item.id),
+            (ShopPaymentMethodOption item) => isSettlementTopUpMethod(item.id),
           )
           .map((ShopPaymentMethodOption item) {
             if (item.id == PaymentMethodType.cash) {

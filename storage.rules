@@ -271,14 +271,13 @@ match /platform_contact_requests/{requestId}/{fileName} {
           /databases/(default)/documents/bookings/$(bookingId)
         )
         && dailyCareBooking(bookingId).shopId == shopId
-        && (
-          (
-            (dailyCareBooking(bookingId).bookingKind == 'daycare'
-              || dailyCareBooking(bookingId).serviceType == 'daycare')
-            && dailyCareBooking(bookingId).status != 'cancelled'
-          )
-          || dailyCareBooking(bookingId).status == 'checked_in'
-        );
+        && dailyCareBooking(bookingId).status == 'checked_in'
+        && dailyCareBooking(bookingId).status != 'checked_out'
+        && dailyCareBooking(bookingId).status != 'completed'
+        && dailyCareBooking(bookingId).status != 'cancelled'
+        && dailyCareBooking(bookingId).settlementConfirmed != true
+        && !('settledAt' in dailyCareBooking(bookingId)
+          && dailyCareBooking(bookingId).settledAt != null);
     }
 
     function dailyCareCustomerCanRead(shopId, bookingId, photoId) {
@@ -369,7 +368,8 @@ match /daily_care_photos/{shopId}/{bookingId}/{roomId}/{dateKey}/{sessionIndex}/
     && (
       isRootAdmin()
       || isShopMember(shopId)
-    );
+    )
+    && dailyCareWritable(shopId, bookingId);
 }
 
 // 📥 高清下載圖
@@ -412,7 +412,8 @@ allow read: if signedIn()
     && (
       isRootAdmin()
       || isShopMember(shopId)
-    );
+    )
+    && dailyCareWritable(shopId, bookingId);
 }
 
     // 🖼 平台外觀圖庫：platform/media_library/{assetId}/original.*

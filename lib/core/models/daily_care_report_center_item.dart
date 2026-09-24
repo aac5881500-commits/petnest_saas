@@ -34,6 +34,8 @@ class DailyCareReportCenterItem {
     this.isCompleted = false,
     this.updatedAt,
     this.canOperate = true,
+    this.reportsLocked = false,
+    this.photoCount = 0,
   });
 
   final String id;
@@ -63,10 +65,32 @@ class DailyCareReportCenterItem {
   final DateTime? updatedAt;
   final DailyCareEntitlement entitlement;
   final bool canOperate;
+  final bool reportsLocked;
+  final int photoCount;
+
+  int get maxPhotos => 3;
+
+  String get photoCountLabel => '照片 $photoCount/$maxPhotos 張';
 
   bool get isDaycare => serviceType == DailyCareServiceTypes.daycare;
 
   String get typeLabel => isDaycare ? '安親' : '住宿';
+
+  String get recordDateHeading => dateHeadingOf(recordDate);
+
+  static String dateHeadingOf(DateTime value) {
+    final DateTime day = DailyCareDateHelper.dateOnly(value);
+    const List<String> weekdays = <String>[
+      '週一',
+      '週二',
+      '週三',
+      '週四',
+      '週五',
+      '週六',
+      '週日',
+    ];
+    return '${day.month}/${day.day}（${weekdays[day.weekday - 1]}）';
+  }
 
   String get placeLabel {
     if (isDaycare) {
@@ -115,6 +139,24 @@ class DailyCareReportCenterItem {
     return '第 $stayDayIndex / $stayDayTotal 晚';
   }
 
+  bool matchesQuery(String needle) {
+    if (needle.isEmpty) {
+      return true;
+    }
+    final List<String> fields = <String>[
+      bookingCode,
+      bookingId,
+      roomName,
+      roomTypeName,
+      customerName,
+      petNamesText,
+      typeLabel,
+      sessionName,
+      placeLabel,
+    ];
+    return fields.any((String value) => value.toLowerCase().contains(needle));
+  }
+
   String get scheduleText {
     if (isDaycare) {
       return daycareTimeLabel.trim();
@@ -134,6 +176,8 @@ class DailyCareReportCenterItem {
     bool? isCompleted,
     DateTime? updatedAt,
     bool? canOperate,
+    bool? reportsLocked,
+    int? photoCount,
   }) {
     return DailyCareReportCenterItem(
       id: id,
@@ -163,6 +207,8 @@ class DailyCareReportCenterItem {
       updatedAt: updatedAt ?? this.updatedAt,
       entitlement: entitlement,
       canOperate: canOperate ?? this.canOperate,
+      reportsLocked: reportsLocked ?? this.reportsLocked,
+      photoCount: photoCount ?? this.photoCount,
     );
   }
 }

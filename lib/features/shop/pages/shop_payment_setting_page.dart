@@ -25,7 +25,7 @@ class ShopPaymentSettingPage extends StatelessWidget {
             tabs: <Widget>[
               Tab(
                 icon: Icon(Icons.account_balance_wallet_outlined),
-                text: '訂金設定',
+                text: '收款設定',
               ),
               Tab(icon: Icon(Icons.local_offer_outlined), text: '優惠設定'),
               Tab(icon: Icon(Icons.stars_outlined), text: '點數設定'),

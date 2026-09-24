@@ -258,9 +258,7 @@ class CustomFormDefaultTemplates {
       CustomFormSection(
         id: '${idPrefix}_items',
         title: '攜帶物品',
-        description: staffWording
-            ? '請核對或代填本次攜帶物品。'
-            : '方便入住與離店時核對物品。',
+        description: staffWording ? '請核對或代填本次攜帶物品。' : '方便入住與離店時核對物品。',
         sortOrder: 1,
         questions: <CustomFormQuestion>[
           CustomFormQuestion(
@@ -284,9 +282,7 @@ class CustomFormDefaultTemplates {
       CustomFormSection(
         id: '${idPrefix}_other_request',
         title: '接送與其他需求',
-        description: staffWording
-            ? '請依會員說明填寫接送與其他需求。'
-            : '若本次有特殊狀況，請提前告知店家。',
+        description: staffWording ? '請依會員說明填寫接送與其他需求。' : '若本次有特殊狀況，請提前告知店家。',
         sortOrder: 2,
         questions: <CustomFormQuestion>[
           CustomFormQuestion(

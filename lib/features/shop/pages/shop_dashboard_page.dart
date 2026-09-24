@@ -1,8 +1,6 @@
 // 檔案名稱：lib/features/shop/pages/shop_dashboard_page.dart
 // 功能說明：店家後台首頁，支援手機單欄與桌機多欄的響應式模組導覽。
 
-import 'dart:math' as math;
-
 import 'daily_care_setting_page.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
@@ -22,8 +20,9 @@ import 'package:petnest_saas/features/shop/widgets/chat/shop_chat_app_bar_button
 import 'package:petnest_saas/features/shop/widgets/chat/shop_chat_desktop_workspace.dart';
 import 'package:petnest_saas/features/shop/widgets/chat/shop_chat_entry.dart';
 import 'package:petnest_saas/features/shop/widgets/chat/shop_chat_layout.dart';
+import 'package:petnest_saas/features/shop/pages/shop_frontend_preview_page.dart';
 import 'package:petnest_saas/features/shop/widgets/shop_admin_workspace.dart';
-import 'package:petnest_saas/features/shop/widgets/shop_frontend_test_panel.dart';
+import 'package:petnest_saas/features/shop/widgets/shop_frontend_preview_frame.dart';
 import 'package:petnest_saas/features/shop/widgets/shop_frontend_phone_preview.dart';
 import 'package:petnest_saas/features/shop/pages/shop_basic_info_page.dart';
 import 'package:petnest_saas/features/shop/pages/shop_booking_setup_center_page.dart';
@@ -84,8 +83,10 @@ class _ShopDashboardPageState extends State<ShopDashboardPage> {
   bool _frontendOpenPref = false;
   bool _chatSurfacesOnTop = false;
   bool _wasChatVisible = false;
-  int _frontendHomeToken = 0;
+  bool _frontendExpanded = false;
   final GlobalKey _frontendTabBarViewKey = GlobalKey();
+  final GlobalKey<ShopFrontendPreviewFrameState> _frontendPreviewKey =
+      GlobalKey<ShopFrontendPreviewFrameState>();
 
   @override
   void initState() {
@@ -218,33 +219,62 @@ class _ShopDashboardPageState extends State<ShopDashboardPage> {
       _frontendOpenPref = next;
       if (next) {
         _chatSurfacesOnTop = false;
+      } else {
+        _frontendExpanded = false;
       }
     });
     _saveFrontendOpen(next);
   }
 
-  void _openFrontendPanelAndGoHome() {
+  void _openFrontendPanel() {
     setState(() {
       _frontendOpenPref = true;
-      _frontendHomeToken++;
       _chatSurfacesOnTop = false;
     });
     _saveFrontendOpen(true);
   }
 
   void _closeFrontendPanel() {
-    if (!_frontendOpenPref) {
+    if (!_frontendOpenPref && !_frontendExpanded) {
       return;
     }
     setState(() {
       _frontendOpenPref = false;
+      _frontendExpanded = false;
     });
     _saveFrontendOpen(false);
   }
 
-  void _handleFrontendPreview({required String shopCode, bool goHome = false}) {
-    if (goHome) {
-      _openFrontendPanelAndGoHome();
+  void _toggleFrontendExpand() {
+    setState(() {
+      _frontendExpanded = !_frontendExpanded;
+      if (_frontendExpanded) {
+        _frontendOpenPref = true;
+        _chatSurfacesOnTop = false;
+      }
+    });
+    _saveFrontendOpen(true);
+  }
+
+  Future<void> _openFullscreenFrontendPreview({required String shopCode}) {
+    return ShopFrontendPreviewPage.open(
+      context,
+      shopId: widget.shopId,
+      shopCode: shopCode,
+    );
+  }
+
+  void _handleFrontendPreview({
+    required String shopCode,
+    required double pageWidth,
+    bool forceOpen = false,
+  }) {
+    if (!ShopFrontendPreviewFrame.canShowInlinePreview(pageWidth)) {
+      _openFullscreenFrontendPreview(shopCode: shopCode);
+      return;
+    }
+    if (forceOpen) {
+      _openFrontendPanel();
       return;
     }
     _toggleFrontendPanel();
@@ -257,6 +287,7 @@ class _ShopDashboardPageState extends State<ShopDashboardPage> {
     required bool panelOpen,
     required bool showLabel,
     required String shopCode,
+    required double pageWidth,
   }) {
     final ColorScheme colors = Theme.of(context).colorScheme;
     final String tooltip;
@@ -264,13 +295,16 @@ class _ShopDashboardPageState extends State<ShopDashboardPage> {
       tooltip = '請先完成基本資料';
     } else if (!canUsePublicPage) {
       tooltip = '升級方案解鎖';
+    } else if (!ShopFrontendPreviewFrame.canShowInlinePreview(pageWidth)) {
+      tooltip = '預覽';
     } else {
-      tooltip = panelOpen ? '收起實際前台' : '開啟實際前台';
+      tooltip = panelOpen ? '收起前台預覽' : '開啟前台預覽';
     }
 
     final VoidCallback? onPressed = !canUse
         ? null
-        : () => _handleFrontendPreview(shopCode: shopCode);
+        : () =>
+              _handleFrontendPreview(shopCode: shopCode, pageWidth: pageWidth);
 
     final bool selected = canUse && panelOpen;
     final Color? selectedColor = selected ? colors.primary : null;
@@ -289,7 +323,11 @@ class _ShopDashboardPageState extends State<ShopDashboardPage> {
                   : Colors.transparent,
             ),
             icon: Icon(Icons.storefront_outlined, color: selectedColor),
-            label: const Text('前台'),
+            label: Text(
+              ShopFrontendPreviewFrame.canShowInlinePreview(pageWidth)
+                  ? '前台'
+                  : '預覽',
+            ),
           ),
         ),
       );
@@ -583,9 +621,15 @@ class _ShopDashboardPageState extends State<ShopDashboardPage> {
                     canUse: canOpenFrontend,
                     isProfileComplete: isComplete,
                     canUsePublicPage: canUsePublicPage,
-                    panelOpen: _frontendOpenPref && canOpenFrontend,
+                    panelOpen:
+                        _frontendOpenPref &&
+                        canOpenFrontend &&
+                        ShopFrontendPreviewFrame.canShowInlinePreview(
+                          pageWidth,
+                        ),
                     showLabel: pageWidth >= _DashboardLayout.phoneBreakpoint,
                     shopCode: shopCode,
+                    pageWidth: pageWidth,
                   ),
                   if (_can(ShopPermissionKeys.manageChat))
                     ShopChatAppBarButton(shopId: widget.shopId),
@@ -701,7 +745,8 @@ class _ShopDashboardPageState extends State<ShopDashboardPage> {
                                       onPreviewFrontend: () =>
                                           _handleFrontendPreview(
                                             shopCode: shopCode,
-                                            goHome: true,
+                                            pageWidth: pageWidth,
+                                            forceOpen: true,
                                           ),
                                     );
                                   case ShopModules.catHotel:
@@ -754,30 +799,29 @@ class _ShopDashboardPageState extends State<ShopDashboardPage> {
                             final bool chatAllowed = _can(
                               ShopPermissionKeys.manageChat,
                             );
+                            final bool canInlinePreview =
+                                ShopFrontendPreviewFrame.canShowInlinePreview(
+                                  pageWidth,
+                                );
                             final bool frontendOpen =
                                 _frontendPrefsLoaded &&
                                 _frontendOpenPref &&
-                                canOpenFrontend;
-                            final double frontendScale =
-                                ShopFrontendPhoneFrame.scaleFor(
-                                  availableWidth: 430,
-                                  availableHeight: math.max(
-                                    200,
-                                    constraints.maxHeight - 72,
-                                  ),
-                                );
+                                canOpenFrontend &&
+                                canInlinePreview;
                             final double frontendWidth =
-                                430 * frontendScale + 16;
+                                ShopFrontendPreviewFrame.inlineSlotWidth;
 
-                            final Widget liveFrontend = ShopFrontendTestPanel(
-                              key: ValueKey<String>(
-                                'frontend-panel-${widget.shopId}',
-                              ),
-                              shopId: widget.shopId,
-                              shopCode: shopCode,
-                              homeResetToken: _frontendHomeToken,
-                              onClose: _closeFrontendPanel,
-                            );
+                            final Widget liveFrontend =
+                                ShopFrontendPreviewFrame(
+                                  key: _frontendPreviewKey,
+                                  shopId: widget.shopId,
+                                  shopCode: shopCode,
+                                  showExpand: true,
+                                  expanded: _frontendExpanded,
+                                  scaleToFit: !_frontendExpanded,
+                                  onToggleExpand: _toggleFrontendExpand,
+                                  onClose: _closeFrontendPanel,
+                                );
 
                             return ListenableBuilder(
                               listenable: Listenable.merge(<Listenable>[
@@ -791,24 +835,56 @@ class _ShopDashboardPageState extends State<ShopDashboardPage> {
                                       pageWidth: pageWidth,
                                       inboxOpen: _workspace.chat.inboxOpen,
                                     );
-                                final Widget frontendLayer = Positioned(
-                                  key: ShopDashboardLiveFrontendOverlay
-                                      .overlayKey,
-                                  left: 12,
-                                  top: 8,
-                                  bottom: 12,
-                                  width: frontendWidth,
-                                  child: Listener(
-                                    onPointerDown: (_) {
-                                      if (_chatSurfacesOnTop) {
-                                        setState(() {
-                                          _chatSurfacesOnTop = false;
-                                        });
-                                      }
-                                    },
-                                    child: liveFrontend,
-                                  ),
-                                );
+                                final Widget frontendLayer = _frontendExpanded
+                                    ? Positioned(
+                                        key: ShopDashboardLiveFrontendOverlay
+                                            .overlayKey,
+                                        left: 0,
+                                        top: 0,
+                                        right: 0,
+                                        bottom: 0,
+                                        child: ColoredBox(
+                                          color: const Color(0x99000000),
+                                          child: Center(
+                                            child: Padding(
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                    vertical: 12,
+                                                    horizontal: 24,
+                                                  ),
+                                              child: ConstrainedBox(
+                                                constraints: BoxConstraints(
+                                                  maxWidth:
+                                                      ShopFrontendPhoneFrame
+                                                          .liveLogicalWidth +
+                                                      16,
+                                                  maxHeight:
+                                                      constraints.maxHeight,
+                                                ),
+                                                child: liveFrontend,
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                      )
+                                    : Positioned(
+                                        key: ShopDashboardLiveFrontendOverlay
+                                            .overlayKey,
+                                        left: 12,
+                                        top: 8,
+                                        bottom: 12,
+                                        width: frontendWidth,
+                                        child: Listener(
+                                          onPointerDown: (_) {
+                                            if (_chatSurfacesOnTop) {
+                                              setState(() {
+                                                _chatSurfacesOnTop = false;
+                                              });
+                                            }
+                                          },
+                                          child: liveFrontend,
+                                        ),
+                                      );
                                 final List<Widget> chatLayers = <Widget>[
                                   if (desktopChatOpen)
                                     Positioned(
@@ -1055,7 +1131,7 @@ class _BasicInfoTab extends StatelessWidget {
               title: '前台預覽',
               subtitle: !isProfileComplete
                   ? '請先完成基本資料'
-                  : (canUsePublicPage ? '查看客戶看到的頁面' : '升級方案解鎖'),
+                  : (canUsePublicPage ? '在完整手機前台中操作客戶畫面' : '升級方案解鎖'),
               icon: Icons.visibility,
               enabled: isProfileComplete && canUsePublicPage,
               onTap: onPreviewFrontend,

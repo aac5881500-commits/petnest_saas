@@ -6,11 +6,13 @@ import '../models/daily_care_date_helper.dart';
 import '../models/daily_care_entitlement.dart';
 import '../models/daily_care_record_model.dart';
 import '../models/daily_care_report_center_item.dart';
+import '../models/daily_care_report_mode.dart';
 import '../models/daily_care_setting_model.dart';
 import '../models/daily_care_stay_info.dart';
 import 'daily_care_daycare_access.dart';
 import 'daily_care_entitlement_math.dart';
 import 'daily_care_record_service.dart';
+import 'daily_care_report_write_access.dart';
 
 class DailyCareReportEligibility {
   DailyCareReportEligibility._();
@@ -20,19 +22,75 @@ class DailyCareReportEligibility {
     required DailyCareSettingModel setting,
     required bool daycare,
   }) {
+    DailyCareEntitlement? snapshot;
     final Object? raw = booking['dailyCareEntitlement'];
     if (raw is Map) {
       try {
-        return DailyCareEntitlement.fromMap(Map<String, dynamic>.from(raw));
+        snapshot = DailyCareEntitlement.fromMap(Map<String, dynamic>.from(raw));
       } catch (_) {
-        // 快照壞掉時才退回設定，不寫回訂單。
+        snapshot = null;
       }
+    }
+    if (snapshot != null &&
+        !_shouldFallbackIncompleteSnapshot(
+          snapshot: snapshot,
+          setting: setting,
+          daycare: daycare,
+          booking: booking,
+        )) {
+      return snapshot;
     }
     return DailyCareEntitlementMath.fallbackFromSetting(
       setting: setting,
       isDaycare: daycare,
       booking: booking,
     );
+  }
+
+  /// 付費加購且客戶未購買時，finalReports=0 是正確結果，不可改成免費回報。
+  /// 固定提供／依房型提供的殘缺快照才改用店家設定重算（不寫回訂單）。
+  static bool _shouldFallbackIncompleteSnapshot({
+    required DailyCareEntitlement snapshot,
+    required DailyCareSettingModel setting,
+    required bool daycare,
+    required Map<String, dynamic> booking,
+  }) {
+    final String settingMode = DailyCareReportMode.normalize(
+      daycare ? setting.daycareReportMode : setting.stayReportMode,
+    );
+    final String snapshotMode = DailyCareReportMode.normalize(snapshot.mode);
+    final bool paidAddon =
+        snapshotMode == DailyCareReportMode.paidAddon ||
+        settingMode == DailyCareReportMode.paidAddon;
+    if (paidAddon) {
+      if (DailyCareEntitlementMath.purchasedPaidAddon(
+        booking,
+        isDaycare: daycare,
+      )) {
+        return snapshot.enabled != true ||
+            snapshot.finalReports < 1 ||
+            snapshot.sessionLabels.length < snapshot.finalReports;
+      }
+      return false;
+    }
+    final bool includedMode =
+        snapshotMode == DailyCareReportMode.includedFixed ||
+        snapshotMode == DailyCareReportMode.includedByOffer ||
+        settingMode == DailyCareReportMode.includedFixed ||
+        settingMode == DailyCareReportMode.includedByOffer;
+    if (!includedMode) {
+      return false;
+    }
+    if (snapshot.enabled != true) {
+      return true;
+    }
+    if (snapshot.finalReports < 1) {
+      return true;
+    }
+    if (snapshot.sessionLabels.length < snapshot.finalReports) {
+      return true;
+    }
+    return false;
   }
 
   static DailyCareEntitlement entitlementOf(Map<String, dynamic> booking) {
@@ -157,6 +215,30 @@ class DailyCareReportEligibility {
     return id;
   }
 
+  static bool includeInReportCenter({
+    required Map<String, dynamic> booking,
+    required bool daycare,
+  }) {
+    final String status = (booking['status'] ?? '').toString().trim();
+    if (status == 'cancelled') {
+      return false;
+    }
+    if (daycare) {
+      return DailyCareDaycareAccess.hasStartedCare(booking);
+    }
+    return status == 'checked_in' ||
+        status == 'checked_out' ||
+        status == 'completed';
+  }
+
+  static List<DateTime> daycareCareDates(Map<String, dynamic> booking) {
+    final DateTime? date = DailyCareDaycareAccess.serviceCalendarDate(booking);
+    if (date == null) {
+      return const <DateTime>[];
+    }
+    return <DateTime>[DailyCareDateHelper.dateOnly(date)];
+  }
+
   static List<DailyCareReportCenterItem> expandBooking({
     required String shopId,
     required Map<String, dynamic> booking,
@@ -166,6 +248,7 @@ class DailyCareReportEligibility {
     required bool daycare,
     Set<String> completedIds = const <String>{},
     Map<String, DateTime?> updatedAtById = const <String, DateTime?>{},
+    bool allWorkItems = false,
   }) {
     if (daycare && !setting.daycareEnabled) {
       return const <DailyCareReportCenterItem>[];
@@ -178,23 +261,38 @@ class DailyCareReportEligibility {
       setting: setting,
       daycare: daycare,
     );
-    final bool qualifies = daycare
-        ? daycareQualifiesToday(
-            setting: setting,
-            booking: booking,
-            today: today,
-            entitlement: entitlement,
-          )
-        : stayQualifiesToday(
-            booking: booking,
-            today: today,
-            entitlement: entitlement,
-          );
-    if (!qualifies) {
-      return const <DailyCareReportCenterItem>[];
+    if (allWorkItems) {
+      if (!isEntitled(entitlement) ||
+          !includeInReportCenter(booking: booking, daycare: daycare)) {
+        return const <DailyCareReportCenterItem>[];
+      }
+    } else {
+      final bool qualifies = daycare
+          ? daycareQualifiesToday(
+              setting: setting,
+              booking: booking,
+              today: today,
+              entitlement: entitlement,
+            )
+          : stayQualifiesToday(
+              booking: booking,
+              today: today,
+              entitlement: entitlement,
+            );
+      if (!qualifies) {
+        return const <DailyCareReportCenterItem>[];
+      }
     }
     final String bookingId = bookingIdOf(booking);
     if (bookingId.isEmpty) {
+      return const <DailyCareReportCenterItem>[];
+    }
+    final List<DateTime> dates = allWorkItems
+        ? (daycare
+              ? daycareCareDates(booking)
+              : stayCareDates(booking, setting: setting))
+        : <DateTime>[DailyCareDateHelper.dateOnly(today)];
+    if (dates.isEmpty) {
       return const <DailyCareReportCenterItem>[];
     }
     final DailyCareStayInfo stay = DailyCareStayInfo.fromBookingMap(booking);
@@ -210,14 +308,12 @@ class DailyCareReportEligibility {
     final String roomId = (booking['roomId'] ?? '').toString().trim();
     final String bookingCode = (booking['bookingCode'] ?? '').toString().trim();
     final String roomTypeName = roomTypeNameOf(booking);
-    int? stayDayIndex;
-    int? stayDayTotal;
-    if (!daycare) {
-      final List<String> careKeys = stay.careDateKeys();
-      stayDayTotal = careKeys.isEmpty ? null : careKeys.length;
-      final int idx = careKeys.indexOf(DailyCareDateHelper.dateKey(today));
-      stayDayIndex = idx >= 0 ? idx + 1 : null;
-    }
+    final List<String> careKeys = daycare
+        ? const <String>[]
+        : stay.careDateKeys();
+    final int? stayDayTotal = daycare
+        ? null
+        : (careKeys.isEmpty ? null : careKeys.length);
     final DateTime? daycareStart = daycare
         ? (_readInstant(booking['actualStartAt']) ??
               _readInstant(booking['scheduledStartAt']))
@@ -231,49 +327,59 @@ class DailyCareReportEligibility {
         : '';
     final int sessions = entitlement.finalReports;
     final List<DailyCareReportCenterItem> items = <DailyCareReportCenterItem>[];
-    for (int index = 0; index < sessions; index++) {
-      final String recordId = DailyCareRecordService.recordId(
-        bookingId: bookingId,
-        recordDate: today,
-        sessionIndex: index,
-      );
-      items.add(
-        DailyCareReportCenterItem(
-          id: recordId,
-          shopId: shopId,
+    for (final DateTime recordDate in dates) {
+      final DateTime day = DailyCareDateHelper.dateOnly(recordDate);
+      int? stayDayIndex;
+      if (!daycare) {
+        final int idx = careKeys.indexOf(DailyCareDateHelper.dateKey(day));
+        stayDayIndex = idx >= 0 ? idx + 1 : null;
+      }
+      for (int index = 0; index < sessions; index++) {
+        final String recordId = DailyCareRecordService.recordId(
           bookingId: bookingId,
-          sourceCollection: 'bookings',
-          serviceType: daycare
-              ? DailyCareServiceTypes.daycare
-              : DailyCareServiceTypes.accommodation,
-          roomId: roomId,
-          roomName: roomName,
-          roomTypeName: roomTypeName,
-          bookingCode: bookingCode,
-          customerName: customerNameOf(booking),
-          petIds: petIds,
-          petNames: petNames,
-          petPhotoUrl: petPhotoUrl,
-          checkInDate: daycare ? null : stay.startDate,
-          checkOutDate: daycare ? null : stay.endDate,
-          stayDayIndex: stayDayIndex,
-          stayDayTotal: stayDayTotal,
-          daycareStartAt: daycareStart,
-          daycareEndAt: daycareEnd,
-          daycareTimeLabel: daycareTimeLabel,
-          recordDate: today,
+          recordDate: day,
           sessionIndex: index,
-          sessionName: sessionName(
-            entitlement: entitlement,
-            setting: setting,
+        );
+        items.add(
+          DailyCareReportCenterItem(
+            id: recordId,
+            shopId: shopId,
+            bookingId: bookingId,
+            sourceCollection: 'bookings',
+            serviceType: daycare
+                ? DailyCareServiceTypes.daycare
+                : DailyCareServiceTypes.accommodation,
+            roomId: roomId,
+            roomName: roomName,
+            roomTypeName: roomTypeName,
+            bookingCode: bookingCode,
+            customerName: customerNameOf(booking),
+            petIds: petIds,
+            petNames: petNames,
+            petPhotoUrl: petPhotoUrl,
+            checkInDate: daycare ? null : stay.startDate,
+            checkOutDate: daycare ? null : stay.endDate,
+            stayDayIndex: stayDayIndex,
+            stayDayTotal: stayDayTotal,
+            daycareStartAt: daycareStart,
+            daycareEndAt: daycareEnd,
+            daycareTimeLabel: daycareTimeLabel,
+            recordDate: day,
             sessionIndex: index,
+            sessionName: sessionName(
+              entitlement: entitlement,
+              setting: setting,
+              sessionIndex: index,
+            ),
+            isCompleted: completedIds.contains(recordId),
+            updatedAt: updatedAtById[recordId],
+            entitlement: entitlement,
+            canOperate:
+                canOperate && DailyCareReportWriteAccess.canWrite(booking),
+            reportsLocked: DailyCareReportWriteAccess.isLocked(booking),
           ),
-          isCompleted: completedIds.contains(recordId),
-          updatedAt: updatedAtById[recordId],
-          entitlement: entitlement,
-          canOperate: canOperate,
-        ),
-      );
+        );
+      }
     }
     return items;
   }
@@ -371,18 +477,21 @@ class DailyCareReportEligibility {
     Map<String, dynamic> booking, {
     DailyCareSettingModel? setting,
   }) {
-    final DailyCareEntitlement entitlement = entitlementOf(booking);
+    final DailyCareEntitlement entitlement = setting == null
+        ? entitlementOf(booking)
+        : resolvedEntitlement(
+            booking: booking,
+            setting: setting,
+            daycare: false,
+          );
     int perDay = entitlement.finalReports;
-    if (perDay < 1) {
-      perDay = setting?.sessionCount ?? 0;
-    }
     if (perDay < 1) {
       perDay = entitlement.sessionLabels.length;
     }
     if (perDay < 1) {
       return 0;
     }
-    final List<DateTime> dates = stayCareDates(booking);
+    final List<DateTime> dates = stayCareDates(booking, setting: setting);
     final int days = dates.isEmpty ? 0 : dates.length;
     return days * perDay;
   }
@@ -391,18 +500,30 @@ class DailyCareReportEligibility {
     Map<String, dynamic> booking, {
     DailyCareSettingModel? setting,
   }) {
-    final DailyCareEntitlement entitlement = entitlementOf(booking);
+    final DailyCareEntitlement entitlement = setting == null
+        ? entitlementOf(booking)
+        : resolvedEntitlement(
+            booking: booking,
+            setting: setting,
+            daycare: false,
+          );
     if (entitlement.finalReports >= 1) {
       return entitlement.finalReports;
-    }
-    if (setting != null && setting.sessionCount >= 1) {
-      return setting.sessionCount;
     }
     return entitlement.sessionLabels.length;
   }
 
-  static List<DateTime> stayCareDates(Map<String, dynamic> booking) {
-    final DailyCareEntitlement entitlement = entitlementOf(booking);
+  static List<DateTime> stayCareDates(
+    Map<String, dynamic> booking, {
+    DailyCareSettingModel? setting,
+  }) {
+    final DailyCareEntitlement entitlement = setting == null
+        ? entitlementOf(booking)
+        : resolvedEntitlement(
+            booking: booking,
+            setting: setting,
+            daycare: false,
+          );
     if (entitlement.serviceDates.isNotEmpty) {
       final List<DateTime> parsed = <DateTime>[];
       for (final String raw in entitlement.serviceDates) {
@@ -451,10 +572,13 @@ class DailyCareReportEligibility {
   }
 
   /// 優先今天（若為照護日），否則用既有 currentCareDate。
-  static DateTime stayFillDate(Map<String, dynamic> booking) {
+  static DateTime stayFillDate(
+    Map<String, dynamic> booking, {
+    DailyCareSettingModel? setting,
+  }) {
     final DateTime today = DailyCareDateHelper.todayInTaipei();
     final String todayKey = DailyCareDateHelper.dateKey(today);
-    for (final DateTime date in stayCareDates(booking)) {
+    for (final DateTime date in stayCareDates(booking, setting: setting)) {
       if (DailyCareDateHelper.dateKey(date) == todayKey) {
         return DailyCareDateHelper.dateOnly(date);
       }

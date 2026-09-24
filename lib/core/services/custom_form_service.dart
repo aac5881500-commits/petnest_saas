@@ -42,22 +42,23 @@ class CustomFormService {
         CustomFormModel.empty(shopId: '', formType: formType),
       );
     }
-    return _formRef(shopId: normalizedShopId, formType: formType).snapshots().map(
-      (DocumentSnapshot<Map<String, dynamic>> snapshot) {
-        if (!snapshot.exists || snapshot.data() == null) {
-          return CustomFormModel.empty(
-            shopId: normalizedShopId,
-            formType: formType,
-          );
-        }
-        return CustomFormModel.fromMap(
+    return _formRef(
+      shopId: normalizedShopId,
+      formType: formType,
+    ).snapshots().map((DocumentSnapshot<Map<String, dynamic>> snapshot) {
+      if (!snapshot.exists || snapshot.data() == null) {
+        return CustomFormModel.empty(
           shopId: normalizedShopId,
           formType: formType,
-          id: snapshot.id,
-          data: snapshot.data(),
         );
-      },
-    );
+      }
+      return CustomFormModel.fromMap(
+        shopId: normalizedShopId,
+        formType: formType,
+        id: snapshot.id,
+        data: snapshot.data(),
+      );
+    });
   }
 
   Future<CustomFormModel> getForm({

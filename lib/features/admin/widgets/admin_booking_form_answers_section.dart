@@ -324,8 +324,9 @@ class _FormBlock extends StatelessWidget {
                             return;
                           }
                           for (final Map<String, dynamic> pet in pets) {
-                            final String petId =
-                                CustomFormPetCondition.petIdOf(pet);
+                            final String petId = CustomFormPetCondition.petIdOf(
+                              pet,
+                            );
                             final CustomFormValidationResult petCheck =
                                 BookingOrderFormAnswers.validatePet(
                                   form: live,

@@ -285,7 +285,8 @@ class _AssignRoomDialogState extends State<_AssignRoomDialog> {
                         });
                       },
                     ),
-                    if (_changeReason == BookingRoomChangeReasons.other) ...<Widget>[
+                    if (_changeReason ==
+                        BookingRoomChangeReasons.other) ...<Widget>[
                       const SizedBox(height: 8),
                       TextField(
                         controller: _otherReason,

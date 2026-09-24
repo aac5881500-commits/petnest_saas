@@ -65,9 +65,10 @@ class ShopRoomNameLookup {
             return;
           }
           final Map<String, dynamic> data = snap.data() ?? <String, dynamic>{};
-          final String name = (data['name'] ?? data['number'] ?? data['roomName'] ?? '')
-              .toString()
-              .trim();
+          final String name =
+              (data['name'] ?? data['number'] ?? data['roomName'] ?? '')
+                  .toString()
+                  .trim();
           out[id] = name;
         } catch (_) {
           out[id] = '';

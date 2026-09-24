@@ -18,9 +18,12 @@ import 'package:petnest_saas/core/widgets/shop_task_center_button.dart';
 import 'package:petnest_saas/features/admin/widgets/admin_daily_care_report_shortcut.dart';
 import 'package:petnest_saas/features/auth/pages/room_calendar_page.dart';
 import 'package:petnest_saas/features/room/pages/housekeeping_setting_page.dart';
+import 'package:petnest_saas/features/room/widgets/housekeeping_daily_care_pane.dart';
 import 'package:petnest_saas/features/room/widgets/room_status_chip.dart';
 
 enum _RoomQuickFilter { all, needs, checkedIn, vacant }
+
+enum _DeskView { rooms, reports, split }
 
 class _DashRoom {
   const _DashRoom({
@@ -70,6 +73,7 @@ class RoomDashboardPage extends StatefulWidget {
 
 class _RoomDashboardPageState extends State<RoomDashboardPage> {
   static const double _desktopMin = 700;
+  static const double _splitMin = 1180;
   static const double _contentMax = 1520;
 
   DateTime selectedDate = DateTime.now();
@@ -79,6 +83,9 @@ class _RoomDashboardPageState extends State<RoomDashboardPage> {
   _RoomQuickFilter _quickFilter = _RoomQuickFilter.all;
   final Set<String> _collapsedTypes = <String>{};
   final Set<String> _busyKeys = <String>{};
+  _DeskView _deskView = _DeskView.rooms;
+  double _splitRatio = 0.5;
+  String _focusBookingId = '';
   int _streamRetry = 0;
 
   DateTime get weekStart {
@@ -100,6 +107,14 @@ class _RoomDashboardPageState extends State<RoomDashboardPage> {
   String get dateStr => DateFormat('yyyy-MM-dd').format(selectedDate);
 
   String _actionKey(String roomId) => '$roomId|$dateStr';
+
+  String get _deskViewLabel {
+    return switch (_deskView) {
+      _DeskView.rooms => '房務全頁',
+      _DeskView.reports => '回報全頁',
+      _DeskView.split => '分割工作台',
+    };
+  }
 
   Future<void> _checkPermission() async {
     final User? user = FirebaseAuth.instance.currentUser;
@@ -147,6 +162,41 @@ class _RoomDashboardPageState extends State<RoomDashboardPage> {
       appBar: AppBar(
         title: const Text('房務管理'),
         actions: <Widget>[
+          if (MediaQuery.sizeOf(context).width >= _desktopMin)
+            PopupMenuButton<_DeskView>(
+              tooltip: '檢視模式',
+              initialValue: _deskView,
+              onSelected: (_DeskView value) {
+                setState(() {
+                  _deskView = value;
+                });
+              },
+              itemBuilder: (BuildContext context) {
+                return const <PopupMenuEntry<_DeskView>>[
+                  PopupMenuItem<_DeskView>(
+                    value: _DeskView.rooms,
+                    child: Text('房務全頁'),
+                  ),
+                  PopupMenuItem<_DeskView>(
+                    value: _DeskView.reports,
+                    child: Text('回報全頁'),
+                  ),
+                  PopupMenuItem<_DeskView>(
+                    value: _DeskView.split,
+                    child: Text('分割工作台'),
+                  ),
+                ];
+              },
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+                child: Row(
+                  children: <Widget>[
+                    Text(_deskViewLabel),
+                    const Icon(Icons.arrow_drop_down),
+                  ],
+                ),
+              ),
+            ),
           ShopTaskCenterButton(shopId: widget.shopId),
           IconButton(
             tooltip: '房務設定',
@@ -255,6 +305,7 @@ class _RoomDashboardPageState extends State<RoomDashboardPage> {
                                           }
                                           return _workspace(
                                             desktop: desktop,
+                                            width: constraints.maxWidth,
                                             rooms: rooms,
                                             bookings: bookingSnap.data!.docs,
                                             calendarDocs:
@@ -276,6 +327,7 @@ class _RoomDashboardPageState extends State<RoomDashboardPage> {
 
   Widget _workspace({
     required bool desktop,
+    required double width,
     required List<Map<String, dynamic>> rooms,
     required List<QueryDocumentSnapshot> bookings,
     required List<QueryDocumentSnapshot> calendarDocs,
@@ -412,13 +464,26 @@ class _RoomDashboardPageState extends State<RoomDashboardPage> {
                     bookings: bookings,
                     calendarStatus: calendarStatus,
                     dense: true,
+                    splitSelect: false,
                   ),
           ),
         ],
       );
     }
 
-    return Center(
+    final bool splitOk = width >= _splitMin;
+    final _DeskView view = _deskView == _DeskView.split && !splitOk
+        ? _DeskView.rooms
+        : _deskView;
+
+    if (view == _DeskView.reports) {
+      return HousekeepingDailyCarePane(
+        shopId: widget.shopId,
+        focusBookingId: _focusBookingId,
+      );
+    }
+
+    final Widget roomsDesktop = Center(
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: _contentMax),
         child: Padding(
@@ -441,6 +506,7 @@ class _RoomDashboardPageState extends State<RoomDashboardPage> {
                               bookings: bookings,
                               calendarStatus: calendarStatus,
                               dense: false,
+                              splitSelect: view == _DeskView.split,
                             ),
                     ),
                     const SizedBox(width: 16),
@@ -459,6 +525,43 @@ class _RoomDashboardPageState extends State<RoomDashboardPage> {
           ),
         ),
       ),
+    );
+
+    if (view != _DeskView.split) {
+      return roomsDesktop;
+    }
+
+    final int leftFlex = (_splitRatio * 100).round().clamp(35, 65);
+    final int rightFlex = 100 - leftFlex;
+    return Row(
+      children: <Widget>[
+        Expanded(flex: leftFlex, child: roomsDesktop),
+        MouseRegion(
+          cursor: SystemMouseCursors.resizeColumn,
+          child: GestureDetector(
+            behavior: HitTestBehavior.translucent,
+            onHorizontalDragUpdate: (DragUpdateDetails details) {
+              setState(() {
+                _splitRatio = (_splitRatio + details.delta.dx / width).clamp(
+                  0.35,
+                  0.65,
+                );
+              });
+            },
+            child: const VerticalDivider(width: 10, thickness: 1),
+          ),
+        ),
+        Expanded(
+          flex: rightFlex,
+          child: Material(
+            color: const Color(0xFFF7F8FA),
+            child: HousekeepingDailyCarePane(
+              shopId: widget.shopId,
+              focusBookingId: _focusBookingId,
+            ),
+          ),
+        ),
+      ],
     );
   }
 
@@ -780,6 +883,7 @@ class _RoomDashboardPageState extends State<RoomDashboardPage> {
     required List<QueryDocumentSnapshot> bookings,
     required Map<String, String> calendarStatus,
     required bool dense,
+    required bool splitSelect,
   }) {
     if (filtered.isEmpty) {
       return const Center(child: Text('沒有符合篩選的房間'));
@@ -841,6 +945,7 @@ class _RoomDashboardPageState extends State<RoomDashboardPage> {
                   bookings: bookings,
                   calendarStatus: calendarStatus,
                   dense: dense,
+                  splitSelect: splitSelect,
                 ),
               ),
           ],
@@ -854,6 +959,7 @@ class _RoomDashboardPageState extends State<RoomDashboardPage> {
     required List<QueryDocumentSnapshot> bookings,
     required Map<String, String> calendarStatus,
     required bool dense,
+    required bool splitSelect,
   }) {
     final bool busy = _busyKeys.contains(_actionKey(row.id));
     final bool vacant = row.label == DaycareOccupancyService.vacantLabel;
@@ -969,7 +1075,15 @@ class _RoomDashboardPageState extends State<RoomDashboardPage> {
     return Material(
       color: Colors.white,
       child: InkWell(
-        onTap: () => _openCalendar(row.room),
+        onTap: () {
+          if (splitSelect && row.label == '入住中' && row.bookingId.isNotEmpty) {
+            setState(() {
+              _focusBookingId = row.bookingId;
+            });
+            return;
+          }
+          _openCalendar(row.room);
+        },
         child: Container(
           margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
           decoration: BoxDecoration(
@@ -1052,12 +1166,21 @@ class _RoomDashboardPageState extends State<RoomDashboardPage> {
               label: '填寫回報',
               onPressed: row.booking == null
                   ? null
-                  : () => AdminDailyCareReportShortcut.openStayEntry(
-                      context: context,
-                      shopId: widget.shopId,
-                      bookingId: row.bookingId,
-                      booking: row.booking!,
-                    ),
+                  : () {
+                      if (_deskView == _DeskView.split &&
+                          MediaQuery.sizeOf(context).width >= _splitMin) {
+                        setState(() {
+                          _focusBookingId = row.bookingId;
+                        });
+                        return;
+                      }
+                      AdminDailyCareReportShortcut.openStayEntry(
+                        context: context,
+                        shopId: widget.shopId,
+                        bookingId: row.bookingId,
+                        booking: row.booking!,
+                      );
+                    },
             ),
         ],
       );
@@ -1195,12 +1318,22 @@ class _RoomDashboardPageState extends State<RoomDashboardPage> {
                         subtitle: Text('剩餘 ${row.care?.pending ?? 0} 場'),
                         onTap: row.booking == null
                             ? null
-                            : () => AdminDailyCareReportShortcut.openStayEntry(
-                                context: context,
-                                shopId: widget.shopId,
-                                bookingId: row.bookingId,
-                                booking: row.booking!,
-                              ),
+                            : () {
+                                if (_deskView == _DeskView.split &&
+                                    MediaQuery.sizeOf(context).width >=
+                                        _splitMin) {
+                                  setState(() {
+                                    _focusBookingId = row.bookingId;
+                                  });
+                                  return;
+                                }
+                                AdminDailyCareReportShortcut.openStayEntry(
+                                  context: context,
+                                  shopId: widget.shopId,
+                                  bookingId: row.bookingId,
+                                  booking: row.booking!,
+                                );
+                              },
                       );
                     }),
                 ],

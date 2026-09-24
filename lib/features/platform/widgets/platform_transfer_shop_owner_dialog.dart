@@ -81,9 +81,7 @@ class _PlatformTransferShopOwnerDialogState
                   : '上一任店主：${widget.previousOwnerUid}',
             ),
             const SizedBox(height: 8),
-            const Text(
-              '轉移後只會有一位 role=owner。舊店主改為員工，之後可用「切回上一任」同步回去。',
-            ),
+            const Text('轉移後只會有一位 role=owner。舊店主改為員工，之後可用「切回上一任」同步回去。'),
             const SizedBox(height: 12),
             TextField(
               controller: _uidController,
@@ -107,9 +105,7 @@ class _PlatformTransferShopOwnerDialogState
         ),
         if (widget.previousOwnerUid.isNotEmpty)
           TextButton(
-            onPressed: _busy
-                ? null
-                : () => _submit(widget.previousOwnerUid),
+            onPressed: _busy ? null : () => _submit(widget.previousOwnerUid),
             child: const Text('切回上一任'),
           ),
         if (myUid.isNotEmpty)

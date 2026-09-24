@@ -18,9 +18,13 @@ class DailyCareAddonService {
 
   Stream<List<DailyCareAddonPlan>> streamPlans(String shopId) {
     if (shopId.trim().isEmpty) {
-      return Stream<List<DailyCareAddonPlan>>.value(const <DailyCareAddonPlan>[]);
+      return Stream<List<DailyCareAddonPlan>>.value(
+        const <DailyCareAddonPlan>[],
+      );
     }
-    return _col(shopId).snapshots().map((QuerySnapshot<Map<String, dynamic>> snap) {
+    return _col(shopId).snapshots().map((
+      QuerySnapshot<Map<String, dynamic>> snap,
+    ) {
       return snap.docs
           .map(
             (QueryDocumentSnapshot<Map<String, dynamic>> doc) =>

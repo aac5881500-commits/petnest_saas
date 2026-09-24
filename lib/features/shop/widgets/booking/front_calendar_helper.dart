@@ -74,10 +74,7 @@ class FrontCalendarHelper {
         await FirebaseFirestore.instance
             .collection('bookings')
             .where('shopId', isEqualTo: shopId)
-            .where(
-              'status',
-              whereIn: DaycareOccupancyService.activeStatuses,
-            )
+            .where('status', whereIn: DaycareOccupancyService.activeStatuses)
             .get();
     final List<Map<String, dynamic>> bookings = bookingSnap.docs
         .map(
@@ -85,17 +82,15 @@ class FrontCalendarHelper {
               <String, dynamic>{'id': doc.id, ...doc.data()},
         )
         .toList();
-    final QuerySnapshot<Map<String, dynamic>> occSnap =
-        await FirebaseFirestore.instance
-            .collection('shops')
-            .doc(shopId)
-            .collection('room_occupancies')
-            .where('status', isEqualTo: 'active')
-            .get();
+    final QuerySnapshot<Map<String, dynamic>> occSnap = await FirebaseFirestore
+        .instance
+        .collection('shops')
+        .doc(shopId)
+        .collection('room_occupancies')
+        .where('status', isEqualTo: 'active')
+        .get();
     final List<Map<String, dynamic>> occupancies = occSnap.docs
-        .map(
-          (QueryDocumentSnapshot<Map<String, dynamic>> doc) => doc.data(),
-        )
+        .map((QueryDocumentSnapshot<Map<String, dynamic>> doc) => doc.data())
         .toList();
     final List<Map<String, dynamic>> calendarEntries = calendarSnapshot.docs
         .map(
@@ -118,7 +113,9 @@ class FrontCalendarHelper {
           cursor.month,
           cursor.day,
         );
-        final DateTime slotEnd = slotStart.add(const Duration(hours: 23, minutes: 59));
+        final DateTime slotEnd = slotStart.add(
+          const Duration(hours: 23, minutes: 59),
+        );
         final DaycareRoomRemaining computed =
             DaycareOccupancyService.remainingRoomsResultFromData(
               rooms: rooms,

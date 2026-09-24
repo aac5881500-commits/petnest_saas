@@ -94,9 +94,7 @@ class DailyCareCardSurface extends StatelessWidget {
         if (showImage || translucent)
           Positioned.fill(
             child: IgnorePointer(
-              child: ColoredBox(
-                color: Colors.white.withValues(alpha: overlay),
-              ),
+              child: ColoredBox(color: Colors.white.withValues(alpha: overlay)),
             ),
           ),
         Container(

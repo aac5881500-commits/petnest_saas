@@ -334,9 +334,7 @@ class _ShopCustomFormEditorPageState extends State<ShopCustomFormEditorPage> {
         builder: (BuildContext context) {
           return AlertDialog(
             title: const Text('套用建議初版？'),
-            content: const Text(
-              '套用後會取代目前這張表單的分類與題目，既有訂單答案不受影響。',
-            ),
+            content: const Text('套用後會取代目前這張表單的分類與題目，既有訂單答案不受影響。'),
             actions: <Widget>[
               TextButton(
                 onPressed: () => Navigator.pop(context, false),
@@ -402,9 +400,7 @@ class _ShopCustomFormEditorPageState extends State<ShopCustomFormEditorPage> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            saved.enabled
-                ? '已儲存表單設定'
-                : '已儲存。目前尚未啟用，客戶／店員尚不會看到此表單。',
+            saved.enabled ? '已儲存表單設定' : '已儲存。目前尚未啟用，客戶／店員尚不會看到此表單。',
           ),
         ),
       );
@@ -459,7 +455,10 @@ class _ShopCustomFormEditorPageState extends State<ShopCustomFormEditorPage> {
                   final bool wide = constraints.maxWidth >= 1024;
                   final Widget settings = ListView(
                     padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
-                    children: _buildSettingsChildren(colors, showPreviewButton: !wide),
+                    children: _buildSettingsChildren(
+                      colors,
+                      showPreviewButton: !wide,
+                    ),
                   );
                   if (!wide) {
                     return Column(
@@ -485,7 +484,12 @@ class _ShopCustomFormEditorPageState extends State<ShopCustomFormEditorPage> {
                             crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: <Widget>[
                               Padding(
-                                padding: const EdgeInsets.fromLTRB(16, 14, 16, 8),
+                                padding: const EdgeInsets.fromLTRB(
+                                  16,
+                                  14,
+                                  16,
+                                  8,
+                                ),
                                 child: Text(
                                   '填寫預覽',
                                   style: TextStyle(
@@ -497,11 +501,14 @@ class _ShopCustomFormEditorPageState extends State<ShopCustomFormEditorPage> {
                               ),
                               Expanded(
                                 child: ListView(
-                                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                                  padding: const EdgeInsets.fromLTRB(
+                                    16,
+                                    0,
+                                    16,
+                                    16,
+                                  ),
                                   children: <Widget>[
-                                    CustomFormDesktopFillPreview(
-                                      form: _form,
-                                    ),
+                                    CustomFormDesktopFillPreview(form: _form),
                                   ],
                                 ),
                               ),
@@ -555,9 +562,7 @@ class _ShopCustomFormEditorPageState extends State<ShopCustomFormEditorPage> {
                   sortOrder: _form.sections.length,
                 ),
               );
-          _markDirty(
-            _form.copyWith(sections: _reindexSections(sections)),
-          );
+          _markDirty(_form.copyWith(sections: _reindexSections(sections)));
         },
         icon: const Icon(Icons.add),
         label: const Text('新增分類'),
@@ -607,12 +612,20 @@ class _ShopCustomFormEditorPageState extends State<ShopCustomFormEditorPage> {
         children: <Widget>[
           Text(
             '訂單資訊：每筆訂單填一次。',
-            style: TextStyle(fontSize: 13, height: 1.45, fontWeight: FontWeight.w600),
+            style: TextStyle(
+              fontSize: 13,
+              height: 1.45,
+              fontWeight: FontWeight.w600,
+            ),
           ),
           SizedBox(height: 4),
           Text(
             '寵物資訊：依本次選取的每隻寵物分開填寫。',
-            style: TextStyle(fontSize: 13, height: 1.45, fontWeight: FontWeight.w600),
+            style: TextStyle(
+              fontSize: 13,
+              height: 1.45,
+              fontWeight: FontWeight.w600,
+            ),
           ),
         ],
       ),
@@ -647,9 +660,7 @@ class _ShopCustomFormEditorPageState extends State<ShopCustomFormEditorPage> {
           SwitchListTile(
             contentPadding: EdgeInsets.zero,
             title: const Text('啟用此表單', style: TextStyle(fontSize: 14)),
-            subtitle: _form.enabled
-                ? null
-                : const Text('尚未啟用時，客戶／店員尚不會看到此表單'),
+            subtitle: _form.enabled ? null : const Text('尚未啟用時，客戶／店員尚不會看到此表單'),
             value: _form.enabled,
             onChanged: (bool value) {
               _markDirty(_form.copyWith(enabled: value));
@@ -986,11 +997,7 @@ class _ShopCustomFormEditorPageState extends State<ShopCustomFormEditorPage> {
     );
   }
 
-  Widget _scopeTag(
-    String label, {
-    bool pet = false,
-    bool condition = false,
-  }) {
+  Widget _scopeTag(String label, {bool pet = false, bool condition = false}) {
     final ColorScheme colors = Theme.of(context).colorScheme;
     final Color bg;
     final Color fg;
@@ -1012,11 +1019,7 @@ class _ShopCustomFormEditorPageState extends State<ShopCustomFormEditorPage> {
       ),
       child: Text(
         label,
-        style: TextStyle(
-          fontSize: 11,
-          fontWeight: FontWeight.w700,
-          color: fg,
-        ),
+        style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: fg),
       ),
     );
   }

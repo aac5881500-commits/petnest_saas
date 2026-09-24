@@ -48,8 +48,7 @@ class AdminCreateCustomFormSection extends StatelessWidget {
         fieldKeys: fieldKeys,
         onOrderChanged: onChanged,
         onPetChanged:
-            onPetChanged ??
-            (String petId, Map<String, dynamic> answers) {},
+            onPetChanged ?? (String petId, Map<String, dynamic> answers) {},
       ),
     );
   }

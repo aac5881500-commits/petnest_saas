@@ -39,7 +39,10 @@ class BookingActionLogDisplay {
       }
     }
 
-    consider(f['fromRoomName'] ?? f['oldRoomName'], f['fromRoomId'] ?? f['oldRoomId']);
+    consider(
+      f['fromRoomName'] ?? f['oldRoomName'],
+      f['fromRoomId'] ?? f['oldRoomId'],
+    );
     consider(
       f['toRoomName'] ?? f['newRoomName'] ?? f['roomName'],
       f['toRoomId'] ?? f['newRoomId'] ?? f['roomId'],
@@ -345,7 +348,10 @@ class BookingActionLogDisplay {
 
   static String _adjustTitle(Map<String, dynamic> f) {
     final int delta = _int(
-      f['delta'] ?? f['adjustAmount'] ?? f['manualAdjustmentAmount'] ?? f['manualAdjust'],
+      f['delta'] ??
+          f['adjustAmount'] ??
+          f['manualAdjustmentAmount'] ??
+          f['manualAdjust'],
     );
     if (delta > 0) {
       return '手動加收 ${_nt(delta)}';
@@ -374,7 +380,10 @@ class BookingActionLogDisplay {
     ];
   }
 
-  static List<String> _settleLines(Map<String, dynamic> f, {required bool stay}) {
+  static List<String> _settleLines(
+    Map<String, dynamic> f, {
+    required bool stay,
+  }) {
     final List<String> lines = <String>[];
     if (stay) {
       final String checkIn = _first(f, <String>[
@@ -411,9 +420,7 @@ class BookingActionLogDisplay {
           f['finalTotal'],
     );
     final int paid = _int(f['finalPaidAmount'] ?? f['paidAmount']);
-    final int remain = _int(
-      f['finalRemainingAmount'] ?? f['remainingAmount'],
-    );
+    final int remain = _int(f['finalRemainingAmount'] ?? f['remainingAmount']);
     final int refund = _int(f['refundDueAmount'] ?? f['refundAmount']);
     if (receivable != 0 || paid != 0 || remain != 0 || refund != 0) {
       lines.add('最終應收 ${_nt(receivable)}');
@@ -430,7 +437,9 @@ class BookingActionLogDisplay {
   }
 
   static List<String> _adjustLinesIfPresent(Map<String, dynamic> f) {
-    final int delta = _int(f['delta'] ?? f['manualAdjustmentAmount'] ?? f['manualAdjust']);
+    final int delta = _int(
+      f['delta'] ?? f['manualAdjustmentAmount'] ?? f['manualAdjust'],
+    );
     if (delta == 0 &&
         _first(f, <String>['before', 'oldFinalReceivable']).isEmpty) {
       return const <String>[];
@@ -460,9 +469,7 @@ class BookingActionLogDisplay {
     }
     final List<String> lines = <String>[];
     if (method.isNotEmpty) {
-      lines.add(
-        '退款方式：${SettlementAdjustDisplay.refundMethodLabel(method)}',
-      );
+      lines.add('退款方式：${SettlementAdjustDisplay.refundMethodLabel(method)}');
     }
     if (refund > 0) {
       lines.add('退款金額 ${_nt(refund)}');

@@ -4,6 +4,7 @@
 // 室內溫度、室內濕度為固定必填欄位，
 // 其他照護項目依店主「每日照護紀錄設定」決定是否顯示。
 
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -12,6 +13,8 @@ import '../../../core/models/daily_care_setting_model.dart';
 import '../../../core/models/daily_care_journal_layout.dart';
 import '../../../core/models/daily_care_record_model.dart';
 import '../../../core/services/daily_care_record_service.dart';
+import '../../../core/services/daily_care_report_eligibility.dart';
+import '../../../core/services/daily_care_report_write_access.dart';
 import '../../../core/services/daily_care_setting_service.dart';
 import '../../../core/widgets/daily_care_illustrations.dart';
 import '../../../core/widgets/daily_care_journal_renderer.dart';
@@ -36,6 +39,7 @@ class DailyCareRecordEditPage extends StatefulWidget {
     this.serviceType = DailyCareServiceTypes.accommodation,
     this.petIds = const <String>[],
     this.entitlement,
+    this.readOnly = false,
   });
 
   final String shopId;
@@ -56,6 +60,7 @@ class DailyCareRecordEditPage extends StatefulWidget {
   final String serviceType;
   final List<String> petIds;
   final DailyCareEntitlement? entitlement;
+  final bool readOnly;
 
   @override
   State<DailyCareRecordEditPage> createState() =>
@@ -65,6 +70,7 @@ class DailyCareRecordEditPage extends StatefulWidget {
 class _DailyCareRecordEditPageState extends State<DailyCareRecordEditPage> {
   bool _loading = true;
   bool _saving = false;
+  bool _locked = false;
   DailyCareSettingModel _setting = const DailyCareSettingModel();
 
   bool _uploadingPhoto = false;
@@ -141,6 +147,18 @@ class _DailyCareRecordEditPageState extends State<DailyCareRecordEditPage> {
       _setting = const DailyCareSettingModel();
     }
     try {
+      final DocumentSnapshot<Map<String, dynamic>> bookingSnap =
+          await FirebaseFirestore.instance
+              .collection('bookings')
+              .doc(widget.bookingId)
+              .get();
+      _locked =
+          widget.readOnly ||
+          !DailyCareReportWriteAccess.canWrite(bookingSnap.data());
+    } catch (_) {
+      _locked = widget.readOnly;
+    }
+    try {
       await _loadExistingRecord();
     } catch (e) {
       if (!mounted) return;
@@ -204,6 +222,9 @@ class _DailyCareRecordEditPageState extends State<DailyCareRecordEditPage> {
   }
 
   Future<void> _confirmDeletePhoto(DailyCarePhotoModel photo) async {
+    if (_locked) {
+      return;
+    }
     final bool? confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) {
@@ -249,7 +270,7 @@ class _DailyCareRecordEditPageState extends State<DailyCareRecordEditPage> {
   }
 
   Future<void> _pickPendingPhoto(int uploadedCount) async {
-    if (_uploadingPhoto) return;
+    if (_locked || _uploadingPhoto) return;
     final int remaining =
         DailyCarePhotoService.maxPhotosPerSession -
         uploadedCount -
@@ -282,6 +303,21 @@ class _DailyCareRecordEditPageState extends State<DailyCareRecordEditPage> {
 
   Future<void> _save() async {
     if (_saving) return;
+    if (_locked) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text(DailyCareReportWriteAccess.lockedMessage)),
+      );
+      return;
+    }
+
+    final DailyCareEntitlement? entitlement = widget.entitlement;
+    if (entitlement != null &&
+        !DailyCareReportEligibility.isEntitled(entitlement)) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('本訂單未包含每日照護回報')));
+      return;
+    }
 
     final String temperatureText = _temperatureController.text.trim();
 
@@ -457,6 +493,10 @@ class _DailyCareRecordEditPageState extends State<DailyCareRecordEditPage> {
               padding: const EdgeInsets.all(16),
               children: <Widget>[
                 _headerCard(dateText),
+                if (_locked) ...<Widget>[
+                  const SizedBox(height: 12),
+                  _lockBanner(),
+                ],
                 if (quotaBanner != null) ...<Widget>[
                   const SizedBox(height: 14),
                   quotaBanner,
@@ -619,26 +659,42 @@ class _DailyCareRecordEditPageState extends State<DailyCareRecordEditPage> {
                   _photoCard(),
                 ],
 
-                const SizedBox(height: 24),
-
-                SizedBox(
-                  height: 50,
-                  child: FilledButton.icon(
-                    onPressed: _saving ? null : _save,
-                    icon: _saving
-                        ? const SizedBox(
-                            width: 18,
-                            height: 18,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Icon(Icons.save_outlined),
-                    label: Text(_saving ? '儲存中...' : '儲存照護紀錄'),
+                if (!_locked) ...<Widget>[
+                  const SizedBox(height: 24),
+                  SizedBox(
+                    height: 50,
+                    child: FilledButton.icon(
+                      onPressed: _saving ? null : _save,
+                      icon: _saving
+                          ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.save_outlined),
+                      label: Text(_saving ? '儲存中...' : '儲存照護紀錄'),
+                    ),
                   ),
-                ),
+                ],
 
                 const SizedBox(height: 24),
               ],
             ),
+    );
+  }
+
+  Widget _lockBanner() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: const Color(0xFFEEEEEE),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: const Text(
+        DailyCareReportWriteAccess.lockedMessage,
+        style: TextStyle(fontWeight: FontWeight.w800),
+      ),
     );
   }
 
@@ -947,24 +1003,26 @@ class _DailyCareRecordEditPageState extends State<DailyCareRecordEditPage> {
                       Positioned(
                         top: 4,
                         right: 4,
-                        child: Material(
-                          color: Colors.black.withValues(alpha: 0.55),
-                          shape: const CircleBorder(),
-                          child: InkWell(
-                            customBorder: const CircleBorder(),
-                            onTap: () {
-                              _confirmDeletePhoto(photo);
-                            },
-                            child: const Padding(
-                              padding: EdgeInsets.all(5),
-                              child: Icon(
-                                Icons.close,
-                                color: Colors.white,
-                                size: 16,
+                        child: _locked
+                            ? const SizedBox.shrink()
+                            : Material(
+                                color: Colors.black.withValues(alpha: 0.55),
+                                shape: const CircleBorder(),
+                                child: InkWell(
+                                  customBorder: const CircleBorder(),
+                                  onTap: () {
+                                    _confirmDeletePhoto(photo);
+                                  },
+                                  child: const Padding(
+                                    padding: EdgeInsets.all(5),
+                                    child: Icon(
+                                      Icons.close,
+                                      color: Colors.white,
+                                      size: 16,
+                                    ),
+                                  ),
+                                ),
                               ),
-                            ),
-                          ),
-                        ),
                       ),
                     ],
                   );
@@ -1016,7 +1074,7 @@ class _DailyCareRecordEditPageState extends State<DailyCareRecordEditPage> {
               ),
             ],
 
-            if (!reachedLimit) ...<Widget>[
+            if (!_locked && !reachedLimit) ...<Widget>[
               const SizedBox(height: 14),
               SizedBox(
                 width: double.infinity,

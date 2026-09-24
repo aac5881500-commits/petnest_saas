@@ -6,10 +6,10 @@
 import 'dart:async';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:flutter/foundation.dart';
 
 import '../models/daily_care_date_helper.dart';
 import '../models/daily_care_record_model.dart';
+import 'daily_care_report_write_access.dart';
 
 class DailyCareRecordService {
   DailyCareRecordService._();
@@ -158,6 +158,8 @@ class DailyCareRecordService {
       throw ArgumentError('缺少訂單 ID');
     }
 
+    await _assertBookingWritable(normalizedBookingId);
+
     final String normalizedServiceType = DailyCareServiceTypes.parse(
       serviceType,
     );
@@ -220,8 +222,9 @@ class DailyCareRecordService {
   /// 取得某次住宿全部照護紀錄
   ///
   /// Customer：只帶 bookingId，走既有 ownership query。
-  /// Shop preview：務必帶 shopId + careDates，改讀固定 Record ID，
-  /// 避免 `where bookingId` 集合查詢被 Rules 擋成 permission-denied。
+  /// Shop：帶 shopId 時用 shopId + bookingId 集合查詢，再過濾預期
+  /// deterministic ID。未建立的文件不會出現在 query 結果中，這是待填
+  /// 的正常狀態，不可對不存在的 document 做 get/snapshots。
   Stream<List<DailyCareRecordModel>> streamBookingRecords({
     required String bookingId,
     String? shopId,
@@ -238,7 +241,7 @@ class DailyCareRecordService {
     }
 
     if (normalizedShopId.isNotEmpty) {
-      return _streamRecordsByDeterministicIds(
+      return _streamRecordsByBookingQuery(
         shopId: normalizedShopId,
         bookingId: normalizedBookingId,
         careDates: careDates ?? const <DateTime>[],
@@ -272,135 +275,38 @@ class DailyCareRecordService {
     return records;
   }
 
-  Stream<List<DailyCareRecordModel>> _streamRecordsByDeterministicIds({
+  Stream<List<DailyCareRecordModel>> _streamRecordsByBookingQuery({
     required String shopId,
     required String bookingId,
-    required List<DateTime> careDates,
-    required int sessionCount,
+    List<DateTime> careDates = const <DateTime>[],
+    int sessionCount = 3,
   }) {
-    if (careDates.isEmpty) {
-      return Stream<List<DailyCareRecordModel>>.value(
-        const <DailyCareRecordModel>[],
-      );
-    }
-
-    final int count = sessionCount < 1
-        ? 1
-        : sessionCount > 3
-        ? 3
-        : sessionCount;
-
-    final StreamController<List<DailyCareRecordModel>> controller =
-        StreamController<List<DailyCareRecordModel>>();
-
-    final Map<String, DailyCareRecordModel> byId =
-        <String, DailyCareRecordModel>{};
-
-    final List<StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>>
-    subscriptions =
-        <StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>>[];
-
-    void emit() {
-      if (controller.isClosed) {
-        return;
-      }
-
-      final List<DailyCareRecordModel> records = byId.values.toList()
-        ..sort((DailyCareRecordModel a, DailyCareRecordModel b) {
-          final int dateCompare = a.recordDate.compareTo(b.recordDate);
-          if (dateCompare != 0) {
-            return dateCompare;
-          }
-          return a.sessionIndex.compareTo(b.sessionIndex);
-        });
-
-      controller.add(records);
-    }
-
-    for (final DateTime date in careDates) {
-      for (int index = 0; index < count; index++) {
-        final String recordId = buildRecordId(
-          bookingId: bookingId,
-          recordDate: date,
-          sessionIndex: index,
-        );
-
-        subscriptions.add(
-          _collection
-              .doc(recordId)
-              .snapshots()
-              .listen(
-                (DocumentSnapshot<Map<String, dynamic>> snapshot) {
-                  if (!snapshot.exists) {
-                    byId.remove(recordId);
-                  } else {
-                    final Map<String, dynamic> data =
-                        snapshot.data() ?? <String, dynamic>{};
-                    if (data['shopId'].toString() == shopId) {
-                      byId[recordId] = DailyCareRecordModel.fromMap(
-                        id: snapshot.id,
-                        map: data,
-                      );
-                    } else {
-                      byId.remove(recordId);
-                    }
-                  }
-
-                  emit();
-                },
-                onError: (Object error, StackTrace stackTrace) {
-                  _logQueryFailure(
-                    bookingId: bookingId,
-                    shopId: shopId,
-                    error: error,
-                    stackTrace: stackTrace,
-                    extra: 'recordId=$recordId',
-                  );
-
-                  emit();
-                  if (!controller.isClosed) {
-                    controller.addError(error, stackTrace);
-                  }
-                },
-              ),
-        );
-      }
-    }
-
-    emit();
-
-    controller.onCancel = () async {
-      for (final StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>
-          subscription
-          in subscriptions) {
-        await subscription.cancel();
-      }
-    };
-
-    return controller.stream;
+    assert(sessionCount >= 0);
+    return _collection
+        .where('shopId', isEqualTo: shopId)
+        .where('bookingId', isEqualTo: bookingId)
+        .snapshots()
+        .map(_mapRecordQuery);
   }
 
-  void _logQueryFailure({
+  static Set<String> matchKeys({
     required String bookingId,
-    required Object error,
-    required StackTrace stackTrace,
-    String? shopId,
-    String extra = '',
+    required DateTime recordDate,
+    required int sessionIndex,
+    String recordId = '',
   }) {
-    final String code = error is FirebaseException ? error.code : '';
-    final String message = error is FirebaseException
-        ? (error.message ?? error.toString())
-        : error.toString();
-    debugPrint(
-      '[DailyCarePreview] load failed\n'
-      'shopId=${shopId ?? ''}\n'
-      'bookingId=$bookingId\n'
-      '${extra.isEmpty ? '' : '$extra\n'}'
-      'errorType=${error.runtimeType}\n'
-      'errorCode=$code\n'
-      'message=$message\n'
-      '$stackTrace',
+    final String id = recordId.trim();
+    final String built = DailyCareRecordService.recordId(
+      bookingId: bookingId,
+      recordDate: recordDate,
+      sessionIndex: sessionIndex,
     );
+    return <String>{
+      if (id.isNotEmpty) id,
+      built,
+      '${bookingId.trim()}#${DailyCareDateHelper.dateKey(recordDate)}#$sessionIndex',
+      '${bookingId.trim()}#${DailyCareDateHelper.recordIdDateKey(recordDate)}#$sessionIndex',
+    };
   }
 
   /// 首頁用：只讀固定 Record ID，不掃整間店紀錄。
@@ -461,5 +367,16 @@ class DailyCareRecordService {
     };
 
     return controller.stream;
+  }
+
+  Future<void> _assertBookingWritable(String bookingId) async {
+    final DocumentSnapshot<Map<String, dynamic>> snapshot = await _firestore
+        .collection('bookings')
+        .doc(bookingId)
+        .get();
+    final Map<String, dynamic>? data = snapshot.data();
+    if (!DailyCareReportWriteAccess.canWrite(data)) {
+      throw StateError(DailyCareReportWriteAccess.lockedMessage);
+    }
   }
 }

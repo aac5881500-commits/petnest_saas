@@ -107,7 +107,8 @@ class AdminBookingSettlementPanel extends StatelessWidget {
                           child: const Text('核對客戶回傳'),
                         )
                       : FilledButton(
-                          onPressed: () => _staffVerifyTransfer(context, remain),
+                          onPressed: () =>
+                              _staffVerifyTransfer(context, remain),
                           child: const Text('現場已核對入帳'),
                         ),
                 if (remain > 0 && (method == 'cash' || method.isEmpty))
@@ -171,9 +172,7 @@ class AdminBookingSettlementPanel extends StatelessWidget {
         if (SettlementAdjustDisplay.reasonOf(data).isNotEmpty)
           Padding(
             padding: const EdgeInsets.only(bottom: 4),
-            child: Text(
-              '店家調整說明：${SettlementAdjustDisplay.reasonOf(data)}',
-            ),
+            child: Text('店家調整說明：${SettlementAdjustDisplay.reasonOf(data)}'),
           ),
       ],
     ];
@@ -321,9 +320,9 @@ class AdminBookingSettlementPanel extends StatelessWidget {
               : PolicyApplicableService.accommodation,
         );
     if (catalog.methods.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('目前沒有可用補款方式，請先至店家付款設定開啟。')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('目前沒有可用補款方式，請先至店家付款設定開啟。')));
       return;
     }
     String selected = catalog.methods.first.id;
@@ -401,9 +400,13 @@ class AdminBookingSettlementPanel extends StatelessWidget {
                       height: 140,
                       fit: BoxFit.contain,
                       errorBuilder:
-                          (BuildContext context, Object error, StackTrace? stack) {
-                        return Text(proof.imageUrl);
-                      },
+                          (
+                            BuildContext context,
+                            Object error,
+                            StackTrace? stack,
+                          ) {
+                            return Text(proof.imageUrl);
+                          },
                     ),
                   )
                 else
@@ -489,9 +492,9 @@ class AdminBookingSettlementPanel extends StatelessWidget {
       return;
     }
     if (note.text.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('請填寫現場核對註記')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('請填寫現場核對註記')));
       return;
     }
     if (!await _confirmLockIfClear(context)) {
@@ -500,9 +503,7 @@ class AdminBookingSettlementPanel extends StatelessWidget {
     await _call(
       context,
       action: 'confirmStaffVerifiedTransfer',
-      extra: <String, dynamic>{
-        'transferVerificationNote': note.text.trim(),
-      },
+      extra: <String, dynamic>{'transferVerificationNote': note.text.trim()},
     );
   }
 
@@ -626,9 +627,9 @@ class AdminBookingSettlementPanel extends StatelessWidget {
     if (action == 'confirmRefund' &&
         method == SettlementAdjustDisplay.otherRefundMethod &&
         refundNote.text.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('其他退款請填寫註記')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('其他退款請填寫註記')));
       return;
     }
     await _call(

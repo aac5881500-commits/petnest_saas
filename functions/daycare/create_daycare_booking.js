@@ -33,6 +33,7 @@ const {
 } = require("../search/normalize_fields");
 const {
   resolveDailyCareEntitlement,
+  pickEntitlementSnapshot,
   filterNonDailyCareAddons,
   requestedAddonId,
 } = require("../daily_care/daily_care_entitlement");
@@ -521,7 +522,10 @@ async function createDaycareBookingBody(params) {
           startDate: startAt,
           endDate: endAt || startAt,
         });
-        dailyCareEntitlement = dailyCare.entitlement;
+        dailyCareEntitlement = pickEntitlementSnapshot(
+            data.dailyCareEntitlement,
+            dailyCare.entitlement,
+        );
         if (dailyCare.addonLine) {
           addonSnapshot = addonSnapshot.concat([dailyCare.addonLine]);
           addonAmount += dailyCare.amount;

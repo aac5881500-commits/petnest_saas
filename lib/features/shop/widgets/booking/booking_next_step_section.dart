@@ -164,9 +164,7 @@ class BookingNextStepSection extends StatelessWidget {
                     ),
                     if (discountAmount > 0)
                       BookingFeeLineItem(
-                        label: discountCampaignName.trim().isEmpty
-                            ? '優惠折抵'
-                            : discountCampaignName,
+                        label: '優惠折抵',
                         amount: -discountAmount,
                         kind: BookingFeeLineKind.discount,
                       ),

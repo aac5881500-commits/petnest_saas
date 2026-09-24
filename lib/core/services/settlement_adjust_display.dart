@@ -243,7 +243,8 @@ class BookingFinalSettlementDisplay {
         continue;
       }
       final bool duplicate = out.any(
-        (BookingSettlementDisplayLine e) => e.label == name && e.amount == amount,
+        (BookingSettlementDisplayLine e) =>
+            e.label == name && e.amount == amount,
       );
       if (duplicate) {
         continue;
@@ -256,17 +257,16 @@ class BookingFinalSettlementDisplay {
       );
     }
 
-    if (chargeSum(out.where((BookingSettlementDisplayLine e) {
-          return !SettlementAdjustDisplay.isLatePickupLabel(e.label);
-        }).toList()) ==
+    if (chargeSum(
+          out.where((BookingSettlementDisplayLine e) {
+            return !SettlementAdjustDisplay.isLatePickupLabel(e.label);
+          }).toList(),
+        ) ==
         0) {
       final int quotedFallback = _estimateQuoted(data);
       if (quotedFallback > 0) {
         out.add(
-          BookingSettlementDisplayLine(
-            label: '預約費用',
-            amount: quotedFallback,
-          ),
+          BookingSettlementDisplayLine(label: '預約費用', amount: quotedFallback),
         );
       }
     }
@@ -294,9 +294,7 @@ class BookingFinalSettlementDisplay {
     if (settled) {
       final int extra = BookingSettlementMath.extraChargeSum(data);
       if (extra > 0 && !_extraChargesAreLatePickup(data)) {
-        out.add(
-          BookingSettlementDisplayLine(label: '退房追加費用', amount: extra),
-        );
+        out.add(BookingSettlementDisplayLine(label: '退房追加費用', amount: extra));
       }
       final int manual = SettlementAdjustDisplay.amountOf(data);
       if (manual != 0) {
@@ -393,7 +391,10 @@ class BookingFinalSettlementDisplay {
     });
   }
 
-  static String _latePickupSubtitle(Map<String, dynamic> data, String fallback) {
+  static String _latePickupSubtitle(
+    Map<String, dynamic> data,
+    String fallback,
+  ) {
     if (fallback.trim().isNotEmpty) {
       return fallback;
     }

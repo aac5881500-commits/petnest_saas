@@ -2911,22 +2911,32 @@ allow update: if
       return b.bookingKind == 'daycare' || b.serviceType == 'daycare';
     }
 
+    function dailyCareStatusBlocked(b) {
+      return b.status == 'cancelled'
+        || b.status == 'no_show'
+        || b.status == 'rejected'
+        || b.status == 'expired'
+        || b.status == 'refused'
+        || b.status == 'checked_out'
+        || b.status == 'completed';
+    }
+
+    function dailyCareSettlementLocked(b) {
+      return b.settlementConfirmed == true
+        || b.settledAt is timestamp
+        || b.finalSettlementAmount is int
+        || b.finalSettlementAmount is float
+        || b.finalSettlementAmount is number;
+    }
+
     function canWriteDailyCareRecord(bookingId, shopId) {
       return exists(
         /databases/$(database)/documents/bookings/$(bookingId)
       )
       && dailyCareBookingData(bookingId).shopId == shopId
-      && (
-        (
-          !isDaycareBookingData(dailyCareBookingData(bookingId))
-          && dailyCareBookingData(bookingId).status == 'checked_in'
-        )
-        ||
-        (
-          isDaycareBookingData(dailyCareBookingData(bookingId))
-          && dailyCareBookingData(bookingId).status != 'cancelled'
-        )
-      );
+      && dailyCareBookingData(bookingId).status == 'checked_in'
+      && !dailyCareStatusBlocked(dailyCareBookingData(bookingId))
+      && !dailyCareSettlementLocked(dailyCareBookingData(bookingId));
     }
 
 // ============================================================
@@ -3056,7 +3066,7 @@ match /daily_care_photos/{photoId} {
   // 前端目前不需要直接修改照片 metadata
   allow update: if false;
 
-  // 店員誤傳照片時允許刪除
+  // 店員誤傳照片時允許刪除；訂單結清／完成後不可刪。
   allow delete: if signedIn()
     && (
       isRootAdmin()
@@ -3065,6 +3075,12 @@ match /daily_care_photos/{photoId} {
         resource.data.shopId is string
         && isShopMember(resource.data.shopId)
       )
+    )
+    && resource.data.bookingId is string
+    && resource.data.shopId is string
+    && canWriteDailyCareRecord(
+      resource.data.bookingId,
+      resource.data.shopId
     );
 }
 // ============================================================

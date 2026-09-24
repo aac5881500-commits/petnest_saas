@@ -5,10 +5,15 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:petnest_saas/core/models/booking_kind.dart';
 import 'package:petnest_saas/core/models/daily_care_date_helper.dart';
 import 'package:petnest_saas/core/models/daily_care_entitlement.dart';
+import 'package:petnest_saas/core/models/daily_care_photo_model.dart';
 import 'package:petnest_saas/core/models/daily_care_record_model.dart';
+import 'package:petnest_saas/core/models/daily_care_session_status.dart';
+import 'package:petnest_saas/core/services/daily_care_report_write_access.dart';
+import 'package:petnest_saas/core/models/daily_care_report_center_date_group.dart';
 import 'package:petnest_saas/core/models/daily_care_report_center_item.dart';
 import 'package:petnest_saas/core/models/daily_care_report_center_room_group.dart';
 import 'package:petnest_saas/core/models/daily_care_report_center_snapshot.dart';
+import 'package:petnest_saas/core/models/daily_care_report_mode.dart';
 import 'package:petnest_saas/core/models/daily_care_setting_model.dart';
 import 'package:petnest_saas/core/services/daily_care_record_service.dart';
 import 'package:petnest_saas/core/services/daily_care_report_center_service.dart';
@@ -119,12 +124,18 @@ void main() {
           today: today,
         );
     expect(
-      snapshot.items.every(
+      snapshot.items.any(
         (DailyCareReportCenterItem item) => item.bookingId == 'stay-1',
       ),
       isTrue,
     );
-    expect(snapshot.totalCount, enabledSetting.sessionCount);
+    expect(
+      snapshot.items.any(
+        (DailyCareReportCenterItem item) => item.bookingId == 'stay-off',
+      ),
+      isTrue,
+    );
+    expect(snapshot.totalCount, DailyCareReportMode.maxSessions * 4);
   });
 
   test('住宿場次數以 entitlement.finalReports 為準，不受 setting.sessionCount 影響', () {
@@ -138,11 +149,11 @@ void main() {
           canOperate: true,
           today: today,
         );
-    expect(snapshot.totalCount, 2);
-    expect(snapshot.pendingCount, 2);
+    expect(snapshot.totalCount, 4);
+    expect(snapshot.pendingCount, 4);
     expect(
       snapshot.items.map((DailyCareReportCenterItem e) => e.sessionIndex),
-      <int>[0, 1],
+      <int>[0, 1, 0, 1],
     );
     expect(snapshot.items.first.sessionName, '上午場');
     expect(snapshot.items.first.roomId, 'r-1');
@@ -152,7 +163,11 @@ void main() {
     expect(snapshot.items.first.roomTypeName, '豪華套房');
     expect(snapshot.items.first.petPhotoUrl, 'https://img.example/cat.png');
     expect(snapshot.items.first.stayDayTotal, 2);
-    expect(snapshot.items.first.stayDayIndex, 2);
+    expect(snapshot.items.first.stayDayIndex, 1);
+    expect(
+      snapshot.items.map((DailyCareReportCenterItem e) => e.recordDate).toSet(),
+      <DateTime>{DateTime(2026, 9, 20), DateTime(2026, 9, 21)},
+    );
     expect(
       snapshot.items.first.serviceType,
       DailyCareServiceTypes.accommodation,
@@ -180,13 +195,13 @@ void main() {
           },
         );
     expect(snapshot.completedCount, 1);
-    expect(snapshot.pendingCount, 1);
+    expect(snapshot.pendingCount, 3);
     expect(snapshot.items.first.isCompleted, isFalse);
     expect(snapshot.items.last.isCompleted, isTrue);
     expect(snapshot.items.last.updatedAt, DateTime(2026, 9, 21, 10, 30));
   });
 
-  test('安親符合 canOperate 且為今日服務才列入，serviceType 為 daycare', () {
+  test('安親已開始即可列入，含昨日服務日；pending 未開始不列入', () {
     final DailyCareReportCenterSnapshot snapshot =
         DailyCareReportCenterService.buildTodaySnapshot(
           shopId: 's1',
@@ -207,11 +222,19 @@ void main() {
           canOperate: true,
           today: today,
         );
-    expect(snapshot.totalCount, 1);
-    expect(snapshot.items.single.serviceType, DailyCareServiceTypes.daycare);
-    expect(snapshot.items.single.placeLabel, '安親');
-    expect(snapshot.items.single.roomId, isEmpty);
-    expect(snapshot.items.single.petIds, <String>['d1']);
+    expect(snapshot.totalCount, 2);
+    expect(
+      snapshot.items.map((DailyCareReportCenterItem e) => e.bookingId).toSet(),
+      <String>{'day-1', 'day-old'},
+    );
+    expect(
+      snapshot.items.every(
+        (DailyCareReportCenterItem item) =>
+            item.serviceType == DailyCareServiceTypes.daycare,
+      ),
+      isTrue,
+    );
+    expect(snapshot.items.first.placeLabel, '安親');
   });
 
   test('安親 daycareEnabled 關閉則不列入', () {
@@ -257,7 +280,9 @@ void main() {
       ),
       isTrue,
     );
-    expect(both.totalCount, 3);
+    expect(both.totalCount, 5);
+    expect(both.stayCount, 4);
+    expect(both.daycareCount, 1);
 
     final DailyCareReportCenterSnapshot daycareOnly =
         DailyCareReportCenterService.buildTodaySnapshot(
@@ -282,6 +307,117 @@ void main() {
       isTrue,
     );
     expect(daycareOnly.totalCount, 1);
+  });
+
+  test('昨日未填住宿回報會列入，日期標題為 9/23（週三）', () {
+    final DateTime now = DateTime(2026, 9, 24);
+    final DailyCareReportCenterSnapshot snapshot =
+        DailyCareReportCenterService.buildTodaySnapshot(
+          shopId: 's1',
+          setting: enabledSetting,
+          checkedIn: <Map<String, dynamic>>[
+            stayBooking(
+              entitlement: entitled(
+                reports: 3,
+                labels: <String>['上午場', '下午場', '晚上場'],
+              ),
+              checkIn: DateTime(2026, 9, 23),
+              checkOut: DateTime(2026, 9, 24),
+              status: 'checked_out',
+            ),
+          ],
+          canOperate: true,
+          today: now,
+        );
+    expect(snapshot.pendingCount, 3);
+    expect(
+      snapshot.items.every(
+        (DailyCareReportCenterItem item) =>
+            item.reportsLocked && !item.canOperate,
+      ),
+      isTrue,
+    );
+    expect(snapshot.completedCount, 0);
+    expect(snapshot.hasError, isFalse);
+    expect(
+      snapshot.items.every(
+        (DailyCareReportCenterItem item) =>
+            item.recordDate == DateTime(2026, 9, 23),
+      ),
+      isTrue,
+    );
+    expect(snapshot.items.first.recordDateHeading, '9/23（週三）');
+    expect(
+      snapshot.items.map((DailyCareReportCenterItem e) => e.sessionName),
+      <String>['上午場', '下午場', '晚上場'],
+    );
+  });
+
+  test('已退房的已完成回報仍會出現在中心', () {
+    final DateTime careDay = DateTime(2026, 9, 23);
+    final String filled = DailyCareRecordService.recordId(
+      bookingId: 'stay-1',
+      recordDate: careDay,
+      sessionIndex: 0,
+    );
+    final DailyCareReportCenterSnapshot snapshot =
+        DailyCareReportCenterService.buildTodaySnapshot(
+          shopId: 's1',
+          setting: enabledSetting,
+          checkedIn: <Map<String, dynamic>>[
+            stayBooking(
+              entitlement: entitled(reports: 2),
+              checkIn: careDay,
+              checkOut: DateTime(2026, 9, 24),
+              status: 'checked_out',
+            ),
+          ],
+          canOperate: true,
+          today: DateTime(2026, 9, 24),
+          completedIds: <String>{filled},
+        );
+    expect(snapshot.pendingCount, 1);
+    expect(snapshot.completedCount, 1);
+    expect(snapshot.items.first.sessionIndex, 1);
+    expect(snapshot.items.last.isCompleted, isTrue);
+  });
+
+  test('已存紀錄即以 bookingId＋日期＋場次合併為已完成，即使文件 id 不同', () {
+    final DateTime careDay = DateTime(2026, 9, 23);
+    final DailyCareRecordModel saved = DailyCareRecordModel(
+      id: 'legacy-random-id',
+      shopId: 's1',
+      bookingId: 'stay-1',
+      roomId: 'r-1',
+      roomName: 'A1',
+      recordDate: careDay,
+      sessionIndex: 0,
+      sessionName: '上午場',
+      values: const <String, dynamic>{'water': 'ok'},
+      petNotes: const <String, String>{},
+      photoCount: 0,
+      createdAt: DateTime(2026, 9, 23, 9),
+      updatedAt: DateTime(2026, 9, 23, 9),
+    );
+    final DailyCareReportCenterSnapshot snapshot =
+        DailyCareReportCenterService.buildTodaySnapshot(
+          shopId: 's1',
+          setting: enabledSetting,
+          checkedIn: <Map<String, dynamic>>[
+            stayBooking(
+              entitlement: entitled(reports: 2),
+              checkIn: careDay,
+              checkOut: DateTime(2026, 9, 24),
+            ),
+          ],
+          canOperate: true,
+          today: careDay,
+          records: <DailyCareRecordModel>[saved],
+        );
+    expect(snapshot.completedCount, 1);
+    expect(snapshot.pendingCount, 1);
+    expect(snapshot.items.first.isCompleted, isFalse);
+    expect(snapshot.items.last.isCompleted, isTrue);
   });
 
   test('Dashboard 副標題與 badge 使用待填數', () {
@@ -338,7 +474,7 @@ void main() {
         profileComplete: true,
         snapshot: done,
       ),
-      '今日回報已完成',
+      '目前沒有待填回報',
     );
   });
 
@@ -368,6 +504,7 @@ void main() {
     String customer = '王小明',
     DateTime? daycareStart,
     String sessionName = '',
+    DateTime? recordDate,
   }) {
     return DailyCareReportCenterItem(
       id: id,
@@ -377,7 +514,7 @@ void main() {
       sessionName: sessionName.isEmpty
           ? '第 ${sessionIndex + 1} 場'
           : sessionName,
-      recordDate: today,
+      recordDate: recordDate ?? today,
       entitlement: const DailyCareEntitlement(enabled: true, finalReports: 2),
       isCompleted: completed,
       roomName: roomName,
@@ -563,6 +700,43 @@ void main() {
     );
   });
 
+  test('依日期分組，標題為月日與星期', () {
+    final List<DailyCareReportCenterDateGroup> groups =
+        DailyCareReportCenterDateGrouping.visible(
+          items: <DailyCareReportCenterItem>[
+            session(
+              id: 'new',
+              bookingId: 's-new',
+              sessionIndex: 0,
+              completed: false,
+              recordDate: DateTime(2026, 9, 24),
+            ),
+            session(
+              id: 'old',
+              bookingId: 's-old',
+              sessionIndex: 1,
+              completed: false,
+              recordDate: DateTime(2026, 9, 23),
+            ),
+            session(
+              id: 'done',
+              bookingId: 's-done',
+              sessionIndex: 0,
+              completed: true,
+              recordDate: DateTime(2026, 9, 23),
+            ),
+          ],
+          status: DailyCareReportCenterStatusFilter.all,
+        );
+    expect(
+      groups.map((DailyCareReportCenterDateGroup g) => g.heading),
+      <String>['9/23（週三）', '9/24（週四）'],
+    );
+    expect(groups.first.bookings.first.bookingId, 's-old');
+    expect(groups.first.bookings.last.bookingId, 's-done');
+    expect(groups.last.bookings.single.bookingId, 's-new');
+  });
+
   test('住宿場次數為照護日期乘每日 finalReports，不硬寫', () {
     final Map<String, dynamic> booking = stayBooking(
       checkIn: DateTime(2026, 9, 21),
@@ -600,6 +774,119 @@ void main() {
         completedIndexes: const <int>{0, 1, 2},
       ),
       0,
+    );
+  });
+
+  test('完成場次照片數依 daily_care_photos 計算，結清後鎖定不可寫', () {
+    final DateTime day = DateTime(2026, 9, 21);
+    final String recordId = DailyCareRecordService.recordId(
+      bookingId: 'stay-1',
+      recordDate: day,
+      sessionIndex: 0,
+    );
+    final DailyCarePhotoModel photo = DailyCarePhotoModel(
+      id: 'p1',
+      shopId: 's1',
+      bookingId: 'stay-1',
+      roomId: 'r-1',
+      roomName: 'A1',
+      recordDate: day,
+      sessionIndex: 0,
+      sessionName: '上午場',
+      previewUrl: 'https://img.example/1.jpg',
+      previewStoragePath: 'path',
+      createdAt: day,
+      dailyCareRecordId: recordId,
+    );
+    final DailyCareReportCenterSnapshot snapshot =
+        DailyCareReportCenterService.buildTodaySnapshot(
+          shopId: 's1',
+          setting: enabledSetting,
+          checkedIn: <Map<String, dynamic>>[
+            stayBooking(
+              entitlement: entitled(reports: 2, labels: <String>['上午場', '下午場']),
+              status: 'completed',
+              checkIn: day,
+              checkOut: DateTime(2026, 9, 22),
+            ),
+          ],
+          canOperate: true,
+          today: day,
+          records: <DailyCareRecordModel>[
+            DailyCareRecordModel(
+              id: recordId,
+              shopId: 's1',
+              bookingId: 'stay-1',
+              roomId: 'r-1',
+              roomName: 'A1',
+              recordDate: day,
+              sessionIndex: 0,
+              sessionName: '上午場',
+              values: const <String, dynamic>{'temperature': '26'},
+              petNotes: const <String, String>{},
+              photoCount: 0,
+              createdAt: day,
+              updatedAt: day,
+            ),
+          ],
+          photos: <DailyCarePhotoModel>[photo],
+        );
+    final DailyCareReportCenterItem filled = snapshot.items.firstWhere(
+      (DailyCareReportCenterItem item) => item.sessionIndex == 0,
+    );
+    final DailyCareReportCenterItem pending = snapshot.items.firstWhere(
+      (DailyCareReportCenterItem item) => item.sessionIndex == 1,
+    );
+    expect(filled.isCompleted, isTrue);
+    expect(filled.photoCount, 1);
+    expect(filled.reportsLocked, isTrue);
+    expect(filled.canOperate, isFalse);
+    expect(pending.isCompleted, isFalse);
+    expect(
+      DailyCareSessionStatus.sessionLine(
+        completed: true,
+        photoCount: 1,
+        locked: false,
+      ),
+      '已完成｜照片 1/3 張',
+    );
+    expect(
+      DailyCareSessionStatus.sessionLine(
+        completed: true,
+        photoCount: 3,
+        locked: true,
+      ),
+      '已完成｜照片 3/3 張｜唯讀',
+    );
+    expect(
+      DailyCareSessionStatus.bookingLockBanner(missingCount: 2),
+      '已結清｜尚缺 2 場回報（已鎖定）',
+    );
+    expect(
+      DailyCareReportWriteAccess.canWrite(<String, dynamic>{
+        'status': 'checked_in',
+      }),
+      isTrue,
+    );
+    expect(
+      DailyCareReportWriteAccess.canWrite(<String, dynamic>{
+        'status': 'checked_in',
+        'settlementConfirmed': true,
+      }),
+      isFalse,
+    );
+    expect(
+      DailyCareReportWriteAccess.canWrite(<String, dynamic>{
+        'status': 'checked_out',
+      }),
+      isFalse,
+    );
+    expect(
+      DailyCareReportWriteAccess.canWrite(<String, dynamic>{
+        'bookingKind': 'daycare',
+        'status': 'completed',
+      }),
+      isFalse,
     );
   });
 }

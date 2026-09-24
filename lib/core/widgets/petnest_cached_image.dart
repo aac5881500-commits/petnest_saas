@@ -5,11 +5,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
-enum PetNestImageCachePolicy {
-  publicDisk,
-  memoryOnly,
-  none,
-}
+enum PetNestImageCachePolicy { publicDisk, memoryOnly, none }
 
 class PetNestCachedImage extends StatelessWidget {
   const PetNestCachedImage({
@@ -83,9 +79,8 @@ class PetNestCachedImage extends StatelessWidget {
         cacheWidth: memCacheWidth,
         cacheHeight: memCacheHeight,
         gaplessPlayback: true,
-        errorBuilder:
-            (BuildContext context, Object error, StackTrace? stack) =>
-                _fallback,
+        errorBuilder: (BuildContext context, Object error, StackTrace? stack) =>
+            _fallback,
         loadingBuilder:
             (BuildContext context, Widget image, ImageChunkEvent? progress) {
               if (progress == null) {
@@ -104,8 +99,8 @@ class PetNestCachedImage extends StatelessWidget {
         memCacheWidth: memCacheWidth,
         memCacheHeight: memCacheHeight,
         placeholder: (BuildContext context, String url) => _busy,
-        errorWidget:
-            (BuildContext context, String url, Object error) => _fallback,
+        errorWidget: (BuildContext context, String url, Object error) =>
+            _fallback,
       );
     }
     if (borderRadius == null) {

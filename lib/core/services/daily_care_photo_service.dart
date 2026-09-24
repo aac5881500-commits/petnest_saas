@@ -9,6 +9,7 @@ import 'package:flutter/foundation.dart';
 import '../models/daily_care_photo_model.dart';
 import '../models/daily_care_date_helper.dart';
 import 'daily_care_photo_function_service.dart';
+import 'daily_care_report_write_access.dart';
 
 class DailyCarePhotoService {
   DailyCarePhotoService._();
@@ -347,6 +348,8 @@ class DailyCarePhotoService {
       throw ArgumentError('缺少訂單 ID');
     }
 
+    await _assertBookingWritable(normalizedBookingId);
+
     if (normalizedRoomId.isEmpty) {
       throw ArgumentError('缺少房間 ID');
     }
@@ -495,6 +498,16 @@ class DailyCarePhotoService {
       );
 
       await deletePhoto(photo);
+    }
+  }
+
+  Future<void> _assertBookingWritable(String bookingId) async {
+    final DocumentSnapshot<Map<String, dynamic>> snapshot = await _firestore
+        .collection('bookings')
+        .doc(bookingId)
+        .get();
+    if (!DailyCareReportWriteAccess.canWrite(snapshot.data())) {
+      throw StateError(DailyCareReportWriteAccess.lockedMessage);
     }
   }
 }

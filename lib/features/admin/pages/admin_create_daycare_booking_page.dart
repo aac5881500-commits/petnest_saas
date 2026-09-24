@@ -423,24 +423,28 @@ class _AdminCreateDaycareBookingPageState
 
   DailyCareEntitlement? _dailyCareQuote() {
     try {
-      return DailyCareEntitlementMath.resolve(
-        setting: _dailyCareSetting,
-        isDaycare: true,
-        shopDaycareOn: true,
-        offerId: (_settings?.isRoomBased ?? false)
-            ? (_selectedRoomTypeId ?? '')
-            : (_plan?.id ?? ''),
-        offerName: (_settings?.isRoomBased ?? false) ? '' : (_plan?.name ?? ''),
-        purchaseAddon:
-            _selectedDailyCareAddonId != null &&
-            _selectedDailyCareAddonId!.isNotEmpty,
-        nights: 1,
-        startDate: _startAt,
-        endDate: _endAt ?? _startAt,
-      );
+      return _dailyCareQuoteForSubmit();
     } catch (_) {
       return null;
     }
+  }
+
+  DailyCareEntitlement _dailyCareQuoteForSubmit() {
+    return DailyCareEntitlementMath.resolve(
+      setting: _dailyCareSetting,
+      isDaycare: true,
+      shopDaycareOn: true,
+      offerId: (_settings?.isRoomBased ?? false)
+          ? (_selectedRoomTypeId ?? '')
+          : (_plan?.id ?? ''),
+      offerName: (_settings?.isRoomBased ?? false) ? '' : (_plan?.name ?? ''),
+      purchaseAddon:
+          _selectedDailyCareAddonId != null &&
+          _selectedDailyCareAddonId!.isNotEmpty,
+      nights: 1,
+      startDate: _startAt,
+      endDate: _endAt ?? _startAt,
+    );
   }
 
   List<Map<String, dynamic>> get _selectedAddonMaps {
@@ -1024,6 +1028,7 @@ class _AdminCreateDaycareBookingPageState
                 : null,
             requestId: _submitRequestId!,
             dailyCareAddonId: _selectedDailyCareAddonId ?? '',
+            dailyCareEntitlement: _dailyCareQuoteForSubmit().toMap(),
             requestedPoints: _requestedPoints,
           );
       final Map<String, dynamic> created = await DaycareFunctionService.instance

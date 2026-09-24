@@ -23,15 +23,17 @@ class ShopDashboardEmbeddedScope extends InheritedWidget {
     return maybeOf(context)?.embeddedInShopDashboard == true;
   }
 
-  /// 若位於左側嵌入前台，關閉 Drawer 並關閉面板。回傳 true 表示已處理。
+  /// 若位於嵌入前台，只關閉 Drawer／預覽框，不改後台 Tab。回傳 true 表示已處理。
   static bool tryExitToDashboard(BuildContext context) {
     final ShopDashboardEmbeddedScope? scope = maybeOf(context);
     if (scope == null || !scope.embeddedInShopDashboard) {
       return false;
     }
-    final VoidCallback? onExit = scope.onExitEmbedded;
-    Navigator.pop(context);
-    onExit?.call();
+    final NavigatorState navigator = Navigator.of(context);
+    if (navigator.canPop()) {
+      navigator.pop();
+    }
+    scope.onExitEmbedded?.call();
     return true;
   }
 

@@ -611,7 +611,14 @@ class _RoomCalendarPageState extends State<RoomCalendarPage> {
                       _dailyCareSetting.enabled &&
                       _selectedBooking != null &&
                       _selectedBooking!['status'] == 'checked_in' &&
-                      _isSelectedDateACareDate())
+                      _isSelectedDateACareDate() &&
+                      DailyCareReportEligibility.isEntitled(
+                        DailyCareReportEligibility.resolvedEntitlement(
+                          booking: _selectedBooking!,
+                          setting: _dailyCareSetting,
+                          daycare: false,
+                        ),
+                      ))
                     _dailyCarePanel(),
 
                   _roomActionLogsPanel(),

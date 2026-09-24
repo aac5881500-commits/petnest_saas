@@ -66,9 +66,9 @@ class BookingPaymentProof {
   ];
 
   static List<String> urls(Map<String, dynamic> data) {
-    return records(data)
-        .map((BookingPaymentProofRecord e) => e.imageUrl)
-        .toList();
+    return records(
+      data,
+    ).map((BookingPaymentProofRecord e) => e.imageUrl).toList();
   }
 
   static String normalizePurpose(String purpose) {
@@ -275,7 +275,8 @@ class BookingPaymentProof {
       return false;
     }
     return records(data).any(
-      (BookingPaymentProofRecord e) => e.purpose == 'deposit' && e.imageUrl.isNotEmpty,
+      (BookingPaymentProofRecord e) =>
+          e.purpose == 'deposit' && e.imageUrl.isNotEmpty,
     );
   }
 }
@@ -296,8 +297,9 @@ class BookingPaymentProofButton extends StatelessWidget {
         BookingPaymentProof.records(data).isEmpty) {
       return const SizedBox.shrink();
     }
-    final List<BookingPaymentProofRecord> items =
-        BookingPaymentProof.records(data);
+    final List<BookingPaymentProofRecord> items = BookingPaymentProof.records(
+      data,
+    );
     return OutlinedButton.icon(
       onPressed: () => _open(context, items),
       icon: const Icon(Icons.photo_outlined, size: 18),
@@ -467,7 +469,8 @@ class _PaymentProofDialogState extends State<_PaymentProofDialog> {
     return ListView.separated(
       padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
       itemCount: widget.records.length,
-      separatorBuilder: (BuildContext context, int index) => const Divider(height: 1),
+      separatorBuilder: (BuildContext context, int index) =>
+          const Divider(height: 1),
       itemBuilder: (BuildContext context, int index) {
         final BookingPaymentProofRecord item = widget.records[index];
         return ListTile(

@@ -45,7 +45,10 @@ class DailyCareEntitlementSnapshot extends StatelessWidget {
             ),
           if (snap.serviceDates.isNotEmpty)
             Text('服務日期：${snap.serviceDates.first}～${snap.serviceDates.last}'),
-          Text(snap.photoShareNote, style: const TextStyle(fontSize: 12, height: 1.4)),
+          Text(
+            snap.photoShareNote,
+            style: const TextStyle(fontSize: 12, height: 1.4),
+          ),
           Text(
             snap.careDateRule,
             style: const TextStyle(fontSize: 12, height: 1.4),

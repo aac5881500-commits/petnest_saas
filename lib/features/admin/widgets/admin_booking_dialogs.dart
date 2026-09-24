@@ -206,7 +206,8 @@ Future<void> showAdminChangeRoomDialog({
                         },
                       ),
 
-                      if (selectedChangeReason == BookingRoomChangeReasons.other) ...[
+                      if (selectedChangeReason ==
+                          BookingRoomChangeReasons.other) ...[
                         const SizedBox(height: 12),
                         TextField(
                           controller: changeReasonController,
@@ -238,7 +239,9 @@ Future<void> showAdminChangeRoomDialog({
                         leading: const Icon(Icons.swap_horiz),
                         title: Text(newRoomName),
                         onTap: () async {
-                          final reason = selectedChangeReason == BookingRoomChangeReasons.other
+                          final reason =
+                              selectedChangeReason ==
+                                  BookingRoomChangeReasons.other
                               ? changeReasonController.text.trim()
                               : selectedChangeReason;
 

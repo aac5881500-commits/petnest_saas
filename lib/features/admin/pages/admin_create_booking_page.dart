@@ -343,26 +343,30 @@ class _AdminCreateBookingPageState extends State<AdminCreateBookingPage> {
 
   DailyCareEntitlement? _dailyCareQuote() {
     try {
-      return DailyCareEntitlementMath.resolve(
-        setting: _dailyCareSetting,
-        isDaycare: false,
-        shopDaycareOn: true,
-        offerId:
-            (_selectedRoomType?['roomTypeId'] ?? _selectedRoomType?['id'] ?? '')
-                .toString(),
-        offerName: (_selectedRoomType?['name'] ?? '').toString(),
-        purchaseAddon:
-            _selectedDailyCareAddonId != null &&
-            _selectedDailyCareAddonId!.isNotEmpty,
-        nights: _startDate != null && _endDate != null
-            ? _endDate!.difference(_startDate!).inDays
-            : 1,
-        startDate: _startDate,
-        endDate: _endDate,
-      );
+      return _dailyCareQuoteForSubmit();
     } catch (_) {
       return null;
     }
+  }
+
+  DailyCareEntitlement _dailyCareQuoteForSubmit() {
+    return DailyCareEntitlementMath.resolve(
+      setting: _dailyCareSetting,
+      isDaycare: false,
+      shopDaycareOn: true,
+      offerId:
+          (_selectedRoomType?['roomTypeId'] ?? _selectedRoomType?['id'] ?? '')
+              .toString(),
+      offerName: (_selectedRoomType?['name'] ?? '').toString(),
+      purchaseAddon:
+          _selectedDailyCareAddonId != null &&
+          _selectedDailyCareAddonId!.isNotEmpty,
+      nights: _startDate != null && _endDate != null
+          ? _endDate!.difference(_startDate!).inDays
+          : 1,
+      startDate: _startDate,
+      endDate: _endDate,
+    );
   }
 
   /// 讀取店家訂金與付款方式設定。
@@ -2069,15 +2073,15 @@ class _AdminCreateBookingPageState extends State<AdminCreateBookingPage> {
             offerName: (roomType['name'] ?? '').toString(),
             nights: nights,
             addonId: _selectedDailyCareAddonId ?? '',
+            startDate: _startDate,
+            endDate: _endDate,
           );
-      final Map<String, dynamic> careEntitlement =
-          quotedCare['entitlement'] is Map
-          ? Map<String, dynamic>.from(quotedCare['entitlement'] as Map)
-          : <String, dynamic>{};
+      final DailyCareEntitlement localCare = _dailyCareQuoteForSubmit();
       final int quotedCareAmount = ((quotedCare['amount'] ?? 0) as num).toInt();
-      if (quotedCareAmount != (_dailyCareQuote()?.amount ?? 0)) {
+      if (quotedCareAmount != localCare.amount) {
         throw Exception('照護加購金額與後端核對不一致，請重新選擇後再送出');
       }
+      final Map<String, dynamic> careEntitlement = localCare.toMap();
       final List<Map<String, dynamic>> bookingAddons = _buildAdminAddons();
       if (quotedCare['addonLine'] is Map) {
         final Map<String, dynamic> line = Map<String, dynamic>.from(

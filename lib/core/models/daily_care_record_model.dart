@@ -114,6 +114,20 @@ class DailyCareRecordModel {
   final DateTime? createdAt;
   final DateTime? updatedAt;
 
+  /// 既有文件有寫入時間或內容即視為已完成，不另加 status 欄位。
+  bool get isPersisted {
+    if (updatedAt != null || createdAt != null) {
+      return true;
+    }
+    if (photoCount > 0) {
+      return true;
+    }
+    if (values.isNotEmpty) {
+      return true;
+    }
+    return petNotes.values.any((String note) => note.trim().isNotEmpty);
+  }
+
   factory DailyCareRecordModel.fromMap({
     required String id,
     required Map<String, dynamic> map,

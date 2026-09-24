@@ -693,8 +693,7 @@ class _MemberActionButtons extends StatelessWidget {
       'blacklisted': true,
       'isBlacklisted': true,
       'isVip': false,
-      'tags': (List<String>.from(memberData['tags'] ?? [])
-        ..remove('vip')),
+      'tags': (List<String>.from(memberData['tags'] ?? [])..remove('vip')),
       'blacklistReason': reason,
       'blacklistedAt': FieldValue.serverTimestamp(),
       'updatedAt': FieldValue.serverTimestamp(),

@@ -1,10 +1,12 @@
 // 檔案名稱：lib/core/models/daily_care_report_center_snapshot.dart
 // 功能說明：每日回報中心即時快照與統計。
 
-import 'daily_care_record_model.dart';
+import 'daily_care_date_helper.dart';
 import 'daily_care_report_center_item.dart';
 
 enum DailyCareReportCenterStatusFilter { all, pending, completed }
+
+enum DailyCareReportCenterTypeFilter { all, stay, daycare }
 
 class DailyCareReportCenterSnapshot {
   const DailyCareReportCenterSnapshot({
@@ -27,16 +29,37 @@ class DailyCareReportCenterSnapshot {
 
   int get totalCount => items.length;
 
+  int get stayCount =>
+      items.where((DailyCareReportCenterItem item) => !item.isDaycare).length;
+
+  int get daycareCount =>
+      items.where((DailyCareReportCenterItem item) => item.isDaycare).length;
+
   List<DailyCareReportCenterItem> filtered({
     DailyCareReportCenterStatusFilter status =
         DailyCareReportCenterStatusFilter.pending,
+    DailyCareReportCenterTypeFilter type = DailyCareReportCenterTypeFilter.all,
+    String query = '',
   }) {
+    final String needle = query.trim().toLowerCase();
     return items.where((DailyCareReportCenterItem item) {
-      return switch (status) {
+      final bool typeOk = switch (type) {
+        DailyCareReportCenterTypeFilter.all => true,
+        DailyCareReportCenterTypeFilter.stay => !item.isDaycare,
+        DailyCareReportCenterTypeFilter.daycare => item.isDaycare,
+      };
+      if (!typeOk) {
+        return false;
+      }
+      final bool statusOk = switch (status) {
         DailyCareReportCenterStatusFilter.all => true,
         DailyCareReportCenterStatusFilter.pending => !item.isCompleted,
         DailyCareReportCenterStatusFilter.completed => item.isCompleted,
       };
+      if (!statusOk) {
+        return false;
+      }
+      return needle.isEmpty || item.matchesQuery(needle);
     }).toList();
   }
 
@@ -71,20 +94,16 @@ class DailyCareReportCenterSnapshot {
     if (completed != 0) {
       return completed;
     }
-    final int type = _typeRank(
-      a.serviceType,
-    ).compareTo(_typeRank(b.serviceType));
-    if (type != 0) {
-      return type;
+    final int date = DailyCareDateHelper.dateOnly(
+      a.recordDate,
+    ).compareTo(DailyCareDateHelper.dateOnly(b.recordDate));
+    if (date != 0) {
+      return date;
     }
     final int booking = a.bookingId.compareTo(b.bookingId);
     if (booking != 0) {
       return booking;
     }
     return a.sessionIndex.compareTo(b.sessionIndex);
-  }
-
-  static int _typeRank(String serviceType) {
-    return serviceType == DailyCareServiceTypes.daycare ? 1 : 0;
   }
 }

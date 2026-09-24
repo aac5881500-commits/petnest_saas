@@ -86,10 +86,10 @@ class PolicyVersionDetailPage extends StatelessWidget {
     final Map<String, dynamic> enabled = Map<String, dynamic>.from(
       filtered['enabled'] ?? {},
     );
-    final List<dynamic> custom1 = (filtered['customPoliciesPage1'] ?? [])
-        as List<dynamic>;
-    final List<dynamic> custom2 = (filtered['customPoliciesPage2'] ?? [])
-        as List<dynamic>;
+    final List<dynamic> custom1 =
+        (filtered['customPoliciesPage1'] ?? []) as List<dynamic>;
+    final List<dynamic> custom2 =
+        (filtered['customPoliciesPage2'] ?? []) as List<dynamic>;
 
     String getText(String key) {
       if (enabled[key] == false) {

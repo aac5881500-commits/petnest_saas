@@ -29,7 +29,8 @@ class AdminBookingPetCareScope extends InheritedWidget {
   }
 
   static AdminBookingPetCareScope? maybeOf(BuildContext context) {
-    return context.dependOnInheritedWidgetOfExactType<AdminBookingPetCareScope>();
+    return context
+        .dependOnInheritedWidgetOfExactType<AdminBookingPetCareScope>();
   }
 
   @override

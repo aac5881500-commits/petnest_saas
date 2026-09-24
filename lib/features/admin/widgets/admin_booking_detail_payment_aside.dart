@@ -37,7 +37,8 @@ class AdminBookingDetailPaymentAside extends StatelessWidget {
     final bool depositPaid = BookingPaymentStatus.isDepositConfirmed(data);
     final bool overdue = BookingPaymentStatus.isDeadlineOverdue(data);
     final bool daycare = BookingPaymentStatus.isDaycare(data);
-    final bool cleared = BookingSettlementMath.isOrderComplete(data) ||
+    final bool cleared =
+        BookingSettlementMath.isOrderComplete(data) ||
         (!daycare &&
             !BookingSettlementMath.isSettlementConfirmed(data) &&
             remaining <= 0 &&
@@ -84,9 +85,7 @@ class AdminBookingDetailPaymentAside extends StatelessWidget {
             runSpacing: 6,
             children: <Widget>[
               _pill(
-                cleared
-                    ? '已付清'
-                    : (depositPaid ? '訂金已確認' : '尚未完成付款'),
+                cleared ? '已付清' : (depositPaid ? '訂金已確認' : '尚未完成付款'),
                 cleared
                     ? ShopFrontendTheme.successColor
                     : ShopFrontendTheme.warningColor,
@@ -126,7 +125,9 @@ class AdminBookingDetailPaymentAside extends StatelessWidget {
               ),
             ),
           if (!phone ||
-              ShopPaymentMethods.hasThirdPartyGatewayTransaction(data)) ...<Widget>[
+              ShopPaymentMethods.hasThirdPartyGatewayTransaction(
+                data,
+              )) ...<Widget>[
             const SizedBox(height: 12),
             SizedBox(
               width: double.infinity,
@@ -137,9 +138,9 @@ class AdminBookingDetailPaymentAside extends StatelessWidget {
                     () {
                       final String shopId = (data['shopId'] ?? '').toString();
                       if (shopId.isEmpty) {
-                        ScaffoldMessenger.of(
-                          context,
-                        ).showSnackBar(const SnackBar(content: Text('找不到店家資料')));
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('找不到店家資料')),
+                        );
                         return;
                       }
                       Navigator.push(

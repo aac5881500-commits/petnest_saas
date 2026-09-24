@@ -269,10 +269,10 @@ class _ShopStoreBannerEditorPageState extends State<ShopStoreBannerEditorPage>
       final bytes = await StoreBannerRenderService.instance.captureJpeg(
         _captureKey,
       );
-      final int version =
-          DateTime.now().millisecondsSinceEpoch;
-      final InventoryImageUploadResult rendered =
-          await StoreBannerRenderService.instance.uploadRendered(
+      final int version = DateTime.now().millisecondsSinceEpoch;
+      final InventoryImageUploadResult rendered = await StoreBannerRenderService
+          .instance
+          .uploadRendered(
             shopId: widget.shopId,
             bannerId: next.id,
             bytes: bytes,
@@ -525,110 +525,110 @@ class _ShopStoreBannerEditorPageState extends State<ShopStoreBannerEditorPage>
         }
       },
       child: Scaffold(
-      appBar: AppBar(title: Text(title)),
-      body: Stack(
-        children: <Widget>[
-          LayoutBuilder(
-        builder: (BuildContext context, BoxConstraints constraints) {
-          final bool wide = constraints.maxWidth >= 900;
-          final Widget preview = _PreviewBlock(
-            banner: _draft.copyWith(ctaText: _cta.text),
-            theme: theme,
-            scope: widget.scope,
-            interactMode: _interactMode,
-            selectedTextId: _interactMode == StoreBannerInteractMode.text
-                ? _selectedTextId
-                : null,
-            onChanged: (StoreBannerModel value) {
-              _dirty = true;
-              setState(() => _draft = value);
-            },
-            onTextSelected: (String? id) {
-              setState(() => _selectText(id, updateController: true));
-            },
-            onTemplate: _applyTemplate,
-          );
-          final Widget editor = _EditorColumn(
-            tabs: _tabs,
-            draft: _draft,
-            theme: theme,
-            shopId: widget.shopId,
-            scope: widget.scope,
-            uploading: _uploading,
-            textController: _text,
-            ctaController: _cta,
-            selected: _selected,
-            onDraft: (StoreBannerModel value) {
-              _dirty = true;
-              setState(() => _draft = value);
-            },
-            onPickImage: _pickImage,
-            onRemoveImage: _removeImage,
-            onAddText: _addText,
-            onSelectText: (String id) {
-              setState(() => _selectText(id, updateController: true));
-            },
-            onReplaceText: _replaceText,
-            onDeleteText: _deleteSelected,
-            onShiftLayer: _shiftLayer,
-            onCtaChanged: () {
-              setState(() {
-                _draft = _draft.copyWith(ctaText: _cta.text);
-              });
-            },
-          );
-          if (wide) {
-            return Row(
-              children: <Widget>[
-                Expanded(flex: 5, child: preview),
-                const VerticalDivider(width: 1),
-                Expanded(flex: 4, child: editor),
-              ],
-            );
-          }
-          return Column(
-            children: <Widget>[
-              preview,
-              const Divider(height: 1),
-              Expanded(child: editor),
-            ],
-          );
-        },
-          ),
-          Positioned(
-            left: -4000,
-            top: 0,
-            child: IgnorePointer(
-              child: SizedBox(
-                width: 1600,
-                child: AspectRatio(
-                  aspectRatio: StoreBannerSafeLayout.aspectRatio,
-                  child: RepaintBoundary(
-                    key: _captureKey,
-                    child: StoreBannerView(
-                      banner: captureBanner,
-                      theme: theme,
-                      scope: widget.scope,
-                      composeLive: true,
-                      borderRadius: 0,
+        appBar: AppBar(title: Text(title)),
+        body: Stack(
+          children: <Widget>[
+            LayoutBuilder(
+              builder: (BuildContext context, BoxConstraints constraints) {
+                final bool wide = constraints.maxWidth >= 900;
+                final Widget preview = _PreviewBlock(
+                  banner: _draft.copyWith(ctaText: _cta.text),
+                  theme: theme,
+                  scope: widget.scope,
+                  interactMode: _interactMode,
+                  selectedTextId: _interactMode == StoreBannerInteractMode.text
+                      ? _selectedTextId
+                      : null,
+                  onChanged: (StoreBannerModel value) {
+                    _dirty = true;
+                    setState(() => _draft = value);
+                  },
+                  onTextSelected: (String? id) {
+                    setState(() => _selectText(id, updateController: true));
+                  },
+                  onTemplate: _applyTemplate,
+                );
+                final Widget editor = _EditorColumn(
+                  tabs: _tabs,
+                  draft: _draft,
+                  theme: theme,
+                  shopId: widget.shopId,
+                  scope: widget.scope,
+                  uploading: _uploading,
+                  textController: _text,
+                  ctaController: _cta,
+                  selected: _selected,
+                  onDraft: (StoreBannerModel value) {
+                    _dirty = true;
+                    setState(() => _draft = value);
+                  },
+                  onPickImage: _pickImage,
+                  onRemoveImage: _removeImage,
+                  onAddText: _addText,
+                  onSelectText: (String id) {
+                    setState(() => _selectText(id, updateController: true));
+                  },
+                  onReplaceText: _replaceText,
+                  onDeleteText: _deleteSelected,
+                  onShiftLayer: _shiftLayer,
+                  onCtaChanged: () {
+                    setState(() {
+                      _draft = _draft.copyWith(ctaText: _cta.text);
+                    });
+                  },
+                );
+                if (wide) {
+                  return Row(
+                    children: <Widget>[
+                      Expanded(flex: 5, child: preview),
+                      const VerticalDivider(width: 1),
+                      Expanded(flex: 4, child: editor),
+                    ],
+                  );
+                }
+                return Column(
+                  children: <Widget>[
+                    preview,
+                    const Divider(height: 1),
+                    Expanded(child: editor),
+                  ],
+                );
+              },
+            ),
+            Positioned(
+              left: -4000,
+              top: 0,
+              child: IgnorePointer(
+                child: SizedBox(
+                  width: 1600,
+                  child: AspectRatio(
+                    aspectRatio: StoreBannerSafeLayout.aspectRatio,
+                    child: RepaintBoundary(
+                      key: _captureKey,
+                      child: StoreBannerView(
+                        banner: captureBanner,
+                        theme: theme,
+                        scope: widget.scope,
+                        composeLive: true,
+                        borderRadius: 0,
+                      ),
                     ),
                   ),
                 ),
               ),
             ),
-          ),
-        ],
-      ),
-      bottomNavigationBar: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
-          child: FilledButton(
-            onPressed: _saving ? null : _save,
-            child: Text(_saving ? '發布中…' : '確認並發布'),
+          ],
+        ),
+        bottomNavigationBar: SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+            child: FilledButton(
+              onPressed: _saving ? null : _save,
+              child: Text(_saving ? '發布中…' : '確認並發布'),
+            ),
           ),
         ),
       ),
-    ),
     );
   }
 }

@@ -72,9 +72,7 @@ class BookingCurrentRoom {
   }
 
   bool get needsRoomNameLookup =>
-      hasPhysicalRoom &&
-      physicalRoomLabel.isEmpty &&
-      roomId.isNotEmpty;
+      hasPhysicalRoom && physicalRoomLabel.isEmpty && roomId.isNotEmpty;
 
   String typeDisplay() {
     return roomTypeName.isEmpty ? '未指定' : roomTypeName;

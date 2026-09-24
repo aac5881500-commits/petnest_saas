@@ -138,19 +138,13 @@ class _BookingDetailFinanceSectionState
                 ),
               ),
               if (SettlementAdjustDisplay.reasonOf(view.raw).isNotEmpty)
-                _kv(
-                  '店家調整說明',
-                  SettlementAdjustDisplay.reasonOf(view.raw),
-                ),
+                _kv('店家調整說明', SettlementAdjustDisplay.reasonOf(view.raw)),
             ],
             _kv(
               '已完成退款',
               'NT\$ ${BookingSettlementMath.refundedAmount(view.raw)}',
             ),
-            _kv(
-              '實收淨額',
-              'NT\$ ${BookingSettlementMath.netCollected(view.raw)}',
-            ),
+            _kv('實收淨額', 'NT\$ ${BookingSettlementMath.netCollected(view.raw)}'),
             _kv(
               '待補款',
               'NT\$ ${BookingSettlementMath.remainingDue(data: view.raw)}',

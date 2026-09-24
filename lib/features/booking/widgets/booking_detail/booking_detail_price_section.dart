@@ -209,9 +209,7 @@ class BookingDetailPriceSection extends StatelessWidget {
                 final price = (item['price'] ?? 0) as num;
                 final count = (item['count'] ?? 1) as num;
                 final total =
-                    (item['total'] ??
-                        item['amount'] ??
-                        (price * count)) as num;
+                    (item['total'] ?? item['amount'] ?? (price * count)) as num;
 
                 return Container(
                   margin: const EdgeInsets.only(bottom: 10),

@@ -451,8 +451,9 @@ class _DetailBodyState extends State<_DetailBody> {
                   thumbVisibility: true,
                   child: SingleChildScrollView(
                     controller: _rightScroll,
-                    padding: AdminBookingDetailMetrics.pagePadding(widget.mode)
-                        .copyWith(left: 8),
+                    padding: AdminBookingDetailMetrics.pagePadding(
+                      widget.mode,
+                    ).copyWith(left: 8),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: _withGaps(_desktopAside()),
@@ -514,9 +515,7 @@ class _DetailBodyState extends State<_DetailBody> {
               const ButtonSegment<int>(value: 1, label: Text('表單資料')),
               ButtonSegment<int>(
                 value: 2,
-                label: Text(
-                  widget.handoverHasContent ? '交接與溝通・有內容' : '交接與溝通',
-                ),
+                label: Text(widget.handoverHasContent ? '交接與溝通・有內容' : '交接與溝通'),
               ),
             ],
             selected: <int>{_tab},

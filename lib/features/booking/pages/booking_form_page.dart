@@ -807,7 +807,10 @@ class _BookingFormPageState extends State<BookingFormPage> {
             form: form,
             pet: pet,
           ).enabledQuestionEntries) {
-        _customQuestionKeys.putIfAbsent('$petId::${question.id}', GlobalKey.new);
+        _customQuestionKeys.putIfAbsent(
+          '$petId::${question.id}',
+          GlobalKey.new,
+        );
       }
     }
     return OrderCustomFormFill(
@@ -1357,9 +1360,7 @@ class _BookingFormPageState extends State<BookingFormPage> {
       final CustomFormValidationResult check = _validateBookingCustomForm();
       if (!check.isValid) {
         debugPrint('[BookingSubmit] custom form incomplete');
-        _showSubmitMessage(
-          check.message.isEmpty ? '請完成送出訂單表單' : check.message,
-        );
+        _showSubmitMessage(check.message.isEmpty ? '請完成送出訂單表單' : check.message);
         _scrollToCustomForm(questionId: check.firstInvalidQuestionId);
         return;
       }

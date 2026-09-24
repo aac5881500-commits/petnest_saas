@@ -480,9 +480,7 @@ class _BannerImage extends StatelessWidget {
       child: ClipRect(
         child: Transform.scale(
           scale: useRendered ? 1 : banner.imageScale.clamp(1.0, 2.5),
-          alignment: useRendered
-              ? Alignment.center
-              : banner.imageAlignment,
+          alignment: useRendered ? Alignment.center : banner.imageAlignment,
           child: Image.network(
             useRendered ? banner.renderedImageUrl : banner.imageUrl,
             fit: BoxFit.cover,

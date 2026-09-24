@@ -1,66 +1,155 @@
 // 檔案名稱：lib/features/shop/widgets/daily_care_report_center_board.dart
-// 功能說明：每日回報中心房間看板：手機單欄、平板單欄、桌機左篩選＋雙欄卡片。
+// 功能說明：每日回報中心：分類、狀態、搜尋、依日期／訂單展開場次。
 
 import 'package:flutter/material.dart';
 
+import '../../../core/models/daily_care_date_helper.dart';
+import '../../../core/models/daily_care_report_center_date_group.dart';
 import '../../../core/models/daily_care_report_center_item.dart';
-import '../../../core/models/daily_care_report_center_room_group.dart';
 import '../../../core/models/daily_care_report_center_snapshot.dart';
+import '../../../core/models/daily_care_session_status.dart';
 import '../../../core/models/daily_care_setting_model.dart';
 import '../../room/daily_care_record_edit_launcher.dart';
 
-class DailyCareReportCenterBoard extends StatelessWidget {
+class DailyCareReportCenterBoard extends StatefulWidget {
   const DailyCareReportCenterBoard({
     super.key,
     required this.snapshot,
     required this.setting,
     required this.status,
     required this.onStatus,
+    required this.type,
+    required this.onType,
+    this.query = '',
+    this.onQuery,
+    this.focusBookingId = '',
+    this.focusRecordDate,
+    this.focusSessionIndex,
   });
 
   static const double phoneMax = 600;
   static const double desktopMin = 1024;
-  static const double twoColumnMin = 1180;
-  static const double desktopMaxWidth = 1360;
 
   final DailyCareReportCenterSnapshot snapshot;
   final DailyCareSettingModel setting;
   final DailyCareReportCenterStatusFilter status;
   final ValueChanged<DailyCareReportCenterStatusFilter> onStatus;
+  final DailyCareReportCenterTypeFilter type;
+  final ValueChanged<DailyCareReportCenterTypeFilter> onType;
+  final String query;
+  final ValueChanged<String>? onQuery;
+  final String focusBookingId;
+  final DateTime? focusRecordDate;
+  final int? focusSessionIndex;
+
+  @override
+  State<DailyCareReportCenterBoard> createState() =>
+      _DailyCareReportCenterBoardState();
+}
+
+class _DailyCareReportCenterBoardState
+    extends State<DailyCareReportCenterBoard> {
+  final Set<String> _expanded = <String>{};
+  final TextEditingController _search = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    _search.text = widget.query;
+    _expandFocus();
+  }
+
+  @override
+  void didUpdateWidget(covariant DailyCareReportCenterBoard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.focusBookingId != widget.focusBookingId ||
+        oldWidget.focusRecordDate != widget.focusRecordDate) {
+      _expandFocus();
+    }
+    if (oldWidget.query != widget.query && _search.text != widget.query) {
+      _search.text = widget.query;
+    }
+  }
+
+  @override
+  void dispose() {
+    _search.dispose();
+    super.dispose();
+  }
+
+  void _expandFocus() {
+    final String bookingId = widget.focusBookingId.trim();
+    if (bookingId.isEmpty) {
+      return;
+    }
+    for (final DailyCareReportCenterItem item in widget.snapshot.items) {
+      if (item.bookingId != bookingId) {
+        continue;
+      }
+      if (widget.focusRecordDate != null &&
+          DailyCareDateHelper.dateKey(item.recordDate) !=
+              DailyCareDateHelper.dateKey(widget.focusRecordDate!)) {
+        continue;
+      }
+      _expanded.add(
+        '${DailyCareDateHelper.dateKey(item.recordDate)}#$bookingId',
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     final double width = MediaQuery.sizeOf(context).width;
-    final List<DailyCareReportCenterRoomGroup> groups =
-        DailyCareReportCenterGrouping.visible(
-          items: snapshot.items,
-          status: status,
+    final List<DailyCareReportCenterDateGroup> groups =
+        DailyCareReportCenterDateGrouping.visible(
+          items: widget.snapshot.items,
+          status: widget.status,
+          type: widget.type,
+          query: widget.query,
         );
-    if (width >= desktopMin) {
+    if (width >= DailyCareReportCenterBoard.desktopMin) {
       return _DesktopBoard(
-        snapshot: snapshot,
-        setting: setting,
+        snapshot: widget.snapshot,
+        setting: widget.setting,
         groups: groups,
-        status: status,
-        onStatus: onStatus,
+        status: widget.status,
+        onStatus: widget.onStatus,
+        type: widget.type,
+        onType: widget.onType,
+        search: _search,
+        onQuery: widget.onQuery,
+        expanded: _expanded,
+        onToggle: _toggle,
+        focusBookingId: widget.focusBookingId,
+        focusSessionIndex: widget.focusSessionIndex,
       );
     }
-    if (width >= phoneMax) {
-      return _TabletBoard(
-        snapshot: snapshot,
-        setting: setting,
-        groups: groups,
-        status: status,
-        onStatus: onStatus,
-      );
-    }
-    return _PhoneBoard(
-      snapshot: snapshot,
-      setting: setting,
+    return _CompactBoard(
+      snapshot: widget.snapshot,
+      setting: widget.setting,
       groups: groups,
-      status: status,
-      onStatus: onStatus,
+      status: widget.status,
+      onStatus: widget.onStatus,
+      type: widget.type,
+      onType: widget.onType,
+      search: _search,
+      onQuery: widget.onQuery,
+      expanded: _expanded,
+      onToggle: _toggle,
+      focusBookingId: widget.focusBookingId,
+      focusSessionIndex: widget.focusSessionIndex,
+      wide: width >= DailyCareReportCenterBoard.phoneMax,
     );
+  }
+
+  void _toggle(String key) {
+    setState(() {
+      if (_expanded.contains(key)) {
+        _expanded.remove(key);
+      } else {
+        _expanded.add(key);
+      }
+    });
   }
 }
 
@@ -87,107 +176,75 @@ class DailyCareReportCenterErrorPane extends StatelessWidget {
   }
 }
 
-class _PhoneBoard extends StatelessWidget {
-  const _PhoneBoard({
+class _CompactBoard extends StatelessWidget {
+  const _CompactBoard({
     required this.snapshot,
     required this.setting,
     required this.groups,
     required this.status,
     required this.onStatus,
+    required this.type,
+    required this.onType,
+    required this.search,
+    required this.onQuery,
+    required this.expanded,
+    required this.onToggle,
+    required this.focusBookingId,
+    required this.focusSessionIndex,
+    required this.wide,
   });
 
   final DailyCareReportCenterSnapshot snapshot;
   final DailyCareSettingModel setting;
-  final List<DailyCareReportCenterRoomGroup> groups;
+  final List<DailyCareReportCenterDateGroup> groups;
   final DailyCareReportCenterStatusFilter status;
   final ValueChanged<DailyCareReportCenterStatusFilter> onStatus;
+  final DailyCareReportCenterTypeFilter type;
+  final ValueChanged<DailyCareReportCenterTypeFilter> onType;
+  final TextEditingController search;
+  final ValueChanged<String>? onQuery;
+  final Set<String> expanded;
+  final ValueChanged<String> onToggle;
+  final String focusBookingId;
+  final int? focusSessionIndex;
+  final bool wide;
 
   @override
   Widget build(BuildContext context) {
+    final double pad = wide ? 20 : 16;
     return Column(
       children: <Widget>[
         Padding(
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-          child: _CompactSummary(snapshot: snapshot),
+          padding: EdgeInsets.fromLTRB(pad, 12, pad, 0),
+          child: _SummaryCard(snapshot: snapshot),
         ),
         Padding(
-          padding: const EdgeInsets.fromLTRB(16, 10, 16, 8),
-          child: _FilterRows(
+          padding: EdgeInsets.fromLTRB(pad, 10, pad, 0),
+          child: _TypeTabs(snapshot: snapshot, type: type, onType: onType),
+        ),
+        Padding(
+          padding: EdgeInsets.fromLTRB(pad, 8, pad, 0),
+          child: _StatusTabs(
             snapshot: snapshot,
             status: status,
             onStatus: onStatus,
           ),
         ),
-        Expanded(
-          child: groups.isEmpty
-              ? _EmptyState(status: status)
-              : ListView.builder(
-                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 32),
-                  itemCount: groups.length,
-                  itemBuilder: (BuildContext context, int index) {
-                    return Padding(
-                      padding: const EdgeInsets.only(bottom: 12),
-                      child: _RoomCard(
-                        group: groups[index],
-                        setting: setting,
-                        compact: true,
-                      ),
-                    );
-                  },
-                ),
-        ),
-      ],
-    );
-  }
-}
-
-class _TabletBoard extends StatelessWidget {
-  const _TabletBoard({
-    required this.snapshot,
-    required this.setting,
-    required this.groups,
-    required this.status,
-    required this.onStatus,
-  });
-
-  final DailyCareReportCenterSnapshot snapshot;
-  final DailyCareSettingModel setting;
-  final List<DailyCareReportCenterRoomGroup> groups;
-  final DailyCareReportCenterStatusFilter status;
-  final ValueChanged<DailyCareReportCenterStatusFilter> onStatus;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: <Widget>[
         Padding(
-          padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
-          child: _WideSummary(snapshot: snapshot),
-        ),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
-          child: _FilterRows(
-            snapshot: snapshot,
-            status: status,
-            onStatus: onStatus,
-          ),
+          padding: EdgeInsets.fromLTRB(pad, 8, pad, 8),
+          child: _SearchField(controller: search, onQuery: onQuery),
         ),
         Expanded(
           child: groups.isEmpty
-              ? _EmptyState(status: status)
-              : ListView.builder(
-                  padding: const EdgeInsets.fromLTRB(20, 0, 20, 32),
-                  itemCount: groups.length,
-                  itemBuilder: (BuildContext context, int index) {
-                    return Padding(
-                      padding: const EdgeInsets.only(bottom: 12),
-                      child: _RoomCard(
-                        group: groups[index],
-                        setting: setting,
-                        compact: false,
-                      ),
-                    );
-                  },
+              ? _EmptyState(snapshot: snapshot, status: status)
+              : _DateList(
+                  groups: groups,
+                  setting: setting,
+                  padding: EdgeInsets.fromLTRB(pad, 0, pad, 32),
+                  expanded: expanded,
+                  onToggle: onToggle,
+                  focusBookingId: focusBookingId,
+                  focusSessionIndex: focusSessionIndex,
                 ),
         ),
       ],
@@ -202,233 +259,185 @@ class _DesktopBoard extends StatelessWidget {
     required this.groups,
     required this.status,
     required this.onStatus,
+    required this.type,
+    required this.onType,
+    required this.search,
+    required this.onQuery,
+    required this.expanded,
+    required this.onToggle,
+    required this.focusBookingId,
+    required this.focusSessionIndex,
   });
 
   final DailyCareReportCenterSnapshot snapshot;
   final DailyCareSettingModel setting;
-  final List<DailyCareReportCenterRoomGroup> groups;
+  final List<DailyCareReportCenterDateGroup> groups;
   final DailyCareReportCenterStatusFilter status;
   final ValueChanged<DailyCareReportCenterStatusFilter> onStatus;
+  final DailyCareReportCenterTypeFilter type;
+  final ValueChanged<DailyCareReportCenterTypeFilter> onType;
+  final TextEditingController search;
+  final ValueChanged<String>? onQuery;
+  final Set<String> expanded;
+  final ValueChanged<String> onToggle;
+  final String focusBookingId;
+  final int? focusSessionIndex;
 
   @override
   Widget build(BuildContext context) {
-    final DateTime now = DateTime.now();
-    return Align(
-      alignment: Alignment.topCenter,
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(
-          maxWidth: DailyCareReportCenterBoard.desktopMaxWidth,
-        ),
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(28, 16, 28, 24),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: <Widget>[
-              Text(
-                '每日回報中心',
-                style: Theme.of(
-                  context,
-                ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                '${now.year}/${now.month.toString().padLeft(2, '0')}/${now.day.toString().padLeft(2, '0')}',
-                style: const TextStyle(color: Colors.black54),
-              ),
-              const SizedBox(height: 12),
-              _WideSummary(snapshot: snapshot),
-              const SizedBox(height: 16),
-              Expanded(
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: <Widget>[
-                    SizedBox(
-                      width: 240,
-                      child: _FilterRail(
-                        snapshot: snapshot,
-                        status: status,
-                        onStatus: onStatus,
-                      ),
-                    ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: groups.isEmpty
-                          ? _EmptyState(status: status)
-                          : _DesktopCardGrid(groups: groups, setting: setting),
-                    ),
-                  ],
-                ),
-              ),
-            ],
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(24, 16, 24, 24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: <Widget>[
+          Text(
+            '每日回報中心',
+            style: Theme.of(
+              context,
+            ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
           ),
-        ),
+          const SizedBox(height: 12),
+          _SummaryCard(snapshot: snapshot),
+          const SizedBox(height: 16),
+          Expanded(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: <Widget>[
+                SizedBox(
+                  width: 240,
+                  child: _FilterRail(
+                    snapshot: snapshot,
+                    status: status,
+                    onStatus: onStatus,
+                    type: type,
+                    onType: onType,
+                  ),
+                ),
+                const SizedBox(width: 20),
+                Expanded(
+                  child: Column(
+                    children: <Widget>[
+                      _SearchField(controller: search, onQuery: onQuery),
+                      const SizedBox(height: 12),
+                      Expanded(
+                        child: groups.isEmpty
+                            ? _EmptyState(snapshot: snapshot, status: status)
+                            : _DateList(
+                                groups: groups,
+                                setting: setting,
+                                padding: const EdgeInsets.only(bottom: 8),
+                                expanded: expanded,
+                                onToggle: onToggle,
+                                focusBookingId: focusBookingId,
+                                focusSessionIndex: focusSessionIndex,
+                              ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
 }
 
-class _DesktopCardGrid extends StatelessWidget {
-  const _DesktopCardGrid({required this.groups, required this.setting});
+class _DateList extends StatelessWidget {
+  const _DateList({
+    required this.groups,
+    required this.setting,
+    required this.padding,
+    required this.expanded,
+    required this.onToggle,
+    required this.focusBookingId,
+    required this.focusSessionIndex,
+  });
 
-  final List<DailyCareReportCenterRoomGroup> groups;
+  final List<DailyCareReportCenterDateGroup> groups;
   final DailyCareSettingModel setting;
+  final EdgeInsets padding;
+  final Set<String> expanded;
+  final ValueChanged<String> onToggle;
+  final String focusBookingId;
+  final int? focusSessionIndex;
 
   @override
   Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (BuildContext context, BoxConstraints constraints) {
-        final int columns =
-            MediaQuery.sizeOf(context).width <
-                DailyCareReportCenterBoard.twoColumnMin
-            ? 1
-            : 2;
-        return ListView.builder(
-          itemCount: (groups.length / columns).ceil(),
-          itemBuilder: (BuildContext context, int row) {
-            return Padding(
-              padding: const EdgeInsets.only(bottom: 12),
-              child: IntrinsicHeight(
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: <Widget>[
-                    for (int col = 0; col < columns; col++) ...<Widget>[
-                      if (col > 0) const SizedBox(width: 12),
-                      Expanded(
-                        child: row * columns + col < groups.length
-                            ? _RoomCard(
-                                group: groups[row * columns + col],
-                                setting: setting,
-                                compact: false,
-                              )
-                            : const SizedBox.shrink(),
-                      ),
-                    ],
-                  ],
+    return ListView.builder(
+      padding: padding,
+      itemCount: groups.length,
+      itemBuilder: (BuildContext context, int index) {
+        final DailyCareReportCenterDateGroup group = groups[index];
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 18),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8, left: 2),
+                child: Text(
+                  group.title,
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w800,
+                  ),
                 ),
               ),
-            );
-          },
+              for (final DailyCareReportCenterBookingDayGroup booking
+                  in group.bookings)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 10),
+                  child: _BookingCard(
+                    group: booking,
+                    setting: setting,
+                    expanded: expanded.contains(booking.expandKey),
+                    onToggle: () => onToggle(booking.expandKey),
+                    highlight:
+                        booking.bookingId == focusBookingId.trim() &&
+                        focusBookingId.trim().isNotEmpty,
+                    focusSessionIndex: focusSessionIndex,
+                  ),
+                ),
+            ],
+          ),
         );
       },
     );
   }
 }
 
-class _CompactSummary extends StatelessWidget {
-  const _CompactSummary({required this.snapshot});
+class _SummaryCard extends StatelessWidget {
+  const _SummaryCard({required this.snapshot});
 
   final DailyCareReportCenterSnapshot snapshot;
 
   @override
   Widget build(BuildContext context) {
-    final bool done = snapshot.totalCount > 0 && snapshot.pendingCount == 0;
-    final double progress = snapshot.totalCount == 0
-        ? 0
-        : snapshot.completedCount / snapshot.totalCount;
     return Card(
       elevation: 0,
       color: Colors.white,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: <Widget>[
-            ClipRRect(
-              borderRadius: BorderRadius.circular(99),
-              child: LinearProgressIndicator(
-                minHeight: 4,
-                value: progress,
-                backgroundColor: const Color(0xFFE8EDF2),
-              ),
-            ),
-            const SizedBox(height: 10),
-            Row(
-              children: <Widget>[
-                const Text(
-                  '今天回報',
-                  style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15),
-                ),
-                const Spacer(),
-                if (done)
-                  const Text(
-                    '今日回報已完成',
-                    style: TextStyle(
-                      color: Color(0xFF2E7D32),
-                      fontWeight: FontWeight.w800,
-                    ),
-                  )
-                else
-                  Text(
-                    '待填 ${snapshot.pendingCount} 場／完成 ${snapshot.completedCount} 場',
-                    style: const TextStyle(fontWeight: FontWeight.w700),
-                  ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _WideSummary extends StatelessWidget {
-  const _WideSummary({required this.snapshot});
-
-  final DailyCareReportCenterSnapshot snapshot;
-
-  @override
-  Widget build(BuildContext context) {
-    final double progress = snapshot.totalCount == 0
-        ? 0
-        : snapshot.completedCount / snapshot.totalCount;
-    return Card(
-      elevation: 0,
-      color: Colors.white,
-      child: Padding(
         padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
-        child: Column(
+        child: Row(
           children: <Widget>[
-            ClipRRect(
-              borderRadius: BorderRadius.circular(99),
-              child: LinearProgressIndicator(
-                minHeight: 5,
-                value: progress,
-                backgroundColor: const Color(0xFFE8EDF2),
-              ),
-            ),
-            const SizedBox(height: 12),
-            Row(
-              children: <Widget>[
-                _stat(
-                  '待填',
-                  '${snapshot.pendingCount} 場',
-                  const Color(0xFFE65100),
-                ),
-                _stat(
-                  '已完成',
-                  '${snapshot.completedCount} 場',
-                  const Color(0xFF2E7D32),
-                ),
-                _stat(
-                  '共計',
-                  '${snapshot.totalCount} 場',
-                  const Color(0xFF1565C0),
-                ),
-              ],
-            ),
+            _stat('待填', snapshot.pendingCount, const Color(0xFFE65100)),
+            _stat('已完成', snapshot.completedCount, const Color(0xFF2E7D32)),
+            _stat('總計', snapshot.totalCount, const Color(0xFF1565C0)),
           ],
         ),
       ),
     );
   }
 
-  Widget _stat(String label, String value, Color color) {
+  Widget _stat(String label, int count, Color color) {
     return Expanded(
       child: Column(
         children: <Widget>[
           Text(
-            value,
+            '$count 場',
             style: TextStyle(
               fontSize: 20,
               fontWeight: FontWeight.w800,
@@ -443,8 +452,51 @@ class _WideSummary extends StatelessWidget {
   }
 }
 
-class _FilterRows extends StatelessWidget {
-  const _FilterRows({
+class _TypeTabs extends StatelessWidget {
+  const _TypeTabs({
+    required this.snapshot,
+    required this.type,
+    required this.onType,
+  });
+
+  final DailyCareReportCenterSnapshot snapshot;
+  final DailyCareReportCenterTypeFilter type;
+  final ValueChanged<DailyCareReportCenterTypeFilter> onType;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: double.infinity,
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: SegmentedButton<DailyCareReportCenterTypeFilter>(
+          showSelectedIcon: false,
+          segments: <ButtonSegment<DailyCareReportCenterTypeFilter>>[
+            ButtonSegment<DailyCareReportCenterTypeFilter>(
+              value: DailyCareReportCenterTypeFilter.all,
+              label: Text('全部 ${snapshot.totalCount}'),
+            ),
+            ButtonSegment<DailyCareReportCenterTypeFilter>(
+              value: DailyCareReportCenterTypeFilter.stay,
+              label: Text('住宿 ${snapshot.stayCount}'),
+            ),
+            ButtonSegment<DailyCareReportCenterTypeFilter>(
+              value: DailyCareReportCenterTypeFilter.daycare,
+              label: Text('安親 ${snapshot.daycareCount}'),
+            ),
+          ],
+          selected: <DailyCareReportCenterTypeFilter>{type},
+          onSelectionChanged: (Set<DailyCareReportCenterTypeFilter> value) {
+            onType(value.first);
+          },
+        ),
+      ),
+    );
+  }
+}
+
+class _StatusTabs extends StatelessWidget {
+  const _StatusTabs({
     required this.snapshot,
     required this.status,
     required this.onStatus,
@@ -464,16 +516,16 @@ class _FilterRows extends StatelessWidget {
           showSelectedIcon: false,
           segments: <ButtonSegment<DailyCareReportCenterStatusFilter>>[
             ButtonSegment<DailyCareReportCenterStatusFilter>(
-              value: DailyCareReportCenterStatusFilter.all,
-              label: Text('全部 ${snapshot.totalCount}'),
-            ),
-            ButtonSegment<DailyCareReportCenterStatusFilter>(
               value: DailyCareReportCenterStatusFilter.pending,
               label: Text('待填 ${snapshot.pendingCount}'),
             ),
             ButtonSegment<DailyCareReportCenterStatusFilter>(
               value: DailyCareReportCenterStatusFilter.completed,
               label: Text('已完成 ${snapshot.completedCount}'),
+            ),
+            ButtonSegment<DailyCareReportCenterStatusFilter>(
+              value: DailyCareReportCenterStatusFilter.all,
+              label: Text('全部 ${snapshot.totalCount}'),
             ),
           ],
           selected: <DailyCareReportCenterStatusFilter>{status},
@@ -486,16 +538,45 @@ class _FilterRows extends StatelessWidget {
   }
 }
 
+class _SearchField extends StatelessWidget {
+  const _SearchField({required this.controller, required this.onQuery});
+
+  final TextEditingController controller;
+  final ValueChanged<String>? onQuery;
+
+  @override
+  Widget build(BuildContext context) {
+    return TextField(
+      controller: controller,
+      onChanged: onQuery,
+      decoration: const InputDecoration(
+        prefixIcon: Icon(Icons.search),
+        hintText: '搜尋訂單編號、房間、房型、寵物或飼主',
+        filled: true,
+        fillColor: Colors.white,
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.all(Radius.circular(12)),
+          borderSide: BorderSide.none,
+        ),
+      ),
+    );
+  }
+}
+
 class _FilterRail extends StatelessWidget {
   const _FilterRail({
     required this.snapshot,
     required this.status,
     required this.onStatus,
+    required this.type,
+    required this.onType,
   });
 
   final DailyCareReportCenterSnapshot snapshot;
   final DailyCareReportCenterStatusFilter status;
   final ValueChanged<DailyCareReportCenterStatusFilter> onStatus;
+  final DailyCareReportCenterTypeFilter type;
+  final ValueChanged<DailyCareReportCenterTypeFilter> onType;
 
   @override
   Widget build(BuildContext context) {
@@ -507,119 +588,123 @@ class _FilterRail extends StatelessWidget {
         children: <Widget>[
           const Padding(
             padding: EdgeInsets.fromLTRB(16, 8, 16, 4),
+            child: Text('分類', style: TextStyle(fontWeight: FontWeight.w800)),
+          ),
+          _tile(
+            '全部',
+            snapshot.totalCount,
+            type == DailyCareReportCenterTypeFilter.all,
+            () => onType(DailyCareReportCenterTypeFilter.all),
+          ),
+          _tile(
+            '住宿',
+            snapshot.stayCount,
+            type == DailyCareReportCenterTypeFilter.stay,
+            () => onType(DailyCareReportCenterTypeFilter.stay),
+          ),
+          _tile(
+            '安親',
+            snapshot.daycareCount,
+            type == DailyCareReportCenterTypeFilter.daycare,
+            () => onType(DailyCareReportCenterTypeFilter.daycare),
+          ),
+          const Padding(
+            padding: EdgeInsets.fromLTRB(16, 16, 16, 4),
             child: Text('狀態', style: TextStyle(fontWeight: FontWeight.w800)),
           ),
-          _railTile(
-            label: '全部',
-            badge: snapshot.totalCount,
-            selected: status == DailyCareReportCenterStatusFilter.all,
-            onTap: () => onStatus(DailyCareReportCenterStatusFilter.all),
+          _tile(
+            '待填',
+            snapshot.pendingCount,
+            status == DailyCareReportCenterStatusFilter.pending,
+            () => onStatus(DailyCareReportCenterStatusFilter.pending),
           ),
-          _railTile(
-            label: '待填',
-            badge: snapshot.pendingCount,
-            selected: status == DailyCareReportCenterStatusFilter.pending,
-            onTap: () => onStatus(DailyCareReportCenterStatusFilter.pending),
+          _tile(
+            '已完成',
+            snapshot.completedCount,
+            status == DailyCareReportCenterStatusFilter.completed,
+            () => onStatus(DailyCareReportCenterStatusFilter.completed),
           ),
-          _railTile(
-            label: '已完成',
-            badge: snapshot.completedCount,
-            selected: status == DailyCareReportCenterStatusFilter.completed,
-            onTap: () => onStatus(DailyCareReportCenterStatusFilter.completed),
+          _tile(
+            '全部',
+            snapshot.totalCount,
+            status == DailyCareReportCenterStatusFilter.all,
+            () => onStatus(DailyCareReportCenterStatusFilter.all),
           ),
         ],
       ),
     );
   }
 
-  Widget _railTile({
-    required String label,
-    required bool selected,
-    required VoidCallback onTap,
-    int? badge,
-  }) {
+  Widget _tile(String label, int badge, bool selected, VoidCallback onTap) {
     return ListTile(
       dense: true,
       selected: selected,
       title: Text(label),
-      trailing: badge == null
-          ? null
-          : CircleAvatar(
-              radius: 11,
-              backgroundColor: selected
-                  ? const Color(0xFF1565C0)
-                  : const Color(0xFFE5E7EB),
-              child: Text(
-                '$badge',
-                style: TextStyle(
-                  fontSize: 11,
-                  color: selected ? Colors.white : const Color(0xFF374151),
-                ),
-              ),
-            ),
+      trailing: CircleAvatar(
+        radius: 11,
+        backgroundColor: selected
+            ? const Color(0xFF1565C0)
+            : const Color(0xFFE5E7EB),
+        child: Text(
+          '$badge',
+          style: TextStyle(
+            fontSize: 11,
+            color: selected ? Colors.white : const Color(0xFF374151),
+          ),
+        ),
+      ),
       onTap: onTap,
     );
   }
 }
 
 class _EmptyState extends StatelessWidget {
-  const _EmptyState({required this.status});
+  const _EmptyState({required this.snapshot, required this.status});
 
+  final DailyCareReportCenterSnapshot snapshot;
   final DailyCareReportCenterStatusFilter status;
 
   @override
   Widget build(BuildContext context) {
-    final bool pending = status == DailyCareReportCenterStatusFilter.pending;
-    final bool completed =
-        status == DailyCareReportCenterStatusFilter.completed;
+    final String message;
+    if (snapshot.totalCount == 0) {
+      message = '目前沒有需處理的每日回報';
+    } else if (status == DailyCareReportCenterStatusFilter.pending) {
+      message = '目前沒有待填的每日回報';
+    } else if (status == DailyCareReportCenterStatusFilter.completed) {
+      message = '目前沒有已完成的每日回報';
+    } else {
+      message = '目前沒有符合條件的每日回報';
+    }
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: <Widget>[
-            Icon(
-              pending ? Icons.check_circle_outline : Icons.inbox_outlined,
-              size: 48,
-              color: pending
-                  ? const Color(0xFF2E7D32)
-                  : const Color(0xFF9CA3AF),
-            ),
-            const SizedBox(height: 12),
-            Text(
-              pending
-                  ? '今天沒有待填的照護回報'
-                  : completed
-                  ? '今天尚無已完成回報'
-                  : '今天沒有照護回報',
-              textAlign: TextAlign.center,
-              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
-            ),
-            if (pending) ...<Widget>[
-              const SizedBox(height: 8),
-              const Text(
-                '可切換到「已完成」查看今天的回報',
-                textAlign: TextAlign.center,
-                style: TextStyle(color: Colors.black54),
-              ),
-            ],
-          ],
+        child: Text(
+          message,
+          textAlign: TextAlign.center,
+          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
         ),
       ),
     );
   }
 }
 
-class _RoomCard extends StatelessWidget {
-  const _RoomCard({
+class _BookingCard extends StatelessWidget {
+  const _BookingCard({
     required this.group,
     required this.setting,
-    required this.compact,
+    required this.expanded,
+    required this.onToggle,
+    required this.highlight,
+    required this.focusSessionIndex,
   });
 
-  final DailyCareReportCenterRoomGroup group;
+  final DailyCareReportCenterBookingDayGroup group;
   final DailyCareSettingModel setting;
-  final bool compact;
+  final bool expanded;
+  final VoidCallback onToggle;
+  final bool highlight;
+  final int? focusSessionIndex;
 
   @override
   Widget build(BuildContext context) {
@@ -629,298 +714,223 @@ class _RoomCard extends StatelessWidget {
         : const Color(0xFF2E7D32);
     return Card(
       elevation: 0,
-      color: Colors.white,
-      clipBehavior: Clip.antiAlias,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: IntrinsicHeight(
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: <Widget>[
-            Container(width: 6, color: accent),
-            Expanded(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: <Widget>[
-                    Row(
+      margin: const EdgeInsets.only(bottom: 8),
+      color: highlight ? const Color(0xFFF3F8FF) : Colors.white,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(
+          color: highlight ? const Color(0xFF90CAF9) : const Color(0xFFE5E7EB),
+        ),
+      ),
+      child: Column(
+        children: <Widget>[
+          InkWell(
+            onTap: onToggle,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(12, 8, 6, 8),
+              child: Row(
+                children: <Widget>[
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: <Widget>[
-                        Expanded(
-                          child: Text(
-                            item.placeLabel,
-                            style: TextStyle(
-                              fontSize: compact ? 22 : 20,
-                              fontWeight: FontWeight.w800,
+                        Wrap(
+                          spacing: 6,
+                          runSpacing: 4,
+                          crossAxisAlignment: WrapCrossAlignment.center,
+                          children: <Widget>[
+                            _MiniChip(
+                              label: item.typeLabel,
+                              color: const Color(0xFF3949AB),
                             ),
-                          ),
+                            _MiniChip(
+                              label: item.reportsLocked
+                                  ? (group.hasPending ? '未完成・已鎖定' : '已完成・唯讀')
+                                  : (group.hasPending
+                                        ? '未完成 ${group.pendingCount} 場'
+                                        : '已完成'),
+                              color: item.reportsLocked
+                                  ? const Color(0xFF616161)
+                                  : accent,
+                            ),
+                            Text(
+                              item.bookingCode.isEmpty
+                                  ? item.bookingId
+                                  : item.bookingCode,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w800,
+                                fontSize: 13,
+                              ),
+                            ),
+                          ],
                         ),
-                        _TypeTag(label: item.typeLabel),
-                        const SizedBox(width: 6),
+                        const SizedBox(height: 4),
                         Text(
-                          group.hasPending
-                              ? '待填 ${group.pendingCount} 場'
-                              : '已完成',
+                          <String>[
+                            item.placeLabel,
+                            if (item.customerName.isNotEmpty) item.customerName,
+                            if (item.petNamesShort.isNotEmpty)
+                              item.petNamesShort,
+                          ].join('・'),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(fontSize: 13),
+                        ),
+                        Text(
+                          '${group.completedCount}/${group.totalCount} 場',
                           style: TextStyle(
+                            fontSize: 12,
                             fontWeight: FontWeight.w800,
                             color: accent,
                           ),
                         ),
                       ],
                     ),
-                    const SizedBox(height: 8),
-                    Row(
-                      children: <Widget>[
-                        _PetAvatar(photoUrl: item.petPhotoUrl),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            item.petNamesShort.isEmpty
-                                ? '尚未指定寵物'
-                                : item.petNamesShort,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(fontWeight: FontWeight.w700),
-                          ),
-                        ),
-                      ],
-                    ),
-                    if (item.customerName.isNotEmpty ||
-                        item.scheduleText.isNotEmpty) ...<Widget>[
-                      const SizedBox(height: 6),
-                      Text(
-                        <String>[
-                          if (item.customerName.isNotEmpty) item.customerName,
-                          if (item.scheduleText.isNotEmpty) item.scheduleText,
-                        ].join('・'),
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          fontSize: 13,
-                          color: Colors.black54,
-                        ),
-                      ),
-                    ],
-                    const SizedBox(height: 6),
-                    Text(
-                      item.entitlement.dailyQuotaLine,
-                      style: const TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    if (!compact) ...<Widget>[
-                      if (item.bookingCode.isNotEmpty) ...<Widget>[
-                        const SizedBox(height: 4),
-                        Text(
-                          '訂單 ${item.bookingCode}',
-                          style: const TextStyle(
-                            fontSize: 12.5,
-                            color: Colors.black54,
-                          ),
-                        ),
-                      ],
-                      if (item.roomTypeName.isNotEmpty) ...<Widget>[
-                        const SizedBox(height: 2),
-                        Text(
-                          '房型 ${item.roomTypeName}',
-                          style: const TextStyle(
-                            fontSize: 12.5,
-                            color: Colors.black54,
-                          ),
-                        ),
-                      ],
-                      if (group.allCompleted &&
-                          group.lastCompletedAt != null) ...<Widget>[
-                        const SizedBox(height: 2),
-                        Text(
-                          '最後更新 ${_formatTime(group.lastCompletedAt!)}',
-                          style: const TextStyle(
-                            fontSize: 12.5,
-                            color: Colors.black54,
-                          ),
-                        ),
-                      ],
-                    ],
-                    const SizedBox(height: 10),
-                    if (compact)
-                      Wrap(
-                        spacing: 6,
-                        runSpacing: 6,
-                        children: <Widget>[
-                          for (final DailyCareReportCenterItem session
-                              in group.sessions)
-                            _SessionChip(
-                              session: session,
-                              onTap: () => _open(context, session),
-                            ),
-                        ],
-                      )
-                    else
-                      Column(
-                        children: <Widget>[
-                          for (final DailyCareReportCenterItem session
-                              in group.sessions)
-                            _SessionRow(
-                              session: session,
-                              onTap: () => _open(context, session),
-                            ),
-                        ],
-                      ),
-                    const SizedBox(height: 12),
-                    SizedBox(
-                      width: double.infinity,
-                      height: compact ? 48 : 44,
-                      child: FilledButton(
-                        onPressed: item.canOperate
-                            ? () => _open(context, group.primaryActionSession)
-                            : null,
-                        child: Text(group.primaryActionLabel),
-                      ),
-                    ),
-                  ],
-                ),
+                  ),
+                  Icon(
+                    expanded ? Icons.expand_less : Icons.expand_more,
+                    color: Colors.black54,
+                  ),
+                ],
               ),
             ),
-          ],
-        ),
+          ),
+          if (expanded)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(8, 0, 8, 10),
+              child: Column(
+                children: <Widget>[
+                  for (final DailyCareReportCenterItem session
+                      in group.sessions)
+                    _SessionRow(
+                      session: session,
+                      setting: setting,
+                      highlight:
+                          highlight &&
+                          focusSessionIndex != null &&
+                          session.sessionIndex == focusSessionIndex,
+                    ),
+                ],
+              ),
+            ),
+        ],
       ),
     );
   }
+}
 
-  Future<void> _open(BuildContext context, DailyCareReportCenterItem session) {
-    return DailyCareRecordEditLauncher.open(
-      context: context,
-      shopId: session.shopId,
-      bookingId: session.bookingId,
-      recordDate: session.recordDate,
-      sessionIndex: session.sessionIndex,
-      roomId: session.roomId,
-      roomName: session.roomName,
-      serviceType: session.serviceType,
-      petIds: session.petIds,
-      setting: setting,
-      entitlement: session.entitlement,
+class _SessionRow extends StatelessWidget {
+  const _SessionRow({
+    required this.session,
+    required this.setting,
+    required this.highlight,
+  });
+
+  final DailyCareReportCenterItem session;
+  final DailyCareSettingModel setting;
+  final bool highlight;
+
+  @override
+  Widget build(BuildContext context) {
+    final bool done = session.isCompleted;
+    final bool locked = session.reportsLocked;
+    final String status = DailyCareSessionStatus.sessionLine(
+      completed: done,
+      photoCount: session.photoCount,
+      locked: locked,
     );
-  }
-
-  String _formatTime(DateTime value) {
-    final String h = value.hour.toString().padLeft(2, '0');
-    final String m = value.minute.toString().padLeft(2, '0');
-    return '${value.month}/${value.day} $h:$m';
+    return Container(
+      margin: const EdgeInsets.only(bottom: 2),
+      padding: const EdgeInsets.fromLTRB(8, 4, 4, 4),
+      decoration: BoxDecoration(
+        color: highlight ? const Color(0xFFE3F2FD) : Colors.transparent,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        children: <Widget>[
+          Icon(
+            locked
+                ? Icons.lock_outline
+                : (done ? Icons.check_circle : Icons.radio_button_unchecked),
+            size: 16,
+            color: locked
+                ? const Color(0xFF757575)
+                : (done ? const Color(0xFF2E7D32) : const Color(0xFFE65100)),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              '${session.sessionName}　$status',
+              style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+            ),
+          ),
+          if (locked)
+            TextButton(
+              onPressed: done
+                  ? () => DailyCareRecordEditLauncher.open(
+                      context: context,
+                      shopId: session.shopId,
+                      bookingId: session.bookingId,
+                      recordDate: session.recordDate,
+                      sessionIndex: session.sessionIndex,
+                      roomId: session.roomId,
+                      roomName: session.roomName,
+                      serviceType: session.serviceType,
+                      petIds: session.petIds,
+                      setting: setting,
+                      entitlement: session.entitlement,
+                      readOnly: true,
+                    )
+                  : null,
+              child: Text(done ? '查看' : '已鎖定'),
+            )
+          else
+            TextButton(
+              onPressed: session.canOperate
+                  ? () => DailyCareRecordEditLauncher.open(
+                      context: context,
+                      shopId: session.shopId,
+                      bookingId: session.bookingId,
+                      recordDate: session.recordDate,
+                      sessionIndex: session.sessionIndex,
+                      roomId: session.roomId,
+                      roomName: session.roomName,
+                      serviceType: session.serviceType,
+                      petIds: session.petIds,
+                      setting: setting,
+                      entitlement: session.entitlement,
+                    )
+                  : null,
+              child: Text(done ? '查看／編輯' : '填寫'),
+            ),
+        ],
+      ),
+    );
   }
 }
 
-class _TypeTag extends StatelessWidget {
-  const _TypeTag({required this.label});
+class _MiniChip extends StatelessWidget {
+  const _MiniChip({required this.label, required this.color});
 
   final String label;
+  final Color color;
 
   @override
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
-        color: const Color(0xFFEEF2FF),
+        color: color.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(99),
       ),
       child: Text(
         label,
-        style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700),
-      ),
-    );
-  }
-}
-
-class _PetAvatar extends StatelessWidget {
-  const _PetAvatar({required this.photoUrl});
-
-  final String photoUrl;
-
-  @override
-  Widget build(BuildContext context) {
-    return CircleAvatar(
-      radius: 18,
-      backgroundColor: const Color(0xFFFFE0B2),
-      backgroundImage: photoUrl.isNotEmpty ? NetworkImage(photoUrl) : null,
-      child: photoUrl.isEmpty
-          ? const Icon(Icons.pets, color: Color(0xFFBF360C), size: 18)
-          : null,
-    );
-  }
-}
-
-class _SessionChip extends StatelessWidget {
-  const _SessionChip({required this.session, required this.onTap});
-
-  final DailyCareReportCenterItem session;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final bool done = session.isCompleted;
-    return ActionChip(
-      onPressed: session.canOperate ? onTap : null,
-      avatar: Icon(
-        done ? Icons.check_circle : Icons.error_outline,
-        size: 16,
-        color: done ? const Color(0xFF2E7D32) : const Color(0xFFE65100),
-      ),
-      label: Text('${session.sessionName} ${done ? '已完成' : '待填'}'),
-      backgroundColor: done ? const Color(0xFFE8F5E9) : const Color(0xFFFFF3E0),
-    );
-  }
-}
-
-class _SessionRow extends StatelessWidget {
-  const _SessionRow({required this.session, required this.onTap});
-
-  final DailyCareReportCenterItem session;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final bool done = session.isCompleted;
-    return InkWell(
-      onTap: session.canOperate ? onTap : null,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 6),
-        child: Row(
-          children: <Widget>[
-            Icon(
-              done ? Icons.check_circle : Icons.radio_button_unchecked,
-              size: 18,
-              color: done ? const Color(0xFF2E7D32) : const Color(0xFFE65100),
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Text(
-                session.sessionName,
-                style: const TextStyle(fontWeight: FontWeight.w700),
-              ),
-            ),
-            Text(
-              done ? '已完成' : '待填',
-              style: TextStyle(
-                fontWeight: FontWeight.w800,
-                color: done ? const Color(0xFF2E7D32) : const Color(0xFFE65100),
-              ),
-            ),
-            if (done && session.updatedAt != null) ...<Widget>[
-              const SizedBox(width: 8),
-              Text(
-                _formatTime(session.updatedAt!),
-                style: const TextStyle(fontSize: 12, color: Colors.black45),
-              ),
-            ],
-          ],
+        style: TextStyle(
+          fontSize: 11,
+          fontWeight: FontWeight.w800,
+          color: color,
         ),
       ),
     );
-  }
-
-  String _formatTime(DateTime value) {
-    final String h = value.hour.toString().padLeft(2, '0');
-    final String m = value.minute.toString().padLeft(2, '0');
-    return '$h:$m';
   }
 }

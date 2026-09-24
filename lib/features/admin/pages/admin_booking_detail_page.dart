@@ -254,17 +254,6 @@ class AdminBookingDetailPage extends StatelessWidget {
                                     data: data,
                                   );
                                 },
-                                onOpenDailyCareReport:
-                                    (data['status'] ?? '').toString() ==
-                                        'checked_in'
-                                    ? () =>
-                                          AdminDailyCareReportShortcut.openStayEntry(
-                                            context: context,
-                                            shopId: shopId,
-                                            bookingId: bookingId,
-                                            booking: data,
-                                          )
-                                    : null,
                               ),
                             )
                           : null,

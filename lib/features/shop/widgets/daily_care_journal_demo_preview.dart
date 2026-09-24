@@ -55,10 +55,7 @@ class DailyCareJournalDemoPreview extends StatelessWidget {
                         SizedBox(height: 6),
                         Text('飲水 一般　飼料 有吃'),
                         SizedBox(height: 8),
-                        Text(
-                          '今天精神很好，有好好吃飯喝水。',
-                          style: TextStyle(height: 1.35),
-                        ),
+                        Text('今天精神很好，有好好吃飯喝水。', style: TextStyle(height: 1.35)),
                       ],
                     ),
                   ),

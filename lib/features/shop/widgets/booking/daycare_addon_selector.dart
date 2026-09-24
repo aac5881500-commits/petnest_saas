@@ -192,182 +192,185 @@ class DaycareAddonSelector extends StatelessWidget {
               )
             : null,
         child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: <Widget>[
-        InkWell(
-          onTap: () => onToggleAddon(id),
-          borderRadius: BorderRadius.circular(10),
-          child: AddonItemCard(
-            item: <String, dynamic>{
-              'name': DaycareAddonCatalog.displayName(addon),
-              'desc': desc.isEmpty ? chargeHint : desc,
-              'price': price,
-            },
-            isSelected: selected,
-          ),
-        ),
-        if (selected &&
-            (group == DaycareAddonLine.groupCustom ||
-                group == DaycareAddonLine.groupDailyTimed))
-          Container(
-            width: double.infinity,
-            margin: const EdgeInsets.only(bottom: 10),
-            padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
-            decoration: BoxDecoration(
-              color: theme.primaryColor.withValues(alpha: 0.06),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                color: theme.primaryColor.withValues(alpha: 0.18),
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            InkWell(
+              onTap: () => onToggleAddon(id),
+              borderRadius: BorderRadius.circular(10),
+              child: AddonItemCard(
+                item: <String, dynamic>{
+                  'name': DaycareAddonCatalog.displayName(addon),
+                  'desc': desc.isEmpty ? chargeHint : desc,
+                  'price': price,
+                },
+                isSelected: selected,
               ),
             ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[
-                Text(
-                  '選擇服務寵物',
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w700,
-                    color: theme.textColor,
+            if (selected &&
+                (group == DaycareAddonLine.groupCustom ||
+                    group == DaycareAddonLine.groupDailyTimed))
+              Container(
+                width: double.infinity,
+                margin: const EdgeInsets.only(bottom: 10),
+                padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
+                decoration: BoxDecoration(
+                  color: theme.primaryColor.withValues(alpha: 0.06),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: theme.primaryColor.withValues(alpha: 0.18),
                   ),
                 ),
-                const SizedBox(height: 8),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: <Widget>[
-                    FilterChip(
-                      label: const Text('全部寵物'),
-                      selected:
-                          selectedPetIds.isNotEmpty &&
-                          selectedPetIds.every(petsForAddon.contains) &&
-                          petsForAddon.length == selectedPetIds.length,
-                      onSelected: (_) {
-                        for (final String petId in selectedPetIds) {
-                          if (!petsForAddon.contains(petId)) {
-                            onTogglePet(id, petId);
-                          }
-                        }
-                        for (final String petId in petsForAddon.toList()) {
-                          if (!selectedPetIds.contains(petId)) {
-                            onTogglePet(id, petId);
-                          }
-                        }
-                      },
+                    Text(
+                      '選擇服務寵物',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                        color: theme.textColor,
+                      ),
                     ),
-                    ...pets
-                        .where(
-                          (Map<String, dynamic> pet) =>
-                              selectedPetIds.contains(_petId(pet)),
-                        )
-                        .map((Map<String, dynamic> pet) {
-                          final String petId = _petId(pet);
-                          final String? photo = _petPhoto(pet);
-                          return FilterChip(
-                            avatar: CircleAvatar(
-                              backgroundColor: Colors.grey.shade200,
-                              backgroundImage: photo != null
-                                  ? NetworkImage(photo)
-                                  : null,
-                              child: photo == null
-                                  ? const Icon(Icons.pets, size: 16)
-                                  : null,
-                            ),
-                            label: Text(_petName(pet)),
-                            selected: petsForAddon.contains(petId),
-                            onSelected: (_) => onTogglePet(id, petId),
-                          );
-                        }),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: <Widget>[
+                        FilterChip(
+                          label: const Text('全部寵物'),
+                          selected:
+                              selectedPetIds.isNotEmpty &&
+                              selectedPetIds.every(petsForAddon.contains) &&
+                              petsForAddon.length == selectedPetIds.length,
+                          onSelected: (_) {
+                            for (final String petId in selectedPetIds) {
+                              if (!petsForAddon.contains(petId)) {
+                                onTogglePet(id, petId);
+                              }
+                            }
+                            for (final String petId in petsForAddon.toList()) {
+                              if (!selectedPetIds.contains(petId)) {
+                                onTogglePet(id, petId);
+                              }
+                            }
+                          },
+                        ),
+                        ...pets
+                            .where(
+                              (Map<String, dynamic> pet) =>
+                                  selectedPetIds.contains(_petId(pet)),
+                            )
+                            .map((Map<String, dynamic> pet) {
+                              final String petId = _petId(pet);
+                              final String? photo = _petPhoto(pet);
+                              return FilterChip(
+                                avatar: CircleAvatar(
+                                  backgroundColor: Colors.grey.shade200,
+                                  backgroundImage: photo != null
+                                      ? NetworkImage(photo)
+                                      : null,
+                                  child: photo == null
+                                      ? const Icon(Icons.pets, size: 16)
+                                      : null,
+                                ),
+                                label: Text(_petName(pet)),
+                                selected: petsForAddon.contains(petId),
+                                onSelected: (_) => onTogglePet(id, petId),
+                              );
+                            }),
+                      ],
+                    ),
+                    if (group == DaycareAddonLine.groupDailyTimed) ...<Widget>[
+                      const SizedBox(height: 12),
+                      Text(
+                        '選擇時段',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                          color: theme.textColor,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        '僅顯示完整落在送達～接回時間內的時段',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: theme.textColor.withValues(alpha: 0.65),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children:
+                            DaycareAddonLine.slotsFullyInside(
+                              timeSlots: (addon['timeSlots'] is List)
+                                  ? (addon['timeSlots'] as List)
+                                        .whereType<Map>()
+                                        .map(
+                                          (Map<dynamic, dynamic> item) =>
+                                              Map<String, dynamic>.from(item),
+                                        )
+                                        .toList()
+                                  : const <Map<String, dynamic>>[],
+                              scheduledStartAt: scheduledStartAt,
+                              scheduledEndAt: scheduledEndAt,
+                            ).map((Map<String, dynamic> slot) {
+                              final String key =
+                                  ((slot['id'] ?? '')
+                                              .toString()
+                                              .trim()
+                                              .isNotEmpty
+                                          ? slot['id']
+                                          : slot['label'])
+                                      .toString();
+                              final String label = (slot['label'] ?? key)
+                                  .toString();
+                              final bool slotOn =
+                                  slotsForAddon.contains(key) ||
+                                  slotsForAddon.contains(label);
+                              return FilterChip(
+                                label: Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 2,
+                                    vertical: 2,
+                                  ),
+                                  child: Text(label),
+                                ),
+                                selected: slotOn,
+                                onSelected: (_) => onToggleSlot(id, key),
+                              );
+                            }).toList(),
+                      ),
+                    ],
+                    if (subtotalText != null) ...<Widget>[
+                      const SizedBox(height: 10),
+                      Text(
+                        subtotalText,
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w800,
+                          color: theme.primaryColor,
+                        ),
+                      ),
+                    ],
                   ],
                 ),
-                if (group == DaycareAddonLine.groupDailyTimed) ...<Widget>[
-                  const SizedBox(height: 12),
-                  Text(
-                    '選擇時段',
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w700,
-                      color: theme.textColor,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    '僅顯示完整落在送達～接回時間內的時段',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: theme.textColor.withValues(alpha: 0.65),
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children:
-                        DaycareAddonLine.slotsFullyInside(
-                          timeSlots: (addon['timeSlots'] is List)
-                              ? (addon['timeSlots'] as List)
-                                    .whereType<Map>()
-                                    .map(
-                                      (Map<dynamic, dynamic> item) =>
-                                          Map<String, dynamic>.from(item),
-                                    )
-                                    .toList()
-                              : const <Map<String, dynamic>>[],
-                          scheduledStartAt: scheduledStartAt,
-                          scheduledEndAt: scheduledEndAt,
-                        ).map((Map<String, dynamic> slot) {
-                          final String key =
-                              ((slot['id'] ?? '').toString().trim().isNotEmpty
-                                      ? slot['id']
-                                      : slot['label'])
-                                  .toString();
-                          final String label = (slot['label'] ?? key)
-                              .toString();
-                          final bool slotOn =
-                              slotsForAddon.contains(key) ||
-                              slotsForAddon.contains(label);
-                          return FilterChip(
-                            label: Padding(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 2,
-                                vertical: 2,
-                              ),
-                              child: Text(label),
-                            ),
-                            selected: slotOn,
-                            onSelected: (_) => onToggleSlot(id, key),
-                          );
-                        }).toList(),
-                  ),
-                ],
-                if (subtotalText != null) ...<Widget>[
-                  const SizedBox(height: 10),
-                  Text(
-                    subtotalText,
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w800,
-                      color: theme.primaryColor,
-                    ),
-                  ),
-                ],
-              ],
-            ),
-          ),
-        if (error)
-          const Padding(
-            padding: EdgeInsets.fromLTRB(4, 0, 4, 6),
-            child: Text(
-              '請選擇要使用此服務的寵物',
-              style: TextStyle(
-                color: Color(0xFFC62828),
-                fontWeight: FontWeight.w700,
-                fontSize: 13,
               ),
-            ),
-          ),
-      ],
-    ),
+            if (error)
+              const Padding(
+                padding: EdgeInsets.fromLTRB(4, 0, 4, 6),
+                child: Text(
+                  '請選擇要使用此服務的寵物',
+                  style: TextStyle(
+                    color: Color(0xFFC62828),
+                    fontWeight: FontWeight.w700,
+                    fontSize: 13,
+                  ),
+                ),
+              ),
+          ],
+        ),
       ),
     );
   }

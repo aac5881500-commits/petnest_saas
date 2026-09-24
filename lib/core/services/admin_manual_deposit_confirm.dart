@@ -66,24 +66,26 @@ class AdminManualDepositConfirm {
       throw StateError('確認訂金未寫入付款狀態，請重試');
     }
     try {
-      await FirebaseFirestore.instance.collection('action_logs').add(<String, dynamic>{
-        'type': 'deposit_confirmed',
-        'bookingId': bookingId,
-        'bookingShortId': bookingId.length >= 8
-            ? bookingId.substring(0, 8)
-            : bookingId,
-        'shopId': after['shopId'],
-        'roomId': after['roomId'],
-        'roomName': after['roomName'],
-        'roomTypeName': after['roomTypeName'],
-        'depositAmount': after['depositAmount'] ?? 0,
-        'paymentMethod': after['paymentMethod'],
-        'transferLast5': after['transferLast5'],
-        'operatorUid': user?.uid,
-        'operatorRole': 'staff',
-        'operatorEmail': user?.email,
-        'createdAt': FieldValue.serverTimestamp(),
-      });
+      await FirebaseFirestore.instance
+          .collection('action_logs')
+          .add(<String, dynamic>{
+            'type': 'deposit_confirmed',
+            'bookingId': bookingId,
+            'bookingShortId': bookingId.length >= 8
+                ? bookingId.substring(0, 8)
+                : bookingId,
+            'shopId': after['shopId'],
+            'roomId': after['roomId'],
+            'roomName': after['roomName'],
+            'roomTypeName': after['roomTypeName'],
+            'depositAmount': after['depositAmount'] ?? 0,
+            'paymentMethod': after['paymentMethod'],
+            'transferLast5': after['transferLast5'],
+            'operatorUid': user?.uid,
+            'operatorRole': 'staff',
+            'operatorEmail': user?.email,
+            'createdAt': FieldValue.serverTimestamp(),
+          });
     } on FirebaseException catch (error) {
       throw StateError(
         '訂金已寫入訂單，但操作紀錄寫入失敗：[${error.plugin}/${error.code}] '

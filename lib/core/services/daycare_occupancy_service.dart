@@ -86,8 +86,10 @@ class DaycareOccupancyService {
   }
 
   static String permanentStatusOf(Map<String, dynamic> room) {
-    final String permanent =
-        (room['permanentStatus'] ?? '').toString().trim().toLowerCase();
+    final String permanent = (room['permanentStatus'] ?? '')
+        .toString()
+        .trim()
+        .toLowerCase();
     if (permanent == 'available' ||
         permanent == 'maintenance' ||
         permanent == 'blocked' ||
@@ -392,8 +394,7 @@ class DaycareOccupancyService {
               <String, dynamic>{'id': doc.id, ...doc.data()},
         )
         .toList();
-    final List<Map<String, dynamic>> calendarEntries =
-        <Map<String, dynamic>>[];
+    final List<Map<String, dynamic>> calendarEntries = <Map<String, dynamic>>[];
     for (final Map<String, dynamic> room in rooms) {
       if ((room['roomTypeId'] ?? '').toString().trim() != roomTypeId.trim()) {
         continue;
@@ -658,10 +659,7 @@ class DaycareOccupancyService {
       }
       final String roomName = (room['name'] ?? doc.id).toString();
       final String roomCode =
-          (room['roomCode'] ??
-                  room['number'] ??
-                  room['roomNumber'] ??
-                  roomName)
+          (room['roomCode'] ?? room['number'] ?? room['roomNumber'] ?? roomName)
               .toString();
       if (busy) {
         result.add(
@@ -755,9 +753,7 @@ class DaycareOccupancyService {
     String dateKey = '',
     String alternateTypeId = '',
   }) {
-    if (petCount > 0 &&
-        roomTypeCapacity > 0 &&
-        petCount > roomTypeCapacity) {
+    if (petCount > 0 && roomTypeCapacity > 0 && petCount > roomTypeCapacity) {
       return DaycareRoomRemaining(
         remaining: 0,
         createdCount: 0,
@@ -817,9 +813,7 @@ class DaycareOccupancyService {
       if (roomId.isEmpty) {
         continue;
       }
-      final bool calendarHit = calendarEntries.any((
-        Map<String, dynamic> item,
-      ) {
+      final bool calendarHit = calendarEntries.any((Map<String, dynamic> item) {
         return (item['roomId'] ?? '').toString() == roomId &&
             (item['date'] ?? '').toString() == resolvedDateKey &&
             calendarBlocksRoom((item['status'] ?? '').toString());
@@ -830,8 +824,10 @@ class DaycareOccupancyService {
               return (item['roomId'] ?? '').toString() == roomId &&
                   (item['date'] ?? '').toString() == resolvedDateKey;
             })
-            .map((Map<String, dynamic> item) =>
-                (item['status'] ?? '').toString().trim().toLowerCase())
+            .map(
+              (Map<String, dynamic> item) =>
+                  (item['status'] ?? '').toString().trim().toLowerCase(),
+            )
             .firstWhere((String status) => status.isNotEmpty, orElse: () => '');
         if (calStatus == 'cleaning') {
           cleaningCount += 1;

@@ -285,9 +285,7 @@ class _MemberPagedBodyState extends State<_MemberPagedBody> {
               ? Center(child: Text('會員資料讀取失敗'))
               : visibleDocs.isEmpty
               ? Center(
-                  child: Text(
-                    widget.keyword.isEmpty ? '尚無會員' : '沒有符合搜尋的會員',
-                  ),
+                  child: Text(widget.keyword.isEmpty ? '尚無會員' : '沒有符合搜尋的會員'),
                 )
               : RefreshIndicator(
                   onRefresh: _reload,
@@ -300,8 +298,8 @@ class _MemberPagedBodyState extends State<_MemberPagedBody> {
                             (visibleDocs.length / columns).ceil() +
                             (_hasMore ? 1 : 0),
                         itemBuilder: (context, rowIndex) {
-                          final int rowCount =
-                              (visibleDocs.length / columns).ceil();
+                          final int rowCount = (visibleDocs.length / columns)
+                              .ceil();
                           if (rowIndex >= rowCount) {
                             return Padding(
                               padding: const EdgeInsets.only(top: 8),
@@ -321,7 +319,9 @@ class _MemberPagedBodyState extends State<_MemberPagedBody> {
                               ) {
                                 final int index = start + col;
                                 if (index >= visibleDocs.length) {
-                                  return const Expanded(child: SizedBox.shrink());
+                                  return const Expanded(
+                                    child: SizedBox.shrink(),
+                                  );
                                 }
                                 return Expanded(
                                   child: Padding(

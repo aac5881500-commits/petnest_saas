@@ -147,6 +147,11 @@ class _ShopPublicPageState extends State<ShopPublicPage> {
                           icon: const Icon(Icons.search),
                           label: const Text('探索其他店家'),
                           onPressed: () {
+                            if (ShopDashboardEmbeddedScope.isEmbeddedInShopDashboard(
+                              context,
+                            )) {
+                              return;
+                            }
                             Navigator.pushAndRemoveUntil(
                               context,
                               MaterialPageRoute(
@@ -761,7 +766,8 @@ class _ShopPublicPageState extends State<ShopPublicPage> {
         );
       },
     );
-    if (widget.embeddedInDashboard) {
+    if (widget.embeddedInDashboard &&
+        ShopDashboardEmbeddedScope.maybeOf(context) == null) {
       child = ShopDashboardEmbeddedScope(
         onExitEmbedded: widget.onExitEmbedded,
         child: child,

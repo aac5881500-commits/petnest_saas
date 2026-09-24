@@ -16,8 +16,10 @@ import 'package:petnest_saas/core/models/policy_applicable_service.dart';
 import 'package:petnest_saas/core/models/terms_consent_snapshot.dart';
 import 'package:petnest_saas/core/services/daycare_addon_catalog.dart';
 import 'package:petnest_saas/core/models/daily_care_addon_plan.dart';
+import 'package:petnest_saas/core/models/daily_care_entitlement.dart';
 import 'package:petnest_saas/core/models/daily_care_setting_model.dart';
 import 'package:petnest_saas/core/services/daily_care_addon_service.dart';
+import 'package:petnest_saas/core/services/daily_care_entitlement_math.dart';
 import 'package:petnest_saas/core/services/daily_care_setting_service.dart';
 import 'package:petnest_saas/features/shop/widgets/booking/daily_care_upgrade_card.dart';
 import 'package:petnest_saas/core/services/daycare_addon_line.dart';
@@ -332,6 +334,24 @@ class _ShopDaycareBookingPageState extends State<ShopDaycareBookingPage> {
         _dailyCarePlans = plans;
       });
     } catch (_) {}
+  }
+
+  DailyCareEntitlement _dailyCareQuoteForSubmit() {
+    return DailyCareEntitlementMath.resolve(
+      setting: _dailyCareSetting,
+      isDaycare: true,
+      shopDaycareOn: true,
+      offerId: widget.settings.isRoomBased
+          ? (_selectedRoomTypeId ?? '')
+          : (_plan?.id ?? ''),
+      offerName: widget.settings.isRoomBased ? '' : (_plan?.name ?? ''),
+      purchaseAddon:
+          _selectedDailyCareAddonId != null &&
+          _selectedDailyCareAddonId!.isNotEmpty,
+      nights: 1,
+      startDate: _startAt,
+      endDate: _endAt ?? _startAt,
+    );
   }
 
   Future<void> _refreshRoomOptions() async {
@@ -1135,6 +1155,7 @@ class _ShopDaycareBookingPageState extends State<ShopDaycareBookingPage> {
         },
         'addons': _addonLines,
         'dailyCareAddonId': _selectedDailyCareAddonId ?? '',
+        'dailyCareEntitlement': _dailyCareQuoteForSubmit().toMap(),
         'customerName': _name.text.trim(),
         'customerPhone': _phone.text.trim(),
         'address': address,

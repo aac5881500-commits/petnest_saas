@@ -85,11 +85,10 @@ class AdminBookingDetailPolicyCard extends StatelessWidget {
     final int version = ShopPolicyHistory.parseVersion(
       data['termsVersion'] ?? data['policyVersion'],
     );
-    final String preferred = (data['termsVersionDocumentId'] ??
-            data['policyVersionId'] ??
-            '')
-        .toString()
-        .trim();
+    final String preferred =
+        (data['termsVersionDocumentId'] ?? data['policyVersionId'] ?? '')
+            .toString()
+            .trim();
 
     if (shopId.isEmpty || version <= 0) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -119,10 +118,8 @@ class AdminBookingDetailPolicyCard extends StatelessWidget {
     Navigator.push(
       context,
       MaterialPageRoute<void>(
-        builder: (_) => PolicyVersionDetailPage(
-          data: snapshot,
-          serviceType: serviceType,
-        ),
+        builder: (_) =>
+            PolicyVersionDetailPage(data: snapshot, serviceType: serviceType),
       ),
     );
   }

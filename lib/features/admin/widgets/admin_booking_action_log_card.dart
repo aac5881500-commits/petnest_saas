@@ -22,16 +22,12 @@ class AdminBookingActionLogCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final String resolvedShopId =
-        (log['shopId'] ?? shopId).toString().trim();
+    final String resolvedShopId = (log['shopId'] ?? shopId).toString().trim();
     final Set<String> roomIds = BookingActionLogDisplay.roomIdsNeedingLookup(
       log,
     );
     if (roomIds.isEmpty || resolvedShopId.isEmpty) {
-      return _card(
-        BookingActionLogDisplay.detailLines(log),
-        resolvedShopId,
-      );
+      return _card(BookingActionLogDisplay.detailLines(log), resolvedShopId);
     }
     return FutureBuilder<Map<String, String>>(
       future: ShopRoomNameLookup.resolve(
@@ -39,10 +35,7 @@ class AdminBookingActionLogCard extends StatelessWidget {
         roomIds: roomIds,
       ),
       builder:
-          (
-            BuildContext context,
-            AsyncSnapshot<Map<String, String>> snapshot,
-          ) {
+          (BuildContext context, AsyncSnapshot<Map<String, String>> snapshot) {
             return _card(
               BookingActionLogDisplay.detailLines(
                 log,
@@ -86,10 +79,7 @@ class AdminBookingActionLogCard extends StatelessWidget {
               children: <Widget>[
                 Text('$time ・ 操作人員：'),
                 Flexible(
-                  child: OperatorActorLabel(
-                    shopId: resolvedShopId,
-                    log: log,
-                  ),
+                  child: OperatorActorLabel(shopId: resolvedShopId, log: log),
                 ),
               ],
             ),

@@ -812,11 +812,12 @@
   "density": "SPARSE_ALL"
 },
 {
-  "collectionGroup": "members",
+  "collectionGroup": "daily_care_records",
   "queryScope": "COLLECTION",
   "fields": [
-    { "fieldPath": "namePrefixes", "arrayConfig": "CONTAINS" },
-    { "fieldPath": "createdAt", "order": "DESCENDING" }
+    { "fieldPath": "shopId", "order": "ASCENDING" },
+    { "fieldPath": "bookingId", "order": "ASCENDING" },
+    { "fieldPath": "__name__", "order": "ASCENDING" }
   ],
   "density": "SPARSE_ALL"
 }

@@ -1,5 +1,5 @@
 // 檔案名稱：test/shop_dashboard_frontend_panel_test.dart
-// 功能說明：驗證 Dashboard 左側正式前台 Overlay、430×932，以及中央寬度不受左右面板影響。
+// 功能說明：驗證 Dashboard 左側正式前台以 500px canvas 等比例縮小，中央寬度不受 Overlay 影響。
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -14,22 +14,29 @@ import 'package:shared_preferences/shared_preferences.dart';
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  test('左側固定使用 430×932 前台尺寸', () {
-    expect(ShopFrontendTestPanel.liveFrontendSize, const Size(430, 932));
+  test('左側以 500px canvas 等比例縮小，不依左欄重排', () {
+    expect(ShopFrontendTestPanel.liveFrontendSize.width, 500);
+    expect(ShopFrontendPreviewFrame.phoneLogicalSize.width, 500);
+    expect(ShopFrontendPhoneFrame.liveLogicalWidth, 500);
     expect(
       ShopFrontendPhoneFrame.scaleFor(
-        availableWidth: 430,
-        availableHeight: 932,
+        availableWidth: 500,
+        availableHeight: 844,
       ),
       1,
     );
     expect(
       ShopFrontendPhoneFrame.scaleFor(
-        availableWidth: 430,
-        availableHeight: 466,
+        availableWidth: 250,
+        availableHeight: 844,
       ),
       0.5,
     );
+  });
+
+  test('寬度不足時不內嵌左側預覽', () {
+    expect(ShopFrontendPreviewFrame.canShowInlinePreview(1099), isFalse);
+    expect(ShopFrontendPreviewFrame.canShowInlinePreview(1100), isTrue);
   });
 
   test('左側使用正式前台根頁 ShopPublicPage', () {
@@ -61,7 +68,7 @@ void main() {
     );
     await tester.pump();
 
-    expect(find.text('實際前台'), findsOneWidget);
+    expect(find.text('前台預覽'), findsOneWidget);
     expect(find.text('9:41'), findsNothing);
     expect(find.byIcon(Icons.wifi), findsNothing);
     expect(find.byIcon(Icons.battery_full), findsNothing);
@@ -69,7 +76,68 @@ void main() {
     expect(find.textContaining('標準手機'), findsNothing);
     expect(find.textContaining('後台預覽模式'), findsNothing);
     expect(find.textContaining('內容已完整顯示'), findsNothing);
-    expect(find.text('viewport=430x932'), findsOneWidget);
+    expect(find.textContaining('viewport=500x'), findsOneWidget);
+    expect(find.byTooltip('放大'), findsNothing);
+  });
+
+  testWidgets('左欄變窄時仍用 500px 寬度排版', (WidgetTester tester) async {
+    await tester.binding.setSurfaceSize(const Size(900, 1100));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: Scaffold(
+          body: SizedBox(
+            width: 250,
+            height: 700,
+            child: ShopFrontendPhoneFrame(child: _CanvasWidthProbe()),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+    expect(find.text('canvas=500'), findsOneWidget);
+  });
+
+  testWidgets('顯示展開控制且點預約不離開預覽框', (WidgetTester tester) async {
+    bool expanded = false;
+    await tester.binding.setSurfaceSize(const Size(900, 1100));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: StatefulBuilder(
+            builder: (BuildContext context, StateSetter setState) {
+              return SizedBox(
+                width: 480,
+                height: 1000,
+                child: ShopFrontendPreviewFrame(
+                  shopId: 'shop-test',
+                  shopCode: 'demo',
+                  showExpand: true,
+                  expanded: expanded,
+                  onToggleExpand: () {
+                    setState(() {
+                      expanded = !expanded;
+                    });
+                  },
+                  onClose: () {},
+                  previewBodyOverride: const _LiveFrontendStub(),
+                ),
+              );
+            },
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+    expect(find.byTooltip('放大'), findsOneWidget);
+    await tester.tap(find.byTooltip('放大'));
+    await tester.pump();
+    expect(find.byTooltip('縮小'), findsOneWidget);
+    await tester.tap(find.text('住宿預約'));
+    await tester.pumpAndSettle();
+    expect(find.text('住宿預約流程'), findsOneWidget);
+    expect(find.text('dashboard-shell'), findsNothing);
   });
 
   testWidgets('embeddedInShopDashboard 隱藏後台入口且可完整到達送出', (
@@ -220,6 +288,15 @@ void main() {
     await tester.pump();
     expect(tester.takeException(), isNull);
   });
+}
+
+class _CanvasWidthProbe extends StatelessWidget {
+  const _CanvasWidthProbe();
+
+  @override
+  Widget build(BuildContext context) {
+    return Text('canvas=${MediaQuery.sizeOf(context).width.round()}');
+  }
 }
 
 class _LiveFrontendStub extends StatelessWidget {

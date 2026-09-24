@@ -94,6 +94,7 @@ class BookingPaymentLabels {
     if (RegExp(r'[\u4e00-\u9fff]').hasMatch(raw)) {
       return false;
     }
-    return raw.contains('_') || RegExp(r'^[a-z0-9]+$', caseSensitive: false).hasMatch(raw);
+    return raw.contains('_') ||
+        RegExp(r'^[a-z0-9]+$', caseSensitive: false).hasMatch(raw);
   }
 }

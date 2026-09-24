@@ -440,21 +440,21 @@ class AppDrawer extends StatelessWidget {
                         return Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            _sectionTitle('系統'),
-                            _menuItem(
-                              icon: Icons.home_work_outlined,
-                              title: '回平台首頁',
-                              onTap: () {
-                                Navigator.pushNamedAndRemoveUntil(
-                                  context,
-                                  '/home',
-                                  (route) => false,
-                                );
-                              },
-                            ),
                             if (!ShopDashboardEmbeddedScope.isEmbeddedInShopDashboard(
                               context,
-                            ))
+                            )) ...<Widget>[
+                              _sectionTitle('系統'),
+                              _menuItem(
+                                icon: Icons.home_work_outlined,
+                                title: '回平台首頁',
+                                onTap: () {
+                                  Navigator.pushNamedAndRemoveUntil(
+                                    context,
+                                    '/home',
+                                    (route) => false,
+                                  );
+                                },
+                              ),
                               _menuItem(
                                 icon: Icons.desktop_windows,
                                 title: '回後台',
@@ -474,7 +474,8 @@ class AppDrawer extends StatelessWidget {
                                   );
                                 },
                               ),
-                            _divider(),
+                              _divider(),
+                            ],
                           ],
                         );
                       },

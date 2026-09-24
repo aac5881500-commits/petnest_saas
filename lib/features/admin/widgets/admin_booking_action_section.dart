@@ -20,7 +20,6 @@ class AdminBookingActionSection extends StatelessWidget {
     required this.onCancelBooking,
     required this.onCheckIn,
     required this.onCheckOut,
-    this.onOpenDailyCareReport,
   });
 
   final Map<String, dynamic> data;
@@ -35,7 +34,6 @@ class AdminBookingActionSection extends StatelessWidget {
   final Future<void> Function() onCancelBooking;
   final Future<void> Function() onCheckIn;
   final Future<void> Function() onCheckOut;
-  final Future<void> Function()? onOpenDailyCareReport;
 
   @override
   Widget build(BuildContext context) {
@@ -166,14 +164,6 @@ class AdminBookingActionSection extends StatelessWidget {
             style: tap,
             icon: const Icon(Icons.swap_horiz),
             label: const Text('更換房間'),
-          ),
-
-        if (isCheckedIn && onOpenDailyCareReport != null)
-          ElevatedButton.icon(
-            onPressed: onOpenDailyCareReport,
-            style: tap,
-            icon: const Icon(Icons.assignment_turned_in_outlined),
-            label: const Text('前往每日回報'),
           ),
 
         // ===============================

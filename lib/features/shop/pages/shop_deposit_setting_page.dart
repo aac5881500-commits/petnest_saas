@@ -6,6 +6,8 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+import '../widgets/shop_deposit_setting_panel.dart';
+
 class ShopDepositSettingPage extends StatefulWidget {
   const ShopDepositSettingPage({
     super.key,
@@ -37,11 +39,18 @@ class _ShopDepositSettingPageState extends State<ShopDepositSettingPage> {
   bool _discountEnabled = false;
   String _discountBase = 'room_pet';
 
-  final _depositValueCtrl = TextEditingController();
+  final TextEditingController _depositValueCtrl = TextEditingController();
 
   final List<Map<String, TextEditingController>> _discountRuleCtrls = [];
 
   bool _loading = true;
+  bool _saving = false;
+
+  bool _savedEnabled = false;
+  String _savedType = 'fixed';
+  int _savedValue = 1000;
+  String _savedBase = 'room';
+  int _savedExpireHours = 12;
 
   @override
   void initState() {
@@ -53,7 +62,7 @@ class _ShopDepositSettingPageState extends State<ShopDepositSettingPage> {
   void dispose() {
     _depositValueCtrl.dispose();
 
-    for (final item in _discountRuleCtrls) {
+    for (final Map<String, TextEditingController> item in _discountRuleCtrls) {
       item['minNights']?.dispose();
       item['discountPercent']?.dispose();
     }
@@ -62,12 +71,13 @@ class _ShopDepositSettingPageState extends State<ShopDepositSettingPage> {
   }
 
   Future<void> _loadData() async {
-    final doc = await FirebaseFirestore.instance
+    final DocumentSnapshot<Map<String, dynamic>> doc = await FirebaseFirestore
+        .instance
         .collection('shops')
         .doc(widget.shopId)
         .get();
 
-    final data = doc.data();
+    final Map<String, dynamic>? data = doc.data();
 
     if (data != null) {
       _depositEnabled = data['depositEnabled'] ?? false;
@@ -80,19 +90,22 @@ class _ShopDepositSettingPageState extends State<ShopDepositSettingPage> {
       _transfer = data['paymentMethods']?['transfer'] ?? false;
       _depositExpireHours = data['depositExpireHours'] ?? 12;
 
-      final discountSetting =
-          data['discountSetting'] as Map<String, dynamic>? ?? {};
+      final Map<String, dynamic> discountSetting =
+          data['discountSetting'] as Map<String, dynamic>? ??
+          <String, dynamic>{};
 
       _discountEnabled = discountSetting['enabled'] ?? false;
       _discountBase = discountSetting['base'] ?? 'room_pet';
 
-      final rules = discountSetting['rules'];
+      final Object? rules = discountSetting['rules'];
 
       if (rules is List && rules.isNotEmpty) {
-        for (final item in rules) {
-          if (item is! Map) continue;
+        for (final Object? item in rules) {
+          if (item is! Map) {
+            continue;
+          }
 
-          _discountRuleCtrls.add({
+          _discountRuleCtrls.add(<String, TextEditingController>{
             'minNights': TextEditingController(
               text: (item['minNights'] ?? '').toString(),
             ),
@@ -112,16 +125,33 @@ class _ShopDepositSettingPageState extends State<ShopDepositSettingPage> {
       _addDefaultDiscountRules();
     }
 
+    _captureSaved();
     setState(() => _loading = false);
   }
 
+  void _captureSaved() {
+    _savedEnabled = _depositEnabled;
+    _savedType = _depositType;
+    _savedValue = _depositValue;
+    _savedBase = _depositBase;
+    _savedExpireHours = _depositExpireHours;
+  }
+
+  bool get _dirty {
+    return _depositEnabled != _savedEnabled ||
+        _depositType != _savedType ||
+        _depositValue != _savedValue ||
+        _depositBase != _savedBase ||
+        _depositExpireHours != _savedExpireHours;
+  }
+
   void _addDefaultDiscountRules() {
-    _discountRuleCtrls.addAll([
-      {
+    _discountRuleCtrls.addAll(<Map<String, TextEditingController>>[
+      <String, TextEditingController>{
         'minNights': TextEditingController(text: '3'),
         'discountPercent': TextEditingController(text: '20'),
       },
-      {
+      <String, TextEditingController>{
         'minNights': TextEditingController(text: '7'),
         'discountPercent': TextEditingController(text: '30'),
       },
@@ -129,75 +159,116 @@ class _ShopDepositSettingPageState extends State<ShopDepositSettingPage> {
   }
 
   List<Map<String, int>> _buildDiscountRulesForSave() {
-    final rules = <Map<String, int>>[];
+    final List<Map<String, int>> rules = <Map<String, int>>[];
 
-    for (final item in _discountRuleCtrls) {
-      final minNights = int.tryParse(item['minNights']?.text.trim() ?? '') ?? 0;
+    for (final Map<String, TextEditingController> item in _discountRuleCtrls) {
+      final int minNights =
+          int.tryParse(item['minNights']?.text.trim() ?? '') ?? 0;
 
-      var discountPercent =
+      int discountPercent =
           int.tryParse(item['discountPercent']?.text.trim() ?? '') ?? 0;
 
-      if (minNights <= 0) continue;
+      if (minNights <= 0) {
+        continue;
+      }
 
-      if (discountPercent < 1) discountPercent = 1;
-      if (discountPercent > 99) discountPercent = 99;
+      if (discountPercent < 1) {
+        discountPercent = 1;
+      }
+      if (discountPercent > 99) {
+        discountPercent = 99;
+      }
 
-      rules.add({'minNights': minNights, 'discountPercent': discountPercent});
+      rules.add(<String, int>{
+        'minNights': minNights,
+        'discountPercent': discountPercent,
+      });
     }
 
-    rules.sort((a, b) => a['minNights']!.compareTo(b['minNights']!));
+    rules.sort(
+      (Map<String, int> a, Map<String, int> b) =>
+          a['minNights']!.compareTo(b['minNights']!),
+    );
 
     return rules;
   }
 
   Future<void> _save() async {
+    if (_saving) {
+      return;
+    }
     if (_depositType == 'percent') {
-      if (_depositValue > 100) _depositValue = 100;
-      if (_depositValue < 1) _depositValue = 1;
+      if (_depositValue > 100) {
+        _depositValue = 100;
+      }
+      if (_depositValue < 1) {
+        _depositValue = 1;
+      }
     }
 
-    await FirebaseFirestore.instance
-        .collection('shops')
-        .doc(widget.shopId)
-        .update({
-          'depositEnabled': _depositEnabled,
-          'depositType': _depositType,
-          'depositValue': _depositValue,
-          'depositBase': _depositType == 'percent' ? _depositBase : 'total',
-          'paymentMethods': {'cash': _cash, 'transfer': _transfer},
-          'depositExpireHours': _depositExpireHours,
-          'discountSetting': {
-            'enabled': _discountEnabled,
-            'base': _discountBase,
-            'rules': _buildDiscountRulesForSave(),
-          },
-          'updatedAt': FieldValue.serverTimestamp(),
-        });
-
-    if (!mounted) return;
-
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text('已儲存')));
+    setState(() => _saving = true);
+    try {
+      await FirebaseFirestore.instance
+          .collection('shops')
+          .doc(widget.shopId)
+          .update(<String, dynamic>{
+            'depositEnabled': _depositEnabled,
+            'depositType': _depositType,
+            'depositValue': _depositValue,
+            'depositBase': _depositType == 'percent' ? _depositBase : 'total',
+            'paymentMethods': <String, bool>{
+              'cash': _cash,
+              'transfer': _transfer,
+            },
+            'depositExpireHours': _depositExpireHours,
+            'discountSetting': <String, dynamic>{
+              'enabled': _discountEnabled,
+              'base': _discountBase,
+              'rules': _buildDiscountRulesForSave(),
+            },
+            'updatedAt': FieldValue.serverTimestamp(),
+          });
+      if (!mounted) {
+        return;
+      }
+      _captureSaved();
+      setState(() => _saving = false);
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('收款設定已儲存')));
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      setState(() => _saving = false);
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('儲存失敗：$error')));
+    }
   }
 
   void _updateDepositValue(String v) {
     int value = int.tryParse(v) ?? 0;
 
     if (_depositType == 'percent') {
-      if (value > 100) value = 100;
-      if (value < 1) value = 1;
+      if (value > 100) {
+        value = 100;
+      }
+      if (value < 1) {
+        value = 1;
+      }
     }
 
     _depositValue = value;
 
-    final fixedText = value.toString();
+    final String fixedText = value.toString();
     if (_depositValueCtrl.text != fixedText) {
       _depositValueCtrl.text = fixedText;
       _depositValueCtrl.selection = TextSelection.fromPosition(
         TextPosition(offset: _depositValueCtrl.text.length),
       );
     }
+    setState(() {});
   }
 
   void _changeDepositType(String value) {
@@ -222,50 +293,10 @@ class _ShopDepositSettingPageState extends State<ShopDepositSettingPage> {
     });
   }
 
-  Widget _sectionCard({
-    required String title,
-    required String subtitle,
-    required List<Widget> children,
-  }) {
-    return Container(
-      width: double.infinity,
-      margin: const EdgeInsets.only(bottom: 18),
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.grey.shade200),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            title,
-            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            subtitle,
-            style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
-          ),
-          const Divider(height: 24),
-          ...children,
-        ],
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     if (_loading) {
-      const loadingView = Center(child: CircularProgressIndicator());
+      const Widget loadingView = Center(child: CircularProgressIndicator());
 
       if (widget.embedded) {
         return loadingView;
@@ -274,162 +305,21 @@ class _ShopDepositSettingPageState extends State<ShopDepositSettingPage> {
       return const Scaffold(body: loadingView);
     }
 
-    final content = SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        children: [
-          _sectionCard(
-            title: '收款設定',
-            subtitle: '設定付款方式、訂金規則與收款資訊',
-            children: [
-              SwitchListTile(
-                title: const Text('啟用訂金'),
-                value: _depositEnabled,
-                onChanged: (v) => setState(() => _depositEnabled = v),
-              ),
-
-              if (_depositEnabled) ...[
-                const Align(
-                  alignment: Alignment.centerLeft,
-                  child: Text(
-                    '訂金付款期限',
-                    style: TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                ),
-
-                const SizedBox(height: 8),
-
-                ...[
-                  {'label': '1 分鐘（測試用）', 'value': 0},
-                  {'label': '12 小時', 'value': 12},
-                  {'label': '1 天', 'value': 24},
-                  {'label': '3 天', 'value': 72},
-                ].map((item) {
-                  return RadioListTile<int>(
-                    title: Text(item['label'].toString()),
-                    value: item['value'] as int,
-                    groupValue: _depositExpireHours,
-                    onChanged: (v) {
-                      setState(() {
-                        _depositExpireHours = v ?? 12;
-                      });
-                    },
-                  );
-                }),
-
-                const Divider(height: 30),
-
-                if (_depositType == 'percent') ...[
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(12),
-                    margin: const EdgeInsets.only(bottom: 10),
-                    decoration: BoxDecoration(
-                      color: Colors.red.shade50,
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: const Text(
-                      '※ 訂金只會依照下方設定方式計算，請確認是否包含加值服務',
-                      style: TextStyle(color: Colors.red, fontSize: 13),
-                    ),
-                  ),
-
-                  const Align(
-                    alignment: Alignment.centerLeft,
-                    child: Text(
-                      '訂金計算方式',
-                      style: TextStyle(fontWeight: FontWeight.bold),
-                    ),
-                  ),
-
-                  RadioListTile<String>(
-                    title: const Text('只算房價'),
-                    value: 'room',
-                    groupValue: _depositBase,
-                    onChanged: (v) {
-                      setState(() {
-                        _depositBase = v ?? 'room';
-                      });
-                    },
-                  ),
-
-                  RadioListTile<String>(
-                    title: const Text('算總金額（含加值服務）'),
-                    value: 'total',
-                    groupValue: _depositBase,
-                    onChanged: (v) {
-                      setState(() {
-                        _depositBase = v ?? 'total';
-                      });
-                    },
-                  ),
-
-                  const Divider(height: 30, thickness: 1),
-                ],
-
-                const Align(
-                  alignment: Alignment.centerLeft,
-                  child: Text(
-                    '訂金類型',
-                    style: TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                ),
-
-                Row(
-                  children: [
-                    Expanded(
-                      child: RadioListTile<String>(
-                        title: const Text('固定金額'),
-                        value: 'fixed',
-                        groupValue: _depositType,
-                        onChanged: (v) {
-                          if (v == null) return;
-                          _changeDepositType(v);
-                        },
-                      ),
-                    ),
-                    Expanded(
-                      child: RadioListTile<String>(
-                        title: const Text('百分比'),
-                        value: 'percent',
-                        groupValue: _depositType,
-                        onChanged: (v) {
-                          if (v == null) return;
-                          _changeDepositType(v);
-                        },
-                      ),
-                    ),
-                  ],
-                ),
-
-                if (_depositType == 'percent')
-                  const Align(
-                    alignment: Alignment.centerLeft,
-                    child: Text(
-                      '※ 百分比將依照上方選擇的計算方式計算',
-                      style: TextStyle(color: Colors.red, fontSize: 12),
-                    ),
-                  ),
-
-                TextField(
-                  controller: _depositValueCtrl,
-                  keyboardType: TextInputType.number,
-                  decoration: InputDecoration(
-                    labelText: _depositType == 'fixed' ? '訂金金額（元）' : '訂金百分比（%）',
-                  ),
-                  onChanged: _updateDepositValue,
-                ),
-
-                const SizedBox(height: 20),
-              ],
-            ],
-          ),
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton(onPressed: _save, child: const Text('儲存設定')),
-          ),
-        ],
-      ),
+    final Widget content = ShopDepositSettingPanel(
+      depositEnabled: _depositEnabled,
+      depositType: _depositType,
+      depositValue: _depositValue,
+      depositBase: _depositBase,
+      depositExpireHours: _depositExpireHours,
+      depositValueController: _depositValueCtrl,
+      dirty: _dirty,
+      saving: _saving,
+      onToggleEnabled: (bool value) => setState(() => _depositEnabled = value),
+      onExpireHours: (int value) => setState(() => _depositExpireHours = value),
+      onDepositBase: (String value) => setState(() => _depositBase = value),
+      onDepositType: _changeDepositType,
+      onDepositValueChanged: _updateDepositValue,
+      onSave: _save,
     );
 
     if (widget.embedded) {

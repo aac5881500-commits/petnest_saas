@@ -43,7 +43,8 @@ class DailyCareOfferQuota {
     if (raw is! Map) {
       return <String, DailyCareOfferQuota>{};
     }
-    final Map<String, DailyCareOfferQuota> out = <String, DailyCareOfferQuota>{};
+    final Map<String, DailyCareOfferQuota> out =
+        <String, DailyCareOfferQuota>{};
     raw.forEach((Object? key, Object? value) {
       final String id = key.toString().trim();
       if (id.isEmpty) {
