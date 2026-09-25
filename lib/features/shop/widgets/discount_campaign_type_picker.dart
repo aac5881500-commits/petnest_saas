@@ -114,86 +114,80 @@ class DiscountCampaignTypeMeta {
   }
 }
 
-class DiscountCampaignTypePickerPage extends StatefulWidget {
-  const DiscountCampaignTypePickerPage({super.key, this.onPicked});
+class DiscountCampaignTypePickerPage extends StatelessWidget {
+  const DiscountCampaignTypePickerPage({
+    super.key,
+    this.onPicked,
+    this.onDismiss,
+  });
 
   final ValueChanged<DiscountCampaignType>? onPicked;
+  final VoidCallback? onDismiss;
 
-  @override
-  State<DiscountCampaignTypePickerPage> createState() =>
-      _DiscountCampaignTypePickerPageState();
-}
+  void _pick(BuildContext context, DiscountCampaignType type) {
+    if (onPicked != null) {
+      onPicked!(type);
+      return;
+    }
+    Navigator.pop(context, type);
+  }
 
-class _DiscountCampaignTypePickerPageState
-    extends State<DiscountCampaignTypePickerPage> {
-  DiscountCampaignType? _selected;
+  void _close(BuildContext context) {
+    if (onDismiss != null) {
+      onDismiss!();
+      return;
+    }
+    Navigator.pop(context);
+  }
 
   @override
   Widget build(BuildContext context) {
-    final DiscountCampaignTypeMeta? selectedMeta = _selected == null
-        ? null
-        : DiscountCampaignTypeMeta.of(_selected!);
     return Scaffold(
       backgroundColor: Colors.grey.shade100,
       appBar: AppBar(
-        title: const Text('建立優惠活動'),
+        title: const Text(
+          '建立優惠活動',
+          style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
+        ),
         leading: IconButton(
           icon: const Icon(Icons.close),
-          onPressed: () => Navigator.pop(context),
+          tooltip: '關閉',
+          onPressed: () => _close(context),
         ),
       ),
       body: LayoutBuilder(
         builder: (BuildContext context, BoxConstraints constraints) {
-          final int columns = constraints.maxWidth >= 720 ? 3 : 2;
-          return Padding(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+          final bool desktop = constraints.maxWidth >= 720;
+          final int columns = desktop ? 3 : 2;
+          final double cardHeight = desktop ? 158 : 150;
+          final double contentWidth = (constraints.maxWidth - 32)
+              .clamp(0, double.infinity)
+              .toDouble();
+          final double gridWidth = desktop && contentWidth > 960
+              ? 960
+              : contentWidth;
+          return SingleChildScrollView(
+            padding: const EdgeInsets.all(16),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
                 const Text(
                   '選擇優惠類型',
-                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800),
+                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
                 ),
                 const SizedBox(height: 4),
                 Text(
                   '選擇後只會顯示此類型需要設定的欄位。',
-                  style: TextStyle(color: Colors.grey.shade700),
+                  style: TextStyle(fontSize: 13, color: Colors.grey.shade700),
                 ),
-                const SizedBox(height: 12),
-                Expanded(
-                  child: _TypeGrid(
-                    columns: columns,
-                    selected: _selected,
-                    onSelect: (DiscountCampaignType type) {
-                      setState(() {
-                        _selected = type;
-                      });
-                    },
-                  ),
-                ),
-                if (selectedMeta != null) ...<Widget>[
-                  const SizedBox(height: 10),
-                  Text(
-                    '已選：${selectedMeta.title}｜${selectedMeta.serviceSummary}',
-                    style: const TextStyle(fontWeight: FontWeight.w700),
-                  ),
-                ],
                 const SizedBox(height: 12),
                 SizedBox(
-                  width: double.infinity,
-                  height: 48,
-                  child: FilledButton(
-                    onPressed: selectedMeta == null
-                        ? null
-                        : () {
-                            final DiscountCampaignType type = selectedMeta.type;
-                            if (widget.onPicked != null) {
-                              widget.onPicked!(type);
-                            } else {
-                              Navigator.pop(context, type);
-                            }
-                          },
-                    child: const Text('下一步設定'),
+                  width: gridWidth,
+                  child: _TypeGrid(
+                    columns: columns,
+                    cardHeight: cardHeight,
+                    onSelect: (DiscountCampaignType type) =>
+                        _pick(context, type),
                   ),
                 ),
               ],
@@ -208,110 +202,115 @@ class _DiscountCampaignTypePickerPageState
 class _TypeGrid extends StatelessWidget {
   const _TypeGrid({
     required this.columns,
-    required this.selected,
+    required this.cardHeight,
     required this.onSelect,
   });
 
   final int columns;
-  final DiscountCampaignType? selected;
+  final double cardHeight;
   final ValueChanged<DiscountCampaignType> onSelect;
 
   @override
   Widget build(BuildContext context) {
     final List<DiscountCampaignTypeMeta> items =
         DiscountCampaignTypeMeta.selectable;
-    final int rows = (items.length / columns).ceil();
-    return Column(
-      children: <Widget>[
-        for (int row = 0; row < rows; row++) ...<Widget>[
-          if (row > 0) const SizedBox(height: 8),
-          Expanded(
-            child: Row(
-              children: <Widget>[
-                for (int col = 0; col < columns; col++) ...<Widget>[
-                  if (col > 0) const SizedBox(width: 8),
-                  Expanded(
-                    child: _typeCard(
-                      items[row * columns + col],
-                      selected: selected == items[row * columns + col].type,
-                    ),
-                  ),
-                ],
-              ],
-            ),
-          ),
-        ],
-      ],
+    return GridView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      itemCount: items.length,
+      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: columns,
+        mainAxisSpacing: 10,
+        crossAxisSpacing: 10,
+        mainAxisExtent: cardHeight,
+      ),
+      itemBuilder: (BuildContext context, int index) {
+        return _TypeCard(meta: items[index], onSelect: onSelect);
+      },
     );
   }
+}
 
-  Widget _typeCard(DiscountCampaignTypeMeta meta, {required bool selected}) {
-    return Material(
-      color: selected ? meta.tint : Colors.white,
-      borderRadius: BorderRadius.circular(16),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(16),
-        onTap: () => onSelect(meta.type),
-        child: Container(
-          width: double.infinity,
-          padding: const EdgeInsets.fromLTRB(12, 12, 12, 10),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(
-              color: selected ? meta.accent : const Color(0xFFE0E0E0),
-              width: selected ? 2 : 1,
+class _TypeCard extends StatefulWidget {
+  const _TypeCard({required this.meta, required this.onSelect});
+
+  final DiscountCampaignTypeMeta meta;
+  final ValueChanged<DiscountCampaignType> onSelect;
+
+  @override
+  State<_TypeCard> createState() => _TypeCardState();
+}
+
+class _TypeCardState extends State<_TypeCard> {
+  bool _hover = false;
+  bool _pressed = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final DiscountCampaignTypeMeta meta = widget.meta;
+    final bool active = _hover || _pressed;
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hover = true),
+      onExit: (_) => setState(() => _hover = false),
+      child: Material(
+        color: active ? meta.tint : Colors.white,
+        elevation: _hover ? 1 : 0,
+        shadowColor: Colors.black.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(14),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(14),
+          onHighlightChanged: (bool value) => setState(() => _pressed = value),
+          onTap: () => widget.onSelect(meta.type),
+          child: Container(
+            width: double.infinity,
+            height: double.infinity,
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(
+                color: active ? meta.accent : const Color(0xFFE0E0E0),
+              ),
             ),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: <Widget>[
-              Row(
-                children: <Widget>[
-                  Icon(meta.icon, color: meta.accent),
-                  const Spacer(),
-                  if (selected)
-                    Icon(Icons.check_circle, color: meta.accent, size: 20)
-                  else
-                    Icon(
-                      Icons.arrow_forward_ios,
-                      size: 14,
-                      color: Colors.grey.shade500,
-                    ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              Text(
-                meta.title,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(fontWeight: FontWeight.w800),
-              ),
-              const SizedBox(height: 4),
-              Expanded(
-                child: Text(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Icon(meta.icon, color: meta.accent, size: 22),
+                const SizedBox(height: 8),
+                Text(
+                  meta.title,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w700,
+                    fontSize: 14,
+                    height: 1.2,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
                   meta.subtitle,
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
-                  style: TextStyle(fontSize: 12, color: Colors.grey.shade700),
+                  style: TextStyle(
+                    fontSize: 12,
+                    height: 1.25,
+                    color: Colors.grey.shade700,
+                  ),
                 ),
-              ),
-              const SizedBox(height: 6),
-              Wrap(
-                spacing: 6,
-                runSpacing: 4,
-                children: <Widget>[
-                  _badge(meta.badge, meta.accent, meta.tint),
-                  if (meta.footnote.isNotEmpty)
-                    Text(
-                      meta.footnote,
-                      style: TextStyle(
-                        fontSize: 11,
-                        color: Colors.grey.shade600,
-                      ),
+                const Spacer(),
+                Row(
+                  children: <Widget>[
+                    Flexible(child: _badge(meta.badge, meta.accent, meta.tint)),
+                    Icon(
+                      Icons.chevron_right,
+                      size: 16,
+                      color: Colors.grey.shade500,
                     ),
-                ],
-              ),
-            ],
+                  ],
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -328,6 +327,8 @@ class _TypeGrid extends StatelessWidget {
       ),
       child: Text(
         text,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
         style: TextStyle(
           fontSize: 11,
           fontWeight: FontWeight.w700,

@@ -12,7 +12,7 @@ Future<T?> presentDiscountEditor<T>({
   double dialogWidth = 1040,
 }) {
   final double width = MediaQuery.sizeOf(context).width;
-  if (width >= 980) {
+  if (width >= 720) {
     return showDialog<T>(
       context: context,
       barrierDismissible: false,
@@ -20,12 +20,12 @@ Future<T?> presentDiscountEditor<T>({
         final Size size = MediaQuery.sizeOf(context);
         return Dialog(
           insetPadding: const EdgeInsets.symmetric(
-            horizontal: 28,
-            vertical: 24,
+            horizontal: 24,
+            vertical: 20,
           ),
           clipBehavior: Clip.antiAlias,
           child: SizedBox(
-            width: dialogWidth.clamp(720, size.width - 56),
+            width: dialogWidth.clamp(720, size.width - 48),
             height: size.height * 0.92,
             child: child,
           ),
@@ -33,16 +33,11 @@ Future<T?> presentDiscountEditor<T>({
       },
     );
   }
-  return showModalBottomSheet<T>(
-    context: context,
-    isScrollControlled: true,
-    useSafeArea: true,
-    builder: (BuildContext context) {
-      return SizedBox(
-        height: MediaQuery.sizeOf(context).height * 0.96,
-        child: child,
-      );
-    },
+  return Navigator.of(context, rootNavigator: true).push<T>(
+    MaterialPageRoute<T>(
+      fullscreenDialog: true,
+      builder: (BuildContext context) => child,
+    ),
   );
 }
 
@@ -70,84 +65,109 @@ class DiscountServiceChoice extends StatelessWidget {
     }) {
       final bool selected =
           services.length == value.length && services.every(value.contains);
-      return Expanded(
-        child: Material(
-          color: selected ? const Color(0xFFE3F2FD) : Colors.white,
+      return Material(
+        color: selected ? const Color(0xFFE3F2FD) : Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        child: InkWell(
           borderRadius: BorderRadius.circular(12),
-          child: InkWell(
-            borderRadius: BorderRadius.circular(12),
-            onTap: enabled ? () => onChanged(List<String>.from(value)) : null,
-            child: Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                  color: selected
-                      ? const Color(0xFF1565C0)
-                      : Colors.grey.shade300,
-                ),
+          onTap: enabled ? () => onChanged(List<String>.from(value)) : null,
+          child: Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: selected
+                    ? const Color(0xFF1565C0)
+                    : Colors.grey.shade300,
               ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: <Widget>[
-                  Row(
-                    children: <Widget>[
-                      Expanded(
-                        child: Text(
-                          title,
-                          style: TextStyle(
-                            fontWeight: FontWeight.w800,
-                            color: enabled ? Colors.black87 : Colors.grey,
-                          ),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Row(
+                  children: <Widget>[
+                    Expanded(
+                      child: Text(
+                        title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontWeight: FontWeight.w800,
+                          color: enabled ? Colors.black87 : Colors.grey,
                         ),
                       ),
-                      if (selected)
-                        const Icon(
-                          Icons.check_circle,
-                          size: 18,
-                          color: Color(0xFF1565C0),
-                        ),
-                    ],
+                    ),
+                    if (selected)
+                      const Icon(
+                        Icons.check_circle,
+                        size: 18,
+                        color: Color(0xFF1565C0),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  subtitle,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: enabled ? Colors.grey.shade700 : Colors.grey,
                   ),
-                  const SizedBox(height: 4),
-                  Text(
-                    subtitle,
-                    style: TextStyle(fontSize: 12, color: Colors.grey.shade700),
-                  ),
-                ],
-              ),
+                ),
+              ],
             ),
           ),
         ),
       );
     }
 
+    final List<Widget> cards = <Widget>[
+      card(
+        title: '住宿',
+        subtitle: '僅套用住宿訂單',
+        value: PolicyApplicableService.accommodationOnly,
+        enabled: true,
+      ),
+      card(
+        title: '安親',
+        subtitle: lockedStayOnly ? '此類型不適用' : '僅套用安親訂單',
+        value: PolicyApplicableService.daycareOnly,
+        enabled: !lockedStayOnly,
+      ),
+      card(
+        title: '住宿與安親',
+        subtitle: lockedStayOnly ? '此類型不適用' : '兩種服務皆可套用',
+        value: PolicyApplicableService.shared,
+        enabled: !lockedStayOnly,
+      ),
+    ];
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
-        Row(
-          children: <Widget>[
-            card(
-              title: '住宿',
-              subtitle: '僅套用住宿訂單',
-              value: PolicyApplicableService.accommodationOnly,
-              enabled: true,
-            ),
-            const SizedBox(width: 8),
-            card(
-              title: '安親',
-              subtitle: lockedStayOnly ? '此類型不適用' : '僅套用安親訂單',
-              value: PolicyApplicableService.daycareOnly,
-              enabled: !lockedStayOnly,
-            ),
-            const SizedBox(width: 8),
-            card(
-              title: '住宿與安親',
-              subtitle: lockedStayOnly ? '此類型不適用' : '兩種服務皆可套用',
-              value: PolicyApplicableService.shared,
-              enabled: !lockedStayOnly,
-            ),
-          ],
+        LayoutBuilder(
+          builder: (BuildContext context, BoxConstraints constraints) {
+            if (constraints.maxWidth < 520) {
+              return Column(
+                children: <Widget>[
+                  for (int i = 0; i < cards.length; i++) ...<Widget>[
+                    if (i > 0) const SizedBox(height: 8),
+                    cards[i],
+                  ],
+                ],
+              );
+            }
+            return Row(
+              children: <Widget>[
+                for (int i = 0; i < cards.length; i++) ...<Widget>[
+                  if (i > 0) const SizedBox(width: 8),
+                  Expanded(child: cards[i]),
+                ],
+              ],
+            );
+          },
         ),
         if (lockedStayOnly && lockReason.isNotEmpty) ...<Widget>[
           const SizedBox(height: 8),

@@ -55,6 +55,8 @@ class _AdminCouponTemplateFormPageState
 
   bool _isLoadingOptions = true;
   bool _isSaving = false;
+  bool _specifyRoomTypes = false;
+  bool _advancedOpen = false;
 
   List<_RoomTypeOption> _roomTypes = const <_RoomTypeOption>[];
   List<_ServiceOption> _services = const <_ServiceOption>[];
@@ -114,17 +116,50 @@ class _AdminCouponTemplateFormPageState
     _enabled = template?.enabled ?? true;
 
     _selectedRoomTypeIds = <String>{...?template?.roomTypeIds};
+    _specifyRoomTypes = _selectedRoomTypeIds.isNotEmpty;
 
     _selectedServiceId = template?.serviceId ?? '';
     _selectedServiceName = template?.serviceName ?? '';
     _selectedServiceCategory =
         template?.serviceCategory ?? CouponServiceCategory.value;
 
-    _loadOptions();
+    for (final TextEditingController controller in _draftControllers) {
+      controller.addListener(_handleDraftChanged);
+    }
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        _loadOptions();
+      }
+    });
+  }
+
+  List<TextEditingController> get _draftControllers {
+    return <TextEditingController>[
+      _nameController,
+      _descriptionController,
+      _discountValueController,
+      _minimumAmountController,
+      _maximumDiscountController,
+      _freeStayNightsController,
+      _validDaysController,
+      _usageLimitController,
+      _sortOrderController,
+    ];
+  }
+
+  void _handleDraftChanged() {
+    if (!mounted) {
+      return;
+    }
+    setState(() {});
   }
 
   @override
   void dispose() {
+    for (final TextEditingController controller in _draftControllers) {
+      controller.removeListener(_handleDraftChanged);
+    }
     _nameController.dispose();
     _descriptionController.dispose();
     _discountValueController.dispose();
@@ -419,143 +454,268 @@ class _AdminCouponTemplateFormPageState
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.grey.shade100,
-      appBar: AppBar(
-        title: Text(widget.isEditing ? '編輯優惠券' : '製作優惠券'),
-        actions: <Widget>[
-          TextButton(
-            onPressed: _isSaving ? null : _save,
-            child: _isSaving
-                ? const SizedBox(
-                    width: 20,
-                    height: 20,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : const Text('儲存'),
-          ),
-          const SizedBox(width: 8),
-        ],
-      ),
-      body: Form(
-        key: _formKey,
-        child: ListView(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 40),
-          children: <Widget>[
-            _buildBasicSection(),
-            const SizedBox(height: 16),
-            _buildCouponContentSection(),
-            const SizedBox(height: 16),
-            _buildRoomTypeSection(),
-            const SizedBox(height: 16),
-            _buildUsageSection(),
-            const SizedBox(height: 16),
-            DiscountPromoPreviewCard(
-              lines: <DiscountPromoPreviewLine>[
-                const DiscountPromoPreviewLine(
-                  label: '住宿 2 晚 NT\$3,000',
-                  amount: 3000,
+    return LayoutBuilder(
+      builder: (BuildContext context, BoxConstraints constraints) {
+        final bool desktop = constraints.maxWidth >= 720;
+        final bool compact = constraints.maxWidth < 720;
+        return Scaffold(
+          backgroundColor: Colors.grey.shade100,
+          appBar: desktop
+              ? null
+              : AppBar(title: Text(widget.isEditing ? '編輯優惠券' : '新增優惠券')),
+          body: Form(
+            key: _formKey,
+            child: Column(
+              children: <Widget>[
+                Expanded(
+                  child: Align(
+                    alignment: Alignment.topCenter,
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 980),
+                      child: ListView(
+                        padding: EdgeInsets.fromLTRB(
+                          compact ? 12 : 20,
+                          compact ? 12 : 20,
+                          compact ? 12 : 20,
+                          24,
+                        ),
+                        children: <Widget>[
+                          _buildHeader(compact: compact),
+                          SizedBox(height: compact ? 10 : 14),
+                          _buildBasicSection(compact: compact),
+                          SizedBox(height: compact ? 10 : 14),
+                          _buildTypeSection(compact: compact),
+                          SizedBox(height: compact ? 10 : 14),
+                          _buildRuleSection(compact: compact),
+                          SizedBox(height: compact ? 10 : 14),
+                          _buildScopeSection(compact: compact),
+                          SizedBox(height: compact ? 10 : 14),
+                          _buildUsageSection(compact: compact),
+                          SizedBox(height: compact ? 10 : 14),
+                          DiscountPromoPreviewCard(
+                            heading: '客戶看到的優惠預覽',
+                            lines: _previewLines(),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
                 ),
-                DiscountPromoPreviewLine(
-                  label:
-                      '${_nameController.text.trim().isEmpty ? '優惠券' : _nameController.text.trim()} 折抵（示意）',
-                  amount: -100,
-                ),
-                const DiscountPromoPreviewLine(
-                  label: '應付金額依券類型與訂單資格計算',
-                  amount: 0,
-                ),
+                _buildActionBar(desktop: desktop),
               ],
             ),
-            const SizedBox(height: 24),
-            SizedBox(
-              height: 52,
-              child: FilledButton.icon(
-                onPressed: _isSaving ? null : _save,
-                icon: _isSaving
-                    ? const SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Icon(Icons.save_outlined),
-                label: Text(widget.isEditing ? '儲存修改' : '建立優惠券'),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildHeader({required bool compact}) {
+    final String title = widget.isEditing ? '編輯優惠券' : '新增優惠券';
+    final Widget copy = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        if (!compact)
+          Text(
+            title,
+            style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800),
+          ),
+        if (!compact) const SizedBox(height: 4),
+        Text(
+          '製作模板後，可由店主手動發送、點數兌換或活動贈送給會員。',
+          style: TextStyle(
+            fontSize: compact ? 12 : 13,
+            color: Colors.grey.shade700,
+            height: 1.35,
+          ),
+        ),
+      ],
+    );
+    final Widget toggle = _buildEnabledSwitch(compact: compact);
+    if (compact) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[copy, const SizedBox(height: 10), toggle],
+      );
+    }
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        Expanded(child: copy),
+        const SizedBox(width: 16),
+        toggle,
+      ],
+    );
+  }
+
+  Widget _buildEnabledSwitch({required bool compact}) {
+    return Container(
+      constraints: BoxConstraints(maxWidth: compact ? double.infinity : 280),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.grey.shade200),
+      ),
+      child: Row(
+        children: <Widget>[
+          Expanded(
+            child: Text(
+              _enabled ? '啟用中：可繼續發放' : '已停用：不可再發放，已發出的優惠券仍有效',
+              style: TextStyle(
+                fontSize: compact ? 12 : 13,
+                fontWeight: FontWeight.w700,
+                height: 1.3,
               ),
             ),
-          ],
+          ),
+          Switch.adaptive(
+            value: _enabled,
+            onChanged: (bool value) {
+              setState(() {
+                _enabled = value;
+              });
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildActionBar({required bool desktop}) {
+    final Widget saveButton = FilledButton(
+      onPressed: _isSaving ? null : _save,
+      child: _isSaving
+          ? const SizedBox(
+              width: 18,
+              height: 18,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            )
+          : const Text('儲存優惠券'),
+    );
+    return Material(
+      color: Colors.white,
+      elevation: 8,
+      child: SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+          child: desktop
+              ? Row(
+                  children: <Widget>[
+                    const Spacer(),
+                    OutlinedButton(
+                      onPressed: _isSaving
+                          ? null
+                          : () => Navigator.of(context).pop(false),
+                      child: const Text('取消'),
+                    ),
+                    const SizedBox(width: 12),
+                    saveButton,
+                  ],
+                )
+              : SizedBox(width: double.infinity, height: 46, child: saveButton),
         ),
       ),
     );
   }
 
-  Widget _buildBasicSection() {
+  List<DiscountPromoPreviewLine> _previewLines() {
+    return buildCouponFormPreview(
+      type: _type,
+      couponName: _nameController.text,
+      discountText: _discountValueController.text,
+      minimumText: _minimumAmountController.text,
+      maximumText: _maximumDiscountController.text,
+      nightsText: _freeStayNightsController.text,
+      serviceName: _selectedServiceName,
+      validDaysText: _validDaysController.text,
+      usageLimitText: _usageLimitController.text,
+      roomLimited: _type != MemberCouponType.freeService && _specifyRoomTypes,
+      roomCount: _selectedRoomTypeIds.length,
+    );
+  }
+
+  Widget _buildBasicSection({required bool compact}) {
     return _SectionCard(
       title: '基本資料',
       icon: Icons.confirmation_number_outlined,
+      compact: compact,
       children: <Widget>[
         TextFormField(
           controller: _nameController,
           textInputAction: TextInputAction.next,
-          decoration: const InputDecoration(
+          style: TextStyle(fontSize: compact ? 14 : 15),
+          decoration: _fieldDecoration(
+            compact: compact,
             labelText: '優惠券名稱 *',
             hintText: '例如：新會員 300 元折價券',
-            border: OutlineInputBorder(),
           ),
           validator: (String? value) {
             if ((value ?? '').trim().isEmpty) {
               return '請輸入優惠券名稱';
             }
-
             return null;
           },
         ),
-        const SizedBox(height: 16),
+        SizedBox(height: compact ? 10 : 12),
         TextFormField(
           controller: _descriptionController,
           minLines: 2,
-          maxLines: 4,
-          decoration: const InputDecoration(
-            labelText: '優惠券說明',
-            hintText: '顯示給店員與會員看的使用說明',
-            border: OutlineInputBorder(),
+          maxLines: 3,
+          style: TextStyle(fontSize: compact ? 14 : 15),
+          decoration: _fieldDecoration(
+            compact: compact,
+            labelText: '活動說明',
+            hintText: '選填，顯示給店員與會員看的使用說明',
           ),
-        ),
-        const SizedBox(height: 16),
-        DropdownButtonFormField<MemberCouponType>(
-          initialValue: _type,
-          decoration: const InputDecoration(
-            labelText: '優惠券類型 *',
-            border: OutlineInputBorder(),
-          ),
-          items: MemberCouponType.values.map((MemberCouponType type) {
-            return DropdownMenuItem<MemberCouponType>(
-              value: type,
-              child: Text(_typeLabel(type)),
-            );
-          }).toList(),
-          onChanged: (MemberCouponType? value) {
-            if (value == null) {
-              return;
-            }
-
-            setState(() {
-              _type = value;
-            });
-          },
         ),
       ],
     );
   }
 
-  Widget _buildCouponContentSection() {
-    final List<Widget> children = <Widget>[];
+  Widget _buildTypeSection({required bool compact}) {
+    return _SectionCard(
+      title: '優惠類型',
+      icon: Icons.dashboard_customize_outlined,
+      compact: compact,
+      children: <Widget>[
+        GridView(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 2,
+            mainAxisExtent: 78,
+            crossAxisSpacing: 8,
+            mainAxisSpacing: 8,
+          ),
+          children: MemberCouponType.values.map((MemberCouponType type) {
+            return _ChoiceCard(
+              selected: _type == type,
+              icon: _typeIcon(type),
+              title: _typeLabel(type),
+              subtitle: _typeHint(type),
+              onTap: () {
+                setState(() {
+                  _type = type;
+                });
+              },
+            );
+          }).toList(),
+        ),
+      ],
+    );
+  }
 
-    if (_type == MemberCouponType.fixedAmount) {
+  Widget _buildRuleSection({required bool compact}) {
+    final List<Widget> children = <Widget>[];
+    if (CouponTemplateFormFields.showsDiscountAmount(_type)) {
       children.add(
         _numberField(
+          compact: compact,
           controller: _discountValueController,
           label: '折抵金額 *',
-          suffixText: '元',
+          suffixText: 'NT\$',
           allowDecimal: false,
           validator: (num value) {
             return value > 0 ? null : '折抵金額必須大於 0';
@@ -563,10 +723,10 @@ class _AdminCouponTemplateFormPageState
         ),
       );
     }
-
-    if (_type == MemberCouponType.percent) {
+    if (CouponTemplateFormFields.showsPercent(_type)) {
       children.add(
         _numberField(
+          compact: compact,
           controller: _discountValueController,
           label: '折扣百分比 *',
           suffixText: '%',
@@ -575,31 +735,29 @@ class _AdminCouponTemplateFormPageState
             if (value <= 0 || value > 100) {
               return '請輸入 1 到 100';
             }
-
             return null;
           },
         ),
       );
-
-      children.add(const SizedBox(height: 16));
-
+      children.add(SizedBox(height: compact ? 10 : 12));
       children.add(
         _numberField(
+          compact: compact,
           controller: _maximumDiscountController,
           label: '最高折抵金額',
-          suffixText: '元',
+          suffixText: 'NT\$',
           allowDecimal: false,
-          helperText: '輸入 0 或留空代表不限',
+          helperText: _unlimitedHint(_maximumDiscountController, '不限最高折抵'),
           validator: (num value) {
             return value >= 0 ? null : '不可小於 0';
           },
         ),
       );
     }
-
-    if (_type == MemberCouponType.freeStay) {
+    if (CouponTemplateFormFields.showsFreeStayNights(_type)) {
       children.add(
         _numberField(
+          compact: compact,
           controller: _freeStayNightsController,
           label: '免費住宿晚數 *',
           suffixText: '晚',
@@ -609,66 +767,68 @@ class _AdminCouponTemplateFormPageState
           },
         ),
       );
-    }
-
-    if (_type == MemberCouponType.freeService) {
-      children.add(_buildServiceSelector());
-    }
-
-    if (_type == MemberCouponType.fixedAmount ||
-        _type == MemberCouponType.percent) {
-      children.add(const SizedBox(height: 16));
-
+      children.add(SizedBox(height: compact ? 8 : 10));
       children.add(
-        DropdownButtonFormField<MemberCouponApplyTarget>(
-          initialValue: _applyTarget,
-          decoration: const InputDecoration(
-            labelText: '折抵範圍 *',
-            border: OutlineInputBorder(),
-          ),
-          items:
-              const <MemberCouponApplyTarget>[
-                MemberCouponApplyTarget.room,
-                MemberCouponApplyTarget.roomAndPet,
-                MemberCouponApplyTarget.total,
-              ].map((MemberCouponApplyTarget target) {
-                return DropdownMenuItem<MemberCouponApplyTarget>(
-                  value: target,
-                  child: Text(_targetLabel(target)),
-                );
-              }).toList(),
-          onChanged: (MemberCouponApplyTarget? value) {
-            if (value == null) {
-              return;
-            }
-
-            setState(() {
-              _applyTarget = value;
-            });
+        Text(
+          '適用範圍固定為住宿。',
+          style: TextStyle(fontSize: 12, color: Colors.grey.shade700),
+        ),
+      );
+    }
+    if (CouponTemplateFormFields.showsApplyTarget(_type)) {
+      if (children.isNotEmpty) {
+        children.add(SizedBox(height: compact ? 10 : 12));
+      }
+      children.add(_buildApplyTargetPicker());
+      children.add(SizedBox(height: compact ? 10 : 12));
+      children.add(
+        _numberField(
+          compact: compact,
+          controller: _minimumAmountController,
+          label: '最低消費金額',
+          suffixText: 'NT\$',
+          allowDecimal: false,
+          helperText: _unlimitedHint(_minimumAmountController, '不限最低消費'),
+          validator: (num value) {
+            return value >= 0 ? null : '不可小於 0';
           },
         ),
       );
     }
-
-    children.add(const SizedBox(height: 16));
-
-    children.add(
-      _numberField(
-        controller: _minimumAmountController,
-        label: '最低消費金額',
-        suffixText: '元',
-        allowDecimal: false,
-        helperText: '輸入 0 或留空代表不限',
-        validator: (num value) {
-          return value >= 0 ? null : '不可小於 0';
-        },
-      ),
-    );
-
     return _SectionCard(
-      title: '優惠內容',
-      icon: Icons.redeem_outlined,
+      title: '折抵規則',
+      icon: Icons.rule_folder_outlined,
+      compact: compact,
       children: children,
+    );
+  }
+
+  Widget _buildApplyTargetPicker() {
+    const List<MemberCouponApplyTarget> targets = <MemberCouponApplyTarget>[
+      MemberCouponApplyTarget.room,
+      MemberCouponApplyTarget.roomAndPet,
+      MemberCouponApplyTarget.total,
+    ];
+    return Row(
+      children: targets.map((MemberCouponApplyTarget target) {
+        return Expanded(
+          child: Padding(
+            padding: EdgeInsets.only(right: target == targets.last ? 0 : 8),
+            child: _ChoiceCard(
+              selected: _applyTarget == target,
+              icon: Icons.sell_outlined,
+              title: _targetLabel(target),
+              subtitle: '',
+              height: 64,
+              onTap: () {
+                setState(() {
+                  _applyTarget = target;
+                });
+              },
+            ),
+          ),
+        );
+      }).toList(),
     );
   }
 
@@ -758,38 +918,80 @@ class _AdminCouponTemplateFormPageState
     );
   }
 
-  Widget _buildRoomTypeSection() {
-    final bool suitableForRoomTypes =
-        _type != MemberCouponType.freeService &&
-        _effectiveApplyTarget != MemberCouponApplyTarget.service;
-
+  Widget _buildScopeSection({required bool compact}) {
+    if (CouponTemplateFormFields.showsServicePicker(_type)) {
+      return _SectionCard(
+        title: '適用範圍',
+        icon: Icons.room_service_outlined,
+        compact: compact,
+        children: <Widget>[
+          Text(
+            '適用範圍固定為指定服務。',
+            style: TextStyle(fontSize: 12, color: Colors.grey.shade700),
+          ),
+          SizedBox(height: compact ? 8 : 10),
+          const Text('指定免費服務', style: TextStyle(fontWeight: FontWeight.w800)),
+          SizedBox(height: compact ? 8 : 10),
+          _buildServiceSummary(),
+          SizedBox(height: compact ? 8 : 10),
+          _buildServiceSelector(),
+        ],
+      );
+    }
     return _SectionCard(
-      title: '適用房型',
+      title: '適用範圍',
       icon: Icons.meeting_room_outlined,
+      compact: compact,
       children: <Widget>[
-        Text(
-          suitableForRoomTypes ? '不選代表所有房型皆可使用。' : '免費服務券不需要指定房型。',
-          style: TextStyle(color: Colors.grey.shade600),
+        Row(
+          children: <Widget>[
+            Expanded(
+              child: _ChoiceCard(
+                selected: !_specifyRoomTypes,
+                icon: Icons.home_outlined,
+                title: '全部房型可用',
+                subtitle: '不限制房型',
+                height: 64,
+                onTap: () {
+                  setState(() {
+                    _specifyRoomTypes = false;
+                    _selectedRoomTypeIds.clear();
+                  });
+                },
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: _ChoiceCard(
+                selected: _specifyRoomTypes,
+                icon: Icons.meeting_room_outlined,
+                title: '指定房型',
+                subtitle: '只限選取房型',
+                height: 64,
+                onTap: () {
+                  setState(() {
+                    _specifyRoomTypes = true;
+                  });
+                },
+              ),
+            ),
+          ],
         ),
-        if (suitableForRoomTypes) ...<Widget>[
-          const SizedBox(height: 12),
+        if (_specifyRoomTypes) ...<Widget>[
+          SizedBox(height: compact ? 8 : 10),
           if (_isLoadingOptions)
-            const Center(
-              child: Padding(
-                padding: EdgeInsets.all(16),
-                child: CircularProgressIndicator(),
+            const Padding(
+              padding: EdgeInsets.all(8),
+              child: Center(
+                child: SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
               ),
             )
           else if (_roomTypes.isEmpty)
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(
-                color: Colors.grey.shade100,
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: const Text('目前尚未建立房型，優惠券將視為不限房型。'),
-            )
+            const Text('目前尚未建立房型，優惠券將視為不限房型。')
           else
             Wrap(
               spacing: 8,
@@ -798,10 +1000,20 @@ class _AdminCouponTemplateFormPageState
                 final bool selected = _selectedRoomTypeIds.contains(
                   roomType.id,
                 );
-
                 return FilterChip(
                   label: Text(roomType.name),
+                  avatar: selected ? const Icon(Icons.check, size: 16) : null,
                   selected: selected,
+                  showCheckmark: false,
+                  selectedColor: const Color(
+                    0xFF6A1B9A,
+                  ).withValues(alpha: 0.08),
+                  backgroundColor: Colors.white,
+                  side: BorderSide(
+                    color: selected
+                        ? const Color(0xFF6A1B9A)
+                        : Colors.grey.shade300,
+                  ),
                   onSelected: (bool value) {
                     setState(() {
                       if (value) {
@@ -819,28 +1031,58 @@ class _AdminCouponTemplateFormPageState
     );
   }
 
-  Widget _buildUsageSection() {
+  Widget _buildServiceSummary() {
+    final bool missing =
+        _selectedServiceId.isNotEmpty &&
+        !_services.any((_ServiceOption service) {
+          return service.id == _selectedServiceId;
+        });
+    final String name = _selectedServiceName.trim().isEmpty
+        ? '尚未指定服務'
+        : _selectedServiceName.trim();
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: missing ? Colors.orange.shade50 : const Color(0xFFF6F1FB),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: missing ? Colors.orange.shade200 : const Color(0xFFE1D4EE),
+        ),
+      ),
+      child: Text(
+        missing ? '找不到原指定服務「$name」，請重新選擇。' : '已選服務：$name',
+        style: const TextStyle(fontWeight: FontWeight.w700),
+      ),
+    );
+  }
+
+  Widget _buildUsageSection({required bool compact}) {
     return _SectionCard(
-      title: '使用與顯示設定',
-      icon: Icons.settings_outlined,
+      title: '有效與發放規則',
+      icon: Icons.event_available_outlined,
+      compact: compact,
       children: <Widget>[
         Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: <Widget>[
             Expanded(
               child: _numberField(
+                compact: compact,
                 controller: _validDaysController,
                 label: '發放後有效天數',
                 suffixText: '天',
                 allowDecimal: false,
-                helperText: '0 代表永久有效',
+                helperText: '0＝永久有效',
                 validator: (num value) {
                   return value >= 0 ? null : '不可小於 0';
                 },
               ),
             ),
-            const SizedBox(width: 12),
+            const SizedBox(width: 10),
             Expanded(
               child: _numberField(
+                compact: compact,
                 controller: _usageLimitController,
                 label: '每張可使用次數 *',
                 suffixText: '次',
@@ -852,34 +1094,73 @@ class _AdminCouponTemplateFormPageState
             ),
           ],
         ),
-        const SizedBox(height: 16),
-        _numberField(
-          controller: _sortOrderController,
-          label: '排序',
-          allowDecimal: false,
-          helperText: '數字越小越前面，可輸入 0',
-          allowNegative: true,
-          validator: (num value) {
-            return null;
-          },
-        ),
-        const SizedBox(height: 8),
-        SwitchListTile.adaptive(
-          contentPadding: EdgeInsets.zero,
-          title: const Text('啟用優惠券模板'),
-          subtitle: const Text('停用後不可再用此模板發券，但已發出的會員優惠券不受影響。'),
-          value: _enabled,
-          onChanged: (bool value) {
-            setState(() {
-              _enabled = value;
-            });
-          },
+        SizedBox(height: compact ? 6 : 8),
+        Theme(
+          data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+          child: ExpansionTile(
+            tilePadding: EdgeInsets.zero,
+            childrenPadding: const EdgeInsets.only(bottom: 4),
+            initiallyExpanded: _advancedOpen,
+            onExpansionChanged: (bool value) {
+              setState(() {
+                _advancedOpen = value;
+              });
+            },
+            title: const Text(
+              '進階設定',
+              style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
+            ),
+            children: <Widget>[
+              _numberField(
+                compact: compact,
+                controller: _sortOrderController,
+                label: '排序',
+                allowDecimal: false,
+                helperText: '數字越小越前面，可輸入 0',
+                allowNegative: true,
+                validator: (num value) {
+                  return null;
+                },
+              ),
+            ],
+          ),
         ),
       ],
     );
   }
 
+  String? _unlimitedHint(TextEditingController controller, String label) {
+    final String text = controller.text.trim();
+    final num value = num.tryParse(text) ?? 0;
+    if (text.isEmpty || value == 0) {
+      return label;
+    }
+    return null;
+  }
+
+  InputDecoration _fieldDecoration({
+    required bool compact,
+    required String labelText,
+    String? hintText,
+    String? suffixText,
+    String? helperText,
+  }) {
+    return InputDecoration(
+      labelText: labelText,
+      hintText: hintText,
+      suffixText: suffixText,
+      helperText: helperText,
+      isDense: true,
+      contentPadding: EdgeInsets.symmetric(
+        horizontal: 12,
+        vertical: compact ? 10 : 12,
+      ),
+      border: const OutlineInputBorder(),
+    );
+  }
+
   Widget _numberField({
+    required bool compact,
     required TextEditingController controller,
     required String label,
     required bool allowDecimal,
@@ -909,11 +1190,12 @@ class _AdminCouponTemplateFormPageState
       inputFormatters: <TextInputFormatter>[
         FilteringTextInputFormatter.allow(RegExp(pattern)),
       ],
-      decoration: InputDecoration(
+      style: TextStyle(fontSize: compact ? 14 : 15),
+      decoration: _fieldDecoration(
+        compact: compact,
         labelText: label,
         suffixText: suffixText,
         helperText: helperText,
-        border: const OutlineInputBorder(),
       ),
       validator: (String? rawValue) {
         final String text = (rawValue ?? '').trim();
@@ -929,31 +1211,51 @@ class _AdminCouponTemplateFormPageState
     switch (type) {
       case MemberCouponType.fixedAmount:
         return '固定金額折價券';
-
       case MemberCouponType.percent:
         return '百分比折扣券';
-
       case MemberCouponType.freeStay:
         return '免費住宿券';
-
       case MemberCouponType.freeService:
         return '免費服務券';
+    }
+  }
+
+  String _typeHint(MemberCouponType type) {
+    switch (type) {
+      case MemberCouponType.fixedAmount:
+        return '折抵固定金額';
+      case MemberCouponType.percent:
+        return '依比例折抵';
+      case MemberCouponType.freeStay:
+        return '免費指定晚數';
+      case MemberCouponType.freeService:
+        return '指定服務免費';
+    }
+  }
+
+  IconData _typeIcon(MemberCouponType type) {
+    switch (type) {
+      case MemberCouponType.fixedAmount:
+        return Icons.payments_outlined;
+      case MemberCouponType.percent:
+        return Icons.percent;
+      case MemberCouponType.freeStay:
+        return Icons.hotel_outlined;
+      case MemberCouponType.freeService:
+        return Icons.room_service_outlined;
     }
   }
 
   String _targetLabel(MemberCouponApplyTarget target) {
     switch (target) {
       case MemberCouponApplyTarget.room:
-        return '只折房價';
-
+        return '僅房價';
       case MemberCouponApplyTarget.roomAndPet:
-        return '房價與寵物費';
-
+        return '房價＋寵物費';
       case MemberCouponApplyTarget.total:
         return '整張訂單';
-
       case MemberCouponApplyTarget.service:
-        return '指定加購服務';
+        return '指定服務';
     }
   }
 }
@@ -963,11 +1265,13 @@ class _SectionCard extends StatelessWidget {
     required this.title,
     required this.icon,
     required this.children,
+    required this.compact,
   });
 
   final String title;
   final IconData icon;
   final List<Widget> children;
+  final bool compact;
 
   @override
   Widget build(BuildContext context) {
@@ -983,23 +1287,301 @@ class _SectionCard extends StatelessWidget {
         children: <Widget>[
           Row(
             children: <Widget>[
-              Icon(icon, size: 22),
+              Icon(icon, size: compact ? 18 : 20),
               const SizedBox(width: 8),
               Text(
                 title,
-                style: const TextStyle(
-                  fontSize: 17,
-                  fontWeight: FontWeight.bold,
+                style: TextStyle(
+                  fontSize: compact ? 15 : 16,
+                  fontWeight: FontWeight.w800,
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 16),
+          SizedBox(height: compact ? 10 : 12),
           ...children,
         ],
       ),
     );
   }
+}
+
+class _ChoiceCard extends StatelessWidget {
+  const _ChoiceCard({
+    required this.selected,
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+    this.height = 78,
+  });
+
+  final bool selected;
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
+  final double height;
+
+  @override
+  Widget build(BuildContext context) {
+    const Color accent = Color(0xFF6A1B9A);
+    return Material(
+      color: selected ? accent.withValues(alpha: 0.08) : Colors.white,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(
+          color: selected ? accent : Colors.grey.shade300,
+          width: selected ? 1.4 : 1,
+        ),
+      ),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: onTap,
+        child: SizedBox(
+          height: height,
+          child: Stack(
+            children: <Widget>[
+              Padding(
+                padding: const EdgeInsets.fromLTRB(10, 8, 22, 8),
+                child: Row(
+                  children: <Widget>[
+                    Icon(
+                      icon,
+                      size: 18,
+                      color: selected ? accent : Colors.grey.shade700,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: <Widget>[
+                          Text(
+                            title,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w800,
+                              height: 1.2,
+                            ),
+                          ),
+                          if (subtitle.isNotEmpty) ...<Widget>[
+                            const SizedBox(height: 2),
+                            Text(
+                              subtitle,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: Colors.grey.shade700,
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              if (selected)
+                const Positioned(
+                  top: 4,
+                  right: 4,
+                  child: Icon(Icons.check_circle, size: 14, color: accent),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// 優惠券表單依類型顯示的欄位。儲存與計價邏輯不在這裡。
+class CouponTemplateFormFields {
+  const CouponTemplateFormFields._();
+
+  static bool showsDiscountAmount(MemberCouponType type) {
+    return type == MemberCouponType.fixedAmount;
+  }
+
+  static bool showsPercent(MemberCouponType type) {
+    return type == MemberCouponType.percent;
+  }
+
+  static bool showsMaximumDiscount(MemberCouponType type) {
+    return type == MemberCouponType.percent;
+  }
+
+  static bool showsApplyTarget(MemberCouponType type) {
+    return type == MemberCouponType.fixedAmount ||
+        type == MemberCouponType.percent;
+  }
+
+  static bool showsMinimumAmount(MemberCouponType type) {
+    return showsApplyTarget(type);
+  }
+
+  static bool showsFreeStayNights(MemberCouponType type) {
+    return type == MemberCouponType.freeStay;
+  }
+
+  static bool showsServicePicker(MemberCouponType type) {
+    return type == MemberCouponType.freeService;
+  }
+
+  static bool showsRoomScope(MemberCouponType type) {
+    return type != MemberCouponType.freeService;
+  }
+}
+
+/// 表單上的客戶預覽，只做示意，不寫入訂單、不改計價。
+List<DiscountPromoPreviewLine> buildCouponFormPreview({
+  required MemberCouponType type,
+  required String couponName,
+  required String discountText,
+  required String minimumText,
+  required String maximumText,
+  required String nightsText,
+  required String serviceName,
+  required String validDaysText,
+  required String usageLimitText,
+  required bool roomLimited,
+  required int roomCount,
+}) {
+  const int example = DiscountPromoPreview.sampleStayBase;
+  final String title = couponName.trim().isEmpty ? '優惠券' : couponName.trim();
+  final int minimum = int.tryParse(minimumText.trim()) ?? 0;
+  final int maximum = int.tryParse(maximumText.trim()) ?? 0;
+  final num discountValue = num.tryParse(discountText.trim()) ?? 0;
+  final int nights = int.tryParse(nightsText.trim()) ?? 0;
+  final int validDays = int.tryParse(validDaysText.trim()) ?? 0;
+  final int usageLimit = int.tryParse(usageLimitText.trim()) ?? 0;
+  final bool belowMinimum =
+      CouponTemplateFormFields.showsMinimumAmount(type) &&
+      minimum > 0 &&
+      example < minimum;
+
+  bool ready = false;
+  String offer = '';
+  int discountAmount = 0;
+  switch (type) {
+    case MemberCouponType.fixedAmount:
+      ready = discountValue > 0;
+      discountAmount = discountValue.round().clamp(0, example).toInt();
+      offer = '折抵 ${DiscountPromoPreview.nt(discountAmount)}';
+      break;
+    case MemberCouponType.percent:
+      ready = discountValue > 0 && discountValue <= 100;
+      final int raw = (example * discountValue / 100).round();
+      final int capped = maximum > 0 && raw > maximum ? maximum : raw;
+      discountAmount = capped.clamp(0, example).toInt();
+      offer = '折抵 ${DiscountPromoPreview.nt(discountAmount)}';
+      break;
+    case MemberCouponType.freeStay:
+      ready = nights > 0;
+      final int covered = nights >= DiscountPromoPreview.sampleStayNights
+          ? example
+          : (example * nights / DiscountPromoPreview.sampleStayNights).round();
+      discountAmount = covered;
+      offer = '免費住宿 $nights 晚';
+      break;
+    case MemberCouponType.freeService:
+      ready = serviceName.trim().isNotEmpty;
+      discountAmount = 0;
+      offer = '免費服務：${serviceName.trim()}';
+      break;
+  }
+
+  final List<DiscountPromoPreviewLine> lines = <DiscountPromoPreviewLine>[
+    DiscountPromoPreviewLine(
+      label:
+          '範例訂單　住宿 ${DiscountPromoPreview.sampleStayNights} 晚 ${DiscountPromoPreview.nt(example)}',
+      amount: example,
+    ),
+  ];
+
+  if (!ready) {
+    lines.add(
+      const DiscountPromoPreviewLine(
+        label: '完成優惠內容後會顯示預估',
+        amount: 0,
+        kind: DiscountPromoPreviewKind.hint,
+      ),
+    );
+  } else if (belowMinimum) {
+    lines.add(
+      const DiscountPromoPreviewLine(
+        label: '尚未達可使用門檻',
+        amount: 0,
+        kind: DiscountPromoPreviewKind.hint,
+      ),
+    );
+    lines.add(
+      DiscountPromoPreviewLine(
+        label: '預估應付 ${DiscountPromoPreview.nt(example)}',
+        amount: example,
+        kind: DiscountPromoPreviewKind.total,
+      ),
+    );
+  } else if (type == MemberCouponType.freeService) {
+    lines.add(
+      DiscountPromoPreviewLine(
+        label: offer,
+        amount: 0,
+        kind: DiscountPromoPreviewKind.discount,
+      ),
+    );
+    lines.add(
+      DiscountPromoPreviewLine(
+        label: '預估應付 ${DiscountPromoPreview.nt(example)}',
+        amount: example,
+        kind: DiscountPromoPreviewKind.total,
+      ),
+    );
+  } else if (discountAmount <= 0) {
+    lines.add(
+      const DiscountPromoPreviewLine(
+        label: '完成優惠內容後會顯示預估',
+        amount: 0,
+        kind: DiscountPromoPreviewKind.hint,
+      ),
+    );
+  } else {
+    lines.add(
+      DiscountPromoPreviewLine(
+        label: '$title　$offer',
+        amount: -discountAmount,
+        kind: DiscountPromoPreviewKind.discount,
+      ),
+    );
+    final int payable = example - discountAmount;
+    lines.add(
+      DiscountPromoPreviewLine(
+        label: '預估應付 ${DiscountPromoPreview.nt(payable)}',
+        amount: payable,
+        kind: DiscountPromoPreviewKind.total,
+      ),
+    );
+  }
+
+  final String expiry = validDays <= 0 ? '永久有效' : '發放後 $validDays 天';
+  final String rooms = type == MemberCouponType.freeService
+      ? '指定服務'
+      : roomLimited
+      ? '指定 $roomCount 種房型'
+      : '全部房型可用';
+  final String usage = usageLimit <= 0 ? '使用次數未填' : '每張可用 $usageLimit 次';
+  lines.add(
+    DiscountPromoPreviewLine(
+      label: '期限 $expiry　・　$rooms　・　$usage',
+      amount: 0,
+      kind: DiscountPromoPreviewKind.hint,
+    ),
+  );
+  return lines;
 }
 
 class _RoomTypeOption {

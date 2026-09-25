@@ -9,6 +9,7 @@ import 'package:petnest_saas/core/constants/shop_permission_keys.dart';
 import 'package:petnest_saas/core/models/daily_care_report_center_item.dart';
 import 'package:petnest_saas/core/models/daily_care_report_center_snapshot.dart';
 import 'package:petnest_saas/core/navigation/admin_booking_route.dart';
+import 'package:petnest_saas/core/presentation/room_day_status.dart';
 import 'package:petnest_saas/core/presentation/room_status_presentation.dart';
 import 'package:petnest_saas/core/services/daily_care_report_center_service.dart';
 import 'package:petnest_saas/core/services/daycare_occupancy_service.dart';
@@ -667,6 +668,10 @@ class _RoomDashboardPageState extends State<RoomDashboardPage> {
       );
     }
 
+    final String displayRoomId = _displayRoomId(filtered);
+    _syncDesktopRoomSelection(displayRoomId);
+    final _DashRoom? selectedRow = _roomById(filtered, displayRoomId);
+
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
       child: Column(
@@ -675,10 +680,10 @@ class _RoomDashboardPageState extends State<RoomDashboardPage> {
           const SizedBox(height: 8),
           Expanded(
             child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: <Widget>[
                 Expanded(
-                  flex: 8,
+                  flex: 42,
                   child: rooms.isEmpty
                       ? const Center(child: Text('尚無房間'))
                       : _groupedList(
@@ -686,19 +691,143 @@ class _RoomDashboardPageState extends State<RoomDashboardPage> {
                           allRows: allRows,
                           bookings: bookings,
                           calendarStatus: calendarStatus,
-                          dense: false,
-                          splitSelect: splitSelect,
+                          dense: true,
+                          splitSelect: false,
                           reportsOn: reportsOn,
+                          workbench: true,
+                          selectedRoomId: displayRoomId,
                         ),
                 ),
-                const SizedBox(width: 16),
-                Expanded(
-                  flex: 3,
-                  child: _todoPane(
-                    unassigned: unassigned,
-                    cleaningRows: cleaningRows,
-                    careRows: reportsOn ? const <_DashRoom>[] : careRows,
-                    reportsOn: reportsOn,
+                const SizedBox(width: 12),
+                Expanded(flex: 58, child: _roomRecordPane(row: selectedRow)),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _displayRoomId(List<_DashRoom> filtered) {
+    if (_selectedRoomId.isNotEmpty &&
+        filtered.any((_DashRoom row) => row.id == _selectedRoomId)) {
+      return _selectedRoomId;
+    }
+    for (final _DashRoom row in filtered) {
+      if (row.label == '入住中') {
+        return row.id;
+      }
+    }
+    if (filtered.isNotEmpty) {
+      return filtered.first.id;
+    }
+    return '';
+  }
+
+  void _syncDesktopRoomSelection(String displayRoomId) {
+    if (displayRoomId == _selectedRoomId) {
+      return;
+    }
+    final String previous = _selectedRoomId;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || _selectedRoomId != previous) {
+        return;
+      }
+      setState(() {
+        _selectedRoomId = displayRoomId;
+      });
+    });
+  }
+
+  _DashRoom? _roomById(List<_DashRoom> rows, String id) {
+    if (id.isEmpty) {
+      return null;
+    }
+    for (final _DashRoom row in rows) {
+      if (row.id == id) {
+        return row;
+      }
+    }
+    return null;
+  }
+
+  Widget _roomRecordPane({required _DashRoom? row}) {
+    return Container(
+      decoration: BoxDecoration(
+        color: const Color(0xFFF4F5F7),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFE5E7EB)),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: row == null
+          ? const Center(
+              child: Text(
+                '請從左側選擇房間',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.black54,
+                ),
+              ),
+            )
+          : RoomCalendarPage(
+              key: ValueKey<String>('room-record-${row.id}'),
+              embedded: true,
+              embeddedHeader: _recordIdentity(row),
+              shopId: widget.shopId,
+              roomId: row.id,
+              roomName: row.name,
+              roomTypeName: row.typeName,
+              roomImageUrl: '',
+              room: row.room,
+            ),
+    );
+  }
+
+  Widget _recordIdentity(_DashRoom row) {
+    final String roomTypeId = (row.room['roomTypeId'] ?? '').toString();
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(10, 6, 10, 4),
+      child: Row(
+        children: <Widget>[
+          _RoomTypeThumb(
+            shopId: widget.shopId,
+            roomTypeId: roomTypeId,
+            size: 28,
+          ),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Row(
+                  children: <Widget>[
+                    Flexible(
+                      child: Text(
+                        row.name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    RoomStatusChip(
+                      presentation: row.presentation,
+                      compact: true,
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  row.typeName,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.black54,
                   ),
                 ),
               ],
@@ -1237,6 +1366,8 @@ class _RoomDashboardPageState extends State<RoomDashboardPage> {
     required bool splitSelect,
     required bool reportsOn,
     bool compact = false,
+    bool workbench = false,
+    String selectedRoomId = '',
   }) {
     if (filtered.isEmpty) {
       return const Center(child: Text('沒有符合篩選的房間'));
@@ -1247,7 +1378,8 @@ class _RoomDashboardPageState extends State<RoomDashboardPage> {
     }
     final List<String> keys = groups.keys.toList()..sort(naturalCompare);
     return ListView.builder(
-      padding: const EdgeInsets.only(bottom: 24),
+      primary: workbench ? false : null,
+      padding: EdgeInsets.only(bottom: workbench ? 12 : 24),
       itemCount: keys.length,
       itemBuilder: (BuildContext context, int index) {
         final String type = keys[index];
@@ -1270,7 +1402,7 @@ class _RoomDashboardPageState extends State<RoomDashboardPage> {
                 });
               },
               child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 10, 16, 6),
+                padding: EdgeInsets.fromLTRB(workbench ? 2 : 16, 10, 16, 6),
                 child: Row(
                   children: <Widget>[
                     Icon(
@@ -1303,6 +1435,8 @@ class _RoomDashboardPageState extends State<RoomDashboardPage> {
                   splitSelect: splitSelect,
                   reportsOn: reportsOn,
                   compact: compact,
+                  workbench: workbench,
+                  selectedRoomId: selectedRoomId,
                 ),
               ),
           ],
@@ -1319,29 +1453,32 @@ class _RoomDashboardPageState extends State<RoomDashboardPage> {
     required bool splitSelect,
     required bool reportsOn,
     required bool compact,
+    bool workbench = false,
+    String selectedRoomId = '',
   }) {
     final bool busy = _busyKeys.contains(_actionKey(row.id));
     final bool vacant = row.label == DaycareOccupancyService.vacantLabel;
-    final bool selected = splitSelect && _selectedRoomId == row.id;
+    final bool selected = workbench
+        ? selectedRoomId == row.id
+        : splitSelect && _selectedRoomId == row.id;
+    final DateTime today = DateTime.now();
     final List<Color> dots = weekDays.map((DateTime day) {
-      final Map<String, dynamic>? dayBooking = _bookingOnDate(
-        bookings: bookings,
-        roomId: row.id,
-        day: day,
-      );
-      final String dayLabel = DaycareOccupancyService.housekeepingLabel(
+      final RoomDayStatus dayStatus = resolveRoomDayStatus(
+        date: day,
+        today: today,
         room: Map<String, dynamic>.from(row.room),
         calendarStatus:
             (calendarStatus['${row.id}|${DateFormat('yyyy-MM-dd').format(day)}'] ??
                     '')
                 .toString(),
-        stayBooking: dayBooking,
+        booking: _bookingOnDate(bookings: bookings, roomId: row.id, day: day),
       );
-      return RoomStatusPresentation.fromHousekeepingLabel(
-        dayLabel,
-        booking: dayBooking,
-      ).color;
+      // 桌機工作台才把過去無訂單的日期轉灰，手機維持原本狀態色。
+      return workbench ? dayStatus.color : dayStatus.presentation.color;
     }).toList();
+    if (workbench) {
+      return _workbenchRoomTile(row: row, selected: selected, dots: dots);
+    }
     final Widget actions = _rowActions(
       row: row,
       busy: busy,
@@ -1538,6 +1675,73 @@ class _RoomDashboardPageState extends State<RoomDashboardPage> {
     );
   }
 
+  Widget _workbenchRoomTile({
+    required _DashRoom row,
+    required bool selected,
+    required List<Color> dots,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 6),
+      child: Material(
+        color: selected ? const Color(0xFFE8F2FC) : Colors.white,
+        borderRadius: BorderRadius.circular(10),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(10),
+          onTap: () {
+            setState(() {
+              _selectedRoomId = row.id;
+            });
+          },
+          child: Container(
+            constraints: const BoxConstraints(minHeight: 84),
+            padding: const EdgeInsets.fromLTRB(10, 6, 10, 6),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(
+                color: selected ? _accent : const Color(0xFFE5E7EB),
+                width: selected ? 1.5 : 1,
+              ),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: <Widget>[
+                Row(
+                  children: <Widget>[
+                    Flexible(
+                      child: Text(
+                        row.name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    RoomStatusChip(
+                      presentation: row.presentation,
+                      compact: true,
+                    ),
+                  ],
+                ),
+                Text(
+                  row.typeName,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontSize: 11, color: Colors.black54),
+                ),
+                const SizedBox(height: 2),
+                RoomWeekDots(colors: dots),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _pendingChip(int count) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
@@ -1561,14 +1765,18 @@ class _RoomDashboardPageState extends State<RoomDashboardPage> {
     required bool busy,
     required bool reportsOn,
     required bool splitSelect,
+    bool workbench = false,
   }) {
     Widget button({required String label, required VoidCallback? onPressed}) {
       return TextButton(
         onPressed: busy ? null : onPressed,
         style: TextButton.styleFrom(
           visualDensity: VisualDensity.compact,
-          minimumSize: const Size(48, 40),
-          padding: const EdgeInsets.symmetric(horizontal: 8),
+          minimumSize: Size(48, workbench ? 32 : 40),
+          padding: EdgeInsets.symmetric(horizontal: workbench ? 6 : 8),
+          tapTargetSize: workbench
+              ? MaterialTapTargetSize.shrinkWrap
+              : MaterialTapTargetSize.padded,
         ),
         child: busy
             ? const SizedBox(
@@ -1652,9 +1860,14 @@ class _RoomDashboardPageState extends State<RoomDashboardPage> {
         ],
       );
     }
+    if (workbench) {
+      return const SizedBox.shrink();
+    }
     return button(label: '查看房間', onPressed: () => _openCalendar(row.room));
   }
 
+  // 桌機房務總覽改為單房紀錄，此面板暫不掛載；待辦計算與元件保留。
+  // ignore: unused_element
   Widget _todoPane({
     required List<QueryDocumentSnapshot> unassigned,
     required List<_DashRoom> cleaningRows,
@@ -1927,15 +2140,7 @@ class _RoomDashboardPageState extends State<RoomDashboardPage> {
         final Map<String, dynamic>? roomTypeData = roomTypeDoc.data();
         if (roomTypeData != null) {
           roomTypeName = (roomTypeData['name'] ?? roomTypeName).toString();
-          final Object? images = roomTypeData['images'];
-          if (images is List && images.isNotEmpty) {
-            final Object? firstImage = images.first;
-            if (firstImage is String) {
-              roomImageUrl = firstImage;
-            } else if (firstImage is Map) {
-              roomImageUrl = (firstImage['imageUrl'] ?? '').toString();
-            }
-          }
+          roomImageUrl = _roomTypeImageUrl(roomTypeData);
         }
       } catch (_) {}
     }
@@ -1987,6 +2192,8 @@ class _RoomDashboardPageState extends State<RoomDashboardPage> {
     required String roomId,
     required DateTime day,
   }) {
+    _BookingHit best = const _BookingHit();
+    int bestPriority = -1;
     for (final QueryDocumentSnapshot doc in bookings) {
       final Object? raw = doc.data();
       if (raw is! Map) {
@@ -1996,11 +2203,17 @@ class _RoomDashboardPageState extends State<RoomDashboardPage> {
       if ((data['roomId'] ?? '').toString() != roomId) {
         continue;
       }
-      if (_occupiesDate(data, day)) {
-        return _BookingHit(id: doc.id, data: data);
+      if (!isActiveRoomDayBooking(data) || !_occupiesDate(data, day)) {
+        continue;
+      }
+      // 同一天有多筆時依固定順序取用，右側月曆才會選到同一筆。
+      final int priority = roomDayBookingPriority(data);
+      if (priority > bestPriority) {
+        bestPriority = priority;
+        best = _BookingHit(id: doc.id, data: data);
       }
     }
-    return const _BookingHit();
+    return best;
   }
 
   bool _occupiesDate(Map<String, dynamic> booking, DateTime day) {
@@ -2083,4 +2296,104 @@ class _BookingHit {
 
   final String id;
   final Map<String, dynamic>? data;
+}
+
+String _roomTypeImageUrl(Map<String, dynamic>? roomTypeData) {
+  if (roomTypeData == null) {
+    return '';
+  }
+  final Object? images = roomTypeData['images'];
+  if (images is! List || images.isEmpty) {
+    return '';
+  }
+  final Object? firstImage = images.first;
+  if (firstImage is String) {
+    return firstImage;
+  }
+  if (firstImage is Map) {
+    return (firstImage['imageUrl'] ?? '').toString();
+  }
+  return '';
+}
+
+class _RoomTypeThumb extends StatefulWidget {
+  const _RoomTypeThumb({
+    required this.shopId,
+    required this.roomTypeId,
+    this.size = 40,
+  });
+
+  final String shopId;
+  final String roomTypeId;
+  final double size;
+
+  @override
+  State<_RoomTypeThumb> createState() => _RoomTypeThumbState();
+}
+
+class _RoomTypeThumbState extends State<_RoomTypeThumb> {
+  String _url = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  @override
+  void didUpdateWidget(covariant _RoomTypeThumb oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.roomTypeId != widget.roomTypeId ||
+        oldWidget.shopId != widget.shopId) {
+      _url = '';
+      _load();
+    }
+  }
+
+  Future<void> _load() async {
+    final String roomTypeId = widget.roomTypeId;
+    if (roomTypeId.isEmpty) {
+      return;
+    }
+    String imageUrl = '';
+    try {
+      final DocumentSnapshot<Map<String, dynamic>> roomTypeDoc =
+          await FirebaseFirestore.instance
+              .collection('shops')
+              .doc(widget.shopId)
+              .collection('room_types')
+              .doc(roomTypeId)
+              .get();
+      imageUrl = _roomTypeImageUrl(roomTypeDoc.data());
+    } catch (_) {}
+    if (!mounted || roomTypeId != widget.roomTypeId || imageUrl.isEmpty) {
+      return;
+    }
+    setState(() {
+      _url = imageUrl;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_url.isEmpty) {
+      return const SizedBox.shrink();
+    }
+    return Padding(
+      padding: const EdgeInsets.only(right: 10),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(8),
+        child: Image.network(
+          _url,
+          width: widget.size,
+          height: widget.size,
+          fit: BoxFit.cover,
+          errorBuilder:
+              (BuildContext context, Object error, StackTrace? stack) {
+                return const SizedBox.shrink();
+              },
+        ),
+      ),
+    );
+  }
 }

@@ -90,6 +90,7 @@ class MemberCouponModel {
     this.revokedBy = '',
     this.revokedReason = '',
     this.revokedAt,
+    this.templateId = '',
   });
 
   final String id;
@@ -200,6 +201,11 @@ class MemberCouponModel {
   /// 撤銷時間
   final DateTime? revokedAt;
 
+  /// 發券時使用的優惠券模板 ID。
+  ///
+  /// 舊券與點數兌換券可為空字串，分析時改以名稱彙總。
+  final String templateId;
+
   final DateTime createdAt;
   final DateTime updatedAt;
 
@@ -306,6 +312,7 @@ class MemberCouponModel {
       'revokedBy': revokedBy,
       'revokedReason': revokedReason.trim(),
       'revokedAt': revokedAt == null ? null : Timestamp.fromDate(revokedAt!),
+      'templateId': templateId.trim(),
       'createdAt': Timestamp.fromDate(createdAt),
       'updatedAt': Timestamp.fromDate(updatedAt),
     };
@@ -352,6 +359,7 @@ class MemberCouponModel {
       revokedBy: (data['revokedBy'] ?? '').toString(),
       revokedReason: (data['revokedReason'] ?? '').toString(),
       revokedAt: _dateTimeFromValue(data['revokedAt']),
+      templateId: (data['templateId'] ?? '').toString(),
       createdAt: _dateTimeFromValue(data['createdAt']) ?? DateTime.now(),
       updatedAt: _dateTimeFromValue(data['updatedAt']) ?? DateTime.now(),
     );
@@ -392,6 +400,7 @@ class MemberCouponModel {
     String? revokedReason,
     DateTime? revokedAt,
     bool clearRevokedAt = false,
+    String? templateId,
     DateTime? createdAt,
     DateTime? updatedAt,
   }) {
@@ -427,6 +436,7 @@ class MemberCouponModel {
       revokedBy: revokedBy ?? this.revokedBy,
       revokedReason: revokedReason ?? this.revokedReason,
       revokedAt: clearRevokedAt ? null : revokedAt ?? this.revokedAt,
+      templateId: templateId ?? this.templateId,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
     );

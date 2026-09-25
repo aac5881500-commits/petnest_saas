@@ -23,7 +23,7 @@ import 'package:petnest_saas/core/services/point_redemption_service.dart';
 import 'package:petnest_saas/core/services/point_reward_service.dart';
 import 'package:petnest_saas/core/services/special_date_surcharge_service.dart';
 import 'package:petnest_saas/core/widgets/point_module_visibility.dart';
-import 'package:petnest_saas/features/admin/pages/admin_coupon_template_list_page.dart';
+import 'package:petnest_saas/features/admin/pages/admin_coupon_center_page.dart';
 import 'package:petnest_saas/features/admin/pages/admin_point_exchange_history_page.dart';
 import 'package:petnest_saas/features/admin/pages/admin_point_redemption_list_page.dart';
 import 'package:petnest_saas/features/admin/pages/admin_point_reward_list_page.dart';
@@ -168,6 +168,8 @@ class _DiscountSettingHubState extends State<_DiscountSettingHub> {
       <StreamSubscription<dynamic>>[];
   String? _busySurchargeId;
   String? _busyCampaignId;
+  Widget? _workspace;
+  bool _desktopLayout = false;
 
   @override
   void initState() {
@@ -300,7 +302,34 @@ class _DiscountSettingHubState extends State<_DiscountSettingHub> {
     );
   }
 
+  void _closeWorkspace() {
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _workspace = null;
+    });
+  }
+
   Future<void> _openCampaign({DiscountCampaignModel? campaign}) async {
+    final bool desktop = _desktopLayout;
+    if (desktop) {
+      setState(() {
+        _leftTab = _LeftTab.campaigns;
+        _workspace = campaign == null
+            ? ShopDiscountCampaignComposer(
+                shopId: widget.shopId,
+                onDismiss: _closeWorkspace,
+              )
+            : ShopDiscountCampaignFormPage(
+                shopId: widget.shopId,
+                campaignType: campaign.type,
+                campaign: campaign,
+                onDismiss: _closeWorkspace,
+              );
+      });
+      return;
+    }
     if (campaign == null) {
       await presentDiscountEditor<void>(
         context: context,
@@ -332,7 +361,7 @@ class _DiscountSettingHubState extends State<_DiscountSettingHub> {
     await Navigator.of(context).push<void>(
       MaterialPageRoute<void>(
         builder: (BuildContext context) {
-          return AdminCouponTemplateListPage(shopId: widget.shopId);
+          return AdminCouponCenterPage(shopId: widget.shopId);
         },
       ),
     );
@@ -509,6 +538,7 @@ class _DiscountSettingHubState extends State<_DiscountSettingHub> {
     return LayoutBuilder(
       builder: (BuildContext context, BoxConstraints constraints) {
         final bool desktop = constraints.maxWidth >= 980;
+        _desktopLayout = desktop;
         final Widget tools = _ToolsColumn(
           shopId: widget.shopId,
           snapshot: _snapshot,
@@ -529,6 +559,7 @@ class _DiscountSettingHubState extends State<_DiscountSettingHub> {
           onCreateSurcharge: () => _openSurcharge(),
           onCreateCampaign: () => _openCampaign(),
           onCreateCoupon: () => _openCouponForm(),
+          onOpenCouponCenter: _openCoupons,
         );
         final Widget overview = _OverviewColumn(
           snapshot: _snapshot,
@@ -577,13 +608,21 @@ class _DiscountSettingHubState extends State<_DiscountSettingHub> {
                     const SizedBox(width: 20),
                     Expanded(
                       flex: 58,
-                      child: SingleChildScrollView(child: tools),
+                      child: _workspace == null
+                          ? SingleChildScrollView(child: tools)
+                          : ClipRRect(
+                              borderRadius: BorderRadius.circular(16),
+                              child: _workspace!,
+                            ),
                     ),
                   ],
                 ),
               ),
             ),
           );
+        }
+        if (!desktop && _workspace != null) {
+          return _workspace!;
         }
         return ListView(
           padding: const EdgeInsets.fromLTRB(16, 16, 16, 40),
@@ -1033,7 +1072,7 @@ class _OverviewColumn extends StatelessWidget {
         alignment: Alignment.centerLeft,
         child: TextButton(
           onPressed: onOpenCouponDetails,
-          child: const Text('發券與會員券紀錄'),
+          child: const Text('查看優惠券中心'),
         ),
       ),
       const SizedBox(height: 12),
@@ -1274,6 +1313,7 @@ class _ToolsColumn extends StatelessWidget {
     required this.onCreateSurcharge,
     required this.onCreateCampaign,
     required this.onCreateCoupon,
+    required this.onOpenCouponCenter,
   });
 
   final String shopId;
@@ -1287,6 +1327,7 @@ class _ToolsColumn extends StatelessWidget {
   final VoidCallback onCreateSurcharge;
   final VoidCallback onCreateCampaign;
   final VoidCallback onCreateCoupon;
+  final VoidCallback onOpenCouponCenter;
 
   @override
   Widget build(BuildContext context) {
@@ -1368,8 +1409,10 @@ class _ToolsColumn extends StatelessWidget {
                   ? '尚無設定'
                   : '${snapshot.enabledTemplateCount} 種券模板 · 已發放 ${snapshot.issuedCouponCount} 張',
               onTap: onSelectCoupons,
-              actionLabel: '製作優惠券',
-              onAction: onCreateCoupon,
+              actionLabel: '開啟優惠券中心',
+              onAction: onOpenCouponCenter,
+              secondaryActionLabel: '製作優惠券',
+              onSecondaryAction: onCreateCoupon,
             ),
           ],
         ),
@@ -1533,6 +1576,8 @@ class _ToolRow extends StatelessWidget {
     required this.onTap,
     this.actionLabel,
     this.onAction,
+    this.secondaryActionLabel,
+    this.onSecondaryAction,
   });
 
   final IconData icon;
@@ -1543,6 +1588,8 @@ class _ToolRow extends StatelessWidget {
   final VoidCallback onTap;
   final String? actionLabel;
   final VoidCallback? onAction;
+  final String? secondaryActionLabel;
+  final VoidCallback? onSecondaryAction;
 
   @override
   Widget build(BuildContext context) {
@@ -1601,9 +1648,14 @@ class _ToolRow extends StatelessWidget {
                 ],
               ),
             ),
+            if (secondaryActionLabel != null && onSecondaryAction != null)
+              TextButton(
+                onPressed: onSecondaryAction,
+                child: Text(secondaryActionLabel!),
+              ),
             if (actionLabel != null && onAction != null)
               FilledButton(onPressed: onAction, child: Text(actionLabel!))
-            else
+            else if (secondaryActionLabel == null)
               const Icon(Icons.chevron_right),
           ],
         ),

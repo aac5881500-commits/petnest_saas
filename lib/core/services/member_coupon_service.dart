@@ -7,6 +7,11 @@ import 'package:firebase_auth/firebase_auth.dart';
 import '../models/coupon_template_model.dart';
 import '../models/member_coupon_model.dart';
 
+/// 依照模板發券時，寫進新會員券的模板 ID。
+String issuedTemplateId(CouponTemplateModel template) {
+  return template.id.trim();
+}
+
 class MemberCouponService {
   MemberCouponService._();
 
@@ -195,6 +200,7 @@ class MemberCouponService {
       expireAt: expireAt,
       usageLimit: template.usageLimit,
       issuedReason: issuedReason,
+      templateId: issuedTemplateId(template),
     );
   }
 
@@ -218,6 +224,7 @@ class MemberCouponService {
     DateTime? expireAt,
     int usageLimit = 1,
     String issuedReason = '',
+    String templateId = '',
   }) async {
     final String normalizedShopId = shopId.trim();
     final String normalizedUserId = userId.trim();
@@ -282,6 +289,7 @@ class MemberCouponService {
       pointsCost: 0,
       pointRewardId: '',
       usedBookingId: '',
+      templateId: templateId.trim(),
       createdAt: now,
       updatedAt: now,
     );

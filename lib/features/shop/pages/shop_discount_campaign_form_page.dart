@@ -18,9 +18,14 @@ import '../../../features/shop/widgets/discount_hub_host.dart';
 import '../../../features/shop/widgets/discount_promo_preview_card.dart';
 
 class ShopDiscountCampaignComposer extends StatefulWidget {
-  const ShopDiscountCampaignComposer({super.key, required this.shopId});
+  const ShopDiscountCampaignComposer({
+    super.key,
+    required this.shopId,
+    this.onDismiss,
+  });
 
   final String shopId;
+  final VoidCallback? onDismiss;
 
   @override
   State<ShopDiscountCampaignComposer> createState() =>
@@ -41,6 +46,7 @@ class _ShopDiscountCampaignComposerState
             _type = value;
           });
         },
+        onDismiss: widget.onDismiss,
       );
     }
     return ShopDiscountCampaignFormPage(
@@ -51,6 +57,7 @@ class _ShopDiscountCampaignComposerState
           _type = null;
         });
       },
+      onDismiss: widget.onDismiss,
     );
   }
 }
@@ -62,12 +69,14 @@ class ShopDiscountCampaignFormPage extends StatefulWidget {
     required this.campaignType,
     this.campaign,
     this.onBackToTypePicker,
+    this.onDismiss,
   });
 
   final String shopId;
   final DiscountCampaignType campaignType;
   final DiscountCampaignModel? campaign;
   final VoidCallback? onBackToTypePicker;
+  final VoidCallback? onDismiss;
 
   @override
   State<ShopDiscountCampaignFormPage> createState() =>
@@ -641,8 +650,9 @@ class _ShopDiscountCampaignFormPageState
       if (!mounted) {
         return;
       }
-      Navigator.pop(context, true);
-      ScaffoldMessenger.of(context).showSnackBar(
+      final ScaffoldMessengerState messenger = ScaffoldMessenger.of(context);
+      _leave(saved: true);
+      messenger.showSnackBar(
         SnackBar(
           content: Text(widget.campaign == null ? '優惠活動建立成功' : '優惠活動已更新'),
         ),
@@ -659,6 +669,14 @@ class _ShopDiscountCampaignFormPageState
         });
       }
     }
+  }
+
+  void _leave({bool saved = false}) {
+    if (widget.onDismiss != null) {
+      widget.onDismiss!();
+      return;
+    }
+    Navigator.pop(context, saved);
   }
 
   void _showMessage(String message) {
@@ -747,46 +765,72 @@ class _ShopDiscountCampaignFormPageState
     required VoidCallback? onTap,
   }) {
     final bool enabled = onTap != null;
-    return Expanded(
-      child: Material(
-        color: selected ? const Color(0xFFE3F2FD) : Colors.white,
+    return Material(
+      color: selected ? const Color(0xFFE3F2FD) : Colors.white,
+      borderRadius: BorderRadius.circular(12),
+      child: InkWell(
         borderRadius: BorderRadius.circular(12),
-        child: InkWell(
-          borderRadius: BorderRadius.circular(12),
-          onTap: onTap,
-          child: Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                color: selected
-                    ? const Color(0xFF1565C0)
-                    : Colors.grey.shade300,
+        onTap: onTap,
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: selected ? const Color(0xFF1565C0) : Colors.grey.shade300,
+            ),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Text(
+                title,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontWeight: FontWeight.w800,
+                  color: enabled ? Colors.black87 : Colors.grey,
+                ),
               ),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[
-                Text(
-                  title,
-                  style: TextStyle(
-                    fontWeight: FontWeight.w800,
-                    color: enabled ? Colors.black87 : Colors.grey,
-                  ),
+              const SizedBox(height: 4),
+              Text(
+                subtitle,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 12,
+                  color: enabled ? Colors.grey.shade700 : Colors.grey,
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  subtitle,
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: enabled ? Colors.grey.shade700 : Colors.grey,
-                  ),
-                ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
       ),
+    );
+  }
+
+  Widget _choiceRow(List<Widget> cards) {
+    return LayoutBuilder(
+      builder: (BuildContext context, BoxConstraints constraints) {
+        if (constraints.maxWidth < 560) {
+          return Column(
+            children: <Widget>[
+              for (int i = 0; i < cards.length; i++) ...<Widget>[
+                if (i > 0) const SizedBox(height: 8),
+                cards[i],
+              ],
+            ],
+          );
+        }
+        return Row(
+          children: <Widget>[
+            for (int i = 0; i < cards.length; i++) ...<Widget>[
+              if (i > 0) const SizedBox(width: 8),
+              Expanded(child: cards[i]),
+            ],
+          ],
+        );
+      },
     );
   }
 
@@ -860,31 +904,28 @@ class _ShopDiscountCampaignFormPageState
     return _card('優惠內容', <Widget>[
       const Text('折扣方式', style: TextStyle(fontWeight: FontWeight.w700)),
       const SizedBox(height: 8),
-      Row(
-        children: <Widget>[
-          _choiceCard(
-            title: '百分比折扣',
-            subtitle: '例如 10 即享 9 折',
-            selected: _valueType == DiscountValueType.percent,
-            onTap: () {
-              setState(() {
-                _valueType = DiscountValueType.percent;
-              });
-            },
-          ),
-          const SizedBox(width: 8),
-          _choiceCard(
-            title: '固定金額折抵',
-            subtitle: '直接折抵指定金額',
-            selected: _valueType == DiscountValueType.fixedAmount,
-            onTap: () {
-              setState(() {
-                _valueType = DiscountValueType.fixedAmount;
-              });
-            },
-          ),
-        ],
-      ),
+      _choiceRow(<Widget>[
+        _choiceCard(
+          title: '百分比折扣',
+          subtitle: '例如 10 即享 9 折',
+          selected: _valueType == DiscountValueType.percent,
+          onTap: () {
+            setState(() {
+              _valueType = DiscountValueType.percent;
+            });
+          },
+        ),
+        _choiceCard(
+          title: '固定金額折抵',
+          subtitle: '直接折抵指定金額',
+          selected: _valueType == DiscountValueType.fixedAmount,
+          onTap: () {
+            setState(() {
+              _valueType = DiscountValueType.fixedAmount;
+            });
+          },
+        ),
+      ]),
       const SizedBox(height: 12),
       if (_valueType == DiscountValueType.percent)
         LayoutBuilder(
@@ -945,50 +986,45 @@ class _ShopDiscountCampaignFormPageState
       const SizedBox(height: 14),
       const Text('折扣套用範圍', style: TextStyle(fontWeight: FontWeight.w700)),
       const SizedBox(height: 8),
-      Row(
-        children: <Widget>[
+      _choiceRow(<Widget>[
+        _choiceCard(
+          title: '只房價',
+          subtitle: _applyTargetLocked ? '此類型固定只折房價／方案' : '只計算房價或方案金額',
+          selected: _applyTarget == DiscountApplyTarget.room,
+          onTap: _applyTargetLocked
+              ? null
+              : () {
+                  setState(() {
+                    _applyTarget = DiscountApplyTarget.room;
+                  });
+                },
+        ),
+        _choiceCard(
+          title: '房價＋加購',
+          subtitle: _applyTargetLocked ? '此類型不可改為含加購' : '含寵物加價與加值服務',
+          selected: _applyTarget == DiscountApplyTarget.total,
+          onTap: _applyTargetLocked
+              ? null
+              : () {
+                  setState(() {
+                    _applyTarget = DiscountApplyTarget.total;
+                  });
+                },
+        ),
+        if (_applyTarget == DiscountApplyTarget.roomAndPet)
           _choiceCard(
-            title: '只房價',
-            subtitle: _applyTargetLocked ? '此類型固定只折房價／方案' : '只計算房價或方案金額',
-            selected: _applyTarget == DiscountApplyTarget.room,
+            title: '房價＋寵物',
+            subtitle: '沿用既有設定',
+            selected: true,
             onTap: _applyTargetLocked
                 ? null
                 : () {
                     setState(() {
-                      _applyTarget = DiscountApplyTarget.room;
+                      _applyTarget = DiscountApplyTarget.roomAndPet;
                     });
                   },
           ),
-          const SizedBox(width: 8),
-          _choiceCard(
-            title: '房價＋加購',
-            subtitle: _applyTargetLocked ? '此類型不可改為含加購' : '含寵物加價與加值服務',
-            selected: _applyTarget == DiscountApplyTarget.total,
-            onTap: _applyTargetLocked
-                ? null
-                : () {
-                    setState(() {
-                      _applyTarget = DiscountApplyTarget.total;
-                    });
-                  },
-          ),
-          if (_applyTarget == DiscountApplyTarget.roomAndPet) ...<Widget>[
-            const SizedBox(width: 8),
-            _choiceCard(
-              title: '房價＋寵物',
-              subtitle: '沿用既有設定',
-              selected: true,
-              onTap: _applyTargetLocked
-                  ? null
-                  : () {
-                      setState(() {
-                        _applyTarget = DiscountApplyTarget.roomAndPet;
-                      });
-                    },
-            ),
-          ],
-        ],
-      ),
+      ]),
       if (_applyTargetLocked) ...<Widget>[
         const SizedBox(height: 8),
         Text(
@@ -1065,37 +1101,34 @@ class _ShopDiscountCampaignFormPageState
       if (_isNewMember) ...<Widget>[
         const Text('新會員資格判斷方式', style: TextStyle(fontWeight: FontWeight.w700)),
         const SizedBox(height: 8),
-        Row(
-          children: <Widget>[
-            _choiceCard(
-              title: '活動建立後加入',
-              subtitle: '僅新加入本店的會員',
-              selected:
-                  _newMemberEligibilityMode ==
-                  NewMemberEligibilityMode.createdAfterCampaign,
-              onTap: () {
-                setState(() {
-                  _newMemberEligibilityMode =
-                      NewMemberEligibilityMode.createdAfterCampaign;
-                });
-              },
-            ),
-            const SizedBox(width: 8),
-            _choiceCard(
-              title: '本店無有效訂單',
-              subtitle: '尚未有有效訂單即可使用',
-              selected:
-                  _newMemberEligibilityMode ==
-                  NewMemberEligibilityMode.noPreviousBooking,
-              onTap: () {
-                setState(() {
-                  _newMemberEligibilityMode =
-                      NewMemberEligibilityMode.noPreviousBooking;
-                });
-              },
-            ),
-          ],
-        ),
+        _choiceRow(<Widget>[
+          _choiceCard(
+            title: '活動建立後加入',
+            subtitle: '僅新加入本店的會員',
+            selected:
+                _newMemberEligibilityMode ==
+                NewMemberEligibilityMode.createdAfterCampaign,
+            onTap: () {
+              setState(() {
+                _newMemberEligibilityMode =
+                    NewMemberEligibilityMode.createdAfterCampaign;
+              });
+            },
+          ),
+          _choiceCard(
+            title: '本店無有效訂單',
+            subtitle: '尚未有有效訂單即可使用',
+            selected:
+                _newMemberEligibilityMode ==
+                NewMemberEligibilityMode.noPreviousBooking,
+            onTap: () {
+              setState(() {
+                _newMemberEligibilityMode =
+                    NewMemberEligibilityMode.noPreviousBooking;
+              });
+            },
+          ),
+        ]),
         if (_includesStay) ...<Widget>[
           const SizedBox(height: 12),
           _narrowField(
@@ -1191,43 +1224,38 @@ class _ShopDiscountCampaignFormPageState
         const SizedBox(height: 12),
         const Text('日期涵蓋方式', style: TextStyle(fontWeight: FontWeight.w700)),
         const SizedBox(height: 8),
-        Row(
-          children: <Widget>[
-            _choiceCard(
-              title: '重疊日期',
-              subtitle: '只折活動日期內的房價',
-              selected:
-                  _dateMatchType == DiscountDateMatchType.matchingStayDates,
-              onTap: () {
-                setState(() {
-                  _dateMatchType = DiscountDateMatchType.matchingStayDates;
-                });
-              },
-            ),
-            const SizedBox(width: 8),
-            _choiceCard(
-              title: '入住日',
-              subtitle: '入住日落在期間即可',
-              selected: _dateMatchType == DiscountDateMatchType.checkInDate,
-              onTap: () {
-                setState(() {
-                  _dateMatchType = DiscountDateMatchType.checkInDate;
-                });
-              },
-            ),
-            const SizedBox(width: 8),
-            _choiceCard(
-              title: '整段住宿',
-              subtitle: '全程都要在期間內',
-              selected: _dateMatchType == DiscountDateMatchType.entireStay,
-              onTap: () {
-                setState(() {
-                  _dateMatchType = DiscountDateMatchType.entireStay;
-                });
-              },
-            ),
-          ],
-        ),
+        _choiceRow(<Widget>[
+          _choiceCard(
+            title: '重疊日期',
+            subtitle: '只折活動日期內的房價',
+            selected: _dateMatchType == DiscountDateMatchType.matchingStayDates,
+            onTap: () {
+              setState(() {
+                _dateMatchType = DiscountDateMatchType.matchingStayDates;
+              });
+            },
+          ),
+          _choiceCard(
+            title: '入住日',
+            subtitle: '入住日落在期間即可',
+            selected: _dateMatchType == DiscountDateMatchType.checkInDate,
+            onTap: () {
+              setState(() {
+                _dateMatchType = DiscountDateMatchType.checkInDate;
+              });
+            },
+          ),
+          _choiceCard(
+            title: '整段住宿',
+            subtitle: '全程都要在期間內',
+            selected: _dateMatchType == DiscountDateMatchType.entireStay,
+            onTap: () {
+              setState(() {
+                _dateMatchType = DiscountDateMatchType.entireStay;
+              });
+            },
+          ),
+        ]),
       ],
       if (widget.campaignType == DiscountCampaignType.limitedTime) ...<Widget>[
         const SizedBox(height: 12),
@@ -1569,7 +1597,7 @@ class _ShopDiscountCampaignFormPageState
           icon: Icon(
             widget.onBackToTypePicker == null ? Icons.close : Icons.arrow_back,
           ),
-          onPressed: widget.onBackToTypePicker ?? () => Navigator.pop(context),
+          onPressed: widget.onBackToTypePicker ?? _leave,
         ),
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -1593,17 +1621,14 @@ class _ShopDiscountCampaignFormPageState
         ),
         actions: <Widget>[
           if (widget.onBackToTypePicker != null)
-            IconButton(
-              icon: const Icon(Icons.close),
-              onPressed: () => Navigator.pop(context),
-            ),
+            IconButton(icon: const Icon(Icons.close), onPressed: _leave),
         ],
       ),
       body: Form(
         key: _formKey,
         child: LayoutBuilder(
           builder: (BuildContext context, BoxConstraints constraints) {
-            final bool split = constraints.maxWidth >= 980;
+            final bool split = constraints.maxWidth >= 760;
             final Widget preview = _previewCard();
             if (!split) {
               return Center(
