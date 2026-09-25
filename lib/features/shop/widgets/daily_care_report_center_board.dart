@@ -25,6 +25,7 @@ class DailyCareReportCenterBoard extends StatefulWidget {
     this.focusBookingId = '',
     this.focusRecordDate,
     this.focusSessionIndex,
+    this.embedded = false,
   });
 
   static const double phoneMax = 600;
@@ -41,6 +42,7 @@ class DailyCareReportCenterBoard extends StatefulWidget {
   final String focusBookingId;
   final DateTime? focusRecordDate;
   final int? focusSessionIndex;
+  final bool embedded;
 
   @override
   State<DailyCareReportCenterBoard> createState() =>
@@ -63,7 +65,8 @@ class _DailyCareReportCenterBoardState
   void didUpdateWidget(covariant DailyCareReportCenterBoard oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.focusBookingId != widget.focusBookingId ||
-        oldWidget.focusRecordDate != widget.focusRecordDate) {
+        oldWidget.focusRecordDate != widget.focusRecordDate ||
+        oldWidget.embedded != widget.embedded) {
       _expandFocus();
     }
     if (oldWidget.query != widget.query && _search.text != widget.query) {
@@ -86,7 +89,8 @@ class _DailyCareReportCenterBoardState
       if (item.bookingId != bookingId) {
         continue;
       }
-      if (widget.focusRecordDate != null &&
+      if (!widget.embedded &&
+          widget.focusRecordDate != null &&
           DailyCareDateHelper.dateKey(item.recordDate) !=
               DailyCareDateHelper.dateKey(widget.focusRecordDate!)) {
         continue;
@@ -99,6 +103,14 @@ class _DailyCareReportCenterBoardState
 
   @override
   Widget build(BuildContext context) {
+    if (widget.embedded) {
+      return _EmbeddedBoard(
+        snapshot: widget.snapshot,
+        setting: widget.setting,
+        bookingId: widget.focusBookingId.trim(),
+        focusSessionIndex: widget.focusSessionIndex,
+      );
+    }
     final double width = MediaQuery.sizeOf(context).width;
     final List<DailyCareReportCenterDateGroup> groups =
         DailyCareReportCenterDateGrouping.visible(
@@ -176,6 +188,119 @@ class DailyCareReportCenterErrorPane extends StatelessWidget {
   }
 }
 
+class _EmbeddedBoard extends StatelessWidget {
+  const _EmbeddedBoard({
+    required this.snapshot,
+    required this.setting,
+    required this.bookingId,
+    required this.focusSessionIndex,
+  });
+
+  final DailyCareReportCenterSnapshot snapshot;
+  final DailyCareSettingModel setting;
+  final String bookingId;
+  final int? focusSessionIndex;
+
+  @override
+  Widget build(BuildContext context) {
+    if (bookingId.isEmpty) {
+      return const SizedBox.shrink();
+    }
+    final List<DailyCareReportCenterItem> sessions =
+        snapshot.items
+            .where(
+              (DailyCareReportCenterItem item) => item.bookingId == bookingId,
+            )
+            .toList()
+          ..sort((DailyCareReportCenterItem a, DailyCareReportCenterItem b) {
+            final int date = a.recordDate.compareTo(b.recordDate);
+            if (date != 0) {
+              return date;
+            }
+            return a.sessionIndex.compareTo(b.sessionIndex);
+          });
+    if (sessions.isEmpty) {
+      return const Center(
+        child: Padding(
+          padding: EdgeInsets.all(24),
+          child: Text(
+            '這筆訂單目前沒有每日回報場次',
+            textAlign: TextAlign.center,
+            style: TextStyle(fontWeight: FontWeight.w700),
+          ),
+        ),
+      );
+    }
+    final DailyCareReportCenterItem primary = sessions.first;
+    final int pending = sessions
+        .where((DailyCareReportCenterItem item) => !item.isCompleted)
+        .length;
+    final int completed = sessions.length - pending;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: <Widget>[
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+          child: Row(
+            children: <Widget>[
+              _MiniChip(
+                label: primary.typeLabel,
+                color: const Color(0xFF3949AB),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  <String>[
+                    primary.placeLabel,
+                    if (primary.customerName.isNotEmpty) primary.customerName,
+                    if (primary.petNamesShort.isNotEmpty) primary.petNamesShort,
+                  ].join('・'),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontWeight: FontWeight.w800),
+                ),
+              ),
+              Text(
+                '已完成 $completed/${sessions.length} 場',
+                style: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              if (pending > 0) ...<Widget>[
+                const SizedBox(width: 8),
+                _MiniChip(
+                  label: '待填 $pending 場',
+                  color: const Color(0xFFE65100),
+                ),
+              ],
+            ],
+          ),
+        ),
+        const Divider(height: 1),
+        Expanded(
+          child: ListView.builder(
+            padding: const EdgeInsets.fromLTRB(8, 4, 8, 16),
+            itemCount: sessions.length,
+            itemBuilder: (BuildContext context, int index) {
+              final DailyCareReportCenterItem session = sessions[index];
+              return _SessionRow(
+                session: session,
+                setting: setting,
+                highlight:
+                    focusSessionIndex != null &&
+                    session.sessionIndex == focusSessionIndex,
+                showDate: true,
+                compact: true,
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 class _CompactBoard extends StatelessWidget {
   const _CompactBoard({
     required this.snapshot,
@@ -245,6 +370,7 @@ class _CompactBoard extends StatelessWidget {
                   onToggle: onToggle,
                   focusBookingId: focusBookingId,
                   focusSessionIndex: focusSessionIndex,
+                  compactSessions: true,
                 ),
         ),
       ],
@@ -286,25 +412,18 @@ class _DesktopBoard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(24, 16, 24, 24),
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: <Widget>[
-          Text(
-            '每日回報中心',
-            style: Theme.of(
-              context,
-            ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
-          ),
-          const SizedBox(height: 12),
           _SummaryCard(snapshot: snapshot),
-          const SizedBox(height: 16),
+          const SizedBox(height: 12),
           Expanded(
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: <Widget>[
                 SizedBox(
-                  width: 240,
+                  width: 200,
                   child: _FilterRail(
                     snapshot: snapshot,
                     status: status,
@@ -313,7 +432,7 @@ class _DesktopBoard extends StatelessWidget {
                     onType: onType,
                   ),
                 ),
-                const SizedBox(width: 20),
+                const SizedBox(width: 16),
                 Expanded(
                   child: Column(
                     children: <Widget>[
@@ -330,6 +449,7 @@ class _DesktopBoard extends StatelessWidget {
                                 onToggle: onToggle,
                                 focusBookingId: focusBookingId,
                                 focusSessionIndex: focusSessionIndex,
+                                compactSessions: true,
                               ),
                       ),
                     ],
@@ -353,6 +473,7 @@ class _DateList extends StatelessWidget {
     required this.onToggle,
     required this.focusBookingId,
     required this.focusSessionIndex,
+    required this.compactSessions,
   });
 
   final List<DailyCareReportCenterDateGroup> groups;
@@ -362,6 +483,7 @@ class _DateList extends StatelessWidget {
   final ValueChanged<String> onToggle;
   final String focusBookingId;
   final int? focusSessionIndex;
+  final bool compactSessions;
 
   @override
   Widget build(BuildContext context) {
@@ -398,6 +520,7 @@ class _DateList extends StatelessWidget {
                         booking.bookingId == focusBookingId.trim() &&
                         focusBookingId.trim().isNotEmpty,
                     focusSessionIndex: focusSessionIndex,
+                    compactSessions: compactSessions,
                   ),
                 ),
             ],
@@ -697,6 +820,7 @@ class _BookingCard extends StatelessWidget {
     required this.onToggle,
     required this.highlight,
     required this.focusSessionIndex,
+    required this.compactSessions,
   });
 
   final DailyCareReportCenterBookingDayGroup group;
@@ -705,6 +829,7 @@ class _BookingCard extends StatelessWidget {
   final VoidCallback onToggle;
   final bool highlight;
   final int? focusSessionIndex;
+  final bool compactSessions;
 
   @override
   Widget build(BuildContext context) {
@@ -727,7 +852,7 @@ class _BookingCard extends StatelessWidget {
           InkWell(
             onTap: onToggle,
             child: Padding(
-              padding: const EdgeInsets.fromLTRB(12, 8, 6, 8),
+              padding: const EdgeInsets.fromLTRB(12, 10, 6, 10),
               child: Row(
                 children: <Widget>[
                   Expanded(
@@ -743,16 +868,6 @@ class _BookingCard extends StatelessWidget {
                               label: item.typeLabel,
                               color: const Color(0xFF3949AB),
                             ),
-                            _MiniChip(
-                              label: item.reportsLocked
-                                  ? (group.hasPending ? '未完成・已鎖定' : '已完成・唯讀')
-                                  : (group.hasPending
-                                        ? '未完成 ${group.pendingCount} 場'
-                                        : '已完成'),
-                              color: item.reportsLocked
-                                  ? const Color(0xFF616161)
-                                  : accent,
-                            ),
                             Text(
                               item.bookingCode.isEmpty
                                   ? item.bookingId
@@ -762,6 +877,12 @@ class _BookingCard extends StatelessWidget {
                                 fontSize: 13,
                               ),
                             ),
+                            if (item.reportsLocked)
+                              const Icon(
+                                Icons.lock_outline,
+                                size: 14,
+                                color: Color(0xFF616161),
+                              ),
                           ],
                         ),
                         const SizedBox(height: 4),
@@ -776,13 +897,25 @@ class _BookingCard extends StatelessWidget {
                           overflow: TextOverflow.ellipsis,
                           style: const TextStyle(fontSize: 13),
                         ),
-                        Text(
-                          '${group.completedCount}/${group.totalCount} 場',
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w800,
-                            color: accent,
-                          ),
+                        const SizedBox(height: 4),
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 4,
+                          children: <Widget>[
+                            Text(
+                              '${group.completedCount} / ${group.totalCount} 場',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w800,
+                                color: accent,
+                              ),
+                            ),
+                            if (group.hasPending)
+                              _MiniChip(
+                                label: '待填 ${group.pendingCount} 場',
+                                color: const Color(0xFFE65100),
+                              ),
+                          ],
                         ),
                       ],
                     ),
@@ -809,6 +942,8 @@ class _BookingCard extends StatelessWidget {
                           highlight &&
                           focusSessionIndex != null &&
                           session.sessionIndex == focusSessionIndex,
+                      showDate: false,
+                      compact: compactSessions,
                     ),
                 ],
               ),
@@ -824,23 +959,35 @@ class _SessionRow extends StatelessWidget {
     required this.session,
     required this.setting,
     required this.highlight,
+    required this.showDate,
+    required this.compact,
   });
 
   final DailyCareReportCenterItem session;
   final DailyCareSettingModel setting;
   final bool highlight;
+  final bool showDate;
+  final bool compact;
 
   @override
   Widget build(BuildContext context) {
     final bool done = session.isCompleted;
     final bool locked = session.reportsLocked;
-    final String status = DailyCareSessionStatus.sessionLine(
-      completed: done,
-      photoCount: session.photoCount,
-      locked: locked,
-    );
+    final Color statusColor = locked
+        ? const Color(0xFF616161)
+        : (done ? const Color(0xFF2E7D32) : const Color(0xFFE65100));
+    final String statusLabel = locked ? '已鎖定' : (done ? '已完成' : '待填');
+    final String photo = DailyCareSessionStatus.photoLabel(session.photoCount);
+    final String actionLabel;
+    if (locked) {
+      actionLabel = done ? '唯讀查看' : '已鎖定';
+    } else {
+      actionLabel = done ? '查看／編輯' : '填寫';
+    }
+    final bool actionEnabled = locked ? done : session.canOperate;
     return Container(
       margin: const EdgeInsets.only(bottom: 2),
+      constraints: BoxConstraints(minHeight: compact ? 44 : 40),
       padding: const EdgeInsets.fromLTRB(8, 4, 4, 4),
       decoration: BoxDecoration(
         color: highlight ? const Color(0xFFE3F2FD) : Colors.transparent,
@@ -853,56 +1000,65 @@ class _SessionRow extends StatelessWidget {
                 ? Icons.lock_outline
                 : (done ? Icons.check_circle : Icons.radio_button_unchecked),
             size: 16,
-            color: locked
-                ? const Color(0xFF757575)
-                : (done ? const Color(0xFF2E7D32) : const Color(0xFFE65100)),
+            color: statusColor,
           ),
           const SizedBox(width: 8),
           Expanded(
-            child: Text(
-              '${session.sessionName}　$status',
-              style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: <Widget>[
+                Text(
+                  session.sessionName,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w700,
+                    fontSize: 13,
+                  ),
+                ),
+                if (showDate)
+                  Text(
+                    DailyCareReportCenterItem.dateHeadingOf(session.recordDate),
+                    style: const TextStyle(fontSize: 11, color: Colors.black54),
+                  ),
+              ],
             ),
           ),
-          if (locked)
-            TextButton(
-              onPressed: done
-                  ? () => DailyCareRecordEditLauncher.open(
-                      context: context,
-                      shopId: session.shopId,
-                      bookingId: session.bookingId,
-                      recordDate: session.recordDate,
-                      sessionIndex: session.sessionIndex,
-                      roomId: session.roomId,
-                      roomName: session.roomName,
-                      serviceType: session.serviceType,
-                      petIds: session.petIds,
-                      setting: setting,
-                      entitlement: session.entitlement,
-                      readOnly: true,
-                    )
-                  : null,
-              child: Text(done ? '查看' : '已鎖定'),
-            )
-          else
-            TextButton(
-              onPressed: session.canOperate
-                  ? () => DailyCareRecordEditLauncher.open(
-                      context: context,
-                      shopId: session.shopId,
-                      bookingId: session.bookingId,
-                      recordDate: session.recordDate,
-                      sessionIndex: session.sessionIndex,
-                      roomId: session.roomId,
-                      roomName: session.roomName,
-                      serviceType: session.serviceType,
-                      petIds: session.petIds,
-                      setting: setting,
-                      entitlement: session.entitlement,
-                    )
-                  : null,
-              child: Text(done ? '查看／編輯' : '填寫'),
+          _MiniChip(label: statusLabel, color: statusColor),
+          const SizedBox(width: 6),
+          Flexible(
+            child: Text(
+              done ? '已完成・$photo' : photo,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
             ),
+          ),
+          const SizedBox(width: 4),
+          TextButton(
+            onPressed: actionEnabled
+                ? () => DailyCareRecordEditLauncher.open(
+                    context: context,
+                    shopId: session.shopId,
+                    bookingId: session.bookingId,
+                    recordDate: session.recordDate,
+                    sessionIndex: session.sessionIndex,
+                    roomId: session.roomId,
+                    roomName: session.roomName,
+                    serviceType: session.serviceType,
+                    petIds: session.petIds,
+                    setting: setting,
+                    entitlement: session.entitlement,
+                    readOnly: locked,
+                  )
+                : null,
+            style: TextButton.styleFrom(
+              minimumSize: const Size(64, 40),
+              visualDensity: VisualDensity.compact,
+            ),
+            child: Text(actionLabel),
+          ),
         ],
       ),
     );

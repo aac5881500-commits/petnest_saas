@@ -1,25 +1,25 @@
 // 檔案名稱：lib/features/room/pages/room_dashboard_page.dart
-// 功能說明：房務管理工作台（手機清單／桌機雙欄），即時監聽與操作回饋。
+// 功能說明：營運工作台主頁，整合房務管理與每日回報三種檢視。
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:petnest_saas/core/constants/shop_permission_keys.dart';
-import 'package:petnest_saas/core/models/shop_task_item.dart';
+import 'package:petnest_saas/core/models/daily_care_report_center_item.dart';
+import 'package:petnest_saas/core/models/daily_care_report_center_snapshot.dart';
 import 'package:petnest_saas/core/navigation/admin_booking_route.dart';
 import 'package:petnest_saas/core/presentation/room_status_presentation.dart';
+import 'package:petnest_saas/core/services/daily_care_report_center_service.dart';
 import 'package:petnest_saas/core/services/daycare_occupancy_service.dart';
 import 'package:petnest_saas/core/services/shop_room_service.dart';
 import 'package:petnest_saas/core/services/shop_service.dart';
-import 'package:petnest_saas/core/services/shop_task_center_service.dart';
 import 'package:petnest_saas/core/utils/natural_sort.dart';
 import 'package:petnest_saas/core/widgets/shop_task_center_button.dart';
-import 'package:petnest_saas/features/admin/widgets/admin_daily_care_report_shortcut.dart';
 import 'package:petnest_saas/features/auth/pages/room_calendar_page.dart';
 import 'package:petnest_saas/features/room/pages/housekeeping_setting_page.dart';
-import 'package:petnest_saas/features/room/widgets/housekeeping_daily_care_pane.dart';
 import 'package:petnest_saas/features/room/widgets/room_status_chip.dart';
+import 'package:petnest_saas/features/shop/pages/daily_care_report_center_page.dart';
 
 enum _RoomQuickFilter { all, needs, checkedIn, vacant }
 
@@ -32,7 +32,7 @@ class _DashRoom {
     required this.presentation,
     this.booking,
     this.bookingId = '',
-    this.care,
+    this.pendingSessions = 0,
   });
 
   final Map<String, dynamic> room;
@@ -40,7 +40,7 @@ class _DashRoom {
   final RoomStatusPresentation presentation;
   final Map<String, dynamic>? booking;
   final String bookingId;
-  final ShopRoomCareProgress? care;
+  final int pendingSessions;
 
   String get id => (room['id'] ?? '').toString();
   String get name => (room['name'] ?? '').toString();
@@ -49,13 +49,17 @@ class _DashRoom {
     return name.isEmpty ? '未分類' : name;
   }
 
-  bool get needsAction {
-    if (label == DaycareOccupancyService.cleaningLabel ||
+  bool get needsHousekeeping {
+    return label == DaycareOccupancyService.cleaningLabel ||
         label == DaycareOccupancyService.maintenanceLabel ||
-        label == DaycareOccupancyService.closedLabel) {
+        label == DaycareOccupancyService.closedLabel;
+  }
+
+  bool needsAction({required bool reportsOn}) {
+    if (needsHousekeeping) {
       return true;
     }
-    if (label == '入住中' && care != null && !care!.isComplete) {
+    if (reportsOn && label == '入住中' && pendingSessions > 0) {
       return true;
     }
     return false;
@@ -73,8 +77,8 @@ class RoomDashboardPage extends StatefulWidget {
 
 class _RoomDashboardPageState extends State<RoomDashboardPage> {
   static const double _desktopMin = 700;
-  static const double _splitMin = 1180;
-  static const double _contentMax = 1520;
+  static const double _splitMin = 1100;
+  static const Color _accent = Color(0xFF1565C0);
 
   DateTime selectedDate = DateTime.now();
   bool _loadingPermission = true;
@@ -84,9 +88,10 @@ class _RoomDashboardPageState extends State<RoomDashboardPage> {
   final Set<String> _collapsedTypes = <String>{};
   final Set<String> _busyKeys = <String>{};
   _DeskView _deskView = _DeskView.rooms;
-  double _splitRatio = 0.5;
   String _focusBookingId = '';
+  String _selectedRoomId = '';
   int _streamRetry = 0;
+  DailyCareReportCenterSnapshot? _lastReport;
 
   DateTime get weekStart {
     final DateTime d = DateTime(
@@ -108,13 +113,7 @@ class _RoomDashboardPageState extends State<RoomDashboardPage> {
 
   String _actionKey(String roomId) => '$roomId|$dateStr';
 
-  String get _deskViewLabel {
-    return switch (_deskView) {
-      _DeskView.rooms => '房務全頁',
-      _DeskView.reports => '回報全頁',
-      _DeskView.split => '分割工作台',
-    };
-  }
+  bool get _reportsOn => _lastReport?.settingEnabled == true;
 
   Future<void> _checkPermission() async {
     final User? user = FirebaseAuth.instance.currentUser;
@@ -157,100 +156,77 @@ class _RoomDashboardPageState extends State<RoomDashboardPage> {
         body: const Center(child: Text('你沒有房務管理權限')),
       );
     }
-    return Scaffold(
-      backgroundColor: const Color(0xFFF6F7F9),
-      appBar: AppBar(
-        title: const Text('房務管理'),
-        actions: <Widget>[
-          if (MediaQuery.sizeOf(context).width >= _desktopMin)
-            PopupMenuButton<_DeskView>(
-              tooltip: '檢視模式',
-              initialValue: _deskView,
-              onSelected: (_DeskView value) {
-                setState(() {
-                  _deskView = value;
-                });
-              },
-              itemBuilder: (BuildContext context) {
-                return const <PopupMenuEntry<_DeskView>>[
-                  PopupMenuItem<_DeskView>(
-                    value: _DeskView.rooms,
-                    child: Text('房務全頁'),
-                  ),
-                  PopupMenuItem<_DeskView>(
-                    value: _DeskView.reports,
-                    child: Text('回報全頁'),
-                  ),
-                  PopupMenuItem<_DeskView>(
-                    value: _DeskView.split,
-                    child: Text('分割工作台'),
-                  ),
-                ];
-              },
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 8),
-                child: Row(
-                  children: <Widget>[
-                    Text(_deskViewLabel),
-                    const Icon(Icons.arrow_drop_down),
-                  ],
-                ),
-              ),
-            ),
-          ShopTaskCenterButton(shopId: widget.shopId),
-          IconButton(
-            tooltip: '房務設定',
-            icon: const Icon(Icons.settings_outlined),
-            onPressed: () {
-              Navigator.of(context).push(
-                MaterialPageRoute<void>(
-                  builder: (_) =>
-                      HousekeepingSettingPage(shopId: widget.shopId),
-                ),
-              );
-            },
+    return LayoutBuilder(
+      builder: (BuildContext context, BoxConstraints constraints) {
+        final double width = constraints.maxWidth;
+        final bool desktop = width >= _desktopMin;
+        final bool splitOk = width >= _splitMin;
+        if (!splitOk && _deskView == _DeskView.split) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted && _deskView == _DeskView.split) {
+              setState(() {
+                _deskView = _DeskView.rooms;
+              });
+            }
+          });
+        }
+        return StreamBuilder<DailyCareReportCenterSnapshot>(
+          stream: DailyCareReportCenterService.instance.streamToday(
+            shopId: widget.shopId,
+            canOperate: true,
           ),
-        ],
-      ),
-      body: LayoutBuilder(
-        builder: (BuildContext context, BoxConstraints constraints) {
-          final bool desktop = constraints.maxWidth >= _desktopMin;
-          return StreamBuilder<List<Map<String, dynamic>>>(
-            key: ValueKey<int>(_streamRetry),
-            stream: ShopService.instance.streamRooms(widget.shopId),
-            builder:
-                (
-                  BuildContext context,
-                  AsyncSnapshot<List<Map<String, dynamic>>> roomSnap,
-                ) {
-                  if (roomSnap.hasError) {
-                    return _errorPane('房間資料讀取失敗', roomSnap.error);
-                  }
-                  if (!roomSnap.hasData) {
-                    return const Center(child: CircularProgressIndicator());
-                  }
-                  final List<Map<String, dynamic>> rooms =
-                      List<Map<String, dynamic>>.from(roomSnap.data!)
-                        ..sort(_compareRooms);
-                  return StreamBuilder<ShopTaskCenterSnapshot>(
-                    stream: ShopTaskCenterService.instance.streamSnapshot(
-                      shopId: widget.shopId,
-                      canViewBookings: false,
-                      canFillDailyCare: true,
-                      careDate: DateTime(
-                        selectedDate.year,
-                        selectedDate.month,
-                        selectedDate.day,
+          builder:
+              (
+                BuildContext context,
+                AsyncSnapshot<DailyCareReportCenterSnapshot> reportSnap,
+              ) {
+                if (reportSnap.hasData &&
+                    reportSnap.data != null &&
+                    !reportSnap.data!.hasError) {
+                  _lastReport = reportSnap.data;
+                }
+                return Scaffold(
+                  backgroundColor: const Color(0xFFF6F7F9),
+                  appBar: AppBar(
+                    titleSpacing: 0,
+                    title: _appTitle(),
+                    actions: <Widget>[
+                      if (_reportsOn) _viewSwitcher(splitOk: splitOk),
+                      ShopTaskCenterButton(shopId: widget.shopId),
+                      IconButton(
+                        tooltip: '房務設定',
+                        icon: const Icon(Icons.settings_outlined),
+                        onPressed: () {
+                          Navigator.of(context).push(
+                            MaterialPageRoute<void>(
+                              builder: (_) => HousekeepingSettingPage(
+                                shopId: widget.shopId,
+                              ),
+                            ),
+                          );
+                        },
                       ),
-                    ),
+                    ],
+                  ),
+                  body: StreamBuilder<List<Map<String, dynamic>>>(
+                    key: ValueKey<int>(_streamRetry),
+                    stream: ShopService.instance.streamRooms(widget.shopId),
                     builder:
                         (
                           BuildContext context,
-                          AsyncSnapshot<ShopTaskCenterSnapshot> careSnap,
+                          AsyncSnapshot<List<Map<String, dynamic>>> roomSnap,
                         ) {
-                          final Map<String, ShopRoomCareProgress> careProgress =
-                              careSnap.data?.roomCareProgress ??
-                              const <String, ShopRoomCareProgress>{};
+                          if (roomSnap.hasError) {
+                            return _errorPane('房間資料讀取失敗', roomSnap.error);
+                          }
+                          if (!roomSnap.hasData) {
+                            return const Center(
+                              child: CircularProgressIndicator(),
+                            );
+                          }
+                          final List<Map<String, dynamic>> rooms =
+                              List<Map<String, dynamic>>.from(roomSnap.data!)
+                                ..sort(_compareRooms);
                           return StreamBuilder<QuerySnapshot>(
                             stream: FirebaseFirestore.instance
                                 .collection('bookings')
@@ -305,22 +281,86 @@ class _RoomDashboardPageState extends State<RoomDashboardPage> {
                                           }
                                           return _workspace(
                                             desktop: desktop,
-                                            width: constraints.maxWidth,
+                                            width: width,
                                             rooms: rooms,
                                             bookings: bookingSnap.data!.docs,
                                             calendarDocs:
                                                 calendarSnap.data!.docs,
-                                            careProgress: careProgress,
+                                            report: _lastReport,
                                           );
                                         },
                                   );
                                 },
                           );
                         },
-                  );
-                },
-          );
-        },
+                  ),
+                );
+              },
+        );
+      },
+    );
+  }
+
+  Widget _appTitle() {
+    if (!_reportsOn) {
+      return const Text('房務管理');
+    }
+    final bool reportsView = _deskView == _DeskView.reports;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: <Widget>[
+        Text(reportsView ? '每日回報' : '營運工作台'),
+        if (!reportsView)
+          const Text(
+            '今日房務與照護回報一覽',
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w500,
+              color: Colors.black54,
+            ),
+          ),
+      ],
+    );
+  }
+
+  Widget _viewSwitcher({required bool splitOk}) {
+    final List<ButtonSegment<_DeskView>> segments = <ButtonSegment<_DeskView>>[
+      const ButtonSegment<_DeskView>(
+        value: _DeskView.rooms,
+        label: Text('房務總覽'),
+      ),
+      const ButtonSegment<_DeskView>(
+        value: _DeskView.reports,
+        label: Text('每日回報'),
+      ),
+      if (splitOk)
+        const ButtonSegment<_DeskView>(
+          value: _DeskView.split,
+          label: Text('分割工作台'),
+        ),
+    ];
+    final _DeskView selected = _deskView == _DeskView.split && !splitOk
+        ? _DeskView.rooms
+        : _deskView;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+      child: FittedBox(
+        fit: BoxFit.scaleDown,
+        child: SegmentedButton<_DeskView>(
+          showSelectedIcon: false,
+          style: const ButtonStyle(
+            visualDensity: VisualDensity.compact,
+            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          ),
+          segments: segments,
+          selected: <_DeskView>{selected},
+          onSelectionChanged: (Set<_DeskView> value) {
+            setState(() {
+              _deskView = value.first;
+            });
+          },
+        ),
       ),
     );
   }
@@ -331,8 +371,9 @@ class _RoomDashboardPageState extends State<RoomDashboardPage> {
     required List<Map<String, dynamic>> rooms,
     required List<QueryDocumentSnapshot> bookings,
     required List<QueryDocumentSnapshot> calendarDocs,
-    required Map<String, ShopRoomCareProgress> careProgress,
+    required DailyCareReportCenterSnapshot? report,
   }) {
+    final bool reportsOn = report?.settingEnabled == true;
     final Map<String, String> calendarStatus = <String, String>{};
     for (final QueryDocumentSnapshot doc in calendarDocs) {
       final Object? raw = doc.data();
@@ -353,7 +394,7 @@ class _RoomDashboardPageState extends State<RoomDashboardPage> {
             room: room,
             bookings: bookings,
             calendarStatus: calendarStatus,
-            careProgress: careProgress,
+            report: report,
           ),
         )
         .toList();
@@ -381,7 +422,7 @@ class _RoomDashboardPageState extends State<RoomDashboardPage> {
         case _RoomQuickFilter.all:
           return true;
         case _RoomQuickFilter.needs:
-          return row.needsAction;
+          return row.needsAction(reportsOn: reportsOn);
         case _RoomQuickFilter.checkedIn:
           return row.label == '入住中';
         case _RoomQuickFilter.vacant:
@@ -422,6 +463,9 @@ class _RoomDashboardPageState extends State<RoomDashboardPage> {
       allRows,
       DaycareOccupancyService.maintenanceLabel,
     );
+    final int pendingHousekeeping =
+        unassigned.length + cleaningCount + closedCount + blockedCount;
+    final int pendingReports = reportsOn ? (report?.pendingCount ?? 0) : 0;
     final List<_DashRoom> cleaningRows = allRows
         .where(
           (_DashRoom row) => row.label == DaycareOccupancyService.cleaningLabel,
@@ -430,24 +474,175 @@ class _RoomDashboardPageState extends State<RoomDashboardPage> {
     final List<_DashRoom> careRows = allRows
         .where(
           (_DashRoom row) =>
-              row.label == '入住中' && row.care != null && !row.care!.isComplete,
+              reportsOn && row.label == '入住中' && row.pendingSessions > 0,
         )
         .toList();
 
+    if (!reportsOn) {
+      return _roomsOverview(
+        desktop: desktop,
+        rooms: rooms,
+        filtered: filtered,
+        allRows: allRows,
+        bookings: bookings,
+        calendarStatus: calendarStatus,
+        typeNames: typeNames,
+        typeFilter: typeFilter,
+        unassigned: unassigned,
+        cleaningRows: cleaningRows,
+        careRows: const <_DashRoom>[],
+        emptyCount: emptyCount,
+        disabledCount: disabledCount,
+        usingCount: usingCount,
+        cleaningCount: cleaningCount,
+        closedCount: closedCount,
+        blockedCount: blockedCount,
+        reportsOn: false,
+        splitSelect: false,
+      );
+    }
+
+    final bool splitOk = width >= _splitMin;
+    final _DeskView view = _deskView == _DeskView.split && !splitOk
+        ? _DeskView.rooms
+        : _deskView;
+
+    final Widget stats = _opsStats(
+      desktop: desktop,
+      usingCount: usingCount,
+      cleaningCount: cleaningCount,
+      pendingHousekeeping: pendingHousekeeping,
+      pendingReports: pendingReports,
+    );
+
+    if (view == _DeskView.reports) {
+      return Column(
+        children: <Widget>[
+          stats,
+          Expanded(
+            child: DailyCareReportCenterPage(
+              shopId: widget.shopId,
+              canOperate: true,
+              embedded: true,
+            ),
+          ),
+        ],
+      );
+    }
+
+    if (view == _DeskView.split) {
+      return Column(
+        children: <Widget>[
+          stats,
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: <Widget>[
+                  Expanded(
+                    flex: 38,
+                    child: _quickRoomPane(
+                      allRows: allRows,
+                      usingCount: usingCount,
+                      pendingHousekeeping: pendingHousekeeping,
+                      bookings: bookings,
+                      calendarStatus: calendarStatus,
+                    ),
+                  ),
+                  const Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 8),
+                    child: VerticalDivider(width: 1, thickness: 1),
+                  ),
+                  Expanded(
+                    flex: 62,
+                    child: Material(
+                      color: const Color(0xFFF7F8FA),
+                      clipBehavior: Clip.antiAlias,
+                      borderRadius: BorderRadius.circular(12),
+                      child: DailyCareReportCenterPage(
+                        key: ValueKey<String>('split-$_focusBookingId'),
+                        shopId: widget.shopId,
+                        canOperate: true,
+                        embedded: true,
+                        initialBookingId: _focusBookingId,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      );
+    }
+
+    return Column(
+      children: <Widget>[
+        stats,
+        Expanded(
+          child: _roomsOverview(
+            desktop: desktop,
+            rooms: rooms,
+            filtered: filtered,
+            allRows: allRows,
+            bookings: bookings,
+            calendarStatus: calendarStatus,
+            typeNames: typeNames,
+            typeFilter: typeFilter,
+            unassigned: unassigned,
+            cleaningRows: cleaningRows,
+            careRows: careRows,
+            emptyCount: emptyCount,
+            disabledCount: disabledCount,
+            usingCount: usingCount,
+            cleaningCount: cleaningCount,
+            closedCount: closedCount,
+            blockedCount: blockedCount,
+            reportsOn: true,
+            splitSelect: false,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _roomsOverview({
+    required bool desktop,
+    required List<Map<String, dynamic>> rooms,
+    required List<_DashRoom> filtered,
+    required List<_DashRoom> allRows,
+    required List<QueryDocumentSnapshot> bookings,
+    required Map<String, String> calendarStatus,
+    required List<String> typeNames,
+    required String typeFilter,
+    required List<QueryDocumentSnapshot> unassigned,
+    required List<_DashRoom> cleaningRows,
+    required List<_DashRoom> careRows,
+    required int emptyCount,
+    required int disabledCount,
+    required int usingCount,
+    required int cleaningCount,
+    required int closedCount,
+    required int blockedCount,
+    required bool reportsOn,
+    required bool splitSelect,
+  }) {
     final Widget header = Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: <Widget>[
         _dateBar(desktop: desktop),
         _filters(rooms: rooms, typeNames: typeNames, typeFilter: typeFilter),
-        _summaries(
-          desktop: desktop,
-          emptyCount: emptyCount,
-          disabledCount: disabledCount,
-          usingCount: usingCount,
-          cleaningCount: cleaningCount,
-          closedCount: closedCount,
-          blockedCount: blockedCount,
-        ),
+        if (!reportsOn)
+          _summaries(
+            desktop: desktop,
+            emptyCount: emptyCount,
+            disabledCount: disabledCount,
+            usingCount: usingCount,
+            cleaningCount: cleaningCount,
+            closedCount: closedCount,
+            blockedCount: blockedCount,
+          ),
       ],
     );
 
@@ -465,101 +660,257 @@ class _RoomDashboardPageState extends State<RoomDashboardPage> {
                     calendarStatus: calendarStatus,
                     dense: true,
                     splitSelect: false,
+                    reportsOn: reportsOn,
                   ),
           ),
         ],
       );
     }
 
-    final bool splitOk = width >= _splitMin;
-    final _DeskView view = _deskView == _DeskView.split && !splitOk
-        ? _DeskView.rooms
-        : _deskView;
-
-    if (view == _DeskView.reports) {
-      return HousekeepingDailyCarePane(
-        shopId: widget.shopId,
-        focusBookingId: _focusBookingId,
-      );
-    }
-
-    final Widget roomsDesktop = Center(
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: _contentMax),
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-          child: Column(
-            children: <Widget>[
-              header,
-              const SizedBox(height: 8),
-              Expanded(
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: <Widget>[
-                    Expanded(
-                      flex: 7,
-                      child: rooms.isEmpty
-                          ? const Center(child: Text('尚無房間'))
-                          : _groupedList(
-                              filtered: filtered,
-                              allRows: allRows,
-                              bookings: bookings,
-                              calendarStatus: calendarStatus,
-                              dense: false,
-                              splitSelect: view == _DeskView.split,
-                            ),
-                    ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      flex: 3,
-                      child: _todoPane(
-                        unassigned: unassigned,
-                        cleaningRows: cleaningRows,
-                        careRows: careRows,
-                      ),
-                    ),
-                  ],
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+      child: Column(
+        children: <Widget>[
+          header,
+          const SizedBox(height: 8),
+          Expanded(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Expanded(
+                  flex: 8,
+                  child: rooms.isEmpty
+                      ? const Center(child: Text('尚無房間'))
+                      : _groupedList(
+                          filtered: filtered,
+                          allRows: allRows,
+                          bookings: bookings,
+                          calendarStatus: calendarStatus,
+                          dense: false,
+                          splitSelect: splitSelect,
+                          reportsOn: reportsOn,
+                        ),
                 ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-
-    if (view != _DeskView.split) {
-      return roomsDesktop;
-    }
-
-    final int leftFlex = (_splitRatio * 100).round().clamp(35, 65);
-    final int rightFlex = 100 - leftFlex;
-    return Row(
-      children: <Widget>[
-        Expanded(flex: leftFlex, child: roomsDesktop),
-        MouseRegion(
-          cursor: SystemMouseCursors.resizeColumn,
-          child: GestureDetector(
-            behavior: HitTestBehavior.translucent,
-            onHorizontalDragUpdate: (DragUpdateDetails details) {
-              setState(() {
-                _splitRatio = (_splitRatio + details.delta.dx / width).clamp(
-                  0.35,
-                  0.65,
-                );
-              });
-            },
-            child: const VerticalDivider(width: 10, thickness: 1),
-          ),
-        ),
-        Expanded(
-          flex: rightFlex,
-          child: Material(
-            color: const Color(0xFFF7F8FA),
-            child: HousekeepingDailyCarePane(
-              shopId: widget.shopId,
-              focusBookingId: _focusBookingId,
+                const SizedBox(width: 16),
+                Expanded(
+                  flex: 3,
+                  child: _todoPane(
+                    unassigned: unassigned,
+                    cleaningRows: cleaningRows,
+                    careRows: reportsOn ? const <_DashRoom>[] : careRows,
+                    reportsOn: reportsOn,
+                  ),
+                ),
+              ],
             ),
           ),
+        ],
+      ),
+    );
+  }
+
+  Widget _opsStats({
+    required bool desktop,
+    required int usingCount,
+    required int cleaningCount,
+    required int pendingHousekeeping,
+    required int pendingReports,
+  }) {
+    final List<_OpsStat> items = <_OpsStat>[
+      _OpsStat(
+        icon: Icons.login,
+        label: '入住中',
+        count: usingCount,
+        color: RoomStatusPresentation.checkedInColor,
+      ),
+      _OpsStat(
+        icon: Icons.cleaning_services_outlined,
+        label: '待清潔',
+        count: cleaningCount,
+        color: RoomStatusPresentation.cleaningColor,
+      ),
+      _OpsStat(
+        icon: Icons.assignment_outlined,
+        label: '待處理房務',
+        count: pendingHousekeeping,
+        color: const Color(0xFF6A1B9A),
+      ),
+      _OpsStat(
+        icon: Icons.edit_note_outlined,
+        label: '待填回報',
+        count: pendingReports,
+        color: const Color(0xFFE65100),
+      ),
+    ];
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+      child: desktop
+          ? Row(
+              children: items
+                  .map(
+                    (_OpsStat item) => Expanded(
+                      child: Padding(
+                        padding: const EdgeInsets.only(right: 8),
+                        child: _opsStatCard(item),
+                      ),
+                    ),
+                  )
+                  .toList(),
+            )
+          : GridView.count(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              crossAxisCount: 2,
+              childAspectRatio: 2.6,
+              mainAxisSpacing: 8,
+              crossAxisSpacing: 8,
+              children: items.map(_opsStatCard).toList(),
+            ),
+    );
+  }
+
+  Widget _opsStatCard(_OpsStat item) {
+    return Container(
+      height: 80,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFE5E7EB)),
+      ),
+      child: Row(
+        children: <Widget>[
+          Icon(item.icon, color: item.color, size: 22),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: <Widget>[
+                Text(
+                  '${item.count}',
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w800,
+                    color: item.color,
+                  ),
+                ),
+                Text(
+                  item.label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.black54,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _quickRoomPane({
+    required List<_DashRoom> allRows,
+    required int usingCount,
+    required int pendingHousekeeping,
+    required List<QueryDocumentSnapshot> bookings,
+    required Map<String, String> calendarStatus,
+  }) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFE5E7EB)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: <Widget>[
+          Padding(
+            padding: const EdgeInsets.fromLTRB(14, 12, 14, 8),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                const Text(
+                  '房間快速處理',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900),
+                ),
+                const SizedBox(height: 8),
+                _compactDateRow(),
+                const SizedBox(height: 6),
+                Text(
+                  '入住中 $usingCount 間／待處理 $pendingHousekeeping 項',
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.black54,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const Divider(height: 1),
+          Expanded(
+            child: _groupedList(
+              filtered: allRows,
+              allRows: allRows,
+              bookings: bookings,
+              calendarStatus: calendarStatus,
+              dense: true,
+              splitSelect: true,
+              reportsOn: true,
+              compact: true,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _compactDateRow() {
+    return Row(
+      children: <Widget>[
+        IconButton(
+          visualDensity: VisualDensity.compact,
+          onPressed: () {
+            setState(() {
+              selectedDate = selectedDate.subtract(const Duration(days: 1));
+            });
+          },
+          icon: const Icon(Icons.chevron_left),
+        ),
+        Expanded(
+          child: Text(
+            DateFormat('MM/dd').format(selectedDate),
+            textAlign: TextAlign.center,
+            style: const TextStyle(fontWeight: FontWeight.w800),
+          ),
+        ),
+        IconButton(
+          visualDensity: VisualDensity.compact,
+          onPressed: () {
+            setState(() {
+              selectedDate = selectedDate.add(const Duration(days: 1));
+            });
+          },
+          icon: const Icon(Icons.chevron_right),
+        ),
+        TextButton(
+          onPressed: DateUtils.isSameDay(selectedDate, DateTime.now())
+              ? null
+              : () {
+                  setState(() {
+                    selectedDate = DateTime(
+                      DateTime.now().year,
+                      DateTime.now().month,
+                      DateTime.now().day,
+                    );
+                  });
+                },
+          child: const Text('今天'),
         ),
       ],
     );
@@ -884,6 +1235,8 @@ class _RoomDashboardPageState extends State<RoomDashboardPage> {
     required Map<String, String> calendarStatus,
     required bool dense,
     required bool splitSelect,
+    required bool reportsOn,
+    bool compact = false,
   }) {
     if (filtered.isEmpty) {
       return const Center(child: Text('沒有符合篩選的房間'));
@@ -899,7 +1252,9 @@ class _RoomDashboardPageState extends State<RoomDashboardPage> {
       itemBuilder: (BuildContext context, int index) {
         final String type = keys[index];
         final List<_DashRoom> rows = groups[type]!;
-        final int need = rows.where((_DashRoom row) => row.needsAction).length;
+        final int need = rows
+            .where((_DashRoom row) => row.needsAction(reportsOn: reportsOn))
+            .length;
         final bool collapsed = _collapsedTypes.contains(type);
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -946,6 +1301,8 @@ class _RoomDashboardPageState extends State<RoomDashboardPage> {
                   calendarStatus: calendarStatus,
                   dense: dense,
                   splitSelect: splitSelect,
+                  reportsOn: reportsOn,
+                  compact: compact,
                 ),
               ),
           ],
@@ -960,9 +1317,12 @@ class _RoomDashboardPageState extends State<RoomDashboardPage> {
     required Map<String, String> calendarStatus,
     required bool dense,
     required bool splitSelect,
+    required bool reportsOn,
+    required bool compact,
   }) {
     final bool busy = _busyKeys.contains(_actionKey(row.id));
     final bool vacant = row.label == DaycareOccupancyService.vacantLabel;
+    final bool selected = splitSelect && _selectedRoomId == row.id;
     final List<Color> dots = weekDays.map((DateTime day) {
       final Map<String, dynamic>? dayBooking = _bookingOnDate(
         bookings: bookings,
@@ -982,103 +1342,178 @@ class _RoomDashboardPageState extends State<RoomDashboardPage> {
         booking: dayBooking,
       ).color;
     }).toList();
-    final Widget actions = _rowActions(row: row, busy: busy);
+    final Widget actions = _rowActions(
+      row: row,
+      busy: busy,
+      reportsOn: reportsOn,
+      splitSelect: splitSelect,
+    );
+    final String pets = _petNames(row.booking);
     final Widget body = Padding(
-      padding: EdgeInsets.symmetric(horizontal: 12, vertical: vacant ? 8 : 10),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
-          SizedBox(
-            width: 78,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[
-                Text(
-                  row.typeName,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.grey,
-                  ),
-                ),
-                Text(
-                  row.name,
-                  style: TextStyle(
-                    fontSize: vacant ? 18 : 22,
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[
-                if (row.booking != null) ...<Widget>[
-                  Text(
-                    (row.booking!['customerName'] ?? '').toString(),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                  Text(
-                    _stayRange(row.booking!),
-                    style: const TextStyle(
-                      fontSize: 12,
-                      color: Colors.blueGrey,
-                    ),
-                  ),
-                ] else
-                  Text(
-                    row.presentation.label,
-                    style: const TextStyle(fontSize: 13, color: Colors.grey),
-                  ),
-                const SizedBox(height: 6),
-                RoomWeekDots(colors: dots),
-                if (row.care != null && row.label == '入住中') ...<Widget>[
-                  const SizedBox(height: 6),
-                  Text(
-                    row.care!.isComplete
-                        ? '照護 ${row.care!.filled}/${row.care!.total} ✓'
-                        : '照護待填 ${row.care!.pending} 場',
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w800,
-                      color: row.care!.isComplete
-                          ? RoomStatusPresentation.availableColor
-                          : RoomStatusPresentation.cleaningColor,
-                    ),
-                  ),
-                ],
-              ],
-            ),
-          ),
-          const SizedBox(width: 8),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: <Widget>[
-              RoomStatusChip(presentation: row.presentation, compact: dense),
-              const SizedBox(height: 6),
-              actions,
-            ],
-          ),
-        ],
+      padding: EdgeInsets.symmetric(
+        horizontal: 12,
+        vertical: compact ? 8 : (vacant ? 8 : 10),
       ),
+      child: compact
+          ? Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: <Widget>[
+                      Text(
+                        row.name,
+                        style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                      Text(
+                        row.typeName,
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: Colors.black54,
+                        ),
+                      ),
+                      if (pets.isNotEmpty)
+                        Text(
+                          pets,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(fontWeight: FontWeight.w700),
+                        ),
+                      if (row.booking != null)
+                        Text(
+                          (row.booking!['customerName'] ?? '').toString(),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: Colors.black54,
+                          ),
+                        ),
+                      const SizedBox(height: 4),
+                      Wrap(
+                        spacing: 6,
+                        runSpacing: 4,
+                        children: <Widget>[
+                          RoomStatusChip(
+                            presentation: row.presentation,
+                            compact: true,
+                          ),
+                          if (reportsOn &&
+                              row.label == '入住中' &&
+                              row.pendingSessions > 0)
+                            _pendingChip(row.pendingSessions),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                if (row.label == '入住中' && row.pendingSessions > 0)
+                  const Icon(Icons.chevron_right, color: _accent),
+              ],
+            )
+          : Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                SizedBox(
+                  width: 78,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: <Widget>[
+                      Text(
+                        row.typeName,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.grey,
+                        ),
+                      ),
+                      Text(
+                        row.name,
+                        style: TextStyle(
+                          fontSize: vacant ? 18 : 22,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: <Widget>[
+                      if (row.booking != null) ...<Widget>[
+                        Text(
+                          (row.booking!['customerName'] ?? '').toString(),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        if (pets.isNotEmpty)
+                          Text(
+                            pets,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(fontSize: 12),
+                          ),
+                        Text(
+                          _stayRange(row.booking!),
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: Colors.blueGrey,
+                          ),
+                        ),
+                      ] else
+                        Text(
+                          row.presentation.label,
+                          style: const TextStyle(
+                            fontSize: 13,
+                            color: Colors.grey,
+                          ),
+                        ),
+                      const SizedBox(height: 6),
+                      RoomWeekDots(colors: dots),
+                      if (reportsOn &&
+                          row.label == '入住中' &&
+                          row.pendingSessions > 0) ...<Widget>[
+                        const SizedBox(height: 6),
+                        _pendingChip(row.pendingSessions),
+                      ],
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: <Widget>[
+                    RoomStatusChip(
+                      presentation: row.presentation,
+                      compact: dense,
+                    ),
+                    const SizedBox(height: 6),
+                    actions,
+                  ],
+                ),
+              ],
+            ),
     );
     return Material(
-      color: Colors.white,
+      color: selected ? const Color(0xFFF3F8FF) : Colors.white,
       child: InkWell(
         onTap: () {
-          if (splitSelect && row.label == '入住中' && row.bookingId.isNotEmpty) {
+          if (splitSelect) {
             setState(() {
-              _focusBookingId = row.bookingId;
+              _selectedRoomId = row.id;
+              _focusBookingId = row.label == '入住中' ? row.bookingId : '';
             });
             return;
           }
@@ -1088,10 +1523,13 @@ class _RoomDashboardPageState extends State<RoomDashboardPage> {
           margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(14),
+            color: selected ? const Color(0xFFF3F8FF) : null,
             border: Border.all(
-              color: row.needsAction
-                  ? row.presentation.border
-                  : Colors.grey.shade200,
+              color: selected
+                  ? _accent
+                  : (row.needsAction(reportsOn: reportsOn)
+                        ? row.presentation.border
+                        : Colors.grey.shade200),
             ),
           ),
           child: body,
@@ -1100,12 +1538,36 @@ class _RoomDashboardPageState extends State<RoomDashboardPage> {
     );
   }
 
-  Widget _rowActions({required _DashRoom row, required bool busy}) {
+  Widget _pendingChip(int count) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: const Color(0xFFE65100).withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(99),
+      ),
+      child: Text(
+        '待填 $count 場',
+        style: const TextStyle(
+          fontSize: 11,
+          fontWeight: FontWeight.w800,
+          color: Color(0xFFE65100),
+        ),
+      ),
+    );
+  }
+
+  Widget _rowActions({
+    required _DashRoom row,
+    required bool busy,
+    required bool reportsOn,
+    required bool splitSelect,
+  }) {
     Widget button({required String label, required VoidCallback? onPressed}) {
       return TextButton(
         onPressed: busy ? null : onPressed,
         style: TextButton.styleFrom(
           visualDensity: VisualDensity.compact,
+          minimumSize: const Size(48, 40),
           padding: const EdgeInsets.symmetric(horizontal: 8),
         ),
         child: busy
@@ -1161,24 +1623,29 @@ class _RoomDashboardPageState extends State<RoomDashboardPage> {
                     canEdit: true,
                   ),
           ),
-          if (row.care != null && !row.care!.isComplete)
+          if (reportsOn && row.pendingSessions > 0)
             button(
-              label: '填寫回報',
-              onPressed: row.booking == null
+              label: '回報',
+              onPressed: row.bookingId.isEmpty
                   ? null
                   : () {
-                      if (_deskView == _DeskView.split &&
+                      if (splitSelect &&
                           MediaQuery.sizeOf(context).width >= _splitMin) {
                         setState(() {
+                          _selectedRoomId = row.id;
                           _focusBookingId = row.bookingId;
                         });
                         return;
                       }
-                      AdminDailyCareReportShortcut.openStayEntry(
-                        context: context,
-                        shopId: widget.shopId,
-                        bookingId: row.bookingId,
-                        booking: row.booking!,
+                      Navigator.of(context).push(
+                        MaterialPageRoute<void>(
+                          builder: (_) => DailyCareReportCenterPage(
+                            shopId: widget.shopId,
+                            canOperate: true,
+                            initialBookingId: row.bookingId,
+                            focusBookingId: row.bookingId,
+                          ),
+                        ),
                       );
                     },
             ),
@@ -1192,6 +1659,7 @@ class _RoomDashboardPageState extends State<RoomDashboardPage> {
     required List<QueryDocumentSnapshot> unassigned,
     required List<_DashRoom> cleaningRows,
     required List<_DashRoom> careRows,
+    required bool reportsOn,
   }) {
     final bool empty =
         unassigned.isEmpty && cleaningRows.isEmpty && careRows.isEmpty;
@@ -1299,43 +1767,41 @@ class _RoomDashboardPageState extends State<RoomDashboardPage> {
                         ),
                       );
                     }),
-                  const Divider(height: 24),
-                  Text(
-                    '照護待填（${careRows.length}）',
-                    style: const TextStyle(fontWeight: FontWeight.w800),
-                  ),
-                  const SizedBox(height: 6),
-                  if (careRows.isEmpty)
-                    const Text('無', style: TextStyle(color: Colors.grey))
-                  else
-                    ...careRows.map((_DashRoom row) {
-                      return ListTile(
-                        dense: true,
-                        contentPadding: EdgeInsets.zero,
-                        title: Text(
-                          '${row.name}　${row.booking?['customerName'] ?? ''}',
-                        ),
-                        subtitle: Text('剩餘 ${row.care?.pending ?? 0} 場'),
-                        onTap: row.booking == null
-                            ? null
-                            : () {
-                                if (_deskView == _DeskView.split &&
-                                    MediaQuery.sizeOf(context).width >=
-                                        _splitMin) {
-                                  setState(() {
-                                    _focusBookingId = row.bookingId;
-                                  });
-                                  return;
-                                }
-                                AdminDailyCareReportShortcut.openStayEntry(
-                                  context: context,
-                                  shopId: widget.shopId,
-                                  bookingId: row.bookingId,
-                                  booking: row.booking!,
-                                );
-                              },
-                      );
-                    }),
+                  if (!reportsOn) ...<Widget>[
+                    const Divider(height: 24),
+                    Text(
+                      '照護待填（${careRows.length}）',
+                      style: const TextStyle(fontWeight: FontWeight.w800),
+                    ),
+                    const SizedBox(height: 6),
+                    if (careRows.isEmpty)
+                      const Text('無', style: TextStyle(color: Colors.grey))
+                    else
+                      ...careRows.map((_DashRoom row) {
+                        return ListTile(
+                          dense: true,
+                          contentPadding: EdgeInsets.zero,
+                          title: Text(
+                            '${row.name}　${row.booking?['customerName'] ?? ''}',
+                          ),
+                          subtitle: Text('剩餘 ${row.pendingSessions} 場'),
+                          onTap: row.bookingId.isEmpty
+                              ? null
+                              : () {
+                                  Navigator.of(context).push(
+                                    MaterialPageRoute<void>(
+                                      builder: (_) => DailyCareReportCenterPage(
+                                        shopId: widget.shopId,
+                                        canOperate: true,
+                                        initialBookingId: row.bookingId,
+                                        focusBookingId: row.bookingId,
+                                      ),
+                                    ),
+                                  );
+                                },
+                        );
+                      }),
+                  ],
                 ],
               ),
       ),
@@ -1371,7 +1837,7 @@ class _RoomDashboardPageState extends State<RoomDashboardPage> {
     required Map<String, dynamic> room,
     required List<QueryDocumentSnapshot> bookings,
     required Map<String, String> calendarStatus,
-    required Map<String, ShopRoomCareProgress> careProgress,
+    required DailyCareReportCenterSnapshot? report,
   }) {
     final String roomId = (room['id'] ?? '').toString();
     final _BookingHit hit = _bookingHit(
@@ -1384,6 +1850,15 @@ class _RoomDashboardPageState extends State<RoomDashboardPage> {
       calendarStatus: (calendarStatus['$roomId|$dateStr'] ?? '').toString(),
       stayBooking: hit.data,
     );
+    int pending = 0;
+    if (report != null && report.settingEnabled && hit.id.isNotEmpty) {
+      pending = report.items
+          .where(
+            (DailyCareReportCenterItem item) =>
+                item.bookingId == hit.id && !item.isCompleted,
+          )
+          .length;
+    }
     return _DashRoom(
       room: room,
       label: label,
@@ -1393,7 +1868,7 @@ class _RoomDashboardPageState extends State<RoomDashboardPage> {
       ),
       booking: hit.data,
       bookingId: hit.id,
-      care: careProgress[roomId],
+      pendingSessions: pending,
     );
   }
 
@@ -1558,6 +2033,49 @@ class _RoomDashboardPageState extends State<RoomDashboardPage> {
     }
     return '${DateFormat('MM/dd').format(start)} - ${DateFormat('MM/dd').format(end)}';
   }
+
+  String _petNames(Map<String, dynamic>? booking) {
+    if (booking == null) {
+      return '';
+    }
+    final Object? names = booking['petNames'] ?? booking['petName'];
+    if (names is List) {
+      return names
+          .map((Object? value) => value.toString().trim())
+          .where((String value) => value.isNotEmpty)
+          .join('、');
+    }
+    if (names is String && names.trim().isNotEmpty) {
+      return names.trim();
+    }
+    final Object? pets = booking['pets'];
+    if (pets is List) {
+      return pets
+          .map((Object? value) {
+            if (value is Map) {
+              return (value['name'] ?? '').toString().trim();
+            }
+            return value.toString().trim();
+          })
+          .where((String value) => value.isNotEmpty)
+          .join('、');
+    }
+    return '';
+  }
+}
+
+class _OpsStat {
+  const _OpsStat({
+    required this.icon,
+    required this.label,
+    required this.count,
+    required this.color,
+  });
+
+  final IconData icon;
+  final String label;
+  final int count;
+  final Color color;
 }
 
 class _BookingHit {

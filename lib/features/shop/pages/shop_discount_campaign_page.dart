@@ -8,8 +8,10 @@ import 'package:flutter/material.dart';
 import '../../../core/models/discount_campaign_model.dart';
 import '../../../core/services/discount_campaign_service.dart';
 import '../../../core/services/shop_room_service.dart';
+import '../../../features/shop/widgets/discount_hub_host.dart';
 import '../../../shared/widgets/page_help_button.dart';
 import 'shop_discount_campaign_form_page.dart';
+import 'shop_discount_setting_page.dart';
 
 class ShopDiscountCampaignPage extends StatefulWidget {
   const ShopDiscountCampaignPage({
@@ -76,82 +78,8 @@ class _ShopDiscountCampaignPageState extends State<ShopDiscountCampaignPage> {
   }
 
   Future<void> _chooseCampaignType() async {
-    final DiscountCampaignType?
-    selectedType = await showModalBottomSheet<DiscountCampaignType>(
-      context: context,
-      isScrollControlled: true,
-      showDragHandle: true,
-      builder: (BuildContext context) {
-        return SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[
-                const Text(
-                  '選擇優惠類型',
-                  style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  '選擇後，系統會依照優惠類型顯示需要設定的條件。',
-                  style: TextStyle(fontSize: 14, color: Colors.grey.shade700),
-                ),
-                const SizedBox(height: 16),
-                _CampaignTypeTile(
-                  icon: Icons.person_add_alt_1_outlined,
-                  title: '新會員優惠',
-                  subtitle: '提供新會員指定晚數的房價優惠額度',
-                  onTap: () {
-                    Navigator.pop(context, DiscountCampaignType.newMember);
-                  },
-                ),
-                _CampaignTypeTile(
-                  icon: Icons.hotel_outlined,
-                  title: '長住優惠',
-                  subtitle: '住宿達到指定晚數後，自動套用優惠',
-                  onTap: () {
-                    Navigator.pop(context, DiscountCampaignType.longStay);
-                  },
-                ),
-                _CampaignTypeTile(
-                  icon: Icons.date_range_outlined,
-                  title: '指定服務日期優惠',
-                  subtitle: '指定住宿或安親服務日期，可享活動優惠',
-                  onTap: () {
-                    Navigator.pop(context, DiscountCampaignType.stayDate);
-                  },
-                ),
-                _CampaignTypeTile(
-                  icon: Icons.meeting_room_outlined,
-                  title: '指定房型',
-                  subtitle: '只有選擇指定房型時才套用優惠',
-                  onTap: () {
-                    Navigator.pop(context, DiscountCampaignType.roomType);
-                  },
-                ),
-                _CampaignTypeTile(
-                  icon: Icons.payments_outlined,
-                  title: '滿額優惠',
-                  subtitle: '訂單金額達到指定門檻後自動折扣',
-                  onTap: () {
-                    Navigator.pop(context, DiscountCampaignType.minimumAmount);
-                  },
-                ),
-                _CampaignTypeTile(
-                  icon: Icons.schedule_outlined,
-                  title: '限時下單優惠',
-                  subtitle: '會員在指定下單期間建立訂單，即可享有優惠',
-                  onTap: () {
-                    Navigator.pop(context, DiscountCampaignType.limitedTime);
-                  },
-                ),
-              ],
-            ),
-          ),
-        );
-      },
+    final DiscountCampaignType? selectedType = await pickDiscountCampaignType(
+      context,
     );
     if (!mounted || selectedType == null) {
       return;
@@ -365,6 +293,9 @@ class _ShopDiscountCampaignPageState extends State<ShopDiscountCampaignPage> {
 
   @override
   Widget build(BuildContext context) {
+    if (!widget.embedded) {
+      return ShopDiscountSettingPage(shopId: widget.shopId);
+    }
     final Widget campaignList = StreamBuilder<List<DiscountCampaignModel>>(
       stream: _service.streamCampaigns(widget.shopId),
       builder:
@@ -817,34 +748,6 @@ class _InfoChip extends StatelessWidget {
             style: TextStyle(fontSize: 13, color: Colors.grey.shade800),
           ),
         ],
-      ),
-    );
-  }
-}
-
-class _CampaignTypeTile extends StatelessWidget {
-  const _CampaignTypeTile({
-    required this.icon,
-    required this.title,
-    required this.subtitle,
-    required this.onTap,
-  });
-
-  final IconData icon;
-  final String title;
-  final String subtitle;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      margin: const EdgeInsets.only(bottom: 10),
-      child: ListTile(
-        onTap: onTap,
-        leading: CircleAvatar(child: Icon(icon)),
-        title: Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
-        subtitle: Text(subtitle),
-        trailing: const Icon(Icons.chevron_right),
       ),
     );
   }

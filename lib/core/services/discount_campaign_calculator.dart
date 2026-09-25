@@ -721,7 +721,7 @@ class DiscountCampaignCalculator {
       case DiscountCampaignType.googleReview:
         return '尚未完成評論驗證';
       case DiscountCampaignType.stayDate:
-        return '服務日期不符合活動期間';
+        return '不在指定服務日期內';
       case DiscountCampaignType.roomType:
         return '不符合指定房型或方案';
       case DiscountCampaignType.minimumAmount:

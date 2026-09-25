@@ -61,7 +61,6 @@ import 'package:petnest_saas/features/shop/pages/inventory/shop_inventory_list_p
 import 'package:petnest_saas/features/shop/pages/inventory/shop_booking_supply_settings_page.dart';
 import 'package:petnest_saas/core/models/daily_care_report_center_snapshot.dart';
 import 'package:petnest_saas/core/services/daily_care_report_center_service.dart';
-import 'package:petnest_saas/features/shop/pages/daily_care_report_center_page.dart';
 
 class ShopDashboardPage extends StatefulWidget {
   const ShopDashboardPage({super.key, required this.shopId});
@@ -1361,11 +1360,6 @@ class _CatHotelTab extends StatelessWidget {
                   );
                 },
               ),
-            if (_can(ShopPermissionKeys.manageRoomDashboard))
-              _DailyCareReportCenterTile(
-                shopId: shopId,
-                profileComplete: isProfileComplete,
-              ),
           ],
         ),
         StreamBuilder<DaycareSettingsModel>(
@@ -2046,7 +2040,7 @@ class _TemplateCard extends StatelessWidget {
   }
 }
 
-class _RoomDashboardTile extends StatelessWidget {
+class _RoomDashboardTile extends StatefulWidget {
   const _RoomDashboardTile({
     required this.shopId,
     required this.onTap,
@@ -2058,11 +2052,18 @@ class _RoomDashboardTile extends StatelessWidget {
   final bool enabled;
 
   @override
+  State<_RoomDashboardTile> createState() => _RoomDashboardTileState();
+}
+
+class _RoomDashboardTileState extends State<_RoomDashboardTile> {
+  DailyCareReportCenterSnapshot? _lastReport;
+
+  @override
   Widget build(BuildContext context) {
     return StreamBuilder<QuerySnapshot>(
       stream: FirebaseFirestore.instance
           .collection('bookings')
-          .where('shopId', isEqualTo: shopId)
+          .where('shopId', isEqualTo: widget.shopId)
           .where(
             'status',
             whereIn: ['pending', 'payment_uploaded', 'confirmed', 'checked_in'],
@@ -2087,88 +2088,54 @@ class _RoomDashboardTile extends StatelessWidget {
 
         return StreamBuilder<ShopTaskCenterSnapshot>(
           stream: ShopTaskCenterService.instance.streamSnapshot(
-            shopId: shopId,
+            shopId: widget.shopId,
             canViewBookings: false,
             canFillDailyCare: true,
           ),
           builder: (context, taskSnapshot) {
             final int checkedInRooms =
                 taskSnapshot.data?.checkedInRoomCount ?? 0;
-            final int carePending = taskSnapshot.data?.dailyCareCount ?? 0;
-
-            return _MenuTile(
-              title: '房務管理',
-              subtitle: !enabled
-                  ? '請先完成基本資料'
-                  : '入住 $checkedInRooms 房・照護待填 $carePending 筆',
-              icon: Icons.grid_view,
-              enabled: enabled,
-              badgeCount: enabled ? unassignedCount : 0,
-              onTap: onTap,
+            return StreamBuilder<DailyCareReportCenterSnapshot>(
+              stream: DailyCareReportCenterService.instance.streamToday(
+                shopId: widget.shopId,
+                canOperate: widget.enabled,
+              ),
+              builder:
+                  (
+                    BuildContext context,
+                    AsyncSnapshot<DailyCareReportCenterSnapshot> reportSnap,
+                  ) {
+                    if (reportSnap.hasData &&
+                        reportSnap.data != null &&
+                        !reportSnap.data!.hasError) {
+                      _lastReport = reportSnap.data;
+                    }
+                    final DailyCareReportCenterSnapshot? report = _lastReport;
+                    final bool reportsOn = report?.settingEnabled == true;
+                    final int pending = report?.pendingCount ?? 0;
+                    final String subtitle;
+                    if (!widget.enabled) {
+                      subtitle = '請先完成基本資料';
+                    } else if (reportsOn) {
+                      subtitle = '房務待辦 $unassignedCount 項・每日回報待填 $pending 場';
+                    } else {
+                      subtitle = '入住 $checkedInRooms 房';
+                    }
+                    return _MenuTile(
+                      title: reportsOn ? '營運工作台' : '房務管理',
+                      subtitle: subtitle,
+                      icon: reportsOn
+                          ? Icons.dashboard_customize_outlined
+                          : Icons.grid_view,
+                      enabled: widget.enabled,
+                      badgeCount: widget.enabled ? unassignedCount : 0,
+                      onTap: widget.onTap,
+                    );
+                  },
             );
           },
         );
       },
-    );
-  }
-}
-
-class _DailyCareReportCenterTile extends StatelessWidget {
-  const _DailyCareReportCenterTile({
-    required this.shopId,
-    required this.profileComplete,
-  });
-
-  final String shopId;
-  final bool profileComplete;
-
-  @override
-  Widget build(BuildContext context) {
-    return StreamBuilder<DailyCareReportCenterSnapshot>(
-      stream: DailyCareReportCenterService.instance.streamToday(
-        shopId: shopId,
-        canOperate: profileComplete,
-      ),
-      builder:
-          (
-            BuildContext context,
-            AsyncSnapshot<DailyCareReportCenterSnapshot> snapshot,
-          ) {
-            final DailyCareReportCenterSnapshot data =
-                snapshot.data ?? DailyCareReportCenterSnapshot.empty;
-            if (snapshot.hasError || data.hasError) {
-              return _MenuTile(
-                title: '每日回報中心',
-                subtitle: profileComplete ? '目前無法取得每日回報' : '請先完成基本資料',
-                icon: Icons.assignment_turned_in_outlined,
-                enabled: false,
-              );
-            }
-            if (!data.settingEnabled) {
-              return const SizedBox.shrink();
-            }
-            return _MenuTile(
-              title: '每日回報中心',
-              subtitle: DailyCareReportCenterMenuCopy.subtitle(
-                profileComplete: profileComplete,
-                snapshot: data,
-              ),
-              icon: Icons.assignment_turned_in_outlined,
-              enabled: profileComplete,
-              badgeCount: profileComplete ? data.pendingCount : 0,
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute<void>(
-                    builder: (_) => DailyCareReportCenterPage(
-                      shopId: shopId,
-                      canOperate: profileComplete,
-                    ),
-                  ),
-                );
-              },
-            );
-          },
     );
   }
 }
