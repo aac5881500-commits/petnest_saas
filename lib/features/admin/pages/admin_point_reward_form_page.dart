@@ -70,6 +70,7 @@ class _AdminPointRewardFormPageState extends State<AdminPointRewardFormPage> {
   bool _removeExistingProductImage = false;
   bool _selectingImage = false;
   bool _requiresStaffVerification = true;
+  bool _advancedOpen = false;
   bool get _isEditing => widget.reward != null;
 
   @override
@@ -123,10 +124,36 @@ class _AdminPointRewardFormPageState extends State<AdminPointRewardFormPage> {
           : reward.inventoryQuantityPerExchange.toString(),
     );
     _requiresStaffVerification = reward?.requiresStaffVerification ?? true;
+
+    for (final TextEditingController controller in <TextEditingController>[
+      _nameController,
+      _descriptionController,
+      _pointsCostController,
+      _totalLimitController,
+      _stockQuantityController,
+    ]) {
+      controller.addListener(_onPreviewFieldChanged);
+    }
+  }
+
+  void _onPreviewFieldChanged() {
+    if (mounted) {
+      setState(() {});
+    }
   }
 
   @override
   void dispose() {
+    for (final TextEditingController controller in <TextEditingController>[
+      _nameController,
+      _descriptionController,
+      _pointsCostController,
+      _totalLimitController,
+      _stockQuantityController,
+    ]) {
+      controller.removeListener(_onPreviewFieldChanged);
+    }
+
     _nameController.dispose();
     _descriptionController.dispose();
     _pointsCostController.dispose();
@@ -631,65 +658,165 @@ class _AdminPointRewardFormPageState extends State<AdminPointRewardFormPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.grey.shade100,
-      appBar: AppBar(title: Text(_isEditing ? '編輯點數兌換商品' : '建立點數兌換商品')),
-      body: Form(
-        key: _formKey,
-        child: ListView(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 120),
-          children: <Widget>[
-            _buildBasicSection(),
-            const SizedBox(height: 16),
+    return LayoutBuilder(
+      builder: (BuildContext context, BoxConstraints constraints) {
+        final bool desktop = constraints.maxWidth >= 720;
 
-            _buildFulfillmentTypeSection(),
-
-            const SizedBox(height: 16),
-
-            if (_fulfillmentType == PointRewardFulfillmentType.coupon)
-              _buildCouponTemplateSection(),
-
-            if (_fulfillmentType == PointRewardFulfillmentType.physicalProduct)
-              _buildPhysicalProductSection(),
-            const SizedBox(height: 16),
-            _buildExchangeLimitSection(),
-            const SizedBox(height: 16),
-            _buildPublishSection(),
-          ],
-        ),
-      ),
-      bottomNavigationBar: SafeArea(
-        child: Container(
-          padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
-          decoration: const BoxDecoration(
-            color: Colors.white,
-            boxShadow: <BoxShadow>[
-              BoxShadow(
-                blurRadius: 12,
-                offset: Offset(0, -2),
-                color: Color(0x14000000),
+        return Scaffold(
+          backgroundColor: Colors.grey.shade100,
+          appBar: AppBar(title: Text(_isEditing ? '編輯點數兌換商品' : '建立點數兌換商品')),
+          body: Form(
+            key: _formKey,
+            child: Align(
+              alignment: Alignment.topCenter,
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 1040),
+                child: ListView(
+                  padding: EdgeInsets.fromLTRB(
+                    desktop ? 20 : 16,
+                    16,
+                    desktop ? 20 : 16,
+                    24,
+                  ),
+                  children: <Widget>[
+                    _buildSummaryHeader(),
+                    const SizedBox(height: 12),
+                    _buildBasicSection(),
+                    const SizedBox(height: 12),
+                    _buildFulfillmentTypeSection(),
+                    const SizedBox(height: 12),
+                    if (_fulfillmentType == PointRewardFulfillmentType.coupon)
+                      _buildCouponTemplateSection(),
+                    if (_fulfillmentType ==
+                        PointRewardFulfillmentType.physicalProduct)
+                      _buildPhysicalProductSection(),
+                    const SizedBox(height: 12),
+                    _buildExchangeLimitSection(),
+                    const SizedBox(height: 12),
+                    _buildAdvancedSection(),
+                    const SizedBox(height: 12),
+                    _buildPreviewSection(),
+                  ],
+                ),
               ),
-            ],
-          ),
-          child: FilledButton.icon(
-            onPressed: _saving ? null : _saveReward,
-            icon: _saving
-                ? const SizedBox(
-                    width: 18,
-                    height: 18,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : const Icon(Icons.save_outlined),
-            label: Text(
-              _saving
-                  ? '儲存中'
-                  : _isEditing
-                  ? '儲存修改'
-                  : '建立商品',
             ),
           ),
+          bottomNavigationBar: _buildActionBar(desktop: desktop),
+        );
+      },
+    );
+  }
+
+  Widget _buildActionBar({required bool desktop}) {
+    final Widget saveButton = FilledButton.icon(
+      onPressed: _saving ? null : _saveReward,
+      icon: _saving
+          ? const SizedBox(
+              width: 18,
+              height: 18,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            )
+          : const Icon(Icons.save_outlined),
+      label: Text(
+        _saving
+            ? '儲存中'
+            : _isEditing
+            ? '儲存變更'
+            : '建立商品',
+      ),
+    );
+
+    return SafeArea(
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          boxShadow: <BoxShadow>[
+            BoxShadow(
+              blurRadius: 12,
+              offset: Offset(0, -2),
+              color: Color(0x14000000),
+            ),
+          ],
+        ),
+        child: Align(
+          alignment: Alignment.center,
+          heightFactor: 1,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 1040),
+            child: desktop
+                ? Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: <Widget>[
+                      TextButton(
+                        onPressed: _saving
+                            ? null
+                            : () => Navigator.of(context).maybePop(),
+                        child: const Text('取消'),
+                      ),
+                      const SizedBox(width: 8),
+                      saveButton,
+                    ],
+                  )
+                : SizedBox(width: double.infinity, child: saveButton),
+          ),
         ),
       ),
+    );
+  }
+
+  Widget _buildSummaryHeader() {
+    final String name = _nameController.text.trim();
+
+    return _SectionCard(
+      compact: true,
+      children: <Widget>[
+        Row(
+          children: <Widget>[
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  Text(
+                    name.isEmpty ? '新的點數兌換商品' : name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 17,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    _fulfillmentType == PointRewardFulfillmentType.coupon
+                        ? '優惠券・兌換後立即發券'
+                        : '實體商品・店內領取',
+                    style: TextStyle(fontSize: 12, color: Colors.grey.shade700),
+                  ),
+                ],
+              ),
+            ),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: <Widget>[
+                const Text('開放會員兌換', style: TextStyle(fontSize: 12)),
+                Switch.adaptive(
+                  value: _enabled,
+                  onChanged: (bool value) {
+                    setState(() {
+                      _enabled = value;
+                    });
+                  },
+                ),
+              ],
+            ),
+          ],
+        ),
+        Text(
+          _enabled ? '儲存後會顯示在會員點數商城。' : '商品會先保存，但會員暫時看不到。',
+          style: TextStyle(fontSize: 12, color: Colors.grey.shade700),
+        ),
+      ],
     );
   }
 
@@ -703,6 +830,7 @@ class _AdminPointRewardFormPageState extends State<AdminPointRewardFormPage> {
             labelText: '商品名稱',
             hintText: '例如：1000 點兌換免費住宿券',
             border: OutlineInputBorder(),
+            isDense: true,
           ),
           maxLength: 50,
           validator: (String? value) {
@@ -713,19 +841,18 @@ class _AdminPointRewardFormPageState extends State<AdminPointRewardFormPage> {
             return null;
           },
         ),
-        const SizedBox(height: 12),
         TextFormField(
           controller: _descriptionController,
           decoration: const InputDecoration(
             labelText: '商品說明',
             hintText: '顯示給會員查看的兌換說明',
             border: OutlineInputBorder(),
+            isDense: true,
           ),
-          minLines: 3,
+          minLines: 2,
           maxLines: 5,
           maxLength: 300,
         ),
-        const SizedBox(height: 12),
         TextFormField(
           controller: _pointsCostController,
           keyboardType: TextInputType.number,
@@ -734,6 +861,7 @@ class _AdminPointRewardFormPageState extends State<AdminPointRewardFormPage> {
             hintText: '例如：1000',
             suffixText: '點',
             border: OutlineInputBorder(),
+            isDense: true,
           ),
           validator: (String? value) {
             final int? points = int.tryParse((value ?? '').trim());
@@ -750,34 +878,43 @@ class _AdminPointRewardFormPageState extends State<AdminPointRewardFormPage> {
   }
 
   Widget _buildFulfillmentTypeSection() {
+    // onsiteService 目前沒有完整流程，這裡只提供兩種可用類型。
     return _SectionCard(
       title: '商品類型',
       children: <Widget>[
-        RadioListTile<PointRewardFulfillmentType>(
-          title: const Text('優惠券'),
-          subtitle: const Text('兌換後立即發送優惠券'),
-          value: PointRewardFulfillmentType.coupon,
-          groupValue: _fulfillmentType,
-          onChanged: (value) {
-            if (value == null) return;
-
-            setState(() {
-              _fulfillmentType = value;
-            });
-          },
-        ),
-        RadioListTile<PointRewardFulfillmentType>(
-          title: const Text('實體商品'),
-          subtitle: const Text('店員到店核銷後領取'),
-          value: PointRewardFulfillmentType.physicalProduct,
-          groupValue: _fulfillmentType,
-          onChanged: (value) {
-            if (value == null) return;
-
-            setState(() {
-              _fulfillmentType = value;
-            });
-          },
+        Row(
+          children: <Widget>[
+            Expanded(
+              child: _ChoiceCard(
+                icon: Icons.confirmation_number_outlined,
+                title: '優惠券',
+                subtitle: '兌換後立即發券',
+                selected: _fulfillmentType == PointRewardFulfillmentType.coupon,
+                onTap: () {
+                  setState(() {
+                    _fulfillmentType = PointRewardFulfillmentType.coupon;
+                  });
+                },
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: _ChoiceCard(
+                icon: Icons.inventory_2_outlined,
+                title: '實體商品',
+                subtitle: '店員核銷後領取',
+                selected:
+                    _fulfillmentType ==
+                    PointRewardFulfillmentType.physicalProduct,
+                onTap: () {
+                  setState(() {
+                    _fulfillmentType =
+                        PointRewardFulfillmentType.physicalProduct;
+                  });
+                },
+              ),
+            ),
+          ],
         ),
       ],
     );
@@ -803,7 +940,7 @@ class _AdminPointRewardFormPageState extends State<AdminPointRewardFormPage> {
         if (hasImage)
           Container(
             width: double.infinity,
-            constraints: const BoxConstraints(minHeight: 180, maxHeight: 280),
+            constraints: const BoxConstraints(minHeight: 160, maxHeight: 200),
             decoration: BoxDecoration(
               color: Colors.grey.shade200,
               borderRadius: BorderRadius.circular(12),
@@ -828,7 +965,7 @@ class _AdminPointRewardFormPageState extends State<AdminPointRewardFormPage> {
         else
           Container(
             width: double.infinity,
-            height: 180,
+            height: 160,
             decoration: BoxDecoration(
               color: Colors.grey.shade100,
               borderRadius: BorderRadius.circular(12),
@@ -880,30 +1017,36 @@ class _AdminPointRewardFormPageState extends State<AdminPointRewardFormPage> {
       title: '實體商品設定',
       children: <Widget>[
         _buildProductImagePicker(),
-        const SizedBox(height: 16),
-        RadioListTile<bool>(
-          contentPadding: EdgeInsets.zero,
-          title: const Text('自行管理兌換數量'),
-          subtitle: const Text('由此兌換商品自行設定可兌換數量，不會連動中央庫存。'),
-          value: false,
-          groupValue: _useCentralInventory,
-          onChanged: (bool? value) {
-            setState(() {
-              _useCentralInventory = value ?? false;
-            });
-          },
-        ),
-        RadioListTile<bool>(
-          contentPadding: EdgeInsets.zero,
-          title: const Text('使用中央庫存品項'),
-          subtitle: const Text('連動中央庫存，兌換成功時會自動扣除指定庫存品項。'),
-          value: true,
-          groupValue: _useCentralInventory,
-          onChanged: (bool? value) {
-            setState(() {
-              _useCentralInventory = value ?? false;
-            });
-          },
+        Row(
+          children: <Widget>[
+            Expanded(
+              child: _ChoiceCard(
+                icon: Icons.tune,
+                title: '自行設定可兌換數量',
+                subtitle: '不連動中央庫存',
+                selected: !_useCentralInventory,
+                onTap: () {
+                  setState(() {
+                    _useCentralInventory = false;
+                  });
+                },
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: _ChoiceCard(
+                icon: Icons.warehouse_outlined,
+                title: '連動中央庫存',
+                subtitle: '兌換成功自動扣庫存',
+                selected: _useCentralInventory,
+                onTap: () {
+                  setState(() {
+                    _useCentralInventory = true;
+                  });
+                },
+              ),
+            ),
+          ],
         ),
         if (_useCentralInventory) ...<Widget>[
           _buildCentralInventorySelector(),
@@ -916,6 +1059,7 @@ class _AdminPointRewardFormPageState extends State<AdminPointRewardFormPage> {
               helperText: '輸入 0 代表不限兌換數量。',
               suffixText: '份',
               border: OutlineInputBorder(),
+              isDense: true,
             ),
             validator: (String? value) {
               if (_fulfillmentType !=
@@ -934,23 +1078,21 @@ class _AdminPointRewardFormPageState extends State<AdminPointRewardFormPage> {
             },
           ),
         ],
-        const SizedBox(height: 12),
         TextFormField(
           controller: _fulfillmentNoteController,
           decoration: const InputDecoration(
             labelText: '領取說明',
             hintText: '例如：請至櫃檯出示領取碼，由店員確認後領取',
             border: OutlineInputBorder(),
+            isDense: true,
           ),
-          minLines: 3,
+          minLines: 2,
           maxLines: 5,
           maxLength: 300,
         ),
-        const SizedBox(height: 8),
-        SwitchListTile(
-          contentPadding: EdgeInsets.zero,
-          title: const Text('需要店員核銷'),
-          subtitle: const Text('會員出示領取碼後，由店員確認商品已交付'),
+        _ToggleCard(
+          title: '需要店員核銷',
+          subtitle: '會員出示領取碼後，由店員確認商品已交付',
           value: _requiresStaffVerification,
           onChanged: (bool value) {
             setState(() {
@@ -1100,152 +1242,280 @@ class _AdminPointRewardFormPageState extends State<AdminPointRewardFormPage> {
 
   Widget _buildCouponTemplateSection() {
     final CouponTemplateModel? template = _selectedTemplate;
+    final bool hasTemplate = _selectedTemplateId.trim().isNotEmpty;
 
     return _SectionCard(
-      title: '優惠券模板',
+      title: '優惠券設定',
       children: <Widget>[
-        if (_selectedTemplateId.isEmpty)
-          InkWell(
-            borderRadius: BorderRadius.circular(12),
-            onTap: _selectCouponTemplate,
-            child: Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(18),
-              decoration: BoxDecoration(
-                color: Colors.orange.shade50,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.orange.shade200),
-              ),
-              child: const Column(
-                children: <Widget>[
-                  Icon(Icons.confirmation_number_outlined, size: 42),
-                  SizedBox(height: 8),
-                  Text(
-                    '尚未選擇優惠券模板',
-                    style: TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                  SizedBox(height: 4),
-                  Text('點擊選擇已建立的優惠券'),
-                ],
-              ),
-            ),
-          )
-        else
-          Container(
+        InkWell(
+          borderRadius: BorderRadius.circular(12),
+          onTap: _selectCouponTemplate,
+          child: Container(
             width: double.infinity,
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: Colors.green.shade50,
+              color: hasTemplate ? Colors.green.shade50 : Colors.orange.shade50,
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.green.shade200),
+              border: Border.all(
+                color: hasTemplate
+                    ? Colors.green.shade200
+                    : Colors.orange.shade200,
+              ),
             ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+            child: Row(
               children: <Widget>[
-                Row(
-                  children: <Widget>[
-                    Icon(Icons.check_circle, color: Colors.green.shade700),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        template?.name ?? widget.reward?.name ?? '已綁定優惠券模板',
+                Icon(
+                  hasTemplate
+                      ? Icons.check_circle
+                      : Icons.confirmation_number_outlined,
+                  size: 22,
+                  color: hasTemplate
+                      ? Colors.green.shade700
+                      : Colors.orange.shade700,
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: <Widget>[
+                      Text(
+                        hasTemplate
+                            ? (template?.name ??
+                                  widget.reward?.name ??
+                                  '已綁定優惠券模板')
+                            : '尚未選擇模板',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 16,
+                          fontWeight: FontWeight.w800,
+                          fontSize: 15,
                         ),
                       ),
-                    ),
-                  ],
+                      const SizedBox(height: 2),
+                      Text(
+                        !hasTemplate
+                            ? '點擊選擇已建立的優惠券'
+                            : template == null
+                            ? '目前沿用原本綁定的優惠券模板'
+                            : '${_templateDescription(template)}　'
+                                  '${template.validDays > 0 ? '有效 ${template.validDays} 天' : '不限有效天數'}',
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.grey.shade700,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-                const SizedBox(height: 8),
+                const SizedBox(width: 8),
                 Text(
-                  template == null
-                      ? '目前沿用原本綁定的優惠券模板'
-                      : _templateDescription(template),
-                  style: TextStyle(color: Colors.grey.shade700),
-                ),
-                const SizedBox(height: 12),
-                OutlinedButton.icon(
-                  onPressed: _selectCouponTemplate,
-                  icon: const Icon(Icons.swap_horiz),
-                  label: const Text('更換優惠券模板'),
+                  hasTemplate ? '更換' : '選擇',
+                  style: const TextStyle(fontWeight: FontWeight.w700),
                 ),
               ],
             ),
           ),
-        const SizedBox(height: 12),
+        ),
         Text(
-          '優惠內容、有效天數、使用次數與適用範圍，'
-          '會依優惠券模板設定帶入。',
-          style: TextStyle(fontSize: 13, color: Colors.grey.shade700),
+          '優惠內容、有效天數、使用次數與適用範圍，會依優惠券模板設定帶入。',
+          style: TextStyle(fontSize: 12, color: Colors.grey.shade700),
         ),
       ],
     );
   }
 
   Widget _buildExchangeLimitSection() {
+    final int totalLimit = int.tryParse(_totalLimitController.text.trim()) ?? 0;
+    final int exchangedCount = widget.reward?.exchangedCount ?? 0;
+    final bool full = totalLimit > 0 && exchangedCount >= totalLimit;
+
     return _SectionCard(
       title: '兌換限制',
       children: <Widget>[
-        TextFormField(
-          controller: _memberLimitController,
-          keyboardType: TextInputType.number,
-          decoration: const InputDecoration(
-            labelText: '每位會員最多兌換次數',
-            helperText: '輸入 0 代表不限制',
-            border: OutlineInputBorder(),
-          ),
-          validator: _validateNonNegativeInteger,
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            Expanded(
+              child: TextFormField(
+                controller: _memberLimitController,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(
+                  labelText: '每位會員上限',
+                  hintText: '0 代表不限',
+                  helperText: '輸入 0 代表不限',
+                  border: OutlineInputBorder(),
+                  isDense: true,
+                ),
+                validator: _validateNonNegativeInteger,
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: TextFormField(
+                controller: _totalLimitController,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(
+                  labelText: '全店總上限',
+                  hintText: '0 代表不限',
+                  helperText: '輸入 0 代表不限',
+                  border: OutlineInputBorder(),
+                  isDense: true,
+                ),
+                validator: _validateNonNegativeInteger,
+              ),
+            ),
+          ],
         ),
-        const SizedBox(height: 12),
-        TextFormField(
-          controller: _totalLimitController,
-          keyboardType: TextInputType.number,
-          decoration: const InputDecoration(
-            labelText: '全店總兌換上限',
-            helperText: '輸入 0 代表不限制',
-            border: OutlineInputBorder(),
+        if (_isEditing)
+          Text(
+            full
+                ? '已兌換 $exchangedCount / $totalLimit，目前已額滿'
+                : '已兌換 $exchangedCount / ${totalLimit > 0 ? '$totalLimit' : '不限'}',
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: full ? FontWeight.w700 : FontWeight.w400,
+              color: full ? const Color(0xFFC62828) : Colors.grey.shade700,
+            ),
           ),
-          validator: _validateNonNegativeInteger,
+      ],
+    );
+  }
+
+  Widget _buildAdvancedSection() {
+    return _SectionCard(
+      compact: true,
+      children: <Widget>[
+        Theme(
+          data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+          child: ExpansionTile(
+            tilePadding: EdgeInsets.zero,
+            childrenPadding: const EdgeInsets.only(bottom: 8),
+            initiallyExpanded: _advancedOpen,
+            onExpansionChanged: (bool value) {
+              _advancedOpen = value;
+            },
+            title: const Text(
+              '進階設定',
+              style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
+            ),
+            children: <Widget>[
+              TextFormField(
+                controller: _sortOrderController,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(
+                  labelText: '顯示順序',
+                  helperText: '數字越小越前面',
+                  border: OutlineInputBorder(),
+                  isDense: true,
+                ),
+                validator: (String? value) {
+                  if (int.tryParse((value ?? '').trim()) == null) {
+                    return '請輸入整數';
+                  }
+
+                  return null;
+                },
+              ),
+            ],
+          ),
         ),
       ],
     );
   }
 
-  Widget _buildPublishSection() {
-    return _SectionCard(
-      title: '上架設定',
-      children: <Widget>[
-        TextFormField(
-          controller: _sortOrderController,
-          keyboardType: TextInputType.number,
-          decoration: const InputDecoration(
-            labelText: '顯示順序',
-            helperText: '數字越小越前面',
-            border: OutlineInputBorder(),
-          ),
-          validator: (String? value) {
-            if (int.tryParse((value ?? '').trim()) == null) {
-              return '請輸入整數';
-            }
+  Widget _buildPreviewSection() {
+    final String name = _nameController.text.trim();
+    final int points = int.tryParse(_pointsCostController.text.trim()) ?? 0;
+    final bool couponReady =
+        _fulfillmentType != PointRewardFulfillmentType.coupon ||
+        _selectedTemplateId.trim().isNotEmpty;
+    final bool inventoryReady =
+        _fulfillmentType != PointRewardFulfillmentType.physicalProduct ||
+        !_useCentralInventory ||
+        _inventoryItemId.trim().isNotEmpty;
+    final bool ready =
+        name.isNotEmpty && points > 0 && couponReady && inventoryReady;
 
-            return null;
-          },
-        ),
-        const SizedBox(height: 8),
-        SwitchListTile(
-          contentPadding: EdgeInsets.zero,
-          title: const Text('開放會員兌換'),
-          subtitle: Text(_enabled ? '商品建立後會直接顯示在會員點數商城' : '商品會先保存，但會員暫時看不到'),
-          value: _enabled,
-          onChanged: (bool value) {
-            setState(() {
-              _enabled = value;
-            });
-          },
+    return _SectionCard(
+      title: '會員看到的兌換預覽',
+      children: <Widget>[
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: Colors.grey.shade50,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: Colors.grey.shade200),
+          ),
+          child: ready
+              ? Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Text(
+                      name,
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      '$points 點',
+                      style: const TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w800,
+                        color: Color(0xFFEF6C00),
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      _previewDeliveryLine(),
+                      style: const TextStyle(fontSize: 12),
+                    ),
+                    if (_descriptionController.text
+                        .trim()
+                        .isNotEmpty) ...<Widget>[
+                      const SizedBox(height: 4),
+                      Text(
+                        _descriptionController.text.trim(),
+                        maxLines: 3,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.grey.shade700,
+                          height: 1.35,
+                        ),
+                      ),
+                    ],
+                  ],
+                )
+              : Text(
+                  '完成必要設定後會顯示預覽',
+                  style: TextStyle(fontSize: 13, color: Colors.grey.shade700),
+                ),
         ),
       ],
     );
+  }
+
+  String _previewDeliveryLine() {
+    if (_fulfillmentType == PointRewardFulfillmentType.coupon) {
+      final CouponTemplateModel? template = _selectedTemplate;
+      if (template == null) {
+        return '兌換後立即發券';
+      }
+      return '兌換後立即發券・${_templateDescription(template)}';
+    }
+
+    if (_useCentralInventory) {
+      return '店內領取・需出示領取碼・連動中央庫存';
+    }
+
+    final int stock = int.tryParse(_stockQuantityController.text.trim()) ?? 0;
+
+    return stock > 0 ? '店內領取・可兌換 $stock 份' : '店內領取・不限兌換數量';
   }
 
   String? _validateNonNegativeInteger(String? value) {
@@ -1288,28 +1558,159 @@ class _AdminPointRewardFormPageState extends State<AdminPointRewardFormPage> {
 }
 
 class _SectionCard extends StatelessWidget {
-  const _SectionCard({required this.title, required this.children});
+  const _SectionCard({
+    this.title = '',
+    required this.children,
+    this.compact = false,
+  });
 
   final String title;
   final List<Widget> children;
+  final bool compact;
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      margin: EdgeInsets.zero,
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: <Widget>[
+    return Container(
+      width: double.infinity,
+      padding: EdgeInsets.all(compact ? 12 : 14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: Colors.grey.shade200),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        spacing: 10,
+        children: <Widget>[
+          if (title.isNotEmpty)
             Text(
               title,
-              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800),
             ),
-            const SizedBox(height: 16),
-            ...children,
+          ...children,
+        ],
+      ),
+    );
+  }
+}
+
+/// 類型選擇卡。取代原本的 RadioListTile。
+class _ChoiceCard extends StatelessWidget {
+  const _ChoiceCard({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final Color accent = Theme.of(context).colorScheme.primary;
+
+    return InkWell(
+      borderRadius: BorderRadius.circular(12),
+      onTap: onTap,
+      child: Container(
+        height: 82,
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        decoration: BoxDecoration(
+          color: selected ? accent.withValues(alpha: 0.08) : Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: selected ? accent : Colors.grey.shade300,
+            width: selected ? 1.6 : 1,
+          ),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: <Widget>[
+            Row(
+              children: <Widget>[
+                Icon(icon, size: 18, color: selected ? accent : null),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 4),
+            Text(
+              subtitle,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: 11,
+                height: 1.25,
+                color: Colors.grey.shade700,
+              ),
+            ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _ToggleCard extends StatelessWidget {
+  const _ToggleCard({
+    required this.title,
+    required this.subtitle,
+    required this.value,
+    required this.onChanged,
+  });
+
+  final String title;
+  final String subtitle;
+  final bool value;
+  final ValueChanged<bool> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(
+        color: Colors.grey.shade50,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey.shade200),
+      ),
+      child: Row(
+        children: <Widget>[
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Text(
+                  title,
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                Text(
+                  subtitle,
+                  style: TextStyle(fontSize: 11, color: Colors.grey.shade700),
+                ),
+              ],
+            ),
+          ),
+          Switch.adaptive(value: value, onChanged: onChanged),
+        ],
       ),
     );
   }

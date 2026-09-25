@@ -24,7 +24,7 @@ import 'package:petnest_saas/core/services/point_reward_service.dart';
 import 'package:petnest_saas/core/services/special_date_surcharge_service.dart';
 import 'package:petnest_saas/core/widgets/point_module_visibility.dart';
 import 'package:petnest_saas/features/admin/pages/admin_coupon_center_page.dart';
-import 'package:petnest_saas/features/admin/pages/admin_point_exchange_history_page.dart';
+import 'package:petnest_saas/features/admin/pages/admin_point_center_stats.dart';
 import 'package:petnest_saas/features/admin/pages/admin_point_redemption_list_page.dart';
 import 'package:petnest_saas/features/admin/pages/admin_point_reward_list_page.dart';
 import 'package:petnest_saas/features/admin/pages/admin_coupon_template_form_page.dart';
@@ -1431,8 +1431,8 @@ class _ToolsColumn extends StatelessWidget {
               _ToolRow(
                 icon: Icons.redeem_outlined,
                 color: Colors.blue,
-                title: '點數兌換商品管理',
-                description: '管理可兌換的優惠券、住宿券與店內自取實體商品。',
+                title: '點數兌換中心',
+                description: '管理兌換商品、查看待核銷、兌換紀錄與點數成效。',
                 badge: snapshot.enabledRewards == 0
                     ? '尚無設定'
                     : '${snapshot.enabledRewards} 個商品上架中',
@@ -1467,6 +1467,7 @@ class _ToolsColumn extends StatelessWidget {
                 color: Colors.blue,
                 title: '點數兌換紀錄',
                 description: '查看本月與歷史兌換、扣點與發券結果。',
+                // 深連結到點數兌換中心的兌換紀錄區塊。
                 badge: snapshot.monthExchangeCount == 0
                     ? '尚無設定'
                     : '本月 ${snapshot.monthExchangeCount} 筆紀錄',
@@ -1474,7 +1475,10 @@ class _ToolsColumn extends StatelessWidget {
                   Navigator.of(context).push(
                     MaterialPageRoute<void>(
                       builder: (BuildContext context) {
-                        return AdminPointExchangeHistoryPage(shopId: shopId);
+                        return AdminPointRewardListPage(
+                          shopId: shopId,
+                          initialSection: PointCenterSection.history,
+                        );
                       },
                     ),
                   );
