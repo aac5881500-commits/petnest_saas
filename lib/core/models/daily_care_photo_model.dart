@@ -27,6 +27,7 @@ class DailyCarePhotoModel {
     this.previewBytes,
     this.uploadedByUid,
     this.uploadedByName,
+    this.expiresAt,
   });
 
   /// 照片文件 ID
@@ -81,6 +82,33 @@ class DailyCarePhotoModel {
   /// 建立時間
   final DateTime? createdAt;
 
+  /// 後端排程寫入的照片保存期限（服務結束後 24 小時）。
+  ///
+  /// 僅供 UI 顯示，不由前端建立或修改這個欄位。
+  final DateTime? expiresAt;
+
+  /// 保存期限是否已經過去。
+  bool hasExpired({DateTime? now}) {
+    final DateTime? deadline = expiresAt;
+    if (deadline == null) {
+      return false;
+    }
+    return !(now ?? DateTime.now()).isBefore(deadline);
+  }
+
+  /// 是否進入最後 24 小時。
+  bool expiringSoon({DateTime? now}) {
+    final DateTime? deadline = expiresAt;
+    if (deadline == null) {
+      return false;
+    }
+    final DateTime current = now ?? DateTime.now();
+    if (!deadline.isAfter(current)) {
+      return false;
+    }
+    return deadline.difference(current) <= const Duration(hours: 24);
+  }
+
   factory DailyCarePhotoModel.fromMap({
     required String id,
     required Map<String, dynamic> map,
@@ -102,6 +130,7 @@ class DailyCarePhotoModel {
       uploadedByUid: _readNullableString(map['uploadedByUid']),
       uploadedByName: _readNullableString(map['uploadedByName']),
       createdAt: _readDateTime(map['createdAt']),
+      expiresAt: _readDateTime(map['expiresAt']),
     );
   }
 
@@ -126,6 +155,7 @@ class DailyCarePhotoModel {
       'uploadedByUid': uploadedByUid,
       'uploadedByName': uploadedByName,
       'createdAt': createdAt == null ? null : Timestamp.fromDate(createdAt!),
+      'expiresAt': expiresAt == null ? null : Timestamp.fromDate(expiresAt!),
     };
   }
 

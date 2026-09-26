@@ -115,6 +115,75 @@ class ShopDeviceService {
     });
   }
 
+  /// 寫入房間的主攝影機，並可把同房其他攝影機停用。不刪除任何文件。
+  ///
+  /// [persistSettings] 為 true 時寫入網址與備註，且主攝影機維持未啟用。
+  /// 房間尚無攝影機時會新建一筆，並把文件 id 補進 rooms.cameraIds。
+  Future<void> writePrimaryRoomCamera({
+    required String shopId,
+    required String roomId,
+    required String roomName,
+    String? primaryDeviceId,
+    required String url,
+    required String note,
+    required bool enabled,
+    required bool persistSettings,
+    required List<String> siblingDeviceIds,
+  }) async {
+    final WriteBatch batch = _firestore.batch();
+    final String existingId = (primaryDeviceId ?? '').trim();
+    final String resolvedId = existingId.isEmpty
+        ? _deviceRef(shopId).doc().id
+        : existingId;
+    final DocumentReference<Map<String, dynamic>> primaryRef = _deviceRef(
+      shopId,
+    ).doc(resolvedId);
+    if (existingId.isEmpty) {
+      final Map<String, dynamic> payload = defaultCameraPayload(
+        shopId: shopId,
+        roomId: roomId,
+        roomName: roomName,
+      );
+      payload['url'] = url.trim();
+      payload['note'] = note.trim();
+      payload['enabled'] = false;
+      payload['platformLocked'] = false;
+      batch.set(primaryRef, payload);
+      batch.update(ShopRoomService.instance.roomsRef(shopId).doc(roomId), {
+        'cameraIds': FieldValue.arrayUnion(<String>[resolvedId]),
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+    } else if (persistSettings) {
+      batch.update(primaryRef, <String, dynamic>{
+        'url': url.trim(),
+        'note': note.trim(),
+        'roomName': roomName,
+        'enabled': false,
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+    } else {
+      batch.update(primaryRef, <String, dynamic>{
+        'enabled': enabled,
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+    }
+
+    if (persistSettings || enabled) {
+      for (final String rawId in siblingDeviceIds) {
+        final String siblingId = rawId.trim();
+        if (siblingId.isEmpty || siblingId == resolvedId) {
+          continue;
+        }
+        batch.update(_deviceRef(shopId).doc(siblingId), <String, dynamic>{
+          'enabled': false,
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+      }
+    }
+
+    await batch.commit();
+  }
+
   Future<void> deleteDevice({
     required String shopId,
     required String deviceId,

@@ -256,16 +256,51 @@ class DailyCareReportExportService {
     }
   }
 
+  /// 預先載入照護照片，供產圖時拼貼使用。
+  ///
+  /// 任何一張讀取失敗就跳過，不影響整份報告。
+  Future<List<ImageProvider>> preloadPhotos(
+    BuildContext context,
+    List<String> photoUrls, {
+    int limit = 9,
+  }) async {
+    final List<ImageProvider> providers = <ImageProvider>[];
+    for (final String raw in photoUrls) {
+      if (providers.length >= limit) {
+        break;
+      }
+      final String url = raw.trim();
+      if (url.isEmpty) {
+        continue;
+      }
+      if (!context.mounted) {
+        break;
+      }
+      try {
+        final NetworkImage image = NetworkImage(url);
+        await precacheImage(image, context).timeout(const Duration(seconds: 8));
+        providers.add(image);
+      } catch (_) {
+        continue;
+      }
+    }
+    return providers;
+  }
+
   Future<void> exportPng({
     required BuildContext context,
     required DailyCareReportData data,
     required ImageProvider? logoProvider,
     required String fileName,
+    List<ImageProvider> photoProviders = const <ImageProvider>[],
+    String expiryNote = '',
   }) async {
     final Uint8List bytes = await capturePng(
       context: context,
       data: data,
       logoProvider: logoProvider,
+      photoProviders: photoProviders,
+      expiryNote: expiryNote,
     );
     await savePng(bytes: bytes, fileName: fileName);
   }
@@ -274,6 +309,8 @@ class DailyCareReportExportService {
     required BuildContext context,
     required DailyCareReportData data,
     required ImageProvider? logoProvider,
+    List<ImageProvider> photoProviders = const <ImageProvider>[],
+    String expiryNote = '',
   }) async {
     if (data.kind == DailyCareReportExportKind.summary) {
       if (!context.mounted) {
@@ -284,6 +321,7 @@ class DailyCareReportExportService {
         child: DailyCareSummaryReportView(
           data: data,
           logoProvider: logoProvider,
+          expiryNote: expiryNote,
         ),
       );
       try {
@@ -342,6 +380,8 @@ class DailyCareReportExportService {
             showHeader: false,
             showStayInfo: false,
             days: const <DailyCareReportDay>[],
+            photoProviders: photoProviders,
+            expiryNote: expiryNote,
           ),
         ),
       );

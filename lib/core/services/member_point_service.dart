@@ -155,6 +155,36 @@ class MemberPointService {
         });
   }
 
+  /// 即時監聽店家全部點數流水。
+  ///
+  /// 讀取 shops/{shopId}/member_point_logs，依 createdAt 新到舊。
+  /// 沿用既有店主讀取權限，不另外放寬會員權限。
+  Stream<List<MemberPointLogModel>> streamShopPointLogs({
+    required String shopId,
+  }) {
+    final String normalizedShopId = shopId.trim();
+
+    if (normalizedShopId.isEmpty) {
+      return Stream<List<MemberPointLogModel>>.value(
+        const <MemberPointLogModel>[],
+      );
+    }
+
+    return _memberPointLogsReference(normalizedShopId)
+        .orderBy('createdAt', descending: true)
+        .snapshots()
+        .map((QuerySnapshot<Map<String, dynamic>> snapshot) {
+          return snapshot.docs.map((
+            QueryDocumentSnapshot<Map<String, dynamic>> document,
+          ) {
+            return MemberPointLogModel.fromMap(
+              id: document.id,
+              data: document.data(),
+            );
+          }).toList();
+        });
+  }
+
   /// 即時監聽店家全部點數兌換紀錄
   ///
   /// 只讀取 rewardExchange 類型，

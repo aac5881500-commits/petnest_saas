@@ -4,7 +4,12 @@
 import 'daily_care_date_helper.dart';
 import 'daily_care_report_center_item.dart';
 
-enum DailyCareReportCenterStatusFilter { all, pending, completed }
+enum DailyCareReportCenterStatusFilter {
+  all,
+  pending,
+  historyIncomplete,
+  completed,
+}
 
 enum DailyCareReportCenterTypeFilter { all, stay, daycare }
 
@@ -21,8 +26,15 @@ class DailyCareReportCenterSnapshot {
   final bool hasError;
   final String errorMessage;
 
-  int get pendingCount =>
-      items.where((DailyCareReportCenterItem item) => !item.isCompleted).length;
+  /// 只計算還能填寫的場次；已鎖定未完成不算待填。
+  int get pendingCount => items
+      .where((DailyCareReportCenterItem item) => item.isPendingFill)
+      .length;
+
+  /// 訂單已鎖定但沒填完，只供歷史稽核。
+  int get historyIncompleteCount => items
+      .where((DailyCareReportCenterItem item) => item.isHistoryIncomplete)
+      .length;
 
   int get completedCount =>
       items.where((DailyCareReportCenterItem item) => item.isCompleted).length;
@@ -53,7 +65,9 @@ class DailyCareReportCenterSnapshot {
       }
       final bool statusOk = switch (status) {
         DailyCareReportCenterStatusFilter.all => true,
-        DailyCareReportCenterStatusFilter.pending => !item.isCompleted,
+        DailyCareReportCenterStatusFilter.pending => item.isPendingFill,
+        DailyCareReportCenterStatusFilter.historyIncomplete =>
+          item.isHistoryIncomplete,
         DailyCareReportCenterStatusFilter.completed => item.isCompleted,
       };
       if (!statusOk) {

@@ -1,5 +1,5 @@
 // 檔案名稱：test/shop_dashboard_frontend_panel_test.dart
-// 功能說明：驗證 Dashboard 左側正式前台以 500px canvas 等比例縮小，中央寬度不受 Overlay 影響。
+// 功能說明：驗證後台內嵌前台依可用寬度並排，放不下時不內嵌，也不把 500px canvas 縮小。
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -7,6 +7,7 @@ import 'package:petnest_saas/core/models/shop_chat_thread_model.dart';
 import 'package:petnest_saas/features/shop/controllers/shop_chat_multi_dock_controller.dart';
 import 'package:petnest_saas/features/shop/pages/shop_public_page.dart';
 import 'package:petnest_saas/features/shop/widgets/shop_dashboard_embedded_scope.dart';
+import 'package:petnest_saas/features/shop/widgets/chat/shop_chat_layout.dart';
 import 'package:petnest_saas/features/shop/widgets/shop_frontend_phone_preview.dart';
 import 'package:petnest_saas/features/shop/widgets/shop_frontend_test_panel.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -32,11 +33,87 @@ void main() {
       ),
       0.5,
     );
+    expect(ShopFrontendPreviewFrame.canvasWidth, 500);
+    expect(ShopFrontendPreviewFrame.inlineMaxWidth, 540);
+    expect(ShopFrontendPreviewFrame.inlineMinOperableWidth, 516);
+    final double wideSlot = ShopFrontendPreviewFrame.inlineWidthFor(1600);
+    expect(
+      wideSlot,
+      lessThanOrEqualTo(ShopFrontendPreviewFrame.inlineMaxWidth),
+    );
+    expect(
+      wideSlot,
+      greaterThanOrEqualTo(ShopFrontendPreviewFrame.inlineMinOperableWidth),
+    );
+    final double fittedWidth =
+        wideSlot - ShopFrontendPreviewFrame.inlineCanvasInset;
+    expect(fittedWidth, greaterThanOrEqualTo(500));
+    expect(
+      ShopFrontendPhoneFrame.scaleFor(
+        availableWidth: fittedWidth,
+        availableHeight: 844,
+      ),
+      1,
+    );
+    final double minAvailable =
+        ShopFrontendPreviewFrame.inlineMinOperableWidth +
+        ShopFrontendPreviewFrame.inlineColumnGap +
+        ShopFrontendPreviewFrame.backendMinOperableWidth;
+    final double exactSlot = ShopFrontendPreviewFrame.inlineWidthFor(
+      minAvailable,
+    );
+    expect(exactSlot, ShopFrontendPreviewFrame.inlineMinOperableWidth);
+    expect(
+      ShopFrontendPhoneFrame.scaleFor(
+        availableWidth: exactSlot - ShopFrontendPreviewFrame.inlineCanvasInset,
+        availableHeight: 844,
+      ),
+      1,
+    );
   });
 
   test('寬度不足時不內嵌左側預覽', () {
-    expect(ShopFrontendPreviewFrame.canShowInlinePreview(1099), isFalse);
-    expect(ShopFrontendPreviewFrame.canShowInlinePreview(1100), isTrue);
+    final double minAvailable =
+        ShopFrontendPreviewFrame.inlineMinOperableWidth +
+        ShopFrontendPreviewFrame.inlineColumnGap +
+        ShopFrontendPreviewFrame.backendMinOperableWidth;
+    expect(
+      ShopFrontendPreviewFrame.canShowInlinePreview(minAvailable - 1),
+      isFalse,
+    );
+    expect(ShopFrontendPreviewFrame.inlineWidthFor(minAvailable - 1), 0);
+    expect(ShopFrontendPreviewFrame.canShowInlinePreview(1100), isFalse);
+    expect(ShopFrontendPreviewFrame.canShowInlinePreview(minAvailable), isTrue);
+  });
+
+  test('有聊天 dock 時，扣掉欄寬後不足就停止 inline', () {
+    const double pageWidth = 1600;
+    final double dock = ShopChatLayout.dockWidthFor(pageWidth);
+    expect(dock, greaterThan(600));
+    final double available = pageWidth - dock;
+    expect(ShopFrontendPreviewFrame.canShowInlinePreview(pageWidth), isTrue);
+    expect(ShopFrontendPreviewFrame.canShowInlinePreview(available), isFalse);
+    expect(ShopFrontendPreviewFrame.inlineWidthFor(available), 0);
+
+    const double widePage = 2200;
+    final double wideDock = ShopChatLayout.dockWidthFor(widePage);
+    final double wideAvailable = widePage - wideDock;
+    expect(
+      ShopFrontendPreviewFrame.canShowInlinePreview(wideAvailable),
+      isTrue,
+    );
+    final double slot = ShopFrontendPreviewFrame.inlineWidthFor(wideAvailable);
+    expect(
+      wideAvailable - slot - ShopFrontendPreviewFrame.inlineColumnGap,
+      greaterThanOrEqualTo(ShopFrontendPreviewFrame.backendMinOperableWidth),
+    );
+    expect(
+      ShopFrontendPhoneFrame.scaleFor(
+        availableWidth: slot - ShopFrontendPreviewFrame.inlineCanvasInset,
+        availableHeight: 844,
+      ),
+      1,
+    );
   });
 
   test('左側使用正式前台根頁 ShopPublicPage', () {
@@ -191,35 +268,52 @@ void main() {
     expect(submits, 2);
   });
 
-  testWidgets('左右 Overlay 不改變中央寬度，也沒有全畫面灰色遮罩', (WidgetTester tester) async {
-    final List<double> widths = <double>[];
-    await tester.binding.setSurfaceSize(const Size(1600, 1000));
+  testWidgets('inline 預覽與後台內容並排且不覆蓋', (WidgetTester tester) async {
+    const double pageWidth = 1600;
+    const double height = 900;
+    final double previewWidth = ShopFrontendPreviewFrame.inlineWidthFor(
+      pageWidth,
+    );
+    expect(ShopFrontendPreviewFrame.canShowInlinePreview(pageWidth), isTrue);
+    await tester.binding.setSurfaceSize(const Size(pageWidth, height));
     addTearDown(() => tester.binding.setSurfaceSize(null));
 
     await tester.pumpWidget(
       MaterialApp(
-        home: MediaQuery(
-          data: const MediaQueryData(size: Size(1600, 1000)),
-          child: Scaffold(body: _OverlayHarness(recordedWidths: widths)),
+        home: Scaffold(
+          body: _InlineSplitHarness(
+            pageWidth: pageWidth,
+            height: height,
+            chatDockWidth: 0,
+          ),
         ),
       ),
     );
     await tester.pump();
-    expect(widths, isNotEmpty);
-    final double initial = widths.last;
 
-    final _OverlayHarnessState state = tester.state(
-      find.byType(_OverlayHarness),
+    final Rect preview = tester.getRect(
+      find.byKey(_InlineSplitHarness.previewKey),
     );
-    state.showPanels(left: true, right: true);
-    await tester.pump();
-
-    expect(widths.last, initial);
+    final Rect backend = tester.getRect(
+      find.byKey(_InlineSplitHarness.backendKey),
+    );
+    expect(find.byType(Row), findsOneWidget);
+    expect(preview.right, lessThanOrEqualTo(backend.left));
+    expect(preview.overlaps(backend), isFalse);
+    expect(preview.width, previewWidth);
     expect(
-      find.byKey(ShopDashboardLiveFrontendOverlay.overlayKey),
-      findsOneWidget,
+      backend.width,
+      greaterThanOrEqualTo(ShopFrontendPreviewFrame.backendMinOperableWidth),
     );
-    expect(find.text('chat-dock'), findsOneWidget);
+    expect(
+      ShopFrontendPhoneFrame.scaleFor(
+        availableWidth:
+            preview.width - ShopFrontendPreviewFrame.inlineCanvasInset,
+        availableHeight: 844,
+      ),
+      1,
+    );
+    expect(find.text('chat-dock'), findsNothing);
     expect(
       find.byWidgetPredicate(
         (Widget widget) =>
@@ -227,6 +321,28 @@ void main() {
       ),
       findsNothing,
     );
+
+    const double dock = 650;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: _InlineSplitHarness(
+            pageWidth: pageWidth,
+            height: height,
+            chatDockWidth: dock,
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+    expect(find.byKey(_InlineSplitHarness.previewKey), findsNothing);
+    expect(find.text('dashboard-main'), findsOneWidget);
+    expect(find.text('chat-dock'), findsOneWidget);
+    final Rect narrowed = tester.getRect(
+      find.byKey(_InlineSplitHarness.backendKey),
+    );
+    final Rect chat = tester.getRect(find.byKey(_InlineSplitHarness.chatKey));
+    expect(narrowed.overlaps(chat), isFalse);
   });
 
   test('左側開關不會遺失聊天草稿，新訊息也不會清掉視窗', () async {
@@ -373,57 +489,68 @@ class _FlowPageState extends State<_FlowPage> {
   }
 }
 
-class _OverlayHarness extends StatefulWidget {
-  const _OverlayHarness({required this.recordedWidths});
+class _InlineSplitHarness extends StatelessWidget {
+  const _InlineSplitHarness({
+    required this.pageWidth,
+    required this.height,
+    required this.chatDockWidth,
+  });
 
-  final List<double> recordedWidths;
+  static const Key previewKey = Key('inline-preview');
+  static const Key backendKey = Key('inline-backend');
+  static const Key chatKey = Key('inline-chat');
 
-  @override
-  State<_OverlayHarness> createState() => _OverlayHarnessState();
-}
-
-class _OverlayHarnessState extends State<_OverlayHarness> {
-  bool showLeft = false;
-  bool showRight = false;
-
-  void showPanels({required bool left, required bool right}) {
-    setState(() {
-      showLeft = left;
-      showRight = right;
-    });
-  }
+  final double pageWidth;
+  final double height;
+  final double chatDockWidth;
 
   @override
   Widget build(BuildContext context) {
-    return Stack(
-      children: <Widget>[
-        LayoutBuilder(
-          builder: (BuildContext context, BoxConstraints constraints) {
-            widget.recordedWidths.add(constraints.maxWidth);
-            return const Center(child: Text('dashboard-main'));
-          },
-        ),
-        if (showLeft)
-          const Positioned(
-            key: ShopDashboardLiveFrontendOverlay.overlayKey,
-            left: 12,
-            top: 8,
-            bottom: 12,
-            width: 430,
+    final double available = pageWidth - chatDockWidth < 0
+        ? 0
+        : pageWidth - chatDockWidth;
+    final bool showPreview = ShopFrontendPreviewFrame.canShowInlinePreview(
+      available,
+    );
+    final double previewWidth = ShopFrontendPreviewFrame.inlineWidthFor(
+      available,
+    );
+    return SizedBox(
+      width: pageWidth,
+      height: height,
+      child: Row(
+        key: const Key('shop-dashboard-frontend-inline-split'),
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: <Widget>[
+          if (showPreview) ...<Widget>[
+            SizedBox(
+              key: previewKey,
+              width: previewWidth,
+              child: const ColoredBox(
+                color: Colors.white,
+                child: Text('live-frontend'),
+              ),
+            ),
+            const SizedBox(width: ShopFrontendPreviewFrame.inlineColumnGap),
+          ],
+          const Expanded(
             child: ColoredBox(
-              color: Colors.white,
-              child: Text('live-frontend'),
+              key: backendKey,
+              color: Color(0xFFF7F8FC),
+              child: Text('dashboard-main'),
             ),
           ),
-        if (showRight)
-          const Positioned(
-            right: 0,
-            top: 0,
-            bottom: 0,
-            width: 720,
-            child: ColoredBox(color: Colors.white, child: Text('chat-dock')),
-          ),
-      ],
+          if (chatDockWidth > 0)
+            SizedBox(
+              key: chatKey,
+              width: chatDockWidth,
+              child: const ColoredBox(
+                color: Colors.white,
+                child: Text('chat-dock'),
+              ),
+            ),
+        ],
+      ),
     );
   }
 }

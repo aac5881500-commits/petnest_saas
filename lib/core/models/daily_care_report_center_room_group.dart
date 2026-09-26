@@ -97,6 +97,10 @@ class DailyCareReportCenterGrouping {
       return switch (status) {
         DailyCareReportCenterStatusFilter.all => true,
         DailyCareReportCenterStatusFilter.pending => group.hasPending,
+        DailyCareReportCenterStatusFilter.historyIncomplete =>
+          group.sessions.any(
+            (DailyCareReportCenterItem item) => item.isHistoryIncomplete,
+          ),
         DailyCareReportCenterStatusFilter.completed => group.allCompleted,
       };
     }).toList();

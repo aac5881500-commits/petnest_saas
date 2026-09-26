@@ -17,8 +17,13 @@ class DailyCareReportCenterBookingDayGroup {
   String get expandKey =>
       '${DailyCareDateHelper.dateKey(primary.recordDate)}#$bookingId';
 
+  /// 只計算還能填寫的場次。
   int get pendingCount => sessions
-      .where((DailyCareReportCenterItem item) => !item.isCompleted)
+      .where((DailyCareReportCenterItem item) => item.isPendingFill)
+      .length;
+
+  int get historyIncompleteCount => sessions
+      .where((DailyCareReportCenterItem item) => item.isHistoryIncomplete)
       .length;
 
   int get completedCount => sessions
@@ -29,7 +34,31 @@ class DailyCareReportCenterBookingDayGroup {
 
   bool get hasPending => pendingCount > 0;
 
+  bool get hasHistoryIncomplete => historyIncompleteCount > 0;
+
   bool get allCompleted => totalCount > 0 && pendingCount == 0;
+
+  int get photoCount => sessions.fold<int>(
+    0,
+    (int sum, DailyCareReportCenterItem item) => sum + item.photoCount,
+  );
+
+  String get progressLabel => '已填 $completedCount/$totalCount 場';
+
+  String get missingLabel {
+    final int missing = totalCount - completedCount;
+    return missing <= 0 ? '已全部完成' : '尚缺 $missing 場';
+  }
+
+  DailyCareReportCenterItemStatus get status {
+    if (hasPending) {
+      return DailyCareReportCenterItemStatus.pending;
+    }
+    if (hasHistoryIncomplete) {
+      return DailyCareReportCenterItemStatus.historyIncomplete;
+    }
+    return DailyCareReportCenterItemStatus.completed;
+  }
 }
 
 class DailyCareReportCenterDateGroup {
@@ -49,6 +78,12 @@ class DailyCareReportCenterDateGroup {
         sum + group.pendingCount,
   );
 
+  int get historyIncompleteCount => bookings.fold<int>(
+    0,
+    (int sum, DailyCareReportCenterBookingDayGroup group) =>
+        sum + group.historyIncompleteCount,
+  );
+
   int get completedCount => bookings.fold<int>(
     0,
     (int sum, DailyCareReportCenterBookingDayGroup group) =>
@@ -61,12 +96,21 @@ class DailyCareReportCenterDateGroup {
         sum + group.totalCount,
   );
 
+  /// 標題內的待填數只算仍可填寫的場次。
+  ///
+  /// 該日期只剩已鎖定未完成時，改顯示「歷史未完成 X 場」。
   String get title {
     if (pendingCount > 0 && completedCount > 0) {
       return '$heading  待填 $pendingCount 場・已完成 $completedCount 場';
     }
     if (pendingCount > 0) {
       return '$heading  待填 $pendingCount 場';
+    }
+    if (completedCount == 0 && historyIncompleteCount > 0) {
+      return '$heading  歷史未完成 $historyIncompleteCount 場';
+    }
+    if (historyIncompleteCount > 0) {
+      return '$heading  已完成 $completedCount 場・歷史未完成 $historyIncompleteCount 場';
     }
     return '$heading  已完成 $completedCount 場';
   }
@@ -132,6 +176,8 @@ class DailyCareReportCenterDateGrouping {
             DailyCareReportCenterBookingDayGroup(sessions: sessions);
         final bool keep = switch (status) {
           DailyCareReportCenterStatusFilter.pending => group.hasPending,
+          DailyCareReportCenterStatusFilter.historyIncomplete =>
+            group.hasHistoryIncomplete,
           DailyCareReportCenterStatusFilter.completed =>
             group.completedCount > 0,
           DailyCareReportCenterStatusFilter.all => true,

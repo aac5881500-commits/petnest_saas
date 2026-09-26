@@ -2,6 +2,8 @@
 // 功能說明：住宿照護統計報告（精簡版）
 // 把整筆住宿濃縮成一張紙本風格統計圖，不逐場全文列出。
 
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 
 import '../models/daily_care_report_data.dart';
@@ -11,10 +13,54 @@ class DailyCareSummaryReportView extends StatelessWidget {
     super.key,
     required this.data,
     this.logoProvider,
+    this.expiryNote = '',
   });
 
   final DailyCareReportData data;
   final ImageProvider? logoProvider;
+
+  /// 照片保存期限提醒，只放在最下方小字。
+  final String expiryNote;
+
+  /// 圓形比例圖只在整次住宿或兩場以上完整紀錄時才有意義。
+  static bool ratioChartsEligible(DailyCareReportData data) {
+    final DailyCareReportStats? stats = data.stats;
+    if (stats == null) {
+      return false;
+    }
+    return data.isFullStay || stats.completedSessions >= 2;
+  }
+
+  /// 只取真實可枚舉且有觀測次數的欄位，不做健康分數。
+  static List<DailyCareReportStatField> ratioFields(
+    DailyCareReportData data, {
+    int limit = 4,
+  }) {
+    final DailyCareReportStats? stats = data.stats;
+    if (stats == null) {
+      return const <DailyCareReportStatField>[];
+    }
+    final List<DailyCareReportStatField> fields = <DailyCareReportStatField>[];
+    final DailyCareReportStatField? activity = stats.activityStatus;
+    if (activity != null && activity.observedCount > 0) {
+      fields.add(activity);
+    }
+    for (final DailyCareReportStatGroup group in stats.groups) {
+      for (final DailyCareReportStatField field in group.fields) {
+        if (field.observedCount <= 0) {
+          continue;
+        }
+        final int filled = field.options
+            .where((DailyCareReportStatOption option) => option.count > 0)
+            .length;
+        if (filled <= 0) {
+          continue;
+        }
+        fields.add(field);
+      }
+    }
+    return fields.length > limit ? fields.sublist(0, limit) : fields;
+  }
 
   static const Color cream = Color(0xFFFFF8F1);
   static const Color ink = Color(0xFF3A2A20);
@@ -61,10 +107,21 @@ class DailyCareSummaryReportView extends StatelessWidget {
                 _EnvironmentCard(stats: stats, brand: brand),
               ],
               const SizedBox(height: 12),
+              _SectionCard(
+                title: '比例統計',
+                brand: brand,
+                child: _RatioCharts(
+                  eligible: ratioChartsEligible(data),
+                  fields: ratioFields(data),
+                  stats: stats,
+                  brand: brand,
+                ),
+              ),
+              const SizedBox(height: 12),
               _OverviewCard(stats: stats, brand: brand),
             ],
             const SizedBox(height: 18),
-            _Footer(data: data),
+            _Footer(data: data, expiryNote: expiryNote),
           ],
         ),
       ),
@@ -669,10 +726,208 @@ class _OverviewCard extends StatelessWidget {
   }
 }
 
+/// 圓形比例圖。只呈現真實可枚舉選項分布與回報完成率。
+class _RatioCharts extends StatelessWidget {
+  const _RatioCharts({
+    required this.eligible,
+    required this.fields,
+    required this.stats,
+    required this.brand,
+  });
+
+  final bool eligible;
+  final List<DailyCareReportStatField> fields;
+  final DailyCareReportStats stats;
+  final Color brand;
+
+  @override
+  Widget build(BuildContext context) {
+    if (!eligible || fields.isEmpty) {
+      return const Text(
+        '資料不足，尚無統計圖',
+        style: TextStyle(fontSize: 12, color: DailyCareSummaryReportView.muted),
+      );
+    }
+
+    final List<Widget> charts = <Widget>[
+      for (final DailyCareReportStatField field in fields)
+        _RatioDonut(
+          title: field.label,
+          slices: <_RatioSlice>[
+            for (final DailyCareReportStatOption option in field.options)
+              if (option.count > 0)
+                _RatioSlice(label: option.label, value: option.count),
+          ],
+          brand: brand,
+        ),
+      if (stats.expectedSessions > 0)
+        _RatioDonut(
+          title: '回報完成率',
+          slices: <_RatioSlice>[
+            _RatioSlice(label: '已完成', value: stats.completedSessions),
+            if (stats.missingSessions > 0)
+              _RatioSlice(label: '未完成', value: stats.missingSessions),
+          ],
+          brand: brand,
+        ),
+    ];
+
+    return Wrap(spacing: 14, runSpacing: 14, children: charts);
+  }
+}
+
+class _RatioSlice {
+  const _RatioSlice({required this.label, required this.value});
+
+  final String label;
+  final int value;
+}
+
+class _RatioDonut extends StatelessWidget {
+  const _RatioDonut({
+    required this.title,
+    required this.slices,
+    required this.brand,
+  });
+
+  final String title;
+  final List<_RatioSlice> slices;
+  final Color brand;
+
+  @override
+  Widget build(BuildContext context) {
+    final int total = slices.fold<int>(
+      0,
+      (int sum, _RatioSlice slice) => sum + slice.value,
+    );
+    if (total <= 0) {
+      return const SizedBox.shrink();
+    }
+    final List<Color> palette = <Color>[
+      brand,
+      brand.withValues(alpha: 0.62),
+      brand.withValues(alpha: 0.38),
+      const Color(0xFFC9BDB0),
+    ];
+
+    return SizedBox(
+      width: 150,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Text(
+            title,
+            style: const TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w800,
+              color: DailyCareSummaryReportView.ink,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Row(
+            children: <Widget>[
+              SizedBox(
+                width: 56,
+                height: 56,
+                child: CustomPaint(
+                  painter: _DonutPainter(
+                    slices: slices,
+                    total: total,
+                    palette: palette,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    for (int index = 0; index < slices.length; index++)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 2),
+                        child: Row(
+                          children: <Widget>[
+                            Container(
+                              width: 7,
+                              height: 7,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: palette[index % palette.length],
+                              ),
+                            ),
+                            const SizedBox(width: 4),
+                            Expanded(
+                              child: Text(
+                                '${slices[index].label} '
+                                '${(slices[index].value * 100 / total).round()}%',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  fontSize: 10.5,
+                                  color: DailyCareSummaryReportView.muted,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _DonutPainter extends CustomPainter {
+  const _DonutPainter({
+    required this.slices,
+    required this.total,
+    required this.palette,
+  });
+
+  final List<_RatioSlice> slices;
+  final int total;
+  final List<Color> palette;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (total <= 0) {
+      return;
+    }
+    final double stroke = size.shortestSide * 0.26;
+    final Rect rect = Rect.fromLTWH(
+      stroke / 2,
+      stroke / 2,
+      size.width - stroke,
+      size.height - stroke,
+    );
+    double start = -math.pi / 2;
+    for (int index = 0; index < slices.length; index++) {
+      final double sweep = slices[index].value * 2 * math.pi / total;
+      final Paint paint = Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = stroke
+        ..color = palette[index % palette.length];
+      canvas.drawArc(rect, start, sweep, false, paint);
+      start += sweep;
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _DonutPainter oldDelegate) {
+    return oldDelegate.total != total || oldDelegate.slices != slices;
+  }
+}
+
 class _Footer extends StatelessWidget {
-  const _Footer({required this.data});
+  const _Footer({required this.data, this.expiryNote = ''});
 
   final DailyCareReportData data;
+  final String expiryNote;
 
   @override
   Widget build(BuildContext context) {
@@ -716,6 +971,17 @@ class _Footer extends StatelessWidget {
             color: DailyCareSummaryReportView.muted,
           ),
         ),
+        if (expiryNote.trim().isNotEmpty) ...<Widget>[
+          const SizedBox(height: 6),
+          Text(
+            expiryNote.trim(),
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              fontSize: 10.5,
+              color: DailyCareSummaryReportView.muted,
+            ),
+          ),
+        ],
       ],
     );
   }

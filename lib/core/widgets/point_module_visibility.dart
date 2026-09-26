@@ -20,6 +20,7 @@ class PointModuleVisibility extends StatelessWidget {
     this.neverUsedChild = const SizedBox.shrink(),
     this.loadingChild = const SizedBox.shrink(),
     this.errorChild = const SizedBox.shrink(),
+    this.onStatus,
   });
 
   /// 店家 ID
@@ -48,11 +49,15 @@ class PointModuleVisibility extends StatelessWidget {
   /// 預設完全隱藏，避免錯誤時誤顯示點數功能。
   final Widget errorChild;
 
+  /// 設定讀取結束後回報狀態。不另外發新的 Firestore 請求。
+  final ValueChanged<PointModuleStatus>? onStatus;
+
   @override
   Widget build(BuildContext context) {
     final String normalizedShopId = shopId.trim();
 
     if (normalizedShopId.isEmpty) {
+      _report(PointModuleStatus.neverUsed);
       return neverUsedChild;
     }
 
@@ -61,6 +66,7 @@ class PointModuleVisibility extends StatelessWidget {
       builder:
           (BuildContext context, AsyncSnapshot<PointSettingModel> snapshot) {
             if (snapshot.hasError) {
+              _report(PointModuleStatus.neverUsed);
               return errorChild;
             }
 
@@ -73,6 +79,7 @@ class PointModuleVisibility extends StatelessWidget {
               setting,
             );
             final PointModuleStatus status = access.status;
+            _report(status);
 
             switch (status) {
               case PointModuleStatus.enabled:
@@ -86,5 +93,13 @@ class PointModuleVisibility extends StatelessWidget {
             }
           },
     );
+  }
+
+  void _report(PointModuleStatus status) {
+    final ValueChanged<PointModuleStatus>? callback = onStatus;
+    if (callback == null) {
+      return;
+    }
+    WidgetsBinding.instance.addPostFrameCallback((_) => callback(status));
   }
 }

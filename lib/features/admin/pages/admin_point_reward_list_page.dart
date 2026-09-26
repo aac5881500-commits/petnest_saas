@@ -18,6 +18,7 @@ import 'package:petnest_saas/core/services/member_point_service.dart';
 import 'package:petnest_saas/core/services/point_redemption_service.dart';
 import 'package:petnest_saas/core/services/point_reward_image_service.dart';
 import 'package:petnest_saas/core/services/point_reward_service.dart';
+import 'package:petnest_saas/features/admin/pages/admin_booking_detail_page.dart';
 import 'package:petnest_saas/features/admin/pages/admin_point_center_stats.dart';
 import 'package:petnest_saas/features/admin/pages/admin_point_redemption_list_page.dart';
 import 'admin_point_reward_form_page.dart';
@@ -46,11 +47,15 @@ class _AdminPointRewardListPageState extends State<AdminPointRewardListPage> {
       TextEditingController();
   final TextEditingController _historyKeywordController =
       TextEditingController();
+  final TextEditingController _ledgerKeywordController =
+      TextEditingController();
   final Map<String, String> _memberLabels = <String, String>{};
+  final Map<String, String> _memberEmails = <String, String>{};
   final Set<String> _memberLoading = <String>{};
 
   List<PointRewardModel> _rewards = const <PointRewardModel>[];
   List<MemberPointLogModel> _logs = const <MemberPointLogModel>[];
+  List<MemberPointLogModel> _ledgerLogs = const <MemberPointLogModel>[];
   List<PointRedemptionModel> _redemptions = const <PointRedemptionModel>[];
   Map<String, String> _templateNames = const <String, String>{};
 
@@ -61,6 +66,9 @@ class _AdminPointRewardListPageState extends State<AdminPointRewardListPage> {
   PointRewardTypeFilter _historyType = PointRewardTypeFilter.all;
   PointDeliveryFilter _historyDelivery = PointDeliveryFilter.all;
   String _historyRewardId = '';
+  PointHistoryTimeFilter _ledgerTime = PointHistoryTimeFilter.days30;
+  PointLedgerTypeFilter _ledgerType = PointLedgerTypeFilter.all;
+  PointLedgerDirectionFilter _ledgerDirection = PointLedgerDirectionFilter.all;
 
   bool _loading = true;
   String _error = '';
@@ -80,6 +88,7 @@ class _AdminPointRewardListPageState extends State<AdminPointRewardListPage> {
     }
     _rewardKeywordController.dispose();
     _historyKeywordController.dispose();
+    _ledgerKeywordController.dispose();
     super.dispose();
   }
 
@@ -94,73 +103,107 @@ class _AdminPointRewardListPageState extends State<AdminPointRewardListPage> {
       });
     }
 
-    _subscriptions.add(
-      PointRewardService.instance.streamShopRewards(widget.shopId).listen((
-        List<PointRewardModel> items,
-      ) {
-        if (!mounted) {
-          return;
-        }
+    _listenStream<List<PointRewardModel>>(
+      () => PointRewardService.instance.streamShopRewards(widget.shopId),
+      (List<PointRewardModel> items) {
         setState(() {
           _rewards = items;
           _loading = false;
         });
-      }, onError: fail),
+      },
+      fail,
     );
-    _subscriptions.add(
-      MemberPointService.instance
-          .streamShopRewardExchangeLogs(shopId: widget.shopId)
-          .listen((List<MemberPointLogModel> items) {
-            if (!mounted) {
-              return;
-            }
-            setState(() {
-              _logs = items;
-              _loading = false;
-            });
-            _loadMemberProfiles(items);
-          }, onError: fail),
+    _listenStream<List<MemberPointLogModel>>(
+      () => MemberPointService.instance.streamShopRewardExchangeLogs(
+        shopId: widget.shopId,
+      ),
+      (List<MemberPointLogModel> items) {
+        setState(() {
+          _logs = items;
+          _loading = false;
+        });
+        _loadMemberProfiles(items);
+      },
+      fail,
     );
-    _subscriptions.add(
-      PointRedemptionService.instance
-          .streamShopRedemptions(shopId: widget.shopId)
-          .listen((List<PointRedemptionModel> items) {
-            if (!mounted) {
-              return;
-            }
-            setState(() {
-              _redemptions = items;
-              _loading = false;
-            });
-          }, onError: fail),
+    _listenStream<List<MemberPointLogModel>>(
+      () => MemberPointService.instance.streamShopPointLogs(
+        shopId: widget.shopId,
+      ),
+      (List<MemberPointLogModel> items) {
+        setState(() {
+          _ledgerLogs = items;
+          _loading = false;
+        });
+        _loadMemberProfiles(items, includeOperators: true);
+      },
+      fail,
     );
-    _subscriptions.add(
-      CouponTemplateService.instance
-          .streamTemplates(shopId: widget.shopId)
-          .listen((List<CouponTemplateModel> items) {
-            if (!mounted) {
-              return;
-            }
-            setState(() {
-              _templateNames = <String, String>{
-                for (final CouponTemplateModel item in items)
-                  item.id: item.name.trim().isEmpty ? '未命名優惠券模板' : item.name,
-              };
-            });
-          }, onError: (_) {}),
+    _listenStream<List<PointRedemptionModel>>(
+      () => PointRedemptionService.instance.streamShopRedemptions(
+        shopId: widget.shopId,
+      ),
+      (List<PointRedemptionModel> items) {
+        setState(() {
+          _redemptions = items;
+          _loading = false;
+        });
+      },
+      fail,
+    );
+    _listenStream<List<CouponTemplateModel>>(
+      () =>
+          CouponTemplateService.instance.streamTemplates(shopId: widget.shopId),
+      (List<CouponTemplateModel> items) {
+        setState(() {
+          _templateNames = <String, String>{
+            for (final CouponTemplateModel item in items)
+              item.id: item.name.trim().isEmpty ? '未命名優惠券模板' : item.name,
+          };
+        });
+      },
+      (_) {},
     );
   }
 
-  Future<void> _loadMemberProfiles(List<MemberPointLogModel> logs) async {
+  void _listenStream<T>(
+    Stream<T> Function() open,
+    void Function(T value) onData,
+    void Function(Object error) onError,
+  ) {
+    try {
+      _subscriptions.add(
+        open().listen((T value) {
+          if (!mounted) {
+            return;
+          }
+          onData(value);
+        }, onError: onError),
+      );
+    } catch (_) {
+      _loading = false;
+    }
+  }
+
+  Future<void> _loadMemberProfiles(
+    List<MemberPointLogModel> logs, {
+    bool includeOperators = false,
+  }) async {
     final List<String> missing = <String>[];
     for (final MemberPointLogModel log in logs) {
-      final String userId = log.userId.trim();
-      if (userId.isEmpty ||
-          _memberLabels.containsKey(userId) ||
-          _memberLoading.contains(userId)) {
-        continue;
+      final List<String> ids = <String>[
+        log.userId.trim(),
+        if (includeOperators) log.operatorUid.trim(),
+      ];
+      for (final String userId in ids) {
+        if (userId.isEmpty ||
+            userId == 'system' ||
+            _memberLabels.containsKey(userId) ||
+            _memberLoading.contains(userId)) {
+          continue;
+        }
+        missing.add(userId);
       }
-      missing.add(userId);
     }
     if (missing.isEmpty) {
       return;
@@ -181,6 +224,7 @@ class _AdminPointRewardListPageState extends State<AdminPointRewardListPage> {
             in snapshot.docs) {
           found.add(doc.id);
           _memberLabels[doc.id] = pointProfileLabel(doc.data());
+          _memberEmails[doc.id] = (doc.data()['email'] ?? '').toString().trim();
         }
         for (final String userId in chunk) {
           if (!found.contains(userId)) {
@@ -356,6 +400,15 @@ class _AdminPointRewardListPageState extends State<AdminPointRewardListPage> {
             },
             icon: const Icon(Icons.history_outlined),
           ),
+          IconButton(
+            tooltip: '點數流水',
+            onPressed: () {
+              setState(() {
+                _section = PointCenterSection.ledger;
+              });
+            },
+            icon: const Icon(Icons.receipt_long_outlined),
+          ),
           const SizedBox(width: 4),
         ],
       ),
@@ -427,6 +480,7 @@ class _AdminPointRewardListPageState extends State<AdminPointRewardListPage> {
           now: now,
         ),
         PointCenterSection.analytics => _analyticsSection(now: now),
+        PointCenterSection.ledger => _ledgerSection(desktop: desktop, now: now),
       },
     ];
   }
@@ -519,12 +573,11 @@ class _AdminPointRewardListPageState extends State<AdminPointRewardListPage> {
         },
       ),
       _PointKpiCard(
-        label: '本月扣除點數',
-        value: '${kpi.monthPointsSpent}',
+        label: '本月已完成',
+        value: '發券 ${kpi.monthCouponIssued}・核銷 ${kpi.monthPickedUp}',
         onTap: () {
           setState(() {
             _section = PointCenterSection.analytics;
-            _historyTime = PointHistoryTimeFilter.days30;
           });
         },
       ),
@@ -563,6 +616,7 @@ class _AdminPointRewardListPageState extends State<AdminPointRewardListPage> {
       _sectionChip('待核銷', PointCenterSection.pending),
       _sectionChip('兌換紀錄', PointCenterSection.history),
       _sectionChip('成效分析', PointCenterSection.analytics),
+      _sectionChip('點數流水', PointCenterSection.ledger),
     ];
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
@@ -1057,6 +1111,7 @@ class _AdminPointRewardListPageState extends State<AdminPointRewardListPage> {
       rewards: _rewards,
       redemptions: _redemptions,
       memberLabelOf: _memberLabel,
+      templateNames: _templateNames,
     );
     final List<PointExchangeRow> rows = filterPointExchangeRows(
       rows: all,
@@ -1153,7 +1208,7 @@ class _AdminPointRewardListPageState extends State<AdminPointRewardListPage> {
               DataCell(Text(_rowMemberLabel(row))),
               DataCell(Text('${row.pointsSpent} 點')),
               DataCell(Text(formatPointDateTime(row.createdAt))),
-              DataCell(Text(pointDeliveryLabel(row.delivery))),
+              DataCell(_exchangeResult(row)),
             ],
           );
         }).toList(),
@@ -1187,11 +1242,29 @@ class _AdminPointRewardListPageState extends State<AdminPointRewardListPage> {
             style: const TextStyle(fontSize: 12),
           ),
           Text(
-            '${formatPointDateTime(row.createdAt)}　${pointDeliveryLabel(row.delivery)}',
+            formatPointDateTime(row.createdAt),
             style: const TextStyle(fontSize: 12),
           ),
+          _exchangeResult(row),
         ],
       ),
+    );
+  }
+
+  Widget _exchangeResult(PointExchangeRow row) {
+    final String label = pointExchangeResultLabel(row);
+    final String coupon = row.couponName.trim();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: <Widget>[
+        Text(label, style: const TextStyle(fontSize: 12)),
+        if (coupon.isNotEmpty && !row.isPhysical)
+          Text(
+            coupon,
+            style: const TextStyle(fontSize: 11, color: Color(0xFF4B5563)),
+          ),
+      ],
     );
   }
 
@@ -1356,13 +1429,29 @@ class _AdminPointRewardListPageState extends State<AdminPointRewardListPage> {
               _metric('累計兌換次數', '${analytics.totalExchangeCount}'),
               _metric('累計扣除點數', '${analytics.totalPointsSpent}'),
               _metric('本月兌換次數', '${analytics.monthExchangeCount}'),
-              _metric('本月完成核銷', '${analytics.monthPickedUpCount}'),
+              _metric('本月已發券', '${analytics.monthCouponIssuedCount}'),
+              _metric('本月已核銷', '${analytics.monthPickedUpCount}'),
               _metric('待核銷', '${analytics.pendingPickupCount}'),
               _metric('取消／過期', '${analytics.cancelledOrExpiredCount}'),
             ],
           ),
           const SizedBox(height: 12),
-          const Text('狀態比例', style: TextStyle(fontWeight: FontWeight.w700)),
+          const Text('數位券', style: TextStyle(fontWeight: FontWeight.w700)),
+          const SizedBox(height: 6),
+          if (analytics.couponIssuedCount == 0)
+            const Text(
+              '目前沒有已發券的數位優惠券。',
+              style: TextStyle(fontSize: 12, color: Color(0xFF4B5563)),
+            )
+          else
+            _shareBar(
+              '已發券',
+              analytics.couponIssuedCount,
+              1,
+              const Color(0xFF6A1B9A),
+            ),
+          const SizedBox(height: 10),
+          const Text('實體商品', style: TextStyle(fontWeight: FontWeight.w700)),
           const SizedBox(height: 6),
           if (analytics.redemptionTotal == 0)
             const Text(
@@ -1371,13 +1460,13 @@ class _AdminPointRewardListPageState extends State<AdminPointRewardListPage> {
             )
           else ...<Widget>[
             _shareBar(
-              '已完成核銷',
+              '已核銷',
               analytics.pickedUpCount,
               analytics.statusShare(analytics.pickedUpCount),
               const Color(0xFF2E7D32),
             ),
             _shareBar(
-              '待核銷',
+              '待領取',
               analytics.pendingPickupCount,
               analytics.statusShare(analytics.pendingPickupCount),
               const Color(0xFFEF6C00),
@@ -1474,11 +1563,10 @@ class _AdminPointRewardListPageState extends State<AdminPointRewardListPage> {
 
   Widget _rankRow(int rank, PointRewardRank item) {
     final List<String> parts = <String>[
-      '兌換 ${item.exchangeCount} 次',
+      item.channelLabel,
+      item.resultLabel,
       '扣除 ${item.pointsSpent} 點',
       if (item.hasTotalLimit) '使用率 ${item.usageRateLabel}',
-      if (item.isPhysical)
-        '已核銷 ${item.pickedUpCount}・待核銷 ${item.pendingCount}・取消 ${item.cancelledCount}',
     ];
     return Padding(
       padding: const EdgeInsets.only(bottom: 6),
@@ -1508,6 +1596,487 @@ class _AdminPointRewardListPageState extends State<AdminPointRewardListPage> {
           ),
         ],
       ),
+    );
+  }
+
+  // ── 點數流水 ─────────────────────────────────────────────
+
+  Widget _ledgerSection({required bool desktop, required DateTime now}) {
+    final PointLedgerKpi kpi = summarizePointLedger(
+      logs: _ledgerLogs,
+      now: now,
+    );
+    final List<PointLedgerRow> rows = filterPointLedgerRows(
+      rows: buildPointLedgerRows(
+        logs: _ledgerLogs,
+        rewards: _rewards,
+        redemptions: _redemptions,
+        memberLabelOf: _memberLabel,
+        operatorLabelOf: (String uid) => _memberEmails[uid.trim()] ?? '',
+      ),
+      now: now,
+      time: _ledgerTime,
+      type: _ledgerType,
+      direction: _ledgerDirection,
+      keyword: _ledgerKeywordController.text,
+    );
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: <Widget>[
+        _ledgerKpiGrid(desktop: desktop, kpi: kpi),
+        const SizedBox(height: 10),
+        _PointPanel(
+          title: '點數流水',
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              if (desktop)
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: _ledgerFilters(includeSearch: true),
+                )
+              else
+                Row(
+                  children: <Widget>[
+                    Expanded(
+                      child: _searchField(
+                        controller: _ledgerKeywordController,
+                        hint: '搜尋會員、原因或商品',
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    OutlinedButton(
+                      onPressed: _openLedgerFilterSheet,
+                      child: const Text('篩選'),
+                    ),
+                  ],
+                ),
+              const SizedBox(height: 10),
+              if (rows.isEmpty)
+                const _PointEmptyNote(
+                  title: '沒有符合條件的點數流水',
+                  message: '調整時間或類型，或等待點數異動後再查看。',
+                )
+              else if (desktop)
+                _ledgerTable(rows)
+              else
+                Column(children: rows.map(_ledgerCard).toList()),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _ledgerKpiGrid({required bool desktop, required PointLedgerKpi kpi}) {
+    final List<Widget> cards = <Widget>[
+      _PointKpiCard(
+        label: '本月發放點數',
+        value: '${kpi.monthGranted}',
+        onTap: () {
+          setState(() {
+            _ledgerDirection = PointLedgerDirectionFilter.increase;
+          });
+        },
+      ),
+      _PointKpiCard(
+        label: '本月會員折抵',
+        value: '${kpi.monthMemberSpent}',
+        onTap: () {
+          setState(() {
+            _ledgerType = PointLedgerTypeFilter.bookingSpent;
+          });
+        },
+      ),
+      _PointKpiCard(
+        label: '本月兌換扣點',
+        value: '${kpi.monthExchangeSpent}',
+        onTap: () {
+          setState(() {
+            _ledgerType = PointLedgerTypeFilter.rewardExchange;
+          });
+        },
+      ),
+      _PointKpiCard(
+        label: '本月手動調整',
+        value: kpi.manualAdjustLabel,
+        onTap: () {
+          setState(() {
+            _ledgerType = PointLedgerTypeFilter.all;
+            _ledgerDirection = PointLedgerDirectionFilter.all;
+          });
+        },
+      ),
+    ];
+    if (desktop) {
+      return Row(
+        children: <Widget>[
+          for (int index = 0; index < cards.length; index++)
+            Expanded(
+              child: Padding(
+                padding: EdgeInsets.only(
+                  right: index == cards.length - 1 ? 0 : 8,
+                ),
+                child: cards[index],
+              ),
+            ),
+        ],
+      );
+    }
+    return GridView(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 2,
+        mainAxisExtent: 92,
+        crossAxisSpacing: 8,
+        mainAxisSpacing: 8,
+      ),
+      children: cards,
+    );
+  }
+
+  List<Widget> _ledgerFilters({required bool includeSearch}) {
+    return <Widget>[
+      if (includeSearch)
+        SizedBox(
+          width: 220,
+          child: _searchField(
+            controller: _ledgerKeywordController,
+            hint: '搜尋會員、原因或商品',
+          ),
+        ),
+      DropdownButton<PointHistoryTimeFilter>(
+        value: _ledgerTime,
+        isDense: true,
+        items: PointHistoryTimeFilter.values.map((PointHistoryTimeFilter item) {
+          return DropdownMenuItem<PointHistoryTimeFilter>(
+            value: item,
+            child: Text(_timeFilterLabel(item)),
+          );
+        }).toList(),
+        onChanged: (PointHistoryTimeFilter? value) {
+          if (value == null) {
+            return;
+          }
+          setState(() {
+            _ledgerTime = value;
+          });
+        },
+      ),
+      DropdownButton<PointLedgerTypeFilter>(
+        value: _ledgerType,
+        isDense: true,
+        items: PointLedgerTypeFilter.values.map((PointLedgerTypeFilter item) {
+          return DropdownMenuItem<PointLedgerTypeFilter>(
+            value: item,
+            child: Text(pointLedgerTypeFilterLabel(item)),
+          );
+        }).toList(),
+        onChanged: (PointLedgerTypeFilter? value) {
+          if (value == null) {
+            return;
+          }
+          setState(() {
+            _ledgerType = value;
+          });
+        },
+      ),
+      DropdownButton<PointLedgerDirectionFilter>(
+        value: _ledgerDirection,
+        isDense: true,
+        items: const <DropdownMenuItem<PointLedgerDirectionFilter>>[
+          DropdownMenuItem<PointLedgerDirectionFilter>(
+            value: PointLedgerDirectionFilter.all,
+            child: Text('全部變動'),
+          ),
+          DropdownMenuItem<PointLedgerDirectionFilter>(
+            value: PointLedgerDirectionFilter.increase,
+            child: Text('僅看增加'),
+          ),
+          DropdownMenuItem<PointLedgerDirectionFilter>(
+            value: PointLedgerDirectionFilter.decrease,
+            child: Text('僅看扣除'),
+          ),
+        ],
+        onChanged: (PointLedgerDirectionFilter? value) {
+          if (value == null) {
+            return;
+          }
+          setState(() {
+            _ledgerDirection = value;
+          });
+        },
+      ),
+      FilterChip(
+        label: const Text('商品兌換'),
+        visualDensity: VisualDensity.compact,
+        showCheckmark: false,
+        selected: _ledgerType == PointLedgerTypeFilter.rewardExchange,
+        onSelected: (bool selected) {
+          setState(() {
+            _ledgerType = selected
+                ? PointLedgerTypeFilter.rewardExchange
+                : PointLedgerTypeFilter.all;
+          });
+        },
+      ),
+    ];
+  }
+
+  Widget _ledgerTable(List<PointLedgerRow> rows) {
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: DataTable(
+        headingRowHeight: 36,
+        dataRowMinHeight: 40,
+        dataRowMaxHeight: 72,
+        columnSpacing: 16,
+        columns: const <DataColumn>[
+          DataColumn(label: Text('時間')),
+          DataColumn(label: Text('會員')),
+          DataColumn(label: Text('類型')),
+          DataColumn(label: Text('原因')),
+          DataColumn(label: Text('點數變動')),
+          DataColumn(label: Text('變動後餘額')),
+          DataColumn(label: Text('關聯資訊')),
+        ],
+        rows: rows.map((PointLedgerRow row) {
+          return DataRow(
+            cells: <DataCell>[
+              DataCell(Text(formatPointDateTime(row.log.createdAt))),
+              DataCell(Text(_ledgerMember(row))),
+              DataCell(Text(pointLedgerTypeLabel(row.log.type))),
+              DataCell(
+                SizedBox(width: 160, child: Text(row.log.reason.trim())),
+              ),
+              DataCell(_ledgerPoints(row.log.points)),
+              DataCell(Text('${row.log.balanceAfter}')),
+              DataCell(_ledgerRelation(row)),
+            ],
+          );
+        }).toList(),
+      ),
+    );
+  }
+
+  Widget _ledgerCard(PointLedgerRow row) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey.shade200),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Row(
+            children: <Widget>[
+              Expanded(
+                child: Text(
+                  '${pointLedgerTypeLabel(row.log.type)}・${_ledgerMember(row)}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontWeight: FontWeight.w800),
+                ),
+              ),
+              _ledgerPoints(row.log.points),
+            ],
+          ),
+          const SizedBox(height: 2),
+          Text(
+            '${formatPointDateTime(row.log.createdAt)}　餘額 ${row.log.balanceAfter}',
+            style: const TextStyle(fontSize: 12),
+          ),
+          if (row.log.reason.trim().isNotEmpty)
+            Text(row.log.reason.trim(), style: const TextStyle(fontSize: 12)),
+          _ledgerRelation(row),
+        ],
+      ),
+    );
+  }
+
+  Widget _ledgerPoints(int points) {
+    final Color color = points > 0
+        ? const Color(0xFF2E7D32)
+        : (points < 0 ? const Color(0xFFC62828) : const Color(0xFF4B5563));
+    return Text(
+      pointLedgerPointsText(points),
+      style: TextStyle(color: color, fontWeight: FontWeight.w800),
+    );
+  }
+
+  Widget _ledgerRelation(PointLedgerRow row) {
+    if (row.opensBooking) {
+      return TextButton(
+        onPressed: () {
+          Navigator.of(context).push(
+            MaterialPageRoute<void>(
+              builder: (BuildContext context) {
+                return AdminBookingDetailPage(bookingId: row.log.bookingId);
+              },
+            ),
+          );
+        },
+        style: TextButton.styleFrom(
+          visualDensity: VisualDensity.compact,
+          padding: EdgeInsets.zero,
+          minimumSize: const Size(0, 32),
+        ),
+        child: const Text('查看訂單'),
+      );
+    }
+    if (row.opensExchange) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Text(row.relationText, style: const TextStyle(fontSize: 12)),
+          TextButton(
+            onPressed: () {
+              setState(() {
+                _section = PointCenterSection.history;
+              });
+            },
+            style: TextButton.styleFrom(
+              visualDensity: VisualDensity.compact,
+              padding: EdgeInsets.zero,
+              minimumSize: const Size(0, 32),
+            ),
+            child: const Text('查看兌換紀錄'),
+          ),
+        ],
+      );
+    }
+    return Text(row.relationText, style: const TextStyle(fontSize: 12));
+  }
+
+  String _ledgerMember(PointLedgerRow row) {
+    final String label = row.memberLabel.trim();
+    if (label.isNotEmpty && label != pointMemberUnavailableLabel) {
+      return label;
+    }
+    if (_memberLoading.contains(row.log.userId.trim())) {
+      return '載入中';
+    }
+    return pointMemberUnavailableLabel;
+  }
+
+  Future<void> _openLedgerFilterSheet() async {
+    PointHistoryTimeFilter time = _ledgerTime;
+    PointLedgerTypeFilter type = _ledgerType;
+    PointLedgerDirectionFilter direction = _ledgerDirection;
+    await showDialog<void>(
+      context: context,
+      builder: (BuildContext context) {
+        return StatefulBuilder(
+          builder:
+              (BuildContext context, void Function(void Function()) setLocal) {
+                return Dialog(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(
+                      maxWidth: 420,
+                      maxHeight: 420,
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: ListView(
+                        shrinkWrap: true,
+                        children: <Widget>[
+                          const Text(
+                            '篩選點數流水',
+                            style: TextStyle(fontWeight: FontWeight.w800),
+                          ),
+                          const SizedBox(height: 8),
+                          DropdownButtonFormField<PointHistoryTimeFilter>(
+                            initialValue: time,
+                            isDense: true,
+                            decoration: const InputDecoration(labelText: '時間'),
+                            items: PointHistoryTimeFilter.values.map((
+                              PointHistoryTimeFilter item,
+                            ) {
+                              return DropdownMenuItem<PointHistoryTimeFilter>(
+                                value: item,
+                                child: Text(_timeFilterLabel(item)),
+                              );
+                            }).toList(),
+                            onChanged: (PointHistoryTimeFilter? value) {
+                              if (value != null) {
+                                setLocal(() => time = value);
+                              }
+                            },
+                          ),
+                          DropdownButtonFormField<PointLedgerTypeFilter>(
+                            initialValue: type,
+                            isDense: true,
+                            decoration: const InputDecoration(labelText: '類型'),
+                            items: PointLedgerTypeFilter.values.map((
+                              PointLedgerTypeFilter item,
+                            ) {
+                              return DropdownMenuItem<PointLedgerTypeFilter>(
+                                value: item,
+                                child: Text(pointLedgerTypeFilterLabel(item)),
+                              );
+                            }).toList(),
+                            onChanged: (PointLedgerTypeFilter? value) {
+                              if (value != null) {
+                                setLocal(() => type = value);
+                              }
+                            },
+                          ),
+                          DropdownButtonFormField<PointLedgerDirectionFilter>(
+                            initialValue: direction,
+                            isDense: true,
+                            decoration: const InputDecoration(labelText: '增減'),
+                            items:
+                                const <
+                                  DropdownMenuItem<PointLedgerDirectionFilter>
+                                >[
+                                  DropdownMenuItem<PointLedgerDirectionFilter>(
+                                    value: PointLedgerDirectionFilter.all,
+                                    child: Text('全部變動'),
+                                  ),
+                                  DropdownMenuItem<PointLedgerDirectionFilter>(
+                                    value: PointLedgerDirectionFilter.increase,
+                                    child: Text('僅看增加'),
+                                  ),
+                                  DropdownMenuItem<PointLedgerDirectionFilter>(
+                                    value: PointLedgerDirectionFilter.decrease,
+                                    child: Text('僅看扣除'),
+                                  ),
+                                ],
+                            onChanged: (PointLedgerDirectionFilter? value) {
+                              if (value != null) {
+                                setLocal(() => direction = value);
+                              }
+                            },
+                          ),
+                          const SizedBox(height: 12),
+                          Align(
+                            alignment: Alignment.centerRight,
+                            child: FilledButton(
+                              onPressed: () {
+                                setState(() {
+                                  _ledgerTime = time;
+                                  _ledgerType = type;
+                                  _ledgerDirection = direction;
+                                });
+                                Navigator.of(context).pop();
+                              },
+                              child: const Text('套用'),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                );
+              },
+        );
+      },
     );
   }
 
@@ -1776,10 +2345,10 @@ class _PointKpiCard extends StatelessWidget {
               const SizedBox(height: 4),
               Text(
                 value,
-                maxLines: 1,
+                maxLines: 2,
                 overflow: TextOverflow.ellipsis,
                 style: const TextStyle(
-                  fontSize: 20,
+                  fontSize: 16,
                   fontWeight: FontWeight.w800,
                 ),
               ),

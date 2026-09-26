@@ -5,6 +5,11 @@ import 'daily_care_date_helper.dart';
 import 'daily_care_entitlement.dart';
 import 'daily_care_record_model.dart';
 
+/// 回報場次的衍生狀態。
+///
+/// 只由 isCompleted 與 reportsLocked 推導，不寫回 Firestore。
+enum DailyCareReportCenterItemStatus { pending, historyIncomplete, completed }
+
 class DailyCareReportCenterItem {
   const DailyCareReportCenterItem({
     required this.id,
@@ -71,6 +76,62 @@ class DailyCareReportCenterItem {
   int get maxPhotos => 3;
 
   String get photoCountLabel => '照片 $photoCount/$maxPhotos 張';
+
+  DailyCareReportCenterItemStatus get status {
+    if (isCompleted) {
+      return DailyCareReportCenterItemStatus.completed;
+    }
+    return reportsLocked
+        ? DailyCareReportCenterItemStatus.historyIncomplete
+        : DailyCareReportCenterItemStatus.pending;
+  }
+
+  /// 真正還能處理的待填工作。
+  bool get isPendingFill => status == DailyCareReportCenterItemStatus.pending;
+
+  /// 訂單已鎖定但未完成，只供歷史稽核，不再算待填。
+  bool get isHistoryIncomplete =>
+      status == DailyCareReportCenterItemStatus.historyIncomplete;
+
+  String get statusLabel => switch (status) {
+    DailyCareReportCenterItemStatus.pending => '待填',
+    DailyCareReportCenterItemStatus.historyIncomplete => '歷史未完成・已鎖定',
+    DailyCareReportCenterItemStatus.completed => '已完成',
+  };
+
+  /// 可以填寫或補填。
+  bool get canFill => isPendingFill && canOperate;
+
+  /// 照片保留期限：服務結束後 24 小時。
+  ///
+  /// 只用於工作台提示，實際清除由既有後端排程負責。
+  DateTime? get photoRetentionDeadline {
+    final DateTime? end = isDaycare
+        ? daycareEndAt
+        : (checkOutDate == null
+              ? null
+              : DailyCareDateHelper.dateOnly(checkOutDate!));
+    if (end == null) {
+      return null;
+    }
+    return end.add(const Duration(hours: 24));
+  }
+
+  /// 照片即將被系統清除（24 小時內）。
+  bool photoExpiringSoon({DateTime? now}) {
+    if (photoCount <= 0) {
+      return false;
+    }
+    final DateTime? deadline = photoRetentionDeadline;
+    if (deadline == null) {
+      return false;
+    }
+    final DateTime current = now ?? DateTime.now();
+    if (!deadline.isAfter(current)) {
+      return false;
+    }
+    return deadline.difference(current) <= const Duration(hours: 24);
+  }
 
   bool get isDaycare => serviceType == DailyCareServiceTypes.daycare;
 

@@ -22,14 +22,29 @@ class ShopFrontendPreviewFrame extends StatefulWidget {
     this.previewBodyOverride,
   });
 
-  /// 固定手機 canvas；左側只等比例縮小。
+  /// 固定手機 canvas。槽位夠寬時以原始寬度顯示，較窄時才等比例縮小。
   static const Size phoneLogicalSize = ShopFrontendPhoneFrame.liveLogicalSize;
 
-  /// 桌機左欄預覽槽寬（含工具列）。前台仍以 500px 渲染後縮小。
-  static const double inlineSlotWidth = 340;
+  /// 前台 canvas 寬度。內嵌時優先維持這個寬度的 1 倍，不把版面重排成更窄。
+  static const double canvasWidth = ShopFrontendPhoneFrame.liveLogicalWidth;
 
-  /// 同時放得下左欄預覽與後台主內容的最小寬度。
-  static const double inlineMinPageWidth = 1100;
+  /// 預覽框左右內距合計。canvas 必須扣掉這段才放得進槽位。
+  static const double inlineCanvasInset = 16;
+
+  /// 內嵌前台最小可操作寬度：剛好讓 500px canvas 以 1 倍顯示。
+  static const double inlineMinOperableWidth = canvasWidth + inlineCanvasInset;
+
+  /// 內嵌前台最大寬度。多餘空間留給後台，不把預覽再拉寬。
+  static const double inlineMaxWidth = 540;
+
+  /// 預覽與後台內容之間的間距，計入是否放得下的判斷。
+  static const double inlineColumnGap = 8;
+
+  /// 後台 tab 內容最小可操作寬度。低於這個寬度就不內嵌預覽。
+  static const double backendMinOperableWidth = 720;
+
+  /// 偏好槽寬（上限）。實際寬度請用 [inlineWidthFor]。
+  static const double inlineSlotWidth = inlineMaxWidth;
 
   static const Size liveFrontendSize = phoneLogicalSize;
   static const Size dashboardFrontendPreviewSize = phoneLogicalSize;
@@ -46,8 +61,23 @@ class ShopFrontendPreviewFrame extends StatefulWidget {
   @visibleForTesting
   final Widget? previewBodyOverride;
 
-  static bool canShowInlinePreview(double pageWidth) {
-    return pageWidth >= inlineMinPageWidth;
+  /// [availableWidth] 必須已扣除聊天桌機 dock，不是整個視窗寬度。
+  static bool canShowInlinePreview(double availableWidth) {
+    return availableWidth >=
+        inlineMinOperableWidth + inlineColumnGap + backendMinOperableWidth;
+  }
+
+  /// 依剩餘寬度算出左欄槽寬。放不下最小可操作寬度時回傳 0。
+  static double inlineWidthFor(double availableWidth) {
+    final double room =
+        availableWidth - backendMinOperableWidth - inlineColumnGap;
+    if (room < inlineMinOperableWidth) {
+      return 0;
+    }
+    if (room > inlineMaxWidth) {
+      return inlineMaxWidth;
+    }
+    return room;
   }
 
   static Widget liveRoot({
@@ -218,7 +248,12 @@ class ShopFrontendPreviewFrameState extends State<ShopFrontendPreviewFrame> {
           ),
           Expanded(
             child: Padding(
-              padding: const EdgeInsets.fromLTRB(8, 8, 8, 8),
+              padding: const EdgeInsets.fromLTRB(
+                ShopFrontendPreviewFrame.inlineCanvasInset / 2,
+                8,
+                ShopFrontendPreviewFrame.inlineCanvasInset / 2,
+                8,
+              ),
               child: ShopFrontendPhoneFrame(
                 logicalWidth: ShopFrontendPhoneFrame.liveLogicalWidth,
                 scaleToFit: widget.scaleToFit,

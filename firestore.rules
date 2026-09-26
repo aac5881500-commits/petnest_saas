@@ -247,6 +247,7 @@ match /policy_acceptances/{shopId} {
   allow create, update: if isSelf(uid) || isRootAdmin();
   allow delete: if false;
 }
+
 // 🔔 會員通知設定
 match /notification_settings/{settingId} {
 

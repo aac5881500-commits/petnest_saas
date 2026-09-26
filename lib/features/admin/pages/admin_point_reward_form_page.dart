@@ -1082,7 +1082,7 @@ class _AdminPointRewardFormPageState extends State<AdminPointRewardFormPage> {
           controller: _fulfillmentNoteController,
           decoration: const InputDecoration(
             labelText: '領取說明',
-            hintText: '例如：請至櫃檯出示領取碼，由店員確認後領取',
+            hintText: '例如：請於營業時間至櫃檯領取',
             border: OutlineInputBorder(),
             isDense: true,
           ),
@@ -1090,15 +1090,21 @@ class _AdminPointRewardFormPageState extends State<AdminPointRewardFormPage> {
           maxLines: 5,
           maxLength: 300,
         ),
-        _ToggleCard(
-          title: '需要店員核銷',
-          subtitle: '會員出示領取碼後，由店員確認商品已交付',
-          value: _requiresStaffVerification,
-          onChanged: (bool value) {
-            setState(() {
-              _requiresStaffVerification = value;
-            });
-          },
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: const Color(0xFFFFF3E0),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: const Text(
+            '此商品為店內自取；會員到店領取時，由店員完成交付核銷。',
+            style: TextStyle(
+              fontSize: 13,
+              height: 1.4,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
         ),
       ],
     );
@@ -1662,55 +1668,6 @@ class _ChoiceCard extends StatelessWidget {
             ),
           ],
         ),
-      ),
-    );
-  }
-}
-
-class _ToggleCard extends StatelessWidget {
-  const _ToggleCard({
-    required this.title,
-    required this.subtitle,
-    required this.value,
-    required this.onChanged,
-  });
-
-  final String title;
-  final String subtitle;
-  final bool value;
-  final ValueChanged<bool> onChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      decoration: BoxDecoration(
-        color: Colors.grey.shade50,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey.shade200),
-      ),
-      child: Row(
-        children: <Widget>[
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[
-                Text(
-                  title,
-                  style: const TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-                Text(
-                  subtitle,
-                  style: TextStyle(fontSize: 11, color: Colors.grey.shade700),
-                ),
-              ],
-            ),
-          ),
-          Switch.adaptive(value: value, onChanged: onChanged),
-        ],
       ),
     );
   }

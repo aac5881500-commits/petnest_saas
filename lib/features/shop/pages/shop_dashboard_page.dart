@@ -198,18 +198,40 @@ class _ShopDashboardPageState extends State<ShopDashboardPage> {
   void _onChatSurfacesChanged() {
     final bool visible =
         _workspace.chat.inboxOpen || _workspace.chat.showDockWindows;
-    if (visible && !_wasChatVisible) {
-      _wasChatVisible = true;
-      if (mounted && !_chatSurfacesOnTop) {
-        setState(() {
-          _chatSurfacesOnTop = true;
-        });
-      }
+    if (visible == _wasChatVisible) {
       return;
     }
-    if (!visible) {
-      _wasChatVisible = false;
+    _wasChatVisible = visible;
+    if (!mounted) {
+      return;
     }
+    setState(() {
+      if (visible && !_chatSurfacesOnTop) {
+        _chatSurfacesOnTop = true;
+      }
+    });
+  }
+
+  double _chatDockWidth(double pageWidth) {
+    final bool desktopChatOpen =
+        _can(ShopPermissionKeys.manageChat) &&
+        ShopChatLayout.shouldShowDesktopDock(
+          pageWidth: pageWidth,
+          inboxOpen: _workspace.chat.inboxOpen,
+        );
+    if (!desktopChatOpen) {
+      return 0;
+    }
+    return ShopChatLayout.dockWidthFor(pageWidth);
+  }
+
+  /// 判斷內嵌前台時，要先扣掉聊天桌機欄已占用的寬度。
+  double _frontendAvailableWidth(double pageWidth) {
+    final double available = pageWidth - _chatDockWidth(pageWidth);
+    if (available < 0) {
+      return 0;
+    }
+    return available;
   }
 
   void _toggleFrontendPanel() {
@@ -593,6 +615,9 @@ class _ShopDashboardPageState extends State<ShopDashboardPage> {
         );
         final ColorScheme colors = Theme.of(context).colorScheme;
         final double pageWidth = MediaQuery.sizeOf(context).width;
+        final double frontendAvailableWidth = _frontendAvailableWidth(
+          pageWidth,
+        );
         final _DashboardMetrics metrics = _DashboardLayout.metrics(pageWidth);
         return ShopAdminWorkspaceScope(
           controller: _workspace,
@@ -624,11 +649,11 @@ class _ShopDashboardPageState extends State<ShopDashboardPage> {
                         _frontendOpenPref &&
                         canOpenFrontend &&
                         ShopFrontendPreviewFrame.canShowInlinePreview(
-                          pageWidth,
+                          frontendAvailableWidth,
                         ),
                     showLabel: pageWidth >= _DashboardLayout.phoneBreakpoint,
                     shopCode: shopCode,
-                    pageWidth: pageWidth,
+                    pageWidth: frontendAvailableWidth,
                   ),
                   if (_can(ShopPermissionKeys.manageChat))
                     ShopChatAppBarButton(shopId: widget.shopId),
@@ -744,7 +769,9 @@ class _ShopDashboardPageState extends State<ShopDashboardPage> {
                                       onPreviewFrontend: () =>
                                           _handleFrontendPreview(
                                             shopCode: shopCode,
-                                            pageWidth: pageWidth,
+                                            pageWidth: _frontendAvailableWidth(
+                                              MediaQuery.sizeOf(context).width,
+                                            ),
                                             forceOpen: true,
                                           ),
                                     );
@@ -798,18 +825,6 @@ class _ShopDashboardPageState extends State<ShopDashboardPage> {
                             final bool chatAllowed = _can(
                               ShopPermissionKeys.manageChat,
                             );
-                            final bool canInlinePreview =
-                                ShopFrontendPreviewFrame.canShowInlinePreview(
-                                  pageWidth,
-                                );
-                            final bool frontendOpen =
-                                _frontendPrefsLoaded &&
-                                _frontendOpenPref &&
-                                canOpenFrontend &&
-                                canInlinePreview;
-                            final double frontendWidth =
-                                ShopFrontendPreviewFrame.inlineSlotWidth;
-
                             final Widget liveFrontend =
                                 ShopFrontendPreviewFrame(
                                   key: _frontendPreviewKey,
@@ -834,65 +849,106 @@ class _ShopDashboardPageState extends State<ShopDashboardPage> {
                                       pageWidth: pageWidth,
                                       inboxOpen: _workspace.chat.inboxOpen,
                                     );
-                                final Widget frontendLayer = _frontendExpanded
-                                    ? Positioned(
+                                final double chatDockWidth = desktopChatOpen
+                                    ? ShopChatLayout.dockWidthFor(pageWidth)
+                                    : 0;
+                                final double availableWidth =
+                                    pageWidth - chatDockWidth < 0
+                                    ? 0
+                                    : pageWidth - chatDockWidth;
+                                final bool canInlinePreview =
+                                    ShopFrontendPreviewFrame.canShowInlinePreview(
+                                      availableWidth,
+                                    );
+                                final bool frontendWanted =
+                                    _frontendPrefsLoaded &&
+                                    _frontendOpenPref &&
+                                    canOpenFrontend &&
+                                    canInlinePreview;
+                                final bool showInline =
+                                    frontendWanted && !_frontendExpanded;
+                                final bool showExpanded =
+                                    frontendWanted && _frontendExpanded;
+                                final double frontendWidth =
+                                    ShopFrontendPreviewFrame.inlineWidthFor(
+                                      availableWidth,
+                                    );
+                                final Widget mainRow = Row(
+                                  key: const Key(
+                                    'shop-dashboard-frontend-inline-split',
+                                  ),
+                                  crossAxisAlignment:
+                                      CrossAxisAlignment.stretch,
+                                  children: <Widget>[
+                                    if (showInline) ...<Widget>[
+                                      SizedBox(
                                         key: ShopDashboardLiveFrontendOverlay
                                             .overlayKey,
-                                        left: 0,
-                                        top: 0,
-                                        right: 0,
-                                        bottom: 0,
-                                        child: ColoredBox(
-                                          color: const Color(0x99000000),
-                                          child: Center(
-                                            child: Padding(
-                                              padding:
-                                                  const EdgeInsets.symmetric(
-                                                    vertical: 12,
-                                                    horizontal: 24,
-                                                  ),
-                                              child: ConstrainedBox(
-                                                constraints: BoxConstraints(
-                                                  maxWidth:
-                                                      ShopFrontendPhoneFrame
-                                                          .liveLogicalWidth +
-                                                      16,
-                                                  maxHeight:
-                                                      constraints.maxHeight,
-                                                ),
-                                                child: liveFrontend,
-                                              ),
-                                            ),
+                                        width: frontendWidth,
+                                        child: Padding(
+                                          padding: const EdgeInsets.only(
+                                            top: 8,
+                                            bottom: 12,
+                                          ),
+                                          child: Listener(
+                                            onPointerDown: (_) {
+                                              if (_chatSurfacesOnTop) {
+                                                setState(() {
+                                                  _chatSurfacesOnTop = false;
+                                                });
+                                              }
+                                            },
+                                            child: liveFrontend,
                                           ),
                                         ),
-                                      )
-                                    : Positioned(
-                                        key: ShopDashboardLiveFrontendOverlay
-                                            .overlayKey,
-                                        left: 12,
-                                        top: 8,
-                                        bottom: 12,
-                                        width: frontendWidth,
-                                        child: Listener(
-                                          onPointerDown: (_) {
-                                            if (_chatSurfacesOnTop) {
-                                              setState(() {
-                                                _chatSurfacesOnTop = false;
-                                              });
-                                            }
-                                          },
+                                      ),
+                                      const SizedBox(
+                                        width: ShopFrontendPreviewFrame
+                                            .inlineColumnGap,
+                                      ),
+                                    ],
+                                    Expanded(child: tabViews),
+                                    if (showInline && chatDockWidth > 0)
+                                      SizedBox(width: chatDockWidth),
+                                  ],
+                                );
+                                final Widget expandedLayer = Positioned(
+                                  key: ShopDashboardLiveFrontendOverlay
+                                      .overlayKey,
+                                  left: 0,
+                                  top: 0,
+                                  right: 0,
+                                  bottom: 0,
+                                  child: ColoredBox(
+                                    color: const Color(0x99000000),
+                                    child: Center(
+                                      child: Padding(
+                                        padding: const EdgeInsets.symmetric(
+                                          vertical: 12,
+                                          horizontal: 24,
+                                        ),
+                                        child: ConstrainedBox(
+                                          constraints: BoxConstraints(
+                                            maxWidth:
+                                                ShopFrontendPhoneFrame
+                                                    .liveLogicalWidth +
+                                                ShopFrontendPreviewFrame
+                                                    .inlineCanvasInset,
+                                            maxHeight: constraints.maxHeight,
+                                          ),
                                           child: liveFrontend,
                                         ),
-                                      );
+                                      ),
+                                    ),
+                                  ),
+                                );
                                 final List<Widget> chatLayers = <Widget>[
                                   if (desktopChatOpen)
                                     Positioned(
                                       right: 0,
                                       top: 0,
                                       bottom: 0,
-                                      width: ShopChatLayout.dockWidthFor(
-                                        pageWidth,
-                                      ),
+                                      width: chatDockWidth,
                                       child: Listener(
                                         onPointerDown: (_) {
                                           if (!_chatSurfacesOnTop) {
@@ -908,15 +964,17 @@ class _ShopDashboardPageState extends State<ShopDashboardPage> {
                                       ),
                                     ),
                                 ];
-                                return Stack(
-                                  children: <Widget>[
-                                    tabViews,
-                                    if (frontendOpen && _chatSurfacesOnTop)
-                                      frontendLayer,
-                                    ...chatLayers,
-                                    if (frontendOpen && !_chatSurfacesOnTop)
-                                      frontendLayer,
-                                  ],
+                                return SizedBox.expand(
+                                  child: Stack(
+                                    children: <Widget>[
+                                      mainRow,
+                                      if (showExpanded && _chatSurfacesOnTop)
+                                        expandedLayer,
+                                      ...chatLayers,
+                                      if (showExpanded && !_chatSurfacesOnTop)
+                                        expandedLayer,
+                                    ],
+                                  ),
                                 );
                               },
                             );

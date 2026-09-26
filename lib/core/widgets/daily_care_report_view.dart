@@ -15,6 +15,8 @@ class DailyCareReportView extends StatelessWidget {
     this.showStayInfo = true,
     this.showFooter = true,
     this.days,
+    this.photoProviders = const <ImageProvider>[],
+    this.expiryNote = '',
   });
 
   final DailyCareReportData data;
@@ -23,6 +25,12 @@ class DailyCareReportView extends StatelessWidget {
   final bool showStayInfo;
   final bool showFooter;
   final List<DailyCareReportDay>? days;
+
+  /// 已上傳的照護照片（已預先載入），會拼貼在報告下方。
+  final List<ImageProvider> photoProviders;
+
+  /// 照片保存期限提醒，只放在報告最下方小字。
+  final String expiryNote;
 
   static const Color cream = Color(0xFFFFF8F1);
   static const Color ink = Color(0xFF3A2A20);
@@ -61,9 +69,13 @@ class DailyCareReportView extends StatelessWidget {
               const SizedBox(height: 22),
               _DayBlock(day: day, brand: brand, isFullStay: data.isFullStay),
             ],
+            if (photoProviders.isNotEmpty) ...<Widget>[
+              const SizedBox(height: 22),
+              _PhotoCollage(providers: photoProviders, brand: brand),
+            ],
             if (showFooter) ...<Widget>[
               const SizedBox(height: 22),
-              _Footer(data: data),
+              _Footer(data: data, expiryNote: expiryNote),
             ],
           ],
         ),
@@ -422,10 +434,76 @@ class _FieldChip extends StatelessWidget {
   }
 }
 
+/// 照護照片拼貼。只放已上傳的預覽圖，不含內部備註。
+class _PhotoCollage extends StatelessWidget {
+  const _PhotoCollage({required this.providers, required this.brand});
+
+  final List<ImageProvider> providers;
+  final Color brand;
+
+  @override
+  Widget build(BuildContext context) {
+    const int columns = 3;
+    const double spacing = 8;
+    final List<ImageProvider> shown = providers.length > 9
+        ? providers.sublist(0, 9)
+        : providers;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: <Widget>[
+        Text(
+          '照護照片',
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w800,
+            color: brand,
+          ),
+        ),
+        const SizedBox(height: 10),
+        LayoutBuilder(
+          builder: (BuildContext context, BoxConstraints constraints) {
+            final double size =
+                (constraints.maxWidth - spacing * (columns - 1)) / columns;
+            return Wrap(
+              spacing: spacing,
+              runSpacing: spacing,
+              children: shown.map((ImageProvider provider) {
+                return ClipRRect(
+                  borderRadius: BorderRadius.circular(10),
+                  child: Image(
+                    image: provider,
+                    width: size,
+                    height: size,
+                    fit: BoxFit.cover,
+                    errorBuilder:
+                        (
+                          BuildContext context,
+                          Object error,
+                          StackTrace? stack,
+                        ) {
+                          return Container(
+                            width: size,
+                            height: size,
+                            color: const Color(0xFFF1E8DC),
+                          );
+                        },
+                  ),
+                );
+              }).toList(),
+            );
+          },
+        ),
+      ],
+    );
+  }
+}
+
 class _Footer extends StatelessWidget {
-  const _Footer({required this.data});
+  const _Footer({required this.data, this.expiryNote = ''});
 
   final DailyCareReportData data;
+  final String expiryNote;
 
   @override
   Widget build(BuildContext context) {
@@ -477,6 +555,17 @@ class _Footer extends StatelessWidget {
             color: DailyCareReportView.muted,
           ),
         ),
+        if (expiryNote.trim().isNotEmpty) ...<Widget>[
+          const SizedBox(height: 6),
+          Text(
+            expiryNote.trim(),
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              fontSize: 10.5,
+              color: DailyCareReportView.muted,
+            ),
+          ),
+        ],
       ],
     );
   }

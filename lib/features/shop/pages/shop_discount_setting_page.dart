@@ -1484,6 +1484,25 @@ class _ToolsColumn extends StatelessWidget {
                   );
                 },
               ),
+              _ToolRow(
+                icon: Icons.receipt_long_outlined,
+                color: Colors.blue,
+                title: '點數流水',
+                description: '查看全店點數發放、折抵、兌換與手動調整。',
+                badge: '全店點數異動',
+                onTap: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (BuildContext context) {
+                        return AdminPointRewardListPage(
+                          shopId: shopId,
+                          initialSection: PointCenterSection.ledger,
+                        );
+                      },
+                    ),
+                  );
+                },
+              ),
             ],
           ),
         ),

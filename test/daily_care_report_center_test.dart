@@ -329,7 +329,9 @@ void main() {
           canOperate: true,
           today: now,
         );
-    expect(snapshot.pendingCount, 3);
+    // 訂單已結束：只算歷史未完成，不再是可執行的待填工作。
+    expect(snapshot.pendingCount, 0);
+    expect(snapshot.historyIncompleteCount, 3);
     expect(
       snapshot.items.every(
         (DailyCareReportCenterItem item) =>
@@ -337,6 +339,14 @@ void main() {
       ),
       isTrue,
     );
+    expect(
+      snapshot.items.every(
+        (DailyCareReportCenterItem item) =>
+            item.isHistoryIncomplete && !item.isPendingFill && !item.canFill,
+      ),
+      isTrue,
+    );
+    expect(snapshot.items.first.statusLabel, '歷史未完成・已鎖定');
     expect(snapshot.completedCount, 0);
     expect(snapshot.hasError, isFalse);
     expect(
@@ -376,7 +386,8 @@ void main() {
           today: DateTime(2026, 9, 24),
           completedIds: <String>{filled},
         );
-    expect(snapshot.pendingCount, 1);
+    expect(snapshot.pendingCount, 0);
+    expect(snapshot.historyIncompleteCount, 1);
     expect(snapshot.completedCount, 1);
     expect(snapshot.items.first.sessionIndex, 1);
     expect(snapshot.items.last.isCompleted, isTrue);
@@ -735,6 +746,122 @@ void main() {
     expect(groups.first.bookings.first.bookingId, 's-old');
     expect(groups.first.bookings.last.bookingId, 's-done');
     expect(groups.last.bookings.single.bookingId, 's-new');
+  });
+
+  test('鎖定未完成算歷史未完成，不算待填，且只在對應篩選出現', () {
+    final DailyCareReportCenterItem locked = session(
+      id: 'locked',
+      bookingId: 's-locked',
+      sessionIndex: 0,
+      completed: false,
+    ).copyWith(reportsLocked: true, canOperate: false);
+    final DailyCareReportCenterItem pending = session(
+      id: 'pending',
+      bookingId: 's-pending',
+      sessionIndex: 0,
+      completed: false,
+    );
+    final DailyCareReportCenterSnapshot snapshot =
+        DailyCareReportCenterSnapshot.fromItems(<DailyCareReportCenterItem>[
+          locked,
+          pending,
+        ]);
+
+    expect(locked.status, DailyCareReportCenterItemStatus.historyIncomplete);
+    expect(locked.isPendingFill, isFalse);
+    expect(locked.canFill, isFalse);
+    expect(pending.status, DailyCareReportCenterItemStatus.pending);
+    expect(snapshot.pendingCount, 1);
+    expect(snapshot.historyIncompleteCount, 1);
+    expect(snapshot.completedCount, 0);
+    expect(snapshot.totalCount, 2);
+
+    final List<String> pendingOnly = snapshot
+        .filtered(status: DailyCareReportCenterStatusFilter.pending)
+        .map((DailyCareReportCenterItem item) => item.bookingId)
+        .toList();
+    expect(pendingOnly, <String>['s-pending']);
+
+    final List<String> historyOnly = snapshot
+        .filtered(status: DailyCareReportCenterStatusFilter.historyIncomplete)
+        .map((DailyCareReportCenterItem item) => item.bookingId)
+        .toList();
+    expect(historyOnly, <String>['s-locked']);
+
+    expect(
+      snapshot
+          .filtered(status: DailyCareReportCenterStatusFilter.all)
+          .map((DailyCareReportCenterItem item) => item.bookingId)
+          .toSet(),
+      <String>{'s-locked', 's-pending'},
+    );
+
+    final List<DailyCareReportCenterDateGroup> historyGroups =
+        DailyCareReportCenterDateGrouping.visible(
+          items: <DailyCareReportCenterItem>[locked, pending],
+          status: DailyCareReportCenterStatusFilter.historyIncomplete,
+        );
+    expect(
+      historyGroups.single.bookings
+          .map((DailyCareReportCenterBookingDayGroup g) => g.bookingId)
+          .toList(),
+      <String>['s-locked'],
+    );
+  });
+
+  test('混合已完成與鎖定未完成時，統計與日期標題數字正確', () {
+    final List<DailyCareReportCenterItem> items = <DailyCareReportCenterItem>[
+      session(
+        id: 'done',
+        bookingId: 's-mix',
+        sessionIndex: 0,
+        completed: true,
+      ).copyWith(reportsLocked: true, canOperate: false),
+      session(
+        id: 'missed',
+        bookingId: 's-mix',
+        sessionIndex: 1,
+        completed: false,
+      ).copyWith(reportsLocked: true, canOperate: false),
+    ];
+    final DailyCareReportCenterSnapshot snapshot =
+        DailyCareReportCenterSnapshot.fromItems(items);
+    expect(snapshot.pendingCount, 0);
+    expect(snapshot.historyIncompleteCount, 1);
+    expect(snapshot.completedCount, 1);
+
+    final DailyCareReportCenterDateGroup group =
+        DailyCareReportCenterDateGrouping.visible(
+          items: items,
+          status: DailyCareReportCenterStatusFilter.all,
+        ).single;
+    expect(group.pendingCount, 0);
+    expect(group.historyIncompleteCount, 1);
+    expect(group.title, '9/21（週一）  已完成 1 場・歷史未完成 1 場');
+    expect(group.bookings.single.progressLabel, '已填 1/2 場');
+    expect(group.bookings.single.missingLabel, '尚缺 1 場');
+
+    // 只剩鎖定未完成時，標題不可再寫成待填。
+    final DailyCareReportCenterDateGroup onlyHistory =
+        DailyCareReportCenterDateGrouping.visible(
+          items: <DailyCareReportCenterItem>[items.last],
+          status: DailyCareReportCenterStatusFilter.all,
+        ).single;
+    expect(onlyHistory.title, '9/21（週一）  歷史未完成 1 場');
+
+    final DailyCareReportCenterDateGroup onlyPending =
+        DailyCareReportCenterDateGrouping.visible(
+          items: <DailyCareReportCenterItem>[
+            session(
+              id: 'p',
+              bookingId: 's-p',
+              sessionIndex: 0,
+              completed: false,
+            ),
+          ],
+          status: DailyCareReportCenterStatusFilter.all,
+        ).single;
+    expect(onlyPending.title, '9/21（週一）  待填 1 場');
   });
 
   test('住宿場次數為照護日期乘每日 finalReports，不硬寫', () {
