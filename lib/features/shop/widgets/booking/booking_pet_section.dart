@@ -21,6 +21,7 @@ class BookingPetSection extends StatefulWidget {
     this.isLoggedIn,
     this.enabled = true,
     this.disabledHint,
+    this.loggedOutMessage = '目前尚未登入。請先選擇入住日期；登入後即可選擇寵物並繼續預約。',
   });
 
   final String shopId;
@@ -34,6 +35,7 @@ class BookingPetSection extends StatefulWidget {
   final bool? isLoggedIn;
   final bool enabled;
   final String? disabledHint;
+  final String loggedOutMessage;
 
   @override
   State<BookingPetSection> createState() => _BookingPetSectionState();
@@ -221,7 +223,7 @@ class _BookingPetSectionState extends State<BookingPetSection> {
                           ),
                           if (loggedOut)
                             Text(
-                              '目前尚未登入。請先選擇安親日期與時段；登入後即可選擇寵物並繼續預約。',
+                              widget.loggedOutMessage,
                               style: TextStyle(
                                 fontSize: 14,
                                 color: theme.textColor.withValues(alpha: 0.7),

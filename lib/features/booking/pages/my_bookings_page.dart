@@ -9,7 +9,10 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:petnest_saas/core/models/daycare_settings_model.dart';
 import 'package:petnest_saas/core/models/shop_frontend_theme.dart';
+import 'package:petnest_saas/core/services/daycare_settings_service.dart';
+import 'package:petnest_saas/core/services/shop_service.dart';
 import 'package:petnest_saas/core/widgets/shop_frontend_theme_scope.dart';
 import 'package:petnest_saas/features/booking/widgets/booking_detail/booking_detail_view_data.dart';
 import 'package:petnest_saas/features/member/widgets/member_booking_card.dart';
@@ -176,12 +179,47 @@ class _MyBookingsPageState extends State<_MyBookingsBody> {
 
           if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
             final String shopId = widget.returnShopId?.trim() ?? '';
-            return MemberEmptyState(
-              icon: Icons.receipt_long_outlined,
-              title: '目前沒有訂單',
-              message: '完成預約後，住宿與安親訂單會顯示在這裡。',
-              actionLabel: shopId.isEmpty ? null : '前往預約',
-              onAction: shopId.isEmpty ? null : _goBook,
+            if (shopId.isEmpty) {
+              return MemberEmptyState(
+                icon: Icons.receipt_long_outlined,
+                title: '目前沒有訂單',
+                message: '完成預約後，訂單會顯示在這裡。',
+                actionLabel: null,
+                onAction: null,
+              );
+            }
+            return StreamBuilder<Map<String, dynamic>?>(
+              stream: ShopService.instance.streamShop(shopId),
+              builder:
+                  (
+                    BuildContext context,
+                    AsyncSnapshot<Map<String, dynamic>?> shopSnap,
+                  ) {
+                    return StreamBuilder<DaycareSettingsModel>(
+                      stream: DaycareSettingsService.instance.stream(shopId),
+                      builder:
+                          (
+                            BuildContext context,
+                            AsyncSnapshot<DaycareSettingsModel> daycareSnap,
+                          ) {
+                            final bool daycareOn = DaycareSettingsService
+                                .instance
+                                .isEnabledForShop(
+                                  shop: shopSnap.data,
+                                  settings: daycareSnap.data,
+                                );
+                            return MemberEmptyState(
+                              icon: Icons.receipt_long_outlined,
+                              title: '目前沒有訂單',
+                              message: daycareOn
+                                  ? '完成預約後，住宿與安親訂單會顯示在這裡。'
+                                  : '完成預約後，住宿訂單會顯示在這裡。',
+                              actionLabel: '前往預約',
+                              onAction: _goBook,
+                            );
+                          },
+                    );
+                  },
             );
           }
 

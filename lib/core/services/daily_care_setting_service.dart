@@ -426,6 +426,21 @@ class DailyCareSettingService {
 
   static final DailyCareSettingService instance = DailyCareSettingService._();
 
+  static const String incompatibleDaycareReportMessage =
+      '安親目前是獨立時數／方案計費，不能使用依房型提供。請改選「固定提供」或「付費加購」後再儲存。原本的設定在按下儲存前不會被自動改寫。';
+
+  /// 獨立時數／方案計費且回報已啟用時，不可保存依房型提供。
+  static bool daycareReportModeIncompatible({
+    required DailyCareSettingModel setting,
+    required bool daycareRoomBased,
+  }) {
+    if (daycareRoomBased || !setting.daycareEnabled) {
+      return false;
+    }
+    return DailyCareReportMode.normalize(setting.daycareReportMode) ==
+        DailyCareReportMode.includedByOffer;
+  }
+
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
   DocumentReference<Map<String, dynamic>> _shopReference(String shopId) {
@@ -496,11 +511,26 @@ class DailyCareSettingService {
     required DailyCareSettingModel setting,
     int? expectedRevision,
     DailyCareSettingSection section = DailyCareSettingSection.all,
+    bool? daycareRoomBased,
   }) async {
     final String normalizedShopId = shopId.trim();
 
     if (normalizedShopId.isEmpty) {
       throw ArgumentError('缺少店家 ID');
+    }
+    final bool rulesSection =
+        section == DailyCareSettingSection.rules ||
+        section == DailyCareSettingSection.all;
+    if (rulesSection &&
+        daycareRoomBased == false &&
+        daycareReportModeIncompatible(
+          setting: setting,
+          daycareRoomBased: false,
+        )) {
+      throw const DailyCareSettingSaveException(
+        incompatibleDaycareReportMessage,
+        code: 'incompatible-daycare-mode',
+      );
     }
 
     String step = 'prepare';

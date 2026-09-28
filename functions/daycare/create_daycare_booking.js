@@ -33,9 +33,9 @@ const {
 } = require("../search/normalize_fields");
 const {
   resolveDailyCareEntitlement,
-  pickEntitlementSnapshot,
   filterNonDailyCareAddons,
   requestedAddonId,
+  daycareByOfferBlocked,
 } = require("../daily_care/daily_care_entitlement");
 const {
   bookingAddonDeductId,
@@ -511,6 +511,12 @@ async function createDaycareBookingBody(params) {
       let addonSnapshot = resolvedAddons.addonSnapshot;
       let addonAmount = resolvedAddons.addonAmount;
       let dailyCareEntitlement = {};
+      if (daycareByOfferBlocked(shopData.dailyCareSetting, roomBased)) {
+        throw new HttpsError(
+            "failed-precondition",
+            "安親目前是獨立時數／方案計費，不能使用依房型提供的回報規則。請先改為固定提供或付費加購。",
+        );
+      }
       try {
         const dailyCare = resolveDailyCareEntitlement({
           setting: shopData.dailyCareSetting || {},
@@ -523,10 +529,7 @@ async function createDaycareBookingBody(params) {
           startDate: startAt,
           endDate: endAt || startAt,
         });
-        dailyCareEntitlement = pickEntitlementSnapshot(
-            data.dailyCareEntitlement,
-            dailyCare.entitlement,
-        );
+        dailyCareEntitlement = dailyCare.entitlement;
         if (dailyCare.addonLine) {
           addonSnapshot = addonSnapshot.concat([dailyCare.addonLine]);
           addonAmount += dailyCare.amount;

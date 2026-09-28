@@ -92,8 +92,8 @@ class DailyCareDateHelper {
     return compactOrDisplay.trim();
   }
 
-  /// 住宿可填寫／可顯示的照護日期：入住日含、退房日不含。
-  /// 同日入住退房＝0 天。
+  /// 住宿可回報日：Asia/Taipei 日曆日，入住日含、退房日不含。
+  /// 同日入住退房＝0 天。不讀 `dailyCareEntitlement.serviceDates`。
   static List<DateTime> careDates({
     required DateTime? checkIn,
     required DateTime? checkOut,

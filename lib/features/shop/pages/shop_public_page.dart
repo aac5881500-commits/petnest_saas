@@ -3,6 +3,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/debug/chat_error_probe.dart';
+import 'package:petnest_saas/core/models/home_banner_display.dart';
 import 'package:petnest_saas/core/models/home_theme_model.dart';
 import 'package:petnest_saas/core/models/modern_banner_frame_setting.dart';
 import 'package:petnest_saas/core/models/store_banner_model.dart';
@@ -227,9 +228,7 @@ class _ShopPublicPageState extends State<ShopPublicPage> {
           }.toList();
           for (final int i in indexes) {
             final StoreBannerModel banner = banners[i];
-            final String url = banner.hasRenderedImage
-                ? banner.renderedImageUrl
-                : banner.imageUrl;
+            final String url = banner.frontImageUrl;
             if (url.isEmpty) continue;
             precacheImage(NetworkImage(url), context).catchError((
               Object e,
@@ -310,90 +309,94 @@ class _ShopPublicPageState extends State<ShopPublicPage> {
                           Center(
                             child: ConstrainedBox(
                               constraints: const BoxConstraints(maxWidth: 960),
-                              child: AspectRatio(
-                                aspectRatio: homeBannerFrame.aspectRatio,
-                                child: ClipRRect(
-                                  borderRadius: BorderRadius.circular(16),
-                                  child: Stack(
-                                    fit: StackFit.expand,
-                                    children: [
-                                      GestureDetector(
-                                        behavior: HitTestBehavior.translucent,
-                                        onHorizontalDragEnd: (details) {
-                                          if (banners.length <= 1) return;
+                              child: Padding(
+                                padding: HomeBannerDisplay.outerPadding(
+                                  homeBannerFrame.displaySize,
+                                ),
+                                child: AspectRatio(
+                                  aspectRatio: HomeBannerDisplay.aspectRatio,
+                                  child: ClipRRect(
+                                    borderRadius: BorderRadius.circular(16),
+                                    child: Stack(
+                                      fit: StackFit.expand,
+                                      children: [
+                                        GestureDetector(
+                                          behavior: HitTestBehavior.translucent,
+                                          onHorizontalDragEnd: (details) {
+                                            if (banners.length <= 1) return;
 
-                                          final velocity =
-                                              details.primaryVelocity ?? 0;
+                                            final velocity =
+                                                details.primaryVelocity ?? 0;
 
-                                          if (velocity < -120) {
-                                            setState(() {
-                                              _currentIndex =
-                                                  bannerIndex ==
-                                                      banners.length - 1
-                                                  ? 0
-                                                  : bannerIndex + 1;
-                                            });
-                                          }
+                                            if (velocity < -120) {
+                                              setState(() {
+                                                _currentIndex =
+                                                    bannerIndex ==
+                                                        banners.length - 1
+                                                    ? 0
+                                                    : bannerIndex + 1;
+                                              });
+                                            }
 
-                                          if (velocity > 120) {
-                                            setState(() {
-                                              _currentIndex = bannerIndex == 0
-                                                  ? banners.length - 1
-                                                  : bannerIndex - 1;
-                                            });
-                                          }
-                                        },
-                                        child: StoreBannerView(
-                                          banner: banners[bannerIndex],
-                                          theme: classicTheme,
-                                          scope: PetNestBannerScope.home,
-                                          borderRadius: 0,
-                                          onTap:
-                                              banners[bannerIndex]
-                                                  .hasNavigableAction
-                                              ? () {
-                                                  HomeBannerNavigation.open(
-                                                    context: context,
-                                                    shopId: widget.shopId,
-                                                    shop: shop,
-                                                    theme: classicTheme,
-                                                    banner:
-                                                        banners[bannerIndex],
-                                                  );
-                                                }
-                                              : null,
+                                            if (velocity > 120) {
+                                              setState(() {
+                                                _currentIndex = bannerIndex == 0
+                                                    ? banners.length - 1
+                                                    : bannerIndex - 1;
+                                              });
+                                            }
+                                          },
+                                          child: StoreBannerView(
+                                            banner: banners[bannerIndex],
+                                            theme: classicTheme,
+                                            scope: PetNestBannerScope.home,
+                                            borderRadius: 0,
+                                            onTap:
+                                                banners[bannerIndex]
+                                                    .hasNavigableAction
+                                                ? () {
+                                                    HomeBannerNavigation.open(
+                                                      context: context,
+                                                      shopId: widget.shopId,
+                                                      shop: shop,
+                                                      theme: classicTheme,
+                                                      banner:
+                                                          banners[bannerIndex],
+                                                    );
+                                                  }
+                                                : null,
+                                          ),
                                         ),
-                                      ),
-                                      if (banners.length > 1)
-                                        Positioned(
-                                          top: 12,
-                                          right: 12,
-                                          child: IgnorePointer(
-                                            child: Container(
-                                              padding:
-                                                  const EdgeInsets.symmetric(
-                                                    horizontal: 10,
-                                                    vertical: 5,
-                                                  ),
-                                              decoration: BoxDecoration(
-                                                color: Colors.black.withValues(
-                                                  alpha: 0.45,
+                                        if (banners.length > 1)
+                                          Positioned(
+                                            top: 12,
+                                            right: 12,
+                                            child: IgnorePointer(
+                                              child: Container(
+                                                padding:
+                                                    const EdgeInsets.symmetric(
+                                                      horizontal: 10,
+                                                      vertical: 5,
+                                                    ),
+                                                decoration: BoxDecoration(
+                                                  color: Colors.black
+                                                      .withValues(alpha: 0.45),
+                                                  borderRadius:
+                                                      BorderRadius.circular(20),
                                                 ),
-                                                borderRadius:
-                                                    BorderRadius.circular(20),
-                                              ),
-                                              child: Text(
-                                                '${bannerIndex + 1} / ${banners.length}',
-                                                style: const TextStyle(
-                                                  color: Colors.white,
-                                                  fontSize: 12,
-                                                  fontWeight: FontWeight.w600,
+                                                child: Text(
+                                                  '${bannerIndex + 1} / ${banners.length}',
+                                                  style: const TextStyle(
+                                                    color: Colors.white,
+                                                    fontSize: 12,
+                                                    fontWeight: FontWeight.w600,
+                                                  ),
                                                 ),
                                               ),
                                             ),
                                           ),
-                                        ),
-                                    ],
+                                      ],
+                                    ),
                                   ),
                                 ),
                               ),

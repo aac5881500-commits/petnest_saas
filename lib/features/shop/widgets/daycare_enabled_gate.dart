@@ -15,12 +15,18 @@ class DaycareEnabledGate extends StatelessWidget {
     required this.child,
     this.title = '安親服務',
     this.allowWhenOff = false,
+    this.offHeadline,
+    this.offMessage,
+    this.showBackAction = false,
   });
 
   final String shopId;
   final Widget child;
   final String title;
   final bool allowWhenOff;
+  final String? offHeadline;
+  final String? offMessage;
+  final bool showBackAction;
 
   @override
   Widget build(BuildContext context) {
@@ -48,7 +54,12 @@ class DaycareEnabledGate extends StatelessWidget {
                       settings: settingSnap.data,
                     );
                     if (!on && !allowWhenOff) {
-                      return DaycareFeatureOffScaffold(title: title);
+                      return DaycareFeatureOffScaffold(
+                        title: title,
+                        headline: offHeadline,
+                        message: offMessage,
+                        showBackAction: showBackAction,
+                      );
                     }
                     return child;
                   },

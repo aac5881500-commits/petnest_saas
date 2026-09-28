@@ -181,6 +181,10 @@ class DailyCareReportCenterService {
           setting: setting,
           daycare: daycare,
         ).finalReports;
+        if (sessions < 1) {
+          recordsByBooking[bookingId] = const <DailyCareRecordModel>[];
+          continue;
+        }
         recordSubscriptions.add(
           DailyCareRecordService.instance
               .streamBookingRecords(
@@ -307,6 +311,9 @@ class DailyCareReportCenterService {
       ...updatedAtById,
     };
     for (final DailyCareRecordModel record in records) {
+      if (!record.countsAsCompleted) {
+        continue;
+      }
       final int index = record.recordIndex ?? record.sessionIndex;
       filledKeys.addAll(
         DailyCareRecordService.matchKeys(
@@ -322,7 +329,8 @@ class DailyCareReportCenterService {
         sessionIndex: index,
         recordId: record.id,
       )) {
-        filledUpdated[key] = record.updatedAt ?? filledUpdated[key];
+        filledUpdated[key] =
+            record.completedAt ?? record.updatedAt ?? filledUpdated[key];
       }
     }
 
@@ -360,6 +368,8 @@ class DailyCareReportCenterService {
             item.copyWith(
               isCompleted: completed,
               updatedAt: updatedAt,
+              updateCompletedAt: true,
+              completedAt: completed ? updatedAt : null,
               photoCount: DailyCareSessionStatus.countPhotos(
                 photos: photos,
                 bookingId: item.bookingId,

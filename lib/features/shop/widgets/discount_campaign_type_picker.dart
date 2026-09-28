@@ -3,6 +3,8 @@
 
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/models/discount_campaign_model.dart';
+import 'package:petnest_saas/core/services/daycare_settings_service.dart';
+import 'package:petnest_saas/core/services/shop_service.dart';
 
 class DiscountCampaignTypeMeta {
   const DiscountCampaignTypeMeta({
@@ -95,6 +97,32 @@ class DiscountCampaignTypeMeta {
         ),
       ];
 
+  DiscountCampaignTypeMeta presented({required bool daycareOn}) {
+    if (daycareOn) {
+      return this;
+    }
+    final String nextTitle = type == DiscountCampaignType.roomType
+        ? '指定房型優惠'
+        : title;
+    final String nextSubtitle = switch (type) {
+      DiscountCampaignType.stayDate => '指定住宿日期享優惠',
+      DiscountCampaignType.roomType => '指定住宿房型才可套用',
+      _ => subtitle,
+    };
+    return DiscountCampaignTypeMeta(
+      type: type,
+      title: nextTitle,
+      subtitle: nextSubtitle,
+      badge: allowsDaycare ? '住宿可用' : badge,
+      icon: icon,
+      tint: tint,
+      accent: accent,
+      serviceSummary: allowsDaycare ? '僅住宿可設定' : '僅住宿',
+      footnote: '',
+      allowsDaycare: allowsDaycare,
+    );
+  }
+
   static DiscountCampaignTypeMeta of(DiscountCampaignType type) {
     for (final DiscountCampaignTypeMeta item in selectable) {
       if (item.type == type) {
@@ -117,10 +145,12 @@ class DiscountCampaignTypeMeta {
 class DiscountCampaignTypePickerPage extends StatelessWidget {
   const DiscountCampaignTypePickerPage({
     super.key,
+    this.shopId = '',
     this.onPicked,
     this.onDismiss,
   });
 
+  final String shopId;
   final ValueChanged<DiscountCampaignType>? onPicked;
   final VoidCallback? onDismiss;
 
@@ -184,6 +214,7 @@ class DiscountCampaignTypePickerPage extends StatelessWidget {
                 SizedBox(
                   width: gridWidth,
                   child: _TypeGrid(
+                    shopId: shopId,
                     columns: columns,
                     cardHeight: cardHeight,
                     onSelect: (DiscountCampaignType type) =>
@@ -201,19 +232,46 @@ class DiscountCampaignTypePickerPage extends StatelessWidget {
 
 class _TypeGrid extends StatelessWidget {
   const _TypeGrid({
+    required this.shopId,
     required this.columns,
     required this.cardHeight,
     required this.onSelect,
   });
 
+  final String shopId;
   final int columns;
   final double cardHeight;
   final ValueChanged<DiscountCampaignType> onSelect;
 
   @override
   Widget build(BuildContext context) {
-    final List<DiscountCampaignTypeMeta> items =
-        DiscountCampaignTypeMeta.selectable;
+    return StreamBuilder<Map<String, dynamic>?>(
+      stream: shopId.trim().isEmpty
+          ? const Stream<Map<String, dynamic>?>.empty()
+          : ShopService.instance.streamShop(shopId),
+      builder:
+          (
+            BuildContext context,
+            AsyncSnapshot<Map<String, dynamic>?> shopSnap,
+          ) {
+            final bool daycareOn = shopId.trim().isEmpty
+                ? true
+                : DaycareSettingsService.instance.isEnabledForShop(
+                    shop: shopSnap.data,
+                  );
+            final List<DiscountCampaignTypeMeta> items =
+                DiscountCampaignTypeMeta.selectable
+                    .map(
+                      (DiscountCampaignTypeMeta item) =>
+                          item.presented(daycareOn: daycareOn),
+                    )
+                    .toList();
+            return _grid(items);
+          },
+    );
+  }
+
+  Widget _grid(List<DiscountCampaignTypeMeta> items) {
     return GridView.builder(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),

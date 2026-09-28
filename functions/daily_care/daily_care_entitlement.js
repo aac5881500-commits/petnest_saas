@@ -28,39 +28,118 @@ function toInt(value, fallback) {
   return Number.isFinite(parsed) ? parsed : fallbackValue;
 }
 
-function dateOnly(value) {
-  const date = value instanceof Date ? value : new Date(value);
-  if (Number.isNaN(date.getTime())) {
-    return null;
-  }
-  return new Date(date.getFullYear(), date.getMonth(), date.getDate());
+function dateKeyFromParts(parts) {
+  const month = String(parts.month).padStart(2, "0");
+  const day = String(parts.day).padStart(2, "0");
+  return parts.year + "/" + month + "/" + day;
 }
 
-function dateKey(date) {
-  const y = date.getFullYear();
-  const m = String(date.getMonth() + 1).padStart(2, "0");
-  const d = String(date.getDate()).padStart(2, "0");
-  return `${y}/${m}/${d}`;
+function compareParts(left, right) {
+  if (left.year !== right.year) {
+    return left.year - right.year;
+  }
+  if (left.month !== right.month) {
+    return left.month - right.month;
+  }
+  return left.day - right.day;
+}
+
+function addCalendarDays(parts, days) {
+  const utc = new Date(Date.UTC(parts.year, parts.month - 1, parts.day + days));
+  return {
+    year: utc.getUTCFullYear(),
+    month: utc.getUTCMonth() + 1,
+    day: utc.getUTCDate(),
+  };
+}
+
+function taipeiParts(date) {
+  const formatted = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Taipei",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(date);
+  const matched = String(formatted).match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!matched) {
+    return null;
+  }
+  return {
+    year: Number(matched[1]),
+    month: Number(matched[2]),
+    day: Number(matched[3]),
+  };
+}
+
+/**
+ * 純日期字串照字面處理。Timestamp、Date、帶時區的 ISO 轉成 Asia/Taipei 年月日。
+ * @param {*} value
+ * @return {?{year: number, month: number, day: number}}
+ */
+function parseCalendarInput(value) {
+  if (value == null || value === "") {
+    return null;
+  }
+  if (typeof value === "string") {
+    const literal = value.trim().match(/^(\d{4})[-/](\d{2})[-/](\d{2})$/);
+    if (literal) {
+      const year = Number(literal[1]);
+      const month = Number(literal[2]);
+      const day = Number(literal[3]);
+      if (month < 1 || month > 12 || day < 1 || day > 31) {
+        return null;
+      }
+      return {year, month, day};
+    }
+  }
+  let date = null;
+  if (value instanceof Date) {
+    date = value;
+  } else if (value && typeof value.toDate === "function") {
+    const converted = value.toDate();
+    if (converted instanceof Date && !Number.isNaN(converted.getTime())) {
+      date = converted;
+    }
+  } else if (value && typeof value === "object") {
+    const seconds = value.seconds != null ? value.seconds : value._seconds;
+    if (typeof seconds === "number" && Number.isFinite(seconds)) {
+      date = new Date(seconds * 1000);
+    }
+  } else if (typeof value === "number" && Number.isFinite(value)) {
+    date = new Date(value);
+  }
+  if (!date && (typeof value === "string" || typeof value === "number")) {
+    const parsed = new Date(value);
+    if (!Number.isNaN(parsed.getTime())) {
+      date = parsed;
+    }
+  }
+  if (!date || Number.isNaN(date.getTime())) {
+    return null;
+  }
+  return taipeiParts(date);
 }
 
 function stayServiceDates(startRaw, endRaw) {
-  const start = dateOnly(startRaw);
-  const end = dateOnly(endRaw);
-  if (!start || !end || end <= start) {
+  const start = parseCalendarInput(startRaw);
+  const end = parseCalendarInput(endRaw);
+  if (!start || !end || compareParts(end, start) <= 0) {
     return [];
   }
   const out = [];
-  const cursor = new Date(start.getTime());
-  while (cursor < end) {
-    out.push(dateKey(cursor));
-    cursor.setDate(cursor.getDate() + 1);
+  let cursor = start;
+  let guard = 0;
+  while (compareParts(cursor, end) < 0 && guard < 400) {
+    out.push(dateKeyFromParts(cursor));
+    cursor = addCalendarDays(cursor, 1);
+    guard += 1;
   }
   return out;
 }
 
 function daycareServiceDates(startRaw) {
-  const start = dateOnly(startRaw);
-  return start ? [dateKey(start)] : [];
+  const start = parseCalendarInput(startRaw);
+  return start ? [dateKeyFromParts(start)] : [];
 }
 
 function serviceDates(startRaw, endRaw) {
@@ -154,9 +233,8 @@ function resolveDailyCareEntitlement(params) {
   );
   const requested = String(params.addonId || "").trim() ||
     requestedAddonId(params.requestedAddons);
-  const purchase = requested === STAY_PAID_ID ||
-    requested === DAYCARE_PAID_ID || requested === "1" ||
-    requested === "true" || (requested && mode === MODE_PAID);
+  const purchase = mode === MODE_PAID &&
+    explicitPurchase(requested, isDaycare);
   if (!featureOn) {
     return {
       entitlement: {
@@ -276,12 +354,151 @@ function resolveDailyCareEntitlement(params) {
   return {entitlement, addonLine, amount};
 }
 
+function explicitPurchase(requested, isDaycare) {
+  const id = String(requested || "").trim();
+  if (!id) {
+    return false;
+  }
+  if (id === "1" || id === "true") {
+    return true;
+  }
+  return id === (isDaycare ? DAYCARE_PAID_ID : STAY_PAID_ID);
+}
+
+function isDailyCareAddon(item) {
+  const type = String((item && item.type) || "").trim();
+  const id = String((item && (item.id || item.addonId)) || "").trim();
+  return type === ADDON_TYPE || type === "dailyCare" ||
+    id === STAY_PAID_ID || id === DAYCARE_PAID_ID;
+}
+
 function filterNonDailyCareAddons(addons) {
   const list = Array.isArray(addons) ? addons : [];
-  return list.filter((item) => {
-    const type = String((item && item.type) || "").trim();
-    return type !== ADDON_TYPE && type !== "dailyCare";
-  });
+  return list.filter((item) => !isDailyCareAddon(item));
+}
+
+function sumDailyCareAddonAmount(addons) {
+  const list = Array.isArray(addons) ? addons : [];
+  let sum = 0;
+  for (let index = 0; index < list.length; index++) {
+    const item = list[index] || {};
+    if (!isDailyCareAddon(item)) {
+      continue;
+    }
+    sum += Math.max(0, toInt(
+        item.amount != null ? item.amount : item.total,
+        0,
+    ));
+  }
+  return sum;
+}
+
+/**
+ * 新建訂單用後端報價取代客戶端照護加購金額與權益。
+ * @param {Object} params
+ * @return {Object}
+ */
+function applyAuthoritativeCare(params) {
+  const quoted = params && params.quoted ? params.quoted : {};
+  const nextAddons = filterNonDailyCareAddons(params && params.addons);
+  const amount = Math.max(0, toInt(quoted.amount, 0));
+  if (quoted.addonLine) {
+    nextAddons.push(quoted.addonLine);
+  }
+  const clientCare = sumDailyCareAddonAmount(params && params.addons);
+  const base = Math.max(
+      0,
+      toInt(params && params.payableAfterCoupon, 0) - clientCare,
+  );
+  return {
+    addons: nextAddons,
+    payableAfterCoupon: base + amount,
+    entitlement: quoted.entitlement || {},
+    amount,
+  };
+}
+
+/**
+ * 獨立時數／方案計費不可沿用依房型提供。回報未啟用時不擋舊資料。
+ * @param {Object} setting
+ * @param {boolean} roomBased
+ * @return {boolean}
+ */
+function daycareByOfferBlocked(setting, roomBased) {
+  if (roomBased === true) {
+    return false;
+  }
+  const map = setting && typeof setting === "object" ? setting : {};
+  if (map.daycareEnabled !== true) {
+    return false;
+  }
+  return normalizeMode(map.daycareReportMode) === MODE_BY_OFFER;
+}
+
+function bookingIsDaycare(booking) {
+  const kind = String(
+      (booking && (booking.bookingKind || booking.serviceType)) || "",
+  ).trim();
+  if (kind === "daycare") {
+    return true;
+  }
+  const service = booking && booking.dailyCareEntitlement &&
+    booking.dailyCareEntitlement.service;
+  return service === "daycare";
+}
+
+/**
+ * 以訂單上的最終權益檢查日期、場次與店家／房間。
+ * 沒有 dailyCareEntitlement 的舊訂單維持舊場次上限，仍檢查服務日期。
+ * @param {Object} booking
+ * @param {Object} params
+ * @return {{ok: boolean, message: string}}
+ */
+function validateDailyCareSession(booking, params) {
+  const shopId = String((params && params.shopId) || "").trim();
+  const bookingShop = String((booking && booking.shopId) || "").trim();
+  if (shopId && bookingShop && shopId !== bookingShop) {
+    return {ok: false, message: "訂單不屬於這家店"};
+  }
+  const snap = booking && booking.dailyCareEntitlement;
+  const hasSnapshot = !!snap && typeof snap === "object" && !Array.isArray(snap);
+  const reports = hasSnapshot ?
+    (snap.finalReports == null || snap.finalReports === "" ?
+      MAX_SESSIONS : toInt(snap.finalReports, 0)) :
+    MAX_SESSIONS;
+  if (hasSnapshot &&
+      snap.finalReports != null &&
+      snap.finalReports !== "" &&
+      toInt(snap.finalReports, 0) < 1) {
+    return {ok: false, message: "此訂單沒有照護回報權益"};
+  }
+  const sessionIndex = toInt(params && params.sessionIndex, 0);
+  const allowed = Math.min(MAX_SESSIONS, Math.max(0, reports));
+  if (sessionIndex < 0 || sessionIndex >= allowed) {
+    return {ok: false, message: "此場次不在訂單照護權益內"};
+  }
+  const daycare = bookingIsDaycare(booking);
+  const legal = daycare ?
+    daycareServiceDates(
+        booking && (
+          booking.scheduledStartAt || booking.serviceDate || booking.startDate
+        ),
+    ) :
+    stayServiceDates(
+        booking && (booking.startDate || booking.checkInAt || booking.checkInDate),
+        booking && (booking.endDate || booking.checkOutAt || booking.checkOutDate),
+    );
+  const actual = parseCalendarInput(params && params.recordDate);
+  const actualKey = actual ? dateKeyFromParts(actual) : "";
+  if (!actualKey || legal.indexOf(actualKey) < 0) {
+    return {ok: false, message: "這個日期不在可回報範圍"};
+  }
+  const roomId = String((params && params.roomId) || "").trim();
+  const bookingRoom = String((booking && booking.roomId) || "").trim();
+  if (bookingRoom && roomId && bookingRoom !== roomId) {
+    return {ok: false, message: "房間與訂單不一致"};
+  }
+  return {ok: true, message: ""};
 }
 
 function entitlementLooksComplete(snap) {
@@ -291,6 +508,12 @@ function entitlementLooksComplete(snap) {
   return map.enabled === true && reports >= 1 && labels.length >= reports;
 }
 
+/**
+ * 只留給舊資料相容。新建住宿／安親訂單不可呼叫，必須直接寫後端重算結果。
+ * @param {Object} incoming
+ * @param {Object} resolved
+ * @return {Object}
+ */
 function pickEntitlementSnapshot(incoming, resolved) {
   const snap = incoming && typeof incoming === "object" ? incoming : {};
   const resolvedMap = resolved && typeof resolved === "object" ? resolved : {};
@@ -310,15 +533,21 @@ function photoRuleVersion(booking) {
 }
 
 function entitlementSessionCount(booking) {
-  const snap = (booking && booking.dailyCareEntitlement) || {};
-  const reports = toInt(snap.finalReports, 0);
-  if (reports > 0) {
-    return Math.min(MAX_SESSIONS, reports);
+  const snap = booking && booking.dailyCareEntitlement;
+  if (!snap || typeof snap !== "object" || Array.isArray(snap)) {
+    return MAX_SESSIONS;
   }
-  if (snap.enabled === false) {
+  if (snap.finalReports == null || snap.finalReports === "") {
+    if (snap.enabled === false) {
+      return 0;
+    }
+    return MAX_SESSIONS;
+  }
+  const reports = toInt(snap.finalReports, 0);
+  if (reports < 1) {
     return 0;
   }
-  return MAX_SESSIONS;
+  return Math.min(MAX_SESSIONS, reports);
 }
 
 module.exports = {
@@ -332,6 +561,9 @@ module.exports = {
   pickEntitlementSnapshot,
   entitlementLooksComplete,
   filterNonDailyCareAddons,
+  applyAuthoritativeCare,
+  daycareByOfferBlocked,
+  validateDailyCareSession,
   requestedAddonId,
   serviceDates,
   photoRuleVersion,

@@ -7,16 +7,20 @@
 
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/constants/shop_permission_keys.dart';
+import 'package:petnest_saas/core/services/daycare_enabled.dart';
+import 'package:petnest_saas/core/services/shop_service.dart';
 import 'package:petnest_saas/features/shop/widgets/permissions/permission_switch_tile.dart';
 
 class CatHotelPermissionPage extends StatefulWidget {
   const CatHotelPermissionPage({
     super.key,
+    required this.shopId,
     required this.permissions,
     required this.isOwner,
     required this.onChanged,
   });
 
+  final String shopId;
   final Map<String, bool> permissions;
   final bool isOwner;
   final void Function(String key, bool value) onChanged;
@@ -136,16 +140,34 @@ class _CatHotelPermissionPageState extends State<CatHotelPermissionPage> {
             },
           ),
 
-          PermissionSwitchTile(
-            title: '會員點數與結算發點調整',
-            subtitle: '可在住宿／安親結算時調整最終發放點數，並寫入點數流水',
-            value:
-                widget.permissions[ShopPermissionKeys.manageMemberPoints] ??
-                false,
-            enabled: widget.isOwner,
-            onChanged: (value) {
-              _updatePermission(ShopPermissionKeys.manageMemberPoints, value);
-            },
+          StreamBuilder<Map<String, dynamic>?>(
+            stream: ShopService.instance.streamShop(widget.shopId),
+            builder:
+                (
+                  BuildContext context,
+                  AsyncSnapshot<Map<String, dynamic>?> shopSnap,
+                ) {
+                  final bool daycareOn = DaycareEnabled.isOn(
+                    shop: shopSnap.data,
+                  );
+                  return PermissionSwitchTile(
+                    title: '會員點數與結算發點調整',
+                    subtitle: daycareOn
+                        ? '可在住宿／安親結算時調整最終發放點數，並寫入點數流水'
+                        : '可在住宿結算時調整最終發放點數，並寫入點數流水',
+                    value:
+                        widget.permissions[ShopPermissionKeys
+                            .manageMemberPoints] ??
+                        false,
+                    enabled: widget.isOwner,
+                    onChanged: (value) {
+                      _updatePermission(
+                        ShopPermissionKeys.manageMemberPoints,
+                        value,
+                      );
+                    },
+                  );
+                },
           ),
 
           PermissionSwitchTile(

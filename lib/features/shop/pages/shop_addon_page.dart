@@ -628,7 +628,13 @@ class _ShopAddonPageState extends State<ShopAddonPage>
         .toList();
   }
 
-  String _applicableShort(Map<String, dynamic> item) {
+  String _applicableShort(
+    Map<String, dynamic> item, {
+    required bool daycareOn,
+  }) {
+    if (!daycareOn) {
+      return '住宿';
+    }
     final List<String> current = PolicyApplicableService.parse(
       item['applicableServices'],
     );
@@ -1345,9 +1351,27 @@ class _ShopAddonPageState extends State<ShopAddonPage>
         : entry.kind == _AddonKind.value
         ? '單次計費・不論幾隻寵物只收一次'
         : '依服務規則選擇適用寵物';
-    final String third = entry.kind == _AddonKind.daily
-        ? '已設定 $slots 個每日時段'
-        : '適用：${_applicableShort(item)}';
+    final Widget third = entry.kind == _AddonKind.daily
+        ? Text(
+            '已設定 $slots 個每日時段',
+            style: const TextStyle(color: Color(0xFF6B7280)),
+          )
+        : StreamBuilder<Map<String, dynamic>?>(
+            stream: ShopService.instance.streamShop(widget.shopId),
+            builder:
+                (
+                  BuildContext context,
+                  AsyncSnapshot<Map<String, dynamic>?> shopSnap,
+                ) {
+                  final bool daycareOn = DaycareEnabled.isOn(
+                    shop: shopSnap.data,
+                  );
+                  return Text(
+                    '適用：${_applicableShort(item, daycareOn: daycareOn)}',
+                    style: const TextStyle(color: Color(0xFF6B7280)),
+                  );
+                },
+          );
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: <Widget>[
@@ -1370,7 +1394,7 @@ class _ShopAddonPageState extends State<ShopAddonPage>
                     second,
                     style: const TextStyle(color: Color(0xFF4B5563)),
                   ),
-                  Text(third, style: const TextStyle(color: Color(0xFF6B7280))),
+                  third,
                 ],
               ),
             ),
@@ -1508,59 +1532,47 @@ class _ShopAddonPageState extends State<ShopAddonPage>
                   ),
                   const SizedBox(height: 6),
                   if (!daycareOn)
-                    const Padding(
-                      padding: EdgeInsets.only(bottom: 8),
-                      child: Text(
-                        '安親服務目前關閉，加購僅能設定住宿適用。',
-                        style: TextStyle(color: Colors.black54, fontSize: 13),
-                      ),
-                    ),
-                  SegmentedButton<String>(
-                    segments: daycareOn
-                        ? const <ButtonSegment<String>>[
-                            ButtonSegment<String>(
-                              value: 'stay',
-                              label: Text('住宿'),
-                            ),
-                            ButtonSegment<String>(
-                              value: 'daycare',
-                              label: Text('安親'),
-                            ),
-                            ButtonSegment<String>(
-                              value: 'both',
-                              label: Text('住宿與安親'),
-                            ),
-                          ]
-                        : const <ButtonSegment<String>>[
-                            ButtonSegment<String>(
-                              value: 'stay',
-                              label: Text('住宿'),
-                            ),
-                          ],
-                    selected: <String>{effectiveMode},
-                    onSelectionChanged: (Set<String> values) {
-                      if (values.isEmpty) {
-                        return;
-                      }
-                      setState(() {
-                        switch (values.first) {
-                          case 'daycare':
-                            item['applicableServices'] = List<String>.from(
-                              PolicyApplicableService.daycareOnly,
-                            );
-                          case 'both':
-                            item['applicableServices'] = List<String>.from(
-                              PolicyApplicableService.shared,
-                            );
-                          default:
-                            item['applicableServices'] = List<String>.from(
-                              PolicyApplicableService.accommodationOnly,
-                            );
+                    const Text(
+                      '住宿',
+                      style: TextStyle(fontWeight: FontWeight.w700),
+                    )
+                  else
+                    SegmentedButton<String>(
+                      segments: const <ButtonSegment<String>>[
+                        ButtonSegment<String>(value: 'stay', label: Text('住宿')),
+                        ButtonSegment<String>(
+                          value: 'daycare',
+                          label: Text('安親'),
+                        ),
+                        ButtonSegment<String>(
+                          value: 'both',
+                          label: Text('住宿與安親'),
+                        ),
+                      ],
+                      selected: <String>{effectiveMode},
+                      onSelectionChanged: (Set<String> values) {
+                        if (values.isEmpty) {
+                          return;
                         }
-                        _hasUnsavedChanges = true;
-                      });
-                    },
-                  ),
+                        setState(() {
+                          switch (values.first) {
+                            case 'daycare':
+                              item['applicableServices'] = List<String>.from(
+                                PolicyApplicableService.daycareOnly,
+                              );
+                            case 'both':
+                              item['applicableServices'] = List<String>.from(
+                                PolicyApplicableService.shared,
+                              );
+                            default:
+                              item['applicableServices'] = List<String>.from(
+                                PolicyApplicableService.accommodationOnly,
+                              );
+                          }
+                          _hasUnsavedChanges = true;
+                        });
+                      },
+                    ),
                 ],
               ),
             );

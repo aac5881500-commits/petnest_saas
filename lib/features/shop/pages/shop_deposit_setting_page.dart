@@ -6,6 +6,9 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+import 'package:petnest_saas/core/services/daycare_settings_service.dart';
+import 'package:petnest_saas/core/services/shop_service.dart';
+
 import '../widgets/shop_deposit_setting_panel.dart';
 
 class ShopDepositSettingPage extends StatefulWidget {
@@ -305,21 +308,36 @@ class _ShopDepositSettingPageState extends State<ShopDepositSettingPage> {
       return const Scaffold(body: loadingView);
     }
 
-    final Widget content = ShopDepositSettingPanel(
-      depositEnabled: _depositEnabled,
-      depositType: _depositType,
-      depositValue: _depositValue,
-      depositBase: _depositBase,
-      depositExpireHours: _depositExpireHours,
-      depositValueController: _depositValueCtrl,
-      dirty: _dirty,
-      saving: _saving,
-      onToggleEnabled: (bool value) => setState(() => _depositEnabled = value),
-      onExpireHours: (int value) => setState(() => _depositExpireHours = value),
-      onDepositBase: (String value) => setState(() => _depositBase = value),
-      onDepositType: _changeDepositType,
-      onDepositValueChanged: _updateDepositValue,
-      onSave: _save,
+    final Widget content = StreamBuilder<Map<String, dynamic>?>(
+      stream: ShopService.instance.streamShop(widget.shopId),
+      builder:
+          (
+            BuildContext context,
+            AsyncSnapshot<Map<String, dynamic>?> shopSnap,
+          ) {
+            final bool daycareOn = DaycareSettingsService.instance
+                .isEnabledForShop(shop: shopSnap.data);
+            return ShopDepositSettingPanel(
+              daycareOn: daycareOn,
+              depositEnabled: _depositEnabled,
+              depositType: _depositType,
+              depositValue: _depositValue,
+              depositBase: _depositBase,
+              depositExpireHours: _depositExpireHours,
+              depositValueController: _depositValueCtrl,
+              dirty: _dirty,
+              saving: _saving,
+              onToggleEnabled: (bool value) =>
+                  setState(() => _depositEnabled = value),
+              onExpireHours: (int value) =>
+                  setState(() => _depositExpireHours = value),
+              onDepositBase: (String value) =>
+                  setState(() => _depositBase = value),
+              onDepositType: _changeDepositType,
+              onDepositValueChanged: _updateDepositValue,
+              onSave: _save,
+            );
+          },
     );
 
     if (widget.embedded) {

@@ -122,6 +122,9 @@ class _ShopDaycareSettingsPageState extends State<ShopDaycareSettingsPage> {
     return DaycareEnabledGate(
       shopId: widget.shopId,
       title: '安親設定',
+      offHeadline: '尚未開啟安親服務',
+      offMessage: '請先在店家服務設定中開啟安親，才可設定方案與時段。',
+      showBackAction: true,
       child: DefaultTabController(
         length: 4,
         child: Scaffold(

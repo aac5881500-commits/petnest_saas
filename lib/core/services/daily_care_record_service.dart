@@ -141,6 +141,9 @@ class DailyCareRecordService {
     required String? operatorName,
     String serviceType = DailyCareServiceTypes.accommodation,
     List<String> petIds = const <String>[],
+    String reportStatus = '',
+    bool markCompleted = false,
+    int? photoCount,
   }) async {
     final String normalizedShopId = shopId.trim();
 
@@ -188,7 +191,7 @@ class DailyCareRecordService {
       day,
     ).replaceAll('/', '-');
 
-    await ref.set(<String, dynamic>{
+    final Map<String, dynamic> payload = <String, dynamic>{
       'shopId': normalizedShopId,
       'bookingId': normalizedBookingId,
       'roomId': normalizedRoomId,
@@ -216,7 +219,20 @@ class DailyCareRecordService {
       'createdByName': operatorName?.trim(),
 
       'updatedAt': FieldValue.serverTimestamp(),
-    }, SetOptions(merge: true));
+    };
+    final String status = reportStatus.trim();
+    if (status.isNotEmpty) {
+      payload['reportStatus'] = status;
+    }
+    if (photoCount != null) {
+      payload['photoCount'] = photoCount;
+    }
+    // 只有內容與照片都寫完才標記完成，避免先留下沒有內容的完成狀態。
+    if (markCompleted) {
+      payload['reportStatus'] = 'completed';
+      payload['completedAt'] = FieldValue.serverTimestamp();
+    }
+    await ref.set(payload, SetOptions(merge: true));
   }
 
   /// 取得某次住宿全部照護紀錄
@@ -240,19 +256,140 @@ class DailyCareRecordService {
       );
     }
 
-    if (normalizedShopId.isNotEmpty) {
-      return _streamRecordsByBookingQuery(
-        shopId: normalizedShopId,
-        bookingId: normalizedBookingId,
-        careDates: careDates ?? const <DateTime>[],
-        sessionCount: sessionCount,
-      );
-    }
+    final Stream<List<DailyCareRecordModel>> queried =
+        normalizedShopId.isNotEmpty
+        ? _streamRecordsByBookingQuery(
+            shopId: normalizedShopId,
+            bookingId: normalizedBookingId,
+            careDates: careDates ?? const <DateTime>[],
+            sessionCount: sessionCount,
+          )
+        : _collection
+              .where('bookingId', isEqualTo: normalizedBookingId)
+              .snapshots()
+              .map(_mapRecordQuery);
 
-    return _collection
-        .where('bookingId', isEqualTo: normalizedBookingId)
-        .snapshots()
-        .map(_mapRecordQuery);
+    final List<DateTime> dates = careDates ?? const <DateTime>[];
+    if (normalizedShopId.isNotEmpty || dates.isEmpty) {
+      return queried;
+    }
+    return _mergeDeterministicRecords(
+      queried: queried,
+      bookingId: normalizedBookingId,
+      careDates: dates,
+      sessionCount: sessionCount,
+    );
+  }
+
+  /// 客戶端 query 若漏掉固定 ID 的文件，仍用同一組
+  /// `{bookingId}_{台北日期}_{sessionIndex}` 直接聽該文件。
+  Stream<List<DailyCareRecordModel>> _mergeDeterministicRecords({
+    required Stream<List<DailyCareRecordModel>> queried,
+    required String bookingId,
+    required List<DateTime> careDates,
+    required int sessionCount,
+  }) {
+    final int count = sessionCount < 1
+        ? 1
+        : sessionCount > 12
+        ? 12
+        : sessionCount;
+    return Stream<List<DailyCareRecordModel>>.multi((
+      MultiStreamController<List<DailyCareRecordModel>> controller,
+    ) {
+      final Map<String, DailyCareRecordModel?> direct =
+          <String, DailyCareRecordModel?>{};
+      List<DailyCareRecordModel> fromQuery = const <DailyCareRecordModel>[];
+      bool queryReady = false;
+
+      void emit() {
+        if (!queryReady || controller.isClosed) {
+          return;
+        }
+        final Map<String, DailyCareRecordModel> merged =
+            <String, DailyCareRecordModel>{
+              for (final DailyCareRecordModel record in fromQuery)
+                record.id: record,
+            };
+        for (final DailyCareRecordModel? record in direct.values) {
+          if (record == null) {
+            continue;
+          }
+          merged[record.id] = record;
+        }
+        final List<DailyCareRecordModel> list = merged.values.toList();
+        list.sort((DailyCareRecordModel a, DailyCareRecordModel b) {
+          final int dateCompare = a.recordDate.compareTo(b.recordDate);
+          if (dateCompare != 0) {
+            return dateCompare;
+          }
+          return a.sessionIndex.compareTo(b.sessionIndex);
+        });
+        controller.add(list);
+      }
+
+      final List<StreamSubscription<dynamic>> subscriptions =
+          <StreamSubscription<dynamic>>[];
+      subscriptions.add(
+        queried.listen(
+          (List<DailyCareRecordModel> next) {
+            fromQuery = next;
+            queryReady = true;
+            emit();
+          },
+          onError: (Object _) {
+            fromQuery = const <DailyCareRecordModel>[];
+            queryReady = true;
+            emit();
+          },
+        ),
+      );
+
+      for (final DateTime date in careDates) {
+        for (int index = 0; index < count; index++) {
+          final String id = recordId(
+            bookingId: bookingId,
+            recordDate: date,
+            sessionIndex: index,
+          );
+          subscriptions.add(
+            _collection
+                .doc(id)
+                .snapshots()
+                .listen(
+                  (DocumentSnapshot<Map<String, dynamic>> snapshot) {
+                    if (!snapshot.exists) {
+                      direct[id] = null;
+                      emit();
+                      return;
+                    }
+                    final DailyCareRecordModel record =
+                        DailyCareRecordModel.fromMap(
+                          id: snapshot.id,
+                          map: snapshot.data() ?? <String, dynamic>{},
+                        );
+                    final bool visible =
+                        record.hasReportContent ||
+                        record.reportStatus == 'completed' ||
+                        record.photosLocked;
+                    direct[id] = visible ? record : null;
+                    emit();
+                  },
+                  onError: (Object _) {
+                    direct.remove(id);
+                    emit();
+                  },
+                ),
+          );
+        }
+      }
+
+      controller.onCancel = () async {
+        for (final StreamSubscription<dynamic> subscription in subscriptions) {
+          await subscription.cancel();
+        }
+      };
+    });
   }
 
   List<DailyCareRecordModel> _mapRecordQuery(

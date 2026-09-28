@@ -32,12 +32,13 @@ class DailyCareReportEligibility {
       }
     }
     if (snapshot != null &&
-        !_shouldFallbackIncompleteSnapshot(
-          snapshot: snapshot,
-          setting: setting,
-          daycare: daycare,
-          booking: booking,
-        )) {
+        (DailyCareEntitlement.explicitlyNoReports(booking) ||
+            !_shouldFallbackIncompleteSnapshot(
+              snapshot: snapshot,
+              setting: setting,
+              daycare: daycare,
+              booking: booking,
+            ))) {
       return snapshot;
     }
     return DailyCareEntitlementMath.fallbackFromSetting(
@@ -451,10 +452,10 @@ class DailyCareReportEligibility {
     required DateTime today,
     required bool daycare,
   }) {
-    if (entitlement.serviceDates.isNotEmpty) {
-      return containsServiceDate(entitlement.serviceDates, today);
-    }
     if (daycare) {
+      if (entitlement.serviceDates.isNotEmpty) {
+        return containsServiceDate(entitlement.serviceDates, today);
+      }
       final DateTime? serviceDate = DailyCareDaycareAccess.serviceCalendarDate(
         booking,
       );
@@ -472,6 +473,42 @@ class DailyCareReportEligibility {
     );
   }
 
+  /// 住宿 `serviceDates` 與真實入住／退房回報日不一致時，才需要校正。
+  static bool stayServiceDatesNeedRepair({
+    required bool isDaycare,
+    required DateTime? checkIn,
+    required DateTime? checkOut,
+    required List<String> serviceDates,
+  }) {
+    if (isDaycare || serviceDates.isEmpty) {
+      return false;
+    }
+    final Set<String> legal = DailyCareDateHelper.careDateKeys(
+      checkIn: checkIn,
+      checkOut: checkOut,
+    ).toSet();
+    if (legal.isEmpty) {
+      return false;
+    }
+    final Set<String> stored = serviceDates
+        .map(_serviceDateKey)
+        .where((String key) => key.isNotEmpty)
+        .toSet();
+    if (stored.isEmpty) {
+      return false;
+    }
+    return stored.length != legal.length || !stored.containsAll(legal);
+  }
+
+  static String _serviceDateKey(String raw) {
+    final String slash = raw.trim().replaceAll('-', '/');
+    final DateTime? parsed = DailyCareDateHelper.parseDateKey(slash);
+    if (parsed == null) {
+      return '';
+    }
+    return DailyCareDateHelper.dateKey(parsed);
+  }
+
   /// 整筆住宿應填場次數：照護日期 × 每日場次（`finalReports`）。
   static int stayScheduledSessionTotal(
     Map<String, dynamic> booking, {
@@ -484,8 +521,11 @@ class DailyCareReportEligibility {
             setting: setting,
             daycare: false,
           );
+    if (DailyCareEntitlement.explicitlyNoReports(booking)) {
+      return 0;
+    }
     int perDay = entitlement.finalReports;
-    if (perDay < 1) {
+    if (perDay < 1 && !DailyCareEntitlement.hasExplicitFinalReports(booking)) {
       perDay = entitlement.sessionLabels.length;
     }
     if (perDay < 1) {
@@ -507,16 +547,33 @@ class DailyCareReportEligibility {
             setting: setting,
             daycare: false,
           );
+    if (DailyCareEntitlement.explicitlyNoReports(booking)) {
+      return 0;
+    }
     if (entitlement.finalReports >= 1) {
       return entitlement.finalReports;
+    }
+    if (DailyCareEntitlement.hasExplicitFinalReports(booking)) {
+      return 0;
     }
     return entitlement.sessionLabels.length;
   }
 
+  /// 住宿回報日只由該筆訂單入住／退房算出。
+  /// `serviceDates` 與區間不一致時直接忽略，安親不走這個方法。
   static List<DateTime> stayCareDates(
     Map<String, dynamic> booking, {
     DailyCareSettingModel? setting,
   }) {
+    final DailyCareStayInfo stay = DailyCareStayInfo.fromBookingMap(booking);
+    final List<DateTime> legal = stay
+        .careDateKeys()
+        .map(DailyCareDateHelper.parseDateKey)
+        .whereType<DateTime>()
+        .toList();
+    if (legal.isNotEmpty) {
+      return legal;
+    }
     final DailyCareEntitlement entitlement = setting == null
         ? entitlementOf(booking)
         : resolvedEntitlement(
@@ -524,26 +581,16 @@ class DailyCareReportEligibility {
             setting: setting,
             daycare: false,
           );
-    if (entitlement.serviceDates.isNotEmpty) {
-      final List<DateTime> parsed = <DateTime>[];
-      for (final String raw in entitlement.serviceDates) {
-        final DateTime? date = DailyCareDateHelper.parseDateKey(
-          raw.replaceAll('-', '/'),
-        );
-        if (date != null) {
-          parsed.add(date);
-        }
-      }
-      if (parsed.isNotEmpty) {
-        return parsed;
+    final List<DateTime> parsed = <DateTime>[];
+    for (final String raw in entitlement.serviceDates) {
+      final DateTime? date = DailyCareDateHelper.parseDateKey(
+        raw.replaceAll('-', '/'),
+      );
+      if (date != null) {
+        parsed.add(date);
       }
     }
-    final DailyCareStayInfo stay = DailyCareStayInfo.fromBookingMap(booking);
-    return stay
-        .careDateKeys()
-        .map(DailyCareDateHelper.parseDateKey)
-        .whereType<DateTime>()
-        .toList();
+    return parsed;
   }
 
   static int completedSessionCount(List<DailyCareRecordModel> records) {

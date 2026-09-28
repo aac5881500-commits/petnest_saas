@@ -236,15 +236,24 @@ class _CustomerDailyCarePageState extends State<CustomerDailyCarePage> {
                       .map(DailyCareDateHelper.parseDateKey)
                       .whereType<DateTime>()
                       .toList();
+            final bool hasCareSnapshot =
+                bookingData['dailyCareEntitlement'] is Map;
+            if (DailyCareEntitlement.explicitlyNoReports(bookingData)) {
+              return _journalScaffold(
+                setting: setting,
+                child: _errorView('此訂單未包含照護回報'),
+              );
+            }
             final DailyCareEntitlement entitlement =
                 DailyCareEntitlement.fromMap(
-                  bookingData['dailyCareEntitlement'] is Map
+                  hasCareSnapshot
                       ? Map<String, dynamic>.from(
                           bookingData['dailyCareEntitlement'] as Map,
                         )
                       : null,
                 );
-            final int sessionCount = entitlement.finalReports > 0
+            final int sessionCount =
+                DailyCareEntitlement.hasExplicitFinalReports(bookingData)
                 ? entitlement.finalReports
                 : (isDaycare
                       ? setting.daycareSessionCount
@@ -254,7 +263,7 @@ class _CustomerDailyCarePageState extends State<CustomerDailyCarePage> {
               stream: DailyCareRecordService.instance.streamBookingRecords(
                 bookingId: widget.bookingId,
                 shopId: widget.previewMode ? widget.shopId : null,
-                careDates: widget.previewMode ? careDates : null,
+                careDates: careDates,
                 sessionCount: sessionCount,
               ),
               builder: (context, recordSnapshot) {

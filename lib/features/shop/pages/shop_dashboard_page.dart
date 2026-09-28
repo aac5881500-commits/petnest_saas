@@ -31,14 +31,12 @@ import 'package:petnest_saas/features/shop/pages/shop_media_page.dart';
 import 'package:petnest_saas/features/shop/pages/shop_module_settings_page.dart';
 import 'package:petnest_saas/features/shop/pages/shop_permission_settings_page.dart';
 import 'package:petnest_saas/features/admin/pages/admin_booking_list_page.dart';
-import 'package:petnest_saas/features/admin/pages/admin_daycare_board_page.dart';
 import 'package:petnest_saas/features/shop/pages/shop_daycare_settings_page.dart';
 import 'package:petnest_saas/features/admin/pages/admin_member_list_page.dart';
 import 'package:petnest_saas/features/admin/pages/admin_payment_center_page.dart';
 import 'package:petnest_saas/features/shop/pages/shop_policy_page.dart';
 import 'package:petnest_saas/features/shop/pages/shop_pre_arrival_guide_setting_page.dart';
 import 'package:petnest_saas/features/shop/pages/shop_custom_form_settings_page.dart';
-import 'package:petnest_saas/features/shop/pages/shop_policy_logs_page.dart';
 import 'package:petnest_saas/features/room/pages/room_dashboard_page.dart';
 import 'package:petnest_saas/features/shop/pages/shop_addon_page.dart';
 import 'package:petnest_saas/features/shop/pages/shop_payment_setting_page.dart';
@@ -1091,6 +1089,21 @@ class _BasicInfoTab extends StatelessWidget {
                   );
                 },
               ),
+            if (_can(ShopPermissionKeys.managePaymentSettings))
+              _MenuTile(
+                title: '金流中心',
+                subtitle: isProfileComplete ? '查看交易紀錄、付款狀態與金流資料' : '請先完成基本資料',
+                icon: Icons.payments_outlined,
+                enabled: isProfileComplete,
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => AdminPaymentCenterPage(shopId: shopId),
+                    ),
+                  );
+                },
+              ),
           ],
         ),
         _DashboardSection(
@@ -1365,348 +1378,304 @@ class _CatHotelTab extends StatelessWidget {
 
     final canUsePolicySettings = ShopPlanService.canUsePolicySettings(shop);
 
-    return _DashboardResponsiveBody(
-      children: [
-        _DashboardSection(
-          title: '今日營運',
-          children: [
-            if (_can(ShopPermissionKeys.manageChat))
-              Builder(
-                builder: (BuildContext context) {
-                  final ShopAdminWorkspaceController? workspace =
-                      ShopAdminWorkspaceScope.maybeOf(context);
-                  Widget tile(int unread) {
-                    return _MenuTile(
-                      title: '店家聊天',
-                      subtitle: unread > 0
-                          ? '${ShopChatService.badgeLabel(unread)} 則未讀訊息'
-                          : '與會員即時聯絡',
-                      icon: Icons.chat_bubble_outline,
-                      badgeCount: unread > 99 ? 99 : unread,
-                      onTap: () {
-                        ShopChatEntry.open(
-                          context,
-                          shopId: shopId,
-                          toggleDesktop: false,
-                        );
-                      },
-                    );
-                  }
+    return StreamBuilder<DaycareSettingsModel>(
+      stream: DaycareSettingsService.instance.stream(shopId),
+      builder:
+          (
+            BuildContext context,
+            AsyncSnapshot<DaycareSettingsModel> daycareSnap,
+          ) {
+            final bool daycareOn = DaycareSettingsService.instance
+                .isEnabledForShop(shop: shop, settings: daycareSnap.data);
+            return _DashboardResponsiveBody(
+              children: [
+                _DashboardSection(
+                  title: '今日營運',
+                  children: [
+                    if (_can(ShopPermissionKeys.manageBookings))
+                      _BookingManageTile(
+                        shopId: shopId,
+                        enabled: isProfileComplete,
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) =>
+                                  AdminBookingListPage(shopId: shopId),
+                            ),
+                          );
+                        },
+                      ),
+                    if (_can(ShopPermissionKeys.manageRoomDashboard))
+                      _RoomDashboardTile(
+                        shopId: shopId,
+                        enabled: isProfileComplete,
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => RoomDashboardPage(shopId: shopId),
+                            ),
+                          );
+                        },
+                      ),
+                    if (_can(ShopPermissionKeys.manageChat))
+                      Builder(
+                        builder: (BuildContext context) {
+                          final ShopAdminWorkspaceController? workspace =
+                              ShopAdminWorkspaceScope.maybeOf(context);
+                          Widget tile(int unread) {
+                            return _MenuTile(
+                              title: '店家聊天',
+                              subtitle: unread > 0
+                                  ? '${ShopChatService.badgeLabel(unread)} 則未讀訊息'
+                                  : '與會員即時聯絡',
+                              icon: Icons.chat_bubble_outline,
+                              badgeCount: unread > 99 ? 99 : unread,
+                              onTap: () {
+                                ShopChatEntry.open(
+                                  context,
+                                  shopId: shopId,
+                                  toggleDesktop: false,
+                                );
+                              },
+                            );
+                          }
 
-                  if (workspace == null) {
-                    return tile(0);
-                  }
-                  return ValueListenableBuilder<int>(
-                    valueListenable: workspace.unreadCount,
-                    builder: (BuildContext context, int unread, Widget? child) {
-                      return tile(unread);
-                    },
-                  );
-                },
-              ),
+                          if (workspace == null) {
+                            return tile(0);
+                          }
+                          return ValueListenableBuilder<int>(
+                            valueListenable: workspace.unreadCount,
+                            builder:
+                                (
+                                  BuildContext context,
+                                  int unread,
+                                  Widget? child,
+                                ) {
+                                  return tile(unread);
+                                },
+                          );
+                        },
+                      ),
+                  ],
+                ),
+                _DashboardSection(
+                  title: daycareOn ? '住宿／安親與房型設定' : '住宿與房型設定',
+                  children: [
+                    if (_can(ShopPermissionKeys.manageBookingSettings) ||
+                        _can(ShopPermissionKeys.manageRoomTypes) ||
+                        _can(ShopPermissionKeys.manageRooms))
+                      _MenuTile(
+                        title: '住宿房型與預約',
+                        subtitle: isProfileComplete
+                            ? '設定住宿房型、實體房間與預約開放規則'
+                            : '請先完成基本資料',
+                        icon: Icons.home_work_outlined,
+                        enabled: isProfileComplete,
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) =>
+                                  ShopBookingSetupCenterPage(shopId: shopId),
+                            ),
+                          );
+                        },
+                      ),
+                    if (daycareOn &&
+                        _can(ShopPermissionKeys.manageDaycareSettings))
+                      _MenuTile(
+                        title: '安親設定',
+                        subtitle: isProfileComplete
+                            ? '時間、方案、加購、付款與入口卡片'
+                            : '請先完成基本資料',
+                        icon: Icons.settings_suggest_outlined,
+                        enabled: isProfileComplete,
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute<void>(
+                              builder: (_) =>
+                                  ShopDaycareSettingsPage(shopId: shopId),
+                            ),
+                          );
+                        },
+                      ),
 
-            if (_can(ShopPermissionKeys.manageBookings))
-              _BookingManageTile(
-                shopId: shopId,
-                enabled: isProfileComplete,
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => AdminBookingListPage(shopId: shopId),
-                    ),
-                  );
-                },
-              ),
-          ],
-        ),
-        StreamBuilder<DaycareSettingsModel>(
-          stream: DaycareSettingsService.instance.stream(shopId),
-          builder:
-              (
-                BuildContext context,
-                AsyncSnapshot<DaycareSettingsModel> daycareSnap,
-              ) {
-                final bool daycareOn = DaycareSettingsService.instance
-                    .isEnabledForShop(shop: shop, settings: daycareSnap.data);
-                final bool showBoard =
-                    daycareOn &&
-                    (_can(ShopPermissionKeys.viewDaycareBookings) ||
-                        _can(ShopPermissionKeys.manageDaycareBookings));
-                final bool showSettings =
-                    daycareOn && _can(ShopPermissionKeys.manageDaycareSettings);
-                final List<Widget> daycareTiles = <Widget>[];
-                if (showBoard) {
-                  daycareTiles.add(
+                    if (_can(ShopPermissionKeys.manageBookingSettings) ||
+                        _can(ShopPermissionKeys.managePolicy))
+                      _MenuTile(
+                        title: daycareOn ? '入住／安親前準備' : '入住前準備',
+                        subtitle: isProfileComplete
+                            ? (daycareOn
+                                  ? '設定入住／安親前需要攜帶與注意的內容'
+                                  : '設定入住前需要攜帶與注意的內容')
+                            : '請先完成基本資料',
+                        icon: Icons.checklist_outlined,
+                        enabled: isProfileComplete,
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => ShopPreArrivalGuideSettingPage(
+                                shopId: shopId,
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+
+                    if (_can(ShopPermissionKeys.manageDevices))
+                      _MenuTile(
+                        title: '設備管理',
+                        subtitle: isProfileComplete
+                            ? '管理攝影機、溫度監控與房間設備'
+                            : '請先完成基本資料',
+                        icon: Icons.sensors,
+                        enabled: isProfileComplete,
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => ShopDevicePage(shopId: shopId),
+                            ),
+                          );
+                        },
+                      ),
+                  ],
+                ),
+                _DashboardSection(
+                  title: '收費、優惠與加購',
+                  children: [
+                    if (_can(ShopPermissionKeys.manageAddons))
+                      _MenuTile(
+                        title: '住宿加購 / 附加服務',
+                        subtitle: isProfileComplete
+                            ? '設定時間加購、額外服務、價格與開關'
+                            : '請先完成基本資料',
+                        icon: Icons.add_box,
+                        enabled: isProfileComplete,
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => ShopAddonPage(shopId: shopId),
+                            ),
+                          );
+                        },
+                      ),
+
+                    if (_can(ShopPermissionKeys.managePaymentSettings))
+                      _MenuTile(
+                        title: '收款、優惠與點數',
+                        subtitle: !isProfileComplete
+                            ? '請先完成基本資料'
+                            : (canUseDepositSettings
+                                  ? '設定訂金、付款、優惠券與會員點數制度'
+                                  : '升級方案解鎖'),
+                        icon: Icons.payments,
+                        enabled: isProfileComplete && canUseDepositSettings,
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) =>
+                                  ShopPaymentSettingPage(shopId: shopId),
+                            ),
+                          );
+                        },
+                      ),
+
+                    if (_can(ShopPermissionKeys.managePointRedemptions))
+                      _MenuTile(
+                        title: '商品領取／核銷',
+                        subtitle: isProfileComplete
+                            ? '搜尋領取碼、查看待領取商品並完成交付'
+                            : '請先完成基本資料',
+                        icon: Icons.inventory_2_outlined,
+                        enabled: isProfileComplete,
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute<void>(
+                              builder: (BuildContext context) {
+                                return AdminPointRedemptionListPage(
+                                  shopId: shopId,
+                                );
+                              },
+                            ),
+                          );
+                        },
+                      ),
+                  ],
+                ),
+                _DashboardSection(
+                  title: '規則與紀錄',
+                  children: [
                     _MenuTile(
-                      title: '今日安親看板',
+                      title: '入住規則與貓咪條件',
                       subtitle: isProfileComplete
-                          ? '只看今天需操作的安親：待確認、等待送達、安親中、即將接回、已超時。'
+                          ? '設定入住條款、貓咪入住條件與查看同意紀錄'
                           : '請先完成基本資料',
-                      icon: Icons.today,
+                      icon: Icons.rule,
                       enabled: isProfileComplete,
                       onTap: () {
                         Navigator.push(
                           context,
-                          MaterialPageRoute<void>(
-                            builder: (_) =>
-                                AdminDaycareBoardPage(shopId: shopId),
+                          MaterialPageRoute(
+                            builder: (_) => ShopPolicyPage(
+                              shopId: shopId,
+                              canEdit:
+                                  _can(ShopPermissionKeys.managePolicy) &&
+                                  canUsePolicySettings,
+                            ),
                           ),
                         );
                       },
                     ),
-                  );
-                }
-                if (showSettings) {
-                  daycareTiles.add(
+
+                    if (_can(ShopPermissionKeys.manageBookingSettings))
+                      _MenuTile(
+                        title: '自訂表單設定',
+                        subtitle: isProfileComplete
+                            ? '設定新增寵物與送出訂單時要填寫的自訂問題'
+                            : '請先完成基本資料',
+                        icon: Icons.edit_note_outlined,
+                        enabled: isProfileComplete,
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute<void>(
+                              builder: (_) =>
+                                  ShopCustomFormSettingsPage(shopId: shopId),
+                            ),
+                          );
+                        },
+                      ),
+
                     _MenuTile(
-                      title: '安親設定',
+                      title: '每日照護回報設定',
                       subtitle: isProfileComplete
-                          ? '時間、方案、加購、付款與入口卡片'
+                          ? '設定每日回報、照護項目、照片與下載期限'
                           : '請先完成基本資料',
-                      icon: Icons.settings_suggest_outlined,
+                      icon: Icons.pets_outlined,
                       enabled: isProfileComplete,
                       onTap: () {
                         Navigator.push(
                           context,
-                          MaterialPageRoute<void>(
+                          MaterialPageRoute(
                             builder: (_) =>
-                                ShopDaycareSettingsPage(shopId: shopId),
+                                DailyCareSettingPage(shopId: shopId),
                           ),
                         );
                       },
                     ),
-                  );
-                }
-                if (daycareTiles.isEmpty) {
-                  return const SizedBox.shrink();
-                }
-                return _DashboardSection(
-                  title: showBoard ? '安親' : null,
-                  children: daycareTiles,
-                );
-              },
-        ),
-        if (_can(ShopPermissionKeys.manageRoomDashboard))
-          _DashboardSection(
-            title: '房務管理',
-            children: [
-              _RoomDashboardTile(
-                shopId: shopId,
-                enabled: isProfileComplete,
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => RoomDashboardPage(shopId: shopId),
-                    ),
-                  );
-                },
-              ),
-            ],
-          ),
-        _DashboardSection(
-          title: '預約與房型設定',
-          children: [
-            if (_can(ShopPermissionKeys.manageBookingSettings) ||
-                _can(ShopPermissionKeys.manageRoomTypes) ||
-                _can(ShopPermissionKeys.manageRooms))
-              _MenuTile(
-                title: '房型與預約設定',
-                subtitle: isProfileComplete ? '依序設定房型、實體房間與預約開放規則' : '請先完成基本資料',
-                icon: Icons.home_work_outlined,
-                enabled: isProfileComplete,
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) =>
-                          ShopBookingSetupCenterPage(shopId: shopId),
-                    ),
-                  );
-                },
-              ),
-
-            if (_can(ShopPermissionKeys.manageBookingSettings) ||
-                _can(ShopPermissionKeys.managePolicy))
-              _MenuTile(
-                title: '入住／安親前準備',
-                subtitle: isProfileComplete ? '設定入住前需要攜帶與注意的內容' : '請先完成基本資料',
-                icon: Icons.checklist_outlined,
-                enabled: isProfileComplete,
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) =>
-                          ShopPreArrivalGuideSettingPage(shopId: shopId),
-                    ),
-                  );
-                },
-              ),
-
-            if (_can(ShopPermissionKeys.manageDevices))
-              _MenuTile(
-                title: '設備管理',
-                subtitle: isProfileComplete ? '管理攝影機、溫度監控與房間設備' : '請先完成基本資料',
-                icon: Icons.sensors,
-                enabled: isProfileComplete,
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => ShopDevicePage(shopId: shopId),
-                    ),
-                  );
-                },
-              ),
-          ],
-        ),
-        _DashboardSection(
-          title: '價格、付款與加購',
-          children: [
-            if (_can(ShopPermissionKeys.managePaymentSettings))
-              _MenuTile(
-                title: '金流中心',
-                subtitle: isProfileComplete ? '查看交易紀錄、付款狀態與金流資料' : '請先完成基本資料',
-                icon: Icons.payments_outlined,
-                enabled: isProfileComplete,
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => AdminPaymentCenterPage(shopId: shopId),
-                    ),
-                  );
-                },
-              ),
-
-            if (_can(ShopPermissionKeys.manageAddons))
-              _MenuTile(
-                title: '住宿加購 / 附加服務',
-                subtitle: isProfileComplete ? '設定時間加購、額外服務、價格與開關' : '請先完成基本資料',
-                icon: Icons.add_box,
-                enabled: isProfileComplete,
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => ShopAddonPage(shopId: shopId),
-                    ),
-                  );
-                },
-              ),
-
-            if (_can(ShopPermissionKeys.managePaymentSettings))
-              _MenuTile(
-                title: '營運設定',
-                subtitle: !isProfileComplete
-                    ? '請先完成基本資料'
-                    : (canUseDepositSettings ? '設定訂金、優惠與點數制度' : '升級方案解鎖'),
-                icon: Icons.payments,
-                enabled: isProfileComplete && canUseDepositSettings,
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => ShopPaymentSettingPage(shopId: shopId),
-                    ),
-                  );
-                },
-              ),
-
-            if (_can(ShopPermissionKeys.managePointRedemptions))
-              _MenuTile(
-                title: '實體商品核銷中心',
-                subtitle: isProfileComplete ? '搜尋領取碼、查看待領取商品及完成交付' : '請先完成基本資料',
-                icon: Icons.inventory_2_outlined,
-                enabled: isProfileComplete,
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute<void>(
-                      builder: (BuildContext context) {
-                        return AdminPointRedemptionListPage(shopId: shopId);
-                      },
-                    ),
-                  );
-                },
-              ),
-          ],
-        ),
-        _DashboardSection(
-          title: '規則與紀錄',
-          children: [
-            if (_can(ShopPermissionKeys.managePolicy))
-              _MenuTile(
-                title: '入住規則 / 貓咪條件',
-                subtitle: !isProfileComplete
-                    ? '請先完成基本資料'
-                    : (canUsePolicySettings ? '設定入住條款與貓咪入住條件' : '升級方案解鎖'),
-                icon: Icons.rule,
-                enabled: isProfileComplete && canUsePolicySettings,
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => ShopPolicyPage(shopId: shopId),
-                    ),
-                  );
-                },
-              ),
-
-            if (_can(ShopPermissionKeys.manageBookingSettings))
-              _MenuTile(
-                title: '自訂表單設定',
-                subtitle: isProfileComplete
-                    ? '設定新增寵物與送出訂單時要填寫的自訂問題'
-                    : '請先完成基本資料',
-                icon: Icons.edit_note_outlined,
-                enabled: isProfileComplete,
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute<void>(
-                      builder: (_) =>
-                          ShopCustomFormSettingsPage(shopId: shopId),
-                    ),
-                  );
-                },
-              ),
-
-            _MenuTile(
-              title: '條款同意紀錄',
-              subtitle: isProfileComplete ? '查看會員條款同意與簽署紀錄' : '請先完成基本資料',
-              icon: Icons.list_alt,
-              enabled: isProfileComplete,
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => ShopPolicyLogsPage(shopId: shopId),
-                  ),
-                );
-              },
-            ),
-            _MenuTile(
-              title: '每日照護紀錄設定',
-              subtitle: isProfileComplete
-                  ? '設定每日回報次數、照護項目、照片與退房下載期限'
-                  : '請先完成基本資料',
-              icon: Icons.pets_outlined,
-              enabled: isProfileComplete,
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => DailyCareSettingPage(shopId: shopId),
-                  ),
-                );
-              },
-            ),
-          ],
-        ),
-      ],
+                  ],
+                ),
+              ],
+            );
+          },
     );
   }
 }

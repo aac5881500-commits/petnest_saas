@@ -4,6 +4,7 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
+import 'package:petnest_saas/core/models/home_banner_display.dart';
 import 'package:petnest_saas/core/models/home_theme_model.dart';
 import 'package:petnest_saas/core/models/store_banner_model.dart';
 
@@ -43,17 +44,23 @@ class StoreBannerView extends StatelessWidget {
       child: LayoutBuilder(
         builder: (BuildContext context, BoxConstraints constraints) {
           final double width = constraints.maxWidth;
-          final double rawHeight = StoreBannerSizePresets.heightForWidth(
-            sizePresetOverride ?? banner.sizePreset,
-            width,
-            scope: scope,
-          );
+          final bool live =
+              composeLive ??
+              (interactMode != StoreBannerInteractMode.none ||
+                  !banner.hasRenderedImage);
+          final bool publishedHome =
+              scope == PetNestBannerScope.home &&
+              banner.hasPublishedPoster &&
+              !live;
+          final double rawHeight = scope == PetNestBannerScope.home
+              ? (width <= 0 ? 0 : width / HomeBannerDisplay.aspectRatio)
+              : StoreBannerSizePresets.heightForWidth(
+                  sizePresetOverride ?? banner.sizePreset,
+                  width,
+                  scope: scope,
+                );
           final double height;
-          if (scope == PetNestBannerScope.home &&
-              constraints.maxHeight.isFinite &&
-              constraints.maxHeight > 0) {
-            height = constraints.maxHeight;
-          } else if (constraints.maxHeight.isFinite) {
+          if (constraints.maxHeight.isFinite && constraints.maxHeight > 0) {
             height = rawHeight.clamp(0.0, constraints.maxHeight);
           } else {
             height = rawHeight;
@@ -73,10 +80,8 @@ class StoreBannerView extends StatelessWidget {
                 onChanged: onChanged,
                 onTextSelected: onTextSelected,
                 onTap: onTap,
-                composeLive:
-                    composeLive ??
-                    (interactMode != StoreBannerInteractMode.none ||
-                        !banner.hasRenderedImage),
+                completePoster: publishedHome,
+                composeLive: live,
               ),
             ),
           );
@@ -98,6 +103,7 @@ class _BannerStage extends StatelessWidget {
     required this.onTextSelected,
     required this.onTap,
     required this.composeLive,
+    required this.completePoster,
   });
 
   final StoreBannerModel banner;
@@ -110,6 +116,7 @@ class _BannerStage extends StatelessWidget {
   final ValueChanged<String?>? onTextSelected;
   final VoidCallback? onTap;
   final bool composeLive;
+  final bool completePoster;
 
   bool get _editing => interactMode != StoreBannerInteractMode.none;
 
@@ -119,8 +126,12 @@ class _BannerStage extends StatelessWidget {
     final Widget image = _BannerImage(
       banner: banner,
       theme: theme,
-      useRendered: !composeLive && banner.hasRenderedImage,
+      useRendered: completePoster || (!composeLive && banner.hasRenderedImage),
+      contain: completePoster,
     );
+    if (completePoster) {
+      return _wrapFrontTap(image);
+    }
     if (!composeLive && banner.hasRenderedImage) {
       return _wrapFrontTap(image);
     }
@@ -461,11 +472,13 @@ class _BannerImage extends StatelessWidget {
     required this.banner,
     required this.theme,
     this.useRendered = false,
+    this.contain = false,
   });
 
   final StoreBannerModel banner;
   final HomeThemeModel theme;
   final bool useRendered;
+  final bool contain;
 
   @override
   Widget build(BuildContext context) {
@@ -479,12 +492,14 @@ class _BannerImage extends StatelessWidget {
       color: theme.cardColor,
       child: ClipRect(
         child: Transform.scale(
-          scale: useRendered ? 1 : banner.imageScale.clamp(1.0, 2.5),
-          alignment: useRendered ? Alignment.center : banner.imageAlignment,
+          scale: useRendered || contain ? 1 : banner.imageScale.clamp(1.0, 2.5),
+          alignment: useRendered || contain
+              ? Alignment.center
+              : banner.imageAlignment,
           child: Image.network(
-            useRendered ? banner.renderedImageUrl : banner.imageUrl,
-            fit: BoxFit.cover,
-            alignment: banner.imageAlignment,
+            useRendered ? banner.renderedImageUrl : banner.frontImageUrl,
+            fit: contain ? BoxFit.contain : BoxFit.cover,
+            alignment: contain ? Alignment.center : banner.imageAlignment,
             width: double.infinity,
             height: double.infinity,
             gaplessPlayback: true,

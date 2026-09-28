@@ -3,11 +3,9 @@
 
 import 'dart:async';
 
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/models/booking_kind.dart';
 import 'package:petnest_saas/core/services/daycare_settings_service.dart';
-import 'package:petnest_saas/core/services/daycare_status_labels.dart';
 import 'package:petnest_saas/core/services/shop_permission_service.dart';
 import 'package:petnest_saas/core/services/shop_service.dart';
 import 'package:petnest_saas/core/widgets/shop_task_center_button.dart';
@@ -36,12 +34,10 @@ class AdminBookingListPage extends StatefulWidget {
 class _AdminBookingListPageState extends State<AdminBookingListPage>
     with SingleTickerProviderStateMixin {
   StreamSubscription<Map<String, dynamic>?>? _shopSub;
-  StreamSubscription<QuerySnapshot<Map<String, dynamic>>>? _openDaycareSub;
   TabController? _tabController;
   Map<String, dynamic> _shop = <String, dynamic>{};
   bool _shopLoaded = false;
   bool _daycareOn = false;
-  bool _hasOpenDaycare = false;
   bool _appliedInitialKind = false;
 
   @override
@@ -61,33 +57,10 @@ class _AdminBookingListPageState extends State<AdminBookingListPage>
       _syncTabs();
       setState(() {});
     });
-    _openDaycareSub = FirebaseFirestore.instance
-        .collection('bookings')
-        .where('shopId', isEqualTo: widget.shopId)
-        .where('bookingKind', isEqualTo: BookingKind.daycare)
-        .orderBy('createdAt', descending: true)
-        .limit(40)
-        .snapshots()
-        .listen((QuerySnapshot<Map<String, dynamic>> snap) {
-          if (!mounted) {
-            return;
-          }
-          final bool hasOpen = snap.docs.any((
-            QueryDocumentSnapshot<Map<String, dynamic>> doc,
-          ) {
-            return !DaycareStatusLabels.isHistory(doc.data());
-          });
-          if (hasOpen == _hasOpenDaycare) {
-            return;
-          }
-          _hasOpenDaycare = hasOpen;
-          _syncTabs();
-          setState(() {});
-        });
   }
 
   void _syncTabs() {
-    final bool needTabs = _daycareOn || _hasOpenDaycare;
+    final bool needTabs = _daycareOn;
     final bool hadTabs = _tabController != null;
     if (needTabs == hadTabs) {
       return;
@@ -115,7 +88,6 @@ class _AdminBookingListPageState extends State<AdminBookingListPage>
   @override
   void dispose() {
     _shopSub?.cancel();
-    _openDaycareSub?.cancel();
     _tabController?.dispose();
     super.dispose();
   }
@@ -125,8 +97,7 @@ class _AdminBookingListPageState extends State<AdminBookingListPage>
     if (!_shopLoaded) {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
-    final bool showDaycareTab =
-        (_daycareOn || _hasOpenDaycare) && _tabController != null;
+    final bool showDaycareTab = _daycareOn && _tabController != null;
     return Scaffold(
       appBar: AppBar(
         title: const Text('訂單管理'),

@@ -46,7 +46,7 @@ void main() {
     };
   }
 
-  test('固定提供殘缺快照改用店家設定，不信任 enabled=false', () {
+  test('明確 finalReports=0 不可改用店家目前場次', () {
     final DailyCareEntitlement result =
         DailyCareReportEligibility.resolvedEntitlement(
           booking: stayBooking(
@@ -59,11 +59,38 @@ void main() {
           setting: includedSetting,
           daycare: false,
         );
+    expect(result.finalReports, 0);
+    expect(DailyCareReportEligibility.isEntitled(result), isFalse);
+    expect(
+      DailyCareReportEligibility.expandBooking(
+        shopId: 'shop-1',
+        booking: stayBooking(
+          entitlement: <String, dynamic>{
+            'enabled': true,
+            'mode': DailyCareReportMode.paidAddon,
+            'finalReports': 0,
+          },
+        ),
+        setting: paidSetting,
+        today: DateTime(2026, 9, 23),
+        canOperate: true,
+        daycare: false,
+      ),
+      isEmpty,
+    );
+  });
+
+  test('沒有 finalReports 欄位的舊快照仍可依店家設定補齊', () {
+    final DailyCareEntitlement result =
+        DailyCareReportEligibility.resolvedEntitlement(
+          booking: stayBooking(
+            entitlement: <String, dynamic>{'enabled': false},
+          ),
+          setting: includedSetting,
+          daycare: false,
+        );
     expect(result.enabled, isTrue);
     expect(result.finalReports, 3);
-    expect(result.baseReports, 3);
-    expect(result.sessionLabels, <String>['早晨', '午後', '晚間']);
-    expect(result.serviceDates, <String>['2026/09/23']);
   });
 
   test('fallbackFromSetting 不回傳訂單殘缺 map', () {

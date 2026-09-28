@@ -5,7 +5,10 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:petnest_saas/core/models/daycare_settings_model.dart';
 import 'package:petnest_saas/core/models/review_model.dart';
+import 'package:petnest_saas/core/services/daycare_settings_service.dart';
+import 'package:petnest_saas/core/services/shop_service.dart';
 import 'package:petnest_saas/core/widgets/shop_frontend_theme_scope.dart';
 import 'package:petnest_saas/features/booking/pages/my_bookings_page.dart';
 import 'package:petnest_saas/features/member/widgets/member_empty_state.dart';
@@ -120,20 +123,7 @@ class _MyReviewsPageState extends State<_MyReviewsBody> {
           final docs = snapshot.data!.docs;
 
           if (docs.isEmpty) {
-            return MemberEmptyState(
-              icon: Icons.rate_review_outlined,
-              title: '還沒有評價',
-              message: '完成住宿或安親後，就能分享這次的體驗。',
-              actionLabel: '查看我的訂單',
-              onAction: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute<void>(
-                    builder: (_) => const MyBookingsPage(),
-                  ),
-                );
-              },
-            );
+            return _emptyReviews(context);
           }
 
           final reviews = docs.map(ReviewModel.fromDoc).toList();
@@ -189,6 +179,59 @@ class _MyReviewsPageState extends State<_MyReviewsBody> {
           );
         },
       ),
+    );
+  }
+
+  Widget _emptyReviews(BuildContext context) {
+    final String shopId = widget.shopId.trim();
+    if (shopId.isEmpty) {
+      return _emptyReviewsCard(context, message: '完成服務後，就能分享這次的體驗。');
+    }
+    return StreamBuilder<Map<String, dynamic>?>(
+      stream: ShopService.instance.streamShop(shopId),
+      builder:
+          (
+            BuildContext context,
+            AsyncSnapshot<Map<String, dynamic>?> shopSnap,
+          ) {
+            return StreamBuilder<DaycareSettingsModel>(
+              stream: DaycareSettingsService.instance.stream(shopId),
+              builder:
+                  (
+                    BuildContext context,
+                    AsyncSnapshot<DaycareSettingsModel> settingsSnap,
+                  ) {
+                    final bool daycareOn = DaycareSettingsService.instance
+                        .isEnabledForShop(
+                          shop: shopSnap.data,
+                          settings: settingsSnap.data,
+                        );
+                    return _emptyReviewsCard(
+                      context,
+                      message: daycareOn
+                          ? '完成住宿或安親後，就能分享這次的體驗。'
+                          : '完成住宿後，就能分享這次的體驗。',
+                    );
+                  },
+            );
+          },
+    );
+  }
+
+  Widget _emptyReviewsCard(BuildContext context, {required String message}) {
+    return MemberEmptyState(
+      icon: Icons.rate_review_outlined,
+      title: '還沒有評價',
+      message: message,
+      actionLabel: '查看我的訂單',
+      onAction: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute<void>(
+            builder: (_) => MyBookingsPage(returnShopId: widget.shopId),
+          ),
+        );
+      },
     );
   }
 }

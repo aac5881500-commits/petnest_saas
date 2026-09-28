@@ -135,9 +135,10 @@ class DailyCareUpgradeCard extends StatelessWidget {
         : (upgraded.chargeUnit == DailyCareReportMode.chargeOncePerStay
               ? '整筆住宿一次'
               : '每個服務日');
-    final String dateRange = upgraded.serviceDates.isEmpty
-        ? '請先選擇服務日期'
-        : '服務日期 ${upgraded.serviceDates.first}～${upgraded.serviceDates.last}（${upgraded.serviceDates.length} 天）';
+    final bool priceReady = upgraded.serviceDates.isNotEmpty;
+    final String dateRange = priceReady
+        ? '服務日期 ${upgraded.serviceDates.first}～${upgraded.serviceDates.last}（${upgraded.serviceDates.length} 天）'
+        : '請先完成服務選擇以計算價格';
 
     return _box(
       child: Column(
@@ -177,11 +178,13 @@ class DailyCareUpgradeCard extends StatelessWidget {
             onChanged: onChanged,
             title: Text(plan.name),
             subtitle: Text(
-              '${plan.description.trim().isEmpty ? '購買後每天提供 ${upgraded.finalReports} 場回報。' : plan.description}\n'
-              '回報：${upgraded.sessionLabels.join('、')}\n'
-              '單價 ${ShopReportFormat.money(upgraded.unitPrice)}／$unitLabel'
-              '${upgraded.chargeUnit == DailyCareReportMode.chargePerServiceDay ? ' × ${upgraded.quantity} 天' : ''}'
-              '，小計 ${ShopReportFormat.money(upgraded.amount)}',
+              priceReady
+                  ? '${plan.description.trim().isEmpty ? '購買後每天提供 ${upgraded.finalReports} 場回報。' : plan.description}\n'
+                        '回報：${upgraded.sessionLabels.join('、')}\n'
+                        '單價 ${ShopReportFormat.money(upgraded.unitPrice)}／$unitLabel'
+                        '${upgraded.chargeUnit == DailyCareReportMode.chargePerServiceDay ? ' × ${upgraded.quantity} 天' : ''}'
+                        '，小計 ${ShopReportFormat.money(upgraded.amount)}'
+                  : '請先完成服務選擇以計算價格',
             ),
             isThreeLine: true,
           ),

@@ -80,6 +80,7 @@ class _ShopDiscountCampaignPageState extends State<ShopDiscountCampaignPage> {
   Future<void> _chooseCampaignType() async {
     final DiscountCampaignType? selectedType = await pickDiscountCampaignType(
       context,
+      shopId: widget.shopId,
     );
     if (!mounted || selectedType == null) {
       return;

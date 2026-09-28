@@ -17,6 +17,7 @@ class ModernShopFooter extends StatelessWidget {
     required this.secondaryTextColor,
     required this.cardColor,
     required this.borderColor,
+    this.isPreview = false,
   });
 
   final String shopId;
@@ -28,8 +29,12 @@ class ModernShopFooter extends StatelessWidget {
   final Color secondaryTextColor;
   final Color cardColor;
   final Color borderColor;
+  final bool isPreview;
 
   Future<void> _openUrl(String rawUrl) async {
+    if (isPreview) {
+      return;
+    }
     final url = rawUrl.trim();
 
     if (url.isEmpty) return;
@@ -42,6 +47,9 @@ class ModernShopFooter extends StatelessWidget {
   }
 
   Future<void> _callPhone(String rawPhone) async {
+    if (isPreview) {
+      return;
+    }
     final phone = rawPhone.trim();
 
     if (phone.isEmpty) return;
@@ -50,6 +58,9 @@ class ModernShopFooter extends StatelessWidget {
   }
 
   Future<void> _openMap(String rawAddress) async {
+    if (isPreview) {
+      return;
+    }
     final address = rawAddress.trim();
 
     if (address.isEmpty) return;

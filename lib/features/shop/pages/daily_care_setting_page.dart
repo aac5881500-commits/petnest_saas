@@ -3,6 +3,8 @@
 // 🐾 每日照護紀錄設定頁
 // 要填寫的照護欄位、照片功能與退房後下載期限。
 
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../../../core/models/daily_care_journal_appearance.dart';
@@ -11,9 +13,11 @@ import '../../../core/models/daily_care_offer_quota.dart';
 import '../../../core/models/daily_care_paid_plan.dart';
 import '../../../core/models/daily_care_report_mode.dart';
 import '../../../core/models/daily_care_setting_model.dart';
+import '../../../core/models/daycare_settings_model.dart';
 import '../../../core/models/platform_media_asset.dart';
 import '../../../core/services/daily_care_setting_service.dart';
 import '../../../core/services/daycare_enabled.dart';
+import '../../../core/services/daycare_settings_service.dart';
 import '../../../core/services/shop_room_service.dart';
 import '../../../core/services/shop_service.dart';
 import '../../../core/widgets/daily_care_illustrations.dart';
@@ -29,6 +33,7 @@ class DailyCareSettingPage extends StatefulWidget {
     required this.shopId,
     this.initialSetting,
     this.shopData,
+    this.initialDaycareSettings,
     this.saveOverride,
     this.showTaskCenterButton = true,
   });
@@ -40,6 +45,9 @@ class DailyCareSettingPage extends StatefulWidget {
 
   /// 測試注入店家資料，正式頁面不傳。
   final Map<String, dynamic>? shopData;
+
+  /// 測試注入安親收費方式。正式頁面不傳，改讀 daycare_settings/main。
+  final DaycareSettingsModel? initialDaycareSettings;
 
   /// 測試取代儲存呼叫，正式頁面不傳。
   final Future<void> Function({
@@ -59,6 +67,10 @@ class DailyCareSettingPage extends StatefulWidget {
 class _DailyCareSettingPageState extends State<DailyCareSettingPage> {
   bool _loading = true;
   bool _saving = false;
+  bool _shopDaycareOn = false;
+  bool _daycareRoomBased = false;
+  bool _daycarePricingReady = false;
+  StreamSubscription<Map<String, dynamic>?>? _shopSub;
   DailyCareSettingModel _loaded = const DailyCareSettingModel();
 
   bool _enabled = false;
@@ -239,11 +251,69 @@ class _DailyCareSettingPageState extends State<DailyCareSettingPage> {
     super.initState();
     _syncSessionLabelControllers(_sessionCount);
     _syncDaycareLabelControllers(_daycareSessionCount);
+    if (widget.shopData != null) {
+      _shopDaycareOn = DaycareEnabled.isOn(shop: widget.shopData);
+    } else {
+      _shopSub = ShopService.instance.streamShop(widget.shopId).listen((
+        Map<String, dynamic>? shop,
+      ) {
+        final bool on = DaycareEnabled.isOn(shop: shop);
+        if (!mounted || on == _shopDaycareOn) {
+          return;
+        }
+        setState(() {
+          _shopDaycareOn = on;
+        });
+      });
+    }
+    final DaycareSettingsModel? injectedPricing = widget.initialDaycareSettings;
+    if (injectedPricing != null) {
+      _daycareRoomBased = injectedPricing.isRoomBased;
+      _daycarePricingReady = true;
+    } else if (widget.shopData != null) {
+      _daycareRoomBased = false;
+      _daycarePricingReady = true;
+    } else {
+      unawaited(_loadDaycarePricing());
+    }
     _loadSetting();
+  }
+
+  Future<void> _loadDaycarePricing() async {
+    try {
+      final DaycareSettingsModel settings = await DaycareSettingsService
+          .instance
+          .get(widget.shopId);
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _daycareRoomBased = settings.isRoomBased;
+        _daycarePricingReady = true;
+      });
+    } catch (error) {
+      debugPrint('讀取安親收費方式失敗：$error');
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _daycareRoomBased = false;
+        _daycarePricingReady = true;
+      });
+    }
+  }
+
+  bool get _daycareModeIncompatible {
+    return _daycarePricingReady &&
+        !_daycareRoomBased &&
+        _daycareEnabled &&
+        DailyCareReportMode.normalize(_daycareReportMode) ==
+            DailyCareReportMode.includedByOffer;
   }
 
   @override
   void dispose() {
+    _shopSub?.cancel();
     for (final TextEditingController controller in _sessionLabelControllers) {
       controller.dispose();
     }
@@ -439,6 +509,9 @@ class _DailyCareSettingPageState extends State<DailyCareSettingPage> {
       }
     }
 
+    if (!_shopDaycareOn) {
+      return null;
+    }
     final List<String> daycareLabels = _readDaycareSessionLabels();
     final int daycareRequired = _requiredDaycareLabelCount();
     for (int index = 0; index < daycareRequired; index++) {
@@ -768,6 +841,29 @@ class _DailyCareSettingPageState extends State<DailyCareSettingPage> {
         section == DailyCareSettingSection.all
         ? _sectionForTab(_tabIndex)
         : section;
+    final bool rulesSection =
+        resolvedSection == DailyCareSettingSection.rules ||
+        resolvedSection == DailyCareSettingSection.all;
+    if (rulesSection && !_daycarePricingReady) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('正在確認安親收費方式，請稍後再儲存')));
+      return false;
+    }
+    if (rulesSection &&
+        DailyCareSettingService.daycareReportModeIncompatible(
+          setting: setting,
+          daycareRoomBased: _daycareRoomBased,
+        )) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            DailyCareSettingService.incompatibleDaycareReportMessage,
+          ),
+        ),
+      );
+      return false;
+    }
 
     setState(() {
       _saving = true;
@@ -797,6 +893,7 @@ class _DailyCareSettingPageState extends State<DailyCareSettingPage> {
           setting: setting,
           expectedRevision: _loaded.revision,
           section: resolvedSection,
+          daycareRoomBased: _daycareRoomBased,
         );
         final DailyCareSettingModel stored = await DailyCareSettingService
             .instance
@@ -1930,7 +2027,7 @@ class _DailyCareSettingPageState extends State<DailyCareSettingPage> {
     required String value,
     required ValueChanged<String> onChanged,
     required bool daycare,
-    bool roomBased = true,
+    required bool allowByOffer,
   }) {
     final List<_ReportModeOption> options = <_ReportModeOption>[
       const _ReportModeOption(
@@ -1938,26 +2035,31 @@ class _DailyCareSettingPageState extends State<DailyCareSettingPage> {
         title: '固定提供',
         subtitle: '所有訂單提供相同場次數量與名稱',
       ),
-      _ReportModeOption(
-        value: DailyCareReportMode.includedByOffer,
-        title: daycare && !roomBased ? '依方案提供' : '依房型提供',
-        subtitle: daycare
-            ? (roomBased ? '依安親房型設定場次，購買時即確定，不等分房。' : '依安親方案設定場次。')
-            : '各房型只設定回報幾場與各場名稱，購買房型時即確定。',
-      ),
+      if (allowByOffer)
+        _ReportModeOption(
+          value: DailyCareReportMode.includedByOffer,
+          title: '依房型提供',
+          subtitle: daycare
+              ? '依安親房型設定場次，購買時即確定，不等分房。'
+              : '各房型只設定回報幾場與各場名稱，購買房型時即確定。',
+        ),
       const _ReportModeOption(
         value: DailyCareReportMode.paidAddon,
         title: '付費加購',
         subtitle: '店家不免費提供；顧客購買後才享有回報及可附照片的服務。',
       ),
     ];
+    final String selectorValue =
+        options.any((_ReportModeOption option) => option.value == value)
+        ? value
+        : '';
 
     return LayoutBuilder(
       builder: (BuildContext context, BoxConstraints constraints) {
         final bool compact = constraints.maxWidth >= 440;
         if (!compact) {
           return RadioGroup<String>(
-            groupValue: value,
+            groupValue: selectorValue,
             onChanged: (String? next) {
               if (next != null) {
                 onChanged(next);
@@ -1984,7 +2086,7 @@ class _DailyCareSettingPageState extends State<DailyCareSettingPage> {
               Expanded(
                 child: _ReportModeCard(
                   option: options[index],
-                  selected: value == options[index].value,
+                  selected: selectorValue == options[index].value,
                   onTap: () => onChanged(options[index].value),
                 ),
               ),
@@ -1998,7 +2100,9 @@ class _DailyCareSettingPageState extends State<DailyCareSettingPage> {
   Widget _buildStayRuleCard() {
     return _SettingCard(
       title: '住宿回報規則',
-      subtitle: '住宿獨立保存啟用狀態、模式、場次與付費方案。開啟後，入住中的房間才會出現住宿照護紀錄填寫入口。此開關不控制安親。',
+      subtitle: _shopDaycareOn
+          ? '住宿獨立保存啟用狀態、模式、場次與付費方案。開啟後，入住中的房間才會出現住宿照護紀錄填寫入口。此開關不控制安親。'
+          : '住宿獨立保存啟用狀態、模式、場次與付費方案。開啟後，入住中的房間才會出現住宿照護紀錄填寫入口。',
       trailing: _EnableSwitch(
         label: '啟用',
         value: _enabled,
@@ -2028,6 +2132,7 @@ class _DailyCareSettingPageState extends State<DailyCareSettingPage> {
               });
             },
             daycare: false,
+            allowByOffer: true,
           ),
           if (_stayReportMode == DailyCareReportMode.includedFixed) ...<Widget>[
             DropdownButtonFormField<int>(
@@ -2382,6 +2487,14 @@ class _DailyCareSettingPageState extends State<DailyCareSettingPage> {
             child: Text('每筆安親服務於服務當日提供回報。', style: TextStyle(height: 1.4)),
           ),
           const SizedBox(height: 8),
+          if (_daycareModeIncompatible)
+            const Padding(
+              padding: EdgeInsets.only(bottom: 8),
+              child: Text(
+                DailyCareSettingService.incompatibleDaycareReportMessage,
+                style: TextStyle(color: Color(0xFFB42318), height: 1.4),
+              ),
+            ),
           _modeSelector(
             value: _daycareReportMode,
             onChanged: (String value) {
@@ -2390,6 +2503,7 @@ class _DailyCareSettingPageState extends State<DailyCareSettingPage> {
               });
             },
             daycare: true,
+            allowByOffer: _daycareRoomBased,
           ),
           if (_daycareReportMode ==
               DailyCareReportMode.includedFixed) ...<Widget>[
@@ -2416,7 +2530,8 @@ class _DailyCareSettingPageState extends State<DailyCareSettingPage> {
               _daycareLabelControllers,
             ),
           ],
-          if (_daycareReportMode == DailyCareReportMode.includedByOffer)
+          if (_daycareRoomBased &&
+              _daycareReportMode == DailyCareReportMode.includedByOffer)
             _roomTypeQuotaEditor(daycare: true),
           if (_daycareReportMode == DailyCareReportMode.paidAddon)
             _paidPlanEditor(daycare: true),
@@ -2449,9 +2564,9 @@ class _DailyCareSettingPageState extends State<DailyCareSettingPage> {
             },
           ),
           const SizedBox(height: 16),
-          const Text(
-            '照護紀錄名稱（第 1～3 個名稱同時給安親回報使用）',
-            style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
+          Text(
+            _shopDaycareOn ? '照護紀錄名稱（第 1～3 個名稱同時給安親回報使用）' : '照護紀錄名稱',
+            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
           ),
           const SizedBox(height: 8),
           for (int index = 0; index < 3; index++) ...<Widget>[
@@ -3309,8 +3424,9 @@ class _DailyCareSettingPageState extends State<DailyCareSettingPage> {
   Widget _buildDownloadCard() {
     return _SettingCard(
       title: '實際結束後下載期限',
-      subtitle:
-          '住宿以實際退房、安親以實際結束起算 24 小時。不從上傳或預定時間起算，補退款也不延長。檔案由後續排程清除，不保證第 24 小時整點已全部刪除。',
+      subtitle: _shopDaycareOn
+          ? '住宿以實際退房、安親以實際結束起算 24 小時。不從上傳或預定時間起算，補退款也不延長。檔案由後續排程清除，不保證第 24 小時整點已全部刪除。'
+          : '住宿以實際退房起算 24 小時。不從上傳或預定時間起算，補退款也不延長。檔案由後續排程清除，不保證第 24 小時整點已全部刪除。',
       child: const Text('固定保留 24 小時，此期限由平台統一，確認儲存時仍會一併寫入設定。'),
     );
   }

@@ -434,6 +434,13 @@ class DailyCareReportExportService {
     return 'PetNest_完整照護紀錄_${room}_${pets}_$start-$end.png';
   }
 
+  DailyCareReportSession buildStoredSession({
+    required DailyCareRecordModel record,
+    required DailyCareSettingModel setting,
+  }) {
+    return _buildSession(record, setting);
+  }
+
   DailyCareReportSession _buildSession(
     DailyCareRecordModel record,
     DailyCareSettingModel setting,

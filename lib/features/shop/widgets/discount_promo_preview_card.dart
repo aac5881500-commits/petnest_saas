@@ -21,11 +21,15 @@ class DiscountPromoPreviewCard extends StatelessWidget {
   factory DiscountPromoPreviewCard.fromResult(
     DiscountPromoPreviewResult result, {
     Widget? header,
+    String? fallbackNote,
   }) {
+    final String footer = result.footer.trim().isEmpty
+        ? (fallbackNote ?? '')
+        : result.footer;
     return DiscountPromoPreviewCard(
       heading: result.heading,
       lines: result.lines,
-      footer: result.footer,
+      footer: footer,
       header: header,
     );
   }

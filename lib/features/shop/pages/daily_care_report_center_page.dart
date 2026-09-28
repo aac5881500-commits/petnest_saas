@@ -8,6 +8,8 @@ import '../../../core/models/daily_care_report_center_snapshot.dart';
 import '../../../core/models/daily_care_setting_model.dart';
 import '../../../core/services/daily_care_report_center_service.dart';
 import '../../../core/services/daily_care_setting_service.dart';
+import '../../../core/services/daycare_enabled.dart';
+import '../../../core/services/shop_service.dart';
 import '../widgets/daily_care_report_center_board.dart';
 
 class DailyCareReportCenterPage extends StatefulWidget {
@@ -157,31 +159,51 @@ class _DailyCareReportCenterPageState extends State<DailyCareReportCenterPage> {
                     if (!live.settingEnabled) {
                       return _messagePane('每日回報功能目前未啟用');
                     }
-                    return DailyCareReportCenterBoard(
-                      snapshot: live,
-                      setting: setting,
-                      status: _status,
-                      onStatus: (DailyCareReportCenterStatusFilter value) {
-                        setState(() {
-                          _status = value;
-                        });
-                      },
-                      type: _type,
-                      onType: (DailyCareReportCenterTypeFilter value) {
-                        setState(() {
-                          _type = value;
-                        });
-                      },
-                      query: _query,
-                      onQuery: (String value) {
-                        setState(() {
-                          _query = value;
-                        });
-                      },
-                      focusBookingId: _bookingId,
-                      focusRecordDate: widget.focusRecordDate,
-                      focusSessionIndex: widget.focusSessionIndex,
-                      embedded: _compactEmbedded,
+                    return StreamBuilder<Map<String, dynamic>?>(
+                      stream: ShopService.instance.streamShop(widget.shopId),
+                      builder:
+                          (
+                            BuildContext context,
+                            AsyncSnapshot<Map<String, dynamic>?> shopSnap,
+                          ) {
+                            final bool daycareOn = DaycareEnabled.isOn(
+                              shop: shopSnap.data,
+                            );
+                            final DailyCareReportCenterTypeFilter type =
+                                !daycareOn &&
+                                    _type ==
+                                        DailyCareReportCenterTypeFilter.daycare
+                                ? DailyCareReportCenterTypeFilter.all
+                                : _type;
+                            return DailyCareReportCenterBoard(
+                              snapshot: live,
+                              setting: setting,
+                              status: _status,
+                              onStatus:
+                                  (DailyCareReportCenterStatusFilter value) {
+                                    setState(() {
+                                      _status = value;
+                                    });
+                                  },
+                              showDaycareFilter: daycareOn,
+                              type: type,
+                              onType: (DailyCareReportCenterTypeFilter value) {
+                                setState(() {
+                                  _type = value;
+                                });
+                              },
+                              query: _query,
+                              onQuery: (String value) {
+                                setState(() {
+                                  _query = value;
+                                });
+                              },
+                              focusBookingId: _bookingId,
+                              focusRecordDate: widget.focusRecordDate,
+                              focusSessionIndex: widget.focusSessionIndex,
+                              embedded: _compactEmbedded,
+                            );
+                          },
                     );
                   },
             );

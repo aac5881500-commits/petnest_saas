@@ -1,13 +1,17 @@
 // 檔案名稱：lib/features/shop/pages/shop_special_date_surcharge_form_page.dart
 // 功能說明：特殊日期加價建立／編輯，分段卡片與示意預覽。
 
+import 'dart:async';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:petnest_saas/core/debug/chat_error_probe.dart';
 import 'package:petnest_saas/core/models/policy_applicable_service.dart';
 import 'package:petnest_saas/core/models/special_date_surcharge_model.dart';
+import 'package:petnest_saas/core/services/daycare_settings_service.dart';
 import 'package:petnest_saas/core/services/discount_promo_preview.dart';
+import 'package:petnest_saas/core/services/shop_service.dart';
 import 'package:petnest_saas/core/services/special_date_surcharge_service.dart';
 import 'package:petnest_saas/features/shop/widgets/discount_hub_host.dart';
 import 'package:petnest_saas/features/shop/widgets/discount_promo_preview_card.dart';
@@ -51,6 +55,8 @@ class _ShopSpecialDateSurchargeFormPageState
     PolicyApplicableService.accommodationOnly,
   );
   bool _saving = false;
+  bool _daycareOn = false;
+  StreamSubscription<Map<String, dynamic>?>? _shopSub;
 
   @override
   void initState() {
@@ -74,6 +80,22 @@ class _ShopSpecialDateSurchargeFormPageState
       item?.applicableServices ?? PolicyApplicableService.accommodationOnly,
     );
     _previewDaycare = _serviceGroup == 'daycare';
+    _shopSub = ShopService.instance.streamShop(widget.shopId).listen((
+      Map<String, dynamic>? shop,
+    ) {
+      final bool on = DaycareSettingsService.instance.isEnabledForShop(
+        shop: shop,
+      );
+      if (!mounted || on == _daycareOn) {
+        return;
+      }
+      setState(() {
+        _daycareOn = on;
+        if (!on) {
+          _previewDaycare = false;
+        }
+      });
+    });
     _name.addListener(_refresh);
     _stayAmount.addListener(_refresh);
     _daycareAmount.addListener(_refresh);
@@ -90,6 +112,7 @@ class _ShopSpecialDateSurchargeFormPageState
     _name.removeListener(_refresh);
     _stayAmount.removeListener(_refresh);
     _daycareAmount.removeListener(_refresh);
+    _shopSub?.cancel();
     _name.dispose();
     _description.dispose();
     _stayAmount.dispose();
@@ -116,22 +139,26 @@ class _ShopSpecialDateSurchargeFormPageState
   }
 
   String get _serviceLabel {
+    if (!_daycareOn) {
+      return '住宿';
+    }
     return PolicyApplicableService.displayLabel(_applicableServices);
   }
 
   String get _headlineSummary {
     final int stayAmt = _parseAmount(_stayAmount);
     final int daycareAmt = _parseAmount(_daycareAmount);
+    final String group = _daycareOn ? _serviceGroup : 'stay';
     if (_startDate == null || _endDate == null) {
       return '請完成日期、服務與加價金額設定';
     }
-    if (_serviceGroup != 'daycare' && stayAmt <= 0) {
+    if (group != 'daycare' && stayAmt <= 0) {
       return '請完成日期、服務與加價金額設定';
     }
-    if (_serviceGroup != 'stay' && daycareAmt <= 0) {
+    if (_daycareOn && group != 'stay' && daycareAmt <= 0) {
       return '請完成日期、服務與加價金額設定';
     }
-    final String amountPart = switch (_serviceGroup) {
+    final String amountPart = switch (group) {
       'daycare' => '每次 +${DiscountPromoPreview.nt(daycareAmt)}',
       'both' =>
         '每晚 +${DiscountPromoPreview.nt(stayAmt)}・每次 +${DiscountPromoPreview.nt(daycareAmt)}',
@@ -192,11 +219,11 @@ class _ShopSpecialDateSurchargeFormPageState
       _toast('住宿每晚加價必須大於 0');
       return;
     }
-    if (_serviceGroup != 'stay' && daycareAmt <= 0) {
+    if (_daycareOn && _serviceGroup != 'stay' && daycareAmt <= 0) {
       _toast('安親每次加價必須大於 0');
       return;
     }
-    if (_serviceGroup == 'both' && stayAmt != daycareAmt) {
+    if (_daycareOn && _serviceGroup == 'both' && stayAmt != daycareAmt) {
       _toast('目前住宿每晚與安親每次使用同一加價金額，請輸入相同數字。');
       return;
     }
@@ -209,7 +236,9 @@ class _ShopSpecialDateSurchargeFormPageState
     final List<String> roomTypeIds = _serviceGroup == 'daycare'
         ? <String>[]
         : (_applyToAllRoomTypes ? <String>[] : _roomTypeIds);
-    final int amount = _serviceGroup == 'daycare' ? daycareAmt : stayAmt;
+    final int amount = _daycareOn && _serviceGroup == 'daycare'
+        ? daycareAmt
+        : stayAmt;
     setState(() {
       _saving = true;
     });
@@ -307,9 +336,10 @@ class _ShopSpecialDateSurchargeFormPageState
 
   @override
   Widget build(BuildContext context) {
-    final bool stay = _serviceGroup != 'daycare';
-    final bool daycare = _serviceGroup != 'stay';
-    final bool both = _serviceGroup == 'both';
+    final String displayGroup = _daycareOn ? _serviceGroup : 'stay';
+    final bool stay = displayGroup != 'daycare';
+    final bool daycare = _daycareOn && _serviceGroup != 'stay';
+    final bool both = _daycareOn && _serviceGroup == 'both';
     final DiscountPromoPreviewResult preview =
         DiscountPromoPreview.forSurcharge(
           stayAmountPerNight: _parseAmount(_stayAmount),
@@ -318,7 +348,8 @@ class _ShopSpecialDateSurchargeFormPageState
           enabled: _enabled,
           allowCampaignDiscount: _allowCampaignDiscount,
           allowCoupon: _allowCoupon,
-          previewDaycare: both ? _previewDaycare : daycare && !stay,
+          previewDaycare:
+              _daycareOn && (both ? _previewDaycare : daycare && !stay),
         );
     return Scaffold(
       backgroundColor: Colors.grey.shade100,
@@ -411,6 +442,7 @@ class _ShopSpecialDateSurchargeFormPageState
               _card('適用服務與範圍', <Widget>[
                 DiscountServiceChoice(
                   services: _applicableServices,
+                  showDaycare: _daycareOn,
                   onChanged: (List<String> value) {
                     setState(() {
                       _applicableServices = value;
@@ -427,7 +459,7 @@ class _ShopSpecialDateSurchargeFormPageState
                   const SizedBox(height: 12),
                   DiscountToggleCard(
                     title: '全部房型／方案適用',
-                    subtitle: '關閉後可指定住宿房型或安親方案',
+                    subtitle: _daycareOn ? '關閉後可指定住宿房型或安親方案' : '關閉後可指定住宿房型',
                     value: _applyToAllRoomTypes,
                     onLabel: '全部適用',
                     offLabel: '指定範圍',
@@ -540,6 +572,7 @@ class _ShopSpecialDateSurchargeFormPageState
               DiscountPromoPreviewCard.fromResult(
                 preview,
                 header: both ? _previewSwitch() : null,
+                fallbackNote: _daycareOn ? null : '實際金額依訂單日期、房型、加購與優惠資格計算。',
               ),
               const SizedBox(height: 20),
               SizedBox(
@@ -671,13 +704,13 @@ class _ShopSpecialDateSurchargeFormPageState
   }
 
   String _rangeHint(int days) {
+    if (!_daycareOn || _serviceGroup == 'stay') {
+      return '共 $days 天／住宿 $days 晚';
+    }
     if (_serviceGroup == 'daycare') {
       return '共 $days 個服務日（每次安親加一次）';
     }
-    if (_serviceGroup == 'both') {
-      return '共 $days 天／住宿 $days 晚；安親依服務日每次加一次';
-    }
-    return '共 $days 天／住宿 $days 晚';
+    return '共 $days 天／住宿 $days 晚；安親依服務日每次加一次';
   }
 
   String get _serviceGroup {

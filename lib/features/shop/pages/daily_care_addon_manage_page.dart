@@ -3,7 +3,10 @@
 
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/models/daily_care_addon_plan.dart';
+import 'package:petnest_saas/core/models/daycare_settings_model.dart';
 import 'package:petnest_saas/core/services/daily_care_addon_service.dart';
+import 'package:petnest_saas/core/services/daycare_settings_service.dart';
+import 'package:petnest_saas/core/services/shop_service.dart';
 
 class DailyCareAddonManagePage extends StatefulWidget {
   const DailyCareAddonManagePage({super.key, required this.shopId});
@@ -18,49 +21,78 @@ class DailyCareAddonManagePage extends StatefulWidget {
 class _DailyCareAddonManagePageState extends State<DailyCareAddonManagePage> {
   @override
   Widget build(BuildContext context) {
+    return StreamBuilder<Map<String, dynamic>?>(
+      stream: ShopService.instance.streamShop(widget.shopId),
+      builder:
+          (
+            BuildContext context,
+            AsyncSnapshot<Map<String, dynamic>?> shopSnap,
+          ) {
+            return StreamBuilder<DaycareSettingsModel>(
+              stream: DaycareSettingsService.instance.stream(widget.shopId),
+              builder:
+                  (
+                    BuildContext context,
+                    AsyncSnapshot<DaycareSettingsModel> daycareSnap,
+                  ) {
+                    final bool daycareOn = DaycareSettingsService.instance
+                        .isEnabledForShop(
+                          shop: shopSnap.data,
+                          settings: daycareSnap.data,
+                        );
+                    return _plansBody(daycareOn);
+                  },
+            );
+          },
+    );
+  }
+
+  Widget _plansBody(bool daycareOn) {
     return Scaffold(
       appBar: AppBar(title: const Text('寵物寫真與照護回報方案')),
       floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => _edit(null),
+        onPressed: () => _edit(null, daycareOn: daycareOn),
         label: const Text('新增方案'),
         icon: const Icon(Icons.add),
       ),
       body: StreamBuilder<List<DailyCareAddonPlan>>(
         stream: DailyCareAddonService.instance.streamPlans(widget.shopId),
-        builder:
-            (
-              BuildContext context,
-              AsyncSnapshot<List<DailyCareAddonPlan>> snap,
-            ) {
-              final List<DailyCareAddonPlan> plans =
-                  snap.data ?? const <DailyCareAddonPlan>[];
-              if (plans.isEmpty) {
-                return const Center(child: Text('尚未建立照護加購方案。顧客端不會預先勾選付費項目。'));
-              }
-              return ListView.separated(
-                padding: const EdgeInsets.all(16),
-                itemCount: plans.length,
-                separatorBuilder: (_, __) => const SizedBox(height: 8),
-                itemBuilder: (BuildContext context, int index) {
-                  final DailyCareAddonPlan plan = plans[index];
-                  return ListTile(
-                    tileColor: Colors.white,
-                    title: Text(plan.name),
-                    subtitle: Text(
-                      '${plan.enabled ? '啟用' : '停用'}｜住宿每晚 ${plan.stayPricePerNight}｜安親每筆 ${plan.daycarePricePerVisit}\n'
-                      '增加 ${plan.extraReports} 次回報、${plan.extraPhotos} 張照片',
-                    ),
-                    isThreeLine: true,
-                    onTap: () => _edit(plan),
-                  );
-                },
+        builder: (BuildContext context, AsyncSnapshot<List<DailyCareAddonPlan>> snap) {
+          final List<DailyCareAddonPlan> plans =
+              snap.data ?? const <DailyCareAddonPlan>[];
+          if (plans.isEmpty) {
+            return const Center(child: Text('尚未建立照護加購方案。顧客端不會預先勾選付費項目。'));
+          }
+          return ListView.separated(
+            padding: const EdgeInsets.all(16),
+            itemCount: plans.length,
+            separatorBuilder: (_, __) => const SizedBox(height: 8),
+            itemBuilder: (BuildContext context, int index) {
+              final DailyCareAddonPlan plan = plans[index];
+              return ListTile(
+                tileColor: Colors.white,
+                title: Text(plan.name),
+                subtitle: Text(
+                  daycareOn
+                      ? '${plan.enabled ? '啟用' : '停用'}｜住宿每晚 ${plan.stayPricePerNight}｜安親每筆 ${plan.daycarePricePerVisit}\n'
+                            '增加 ${plan.extraReports} 次回報、${plan.extraPhotos} 張照片'
+                      : '${plan.enabled ? '啟用' : '停用'}｜住宿每晚 ${plan.stayPricePerNight}\n'
+                            '增加 ${plan.extraReports} 次回報、${plan.extraPhotos} 張照片',
+                ),
+                isThreeLine: true,
+                onTap: () => _edit(plan, daycareOn: daycareOn),
               );
             },
+          );
+        },
       ),
     );
   }
 
-  Future<void> _edit(DailyCareAddonPlan? existing) async {
+  Future<void> _edit(
+    DailyCareAddonPlan? existing, {
+    required bool daycareOn,
+  }) async {
     final TextEditingController name = TextEditingController(
       text: existing?.name ?? '寵物寫真與照護回報',
     );
@@ -110,12 +142,13 @@ class _DailyCareAddonManagePageState extends State<DailyCareAddonManagePage> {
                           onChanged: (bool? value) =>
                               setSt(() => stay = value ?? true),
                         ),
-                        CheckboxListTile(
-                          title: const Text('適用安親（按筆）'),
-                          value: daycare,
-                          onChanged: (bool? value) =>
-                              setSt(() => daycare = value ?? true),
-                        ),
+                        if (daycareOn)
+                          CheckboxListTile(
+                            title: const Text('適用安親（按筆）'),
+                            value: daycare,
+                            onChanged: (bool? value) =>
+                                setSt(() => daycare = value ?? true),
+                          ),
                         DropdownButtonFormField<int>(
                           initialValue: reports,
                           decoration: const InputDecoration(
@@ -152,13 +185,14 @@ class _DailyCareAddonManagePageState extends State<DailyCareAddonManagePage> {
                             labelText: '住宿價格（每晚）',
                           ),
                         ),
-                        TextField(
-                          controller: daycarePrice,
-                          keyboardType: TextInputType.number,
-                          decoration: const InputDecoration(
-                            labelText: '安親價格（每筆）',
+                        if (daycareOn)
+                          TextField(
+                            controller: daycarePrice,
+                            keyboardType: TextInputType.number,
+                            decoration: const InputDecoration(
+                              labelText: '安親價格（每筆）',
+                            ),
                           ),
-                        ),
                       ],
                     ),
                   ),

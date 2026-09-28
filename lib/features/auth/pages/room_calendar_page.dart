@@ -31,6 +31,7 @@ class RoomCalendarPage extends StatefulWidget {
     this.embedded = false,
     this.embeddedHeader,
     this.room = const <String, dynamic>{},
+    this.embeddedDetail,
   });
 
   final String shopId;
@@ -49,6 +50,10 @@ class RoomCalendarPage extends StatefulWidget {
   /// 桌機房務總覽帶入的房間文件，讓左右兩側的日期狀態判定完全一致。
   /// 手機完整頁不帶入，維持原本判定。
   final Map<String, dynamic> room;
+
+  /// 桌機房務總覽用來取代右側「日期詳細資訊」的內容。
+  /// 手機完整頁不帶入，仍顯示原本的日期詳細資訊。
+  final Widget? embeddedDetail;
 
   @override
   State<RoomCalendarPage> createState() => _RoomCalendarPageState();
@@ -879,7 +884,7 @@ class _RoomCalendarPageState extends State<RoomCalendarPage> {
               ),
             ),
             const Divider(height: 1, thickness: 1, color: Color(0xFFE5E7EB)),
-            Expanded(child: _embeddedDetailScroll()),
+            Expanded(child: widget.embeddedDetail ?? _embeddedDetailScroll()),
           ],
         );
       },

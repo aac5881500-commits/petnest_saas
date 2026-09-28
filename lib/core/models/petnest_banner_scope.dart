@@ -25,9 +25,10 @@ class HomeBannerActionTypes {
     faq,
     store,
     product,
+    url,
   ];
 
-  static const List<String> all = <String>[...editorTypes, url];
+  static const List<String> all = editorTypes;
 
   static String label(String type) {
     switch (type) {

@@ -42,10 +42,8 @@ import 'package:petnest_saas/core/models/custom_form_pet_condition.dart';
 import 'package:petnest_saas/core/services/custom_form_service.dart';
 import 'package:petnest_saas/features/shop/widgets/booking/booking_step_widgets.dart';
 import 'package:petnest_saas/features/shop/widgets/booking/policy_sign_method_field.dart';
-import 'package:petnest_saas/core/models/daily_care_addon_plan.dart';
 import 'package:petnest_saas/core/models/daily_care_entitlement.dart';
 import 'package:petnest_saas/core/models/daily_care_setting_model.dart';
-import 'package:petnest_saas/core/services/daily_care_addon_service.dart';
 import 'package:petnest_saas/core/services/daily_care_entitlement_math.dart';
 import 'package:petnest_saas/core/services/daily_care_photo_function_service.dart';
 import 'package:petnest_saas/core/services/daily_care_setting_service.dart';
@@ -135,7 +133,6 @@ class _AdminCreateBookingPageState extends State<AdminCreateBookingPage> {
   bool _firstBookingLoading = false;
   Map<String, dynamic>? _selectedTimeAddon;
   DailyCareSettingModel _dailyCareSetting = const DailyCareSettingModel();
-  List<DailyCareAddonPlan> _dailyCarePlans = <DailyCareAddonPlan>[];
   String? _selectedDailyCareAddonId;
   final List<Map<String, dynamic>> _selectedValueServices = [];
   final Set<String> _selectedAddonNames = <String>{};
@@ -311,34 +308,41 @@ class _AdminCreateBookingPageState extends State<AdminCreateBookingPage> {
   }
 
   Future<void> _loadAddons() async {
-    final doc = await FirebaseFirestore.instance
-        .collection('shops')
-        .doc(widget.shopId)
-        .collection('addons')
-        .doc('main')
-        .get();
-
-    final data = doc.data();
-
-    setState(() {
-      _addonData = data;
-      _addonLoading = false;
-    });
+    try {
+      final doc = await FirebaseFirestore.instance
+          .collection('shops')
+          .doc(widget.shopId)
+          .collection('addons')
+          .doc('main')
+          .get();
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _addonData = doc.data();
+        _addonLoading = false;
+      });
+    } catch (error) {
+      debugPrint('讀取住宿加購失敗：$error');
+      if (mounted) {
+        setState(() {
+          _addonLoading = false;
+        });
+      }
+    }
     try {
       final DailyCareSettingModel setting = await DailyCareSettingService
           .instance
           .getSetting(widget.shopId);
-      final List<DailyCareAddonPlan> plans = await DailyCareAddonService
-          .instance
-          .listPlans(widget.shopId);
       if (!mounted) {
         return;
       }
       setState(() {
         _dailyCareSetting = setting;
-        _dailyCarePlans = plans;
       });
-    } catch (_) {}
+    } catch (error) {
+      debugPrint('讀取每日照護設定失敗：$error');
+    }
   }
 
   DailyCareEntitlement? _dailyCareQuote() {
@@ -1217,6 +1221,7 @@ class _AdminCreateBookingPageState extends State<AdminCreateBookingPage> {
                     setState(() {
                       _startDate = _tempStartDate;
                       _endDate = _tempEndDate;
+                      _selectedDailyCareAddonId = null;
                       _rangeMessage = '';
                     });
 

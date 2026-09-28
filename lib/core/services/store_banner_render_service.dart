@@ -16,15 +16,34 @@ class StoreBannerRenderService {
   static final StoreBannerRenderService instance = StoreBannerRenderService._();
 
   static const int targetWidth = 1600;
+  static const int targetHeight = 900;
   static const int jpegQuality = 86;
 
-  Future<Uint8List> captureJpeg(GlobalKey key) async {
+  /// 發布用畫布。不論來源尺寸，成品都是 1600 × 900。
+  static img.Image fitHomeCanvas(img.Image source) {
+    if (source.width == targetWidth && source.height == targetHeight) {
+      return source;
+    }
+    return img.copyResize(
+      source,
+      width: targetWidth,
+      height: targetHeight,
+      interpolation: img.Interpolation.average,
+    );
+  }
+
+  Future<Uint8List> captureJpeg(
+    GlobalKey key, {
+    bool fixedHomeCanvas = false,
+  }) async {
     final BuildContext? context = key.currentContext;
     final RenderObject? renderObject = context?.findRenderObject();
     if (renderObject is! RenderRepaintBoundary) {
       throw const InventoryException('海報預覽尚未準備好，請稍候再發布');
     }
-    final ui.Image image = await renderObject.toImage(pixelRatio: 2);
+    final ui.Image image = await renderObject.toImage(
+      pixelRatio: fixedHomeCanvas ? 1 : 2,
+    );
     final ByteData? data = await image.toByteData(
       format: ui.ImageByteFormat.png,
     );
@@ -35,10 +54,11 @@ class StoreBannerRenderService {
     if (decoded == null) {
       throw const InventoryException('海報合成失敗，請重試');
     }
-    img.Image resized = decoded;
-    if (decoded.width > targetWidth) {
-      resized = img.copyResize(decoded, width: targetWidth);
-    }
+    final img.Image resized = fixedHomeCanvas
+        ? fitHomeCanvas(decoded)
+        : (decoded.width > targetWidth
+              ? img.copyResize(decoded, width: targetWidth)
+              : decoded);
     int quality = jpegQuality;
     Uint8List jpeg = Uint8List.fromList(
       img.encodeJpg(resized, quality: quality),

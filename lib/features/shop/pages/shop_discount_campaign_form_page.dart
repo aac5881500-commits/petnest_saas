@@ -2,6 +2,8 @@
 // 功能說明：依優惠類型顯示對應條件，完成設定後才建立優惠活動
 // 🏷️ 新增優惠活動設定頁
 
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -13,6 +15,7 @@ import '../../../core/services/daycare_settings_service.dart';
 import '../../../core/services/discount_campaign_service.dart';
 import '../../../core/services/discount_promo_preview.dart';
 import '../../../core/services/shop_room_service.dart';
+import '../../../core/services/shop_service.dart';
 import '../../../features/shop/widgets/discount_campaign_type_picker.dart';
 import '../../../features/shop/widgets/discount_hub_host.dart';
 import '../../../features/shop/widgets/discount_promo_preview_card.dart';
@@ -41,6 +44,7 @@ class _ShopDiscountCampaignComposerState
     final DiscountCampaignType? type = _type;
     if (type == null) {
       return DiscountCampaignTypePickerPage(
+        shopId: widget.shopId,
         onPicked: (DiscountCampaignType value) {
           setState(() {
             _type = value;
@@ -131,6 +135,10 @@ class _ShopDiscountCampaignFormPageState
   List<String> _applicableServices = List<String>.from(
     PolicyApplicableService.accommodationOnly,
   );
+  bool _daycareOn = false;
+  StreamSubscription<Map<String, dynamic>?>? _shopSub;
+
+  bool get _showDaycareChoices => _daycareOn;
 
   bool get _needsDateRange {
     return widget.campaignType == DiscountCampaignType.stayDate ||
@@ -224,6 +232,30 @@ class _ShopDiscountCampaignFormPageState
       }
     }
     _previewDaycare = _includesDaycare && !_includesStay;
+    _shopSub = ShopService.instance.streamShop(widget.shopId).listen((
+      Map<String, dynamic>? shop,
+    ) {
+      final bool on = DaycareSettingsService.instance.isEnabledForShop(
+        shop: shop,
+      );
+      if (!mounted || on == _daycareOn) {
+        return;
+      }
+      setState(() {
+        _daycareOn = on;
+        if (!on) {
+          _previewDaycare = false;
+          if (widget.campaign == null) {
+            final DiscountCampaignTypeMeta full = DiscountCampaignTypeMeta.of(
+              widget.campaignType,
+            );
+            if (_nameController.text == full.title) {
+              _nameController.text = full.presented(daycareOn: false).title;
+            }
+          }
+        }
+      });
+    });
     _nameController.addListener(_refresh);
     _descriptionController.addListener(_refresh);
     _discountValueController.addListener(_refresh);
@@ -267,6 +299,7 @@ class _ShopDiscountCampaignFormPageState
     _maximumDiscountController.dispose();
     _memberUsageLimitController.dispose();
     _totalUsageLimitController.dispose();
+    _shopSub?.cancel();
     super.dispose();
   }
 
@@ -279,7 +312,9 @@ class _ShopDiscountCampaignFormPageState
   }
 
   String _campaignTypeLabel() {
-    return DiscountCampaignTypeMeta.of(widget.campaignType).title;
+    return DiscountCampaignTypeMeta.of(
+      widget.campaignType,
+    ).presented(daycareOn: _showDaycareChoices).title;
   }
 
   String _dateText(DateTime? date, {bool withTime = false}) {
@@ -487,9 +522,13 @@ class _ShopDiscountCampaignFormPageState
       _showMessage('請選擇活動開始與結束日期');
       return false;
     }
-    if (_needsRoomTypes && _selectedRoomTypeIds.isEmpty) {
+    if (_needsRoomTypes &&
+        _selectedRoomTypeIds.isEmpty &&
+        (_showDaycareChoices || _includesStay)) {
       _showMessage(
-        _includesDaycare && !_includesStay ? '請至少選擇一個安親方案／房型' : '請至少選擇一個適用房型',
+        _showDaycareChoices && _includesDaycare && !_includesStay
+            ? '請至少選擇一個安親方案／房型'
+            : '請至少選擇一個適用房型',
       );
       return false;
     }
@@ -1040,6 +1079,7 @@ class _ShopDiscountCampaignFormPageState
     return _card('適用服務與條件', <Widget>[
       DiscountServiceChoice(
         services: _applicableServices,
+        showDaycare: _showDaycareChoices,
         lockedStayOnly: longStay,
         lockReason: '此類型不適用',
         onChanged: (List<String> value) {
@@ -1073,7 +1113,7 @@ class _ShopDiscountCampaignFormPageState
         ),
         const SizedBox(height: 8),
         Text(
-          '以住宿晚數計算，安親不適用。',
+          _showDaycareChoices ? '以住宿晚數計算，安親不適用。' : '以住宿晚數計算。',
           style: TextStyle(fontSize: 12, color: Colors.grey.shade700),
         ),
       ],
@@ -1153,11 +1193,11 @@ class _ShopDiscountCampaignFormPageState
           ),
           const SizedBox(height: 6),
           Text(
-            '住宿優惠晚數可分次使用。安親不會使用免費住宿晚數。',
+            _showDaycareChoices ? '住宿優惠晚數可分次使用。安親不會使用免費住宿晚數。' : '住宿優惠晚數可分次使用。',
             style: TextStyle(fontSize: 12, color: Colors.grey.shade700),
           ),
         ],
-        if (_includesDaycare) ...<Widget>[
+        if (_showDaycareChoices && _includesDaycare) ...<Widget>[
           const SizedBox(height: 12),
           _narrowField(
             TextFormField(
@@ -1294,7 +1334,9 @@ class _ShopDiscountCampaignFormPageState
                   if (_limitedTimeHelpOpen) ...<Widget>[
                     const SizedBox(height: 8),
                     Text(
-                      '會員必須在你設定的下單期間內完成預約才享有優惠。住宿或安親服務日期可以在期間結束之後。例如活動 7/20–7/25，7/23 下單、8 月入住仍可套用。',
+                      _showDaycareChoices
+                          ? '會員必須在你設定的下單期間內完成預約才享有優惠。住宿或安親服務日期可以在期間結束之後。例如活動 7/20–7/25，7/23 下單、8 月入住仍可套用。'
+                          : '會員必須在你設定的下單期間內完成預約才享有優惠。住宿日期可以在期間結束之後。例如活動 7/20–7/25，7/23 下單、8 月入住仍可套用。',
                       style: TextStyle(
                         fontSize: 13,
                         color: Colors.grey.shade800,
@@ -1420,9 +1462,11 @@ class _ShopDiscountCampaignFormPageState
                             items: lodging,
                             emptyText: '目前尚未建立住宿房型。',
                           ),
-                        if (_includesStay && _includesDaycare)
+                        if (_includesStay &&
+                            _showDaycareChoices &&
+                            _includesDaycare)
                           const SizedBox(height: 14),
-                        if (_includesDaycare)
+                        if (_showDaycareChoices && _includesDaycare)
                           _chipWrap(
                             title: daycare?.isRoomBased == true
                                 ? '安親房型'
@@ -1541,14 +1585,17 @@ class _ShopDiscountCampaignFormPageState
   }
 
   Widget _previewCard() {
-    final bool both = _includesStay && _includesDaycare;
+    final bool both = _showDaycareChoices && _includesStay && _includesDaycare;
     final DiscountPromoPreviewResult result =
         DiscountPromoPreview.forCampaignResult(
           campaign: _previewCampaign,
-          previewDaycare: both ? _previewDaycare : _includesDaycare,
+          previewDaycare:
+              _showDaycareChoices &&
+              (both ? _previewDaycare : _includesDaycare),
         );
     return DiscountPromoPreviewCard.fromResult(
       result,
+      fallbackNote: _showDaycareChoices ? null : '實際金額依訂單日期、房型、加購與優惠資格計算。',
       header: both
           ? SegmentedButton<bool>(
               showSelectedIcon: false,

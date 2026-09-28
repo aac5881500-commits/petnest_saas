@@ -16,6 +16,19 @@ const {
   nextRecordPhotoCount,
 } = require("./daily_care_expiry");
 
+test("台北 9/27 的回報文件 ID 不因 UTC 少一天", () => {
+  assert.equal(compactDateKey("2026-09-27T00:00:00.000"), "20260927");
+  assert.equal(compactDateKey("2026-09-26T16:00:00.000Z"), "20260927");
+  assert.equal(
+      expectedDailyCareRecordId("booking123", "20260927", 0),
+      "booking123_20260927_0",
+  );
+  assert.equal(
+      expectedDailyCareRecordId("booking123", "2026-09-27T00:00:00.000", 0),
+      "booking123_20260927_0",
+  );
+});
+
 if (!admin.apps.length) {
   admin.initializeApp({projectId: "petnest-saas-test"});
 }

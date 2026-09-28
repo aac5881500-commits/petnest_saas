@@ -8,7 +8,6 @@ import 'package:petnest_saas/core/models/home_theme_model.dart';
 import 'package:petnest_saas/core/models/policy_applicable_service.dart';
 import 'package:petnest_saas/core/services/booking_entry_card_service.dart';
 import 'package:petnest_saas/core/services/daycare_settings_service.dart';
-import 'package:petnest_saas/core/services/daycare_enabled.dart';
 import 'package:petnest_saas/core/services/shop_service.dart';
 import 'package:petnest_saas/features/auth/pages/login_page.dart';
 import 'package:petnest_saas/features/shop/pages/shop_booking_page.dart';
@@ -128,21 +127,6 @@ class ShopBookingEntryPage extends StatelessWidget {
                     final bool daycareOn = DaycareSettingsService.instance
                         .isEnabledForShop(shop: shop, settings: settings);
                     if (!daycareOn) {
-                      if (initialDaycare) {
-                        return Scaffold(
-                          appBar: AppBar(title: const Text('安親預約')),
-                          body: const Center(
-                            child: Padding(
-                              padding: EdgeInsets.all(24),
-                              child: Text(
-                                DaycareEnabled.closedMessage,
-                                textAlign: TextAlign.center,
-                                style: TextStyle(fontSize: 18),
-                              ),
-                            ),
-                          ),
-                        );
-                      }
                       return _GatedStayBooking(
                         shopId: shopId,
                         preSelectedRoomType: preSelectedRoomType,

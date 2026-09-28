@@ -21,6 +21,8 @@ import 'package:petnest_saas/core/services/member_coupon_service.dart';
 import 'package:petnest_saas/core/services/member_point_service.dart';
 import 'package:petnest_saas/core/services/point_redemption_service.dart';
 import 'package:petnest_saas/core/services/point_reward_service.dart';
+import 'package:petnest_saas/core/services/daycare_settings_service.dart';
+import 'package:petnest_saas/core/services/shop_service.dart';
 import 'package:petnest_saas/core/services/special_date_surcharge_service.dart';
 import 'package:petnest_saas/core/widgets/point_module_visibility.dart';
 import 'package:petnest_saas/features/admin/pages/admin_coupon_center_page.dart';
@@ -170,6 +172,7 @@ class _DiscountSettingHubState extends State<_DiscountSettingHub> {
   String? _busyCampaignId;
   Widget? _workspace;
   bool _desktopLayout = false;
+  bool _daycareOn = false;
 
   @override
   void initState() {
@@ -225,6 +228,21 @@ class _DiscountSettingHubState extends State<_DiscountSettingHub> {
       });
     }
 
+    _subs.add(
+      ShopService.instance.streamShop(widget.shopId).listen((
+        Map<String, dynamic>? shop,
+      ) {
+        final bool on = DaycareSettingsService.instance.isEnabledForShop(
+          shop: shop,
+        );
+        if (!mounted || on == _daycareOn) {
+          return;
+        }
+        setState(() {
+          _daycareOn = on;
+        });
+      }),
+    );
     _subs.add(
       SpecialDateSurchargeService.instance
           .streamSurcharges(widget.shopId)
@@ -540,6 +558,7 @@ class _DiscountSettingHubState extends State<_DiscountSettingHub> {
         final bool desktop = constraints.maxWidth >= 980;
         _desktopLayout = desktop;
         final Widget tools = _ToolsColumn(
+          daycareOn: _daycareOn,
           shopId: widget.shopId,
           snapshot: _snapshot,
           expandedGroups: _expandedGroups,
@@ -562,6 +581,7 @@ class _DiscountSettingHubState extends State<_DiscountSettingHub> {
           onOpenCouponCenter: _openCoupons,
         );
         final Widget overview = _OverviewColumn(
+          daycareOn: _daycareOn,
           snapshot: _snapshot,
           tab: _leftTab,
           onTab: _selectTab,
@@ -651,6 +671,7 @@ class _DiscountSettingHubState extends State<_DiscountSettingHub> {
           child: SizedBox(
             height: MediaQuery.sizeOf(context).height * 0.72,
             child: _OverviewColumn(
+              daycareOn: _daycareOn,
               snapshot: _snapshot,
               tab: tab,
               onTab: (_) {},
@@ -801,6 +822,7 @@ class _MiniStat extends StatelessWidget {
 
 class _OverviewColumn extends StatelessWidget {
   const _OverviewColumn({
+    required this.daycareOn,
     required this.snapshot,
     required this.tab,
     required this.onTab,
@@ -821,6 +843,7 @@ class _OverviewColumn extends StatelessWidget {
     this.hideTabs = false,
   });
 
+  final bool daycareOn;
   final _HubSnapshot snapshot;
   final _LeftTab tab;
   final ValueChanged<_LeftTab> onTab;
@@ -955,7 +978,9 @@ class _OverviewColumn extends StatelessWidget {
 
   Widget _surchargeCard(SpecialDateSurchargeModel item) {
     final int days = item.endDate.difference(item.startDate).inDays.abs() + 1;
-    final String amount = item.appliesToAccommodation && item.appliesToDaycare
+    final String amount = !daycareOn
+        ? '每晚 +NT\$${item.amountPerNight}'
+        : item.appliesToAccommodation && item.appliesToDaycare
         ? '住宿每晚 +NT\$${item.amountPerNight}・安親每次 +NT\$${item.amountPerNight}'
         : item.appliesToDaycare
         ? '每次／每場 +NT\$${item.amountPerNight}'
@@ -966,8 +991,12 @@ class _OverviewColumn extends StatelessWidget {
       lines: <String>[
         '${_dateText(item.startDate)} ～ ${_dateText(item.endDate)}（$days 天）',
         amount,
-        '適用服務：${PolicyApplicableService.displayLabel(item.applicableServices)}',
-        '適用範圍：${item.roomTypeIds.isEmpty ? '全部房型／方案' : '指定房型／方案'}',
+        daycareOn
+            ? '適用服務：${PolicyApplicableService.displayLabel(item.applicableServices)}'
+            : '適用服務：住宿',
+        daycareOn
+            ? '適用範圍：${item.roomTypeIds.isEmpty ? '全部房型／方案' : '指定房型／方案'}'
+            : '適用範圍：${item.roomTypeIds.isEmpty ? '全部房型' : '指定房型'}',
         '可與自動優惠併用：${item.allowCampaignDiscount ? '是' : '否'}',
         '可使用優惠券：${item.allowCoupon ? '是' : '否'}',
         item.enabled ? '啟用中' : '已停用',
@@ -1009,9 +1038,11 @@ class _OverviewColumn extends StatelessWidget {
       color: Colors.green,
       title: item.name,
       lines: <String>[
-        _campaignTypeName(item.type),
+        _campaignTypeName(item.type, daycareOn: daycareOn),
         '$benefit$max',
-        '適用服務：${PolicyApplicableService.displayLabel(item.applicableServices)}',
+        daycareOn
+            ? '適用服務：${PolicyApplicableService.displayLabel(item.applicableServices)}'
+            : '適用服務：住宿',
         '計算範圍：${DiscountCampaignCustomerCopy.applyTargetLabel(item.applyTarget)}',
         _campaignCondition(item),
         '每位會員 ${item.memberUsageLimit == 0 ? '不限次數' : '${item.memberUsageLimit} 次'}'
@@ -1101,7 +1132,13 @@ String _dateText(DateTime date) {
   return '${date.year}/${date.month.toString().padLeft(2, '0')}/${date.day.toString().padLeft(2, '0')}';
 }
 
-String _campaignTypeName(DiscountCampaignType type) {
+String _campaignTypeName(DiscountCampaignType type, {bool daycareOn = true}) {
+  if (!daycareOn && type == DiscountCampaignType.roomType) {
+    return '指定房型優惠';
+  }
+  if (!daycareOn && type == DiscountCampaignType.stayDate) {
+    return '指定住宿日期優惠';
+  }
   return switch (type) {
     DiscountCampaignType.newMember => '新會員優惠',
     DiscountCampaignType.longStay => '長住優惠',
@@ -1302,6 +1339,7 @@ class _ManageCard extends StatelessWidget {
 
 class _ToolsColumn extends StatelessWidget {
   const _ToolsColumn({
+    required this.daycareOn,
     required this.shopId,
     required this.snapshot,
     required this.expandedGroups,
@@ -1316,6 +1354,7 @@ class _ToolsColumn extends StatelessWidget {
     required this.onOpenCouponCenter,
   });
 
+  final bool daycareOn;
   final String shopId;
   final _HubSnapshot snapshot;
   final Set<String> expandedGroups;
@@ -1358,7 +1397,9 @@ class _ToolsColumn extends StatelessWidget {
         _GroupCard(
           id: 'price',
           title: '價格規則',
-          description: '設定連假、節日或指定日期的住宿／安親加價規則。',
+          description: daycareOn
+              ? '設定連假、節日或指定日期的住宿／安親加價規則。'
+              : '設定連假、節日或指定日期的住宿加價規則。',
           color: Colors.deepOrange,
           expanded: desktop || expandedGroups.contains('price'),
           desktop: desktop,
@@ -1368,7 +1409,9 @@ class _ToolsColumn extends StatelessWidget {
               icon: Icons.add_circle_outline,
               color: Colors.deepOrange,
               title: '特殊日期加價',
-              description: '設定連假、節日或指定日期的住宿／安親加價規則。',
+              description: daycareOn
+                  ? '設定連假、節日或指定日期的住宿／安親加價規則。'
+                  : '設定連假、節日或指定日期的住宿加價規則。',
               badge: snapshot.enabledSurcharges.isEmpty
                   ? '尚無設定'
                   : '${snapshot.enabledSurcharges.length} 個規則啟用中',
@@ -1392,7 +1435,9 @@ class _ToolsColumn extends StatelessWidget {
               icon: Icons.local_offer_outlined,
               color: Colors.green,
               title: '自動優惠活動',
-              description: '訂單符合條件時自動折抵，可指定住宿、安親或兩者。',
+              description: daycareOn
+                  ? '訂單符合條件時自動折抵，可指定住宿、安親或兩者。'
+                  : '訂單符合條件時自動折抵，套用在住宿訂單。',
               badge: snapshot.enabledCampaigns.isEmpty
                   ? '尚無設定'
                   : '${snapshot.enabledCampaigns.length} 個活動啟用中',

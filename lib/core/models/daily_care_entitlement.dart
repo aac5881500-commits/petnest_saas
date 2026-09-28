@@ -87,6 +87,26 @@ class DailyCareEntitlement {
     return '本日應回報 $finalReports 場';
   }
 
+  /// 訂單已寫入 finalReports 時，以這份快照為準，不再改用店家目前場次。
+  static bool hasExplicitFinalReports(Map<String, dynamic> booking) {
+    final Object? raw = booking['dailyCareEntitlement'];
+    return raw is Map && raw.containsKey('finalReports');
+  }
+
+  /// 快照明確寫 finalReports 小於 1。沒有這個欄位的舊訂單不算。
+  static bool explicitlyNoReports(Map<String, dynamic> booking) {
+    if (!hasExplicitFinalReports(booking)) {
+      return false;
+    }
+    final Object? value =
+        (booking['dailyCareEntitlement'] as Map)['finalReports'];
+    if (value is num) {
+      return value < 1;
+    }
+    final int? parsed = int.tryParse(value?.toString() ?? '');
+    return parsed != null && parsed < 1;
+  }
+
   factory DailyCareEntitlement.fromMap(Map<String, dynamic>? map) {
     if (map == null) {
       return const DailyCareEntitlement();

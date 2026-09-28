@@ -3,6 +3,7 @@
 
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:petnest_saas/core/models/home_theme_model.dart';
 import 'package:petnest_saas/core/models/store_banner_model.dart';
 import 'package:petnest_saas/core/models/store_product_model.dart';
@@ -107,6 +108,10 @@ class HomeBannerNavigation {
         );
         return;
       case HomeBannerActionTypes.url:
+        final Uri? uri = Uri.tryParse(banner.actionTargetId.trim());
+        if (uri != null && isSafeHttpUrl(banner.actionTargetId)) {
+          await launchUrl(uri, mode: LaunchMode.externalApplication);
+        }
         return;
       default:
         return;

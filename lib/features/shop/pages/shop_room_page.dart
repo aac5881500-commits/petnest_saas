@@ -201,7 +201,7 @@ class _ShopRoomPageState extends State<ShopRoomPage> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const Text(
-                  '這些房間的 rooms.status=cleaning 是舊版安親結算寫入的永久髒資料，確認後只會清掉該欄位，不會解鎖維修／封鎖房。',
+                  '這些房間的 rooms.status=cleaning 是舊版結算寫入的永久髒資料，確認後只會清掉該欄位，不會解鎖維修／封鎖房。',
                 ),
                 const SizedBox(height: 12),
                 ...legacy.map((Map<String, dynamic> room) {

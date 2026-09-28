@@ -16,14 +16,65 @@ import '../../../core/models/daily_care_report_mode.dart';
 import '../../../core/models/daily_care_session_status.dart';
 import '../../../core/models/daily_care_setting_model.dart';
 import '../../../core/models/daily_care_stay_info.dart';
+import '../../../core/services/daily_care_photo_function_service.dart';
 import '../../../core/services/daily_care_photo_service.dart';
 import '../../../core/services/daily_care_record_service.dart';
+import '../../../core/services/daily_care_report_eligibility.dart';
+import '../../../core/services/daycare_function_service.dart';
 import '../../../core/services/daily_care_report_export_service.dart';
 import '../../room/daily_care_record_edit_launcher.dart';
 import '../../room/widgets/daily_care_record_editor.dart';
 
 /// 歷史未完成專用色：中性灰紅，不能和橘色「待填」混用。
 const Color historyIncompleteColor = Color(0xFF8D6E63);
+
+DailyCareReportCenterBookingDayGroup? _bookingGroupForKey(
+  List<DailyCareReportCenterItem> items,
+  String key,
+) {
+  final List<DailyCareReportCenterItem> sessions =
+      items
+          .where(
+            (DailyCareReportCenterItem item) =>
+                '${DailyCareDateHelper.dateKey(item.recordDate)}#${item.bookingId}' ==
+                key,
+          )
+          .toList()
+        ..sort(
+          (DailyCareReportCenterItem a, DailyCareReportCenterItem b) =>
+              a.sessionIndex.compareTo(b.sessionIndex),
+        );
+  if (sessions.isEmpty) {
+    return null;
+  }
+  return DailyCareReportCenterBookingDayGroup(sessions: sessions);
+}
+
+class _ShowDaycareScope extends InheritedWidget {
+  const _ShowDaycareScope({required this.show, required super.child});
+
+  final bool show;
+
+  static bool showOf(BuildContext context) {
+    final _ShowDaycareScope? scope = context
+        .dependOnInheritedWidgetOfExactType<_ShowDaycareScope>();
+    return scope?.show ?? true;
+  }
+
+  @override
+  bool updateShouldNotify(_ShowDaycareScope oldWidget) {
+    return show != oldWidget.show;
+  }
+}
+
+String _completedClock(DateTime? value) {
+  if (value == null) {
+    return '';
+  }
+  final DateTime local = value.toLocal();
+  String two(int number) => number.toString().padLeft(2, '0');
+  return '${two(local.hour)}:${two(local.minute)}';
+}
 
 class DailyCareReportCenterBoard extends StatefulWidget {
   const DailyCareReportCenterBoard({
@@ -34,6 +85,7 @@ class DailyCareReportCenterBoard extends StatefulWidget {
     required this.onStatus,
     required this.type,
     required this.onType,
+    this.showDaycareFilter = true,
     this.query = '',
     this.onQuery,
     this.focusBookingId = '',
@@ -54,6 +106,9 @@ class DailyCareReportCenterBoard extends StatefulWidget {
   final ValueChanged<DailyCareReportCenterStatusFilter> onStatus;
   final DailyCareReportCenterTypeFilter type;
   final ValueChanged<DailyCareReportCenterTypeFilter> onType;
+
+  /// 安親關閉時不顯示類型切換與安親標籤。
+  final bool showDaycareFilter;
   final String query;
   final ValueChanged<String>? onQuery;
   final String focusBookingId;
@@ -120,6 +175,13 @@ class _DailyCareReportCenterBoardState
 
   @override
   Widget build(BuildContext context) {
+    return _ShowDaycareScope(
+      show: widget.showDaycareFilter,
+      child: _unscoped(context),
+    );
+  }
+
+  Widget _unscoped(BuildContext context) {
     if (widget.embedded) {
       return _EmbeddedBoard(
         snapshot: widget.snapshot,
@@ -276,10 +338,11 @@ class _EmbeddedBoard extends StatelessWidget {
           padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
           child: Row(
             children: <Widget>[
-              _MiniChip(
-                label: primary.typeLabel,
-                color: const Color(0xFF3949AB),
-              ),
+              if (_ShowDaycareScope.showOf(context) || !primary.isDaycare)
+                _MiniChip(
+                  label: primary.typeLabel,
+                  color: const Color(0xFF3949AB),
+                ),
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
@@ -637,6 +700,7 @@ class _TypeTabs extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final bool showDaycare = _ShowDaycareScope.showOf(context);
     return SizedBox(
       width: double.infinity,
       child: SingleChildScrollView(
@@ -652,10 +716,11 @@ class _TypeTabs extends StatelessWidget {
               value: DailyCareReportCenterTypeFilter.stay,
               label: Text('住宿 ${snapshot.stayCount}'),
             ),
-            ButtonSegment<DailyCareReportCenterTypeFilter>(
-              value: DailyCareReportCenterTypeFilter.daycare,
-              label: Text('安親 ${snapshot.daycareCount}'),
-            ),
+            if (showDaycare)
+              ButtonSegment<DailyCareReportCenterTypeFilter>(
+                value: DailyCareReportCenterTypeFilter.daycare,
+                label: Text('安親 ${snapshot.daycareCount}'),
+              ),
           ],
           selected: <DailyCareReportCenterTypeFilter>{type},
           onSelectionChanged: (Set<DailyCareReportCenterTypeFilter> value) {
@@ -761,7 +826,7 @@ class _FilterRail extends StatelessWidget {
         padding: EdgeInsets.fromLTRB(16, 8, 16, 4),
         child: Text('分類', style: TextStyle(fontWeight: FontWeight.w800)),
       ),
-      _typeTiles(),
+      _typeTiles(context),
       const Padding(
         padding: EdgeInsets.fromLTRB(16, 16, 16, 4),
         child: Text('狀態', style: TextStyle(fontWeight: FontWeight.w800)),
@@ -787,7 +852,8 @@ class _FilterRail extends StatelessWidget {
     );
   }
 
-  Widget _typeTiles() {
+  Widget _typeTiles(BuildContext context) {
+    final bool showDaycare = _ShowDaycareScope.showOf(context);
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: <Widget>[
@@ -803,12 +869,13 @@ class _FilterRail extends StatelessWidget {
           type == DailyCareReportCenterTypeFilter.stay,
           () => onType(DailyCareReportCenterTypeFilter.stay),
         ),
-        _tile(
-          '安親',
-          snapshot.daycareCount,
-          type == DailyCareReportCenterTypeFilter.daycare,
-          () => onType(DailyCareReportCenterTypeFilter.daycare),
-        ),
+        if (showDaycare)
+          _tile(
+            '安親',
+            snapshot.daycareCount,
+            type == DailyCareReportCenterTypeFilter.daycare,
+            () => onType(DailyCareReportCenterTypeFilter.daycare),
+          ),
       ],
     );
   }
@@ -901,6 +968,110 @@ class _EmptyState extends StatelessWidget {
   }
 }
 
+class _StayDateRepairBar extends StatefulWidget {
+  const _StayDateRepairBar({required this.shopId, required this.bookingId});
+
+  final String shopId;
+  final String bookingId;
+
+  @override
+  State<_StayDateRepairBar> createState() => _StayDateRepairBarState();
+}
+
+class _StayDateRepairBarState extends State<_StayDateRepairBar> {
+  bool _busy = false;
+  bool _done = false;
+
+  Future<void> _repair() async {
+    if (_busy ||
+        widget.shopId.trim().isEmpty ||
+        widget.bookingId.trim().isEmpty) {
+      return;
+    }
+    setState(() => _busy = true);
+    try {
+      final Map<String, dynamic> result = await DailyCarePhotoFunctionService
+          .instance
+          .repairDailyCareRecordDates(
+            shopId: widget.shopId.trim(),
+            bookingId: widget.bookingId.trim(),
+          );
+      if (!mounted) {
+        return;
+      }
+      final bool repaired = result['repaired'] == true;
+      final String reason = (result['skippedReason'] ?? '').toString().trim();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            repaired ? '已校正回報日期' : (reason.isEmpty ? '未校正' : reason),
+          ),
+        ),
+      );
+      if (repaired) {
+        setState(() {
+          _busy = false;
+          _done = true;
+        });
+      } else {
+        setState(() => _busy = false);
+      }
+    } on DaycareFunctionException catch (error) {
+      if (!mounted) {
+        return;
+      }
+      setState(() => _busy = false);
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(error.message)));
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      setState(() => _busy = false);
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('校正失敗：$error')));
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_done) {
+      return const SizedBox.shrink();
+    }
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 0, 8, 8),
+      child: Row(
+        children: <Widget>[
+          const Icon(Icons.error_outline, size: 16, color: Color(0xFFC62828)),
+          const SizedBox(width: 4),
+          const Expanded(
+            child: Text(
+              '回報日期需校正',
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+                color: Color(0xFFC62828),
+              ),
+            ),
+          ),
+          TextButton(
+            onPressed: _busy ? null : _repair,
+            style: TextButton.styleFrom(
+              visualDensity: VisualDensity.compact,
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              minimumSize: const Size(0, 32),
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            ),
+            child: Text(_busy ? '校正中' : '校正回報日期'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _BookingCard extends StatelessWidget {
   const _BookingCard({
     required this.group,
@@ -955,10 +1126,12 @@ class _BookingCard extends StatelessWidget {
                           runSpacing: 4,
                           crossAxisAlignment: WrapCrossAlignment.center,
                           children: <Widget>[
-                            _MiniChip(
-                              label: item.typeLabel,
-                              color: const Color(0xFF3949AB),
-                            ),
+                            if (_ShowDaycareScope.showOf(context) ||
+                                !item.isDaycare)
+                              _MiniChip(
+                                label: item.typeLabel,
+                                color: const Color(0xFF3949AB),
+                              ),
                             Text(
                               item.bookingCode.isEmpty
                                   ? item.bookingId
@@ -1019,6 +1192,13 @@ class _BookingCard extends StatelessWidget {
               ),
             ),
           ),
+          if (DailyCareReportEligibility.stayServiceDatesNeedRepair(
+            isDaycare: item.isDaycare,
+            checkIn: item.checkInDate,
+            checkOut: item.checkOutDate,
+            serviceDates: item.entitlement.serviceDates,
+          ))
+            _StayDateRepairBar(shopId: item.shopId, bookingId: item.bookingId),
           if (expanded)
             Padding(
               padding: const EdgeInsets.fromLTRB(8, 0, 8, 10),
@@ -1127,7 +1307,9 @@ class _SessionRow extends StatelessWidget {
           const SizedBox(width: 6),
           Flexible(
             child: Text(
-              done ? '已完成・$photo' : photo,
+              done
+                  ? '已完成${_completedClock(session.completedAt).isEmpty ? '' : '・${_completedClock(session.completedAt)}'}・$photo'
+                  : photo,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
@@ -1368,7 +1550,7 @@ class _MasterDetailBoardState extends State<_MasterDetailBoard> {
   String _selectedKey = '';
   int? _selectedSession;
   bool _preview = false;
-  int _refreshToken = 0;
+  int _previewToken = 0;
 
   @override
   void initState() {
@@ -1396,8 +1578,21 @@ class _MasterDetailBoardState extends State<_MasterDetailBoard> {
           for (final DailyCareReportCenterDateGroup group in widget.groups)
             ...group.bookings,
         ];
+    if (_selectedKey.isNotEmpty &&
+        !rows.any(
+          (DailyCareReportCenterBookingDayGroup row) =>
+              row.expandKey == _selectedKey,
+        )) {
+      final DailyCareReportCenterBookingDayGroup? kept = _bookingGroupForKey(
+        widget.snapshot.items,
+        _selectedKey,
+      );
+      if (kept != null) {
+        rows.insert(0, kept);
+      }
+    }
 
-    // 選取結果只存在前端；清單變動時自動改選第一筆待填。
+    // 清單因完成而暫時離開「待填」時，仍留在原本這場，不要改選別筆。
     DailyCareReportCenterBookingDayGroup? selected;
     for (final DailyCareReportCenterBookingDayGroup row in rows) {
       if (row.expandKey == _selectedKey) {
@@ -1405,7 +1600,10 @@ class _MasterDetailBoardState extends State<_MasterDetailBoard> {
         break;
       }
     }
-    if (selected == null && rows.isNotEmpty) {
+    if (selected == null && _selectedKey.isNotEmpty) {
+      selected = _bookingGroupForKey(widget.snapshot.items, _selectedKey);
+    }
+    if (selected == null && _selectedKey.isEmpty && rows.isNotEmpty) {
       for (final DailyCareReportCenterBookingDayGroup row in rows) {
         if (row.hasPending) {
           selected = row;
@@ -1529,14 +1727,15 @@ class _MasterDetailBoardState extends State<_MasterDetailBoard> {
       }
       session ??= sessions.first;
     }
+    final DailyCareReportCenterItem current = session;
 
     return _QuickPanel(
-      key: ValueKey<String>('${group.expandKey}#${session.sessionIndex}'),
+      key: ValueKey<String>(group.expandKey),
       group: group,
-      session: session,
+      session: current,
       setting: widget.setting,
       preview: sameSelection ? _preview : false,
-      refreshToken: _refreshToken,
+      refreshToken: _previewToken,
       onSession: (int index) {
         setState(() {
           _selectedKey = group.expandKey;
@@ -1551,8 +1750,9 @@ class _MasterDetailBoardState extends State<_MasterDetailBoard> {
       },
       onSaved: () {
         setState(() {
-          _refreshToken++;
+          _previewToken++;
           _selectedKey = group.expandKey;
+          _selectedSession = current.sessionIndex;
           _preview = true;
         });
       },
@@ -1603,10 +1803,22 @@ class _MasterListCard extends StatelessWidget {
         historyIncompleteColor,
       DailyCareReportCenterItemStatus.completed => const Color(0xFF2E7D32),
     };
+    final String doneClock = _completedClock(
+      group.sessions
+          .map((DailyCareReportCenterItem item) => item.completedAt)
+          .whereType<DateTime>()
+          .fold<DateTime?>(null, (DateTime? latest, DateTime value) {
+            if (latest == null || value.isAfter(latest)) {
+              return value;
+            }
+            return latest;
+          }),
+    );
     final String statusLabel = switch (group.status) {
       DailyCareReportCenterItemStatus.pending => '待填 ${group.pendingCount} 場',
       DailyCareReportCenterItemStatus.historyIncomplete => '歷史未完成・已鎖定',
-      DailyCareReportCenterItemStatus.completed => '已完成',
+      DailyCareReportCenterItemStatus.completed =>
+        doneClock.isEmpty ? '已完成' : '已完成・$doneClock',
     };
     final bool expiringSoon = group.sessions.any(
       (DailyCareReportCenterItem session) => session.photoExpiringSoon(),
@@ -1641,10 +1853,11 @@ class _MasterListCard extends StatelessWidget {
               children: <Widget>[
                 Row(
                   children: <Widget>[
-                    _MiniChip(
-                      label: item.typeLabel,
-                      color: const Color(0xFF3949AB),
-                    ),
+                    if (_ShowDaycareScope.showOf(context) || !item.isDaycare)
+                      _MiniChip(
+                        label: item.typeLabel,
+                        color: const Color(0xFF3949AB),
+                      ),
                     const SizedBox(width: 6),
                     Expanded(
                       child: Text(
@@ -1812,10 +2025,11 @@ class _QuickPanel extends StatelessWidget {
                   runSpacing: 4,
                   crossAxisAlignment: WrapCrossAlignment.center,
                   children: <Widget>[
-                    _MiniChip(
-                      label: head.typeLabel,
-                      color: const Color(0xFF3949AB),
-                    ),
+                    if (_ShowDaycareScope.showOf(context) || !head.isDaycare)
+                      _MiniChip(
+                        label: head.typeLabel,
+                        color: const Color(0xFF3949AB),
+                      ),
                     Text(
                       head.bookingCode.isEmpty
                           ? head.bookingId
@@ -1862,7 +2076,10 @@ class _QuickPanel extends StatelessWidget {
                 ],
                 const SizedBox(height: 6),
                 Text(
-                  '${group.progressLabel}・${group.missingLabel}',
+                  session.isCompleted &&
+                          _completedClock(session.completedAt).isNotEmpty
+                      ? '${group.progressLabel}・完成 ${_completedClock(session.completedAt)}'
+                      : '${group.progressLabel}・${group.missingLabel}',
                   style: const TextStyle(
                     fontSize: 12.5,
                     fontWeight: FontWeight.w800,
@@ -1880,7 +2097,12 @@ class _QuickPanel extends StatelessWidget {
               children: <Widget>[
                 for (final DailyCareReportCenterItem item in group.sessions)
                   ChoiceChip(
-                    label: Text('第 ${item.sessionIndex + 1} 場'),
+                    label: Text(
+                      item.isCompleted &&
+                              _completedClock(item.completedAt).isNotEmpty
+                          ? '第 ${item.sessionIndex + 1} 場・${_completedClock(item.completedAt)}'
+                          : '第 ${item.sessionIndex + 1} 場',
+                    ),
                     tooltip: _sessionLabel(item),
                     selected: item.sessionIndex == session.sessionIndex,
                     avatar: Icon(
@@ -2028,7 +2250,7 @@ class _QuickPanel extends StatelessWidget {
       );
     }
     return DailyCareRecordEditor(
-      key: ValueKey<String>('${session.id}#$refreshToken'),
+      key: ValueKey<String>(session.id),
       shopId: session.shopId,
       bookingId: session.bookingId,
       roomId: session.roomId,
@@ -2153,6 +2375,7 @@ class _PreviewBundle {
     required this.stay,
     required this.records,
     required this.data,
+    this.directRecord,
   });
 
   final Map<String, dynamic> booking;
@@ -2160,6 +2383,7 @@ class _PreviewBundle {
   final DailyCareStayInfo stay;
   final List<DailyCareRecordModel> records;
   final DailyCareReportData data;
+  final DailyCareRecordModel? directRecord;
 }
 
 /// 回報預覽：顧客看得到的內容、照片縮圖與分享圖入口。
@@ -2238,6 +2462,14 @@ class _QuickPreviewState extends State<_QuickPreview> {
           sessionCount: sessionCount < 1 ? 1 : sessionCount,
         )
         .first;
+    final DailyCareRecordModel? directRecord = await DailyCareRecordService
+        .instance
+        .getRecord(
+          shopId: item.shopId,
+          bookingId: item.bookingId,
+          recordDate: item.recordDate,
+          sessionIndex: item.sessionIndex,
+        );
     final DailyCareReportData data = DailyCareReportExportService.instance
         .buildReport(
           booking: booking,
@@ -2253,6 +2485,7 @@ class _QuickPreviewState extends State<_QuickPreview> {
       stay: stay,
       records: records,
       data: data,
+      directRecord: directRecord,
     );
   }
 
@@ -2384,7 +2617,16 @@ class _QuickPreviewState extends State<_QuickPreview> {
       return children;
     }
 
-    final DailyCareReportSession? session = _sessionOf(bundle);
+    DailyCareReportSession? session = _sessionOf(bundle);
+    final DailyCareRecordModel? direct = bundle.directRecord;
+    if ((session == null || session.groups.isEmpty) &&
+        direct != null &&
+        direct.hasReportContent) {
+      session = DailyCareReportExportService.instance.buildStoredSession(
+        record: direct,
+        setting: widget.setting,
+      );
+    }
     children.add(
       Text(
         '顧客看到的內容',

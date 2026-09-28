@@ -19,10 +19,8 @@ import 'package:petnest_saas/core/models/special_date_surcharge_model.dart';
 import 'package:petnest_saas/core/services/daycare_auto_offer.dart';
 import 'package:petnest_saas/core/services/daycare_addon_catalog.dart';
 import 'package:petnest_saas/core/services/daycare_enabled.dart';
-import 'package:petnest_saas/core/models/daily_care_addon_plan.dart';
 import 'package:petnest_saas/core/models/daily_care_entitlement.dart';
 import 'package:petnest_saas/core/models/daily_care_setting_model.dart';
-import 'package:petnest_saas/core/services/daily_care_addon_service.dart';
 import 'package:petnest_saas/core/services/daily_care_entitlement_math.dart';
 import 'package:petnest_saas/core/services/daily_care_setting_service.dart';
 import 'package:petnest_saas/features/shop/widgets/booking/daily_care_upgrade_card.dart';
@@ -80,6 +78,7 @@ class ShopDaycareBookingPage extends StatefulWidget {
     this.debugPickUp,
     this.debugSelectedPetIds,
     this.debugPlan,
+    this.debugDailyCareSetting,
   });
 
   final String shopId;
@@ -103,6 +102,8 @@ class ShopDaycareBookingPage extends StatefulWidget {
   final List<String>? debugSelectedPetIds;
   @visibleForTesting
   final DaycarePlanModel? debugPlan;
+  @visibleForTesting
+  final DailyCareSettingModel? debugDailyCareSetting;
 
   @override
   State<ShopDaycareBookingPage> createState() => _ShopDaycareBookingPageState();
@@ -121,7 +122,6 @@ class _ShopDaycareBookingPageState extends State<ShopDaycareBookingPage> {
   List<DaycareRoomTypeOption> _roomOptions = const <DaycareRoomTypeOption>[];
   List<Map<String, dynamic>> _addons = <Map<String, dynamic>>[];
   DailyCareSettingModel _dailyCareSetting = const DailyCareSettingModel();
-  List<DailyCareAddonPlan> _dailyCarePlans = <DailyCareAddonPlan>[];
   String? _selectedDailyCareAddonId;
   final Set<String> _selectedAddonIds = <String>{};
   final Map<String, Set<String>> _addonPetIds = <String, Set<String>>{};
@@ -178,6 +178,9 @@ class _ShopDaycareBookingPageState extends State<ShopDaycareBookingPage> {
         ..addAll(widget.debugSelectedPetIds!);
     }
     _step = widget.debugInitialStep;
+    if (widget.debugDailyCareSetting != null) {
+      _dailyCareSetting = widget.debugDailyCareSetting!;
+    }
     if (widget.debugPlan != null) {
       _plan = widget.debugPlan;
     } else if (!widget.settings.isRoomBased &&
@@ -333,21 +336,34 @@ class _ShopDaycareBookingPageState extends State<ShopDaycareBookingPage> {
               !addons.any((Map<String, dynamic> e) => e['id'].toString() == id),
         );
       });
+    } catch (error) {
+      debugPrint('讀取安親加購失敗：$error');
+    }
+    try {
       final DailyCareSettingModel setting = await DailyCareSettingService
           .instance
           .getSetting(widget.shopId);
-      final List<DailyCareAddonPlan> plans = await DailyCareAddonService
-          .instance
-          .listPlans(widget.shopId);
       if (!mounted) {
         return;
       }
       setState(() {
         _dailyCareSetting = setting;
-        _dailyCarePlans = plans;
       });
-    } catch (_) {}
+    } catch (error) {
+      debugPrint('讀取每日照護設定失敗：$error');
+    }
   }
+
+  DailyCareEntitlement? _dailyCareQuote() {
+    try {
+      return _dailyCareQuoteForSubmit();
+    } catch (error) {
+      debugPrint('計算安親照護加購失敗：$error');
+      return null;
+    }
+  }
+
+  int get _careAddonAmount => _dailyCareQuote()?.amount ?? 0;
 
   DailyCareEntitlement _dailyCareQuoteForSubmit() {
     return DailyCareEntitlementMath.resolve(
@@ -576,7 +592,7 @@ class _ShopDaycareBookingPageState extends State<ShopDaycareBookingPage> {
     if (!widget.settings.isRoomBased && _plan == null) {
       return null;
     }
-    int addonAmount = 0;
+    int addonAmount = _careAddonAmount;
     for (final Map<String, dynamic> line in _addonLines) {
       addonAmount += (line['amount'] as num?)?.toInt() ?? 0;
     }
@@ -773,14 +789,22 @@ class _ShopDaycareBookingPageState extends State<ShopDaycareBookingPage> {
       depositType: widget.settings.depositType,
       isRoomBased: widget.settings.isRoomBased,
       includePayable: includePayable,
-      addonLines: _addonLines
-          .map(
-            (Map<String, dynamic> addon) => BookingFeeLineItem(
-              label: DaycareAddonCatalog.displayName(addon),
-              amount: (addon['amount'] as num?)?.toInt() ?? 0,
-            ),
-          )
-          .toList(),
+      addonLines: <BookingFeeLineItem>[
+        ..._addonLines.map(
+          (Map<String, dynamic> addon) => BookingFeeLineItem(
+            label: DaycareAddonCatalog.displayName(addon),
+            amount: (addon['amount'] as num?)?.toInt() ?? 0,
+          ),
+        ),
+        if (_careAddonAmount > 0)
+          BookingFeeLineItem(
+            label: () {
+              final String name = _dailyCareQuote()?.addonName.trim() ?? '';
+              return name.isEmpty ? '照護回報加購' : name;
+            }(),
+            amount: _careAddonAmount,
+          ),
+      ],
       campaignName: _currentOffer.campaignName,
     );
   }
@@ -944,7 +968,10 @@ class _ShopDaycareBookingPageState extends State<ShopDaycareBookingPage> {
                       onCancel: () => Navigator.pop(context),
                       onConfirm: () {
                         if (tempDate != null) {
-                          setState(() => _date = tempDate);
+                          setState(() {
+                            _date = tempDate;
+                            _selectedDailyCareAddonId = null;
+                          });
                           _loadDateOverride();
                         }
                         Navigator.pop(context);
@@ -1662,6 +1689,7 @@ class _ShopDaycareBookingPageState extends State<ShopDaycareBookingPage> {
       ..._dateAndTimeCards(theme, slots),
       const SizedBox(height: 16),
       BookingPetSection(
+        loggedOutMessage: '目前尚未登入。請先選擇安親日期與時段；登入後即可選擇寵物並繼續預約。',
         shopId: widget.shopId,
         theme: theme,
         title: '選擇安親寵物（已選 ${_selectedPetIds.length} 隻）',
@@ -1998,7 +2026,10 @@ class _ShopDaycareBookingPageState extends State<ShopDaycareBookingPage> {
             selected: selected,
             enabled: plan.enabled,
             blockedReason: plan.enabled ? null : '方案未啟用',
-            onTap: () => setState(() => _plan = plan),
+            onTap: () => setState(() {
+              _plan = plan;
+              _selectedDailyCareAddonId = null;
+            }),
           );
         }),
       ],
@@ -2064,7 +2095,10 @@ class _ShopDaycareBookingPageState extends State<ShopDaycareBookingPage> {
                 ).showSnackBar(const SnackBar(content: Text('請先選擇安親寵物')));
                 return;
               }
-              setState(() => _selectedRoomTypeId = option.roomTypeId);
+              setState(() {
+                _selectedRoomTypeId = option.roomTypeId;
+                _selectedDailyCareAddonId = null;
+              });
             },
           );
         }),

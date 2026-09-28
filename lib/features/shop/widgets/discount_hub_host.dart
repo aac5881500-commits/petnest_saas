@@ -48,12 +48,16 @@ class DiscountServiceChoice extends StatelessWidget {
     required this.onChanged,
     this.lockedStayOnly = false,
     this.lockReason = '',
+    this.showDaycare = true,
   });
 
   final List<String> services;
   final ValueChanged<List<String>> onChanged;
   final bool lockedStayOnly;
   final String lockReason;
+
+  /// 安親關閉時只建立住宿卡片，不保留安親或住宿與安親選項。
+  final bool showDaycare;
 
   @override
   Widget build(BuildContext context) {
@@ -62,15 +66,20 @@ class DiscountServiceChoice extends StatelessWidget {
       required String subtitle,
       required List<String> value,
       required bool enabled,
+      bool notify = true,
+      bool? forceSelected,
     }) {
       final bool selected =
-          services.length == value.length && services.every(value.contains);
+          forceSelected ??
+          (services.length == value.length && services.every(value.contains));
       return Material(
         color: selected ? const Color(0xFFE3F2FD) : Colors.white,
         borderRadius: BorderRadius.circular(12),
         child: InkWell(
           borderRadius: BorderRadius.circular(12),
-          onTap: enabled ? () => onChanged(List<String>.from(value)) : null,
+          onTap: enabled && notify
+              ? () => onChanged(List<String>.from(value))
+              : null,
           child: Container(
             width: double.infinity,
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
@@ -129,19 +138,23 @@ class DiscountServiceChoice extends StatelessWidget {
         subtitle: '僅套用住宿訂單',
         value: PolicyApplicableService.accommodationOnly,
         enabled: true,
+        notify: showDaycare,
+        forceSelected: showDaycare ? null : true,
       ),
-      card(
-        title: '安親',
-        subtitle: lockedStayOnly ? '此類型不適用' : '僅套用安親訂單',
-        value: PolicyApplicableService.daycareOnly,
-        enabled: !lockedStayOnly,
-      ),
-      card(
-        title: '住宿與安親',
-        subtitle: lockedStayOnly ? '此類型不適用' : '兩種服務皆可套用',
-        value: PolicyApplicableService.shared,
-        enabled: !lockedStayOnly,
-      ),
+      if (showDaycare)
+        card(
+          title: '安親',
+          subtitle: lockedStayOnly ? '此類型不適用' : '僅套用安親訂單',
+          value: PolicyApplicableService.daycareOnly,
+          enabled: !lockedStayOnly,
+        ),
+      if (showDaycare)
+        card(
+          title: '住宿與安親',
+          subtitle: lockedStayOnly ? '此類型不適用' : '兩種服務皆可套用',
+          value: PolicyApplicableService.shared,
+          enabled: !lockedStayOnly,
+        ),
     ];
 
     return Column(
@@ -169,7 +182,7 @@ class DiscountServiceChoice extends StatelessWidget {
             );
           },
         ),
-        if (lockedStayOnly && lockReason.isNotEmpty) ...<Widget>[
+        if (showDaycare && lockedStayOnly && lockReason.isNotEmpty) ...<Widget>[
           const SizedBox(height: 8),
           Text(
             lockReason,
@@ -257,10 +270,13 @@ class DiscountToggleCard extends StatelessWidget {
   }
 }
 
-Future<DiscountCampaignType?> pickDiscountCampaignType(BuildContext context) {
+Future<DiscountCampaignType?> pickDiscountCampaignType(
+  BuildContext context, {
+  required String shopId,
+}) {
   return presentDiscountEditor<DiscountCampaignType>(
     context: context,
     dialogWidth: 980,
-    child: const DiscountCampaignTypePickerPage(),
+    child: DiscountCampaignTypePickerPage(shopId: shopId),
   );
 }

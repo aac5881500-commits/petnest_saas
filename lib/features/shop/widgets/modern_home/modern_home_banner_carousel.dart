@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/debug/chat_error_probe.dart';
+import 'package:petnest_saas/core/models/home_banner_display.dart';
 import 'package:petnest_saas/core/models/home_theme_model.dart';
 import 'package:petnest_saas/core/models/modern_banner_frame_setting.dart';
 import 'package:petnest_saas/core/models/store_banner_model.dart';
@@ -19,6 +20,8 @@ class ModernHomeBannerCarousel extends StatefulWidget {
     required this.frameSetting,
     required this.reviewBadge,
     this.onBannerTap,
+    this.liveComposeBannerId,
+    this.initialBannerId,
   });
 
   final List<StoreBannerModel> banners;
@@ -26,6 +29,10 @@ class ModernHomeBannerCarousel extends StatefulWidget {
   final ModernBannerFrameSetting frameSetting;
   final Widget reviewBadge;
   final ValueChanged<StoreBannerModel>? onBannerTap;
+
+  /// 後台預覽：這張用草稿即時合成，顧客前台不傳。
+  final String? liveComposeBannerId;
+  final String? initialBannerId;
 
   @override
   State<ModernHomeBannerCarousel> createState() =>
@@ -38,10 +45,22 @@ class _ModernHomeBannerCarouselState extends State<ModernHomeBannerCarousel> {
 
   List<StoreBannerModel> get _banners => widget.banners;
 
+  int _indexOf(String? bannerId) {
+    if (bannerId == null || bannerId.isEmpty) {
+      return 0;
+    }
+    final int index = widget.banners.indexWhere(
+      (StoreBannerModel banner) => banner.id == bannerId,
+    );
+    return index < 0 ? 0 : index;
+  }
+
   @override
   void initState() {
     super.initState();
-    _pageController = PageController(initialPage: 0);
+    final int initial = _indexOf(widget.initialBannerId);
+    _currentIndex = initial;
+    _pageController = PageController(initialPage: initial);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _precacheNearbyBanners();
     });
@@ -55,6 +74,15 @@ class _ModernHomeBannerCarouselState extends State<ModernHomeBannerCarousel> {
         _currentIndex = 0;
       }
       return;
+    }
+    if (widget.initialBannerId != oldWidget.initialBannerId) {
+      final int index = _indexOf(widget.initialBannerId);
+      _currentIndex = index;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (_pageController.hasClients) {
+          _pageController.jumpToPage(index);
+        }
+      });
     }
     if (_currentIndex >= _banners.length) {
       _currentIndex = 0;
@@ -86,7 +114,7 @@ class _ModernHomeBannerCarouselState extends State<ModernHomeBannerCarousel> {
     }
 
     for (final int index in indices) {
-      final String url = _banners[index].imageUrl.trim();
+      final String url = _banners[index].frontImageUrl;
       if (url.isEmpty) {
         continue;
       }
@@ -117,9 +145,12 @@ class _ModernHomeBannerCarouselState extends State<ModernHomeBannerCarousel> {
   }
 
   Widget _bannerCanvas({required Widget child}) {
-    return AspectRatio(
-      aspectRatio: widget.frameSetting.aspectRatio,
-      child: child,
+    return Padding(
+      padding: HomeBannerDisplay.outerPadding(widget.frameSetting.displaySize),
+      child: AspectRatio(
+        aspectRatio: HomeBannerDisplay.aspectRatio,
+        child: child,
+      ),
     );
   }
 
@@ -133,6 +164,7 @@ class _ModernHomeBannerCarouselState extends State<ModernHomeBannerCarousel> {
         theme: widget.theme,
         scope: PetNestBannerScope.home,
         borderRadius: 0,
+        composeLive: widget.liveComposeBannerId == banner.id ? true : null,
         onTap: widget.onBannerTap == null || !banner.hasNavigableAction
             ? null
             : () => widget.onBannerTap!(banner),

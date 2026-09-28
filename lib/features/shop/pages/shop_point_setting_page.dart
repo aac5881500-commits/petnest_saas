@@ -451,32 +451,60 @@ class _ShopPointSettingPageState extends State<ShopPointSettingPage> {
   }
 
   Widget _summaryGrid(bool desktop) {
-    final List<Widget> cards = <Widget>[
-      _summaryCard(
-        icon: Icons.stars_outlined,
-        title: '點數制度',
-        rule: _systemRule,
-        enabled: _enabled,
-      ),
-      _summaryCard(
-        icon: Icons.hotel_outlined,
-        title: '住宿發點',
-        rule: _stayRule,
-        enabled: _enabled,
-      ),
-      _summaryCard(
-        icon: Icons.pets_outlined,
-        title: '安親發點',
-        rule: _daycareRule,
-        enabled: _enabled && _daycareEarnEnabled,
-      ),
-      _summaryCard(
-        icon: Icons.payments_outlined,
-        title: '點數折抵',
-        rule: _spendRule,
-        enabled: _enabled && _spendEnabled,
-      ),
-    ];
+    return StreamBuilder<Map<String, dynamic>?>(
+      stream: ShopService.instance.streamShop(widget.shopId),
+      builder:
+          (
+            BuildContext context,
+            AsyncSnapshot<Map<String, dynamic>?> shopSnap,
+          ) {
+            return StreamBuilder<DaycareSettingsModel>(
+              stream: DaycareSettingsService.instance.stream(widget.shopId),
+              builder:
+                  (
+                    BuildContext context,
+                    AsyncSnapshot<DaycareSettingsModel> daycareSnap,
+                  ) {
+                    final bool showDaycare = DaycareSettingsService.instance
+                        .isEnabledForShop(
+                          shop: shopSnap.data,
+                          settings: daycareSnap.data,
+                        );
+                    final List<Widget> cards = <Widget>[
+                      _summaryCard(
+                        icon: Icons.stars_outlined,
+                        title: '點數制度',
+                        rule: _systemRule,
+                        enabled: _enabled,
+                      ),
+                      _summaryCard(
+                        icon: Icons.hotel_outlined,
+                        title: '住宿發點',
+                        rule: _stayRule,
+                        enabled: _enabled,
+                      ),
+                      if (showDaycare)
+                        _summaryCard(
+                          icon: Icons.pets_outlined,
+                          title: '安親發點',
+                          rule: _daycareRule,
+                          enabled: _enabled && _daycareEarnEnabled,
+                        ),
+                      _summaryCard(
+                        icon: Icons.payments_outlined,
+                        title: '點數折抵',
+                        rule: _spendRule,
+                        enabled: _enabled && _spendEnabled,
+                      ),
+                    ];
+                    return _summaryLayout(desktop, cards);
+                  },
+            );
+          },
+    );
+  }
+
+  Widget _summaryLayout(bool desktop, List<Widget> cards) {
     if (desktop) {
       return Row(
         children: <Widget>[
@@ -487,24 +515,64 @@ class _ShopPointSettingPageState extends State<ShopPointSettingPage> {
         ],
       );
     }
-    return Column(
-      children: <Widget>[
-        Row(
-          children: <Widget>[
-            Expanded(child: cards[0]),
-            const SizedBox(width: 8),
-            Expanded(child: cards[1]),
-          ],
-        ),
-        const SizedBox(height: 8),
-        Row(
-          children: <Widget>[
-            Expanded(child: cards[2]),
-            const SizedBox(width: 8),
-            Expanded(child: cards[3]),
-          ],
-        ),
-      ],
+    final List<Widget> rows = <Widget>[];
+    for (int index = 0; index < cards.length; index += 2) {
+      if (rows.isNotEmpty) {
+        rows.add(const SizedBox(height: 8));
+      }
+      if (index + 1 < cards.length) {
+        rows.add(
+          Row(
+            children: <Widget>[
+              Expanded(child: cards[index]),
+              const SizedBox(width: 8),
+              Expanded(child: cards[index + 1]),
+            ],
+          ),
+        );
+      } else {
+        rows.add(cards[index]);
+      }
+    }
+    return Column(children: rows);
+  }
+
+  Widget _daycareSpendRow() {
+    return StreamBuilder<Map<String, dynamic>?>(
+      stream: ShopService.instance.streamShop(widget.shopId),
+      builder:
+          (
+            BuildContext context,
+            AsyncSnapshot<Map<String, dynamic>?> shopSnap,
+          ) {
+            return StreamBuilder<DaycareSettingsModel>(
+              stream: DaycareSettingsService.instance.stream(widget.shopId),
+              builder:
+                  (
+                    BuildContext context,
+                    AsyncSnapshot<DaycareSettingsModel> daycareSnap,
+                  ) {
+                    final bool show = DaycareSettingsService.instance
+                        .isEnabledForShop(
+                          shop: shopSnap.data,
+                          settings: daycareSnap.data,
+                        );
+                    if (!show) {
+                      return const SizedBox.shrink();
+                    }
+                    return _optionRow(
+                      icon: Icons.pets_outlined,
+                      title: '安親可使用點數折抵',
+                      subtitle: '結帳安親訂單時可使用點數折抵。',
+                      value: _daycareSpendEnabled,
+                      onChanged: _spendEnabled
+                          ? (bool value) =>
+                                setState(() => _daycareSpendEnabled = value)
+                          : null,
+                    );
+                  },
+            );
+          },
     );
   }
 
@@ -809,15 +877,7 @@ class _ShopPointSettingPageState extends State<ShopPointSettingPage> {
                 ? (bool value) => setState(() => _staySpendEnabled = value)
                 : null,
           ),
-          _optionRow(
-            icon: Icons.pets_outlined,
-            title: '安親可使用點數折抵',
-            subtitle: '結帳安親訂單時可使用點數折抵。',
-            value: _daycareSpendEnabled,
-            onChanged: _spendEnabled
-                ? (bool value) => setState(() => _daycareSpendEnabled = value)
-                : null,
-          ),
+          _daycareSpendRow(),
           _optionRow(
             icon: Icons.storefront_outlined,
             title: '商城可使用點數折抵',

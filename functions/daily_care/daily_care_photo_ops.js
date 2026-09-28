@@ -16,7 +16,7 @@ const {
   PHOTOS_PER_SESSION,
   PHOTO_RULE_V2,
   photoRuleVersion,
-  entitlementSessionCount,
+  validateDailyCareSession,
 } = require("./daily_care_entitlement");
 const {
   bookingEnded,
@@ -153,9 +153,14 @@ exports.reserveDailyCarePhoto = onCall(
       if (clientRecordId !== expectedRecordId) {
         throwHttp("invalid-argument", "照護紀錄 ID 與日期場次不符");
       }
-      const sessions = entitlementSessionCount(booking);
-      if (sessionIndex < 0 || sessionIndex >= sessions) {
-        throwHttp("failed-precondition", "此場次不在訂單照護權益內");
+      const careDecision = validateDailyCareSession(booking, {
+        shopId,
+        roomId,
+        sessionIndex,
+        recordDate,
+      });
+      if (!careDecision.ok) {
+        throwHttp("failed-precondition", careDecision.message);
       }
       const recSnap = await firestore.collection("daily_care_records")
           .doc(expectedRecordId).get();

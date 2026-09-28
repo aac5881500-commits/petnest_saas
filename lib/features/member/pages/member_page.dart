@@ -11,7 +11,10 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:petnest_saas/core/widgets/shop_frontend_theme_scope.dart';
 import 'package:petnest_saas/core/models/shop_frontend_theme.dart';
+import 'package:petnest_saas/core/models/daycare_settings_model.dart';
+import 'package:petnest_saas/core/services/daycare_settings_service.dart';
 import 'package:petnest_saas/core/services/member_avatar_service.dart';
+import 'package:petnest_saas/core/services/shop_service.dart';
 import 'package:petnest_saas/core/models/fixed_image_spec.dart';
 import 'package:petnest_saas/core/services/pet_service.dart';
 import 'package:petnest_saas/core/models/home_theme_model.dart';
@@ -31,7 +34,6 @@ import 'package:petnest_saas/features/member/pages/member_point_redemption_page.
 import 'package:petnest_saas/core/widgets/member_point_history_visibility.dart';
 import 'package:petnest_saas/core/debug/chat_error_probe.dart';
 import 'package:petnest_saas/core/services/shop_chat_service.dart';
-import 'package:petnest_saas/core/services/shop_service.dart';
 import 'package:petnest_saas/features/shop/pages/chat/shop_customer_chat_page.dart';
 
 class MemberPage extends StatelessWidget {
@@ -1351,23 +1353,67 @@ class _MemberPageState extends State<_MemberPageBody> {
                               _buildBlockTitle('訂單中心'),
                               Column(
                                 children: [
-                                  _memberNavTile(
-                                    icon: Icons.receipt_long_outlined,
-                                    iconColor: ShopFrontendTheme.of(
-                                      context,
-                                    ).primaryColor,
-                                    title: '我的訂單',
-                                    subtitle: '查看住宿與安親預約',
-                                    onTap: () {
-                                      Navigator.push(
-                                        context,
-                                        MaterialPageRoute<void>(
-                                          builder: (_) => MyBookingsPage(
-                                            returnShopId: widget.shopId,
-                                          ),
-                                        ),
-                                      );
-                                    },
+                                  StreamBuilder<Map<String, dynamic>?>(
+                                    stream: ShopService.instance.streamShop(
+                                      widget.shopId,
+                                    ),
+                                    builder:
+                                        (
+                                          BuildContext context,
+                                          AsyncSnapshot<Map<String, dynamic>?>
+                                          shopSnap,
+                                        ) {
+                                          return StreamBuilder<
+                                            DaycareSettingsModel
+                                          >(
+                                            stream: DaycareSettingsService
+                                                .instance
+                                                .stream(widget.shopId),
+                                            builder:
+                                                (
+                                                  BuildContext context,
+                                                  AsyncSnapshot<
+                                                    DaycareSettingsModel
+                                                  >
+                                                  daycareSnap,
+                                                ) {
+                                                  final bool daycareOn =
+                                                      DaycareSettingsService
+                                                          .instance
+                                                          .isEnabledForShop(
+                                                            shop: shopSnap.data,
+                                                            settings:
+                                                                daycareSnap
+                                                                    .data,
+                                                          );
+                                                  return _memberNavTile(
+                                                    icon: Icons
+                                                        .receipt_long_outlined,
+                                                    iconColor:
+                                                        ShopFrontendTheme.of(
+                                                          context,
+                                                        ).primaryColor,
+                                                    title: '我的訂單',
+                                                    subtitle: daycareOn
+                                                        ? '查看住宿與安親預約'
+                                                        : '查看住宿預約',
+                                                    onTap: () {
+                                                      Navigator.push(
+                                                        context,
+                                                        MaterialPageRoute<void>(
+                                                          builder: (_) =>
+                                                              MyBookingsPage(
+                                                                returnShopId:
+                                                                    widget
+                                                                        .shopId,
+                                                              ),
+                                                        ),
+                                                      );
+                                                    },
+                                                  );
+                                                },
+                                          );
+                                        },
                                   ),
                                   _memberNavTile(
                                     icon: Icons.confirmation_number_outlined,

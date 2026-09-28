@@ -5,25 +5,50 @@
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/constants/inventory_constants.dart';
 import 'package:petnest_saas/core/models/inventory_item_model.dart';
+import 'package:petnest_saas/core/services/daycare_settings_service.dart';
 import 'package:petnest_saas/core/services/inventory_linkage_service.dart';
+import 'package:petnest_saas/core/services/shop_service.dart';
 
 class InventoryLinkagesTab extends StatelessWidget {
   const InventoryLinkagesTab({
     super.key,
+    required this.shopId,
     required this.item,
     required this.snapshot,
   });
 
+  final String shopId;
   final InventoryItemModel item;
   final InventoryLinkageSnapshot snapshot;
 
   @override
   Widget build(BuildContext context) {
+    return StreamBuilder<Map<String, dynamic>?>(
+      stream: ShopService.instance.streamShop(shopId),
+      builder:
+          (
+            BuildContext context,
+            AsyncSnapshot<Map<String, dynamic>?> shopSnap,
+          ) {
+            final bool daycareOn = DaycareSettingsService.instance
+                .isEnabledForShop(shop: shopSnap.data);
+            return _body(context, daycareOn: daycareOn);
+          },
+    );
+  }
+
+  Widget _body(BuildContext context, {required bool daycareOn}) {
     if (!snapshot.ready) {
       return const Center(child: CircularProgressIndicator());
     }
 
-    final List<InventoryLinkage> links = snapshot.of(item.id);
+    final List<InventoryLinkage> links = snapshot
+        .of(item.id)
+        .where(
+          (InventoryLinkage link) =>
+              daycareOn || link.kind != InventoryLinkageKind.daycareSupply,
+        )
+        .toList();
     final int enabledCount = links
         .where((InventoryLinkage link) => link.isEnabled)
         .length;
@@ -63,9 +88,12 @@ class InventoryLinkagesTab extends StatelessWidget {
           const SizedBox(height: 12),
         ],
         if (links.isEmpty && !snapshot.hasError)
-          const _EmptyLinkages()
+          _EmptyLinkages(daycareOn: daycareOn)
         else
-          for (final _LinkageGroup group in _groups(links))
+          for (final _LinkageGroup group in _groups(
+            links,
+            daycareOn: daycareOn,
+          ))
             Padding(
               padding: const EdgeInsets.only(bottom: 12),
               child: _GroupCard(group: group, unit: item.unit),
@@ -74,13 +102,16 @@ class InventoryLinkagesTab extends StatelessWidget {
     );
   }
 
-  List<_LinkageGroup> _groups(List<InventoryLinkage> links) {
-    const List<(InventoryLinkageGroup, String)> order =
+  List<_LinkageGroup> _groups(
+    List<InventoryLinkage> links, {
+    required bool daycareOn,
+  }) {
+    final List<(InventoryLinkageGroup, String)> order =
         <(InventoryLinkageGroup, String)>[
           (InventoryLinkageGroup.addon, '加購服務'),
           (InventoryLinkageGroup.pointReward, '點數實體商品'),
           (InventoryLinkageGroup.storeProduct, '商城商品'),
-          (InventoryLinkageGroup.bookingSupply, '住宿／安親耗材'),
+          (InventoryLinkageGroup.bookingSupply, daycareOn ? '住宿／安親耗材' : '住宿耗材'),
         ];
     return <_LinkageGroup>[
       for (final (InventoryLinkageGroup group, String title) in order)
@@ -179,7 +210,9 @@ class _CountPill extends StatelessWidget {
 }
 
 class _EmptyLinkages extends StatelessWidget {
-  const _EmptyLinkages();
+  const _EmptyLinkages({required this.daycareOn});
+
+  final bool daycareOn;
 
   @override
   Widget build(BuildContext context) {
@@ -195,7 +228,9 @@ class _EmptyLinkages extends StatelessWidget {
           ),
           const SizedBox(height: 6),
           Text(
-            '可在加購服務、點數實體商品、住宿／安親耗材設定或商城商品中，選擇此中央庫存品項。未連動的品項仍可手動進貨、出庫與盤點。',
+            daycareOn
+                ? '可在加購服務、點數實體商品、住宿／安親耗材設定或商城商品中，選擇此中央庫存品項。未連動的品項仍可手動進貨、出庫與盤點。'
+                : '可在加購服務、點數實體商品、住宿耗材設定或商城商品中，選擇此中央庫存品項。未連動的品項仍可手動進貨、出庫與盤點。',
             textAlign: TextAlign.center,
             style: TextStyle(
               fontSize: 13,

@@ -21,6 +21,7 @@ class ShopDepositSettingPanel extends StatelessWidget {
     required this.onDepositType,
     required this.onDepositValueChanged,
     required this.onSave,
+    this.daycareOn = true,
   });
 
   static const double maxContentWidth = 1160;
@@ -41,6 +42,7 @@ class ShopDepositSettingPanel extends StatelessWidget {
   final ValueChanged<String> onDepositType;
   final ValueChanged<String> onDepositValueChanged;
   final VoidCallback onSave;
+  final bool daycareOn;
 
   static String expireLabel(int hours) {
     return switch (hours) {
@@ -314,7 +316,7 @@ class ShopDepositSettingPanel extends StatelessWidget {
               children: <Widget>[
                 _ChoiceTile(
                   title: '只算房價',
-                  subtitle: '只依住宿／安親基本費用計算',
+                  subtitle: daycareOn ? '只依住宿／安親基本費用計算' : '只依住宿基本費用計算',
                   selected: depositBase == 'room',
                   enabled: enabled,
                   onTap: () => onDepositBase('room'),

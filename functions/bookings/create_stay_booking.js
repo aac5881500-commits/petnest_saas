@@ -31,10 +31,21 @@ const {
   prepareSpendDeduct,
   commitSpendDeduct,
 } = require("../points/sync_booking_points");
-const {resolveDailyCareEntitlement, pickEntitlementSnapshot, STAY_PAID_ID} =
-  require("../daily_care/daily_care_entitlement");
+const {computeEarnPoints} = require("../points/booking_points");
+const {
+  resolveDailyCareEntitlement,
+  applyAuthoritativeCare,
+  STAY_PAID_ID,
+} = require("../daily_care/daily_care_entitlement");
 
-function requestedStayCareAddonId(booking) {
+function requestedStayCareAddonId(booking, data) {
+  const fromField = normalizeString(
+      (booking && booking.dailyCareAddonId) ||
+      (data && data.dailyCareAddonId),
+  );
+  if (fromField === STAY_PAID_ID || fromField === "1" || fromField === "true") {
+    return STAY_PAID_ID;
+  }
   const addons = Array.isArray(booking && booking.addons) ? booking.addons : [];
   for (let i = 0; i < addons.length; i++) {
     const item = addons[i] || {};
@@ -223,6 +234,8 @@ exports.createStayBooking = onCall(
       const shopSnap = await firestore.collection("shops").doc(shopId).get();
       const shopData = shopSnap.data() || {};
       let stayCareEntitlement = {};
+      let stayCareAddons = Array.isArray(booking.addons) ? booking.addons : [];
+      let stayPayableAfterCoupon = Math.max(0, toInt(booking.totalPrice, 0));
       try {
         const quotedCare = resolveDailyCareEntitlement({
           setting: shopData.dailyCareSetting || {},
@@ -230,15 +243,19 @@ exports.createStayBooking = onCall(
           shopDaycareOn: true,
           offerId: roomTypeId,
           offerName: normalizeString(booking.roomTypeName),
-          addonId: requestedStayCareAddonId(booking),
+          addonId: requestedStayCareAddonId(booking, data),
           startDate,
           endDate,
           nights: toInt(booking.nights, 1),
         });
-        stayCareEntitlement = pickEntitlementSnapshot(
-            booking.dailyCareEntitlement,
-            quotedCare.entitlement,
-        );
+        const adjusted = applyAuthoritativeCare({
+          addons: booking.addons,
+          payableAfterCoupon: toInt(booking.totalPrice, 0),
+          quoted: quotedCare,
+        });
+        stayCareEntitlement = adjusted.entitlement;
+        stayCareAddons = adjusted.addons;
+        stayPayableAfterCoupon = adjusted.payableAfterCoupon;
       } catch (error) {
         throw new HttpsError(
             "failed-precondition",
@@ -260,7 +277,7 @@ exports.createStayBooking = onCall(
                 bookingId: bookingRef.id,
               },
           );
-          const payableAfterCoupon = Math.max(0, toInt(booking.totalPrice, 0));
+          const payableAfterCoupon = stayPayableAfterCoupon;
           const spendPlan = await prepareSpendDeduct(transaction, {
             firestore,
             shopId,
@@ -307,6 +324,7 @@ exports.createStayBooking = onCall(
             userId,
             source,
             roomTypeId,
+            addons: stayCareAddons,
             dailyCareEntitlement: stayCareEntitlement,
             roomId: null,
             roomName: null,

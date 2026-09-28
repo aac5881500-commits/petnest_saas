@@ -124,7 +124,8 @@ class DailyCareStayInfo {
     return keys;
   }
 
-  /// 每日照護有效日期：入住日包含、退房日不包含。
+  /// 住宿每日回報日：只由這筆訂單的入住／退房算出。
+  /// 不採用 `dailyCareEntitlement.serviceDates`。
   List<String> careDateKeys() {
     return DailyCareDateHelper.careDateKeys(
       checkIn: startDate,

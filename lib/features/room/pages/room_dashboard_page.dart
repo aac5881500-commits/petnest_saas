@@ -6,6 +6,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:petnest_saas/core/constants/shop_permission_keys.dart';
+import 'package:petnest_saas/core/models/booking_kind.dart';
 import 'package:petnest_saas/core/models/daily_care_date_helper.dart';
 import 'package:petnest_saas/core/models/daily_care_report_center_item.dart';
 import 'package:petnest_saas/core/models/daily_care_report_center_snapshot.dart';
@@ -13,7 +14,9 @@ import 'package:petnest_saas/core/models/daily_care_setting_model.dart';
 import 'package:petnest_saas/core/navigation/admin_booking_route.dart';
 import 'package:petnest_saas/core/presentation/room_day_status.dart';
 import 'package:petnest_saas/core/presentation/room_status_presentation.dart';
+import 'package:petnest_saas/core/services/booking_service.dart';
 import 'package:petnest_saas/core/services/daily_care_report_center_service.dart';
+import 'package:petnest_saas/core/services/stay_booking_function_service.dart';
 import 'package:petnest_saas/core/services/daily_care_setting_service.dart';
 import 'package:petnest_saas/core/services/daycare_occupancy_service.dart';
 import 'package:petnest_saas/core/services/shop_room_service.dart';
@@ -101,6 +104,8 @@ class _RoomDashboardPageState extends State<RoomDashboardPage> {
   HousekeepingWorkbenchSelection? _workbenchSelection;
   int _streamRetry = 0;
   DailyCareReportCenterSnapshot? _lastReport;
+  final ScrollController _todayTasksScroll = ScrollController();
+  final GlobalKey _todayTasksKey = GlobalKey();
 
   DateTime get weekStart {
     final DateTime d = DateTime(
@@ -152,6 +157,30 @@ class _RoomDashboardPageState extends State<RoomDashboardPage> {
   void initState() {
     super.initState();
     _checkPermission();
+  }
+
+  @override
+  void dispose() {
+    _todayTasksScroll.dispose();
+    super.dispose();
+  }
+
+  void _focusTodayTasks() {
+    final BuildContext? target = _todayTasksKey.currentContext;
+    if (target != null) {
+      Scrollable.ensureVisible(
+        target,
+        duration: const Duration(milliseconds: 250),
+        alignment: 0,
+      );
+    }
+    if (_todayTasksScroll.hasClients) {
+      _todayTasksScroll.animateTo(
+        0,
+        duration: const Duration(milliseconds: 250),
+        curve: Curves.easeOut,
+      );
+    }
   }
 
   @override
@@ -460,6 +489,9 @@ class _RoomDashboardPageState extends State<RoomDashboardPage> {
           (_DashRoom row) => RoomStatusPresentation.isInUseLabel(row.label),
         )
         .length;
+    final int checkedInCount = allRows.where((_DashRoom row) {
+      return (row.booking?['status'] ?? '').toString() == 'checked_in';
+    }).length;
     final int cleaningCount = _count(
       allRows,
       DaycareOccupancyService.cleaningLabel,
@@ -518,10 +550,11 @@ class _RoomDashboardPageState extends State<RoomDashboardPage> {
 
     final Widget stats = _opsStats(
       desktop: desktop,
-      usingCount: usingCount,
+      checkedInCount: checkedInCount,
       cleaningCount: cleaningCount,
       pendingHousekeeping: pendingHousekeeping,
       pendingReports: pendingReports,
+      onPendingHousekeeping: desktop ? _focusTodayTasks : null,
     );
 
     if (view == _DeskView.reports) {
@@ -718,7 +751,15 @@ class _RoomDashboardPageState extends State<RoomDashboardPage> {
                         ),
                 ),
                 const SizedBox(width: 12),
-                Expanded(flex: 58, child: _roomRecordPane(row: selectedRow)),
+                Expanded(
+                  flex: 58,
+                  child: _roomRecordPane(
+                    row: selectedRow,
+                    rooms: rooms,
+                    bookings: bookings,
+                    cleaningRows: cleaningRows,
+                  ),
+                ),
               ],
             ),
           ),
@@ -770,7 +811,17 @@ class _RoomDashboardPageState extends State<RoomDashboardPage> {
     return null;
   }
 
-  Widget _roomRecordPane({required _DashRoom? row}) {
+  Widget _roomRecordPane({
+    required _DashRoom? row,
+    required List<Map<String, dynamic>> rooms,
+    required List<QueryDocumentSnapshot> bookings,
+    required List<_DashRoom> cleaningRows,
+  }) {
+    final Widget tasks = _todayTasksPane(
+      rooms: rooms,
+      bookings: bookings,
+      cleaningRows: cleaningRows,
+    );
     return Container(
       decoration: BoxDecoration(
         color: const Color(0xFFF4F5F7),
@@ -779,16 +830,7 @@ class _RoomDashboardPageState extends State<RoomDashboardPage> {
       ),
       clipBehavior: Clip.antiAlias,
       child: row == null
-          ? const Center(
-              child: Text(
-                '請從左側選擇房間',
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.black54,
-                ),
-              ),
-            )
+          ? tasks
           : RoomCalendarPage(
               key: ValueKey<String>('room-record-${row.id}'),
               embedded: true,
@@ -799,8 +841,415 @@ class _RoomDashboardPageState extends State<RoomDashboardPage> {
               roomTypeName: row.typeName,
               roomImageUrl: '',
               room: row.room,
+              embeddedDetail: tasks,
             ),
     );
+  }
+
+  Widget _todayTasksPane({
+    required List<Map<String, dynamic>> rooms,
+    required List<QueryDocumentSnapshot> bookings,
+    required List<_DashRoom> cleaningRows,
+  }) {
+    final List<_StayTask> unassigned = <_StayTask>[];
+    final List<_StayTask> awaitingCheckIn = <_StayTask>[];
+    for (final QueryDocumentSnapshot doc in bookings) {
+      final Object? raw = doc.data();
+      if (raw is! Map) {
+        continue;
+      }
+      final Map<String, dynamic> data = Map<String, dynamic>.from(raw);
+      if (BookingKind.isDaycare(data)) {
+        continue;
+      }
+      final String status = (data['status'] ?? '').toString();
+      if (status != 'pending' && status != 'confirmed') {
+        continue;
+      }
+      final String roomId = (data['roomId'] ?? '').toString().trim();
+      final String assignStatus = (data['assignStatus'] ?? '').toString();
+      final bool needsRoom = assignStatus == 'unassigned' || roomId.isEmpty;
+      if (needsRoom && _occupiesDate(data, selectedDate)) {
+        unassigned.add(_StayTask(id: doc.id, data: data));
+        continue;
+      }
+      final DateTime? start = _asDate(data['startDate']);
+      final bool assigned =
+          roomId.isNotEmpty &&
+          (assignStatus == 'assigned' || assignStatus.isEmpty);
+      if (assigned &&
+          start != null &&
+          DateUtils.isSameDay(start, selectedDate)) {
+        awaitingCheckIn.add(_StayTask(id: doc.id, data: data));
+      }
+    }
+    final bool empty =
+        unassigned.isEmpty && awaitingCheckIn.isEmpty && cleaningRows.isEmpty;
+    final String dateLabel = DateFormat('M/d').format(selectedDate);
+    return ListView(
+      key: _todayTasksKey,
+      controller: _todayTasksScroll,
+      primary: false,
+      padding: const EdgeInsets.fromLTRB(10, 8, 10, 12),
+      children: <Widget>[
+        Text(
+          '今日待處理・$dateLabel',
+          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800),
+        ),
+        const SizedBox(height: 8),
+        if (empty)
+          const Text(
+            '這個日期沒有待處理房務',
+            style: TextStyle(fontSize: 13, color: Colors.black54),
+          ),
+        if (unassigned.isNotEmpty)
+          _taskSection(
+            title: '待分房 ${unassigned.length}',
+            children: unassigned
+                .map(
+                  (_StayTask task) => _stayTaskCard(
+                    task: task,
+                    actionLabel: '快速分房',
+                    busy: _busyKeys.contains('assign:${task.id}'),
+                    onPressed: () => _quickAssign(task, rooms),
+                  ),
+                )
+                .toList(),
+          ),
+        if (awaitingCheckIn.isNotEmpty)
+          _taskSection(
+            title: '已分房待入住 ${awaitingCheckIn.length}',
+            children: awaitingCheckIn
+                .map(
+                  (_StayTask task) => _stayTaskCard(
+                    task: task,
+                    actionLabel: '辦理入住',
+                    busy: _busyKeys.contains(_actionKey('checkin:${task.id}')),
+                    onPressed: () => _quickCheckIn(task),
+                  ),
+                )
+                .toList(),
+          ),
+        if (cleaningRows.isNotEmpty)
+          _taskSection(
+            title: '待清潔 ${cleaningRows.length}',
+            children: cleaningRows
+                .map((_DashRoom row) => _cleaningTaskCard(row))
+                .toList(),
+          ),
+      ],
+    );
+  }
+
+  Widget _taskSection({required String title, required List<Widget> children}) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: <Widget>[
+          Text(
+            title,
+            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800),
+          ),
+          const SizedBox(height: 4),
+          ...children,
+        ],
+      ),
+    );
+  }
+
+  Widget _stayTaskCard({
+    required _StayTask task,
+    required String actionLabel,
+    required bool busy,
+    required VoidCallback onPressed,
+  }) {
+    final String code = (task.data['bookingCode'] ?? '').toString().trim();
+    final String pets = _petNames(task.data);
+    final String roomType = (task.data['roomTypeName'] ?? '').toString().trim();
+    return Container(
+      margin: const EdgeInsets.only(bottom: 6),
+      padding: const EdgeInsets.fromLTRB(8, 6, 4, 6),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: const Color(0xFFE5E7EB)),
+      ),
+      child: Row(
+        children: <Widget>[
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Text(
+                  code.isEmpty ? task.id : code,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                Text(
+                  <String>[
+                    pets.isEmpty ? '未填寵物' : pets,
+                    if (roomType.isNotEmpty) roomType,
+                    _stayRange(task.data),
+                  ].where((String value) => value.isNotEmpty).join('・'),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontSize: 12, color: Colors.black54),
+                ),
+              ],
+            ),
+          ),
+          TextButton(
+            onPressed: busy ? null : onPressed,
+            style: TextButton.styleFrom(
+              visualDensity: VisualDensity.compact,
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            ),
+            child: busy
+                ? const SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : Text(actionLabel),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _cleaningTaskCard(_DashRoom row) {
+    final bool busy = _busyKeys.contains(_actionKey(row.id));
+    return Container(
+      margin: const EdgeInsets.only(bottom: 6),
+      padding: const EdgeInsets.fromLTRB(8, 6, 4, 6),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: const Color(0xFFE5E7EB)),
+      ),
+      child: Row(
+        children: <Widget>[
+          Expanded(
+            child: Text(
+              '${row.name}・${row.typeName}',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
+            ),
+          ),
+          TextButton(
+            onPressed: busy
+                ? null
+                : () => _runRoomAction(
+                    roomId: row.id,
+                    successMessage: '${row.name} 已完成清潔，房間已恢復開放',
+                    action: () => ShopRoomService.instance.completeCleaning(
+                      shopId: widget.shopId,
+                      roomId: row.id,
+                      date: selectedDate,
+                    ),
+                  ),
+            style: TextButton.styleFrom(
+              visualDensity: VisualDensity.compact,
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            ),
+            child: busy
+                ? const SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Text('完成清潔'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _quickCheckIn(_StayTask task) async {
+    final String roomId = (task.data['roomId'] ?? '').toString().trim();
+    if (roomId.isEmpty) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('此訂單尚未分房，不能辦理入住')));
+      return;
+    }
+    await _runRoomAction(
+      roomId: 'checkin:${task.id}',
+      successMessage: '已辦理入住',
+      action: () => BookingService.instance.checkInBooking(bookingId: task.id),
+    );
+  }
+
+  Future<void> _quickAssign(
+    _StayTask task,
+    List<Map<String, dynamic>> rooms,
+  ) async {
+    final String key = 'assign:${task.id}';
+    if (_busyKeys.contains(key)) {
+      return;
+    }
+    final DateTime? start = _asDate(task.data['startDate']);
+    final DateTime? end = _asDate(task.data['endDate']);
+    if (start == null || end == null) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('這筆訂單缺少住宿日期')));
+      return;
+    }
+    setState(() => _busyKeys.add(key));
+    final String roomTypeId = (task.data['roomTypeId'] ?? '').toString();
+    final List<Map<String, dynamic>> available = <Map<String, dynamic>>[];
+    try {
+      for (final Map<String, dynamic> room in rooms) {
+        final String roomId = (room['id'] ?? '').toString();
+        if (roomId.isEmpty ||
+            (room['roomTypeId'] ?? '').toString() != roomTypeId) {
+          continue;
+        }
+        if (DaycareOccupancyService.isRoomDocumentUnsellable(room)) {
+          continue;
+        }
+        final bool free = await BookingService.instance.isRoomAvailable(
+          shopId: widget.shopId,
+          roomId: roomId,
+          startDate: start,
+          endDate: end,
+        );
+        if (free) {
+          available.add(room);
+        }
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _busyKeys.remove(key));
+      }
+    }
+    if (!mounted) {
+      return;
+    }
+    available.sort(
+      (Map<String, dynamic> a, Map<String, dynamic> b) => naturalCompare(
+        (a['name'] ?? '').toString(),
+        (b['name'] ?? '').toString(),
+      ),
+    );
+    String selectedId = available.isEmpty
+        ? ''
+        : (available.first['id'] ?? '').toString();
+    final bool? assigned = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext dialogContext) {
+        return StatefulBuilder(
+          builder: (BuildContext context, StateSetter setDialogState) {
+            String selectedName = '';
+            for (final Map<String, dynamic> room in available) {
+              if ((room['id'] ?? '').toString() == selectedId) {
+                selectedName = (room['name'] ?? '').toString();
+              }
+            }
+            return AlertDialog(
+              title: const Text('快速分房'),
+              content: SizedBox(
+                width: 420,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Text(
+                      '${(task.data['bookingCode'] ?? task.id).toString()}・${_petNames(task.data).isEmpty ? '未填寵物' : _petNames(task.data)}',
+                      style: const TextStyle(fontWeight: FontWeight.w800),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      '${(task.data['roomTypeName'] ?? '').toString()}・${_stayRange(task.data)}',
+                      style: const TextStyle(
+                        fontSize: 13,
+                        color: Colors.black54,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    if (available.isEmpty)
+                      const Text('此房型整段住宿期間沒有可分配的房間')
+                    else
+                      SizedBox(
+                        height: 240,
+                        child: RadioGroup<String>(
+                          groupValue: selectedId,
+                          onChanged: (String? value) {
+                            if (value == null) {
+                              return;
+                            }
+                            setDialogState(() => selectedId = value);
+                          },
+                          child: ListView(
+                            children: available.map((
+                              Map<String, dynamic> room,
+                            ) {
+                              final String roomId = (room['id'] ?? '')
+                                  .toString();
+                              final String roomName = (room['name'] ?? roomId)
+                                  .toString();
+                              return RadioListTile<String>(
+                                dense: true,
+                                value: roomId,
+                                title: Text(roomName),
+                              );
+                            }).toList(),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+              actions: <Widget>[
+                TextButton(
+                  onPressed: () => Navigator.pop(dialogContext, false),
+                  child: const Text('取消'),
+                ),
+                FilledButton(
+                  onPressed: selectedId.isEmpty
+                      ? null
+                      : () async {
+                          try {
+                            await StayBookingFunctionService.instance.manage(
+                              shopId: widget.shopId,
+                              bookingId: task.id,
+                              action: 'assign',
+                              roomId: selectedId,
+                              roomName: selectedName,
+                            );
+                            if (dialogContext.mounted) {
+                              Navigator.pop(dialogContext, true);
+                            }
+                          } catch (error) {
+                            if (dialogContext.mounted) {
+                              ScaffoldMessenger.of(dialogContext).showSnackBar(
+                                SnackBar(content: Text('分房失敗：$error')),
+                              );
+                            }
+                          }
+                        },
+                  child: Text(
+                    selectedName.isEmpty ? '確認分配' : '確認分配 $selectedName',
+                  ),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+    if (assigned == true && mounted) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('已完成分房')));
+    }
   }
 
   Widget _recordIdentity(_DashRoom row) {
@@ -859,16 +1308,17 @@ class _RoomDashboardPageState extends State<RoomDashboardPage> {
 
   Widget _opsStats({
     required bool desktop,
-    required int usingCount,
+    required int checkedInCount,
     required int cleaningCount,
     required int pendingHousekeeping,
     required int pendingReports,
+    VoidCallback? onPendingHousekeeping,
   }) {
     final List<_OpsStat> items = <_OpsStat>[
       _OpsStat(
         icon: Icons.login,
         label: '入住中',
-        count: usingCount,
+        count: checkedInCount,
         color: RoomStatusPresentation.checkedInColor,
       ),
       _OpsStat(
@@ -882,6 +1332,7 @@ class _RoomDashboardPageState extends State<RoomDashboardPage> {
         label: '待處理房務',
         count: pendingHousekeeping,
         color: const Color(0xFF6A1B9A),
+        onTap: onPendingHousekeeping,
       ),
       _OpsStat(
         icon: Icons.edit_note_outlined,
@@ -918,7 +1369,7 @@ class _RoomDashboardPageState extends State<RoomDashboardPage> {
   }
 
   Widget _opsStatCard(_OpsStat item) {
-    return Container(
+    final Widget card = Container(
       height: 80,
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
@@ -957,6 +1408,17 @@ class _RoomDashboardPageState extends State<RoomDashboardPage> {
             ),
           ),
         ],
+      ),
+    );
+    if (item.onTap == null) {
+      return card;
+    }
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: item.onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: card,
       ),
     );
   }
@@ -2341,12 +2803,14 @@ class _OpsStat {
     required this.label,
     required this.count,
     required this.color,
+    this.onTap,
   });
 
   final IconData icon;
   final String label;
   final int count;
   final Color color;
+  final VoidCallback? onTap;
 }
 
 class _BookingHit {
@@ -2354,6 +2818,13 @@ class _BookingHit {
 
   final String id;
   final Map<String, dynamic>? data;
+}
+
+class _StayTask {
+  const _StayTask({required this.id, required this.data});
+
+  final String id;
+  final Map<String, dynamic> data;
 }
 
 String _roomTypeImageUrl(Map<String, dynamic>? roomTypeData) {

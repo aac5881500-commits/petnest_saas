@@ -34,10 +34,30 @@ class ShopPublicModernPage extends StatefulWidget {
     super.key,
     required this.shopId,
     this.platformPreview = false,
+    this.isPreview = false,
+    this.draftModernAppearance,
+    this.draftLogoUrl,
+    this.draftHomeBanners,
+    this.initialPreviewBannerId,
   });
 
   final String shopId;
   final bool platformPreview;
+
+  /// 外觀設定預覽：沿用這套首頁，但不導頁、不開聊天。
+  final bool isPreview;
+
+  /// 尚未儲存的新版外觀。正式前台不傳，仍讀 Firestore。
+  final Map<String, dynamic>? draftModernAppearance;
+
+  /// 預覽用 Logo。正式前台不傳。
+  final String? draftLogoUrl;
+
+  /// 後台海報預覽用的草稿清單。正式前台不傳，仍讀 Firestore。
+  final List<StoreBannerModel>? draftHomeBanners;
+
+  /// 預覽時先顯示這張海報，並用草稿即時合成。
+  final String? initialPreviewBannerId;
 
   @override
   State<ShopPublicModernPage> createState() => _ShopPublicModernPageState();
@@ -46,14 +66,44 @@ class ShopPublicModernPage extends StatefulWidget {
 class _ShopPublicModernPageState extends State<ShopPublicModernPage> {
   static const Color _backgroundColor = Color(0xFFFFFCF7);
 
+  late final Stream<Map<String, dynamic>?> _shopStream;
+  late final Stream<List<Map<String, dynamic>>> _roomTypesStream;
+  late final Stream<QuerySnapshot<Map<String, dynamic>>> _reviewsStream;
+  late final Stream<QuerySnapshot<Map<String, dynamic>>> _announcementsStream;
+
+  @override
+  void initState() {
+    super.initState();
+    _shopStream = ShopService.instance.streamShop(widget.shopId);
+    _roomTypesStream = ShopService.instance.streamRoomTypes(widget.shopId);
+    _reviewsStream = FirebaseFirestore.instance
+        .collection('reviews')
+        .where('shopId', isEqualTo: widget.shopId)
+        .where('status', isEqualTo: 'visible')
+        .snapshots();
+    _announcementsStream = FirebaseFirestore.instance
+        .collection('shops')
+        .doc(widget.shopId)
+        .collection('announcements')
+        .where('isPublished', isEqualTo: true)
+        .snapshots();
+  }
+
   List<StoreBannerModel> _enabledHomeBanners(Map<String, dynamic> shop) {
     return HomeBannerService.instance.parseEnabledFrontBanners(shop);
+  }
+
+  void _openPage(Widget page) {
+    if (!mounted || widget.isPreview) {
+      return;
+    }
+    Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => page));
   }
 
   @override
   Widget build(BuildContext context) {
     return StreamBuilder<Map<String, dynamic>?>(
-      stream: ShopService.instance.streamShop(widget.shopId),
+      stream: _shopStream,
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Scaffold(
@@ -74,9 +124,9 @@ class _ShopPublicModernPageState extends State<ShopPublicModernPage> {
           );
         }
 
-        final shop = snapshot.data;
+        final loadedShop = snapshot.data;
 
-        if (shop == null) {
+        if (loadedShop == null) {
           return const Scaffold(
             backgroundColor: _backgroundColor,
             body: Center(
@@ -88,6 +138,9 @@ class _ShopPublicModernPageState extends State<ShopPublicModernPage> {
           );
         }
 
+        final Map<String, dynamic> shop = widget.draftLogoUrl == null
+            ? loadedShop
+            : <String, dynamic>{...loadedShop, 'logoUrl': widget.draftLogoUrl};
         final shopName = (shop['name'] ?? '店家').toString().trim();
         final rawHomeAppearance = shop['homeAppearance'];
 
@@ -95,7 +148,8 @@ class _ShopPublicModernPageState extends State<ShopPublicModernPage> {
             ? Map<String, dynamic>.from(rawHomeAppearance)
             : <String, dynamic>{};
 
-        final rawModernAppearance = homeAppearance['modern'];
+        final rawModernAppearance =
+            widget.draftModernAppearance ?? homeAppearance['modern'];
 
         final modernAppearance = rawModernAppearance is Map
             ? Map<String, dynamic>.from(rawModernAppearance)
@@ -154,7 +208,7 @@ class _ShopPublicModernPageState extends State<ShopPublicModernPage> {
           }
         }
 
-        final banners = _enabledHomeBanners(shop);
+        final banners = widget.draftHomeBanners ?? _enabledHomeBanners(shop);
 
         return Scaffold(
           backgroundColor: modernTheme.backgroundColor,
@@ -194,6 +248,7 @@ class _ShopPublicModernPageState extends State<ShopPublicModernPage> {
                   ),
                   cardColor: modernTheme.cardColor,
                   borderColor: modernTheme.cardBorderColor,
+                  isPreview: widget.isPreview,
                 ).showShopInfoSheet(context);
               },
               onVerticalDragEnd: (details) {
@@ -211,6 +266,7 @@ class _ShopPublicModernPageState extends State<ShopPublicModernPage> {
                     ),
                     cardColor: modernTheme.cardColor,
                     borderColor: modernTheme.cardBorderColor,
+                    isPreview: widget.isPreview,
                   ).showShopInfoSheet(context);
                 }
               },
@@ -332,7 +388,10 @@ class _ShopPublicModernPageState extends State<ShopPublicModernPage> {
                 ),
               ),
 
-              FloatingContactButton(shop: shop, shopId: widget.shopId),
+              IgnorePointer(
+                ignoring: widget.isPreview,
+                child: FloatingContactButton(shop: shop, shopId: widget.shopId),
+              ),
             ],
           ),
         );
@@ -351,37 +410,25 @@ class _ShopPublicModernPageState extends State<ShopPublicModernPage> {
         'icon': Icons.home_outlined,
         'title': '環境介紹',
         'onTap': () {
-          Navigator.of(context).push(
-            MaterialPageRoute<void>(
-              builder: (_) =>
-                  ShopEnvironmentPage(shopId: widget.shopId, theme: theme),
-            ),
-          );
+          _openPage(ShopEnvironmentPage(shopId: widget.shopId, theme: theme));
         },
       },
       {
         'icon': Icons.bedroom_parent_outlined,
         'title': '全部房型',
         'onTap': () {
-          Navigator.of(context).push(
-            MaterialPageRoute<void>(
-              builder: (_) =>
-                  ShopRoomIntroPage(shopId: widget.shopId, theme: theme),
-            ),
-          );
+          _openPage(ShopRoomIntroPage(shopId: widget.shopId, theme: theme));
         },
       },
       {
         'icon': Icons.description_outlined,
         'title': '入住須知',
         'onTap': () {
-          Navigator.of(context).push(
-            MaterialPageRoute<void>(
-              builder: (_) => ShopPolicyViewPage(
-                shopId: widget.shopId,
-                theme: theme,
-                readOnly: true,
-              ),
+          _openPage(
+            ShopPolicyViewPage(
+              shopId: widget.shopId,
+              theme: theme,
+              readOnly: true,
             ),
           );
         },
@@ -400,24 +447,14 @@ class _ShopPublicModernPageState extends State<ShopPublicModernPage> {
         'icon': Icons.favorite_border_rounded,
         'title': '關於我們',
         'onTap': () {
-          Navigator.of(context).push(
-            MaterialPageRoute<void>(
-              builder: (_) =>
-                  ShopAboutPage(shopId: widget.shopId, theme: theme),
-            ),
-          );
+          _openPage(ShopAboutPage(shopId: widget.shopId, theme: theme));
         },
       },
       {
         'icon': Icons.star_border_rounded,
         'title': '評價專區',
         'onTap': () {
-          Navigator.of(context).push(
-            MaterialPageRoute<void>(
-              builder: (_) =>
-                  ShopReviewListPage(shopId: widget.shopId, theme: theme),
-            ),
-          );
+          _openPage(ShopReviewListPage(shopId: widget.shopId, theme: theme));
         },
       },
       if (shop['showFaqSection'] != false)
@@ -425,12 +462,7 @@ class _ShopPublicModernPageState extends State<ShopPublicModernPage> {
           'icon': Icons.help_outline_rounded,
           'title': '常見問題',
           'onTap': () {
-            Navigator.of(context).push(
-              MaterialPageRoute<void>(
-                builder: (_) =>
-                    ShopFaqPage(shopId: widget.shopId, theme: theme),
-              ),
-            );
+            _openPage(ShopFaqPage(shopId: widget.shopId, theme: theme));
           },
         },
     ];
@@ -542,7 +574,7 @@ class _ShopPublicModernPageState extends State<ShopPublicModernPage> {
         const SizedBox(height: 9),
 
         StreamBuilder<List<Map<String, dynamic>>>(
-          stream: ShopService.instance.streamRoomTypes(widget.shopId),
+          stream: _roomTypesStream,
           builder: (context, snapshot) {
             if (snapshot.connectionState == ConnectionState.waiting) {
               return const SizedBox(
@@ -644,18 +676,14 @@ class _ShopPublicModernPageState extends State<ShopPublicModernPage> {
     return InkWell(
       borderRadius: BorderRadius.circular(16),
       onTap: () {
-        Navigator.of(context).push(
-          MaterialPageRoute<void>(
-            builder: (_) {
-              return RoomTypeDetailPage(
-                shopId: widget.shopId,
-                roomType: roomType,
-                startDate: DateTime.now(),
-                endDate: DateTime.now().add(const Duration(days: 1)),
-                theme: theme,
-                isIntroMode: true,
-              );
-            },
+        _openPage(
+          RoomTypeDetailPage(
+            shopId: widget.shopId,
+            roomType: roomType,
+            startDate: DateTime.now(),
+            endDate: DateTime.now().add(const Duration(days: 1)),
+            theme: theme,
+            isIntroMode: true,
           ),
         );
       },
@@ -758,12 +786,7 @@ class _ShopPublicModernPageState extends State<ShopPublicModernPage> {
     return InkWell(
       borderRadius: BorderRadius.circular(16),
       onTap: () {
-        Navigator.of(context).push(
-          MaterialPageRoute<void>(
-            builder: (_) =>
-                ShopRoomIntroPage(shopId: widget.shopId, theme: theme),
-          ),
-        );
+        _openPage(ShopRoomIntroPage(shopId: widget.shopId, theme: theme));
       },
       child: Container(
         width: 72,
@@ -925,11 +948,7 @@ class _ShopPublicModernPageState extends State<ShopPublicModernPage> {
     required bool compact,
   }) {
     return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-      stream: FirebaseFirestore.instance
-          .collection('reviews')
-          .where('shopId', isEqualTo: widget.shopId)
-          .where('status', isEqualTo: 'visible')
-          .snapshots(),
+      stream: _reviewsStream,
       builder: (context, snapshot) {
         final docs = snapshot.data?.docs ?? [];
 
@@ -1012,16 +1031,22 @@ class _ShopPublicModernPageState extends State<ShopPublicModernPage> {
       banners: banners,
       theme: theme,
       frameSetting: frameSetting,
-      onBannerTap: (StoreBannerModel banner) {
-        HomeBannerNavigation.open(
-          context: context,
-          shopId: widget.shopId,
-          shop: shop,
-          theme: theme,
-          banner: banner,
-          useModernDrawer: true,
-        );
-      },
+      liveComposeBannerId: widget.isPreview
+          ? widget.initialPreviewBannerId
+          : null,
+      initialBannerId: widget.initialPreviewBannerId,
+      onBannerTap: widget.isPreview
+          ? null
+          : (StoreBannerModel banner) {
+              HomeBannerNavigation.open(
+                context: context,
+                shopId: widget.shopId,
+                shop: shop,
+                theme: theme,
+                banner: banner,
+                useModernDrawer: true,
+              );
+            },
       reviewBadge: _buildBannerReviewBadge(
         theme: theme,
         compact: frameSetting.isUltraCompact,
@@ -1047,13 +1072,7 @@ class _ShopPublicModernPageState extends State<ShopPublicModernPage> {
     }
 
     void openEnvironmentPage() {
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (_) =>
-              ShopEnvironmentPage(shopId: widget.shopId, theme: theme),
-        ),
-      );
+      _openPage(ShopEnvironmentPage(shopId: widget.shopId, theme: theme));
     }
 
     return SizedBox(
@@ -1176,22 +1195,11 @@ class _ShopPublicModernPageState extends State<ShopPublicModernPage> {
 
   Widget _buildLatestAnnouncementSection({required HomeThemeModel theme}) {
     void openAnnouncementPage() {
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (_) =>
-              ShopAnnouncementPage(shopId: widget.shopId, theme: theme),
-        ),
-      );
+      _openPage(ShopAnnouncementPage(shopId: widget.shopId, theme: theme));
     }
 
     return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-      stream: FirebaseFirestore.instance
-          .collection('shops')
-          .doc(widget.shopId)
-          .collection('announcements')
-          .where('isPublished', isEqualTo: true)
-          .snapshots(),
+      stream: _announcementsStream,
       builder: (context, snapshot) {
         String title = '目前尚無公告';
         String type = 'normal';

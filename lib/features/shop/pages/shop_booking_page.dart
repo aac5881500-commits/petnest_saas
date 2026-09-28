@@ -21,10 +21,8 @@ import 'package:petnest_saas/core/widgets/app_drawer.dart';
 import 'package:petnest_saas/features/shop/widgets/modern_home/modern_app_drawer.dart';
 import 'package:petnest_saas/features/shop/widgets/booking/booking_room_type_section.dart';
 import 'package:petnest_saas/features/shop/widgets/booking/booking_addon_section.dart';
-import 'package:petnest_saas/core/models/daily_care_addon_plan.dart';
 import 'package:petnest_saas/core/models/daily_care_entitlement.dart';
 import 'package:petnest_saas/core/models/daily_care_setting_model.dart';
-import 'package:petnest_saas/core/services/daily_care_addon_service.dart';
 import 'package:petnest_saas/core/services/daily_care_entitlement_math.dart';
 import 'package:petnest_saas/core/services/daily_care_setting_service.dart';
 import 'package:petnest_saas/features/shop/widgets/booking/daily_care_upgrade_card.dart';
@@ -155,7 +153,6 @@ class _ShopBookingPageState extends State<ShopBookingPage> {
   Map<String, dynamic>? _addonData;
   bool _addonLoading = true;
   DailyCareSettingModel _dailyCareSetting = const DailyCareSettingModel();
-  List<DailyCareAddonPlan> _dailyCarePlans = <DailyCareAddonPlan>[];
   String? _selectedDailyCareAddonId;
 
   bool _rangeChecked = false;
@@ -210,32 +207,41 @@ class _ShopBookingPageState extends State<ShopBookingPage> {
   }
 
   Future<void> _loadAddons() async {
-    final doc = await FirebaseFirestore.instance
-        .collection('shops')
-        .doc(widget.shopId)
-        .collection('addons')
-        .doc('main')
-        .get();
-
-    setState(() {
-      _addonData = doc.data();
-      _addonLoading = false;
-    });
+    try {
+      final doc = await FirebaseFirestore.instance
+          .collection('shops')
+          .doc(widget.shopId)
+          .collection('addons')
+          .doc('main')
+          .get();
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _addonData = doc.data();
+        _addonLoading = false;
+      });
+    } catch (error) {
+      debugPrint('讀取住宿加購失敗：$error');
+      if (mounted) {
+        setState(() {
+          _addonLoading = false;
+        });
+      }
+    }
     try {
       final DailyCareSettingModel setting = await DailyCareSettingService
           .instance
           .getSetting(widget.shopId);
-      final List<DailyCareAddonPlan> plans = await DailyCareAddonService
-          .instance
-          .listPlans(widget.shopId);
       if (!mounted) {
         return;
       }
       setState(() {
         _dailyCareSetting = setting;
-        _dailyCarePlans = plans;
       });
-    } catch (_) {}
+    } catch (error) {
+      debugPrint('讀取每日照護設定失敗：$error');
+    }
   }
 
   void _listenPublicCampaigns() {
@@ -509,7 +515,8 @@ class _ShopBookingPageState extends State<ShopBookingPage> {
   DailyCareEntitlement? _dailyCareQuote() {
     try {
       return _dailyCareQuoteForSubmit();
-    } catch (_) {
+    } catch (error) {
+      debugPrint('計算住宿照護加購失敗：$error');
       return null;
     }
   }
@@ -843,6 +850,7 @@ class _ShopBookingPageState extends State<ShopBookingPage> {
                   _selectedPetIds.remove(petId);
                 }
                 _selectedRoomType = null;
+                _selectedDailyCareAddonId = null;
               });
             },
           ),
@@ -864,6 +872,7 @@ class _ShopBookingPageState extends State<ShopBookingPage> {
             onSelectRoomType: (roomType) {
               setState(() {
                 _selectedRoomType = roomType;
+                _selectedDailyCareAddonId = null;
               });
             },
           ),
@@ -948,23 +957,22 @@ class _ShopBookingPageState extends State<ShopBookingPage> {
               });
             },
           ),
-          if (_selectedRoomType != null)
-            DailyCareUpgradeCard(
-              setting: _dailyCareSetting,
-              isDaycare: false,
-              shopDaycareOn: true,
-              offerId: (_selectedRoomType!['id'] ?? '').toString(),
-              offerName: (_selectedRoomType!['name'] ?? '').toString(),
-              nights: _nights,
-              startDate: _startDate,
-              endDate: _endDate,
-              selectedPlanId: _selectedDailyCareAddonId,
-              onChanged: (String? id) {
-                setState(() {
-                  _selectedDailyCareAddonId = id;
-                });
-              },
-            ),
+          DailyCareUpgradeCard(
+            setting: _dailyCareSetting,
+            isDaycare: false,
+            shopDaycareOn: true,
+            offerId: (_selectedRoomType?['id'] ?? '').toString(),
+            offerName: (_selectedRoomType?['name'] ?? '').toString(),
+            nights: _nights,
+            startDate: _startDate,
+            endDate: _endDate,
+            selectedPlanId: _selectedDailyCareAddonId,
+            onChanged: (String? id) {
+              setState(() {
+                _selectedDailyCareAddonId = id;
+              });
+            },
+          ),
         ],
       );
     }
@@ -1897,6 +1905,7 @@ class _ShopBookingPageState extends State<ShopBookingPage> {
                     setState(() {
                       _startDate = _tempStartDate;
                       _endDate = _tempEndDate;
+                      _selectedDailyCareAddonId = null;
 
                       _rangeChecked = true;
                       _rangeBookable = true;

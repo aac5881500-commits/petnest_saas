@@ -38,6 +38,7 @@ class DailyCareReportCenterItem {
     this.daycareTimeLabel = '',
     this.isCompleted = false,
     this.updatedAt,
+    this.completedAt,
     this.canOperate = true,
     this.reportsLocked = false,
     this.photoCount = 0,
@@ -68,6 +69,7 @@ class DailyCareReportCenterItem {
   final String sessionName;
   final bool isCompleted;
   final DateTime? updatedAt;
+  final DateTime? completedAt;
   final DailyCareEntitlement entitlement;
   final bool canOperate;
   final bool reportsLocked;
@@ -236,6 +238,8 @@ class DailyCareReportCenterItem {
   DailyCareReportCenterItem copyWith({
     bool? isCompleted,
     DateTime? updatedAt,
+    DateTime? completedAt,
+    bool updateCompletedAt = false,
     bool? canOperate,
     bool? reportsLocked,
     int? photoCount,
@@ -266,6 +270,7 @@ class DailyCareReportCenterItem {
       sessionName: sessionName,
       isCompleted: isCompleted ?? this.isCompleted,
       updatedAt: updatedAt ?? this.updatedAt,
+      completedAt: updateCompletedAt ? completedAt : this.completedAt,
       entitlement: entitlement,
       canOperate: canOperate ?? this.canOperate,
       reportsLocked: reportsLocked ?? this.reportsLocked,

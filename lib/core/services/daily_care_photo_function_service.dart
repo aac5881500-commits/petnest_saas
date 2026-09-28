@@ -86,6 +86,51 @@ class DailyCarePhotoFunctionService {
     return _call('deleteDailyCarePhoto', <String, dynamic>{'photoId': photoId});
   }
 
+  /// 確認完成：由後端寫入完整回報，客戶端不再直接寫 daily_care_records。
+  Future<Map<String, dynamic>> completeDailyCareReport({
+    required String shopId,
+    required String bookingId,
+    required String roomId,
+    required String roomName,
+    required DateTime recordDate,
+    required int sessionIndex,
+    required String sessionName,
+    required String serviceType,
+    required List<String> petIds,
+    required Map<String, dynamic> values,
+    required String dailyCareRecordId,
+    String operatorName = '',
+    int? photoCount,
+  }) {
+    return _call('completeDailyCareReport', <String, dynamic>{
+      'shopId': shopId,
+      'bookingId': bookingId,
+      'roomId': roomId,
+      'roomName': roomName,
+      'recordDate': recordDate.toIso8601String(),
+      'sessionIndex': sessionIndex,
+      'sessionName': sessionName,
+      'serviceType': serviceType,
+      'petIds': petIds,
+      'values': values,
+      'petNotes': const <String, String>{},
+      'dailyCareRecordId': dailyCareRecordId,
+      'operatorName': operatorName,
+      if (photoCount != null) 'photoCount': photoCount,
+    });
+  }
+
+  /// 只校正整段早一天的住宿回報日。安親訂單由後端直接略過。
+  Future<Map<String, dynamic>> repairDailyCareRecordDates({
+    required String shopId,
+    required String bookingId,
+  }) {
+    return _call('repairDailyCareRecordDates', <String, dynamic>{
+      'shopId': shopId,
+      'bookingId': bookingId,
+    });
+  }
+
   Future<void> lockSession({
     required String shopId,
     required String bookingId,

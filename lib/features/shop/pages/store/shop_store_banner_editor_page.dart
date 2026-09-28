@@ -6,6 +6,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/constants/store_constants.dart';
+import 'package:petnest_saas/core/models/home_banner_display.dart';
 import 'package:petnest_saas/core/models/fixed_image_spec.dart';
 import 'package:petnest_saas/core/models/home_theme_model.dart';
 import 'package:petnest_saas/core/models/store_appearance_model.dart';
@@ -38,6 +39,11 @@ class ShopStoreBannerEditorPage extends StatefulWidget {
     this.imageFolder,
     this.imageType,
     this.pageTitle,
+    this.embedded = false,
+    this.showInlinePreview = true,
+    this.controller,
+    this.onDraftChanged,
+    this.onPublished,
   });
 
   final String shopId;
@@ -51,6 +57,13 @@ class ShopStoreBannerEditorPage extends StatefulWidget {
   final String? imageType;
   final String? pageTitle;
 
+  /// 嵌在活動海報管理頁時，不自帶 AppBar 與大型預覽。
+  final bool embedded;
+  final bool showInlinePreview;
+  final StoreBannerEditorController? controller;
+  final ValueChanged<StoreBannerModel>? onDraftChanged;
+  final ValueChanged<List<StoreBannerModel>>? onPublished;
+
   bool get isHomeScope => scope == PetNestBannerScope.home;
 
   @override
@@ -60,6 +73,26 @@ class ShopStoreBannerEditorPage extends StatefulWidget {
 
 typedef PetNestBannerEditorPage = ShopStoreBannerEditorPage;
 
+class StoreBannerEditorController {
+  _ShopStoreBannerEditorPageState? _state;
+
+  StoreBannerModel? get draft => _state?.currentDraft;
+
+  bool get dirty => _state?._dirty ?? false;
+
+  Future<void> publish() {
+    final Future<void> Function()? save = _state?._save;
+    if (save == null) {
+      return Future<void>.value();
+    }
+    return save();
+  }
+
+  List<HomeBannerStoredImage> detachStoredImages() {
+    return _state?.detachStoredImages() ?? const <HomeBannerStoredImage>[];
+  }
+}
+
 class _ShopStoreBannerEditorPageState extends State<ShopStoreBannerEditorPage>
     with SingleTickerProviderStateMixin {
   late StoreBannerModel _draft;
@@ -67,21 +100,44 @@ class _ShopStoreBannerEditorPageState extends State<ShopStoreBannerEditorPage>
   late final TextEditingController _text;
   late final TextEditingController _cta;
   String? _selectedTextId;
-  String _pendingUrl = '';
-  String _pendingPath = '';
-  String _retiredUrl = '';
-  String _retiredPath = '';
+  final HomeBannerImageCleanup _images = HomeBannerImageCleanup();
   bool _saving = false;
   bool _saved = false;
   bool _uploading = false;
   bool _dirty = false;
   final GlobalKey _captureKey = GlobalKey();
 
+  StoreBannerModel get currentDraft => _draft.copyWith(ctaText: _cta.text);
+
+  List<HomeBannerStoredImage> detachStoredImages() {
+    final List<HomeBannerStoredImage> images = <HomeBannerStoredImage>[
+      ..._images.pending,
+      ..._images.retireAfterSave,
+      if (_draft.hasImage)
+        HomeBannerStoredImage(
+          url: _draft.imageUrl,
+          path: _draft.imageStoragePath,
+        ),
+      if (_draft.hasPublishedPoster)
+        HomeBannerStoredImage(
+          url: _draft.renderedImageUrl,
+          path: _draft.renderedImageStoragePath,
+        ),
+    ];
+    _saved = true;
+    _images.pending.clear();
+    _images.retireAfterSave.clear();
+    return images
+        .where((HomeBannerStoredImage image) => !image.isEmpty)
+        .toList();
+  }
+
   @override
   void initState() {
     super.initState();
+    widget.controller?._state = this;
     _draft = widget.banner.hydrateLegacyForEditor();
-    if (widget.isNew && _draft.contentMode.isEmpty) {
+    if (widget.isNew && _draft.contentMode.isEmpty && !widget.isHomeScope) {
       _draft = _draft.copyWith(contentMode: StoreBannerContentModes.imageOnly);
     }
     _tabs = TabController(length: 5, vsync: this);
@@ -95,14 +151,29 @@ class _ShopStoreBannerEditorPageState extends State<ShopStoreBannerEditorPage>
     if (_draft.textElements.isNotEmpty) {
       _selectText(_draft.textElements.first.id, updateController: true);
     }
-    if (widget.isNew) {
-      _pendingUrl = _draft.imageUrl;
-      _pendingPath = _draft.imageStoragePath;
+    if (widget.isNew && _draft.hasImage) {
+      _images.replacePending(
+        HomeBannerStoredImage(
+          url: _draft.imageUrl,
+          path: _draft.imageStoragePath,
+        ),
+      );
     }
   }
 
   @override
+  void setState(VoidCallback fn) {
+    super.setState(() {
+      fn();
+      widget.onDraftChanged?.call(currentDraft);
+    });
+  }
+
+  @override
   void dispose() {
+    if (widget.controller?._state == this) {
+      widget.controller?._state = null;
+    }
     _tabs.dispose();
     _text.dispose();
     _cta.dispose();
@@ -155,13 +226,30 @@ class _ShopStoreBannerEditorPageState extends State<ShopStoreBannerEditorPage>
   }
 
   Future<void> _cleanupPending() async {
-    if (_pendingPath.isEmpty && _pendingUrl.isEmpty) {
-      return;
+    final List<HomeBannerStoredImage> drop = _images.abandon();
+    for (final HomeBannerStoredImage image in drop) {
+      await InventoryImageService.instance.tryDeleteImage(
+        imageUrl: image.url,
+        imageStoragePath: image.path,
+      );
     }
-    await InventoryImageService.instance.tryDeleteImage(
-      imageUrl: _pendingUrl,
-      imageStoragePath: _pendingPath,
-    );
+  }
+
+  Future<void> _deleteImages(List<HomeBannerStoredImage> images) async {
+    for (final HomeBannerStoredImage image in images) {
+      if (widget.isHomeScope) {
+        await HomeBannerService.instance.deleteBannerImage(
+          shopId: widget.shopId,
+          imageUrl: image.url,
+          imageStoragePath: image.path,
+        );
+      } else {
+        await InventoryImageService.instance.tryDeleteImage(
+          imageUrl: image.url,
+          imageStoragePath: image.path,
+        );
+      }
+    }
   }
 
   Future<void> _pickImage() async {
@@ -191,21 +279,25 @@ class _ShopStoreBannerEditorPageState extends State<ShopStoreBannerEditorPage>
       if (result == null) {
         return;
       }
-      if (_pendingPath.isNotEmpty || _pendingUrl.isNotEmpty) {
-        await InventoryImageService.instance.tryDeleteImage(
-          imageUrl: _pendingUrl,
-          imageStoragePath: _pendingPath,
+      final List<HomeBannerStoredImage> replaced = _images.replacePending(
+        HomeBannerStoredImage(
+          url: result.imageUrl,
+          path: result.imageStoragePath,
+        ),
+      );
+      if (replaced.isEmpty && _draft.hasImage) {
+        _images.retireSaved(
+          HomeBannerStoredImage(
+            url: _draft.imageUrl,
+            path: _draft.imageStoragePath,
+          ),
         );
-      } else if (_draft.hasImage) {
-        _retiredUrl = _draft.imageUrl;
-        _retiredPath = _draft.imageStoragePath;
       }
+      await _deleteImages(replaced);
       if (!mounted) {
         return;
       }
       setState(() {
-        _pendingUrl = result.imageUrl;
-        _pendingPath = result.imageStoragePath;
         _draft = _draft.copyWith(
           imageUrl: result.imageUrl,
           imageStoragePath: result.imageStoragePath,
@@ -226,17 +318,18 @@ class _ShopStoreBannerEditorPageState extends State<ShopStoreBannerEditorPage>
   }
 
   Future<void> _removeImage() async {
-    if (_pendingPath.isNotEmpty || _pendingUrl.isNotEmpty) {
-      await InventoryImageService.instance.tryDeleteImage(
-        imageUrl: _pendingUrl,
-        imageStoragePath: _pendingPath,
+    final List<HomeBannerStoredImage> replaced = _images.replacePending(
+      const HomeBannerStoredImage(),
+    );
+    if (replaced.isEmpty && _draft.hasImage) {
+      _images.retireSaved(
+        HomeBannerStoredImage(
+          url: _draft.imageUrl,
+          path: _draft.imageStoragePath,
+        ),
       );
-      _pendingUrl = '';
-      _pendingPath = '';
-    } else if (_draft.hasImage) {
-      _retiredUrl = _draft.imageUrl;
-      _retiredPath = _draft.imageStoragePath;
     }
+    await _deleteImages(replaced);
     setState(() {
       _draft = _draft.copyWith(imageUrl: '', imageStoragePath: '');
     });
@@ -260,6 +353,16 @@ class _ShopStoreBannerEditorPageState extends State<ShopStoreBannerEditorPage>
       ).showSnackBar(const SnackBar(content: Text('請先上傳海報圖片')));
       return;
     }
+    if (widget.isHomeScope) {
+      final String? actionError = HomeBannerDisplay.validateAction(next);
+      if (actionError != null) {
+        setState(() => _saving = false);
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(actionError)));
+        return;
+      }
+    }
     String uploadedUrl = '';
     String uploadedPath = '';
     final String oldRenderedUrl = next.renderedImageUrl;
@@ -268,6 +371,7 @@ class _ShopStoreBannerEditorPageState extends State<ShopStoreBannerEditorPage>
       await WidgetsBinding.instance.endOfFrame;
       final bytes = await StoreBannerRenderService.instance.captureJpeg(
         _captureKey,
+        fixedHomeCanvas: widget.isHomeScope,
       );
       final int version = DateTime.now().millisecondsSinceEpoch;
       final InventoryImageUploadResult rendered = await StoreBannerRenderService
@@ -311,27 +415,17 @@ class _ShopStoreBannerEditorPageState extends State<ShopStoreBannerEditorPage>
           };
       await persist(all);
       if (oldRenderedPath.isNotEmpty || oldRenderedUrl.isNotEmpty) {
-        await InventoryImageService.instance.tryDeleteImage(
-          imageUrl: oldRenderedUrl,
-          imageStoragePath: oldRenderedPath,
-        );
-      }
-      if (_retiredPath.isNotEmpty || _retiredUrl.isNotEmpty) {
-        if (widget.isHomeScope) {
-          await HomeBannerService.instance.deleteBannerImage(
-            shopId: widget.shopId,
-            imageUrl: _retiredUrl,
-            imageStoragePath: _retiredPath,
-          );
-        } else {
-          await InventoryImageService.instance.tryDeleteImage(
-            imageUrl: _retiredUrl,
-            imageStoragePath: _retiredPath,
+        if (oldRenderedPath != uploadedPath) {
+          _images.retireSaved(
+            HomeBannerStoredImage(url: oldRenderedUrl, path: oldRenderedPath),
           );
         }
       }
+      final List<HomeBannerStoredImage> retired = _images.commitSave();
+      await _deleteImages(retired);
       _saved = true;
-      if (!mounted) {
+      widget.onPublished?.call(all);
+      if (!mounted || widget.embedded) {
         return;
       }
       Navigator.pop(context, all);
@@ -489,11 +583,98 @@ class _ShopStoreBannerEditorPageState extends State<ShopStoreBannerEditorPage>
     );
   }
 
+  Widget _editorColumn(HomeThemeModel theme) {
+    return _EditorColumn(
+      tabs: _tabs,
+      draft: _draft,
+      theme: theme,
+      shopId: widget.shopId,
+      scope: widget.scope,
+      uploading: _uploading,
+      textController: _text,
+      ctaController: _cta,
+      selected: _selected,
+      onTemplate: widget.showInlinePreview ? null : _applyTemplate,
+      onDraft: (StoreBannerModel value) {
+        _dirty = true;
+        setState(() => _draft = value);
+      },
+      onPickImage: _pickImage,
+      onRemoveImage: _removeImage,
+      onAddText: _addText,
+      onSelectText: (String id) {
+        setState(() => _selectText(id, updateController: true));
+      },
+      onReplaceText: _replaceText,
+      onDeleteText: _deleteSelected,
+      onShiftLayer: _shiftLayer,
+      onCtaChanged: () {
+        setState(() {
+          _draft = _draft.copyWith(ctaText: _cta.text);
+        });
+      },
+    );
+  }
+
+  Widget _captureLayer(StoreBannerModel banner, HomeThemeModel theme) {
+    return Positioned(
+      left: -4000,
+      top: 0,
+      child: IgnorePointer(
+        child: MediaQuery(
+          data: const MediaQueryData(
+            size: Size(1600, 900),
+            textScaler: TextScaler.noScaling,
+          ),
+          child: SizedBox(
+            width: StoreBannerRenderService.targetWidth.toDouble(),
+            height: StoreBannerRenderService.targetHeight.toDouble(),
+            child: RepaintBoundary(
+              key: _captureKey,
+              child: StoreBannerView(
+                banner: banner,
+                theme: theme,
+                scope: widget.scope,
+                composeLive: true,
+                borderRadius: 0,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildScaffold({
     required String title,
     required HomeThemeModel theme,
   }) {
-    final StoreBannerModel captureBanner = _draft.copyWith(ctaText: _cta.text);
+    final StoreBannerModel captureBanner = currentDraft;
+    final Widget editor = _editorColumn(theme);
+    final Widget capture = _captureLayer(captureBanner, theme);
+    if (widget.embedded) {
+      return Stack(
+        children: <Widget>[
+          Column(
+            children: <Widget>[
+              if (widget.isHomeScope && !captureBanner.hasPublishedPoster)
+                const Material(
+                  color: Color(0xFFFFF4E5),
+                  child: Padding(
+                    padding: EdgeInsets.fromLTRB(16, 10, 16, 10),
+                    child: Text(
+                      '此海報尚未轉為固定成品，重新發布後可避免不同裝置跑版。',
+                      style: TextStyle(height: 1.4),
+                    ),
+                  ),
+                ),
+              Expanded(child: editor),
+            ],
+          ),
+          capture,
+        ],
+      );
+    }
     return PopScope(
       canPop: _saved || !_dirty,
       onPopInvokedWithResult: (bool didPop, Object? result) async {
@@ -530,7 +711,8 @@ class _ShopStoreBannerEditorPageState extends State<ShopStoreBannerEditorPage>
           children: <Widget>[
             LayoutBuilder(
               builder: (BuildContext context, BoxConstraints constraints) {
-                final bool wide = constraints.maxWidth >= 900;
+                final bool wide =
+                    constraints.maxWidth >= 900 && widget.showInlinePreview;
                 final Widget preview = _PreviewBlock(
                   banner: _draft.copyWith(ctaText: _cta.text),
                   theme: theme,
@@ -548,35 +730,9 @@ class _ShopStoreBannerEditorPageState extends State<ShopStoreBannerEditorPage>
                   },
                   onTemplate: _applyTemplate,
                 );
-                final Widget editor = _EditorColumn(
-                  tabs: _tabs,
-                  draft: _draft,
-                  theme: theme,
-                  shopId: widget.shopId,
-                  scope: widget.scope,
-                  uploading: _uploading,
-                  textController: _text,
-                  ctaController: _cta,
-                  selected: _selected,
-                  onDraft: (StoreBannerModel value) {
-                    _dirty = true;
-                    setState(() => _draft = value);
-                  },
-                  onPickImage: _pickImage,
-                  onRemoveImage: _removeImage,
-                  onAddText: _addText,
-                  onSelectText: (String id) {
-                    setState(() => _selectText(id, updateController: true));
-                  },
-                  onReplaceText: _replaceText,
-                  onDeleteText: _deleteSelected,
-                  onShiftLayer: _shiftLayer,
-                  onCtaChanged: () {
-                    setState(() {
-                      _draft = _draft.copyWith(ctaText: _cta.text);
-                    });
-                  },
-                );
+                if (!widget.showInlinePreview) {
+                  return editor;
+                }
                 if (wide) {
                   return Row(
                     children: <Widget>[
@@ -595,28 +751,7 @@ class _ShopStoreBannerEditorPageState extends State<ShopStoreBannerEditorPage>
                 );
               },
             ),
-            Positioned(
-              left: -4000,
-              top: 0,
-              child: IgnorePointer(
-                child: SizedBox(
-                  width: 1600,
-                  child: AspectRatio(
-                    aspectRatio: StoreBannerSafeLayout.aspectRatio,
-                    child: RepaintBoundary(
-                      key: _captureKey,
-                      child: StoreBannerView(
-                        banner: captureBanner,
-                        theme: theme,
-                        scope: widget.scope,
-                        composeLive: true,
-                        borderRadius: 0,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ),
+            capture,
           ],
         ),
         bottomNavigationBar: SafeArea(
@@ -624,7 +759,13 @@ class _ShopStoreBannerEditorPageState extends State<ShopStoreBannerEditorPage>
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
             child: FilledButton(
               onPressed: _saving ? null : _save,
-              child: Text(_saving ? '發布中…' : '確認並發布'),
+              child: Text(
+                _saving
+                    ? '發布中…'
+                    : widget.isHomeScope
+                    ? '發布海報'
+                    : '確認並發布',
+              ),
             ),
           ),
         ),
@@ -736,6 +877,7 @@ class _EditorColumn extends StatelessWidget {
     required this.onDeleteText,
     required this.onShiftLayer,
     required this.onCtaChanged,
+    this.onTemplate,
   });
 
   final TabController tabs;
@@ -756,11 +898,42 @@ class _EditorColumn extends StatelessWidget {
   final VoidCallback onDeleteText;
   final ValueChanged<int> onShiftLayer;
   final VoidCallback onCtaChanged;
+  final ValueChanged<String>? onTemplate;
 
   @override
   Widget build(BuildContext context) {
     return Column(
       children: <Widget>[
+        if (onTemplate != null) ...<Widget>[
+          const Padding(
+            padding: EdgeInsets.fromLTRB(16, 8, 16, 0),
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                '快速版型',
+                style: TextStyle(fontWeight: FontWeight.w700),
+              ),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 6, 16, 4),
+            child: Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: StoreBannerTemplates.all.map((String value) {
+                final String label =
+                    value == StoreBannerTemplates.promo &&
+                        scope == PetNestBannerScope.home
+                    ? '活動宣傳'
+                    : StoreBannerTemplates.label(value);
+                return ActionChip(
+                  label: Text(label),
+                  onPressed: () => onTemplate!(value),
+                );
+              }).toList(),
+            ),
+          ),
+        ],
         TabBar(
           controller: tabs,
           isScrollable: true,
@@ -1573,6 +1746,22 @@ class _LinkPanel extends StatelessWidget {
             onDraft(draft.copyWith(actionType: value, actionTargetId: ''));
           },
         ),
+        if (isHome &&
+            draft.actionType == HomeBannerActionTypes.url) ...<Widget>[
+          const SizedBox(height: 8),
+          TextFormField(
+            key: ValueKey<String>('home_url_${draft.id}'),
+            initialValue: draft.actionTargetId,
+            decoration: const InputDecoration(
+              labelText: '外部網址',
+              hintText: 'https://',
+              border: OutlineInputBorder(),
+            ),
+            onChanged: (String value) {
+              onDraft(draft.copyWith(actionTargetId: value.trim()));
+            },
+          ),
+        ],
         if (draft.actionType == StoreBannerActionTypes.product ||
             (!isHome && draft.actionType != StoreBannerActionTypes.none))
           StoreBannerActionTargetPicker(

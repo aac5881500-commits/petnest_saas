@@ -37,6 +37,56 @@ DailyCarePhotoModel _photo({
 }
 
 void main() {
+  test('文件 ID 的台北日期優先於錯誤的 recordDate，客戶日誌才對得到 9/27', () {
+    final DailyCareRecordModel record = DailyCareRecordModel.fromMap(
+      id: 'booking123_20260927_0',
+      map: <String, dynamic>{
+        'shopId': 's',
+        'bookingId': 'booking123',
+        'roomId': 'roomA',
+        'roomName': 'A1',
+        'recordDate': DateTime.utc(2026, 9, 26, 16),
+        'sessionIndex': 0,
+        'sessionName': '第 1 場',
+        'values': <String, dynamic>{'water': '正常', 'generalNote': '今天很乖'},
+        'petNotes': <String, String>{},
+        'photoCount': 1,
+        'photosLocked': true,
+        'reportStatus': 'completed',
+      },
+    );
+    expect(record.bookingId, 'booking123');
+    expect(record.sessionIndex, 0);
+    expect(DailyCareDateHelper.dateKey(record.recordDate), '2026/09/27');
+    expect(record.hasReportContent, isTrue);
+    expect(record.countsAsCompleted, isTrue);
+    expect(
+      DailyCareRecordService.recordId(
+        bookingId: record.bookingId,
+        recordDate: record.recordDate,
+        sessionIndex: record.sessionIndex,
+      ),
+      record.id,
+    );
+  });
+
+  test('同一場再次完成仍是同一份 record ID', () {
+    final DateTime first = DateTime.utc(2026, 9, 26, 16);
+    final DateTime again = DateTime(2026, 9, 27);
+    expect(
+      DailyCareRecordService.recordId(
+        bookingId: 'booking123',
+        recordDate: first,
+        sessionIndex: 0,
+      ),
+      DailyCareRecordService.recordId(
+        bookingId: 'booking123',
+        recordDate: again,
+        sessionIndex: 0,
+      ),
+    );
+  });
+
   test('UTC 9/19 16:00 的台北日是 9/20，record ID 與 Functions 一致', () {
     final DateTime utc = DateTime.utc(2026, 9, 19, 16);
     expect(DailyCareDateHelper.recordIdDateKey(utc), '20260920');

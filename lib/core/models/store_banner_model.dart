@@ -672,6 +672,20 @@ class StoreBannerModel {
 
   bool get hasRenderedImage => renderedImageUrl.trim().isNotEmpty;
 
+  /// 已發布的固定成品圖。顧客前台只顯示這張。
+  bool get hasPublishedPoster => hasRenderedImage;
+
+  /// 顧客前台已有成品圖時，不再即時疊文字、按鈕或漸層。
+  bool get isCompletePoster => hasPublishedPoster;
+
+  /// 顧客前台要顯示的圖。有成品圖就用成品圖，否則才用背景原圖。
+  String get frontImageUrl {
+    if (hasPublishedPoster) {
+      return renderedImageUrl.trim();
+    }
+    return imageUrl.trim();
+  }
+
   bool get hasLegacyCopy =>
       eyebrow.trim().isNotEmpty ||
       title.trim().isNotEmpty ||
@@ -753,7 +767,10 @@ class StoreBannerModel {
       return false;
     }
     if (actionType == HomeBannerActionTypes.url) {
-      return false;
+      final Uri? uri = Uri.tryParse(actionTargetId.trim());
+      return uri != null &&
+          (uri.scheme == 'http' || uri.scheme == 'https') &&
+          uri.host.isNotEmpty;
     }
     return true;
   }

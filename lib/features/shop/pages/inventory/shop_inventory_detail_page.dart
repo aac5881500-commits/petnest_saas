@@ -162,7 +162,11 @@ class _ShopInventoryDetailPageState extends State<ShopInventoryDetailPage>
                           onViewLinkages: () => _tabController.animateTo(1),
                           onViewAllMovements: () => _tabController.animateTo(3),
                         ),
-                        InventoryLinkagesTab(item: item, snapshot: _linkages),
+                        InventoryLinkagesTab(
+                          shopId: widget.shopId,
+                          item: item,
+                          snapshot: _linkages,
+                        ),
                         InventoryBatchesTab(
                           shopId: widget.shopId,
                           item: item,

@@ -459,6 +459,7 @@ class _ShopPermissionSettingsPageState
                 context,
                 MaterialPageRoute(
                   builder: (_) => CatHotelPermissionPage(
+                    shopId: widget.shopId,
                     permissions: _permissions,
                     isOwner: _isOwner,
                     onChanged: (key, value) {

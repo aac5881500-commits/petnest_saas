@@ -10,13 +10,16 @@ import 'package:image_picker/image_picker.dart';
 import 'package:petnest_saas/core/models/home_text_style_model.dart';
 import 'package:petnest_saas/core/models/home_theme_model.dart';
 import 'package:petnest_saas/core/models/fixed_image_spec.dart';
+import 'package:petnest_saas/core/models/home_banner_display.dart';
 import 'package:petnest_saas/core/models/modern_banner_frame_setting.dart';
 import 'package:petnest_saas/core/models/modern_store_home_setting.dart';
+import 'package:petnest_saas/core/services/home_banner_service.dart';
 import 'package:petnest_saas/core/services/inventory_image_service.dart';
 import 'package:petnest_saas/core/services/shop_chat_service.dart';
 import 'package:petnest_saas/core/services/shop_service.dart';
 import 'package:petnest_saas/features/shop/pages/shop_media_page.dart';
 import 'package:petnest_saas/features/shop/widgets/media/fixed_image_pick_flow.dart';
+import 'package:petnest_saas/features/shop/widgets/modern_home/modern_home_editor_preview.dart';
 import 'package:petnest_saas/features/shop/widgets/modern_home/modern_home_store_card.dart';
 
 class ShopThemeSettingPage extends StatefulWidget {
@@ -28,7 +31,8 @@ class ShopThemeSettingPage extends StatefulWidget {
   State<ShopThemeSettingPage> createState() => _ShopThemeSettingPageState();
 }
 
-class _ShopThemeSettingPageState extends State<ShopThemeSettingPage> {
+class _ShopThemeSettingPageState extends State<ShopThemeSettingPage>
+    with SingleTickerProviderStateMixin {
   final ImagePicker _imagePicker = ImagePicker();
 
   String _modernLogoUrl = '';
@@ -107,6 +111,8 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage> {
   ModernBannerFrameSetting _modernBannerFrame =
       const ModernBannerFrameSetting();
   String _modernBannerPreviewImageUrl = '';
+  int _enabledHomeBannerCount = 0;
+  late final TabController _tabController;
   final Map<String, Map<String, String>> _layoutSettings = {
     'classic': {
       'theme': 'warmOrange',
@@ -126,6 +132,7 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage> {
 
   bool _isSaving = false;
   bool _isLoading = true;
+  final ValueNotifier<int> _previewTick = ValueNotifier<int>(0);
   final ScrollController _appearanceScroll = ScrollController();
   final ScrollController _featureScroll = ScrollController();
   // ========================
@@ -146,11 +153,57 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage> {
   @override
   void initState() {
     super.initState();
+    _tabController = TabController(length: 2, vsync: this);
+    _tabController.addListener(_onTabChanged);
+    _bindModernDraftListeners();
     _loadSettings();
+  }
+
+  void _onTabChanged() {
+    if (_tabController.indexIsChanging || !mounted) {
+      return;
+    }
+    setState(() {});
+  }
+
+  void _bindModernDraftListeners() {
+    for (final TextEditingController controller in <TextEditingController>[
+      _modernHeaderSubtitleController,
+      _modernBannerTitleController,
+      _modernBannerSubtitleController,
+      _modernBannerButtonTextController,
+      _featuredStoreTitleController,
+      _storeBannerTitleController,
+      _storeBannerSubtitleController,
+      _storeBannerButtonTextController,
+    ]) {
+      controller.addListener(_onModernDraftChanged);
+    }
+  }
+
+  void _onModernDraftChanged() {
+    if (!mounted || _isLoading || _selectedLayout != 'modern') {
+      return;
+    }
+    setState(() {});
   }
 
   @override
   void dispose() {
+    _tabController.removeListener(_onTabChanged);
+    _tabController.dispose();
+    for (final TextEditingController controller in <TextEditingController>[
+      _modernHeaderSubtitleController,
+      _modernBannerTitleController,
+      _modernBannerSubtitleController,
+      _modernBannerButtonTextController,
+      _featuredStoreTitleController,
+      _storeBannerTitleController,
+      _storeBannerSubtitleController,
+      _storeBannerButtonTextController,
+    ]) {
+      controller.removeListener(_onModernDraftChanged);
+    }
     _modernHeaderSubtitleController.dispose();
     _modernBannerTitleController.dispose();
     _modernBannerSubtitleController.dispose();
@@ -162,8 +215,47 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage> {
     _floatingButtonLabelController.dispose();
     _appearanceScroll.dispose();
     _featureScroll.dispose();
+    _previewTick.dispose();
     _discardPendingStoreCardImage();
     super.dispose();
+  }
+
+  @override
+  void setState(VoidCallback fn) {
+    super.setState(fn);
+    if (_previewTick.value < 1000000) {
+      _previewTick.value++;
+    }
+  }
+
+  Map<String, dynamic> get _draftModernAppearance {
+    return <String, dynamic>{
+      ...Map<String, String>.from(_layoutSettings['modern']!),
+      'headerSubtitle': _modernHeaderSubtitleController.text.trim(),
+      'bannerTitle': _modernBannerTitleController.text.trim(),
+      'bannerSubtitle': _modernBannerSubtitleController.text.trim(),
+      'bannerTitleStyle': _modernBannerTitleStyle.toMap(),
+      'bannerSubtitleStyle': _modernBannerSubtitleStyle.toMap(),
+      'bannerButtonText': _modernBannerButtonTextController.text.trim(),
+      'bannerButtonColor': _modernBannerButtonColorValue,
+      'bannerButtonTextColor': _modernBannerButtonTextColorValue,
+      ..._modernBannerFrame.toMap(),
+      'themeColors': _modernTheme.toMap(),
+      'showLeftHeaderIcon': _showModernLeftHeaderIcon,
+      'showRightHeaderIcon': _showModernRightHeaderIcon,
+      'leftHeaderIcon': _modernLeftHeaderIcon,
+      'rightHeaderIcon': _modernRightHeaderIcon,
+      ..._draftStoreHomeSetting.toMap(),
+    };
+  }
+
+  String get _bannerStatusText {
+    final String size = switch (_modernBannerFrame.displaySize) {
+      HomeBannerDisplaySize.small => '小',
+      HomeBannerDisplaySize.large => '大',
+      HomeBannerDisplaySize.standard => '標準',
+    };
+    return '已啟用・$_enabledHomeBannerCount 張海報・$size';
   }
 
   HomeThemeModel get _shopThemeForStore {
@@ -344,6 +436,11 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage> {
       }
 
       _modernLogoUrl = (shopData?['logoUrl'] ?? '').toString().trim();
+      _enabledHomeBannerCount = shopData == null
+          ? 0
+          : HomeBannerService.instance
+                .parseEnabledFrontBanners(Map<String, dynamic>.from(shopData))
+                .length;
 
       final rawAppearance = shopData?['homeAppearance'];
 
@@ -731,300 +828,457 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage> {
         body: const Center(child: CircularProgressIndicator()),
       );
     }
-    return DefaultTabController(
-      length: 2,
-      child: Scaffold(
+    final bool desktopModern =
+        MediaQuery.sizeOf(context).width >= 1100 && _selectedLayout == 'modern';
+    final bool pinSaveOnEditor = desktopModern && _tabController.index == 0;
+    return Scaffold(
+      backgroundColor: const Color(0xFFFFFCF7),
+      appBar: AppBar(
+        title: const Text('前台外觀設定'),
         backgroundColor: const Color(0xFFFFFCF7),
-        appBar: AppBar(
-          title: const Text('前台外觀設定'),
-          backgroundColor: const Color(0xFFFFFCF7),
-          surfaceTintColor: Colors.transparent,
-          bottom: const TabBar(
-            tabs: [
-              Tab(icon: Icon(Icons.palette_outlined), text: '外觀設定'),
-              Tab(icon: Icon(Icons.widgets_outlined), text: '前台功能'),
+        surfaceTintColor: Colors.transparent,
+        bottom: TabBar(
+          controller: _tabController,
+          tabs: const [
+            Tab(icon: Icon(Icons.palette_outlined), text: '外觀設定'),
+            Tab(icon: Icon(Icons.widgets_outlined), text: '前台功能'),
+          ],
+        ),
+      ),
+      body: TabBarView(
+        controller: _tabController,
+        physics: const NeverScrollableScrollPhysics(),
+        children: [
+          _buildAppearancePane(desktopModern),
+
+          Scrollbar(
+            controller: _featureScroll,
+            thumbVisibility: true,
+            child: ListView(
+              controller: _featureScroll,
+              primary: false,
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
+              children: [
+                _buildSectionTitle(
+                  icon: Icons.support_agent,
+                  title: '快速聯絡按鈕',
+                  description: '設定前台右下角固定顯示的快速聯絡按鈕',
+                ),
+
+                const SizedBox(height: 16),
+
+                Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      children: [
+                        SwitchListTile(
+                          value: _floatingButtonEnabled,
+                          onChanged: (value) {
+                            setState(() {
+                              _floatingButtonEnabled = value;
+                            });
+                          },
+                          title: const Text('啟用快速聯絡按鈕'),
+                          subtitle: const Text('開啟後，前台右下角會顯示一顆聯絡按鈕'),
+                        ),
+
+                        const Divider(),
+
+                        DropdownButtonFormField<String>(
+                          value:
+                              _availableFloatingTypes().contains(
+                                _floatingButtonType,
+                              )
+                              ? _floatingButtonType
+                              : ShopChatService.floatingTypePetnestChat,
+                          decoration: const InputDecoration(
+                            labelText: '按鈕功能',
+                            border: OutlineInputBorder(),
+                          ),
+                          items: _buildAvailableContactItems(),
+                          onChanged: (value) {
+                            if (value == null) return;
+
+                            setState(() {
+                              _floatingButtonType = value;
+                            });
+                          },
+                        ),
+
+                        const SizedBox(height: 12),
+
+                        _buildFloatingTypeHint(),
+
+                        const SizedBox(height: 16),
+
+                        Align(
+                          alignment: Alignment.centerLeft,
+                          child: Text(
+                            '按鈕大小',
+                            style: Theme.of(context).textTheme.titleSmall
+                                ?.copyWith(fontWeight: FontWeight.w600),
+                          ),
+                        ),
+
+                        const SizedBox(height: 10),
+
+                        SizedBox(
+                          width: double.infinity,
+                          child: SegmentedButton<String>(
+                            segments: const [
+                              ButtonSegment<String>(
+                                value: 'small',
+                                label: Text('小'),
+                                icon: Icon(Icons.circle, size: 12),
+                              ),
+                              ButtonSegment<String>(
+                                value: 'medium',
+                                label: Text('中'),
+                                icon: Icon(Icons.circle, size: 16),
+                              ),
+                              ButtonSegment<String>(
+                                value: 'large',
+                                label: Text('大'),
+                                icon: Icon(Icons.circle, size: 20),
+                              ),
+                            ],
+                            selected: {_floatingButtonSize},
+                            showSelectedIcon: false,
+                            onSelectionChanged: (selectedSizes) {
+                              if (selectedSizes.isEmpty) return;
+
+                              setState(() {
+                                _floatingButtonSize = selectedSizes.first;
+                              });
+                            },
+                          ),
+                        ),
+
+                        const SizedBox(height: 8),
+
+                        Text(
+                          _floatingButtonSize == 'small'
+                              ? '小尺寸：44 px'
+                              : _floatingButtonSize == 'large'
+                              ? '大尺寸：58 px'
+                              : '中尺寸：52 px',
+                          style: Theme.of(context).textTheme.bodySmall
+                              ?.copyWith(color: Colors.grey.shade600),
+                        ),
+
+                        const SizedBox(height: 16),
+
+                        TextField(
+                          controller: _floatingButtonLabelController,
+                          decoration: InputDecoration(
+                            labelText: '按鈕文字',
+                            hintText: ShopChatService.defaultLabelForType(
+                              _floatingButtonType,
+                            ),
+                            border: const OutlineInputBorder(),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+      bottomNavigationBar: pinSaveOnEditor ? null : _saveBar(),
+    );
+  }
+
+  Widget _buildAppearancePane(bool desktopModern) {
+    if (_selectedLayout != 'modern') {
+      return _classicAppearanceList();
+    }
+    if (desktopModern) {
+      return _modernDesktopWorkspace();
+    }
+    return _modernSettingsScroll(includePreviewButton: true);
+  }
+
+  Widget _classicAppearanceList() {
+    return Scrollbar(
+      controller: _appearanceScroll,
+      thumbVisibility: true,
+      child: ListView(
+        controller: _appearanceScroll,
+        primary: false,
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
+        children: <Widget>[
+          _buildSectionTitle(
+            icon: Icons.view_quilt_outlined,
+            title: '首頁版型',
+            description: '選擇顧客進入店家首頁時看到的排版',
+          ),
+          const SizedBox(height: 10),
+          _buildLayoutSelector(),
+          const SizedBox(height: 24),
+          _buildSectionTitle(
+            icon: Icons.palette_outlined,
+            title: '主題顏色',
+            description: '控制按鈕、圖示與重點文字的主要顏色',
+          ),
+          const SizedBox(height: 10),
+          _buildThemeSelector(),
+          const SizedBox(height: 24),
+          _buildSectionTitle(
+            icon: Icons.format_paint_outlined,
+            title: '背景顏色',
+            description: '選擇店家前台整體背景色',
+          ),
+          const SizedBox(height: 10),
+          _buildBackgroundSelector(),
+          const SizedBox(height: 24),
+        ],
+      ),
+    );
+  }
+
+  Widget _modernDesktopWorkspace() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 12, 12, 0),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: <Widget>[
+          SizedBox(
+            width: 440,
+            child: ValueListenableBuilder<int>(
+              valueListenable: _previewTick,
+              builder: (BuildContext context, int tick, Widget? child) {
+                return ModernHomeEditorPreview(
+                  shopId: widget.shopId,
+                  draftModernAppearance: _draftModernAppearance,
+                  draftLogoUrl: _modernLogoUrl,
+                );
+              },
+            ),
+          ),
+          const SizedBox(width: 16),
+          const VerticalDivider(width: 1, color: Color(0xFFE6E8EC)),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              children: <Widget>[
+                Expanded(
+                  child: _modernSettingsScroll(includePreviewButton: false),
+                ),
+                _saveBar(),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _modernSettingsScroll({required bool includePreviewButton}) {
+    return Scrollbar(
+      controller: _appearanceScroll,
+      thumbVisibility: true,
+      child: ListView(
+        controller: _appearanceScroll,
+        primary: false,
+        padding: const EdgeInsets.fromLTRB(4, 4, 8, 24),
+        children: <Widget>[
+          Align(
+            alignment: Alignment.topCenter,
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 860),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: <Widget>[
+                  if (includePreviewButton) ...<Widget>[
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: OutlinedButton.icon(
+                        onPressed: _openModernPreview,
+                        icon: const Icon(Icons.smartphone_outlined),
+                        label: const Text('預覽新版首頁'),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                  ],
+                  ..._modernEditorSections(),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _openModernPreview() {
+    showDialog<void>(
+      context: context,
+      builder: (BuildContext dialogContext) {
+        return Dialog.fullscreen(
+          child: Scaffold(
+            appBar: AppBar(
+              title: const Text('預覽新版首頁'),
+              leading: const CloseButton(),
+            ),
+            body: ValueListenableBuilder<int>(
+              valueListenable: _previewTick,
+              builder: (BuildContext context, int tick, Widget? child) {
+                return ModernHomeEditorPreview(
+                  shopId: widget.shopId,
+                  draftModernAppearance: _draftModernAppearance,
+                  draftLogoUrl: _modernLogoUrl,
+                  showCaption: false,
+                );
+              },
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  List<Widget> _modernEditorSections() {
+    return <Widget>[
+      _editorCard(
+        title: '新版首頁基本外觀',
+        subtitle: '目前使用新版首頁',
+        trailing: TextButton(
+          onPressed: () => _changeLayout('classic'),
+          child: const Text('改用經典版'),
+        ),
+        child: const Text(
+          '顧客進入店家時會看到新版 Beta。經典版的顏色設定會保留。',
+          style: TextStyle(fontSize: 13, height: 1.4),
+        ),
+      ),
+      _editorCard(
+        title: '店家識別',
+        subtitle: '影響首頁頂部店名、副標、左右圖示，以及底部店家 Logo',
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: <Widget>[
+            _buildModernLogoSettings(),
+            const SizedBox(height: 16),
+            _buildModernHeaderTextSettings(),
+          ],
+        ),
+      ),
+      _editorCard(
+        title: '首頁活動海報',
+        subtitle: '影響首頁上方活動海報的顯示大小。圖片與按鈕仍到活動海報管理編輯。',
+        summary: _bannerStatusText,
+        child: _buildHomeBannerDisplaySettings(),
+      ),
+      _editorCard(
+        title: '首頁賣場入口',
+        subtitle: '影響首頁精選商品與寵物賣場入口卡片，不改商城頁面',
+        child: _buildModernStoreHomeSettings(),
+      ),
+      _editorCard(
+        title: '首頁色彩',
+        subtitle: '影響新版首頁背景、卡片、外框、圖示與文字',
+        child: _buildModernThemeColorSettings(),
+      ),
+      _editorCard(
+        title: '側邊選單',
+        subtitle: '影響新版首頁左上角選單要顯示的內容',
+        child: _buildModernDrawerSettings(),
+      ),
+    ];
+  }
+
+  Widget _editorCard({
+    required String title,
+    required String subtitle,
+    required Widget child,
+    String? summary,
+    Widget? trailing,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 14),
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: const Color(0xFFE6E8EC)),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: <Widget>[
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: <Widget>[
+                        Text(
+                          title,
+                          style: const TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          subtitle,
+                          style: const TextStyle(
+                            fontSize: 12,
+                            height: 1.35,
+                            color: Colors.black54,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  if (summary != null) ...<Widget>[
+                    const SizedBox(width: 8),
+                    Text(
+                      summary,
+                      style: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        color: Color(0xFF9A5B12),
+                      ),
+                    ),
+                  ],
+                  if (trailing != null) trailing,
+                ],
+              ),
+              const SizedBox(height: 12),
+              child,
             ],
           ),
         ),
-        body: TabBarView(
-          physics: const NeverScrollableScrollPhysics(),
-          children: [
-            Scrollbar(
-              controller: _appearanceScroll,
-              thumbVisibility: true,
-              child: ListView(
-                controller: _appearanceScroll,
-                primary: false,
-                padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
-                children: [
-                  _buildSectionTitle(
-                    icon: Icons.view_quilt_outlined,
-                    title: '首頁版型',
-                    description: '選擇顧客進入店家首頁時看到的排版',
-                  ),
+      ),
+    );
+  }
 
-                  const SizedBox(height: 10),
-
-                  _buildLayoutSelector(),
-
-                  if (_selectedLayout == 'modern') ...[
-                    const SizedBox(height: 24),
-
-                    _buildSectionTitle(
-                      icon: Icons.image_outlined,
-                      title: '新版店家 Logo',
-                      description: '只用於新版首頁 Footer，經典版原有顯示不受影響',
-                    ),
-
-                    const SizedBox(height: 10),
-
-                    _buildModernLogoSettings(),
-
-                    const SizedBox(height: 24),
-
-                    _buildSectionTitle(
-                      icon: Icons.title_rounded,
-                      title: 'Header 文字',
-                      description: '只影響新版首頁，不會修改正式店家名稱',
-                    ),
-                    const SizedBox(height: 10),
-
-                    _buildModernHeaderTextSettings(),
-
-                    const SizedBox(height: 16),
-
-                    _buildSectionTitle(
-                      icon: Icons.photo_size_select_large_outlined,
-                      title: '首頁活動海報',
-                      description: '此設定會套用到首頁所有活動海報。每張海報的圖片、字幕與按鈕請到活動海報管理編輯。',
-                    ),
-                    const SizedBox(height: 10),
-                    _buildHomeBannerDisplaySettings(),
-
-                    const SizedBox(height: 24),
-
-                    _buildSectionTitle(
-                      icon: Icons.storefront_outlined,
-                      title: '首頁賣場卡片',
-                      description: '此設定只影響新版首頁上的「寵物賣場入口卡片」，不影響真正商城頁面的設定。',
-                    ),
-
-                    const SizedBox(height: 10),
-
-                    _buildModernStoreHomeSettings(),
-
-                    const SizedBox(height: 24),
-
-                    _buildSectionTitle(
-                      icon: Icons.color_lens_outlined,
-                      title: '新版主題顏色',
-                      description: '設定新版首頁的背景、卡片、外框、圖示與文字顏色',
-                    ),
-
-                    const SizedBox(height: 10),
-
-                    _buildModernThemeColorSettings(),
-                    const SizedBox(height: 24),
-
-                    _buildSectionTitle(
-                      icon: Icons.menu_open_rounded,
-                      title: '新版 Drawer 設定',
-                      description: '控制側邊選單要顯示哪些內容',
-                    ),
-
-                    const SizedBox(height: 10),
-
-                    _buildModernDrawerSettings(),
-                  ],
-
-                  if (_selectedLayout == 'classic') ...[
-                    const SizedBox(height: 24),
-
-                    _buildSectionTitle(
-                      icon: Icons.palette_outlined,
-                      title: '主題顏色',
-                      description: '控制按鈕、圖示與重點文字的主要顏色',
-                    ),
-
-                    const SizedBox(height: 10),
-
-                    _buildThemeSelector(),
-
-                    const SizedBox(height: 24),
-
-                    _buildSectionTitle(
-                      icon: Icons.format_paint_outlined,
-                      title: '背景顏色',
-                      description: '選擇店家前台整體背景色',
-                    ),
-
-                    const SizedBox(height: 10),
-
-                    _buildBackgroundSelector(),
-                  ],
-
-                  const SizedBox(height: 24),
-                ],
-              ),
-            ),
-
-            Scrollbar(
-              controller: _featureScroll,
-              thumbVisibility: true,
-              child: ListView(
-                controller: _featureScroll,
-                primary: false,
-                padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
-                children: [
-                  _buildSectionTitle(
-                    icon: Icons.support_agent,
-                    title: '快速聯絡按鈕',
-                    description: '設定前台右下角固定顯示的快速聯絡按鈕',
-                  ),
-
-                  const SizedBox(height: 16),
-
-                  Card(
-                    child: Padding(
-                      padding: const EdgeInsets.all(16),
-                      child: Column(
-                        children: [
-                          SwitchListTile(
-                            value: _floatingButtonEnabled,
-                            onChanged: (value) {
-                              setState(() {
-                                _floatingButtonEnabled = value;
-                              });
-                            },
-                            title: const Text('啟用快速聯絡按鈕'),
-                            subtitle: const Text('開啟後，前台右下角會顯示一顆聯絡按鈕'),
-                          ),
-
-                          const Divider(),
-
-                          DropdownButtonFormField<String>(
-                            value:
-                                _availableFloatingTypes().contains(
-                                  _floatingButtonType,
-                                )
-                                ? _floatingButtonType
-                                : ShopChatService.floatingTypePetnestChat,
-                            decoration: const InputDecoration(
-                              labelText: '按鈕功能',
-                              border: OutlineInputBorder(),
-                            ),
-                            items: _buildAvailableContactItems(),
-                            onChanged: (value) {
-                              if (value == null) return;
-
-                              setState(() {
-                                _floatingButtonType = value;
-                              });
-                            },
-                          ),
-
-                          const SizedBox(height: 12),
-
-                          _buildFloatingTypeHint(),
-
-                          const SizedBox(height: 16),
-
-                          Align(
-                            alignment: Alignment.centerLeft,
-                            child: Text(
-                              '按鈕大小',
-                              style: Theme.of(context).textTheme.titleSmall
-                                  ?.copyWith(fontWeight: FontWeight.w600),
-                            ),
-                          ),
-
-                          const SizedBox(height: 10),
-
-                          SizedBox(
-                            width: double.infinity,
-                            child: SegmentedButton<String>(
-                              segments: const [
-                                ButtonSegment<String>(
-                                  value: 'small',
-                                  label: Text('小'),
-                                  icon: Icon(Icons.circle, size: 12),
-                                ),
-                                ButtonSegment<String>(
-                                  value: 'medium',
-                                  label: Text('中'),
-                                  icon: Icon(Icons.circle, size: 16),
-                                ),
-                                ButtonSegment<String>(
-                                  value: 'large',
-                                  label: Text('大'),
-                                  icon: Icon(Icons.circle, size: 20),
-                                ),
-                              ],
-                              selected: {_floatingButtonSize},
-                              showSelectedIcon: false,
-                              onSelectionChanged: (selectedSizes) {
-                                if (selectedSizes.isEmpty) return;
-
-                                setState(() {
-                                  _floatingButtonSize = selectedSizes.first;
-                                });
-                              },
-                            ),
-                          ),
-
-                          const SizedBox(height: 8),
-
-                          Text(
-                            _floatingButtonSize == 'small'
-                                ? '小尺寸：44 px'
-                                : _floatingButtonSize == 'large'
-                                ? '大尺寸：58 px'
-                                : '中尺寸：52 px',
-                            style: Theme.of(context).textTheme.bodySmall
-                                ?.copyWith(color: Colors.grey.shade600),
-                          ),
-
-                          const SizedBox(height: 16),
-
-                          TextField(
-                            controller: _floatingButtonLabelController,
-                            decoration: InputDecoration(
-                              labelText: '按鈕文字',
-                              hintText: ShopChatService.defaultLabelForType(
-                                _floatingButtonType,
-                              ),
-                              border: const OutlineInputBorder(),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
+  Widget _saveBar() {
+    return SafeArea(
+      top: false,
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          border: Border(top: BorderSide(color: Colors.grey.shade200)),
         ),
-        bottomNavigationBar: SafeArea(
-          top: false,
-          child: Container(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              border: Border(top: BorderSide(color: Colors.grey.shade200)),
-            ),
-            child: FilledButton.icon(
-              onPressed: _isSaving ? null : _saveSettings,
-              icon: _isSaving
-                  ? const SizedBox(
-                      width: 18,
-                      height: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Icon(Icons.save_outlined),
-              label: Text(_isSaving ? '儲存中...' : '儲存外觀設定'),
-            ),
-          ),
+        child: FilledButton.icon(
+          onPressed: _isSaving ? null : _saveSettings,
+          icon: _isSaving
+              ? const SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Icon(Icons.save_outlined),
+          label: Text(_isSaving ? '儲存中...' : '儲存外觀設定'),
         ),
       ),
     );
@@ -1352,88 +1606,105 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage> {
       );
     }
 
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.grey.shade300),
+    final Widget logoButton = FilledButton.icon(
+      onPressed: _isUploadingModernLogo ? null : _pickAndUploadModernLogo,
+      icon: _isUploadingModernLogo
+          ? const SizedBox(
+              width: 18,
+              height: 18,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            )
+          : const Icon(Icons.photo_library_outlined),
+      label: Text(
+        _isUploadingModernLogo
+            ? '上傳中'
+            : hasNetworkLogo
+            ? '更換 Logo'
+            : '上傳 Logo',
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Row(
-            children: [
-              Container(
-                width: 82,
-                height: 82,
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFFFF7EF),
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: Colors.orange.shade100),
-                ),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(10),
-                  child: logoPreview,
-                ),
-              ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      '店家 Logo',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                      ),
+    );
+    final Widget logoThumb = Container(
+      width: 72,
+      height: 72,
+      padding: const EdgeInsets.all(8),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFF7EF),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.orange.shade100),
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(10),
+        child: logoPreview,
+      ),
+    );
+    return LayoutBuilder(
+      builder: (BuildContext context, BoxConstraints constraints) {
+        final bool inline = constraints.maxWidth >= 520;
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: <Widget>[
+            if (inline)
+              Row(
+                children: <Widget>[
+                  logoThumb,
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: <Widget>[
+                        const Text(
+                          '店家 Logo',
+                          style: TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          hasNetworkLogo || hasPreview
+                              ? '新版 Footer 會顯示目前圖片'
+                              : '尚未設定時，會顯示預設腳印',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.grey.shade700,
+                          ),
+                        ),
+                      ],
                     ),
-                    const SizedBox(height: 6),
-                    Text(
+                  ),
+                  const SizedBox(width: 12),
+                  logoButton,
+                ],
+              )
+            else ...<Widget>[
+              Row(
+                children: <Widget>[
+                  logoThumb,
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
                       hasNetworkLogo || hasPreview
                           ? '新版 Footer 會顯示目前圖片'
                           : '尚未設定時，會顯示預設腳印',
                       style: TextStyle(
-                        fontSize: 13,
+                        fontSize: 12,
                         color: Colors.grey.shade700,
                       ),
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
+              const SizedBox(height: 10),
+              Align(alignment: Alignment.centerLeft, child: logoButton),
             ],
-          ),
-          const SizedBox(height: 14),
-          FilledButton.icon(
-            onPressed: _isUploadingModernLogo ? null : _pickAndUploadModernLogo,
-            icon: _isUploadingModernLogo
-                ? const SizedBox(
-                    width: 18,
-                    height: 18,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : const Icon(Icons.photo_library_outlined),
-            label: Text(
-              _isUploadingModernLogo
-                  ? 'Logo 上傳中...'
-                  : hasNetworkLogo
-                  ? '更換 Logo 圖片'
-                  : '上傳 Logo 圖片',
+            const SizedBox(height: 8),
+            const Text(
+              '建議 600 × 600 px，PNG 或 JPG，最大 5 MB。圖片會完整顯示。',
+              style: TextStyle(fontSize: 12, color: Colors.grey, height: 1.4),
             ),
-          ),
-          const SizedBox(height: 8),
-
-          const Text(
-            '建議 Logo 尺寸：600 × 600 px（正方形）\n'
-            '支援 PNG（透明背景）或 JPG，最大 5 MB。\n'
-            '系統會完整顯示圖片，不會裁切。',
-            textAlign: TextAlign.center,
-            style: TextStyle(fontSize: 12, color: Colors.grey, height: 1.5),
-          ),
-        ],
-      ),
+          ],
+        );
+      },
     );
   }
 
@@ -1547,41 +1818,44 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage> {
   }
 
   Widget _buildModernBannerFramePreview() {
-    return AspectRatio(
-      aspectRatio: _modernBannerFrame.aspectRatio,
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(14),
-        child: ColoredBox(
-          color: Colors.black,
-          child: _modernBannerPreviewImageUrl.isEmpty
-              ? Center(
-                  child: Text(
-                    '尚未設定活動海報',
-                    style: TextStyle(
-                      color: Colors.white.withValues(alpha: 0.8),
-                      fontSize: 12,
+    return Padding(
+      padding: HomeBannerDisplay.outerPadding(_modernBannerFrame.displaySize),
+      child: AspectRatio(
+        aspectRatio: HomeBannerDisplay.aspectRatio,
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(14),
+          child: ColoredBox(
+            color: Colors.black,
+            child: _modernBannerPreviewImageUrl.isEmpty
+                ? Center(
+                    child: Text(
+                      '尚未設定活動海報',
+                      style: TextStyle(
+                        color: Colors.white.withValues(alpha: 0.8),
+                        fontSize: 12,
+                      ),
                     ),
+                  )
+                : Image.network(
+                    _modernBannerPreviewImageUrl,
+                    fit: BoxFit.contain,
+                    width: double.infinity,
+                    height: double.infinity,
+                    errorBuilder:
+                        (
+                          BuildContext context,
+                          Object error,
+                          StackTrace? stackTrace,
+                        ) {
+                          return const Center(
+                            child: Icon(
+                              Icons.broken_image_outlined,
+                              color: Colors.white70,
+                            ),
+                          );
+                        },
                   ),
-                )
-              : Image.network(
-                  _modernBannerPreviewImageUrl,
-                  fit: BoxFit.cover,
-                  width: double.infinity,
-                  height: double.infinity,
-                  errorBuilder:
-                      (
-                        BuildContext context,
-                        Object error,
-                        StackTrace? stackTrace,
-                      ) {
-                        return const Center(
-                          child: Icon(
-                            Icons.broken_image_outlined,
-                            color: Colors.white70,
-                          ),
-                        );
-                      },
-                ),
+          ),
         ),
       ),
     );
@@ -1604,7 +1878,7 @@ class _ShopThemeSettingPageState extends State<ShopThemeSettingPage> {
           ),
           const SizedBox(height: 6),
           const Text(
-            '此設定會套用到首頁所有活動海報。',
+            '只調整首頁海報的外距。完整海報固定 16:9，不會改比例或裁切圖片。',
             style: TextStyle(fontSize: 12, color: Colors.black54),
           ),
           const SizedBox(height: 12),

@@ -37,10 +37,8 @@ import 'package:petnest_saas/core/models/custom_form_answer_model.dart';
 import 'package:petnest_saas/core/models/custom_form_model.dart';
 import 'package:petnest_saas/core/models/custom_form_pet_condition.dart';
 import 'package:petnest_saas/core/services/custom_form_service.dart';
-import 'package:petnest_saas/core/models/daily_care_addon_plan.dart';
 import 'package:petnest_saas/core/models/daily_care_entitlement.dart';
 import 'package:petnest_saas/core/models/daily_care_setting_model.dart';
-import 'package:petnest_saas/core/services/daily_care_addon_service.dart';
 import 'package:petnest_saas/core/services/daily_care_entitlement_math.dart';
 import 'package:petnest_saas/core/services/daily_care_setting_service.dart';
 import 'package:petnest_saas/features/shop/widgets/booking/daily_care_upgrade_card.dart';
@@ -118,7 +116,6 @@ class _AdminCreateDaycareBookingPageState
       <String, Map<String, dynamic>>{};
   String? _timeSlotError;
   DailyCareSettingModel _dailyCareSetting = const DailyCareSettingModel();
-  List<DailyCareAddonPlan> _dailyCarePlans = <DailyCareAddonPlan>[];
   String? _selectedDailyCareAddonId;
   List<SpecialDateSurchargeModel> _surcharges =
       const <SpecialDateSurchargeModel>[];
@@ -248,13 +245,13 @@ class _AdminCreateDaycareBookingPageState
       formType: CustomFormType.adminCreate,
     );
     DailyCareSettingModel careSetting = const DailyCareSettingModel();
-    List<DailyCareAddonPlan> carePlans = <DailyCareAddonPlan>[];
     try {
       careSetting = await DailyCareSettingService.instance.getSetting(
         widget.shopId,
       );
-      carePlans = await DailyCareAddonService.instance.listPlans(widget.shopId);
-    } catch (_) {}
+    } catch (error) {
+      debugPrint('讀取每日照護設定失敗：$error');
+    }
     List<SpecialDateSurchargeModel> surcharges =
         const <SpecialDateSurchargeModel>[];
     List<DiscountCampaignModel> campaigns = const <DiscountCampaignModel>[];
@@ -277,7 +274,6 @@ class _AdminCreateDaycareBookingPageState
       _paymentCatalog = catalog;
       _adminForm = adminForm;
       _dailyCareSetting = careSetting;
-      _dailyCarePlans = carePlans;
       _surcharges = surcharges;
       _campaigns = campaigns;
       _paymentMethod = ShopPaymentMethods.coerceAdminCreateMethod(
@@ -426,6 +422,7 @@ class _AdminCreateDaycareBookingPageState
                             _date = tempDate;
                             _dropOff = null;
                             _pickUp = null;
+                            _selectedDailyCareAddonId = null;
                             _revalidateSlots();
                           });
                           _refreshRoomOptions();

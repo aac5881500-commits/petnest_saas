@@ -324,6 +324,21 @@ void main() {
         ),
         isTrue,
       );
+      final BookingDetailViewData unpaid = BookingDetailViewData.fromBooking(
+        data: <String, dynamic>{
+          'status': 'checked_in',
+          'bookingKind': 'daycare',
+          'dailyCareEntitlement': <String, dynamic>{'finalReports': 0},
+        },
+        docId: 'id',
+      );
+      expect(
+        unpaid.canViewDailyCare(
+          downloadHoursAfterCheckout: 24,
+          daycareCareEnabled: true,
+        ),
+        isFalse,
+      );
       final BookingDetailViewData stayPending =
           BookingDetailViewData.fromBooking(
             data: <String, dynamic>{'status': 'confirmed'},

@@ -2,8 +2,12 @@
 // 功能說明：同一筆服務耗材可套用住宿、安親或兩者，並可綁定中央庫存。
 // 🧹 住宿／安親耗材設定頁
 
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/constants/inventory_constants.dart';
+import 'package:petnest_saas/core/services/daycare_settings_service.dart';
+import 'package:petnest_saas/core/services/shop_service.dart';
 import 'package:petnest_saas/core/exceptions/inventory_exception.dart';
 import 'package:petnest_saas/core/models/booking_supply_setting_model.dart';
 import 'package:petnest_saas/core/models/inventory_item_model.dart';
@@ -19,8 +23,23 @@ class ShopBookingSupplySettingsPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    return StreamBuilder<Map<String, dynamic>?>(
+      stream: ShopService.instance.streamShop(shopId),
+      builder:
+          (
+            BuildContext context,
+            AsyncSnapshot<Map<String, dynamic>?> shopSnap,
+          ) {
+            final bool daycareOn = DaycareSettingsService.instance
+                .isEnabledForShop(shop: shopSnap.data);
+            return _page(context, daycareOn: daycareOn);
+          },
+    );
+  }
+
+  Widget _page(BuildContext context, {required bool daycareOn}) {
     return Scaffold(
-      appBar: AppBar(title: const Text('住宿／安親耗材設定')),
+      appBar: AppBar(title: Text(daycareOn ? '住宿／安親耗材設定' : '住宿耗材設定')),
       floatingActionButton: FloatingActionButton(
         tooltip: '新增服務耗材',
         onPressed: () => _openEditor(context: context),
@@ -48,16 +67,17 @@ class ShopBookingSupplySettingsPage extends StatelessWidget {
                   child: ListView(
                     padding: const EdgeInsets.fromLTRB(12, 12, 12, 88),
                     children: <Widget>[
-                      const _IntroCard(),
+                      _IntroCard(daycareOn: daycareOn),
                       const SizedBox(height: 12),
                       if (settings.isEmpty)
-                        const _EmptySupplies()
+                        _EmptySupplies(daycareOn: daycareOn)
                       else
                         for (final BookingSupplySettingModel setting
                             in settings)
                           Padding(
                             padding: const EdgeInsets.only(bottom: 8),
                             child: _SettingCard(
+                              daycareOn: daycareOn,
                               setting: setting,
                               onTap: () => _openEditor(
                                 context: context,
@@ -90,7 +110,9 @@ class ShopBookingSupplySettingsPage extends StatelessWidget {
 }
 
 class _IntroCard extends StatelessWidget {
-  const _IntroCard();
+  const _IntroCard({required this.daycareOn});
+
+  final bool daycareOn;
 
   @override
   Widget build(BuildContext context) {
@@ -102,14 +124,19 @@ class _IntroCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: const Color(0xFFE4E7EC)),
       ),
-      child: const Column(
+      child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          Text('服務耗材與中央庫存', style: TextStyle(fontWeight: FontWeight.w800)),
-          SizedBox(height: 4),
+          const Text(
+            '服務耗材與中央庫存',
+            style: TextStyle(fontWeight: FontWeight.w800),
+          ),
+          const SizedBox(height: 4),
           Text(
-            '設定入住或安親開始時要使用的用品。啟用中央庫存後，系統會依服務類型與扣除方式自動扣除；取消已扣除的訂單時會依既有規則返還。',
-            style: TextStyle(
+            daycareOn
+                ? '設定入住或安親開始時要使用的用品。啟用中央庫存後，系統會依服務類型與扣除方式自動扣除；取消已扣除的訂單時會依既有規則返還。'
+                : '設定入住時要使用的用品。啟用中央庫存後，系統會依扣除方式自動扣除；取消已扣除的訂單時會依既有規則返還。',
+            style: const TextStyle(
               fontSize: 13,
               height: 1.35,
               color: Color(0xFF667085),
@@ -122,7 +149,9 @@ class _IntroCard extends StatelessWidget {
 }
 
 class _EmptySupplies extends StatelessWidget {
-  const _EmptySupplies();
+  const _EmptySupplies({required this.daycareOn});
+
+  final bool daycareOn;
 
   @override
   Widget build(BuildContext context) {
@@ -142,7 +171,9 @@ class _EmptySupplies extends StatelessWidget {
           ),
           const SizedBox(height: 6),
           Text(
-            '可新增住宿或安親期間會使用的用品，並選擇是否連動中央庫存自動扣除。',
+            daycareOn
+                ? '可新增住宿或安親期間會使用的用品，並選擇是否連動中央庫存自動扣除。'
+                : '可新增住宿期間會使用的用品，並選擇是否連動中央庫存自動扣除。',
             textAlign: TextAlign.center,
             style: TextStyle(fontSize: 13, color: Colors.grey.shade700),
           ),
@@ -153,8 +184,13 @@ class _EmptySupplies extends StatelessWidget {
 }
 
 class _SettingCard extends StatelessWidget {
-  const _SettingCard({required this.setting, required this.onTap});
+  const _SettingCard({
+    required this.daycareOn,
+    required this.setting,
+    required this.onTap,
+  });
 
+  final bool daycareOn;
   final BookingSupplySettingModel setting;
   final VoidCallback onTap;
 
@@ -211,7 +247,8 @@ class _SettingCard extends StatelessWidget {
                 runSpacing: 4,
                 children: <Widget>[
                   if (setting.appliesToStay) const _ScopeChip('住宿'),
-                  if (setting.appliesToDaycare) const _ScopeChip('安親'),
+                  if (daycareOn && setting.appliesToDaycare)
+                    const _ScopeChip('安親'),
                 ],
               ),
               if (setting.appliesToStay)
@@ -219,7 +256,7 @@ class _SettingCard extends StatelessWidget {
                   '住宿：${InventoryConstants.deductionModeLabel(setting.stayMode)} ${InventoryConstants.formatQuantity(setting.stayQuantity)} $unit',
                   style: const TextStyle(fontSize: 13),
                 ),
-              if (setting.appliesToDaycare)
+              if (daycareOn && setting.appliesToDaycare)
                 Text(
                   '安親：${InventoryConstants.daycareDeductionModeLabel(setting.daycareMode)} ${InventoryConstants.formatQuantity(setting.daycareQuantity)} $unit',
                   style: const TextStyle(fontSize: 13),
@@ -286,6 +323,8 @@ class _BookingSupplyEditorPageState extends State<_BookingSupplyEditorPage> {
   bool _allowDecimal = true;
   InventoryItemModel? _item;
   bool _saving = false;
+  bool _shopDaycareOn = false;
+  StreamSubscription<Map<String, dynamic>?>? _shopSub;
 
   @override
   void initState() {
@@ -316,6 +355,19 @@ class _BookingSupplyEditorPageState extends State<_BookingSupplyEditorPage> {
     if (_useInventory && _inventoryItemId.trim().isNotEmpty) {
       _loadItem();
     }
+    _shopSub = ShopService.instance.streamShop(widget.shopId).listen((
+      Map<String, dynamic>? shop,
+    ) {
+      final bool on = DaycareSettingsService.instance.isEnabledForShop(
+        shop: shop,
+      );
+      if (!mounted || on == _shopDaycareOn) {
+        return;
+      }
+      setState(() {
+        _shopDaycareOn = on;
+      });
+    });
   }
 
   Future<void> _loadItem() async {
@@ -344,6 +396,7 @@ class _BookingSupplyEditorPageState extends State<_BookingSupplyEditorPage> {
     _noteController.dispose();
     _stayQuantityController.dispose();
     _daycareQuantityController.dispose();
+    _shopSub?.cancel();
     super.dispose();
   }
 
@@ -466,14 +519,16 @@ class _BookingSupplyEditorPageState extends State<_BookingSupplyEditorPage> {
                 onChanged: (bool value) =>
                     setState(() => _appliesToStay = value),
               ),
-              const SizedBox(height: 8),
-              _ScopeTile(
-                title: '安親',
-                subtitle: '開始安親時依下方規則扣除',
-                selected: _appliesToDaycare,
-                onChanged: (bool value) =>
-                    setState(() => _appliesToDaycare = value),
-              ),
+              if (_shopDaycareOn) ...<Widget>[
+                const SizedBox(height: 8),
+                _ScopeTile(
+                  title: '安親',
+                  subtitle: '開始安親時依下方規則扣除',
+                  selected: _appliesToDaycare,
+                  onChanged: (bool value) =>
+                      setState(() => _appliesToDaycare = value),
+                ),
+              ],
               if (_appliesToStay) ...<Widget>[
                 const SizedBox(height: 16),
                 const _SectionTitle('住宿扣除規則'),
@@ -516,7 +571,7 @@ class _BookingSupplyEditorPageState extends State<_BookingSupplyEditorPage> {
                   onChanged: (_) => setState(() {}),
                 ),
               ],
-              if (_appliesToDaycare) ...<Widget>[
+              if (_shopDaycareOn && _appliesToDaycare) ...<Widget>[
                 const SizedBox(height: 16),
                 const _SectionTitle('安親扣除規則'),
                 DropdownButtonFormField<DaycareSupplyDeductionMode>(

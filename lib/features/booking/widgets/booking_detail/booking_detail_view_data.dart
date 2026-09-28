@@ -2,6 +2,7 @@
 // 功能說明：客戶端訂單詳細頁顯示資料：只做讀取與文案，不寫入 Firestore、不重算計價。
 
 import 'package:petnest_saas/core/models/booking_kind.dart';
+import 'package:petnest_saas/core/models/daily_care_entitlement.dart';
 import 'package:petnest_saas/core/models/booking_order_form_answers.dart';
 import 'package:petnest_saas/core/models/daycare_settings_model.dart';
 import 'package:petnest_saas/core/models/payment_gateway_status.dart';
@@ -1002,6 +1003,9 @@ class BookingDetailViewData {
     DateTime? now,
     bool daycareCareEnabled = false,
   }) {
+    if (DailyCareEntitlement.explicitlyNoReports(raw)) {
+      return false;
+    }
     if (isDaycare) {
       if (!daycareCareEnabled || status == 'cancelled') {
         return false;

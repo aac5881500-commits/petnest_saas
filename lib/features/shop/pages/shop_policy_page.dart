@@ -1,16 +1,23 @@
 // 檔案名稱：lib/features/shop/pages/shop_policy_page.dart
-// 功能說明：條款設定：住宿／安親／退款分頁編輯，互不污染同意版本
+// 功能說明：條款設定：住宿／安親／退款分頁編輯，同意紀錄在同一頁查看
+
+import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/models/policy_applicable_service.dart';
+import 'package:petnest_saas/core/services/daycare_settings_service.dart';
 import 'package:petnest_saas/core/services/shop_policy_service.dart';
 import 'package:petnest_saas/core/services/shop_service.dart';
 import 'package:petnest_saas/features/shop/pages/policy_version_history_page.dart';
+import 'package:petnest_saas/features/shop/pages/shop_policy_logs_page.dart';
 
 class ShopPolicyPage extends StatefulWidget {
-  const ShopPolicyPage({super.key, required this.shopId});
+  const ShopPolicyPage({super.key, required this.shopId, this.canEdit = true});
 
   final String shopId;
+
+  /// 沒有編輯條款權限時只顯示同意紀錄，不開放修改。
+  final bool canEdit;
 
   @override
   State<ShopPolicyPage> createState() => _ShopPolicyPageState();
@@ -18,7 +25,9 @@ class ShopPolicyPage extends StatefulWidget {
 
 class _ShopPolicyPageState extends State<ShopPolicyPage>
     with SingleTickerProviderStateMixin {
-  late final TabController _tabs;
+  TabController? _tabs;
+  StreamSubscription<Map<String, dynamic>?>? _shopSub;
+  bool _daycareOn = false;
   final Map<String, TextEditingController> _controllers =
       <String, TextEditingController>{
         'checkinTime': TextEditingController(),
@@ -67,38 +76,100 @@ class _ShopPolicyPageState extends State<ShopPolicyPage>
   int _refundVersion = 0;
   final Set<String> _expanded = <String>{};
 
-  String get _activeService => _tabs.index == 1
-      ? PolicyApplicableService.daycare
-      : PolicyApplicableService.accommodation;
+  int get _refundIndex => _daycareOn ? 2 : 1;
+
+  int get _logsIndex => _daycareOn ? 3 : 2;
+
+  bool _isEditorIndex(int index) {
+    if (index == 0) {
+      return true;
+    }
+    return _daycareOn && index == 1;
+  }
+
+  String _serviceForIndex(int index) {
+    if (_daycareOn && index == 1) {
+      return PolicyApplicableService.daycare;
+    }
+    return PolicyApplicableService.accommodation;
+  }
+
+  String get _activeService => _serviceForIndex(_tabs?.index ?? 0);
 
   @override
   void initState() {
     super.initState();
-    _tabs = TabController(length: 3, vsync: this);
-    _tabs.addListener(() {
-      if (_tabs.indexIsChanging) {
-        _storeCurrentDraft();
-      } else {
-        if (_tabs.index != 2) {
-          _restoreDraft(_activeService);
-        }
-        if (mounted) {
-          setState(() {});
-        }
+    _shopSub = ShopService.instance.streamShop(widget.shopId).listen((
+      Map<String, dynamic>? shop,
+    ) {
+      final bool on = DaycareSettingsService.instance.isEnabledForShop(
+        shop: shop,
+      );
+      if (!mounted || (_tabs != null && on == _daycareOn)) {
+        return;
       }
+      _replaceTabs(on);
     });
     _loadPolicy();
   }
 
+  void _onTabs() {
+    final TabController? tabs = _tabs;
+    if (tabs == null) {
+      return;
+    }
+    if (tabs.indexIsChanging) {
+      _storeCurrentDraft();
+      return;
+    }
+    if (_isEditorIndex(tabs.index)) {
+      _restoreDraft(_serviceForIndex(tabs.index));
+    }
+    if (mounted) {
+      setState(() {});
+    }
+  }
+
+  void _replaceTabs(bool daycareOn) {
+    final TabController? old = _tabs;
+    final int previous = old?.index ?? 0;
+    if (old != null) {
+      _storeDraftAt(old.index);
+      old.removeListener(_onTabs);
+    }
+    final int length = daycareOn ? 4 : 3;
+    int nextIndex = 0;
+    if (old != null && old.length == 4 && !daycareOn) {
+      nextIndex = previous <= 1 ? 0 : previous - 1;
+    } else if (old != null && old.length == 3 && daycareOn) {
+      nextIndex = previous == 0 ? 0 : previous + 1;
+    } else if (old != null) {
+      nextIndex = previous.clamp(0, length - 1);
+    }
+    _daycareOn = daycareOn;
+    _tabs = TabController(length: length, vsync: this, initialIndex: nextIndex);
+    _tabs!.addListener(_onTabs);
+    if (mounted) {
+      setState(() {});
+    }
+    if (old != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        old.dispose();
+      });
+    }
+  }
+
   @override
   void dispose() {
+    _shopSub?.cancel();
     for (final TextEditingController c in _controllers.values) {
       c.dispose();
     }
     _refundTitle.dispose();
     _refundDescription.dispose();
     _refundBody.dispose();
-    _tabs.dispose();
+    _tabs?.removeListener(_onTabs);
+    _tabs?.dispose();
     super.dispose();
   }
 
@@ -109,13 +180,18 @@ class _ShopPolicyPageState extends State<ShopPolicyPage>
   }
 
   void _storeCurrentDraft() {
-    final int from = _tabs.previousIndex;
-    if (from == 2) {
+    final TabController? tabs = _tabs;
+    if (tabs == null) {
       return;
     }
-    final String service = from == 1
-        ? PolicyApplicableService.daycare
-        : PolicyApplicableService.accommodation;
+    _storeDraftAt(tabs.previousIndex);
+  }
+
+  void _storeDraftAt(int from) {
+    if (!_isEditorIndex(from)) {
+      return;
+    }
+    final String service = _serviceForIndex(from);
     _drafts[service] = _controllers.map(
       (String key, TextEditingController ctrl) => MapEntry(key, ctrl.text),
     );
@@ -189,7 +265,11 @@ class _ShopPolicyPageState extends State<ShopPolicyPage>
   }
 
   Future<void> _save() async {
-    if (_tabs.index == 2) {
+    final TabController? tabs = _tabs;
+    if (tabs == null || tabs.index == _logsIndex) {
+      return;
+    }
+    if (tabs.index == _refundIndex) {
       await ShopPolicyService.instance.updateRefundPolicy(
         shopId: widget.shopId,
         title: _refundTitle.text,
@@ -237,6 +317,12 @@ class _ShopPolicyPageState extends State<ShopPolicyPage>
 
   @override
   Widget build(BuildContext context) {
+    if (!widget.canEdit) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('條款設定')),
+        body: ShopPolicyLogsPage(shopId: widget.shopId, embedded: true),
+      );
+    }
     return PopScope(
       canPop: !_dirty,
       onPopInvokedWithResult: (bool didPop, Object? result) async {
@@ -264,56 +350,87 @@ class _ShopPolicyPageState extends State<ShopPolicyPage>
           Navigator.pop(context);
         }
       },
-      child: Scaffold(
-        appBar: AppBar(
-          title: const Text('條款設定'),
-          bottom: TabBar(
-            controller: _tabs,
-            tabs: const <Widget>[
-              Tab(text: '預約／入住條款'),
-              Tab(text: '安親條款'),
-              Tab(text: '退款條款'),
-            ],
-          ),
-        ),
-        body: _loading
-            ? const Center(child: CircularProgressIndicator())
-            : Align(
-                alignment: Alignment.topCenter,
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 1100),
-                  child: Column(
-                    children: <Widget>[
-                      Expanded(
-                        child: TabBarView(
-                          controller: _tabs,
+      child: _tabs == null
+          ? const Scaffold(body: Center(child: CircularProgressIndicator()))
+          : Scaffold(
+              appBar: AppBar(
+                title: const Text('條款設定'),
+                bottom: _policyTabBar(),
+              ),
+              body: _loading
+                  ? const Center(child: CircularProgressIndicator())
+                  : Align(
+                      alignment: Alignment.topCenter,
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 1100),
+                        child: Column(
                           children: <Widget>[
-                            _serviceEditor(isDaycare: false),
-                            _serviceEditor(isDaycare: true),
-                            _refundEditor(),
+                            Expanded(
+                              child: TabBarView(
+                                controller: _tabs!,
+                                children: <Widget>[
+                                  _serviceEditor(isDaycare: false),
+                                  if (_daycareOn)
+                                    _serviceEditor(isDaycare: true),
+                                  _refundEditor(),
+                                  ShopPolicyLogsPage(
+                                    shopId: widget.shopId,
+                                    embedded: true,
+                                  ),
+                                ],
+                              ),
+                            ),
+                            if (_tabs!.index != _logsIndex)
+                              SafeArea(
+                                top: false,
+                                child: Padding(
+                                  padding: const EdgeInsets.fromLTRB(
+                                    16,
+                                    8,
+                                    16,
+                                    16,
+                                  ),
+                                  child: SizedBox(
+                                    width: double.infinity,
+                                    height: 48,
+                                    child: FilledButton(
+                                      onPressed: _save,
+                                      child: Text(
+                                        _tabs!.index == _refundIndex
+                                            ? '儲存退款條款'
+                                            : '儲存此分頁條款',
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
                           ],
                         ),
                       ),
-                      SafeArea(
-                        top: false,
-                        child: Padding(
-                          padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-                          child: SizedBox(
-                            width: double.infinity,
-                            height: 48,
-                            child: FilledButton(
-                              onPressed: _save,
-                              child: Text(
-                                _tabs.index == 2 ? '儲存退款條款' : '儲存此分頁條款',
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
+                    ),
+            ),
+    );
+  }
+
+  PreferredSizeWidget _policyTabBar() {
+    return PreferredSize(
+      preferredSize: const Size.fromHeight(kTextTabBarHeight),
+      child: LayoutBuilder(
+        builder: (BuildContext context, BoxConstraints constraints) {
+          final double width = constraints.maxWidth;
+          final bool scrollable = width.isFinite && width < 720;
+          return TabBar(
+            controller: _tabs!,
+            isScrollable: scrollable,
+            tabAlignment: scrollable ? TabAlignment.start : TabAlignment.fill,
+            tabs: <Widget>[
+              const Tab(text: '預約／入住條款'),
+              if (_daycareOn) const Tab(text: '安親條款'),
+              const Tab(text: '退款條款'),
+              const Tab(text: '條款同意紀錄'),
+            ],
+          );
+        },
       ),
     );
   }
@@ -338,7 +455,9 @@ class _ShopPolicyPageState extends State<ShopPolicyPage>
         Text(
           isDaycare
               ? '目前安親條款版本：v$version。修改不會要求住宿客人重新勾選。'
-              : '目前住宿條款版本：v$version。修改不會要求安親客人重新勾選。',
+              : (_daycareOn
+                    ? '目前住宿條款版本：v$version。修改不會要求安親客人重新勾選。'
+                    : '目前住宿條款版本：v$version。'),
         ),
         Wrap(
           spacing: 8,
@@ -356,26 +475,27 @@ class _ShopPolicyPageState extends State<ShopPolicyPage>
               icon: const Icon(Icons.history),
               label: const Text('查看歷史版本'),
             ),
-            TextButton(
-              onPressed: () {
-                final String other = isDaycare
-                    ? PolicyApplicableService.accommodation
-                    : PolicyApplicableService.daycare;
-                _storeCurrentDraft();
-                _drafts[other] = _controllers.map(
-                  (String key, TextEditingController ctrl) =>
-                      MapEntry(key, ctrl.text),
-                );
-                _enabledDrafts[other] = Map<String, bool>.from(_enabled);
-                _markDirty();
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text(isDaycare ? '已複製到住宿條款草稿' : '已複製到安親條款草稿'),
-                  ),
-                );
-              },
-              child: Text(isDaycare ? '複製到住宿條款' : '複製到安親條款'),
-            ),
+            if (_daycareOn || isDaycare)
+              TextButton(
+                onPressed: () {
+                  final String other = isDaycare
+                      ? PolicyApplicableService.accommodation
+                      : PolicyApplicableService.daycare;
+                  _storeCurrentDraft();
+                  _drafts[other] = _controllers.map(
+                    (String key, TextEditingController ctrl) =>
+                        MapEntry(key, ctrl.text),
+                  );
+                  _enabledDrafts[other] = Map<String, bool>.from(_enabled);
+                  _markDirty();
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(isDaycare ? '已複製到住宿條款草稿' : '已複製到安親條款草稿'),
+                    ),
+                  );
+                },
+                child: Text(isDaycare ? '複製到住宿條款' : '複製到安親條款'),
+              ),
           ],
         ),
         const SizedBox(height: 8),

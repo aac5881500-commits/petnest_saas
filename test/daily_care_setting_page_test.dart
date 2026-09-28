@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:petnest_saas/core/models/daily_care_paid_plan.dart';
 import 'package:petnest_saas/core/models/daily_care_report_mode.dart';
 import 'package:petnest_saas/core/models/daily_care_setting_model.dart';
+import 'package:petnest_saas/core/models/daycare_settings_model.dart';
 import 'package:petnest_saas/core/services/daily_care_setting_service.dart';
 import 'package:petnest_saas/features/shop/pages/daily_care_setting_page.dart';
 
@@ -43,6 +44,7 @@ void main() {
     WidgetTester tester, {
     required Size size,
     DailyCareSettingModel? initialSetting,
+    DaycareSettingsModel? daycareSettings,
     Future<void> Function({
       required DailyCareSettingModel setting,
       required int? expectedRevision,
@@ -60,6 +62,7 @@ void main() {
       shopId: 'shop-1',
       initialSetting: initialSetting ?? setting(),
       shopData: shopData,
+      initialDaycareSettings: daycareSettings,
       saveOverride: saveOverride,
       showTaskCenterButton: false,
     );
@@ -361,5 +364,61 @@ void main() {
     expect(saved!.stayPaidPlan.sessionLabels.length, lessThanOrEqualTo(3));
     expect(saved!.daycarePaidPlan.sessionLabels.length, lessThanOrEqualTo(3));
     expect(find.text('每日照護紀錄設定已儲存'), findsOneWidget);
+  });
+
+  testWidgets('依房型計費可選依房型提供', (WidgetTester tester) async {
+    await pumpPage(
+      tester,
+      size: const Size(1280, 1600),
+      daycareSettings: const DaycareSettingsModel(
+        enabled: true,
+        pricingMode: DaycarePricingModes.roomType,
+      ),
+    );
+
+    expect(find.text('依方案提供'), findsNothing);
+    expect(find.text('依安親房型設定場次，購買時即確定，不等分房。'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('獨立方案只顯示固定提供與付費加購，且不能儲存依房型提供', (WidgetTester tester) async {
+    var saved = false;
+    await pumpPage(
+      tester,
+      size: const Size(1280, 1800),
+      daycareSettings: const DaycareSettingsModel(
+        enabled: true,
+        pricingMode: DaycarePricingModes.independentPlan,
+      ),
+      initialSetting: setting(
+        daycareReportMode: DailyCareReportMode.includedByOffer,
+      ),
+      saveOverride:
+          ({
+            required DailyCareSettingModel setting,
+            required int? expectedRevision,
+            required DailyCareSettingSection section,
+          }) async {
+            saved = true;
+          },
+    );
+
+    expect(find.text('依方案提供'), findsNothing);
+    expect(find.text('依安親房型設定場次，購買時即確定，不等分房。'), findsNothing);
+    expect(find.text('固定提供'), findsWidgets);
+    expect(find.text('付費加購'), findsWidgets);
+    expect(
+      find.text(DailyCareSettingService.incompatibleDaycareReportMessage),
+      findsOneWidget,
+    );
+
+    await tester.ensureVisible(find.text('確認儲存此分頁'));
+    await tester.tap(find.text('確認儲存此分頁'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+
+    expect(saved, isFalse);
+    expect(find.byType(SnackBar), findsOneWidget);
+    expect(tester.takeException(), isNull);
   });
 }

@@ -4,14 +4,23 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:petnest_saas/core/models/policy_applicable_service.dart';
+import 'package:petnest_saas/core/services/daycare_enabled.dart';
 import 'package:petnest_saas/core/services/shop_policy_history.dart';
 import 'package:petnest_saas/core/services/shop_policy_service.dart';
+import 'package:petnest_saas/core/services/shop_service.dart';
 import 'package:petnest_saas/features/shop/pages/policy_version_detail_page.dart';
 
 class ShopPolicyLogsPage extends StatefulWidget {
-  const ShopPolicyLogsPage({super.key, required this.shopId});
+  const ShopPolicyLogsPage({
+    super.key,
+    required this.shopId,
+    this.embedded = false,
+  });
 
   final String shopId;
+
+  /// 放進條款設定分頁時只顯示紀錄內容，不另開 AppBar。
+  final bool embedded;
 
   @override
   State<ShopPolicyLogsPage> createState() => _ShopPolicyLogsPageState();
@@ -156,23 +165,32 @@ class _ShopPolicyLogsPageState extends State<ShopPolicyLogsPage>
     );
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('條款同意紀錄'),
-        bottom: TabBar(
-          controller: _tabs,
-          tabs: const <Widget>[
-            Tab(text: '住宿條款同意'),
-            Tab(text: '安親條款同意'),
-          ],
-        ),
-      ),
-      body: _loading
-          ? const Center(child: CircularProgressIndicator())
-          : _loadError != null
-          ? Center(
+  TabBar get _serviceTabs => TabBar(
+    controller: _tabs,
+    tabs: const <Widget>[
+      Tab(text: '住宿條款同意'),
+      Tab(text: '安親條款同意'),
+    ],
+  );
+
+  Widget _logsBody({required bool daycareOn, required bool tabsInBody}) {
+    if (!daycareOn) {
+      return _stayOnlyBody();
+    }
+    if (_loading) {
+      return Column(
+        children: <Widget>[
+          if (tabsInBody) _serviceTabs,
+          const Expanded(child: Center(child: CircularProgressIndicator())),
+        ],
+      );
+    }
+    if (_loadError != null) {
+      return Column(
+        children: <Widget>[
+          if (tabsInBody) _serviceTabs,
+          Expanded(
+            child: Center(
               child: Padding(
                 padding: const EdgeInsets.all(24),
                 child: Column(
@@ -193,41 +211,123 @@ class _ShopPolicyLogsPageState extends State<ShopPolicyLogsPage>
                   ],
                 ),
               ),
-            )
-          : Column(
-              children: <Widget>[
-                Padding(
-                  padding: const EdgeInsets.all(8),
-                  child: TextField(
-                    decoration: const InputDecoration(
-                      hintText: '搜尋姓名、email 或電話',
-                      prefixIcon: Icon(Icons.search),
-                      border: OutlineInputBorder(),
-                    ),
-                    onChanged: (String value) {
-                      setState(() => _search = value);
-                    },
-                  ),
-                ),
-                Expanded(
-                  child: TabBarView(
-                    controller: _tabs,
-                    children: <Widget>[
-                      _list(
-                        serviceType: PolicyApplicableService.accommodation,
-                        emptyText: '目前沒有住宿條款同意紀錄',
-                        currentVersion: _stayCurrentVersion,
-                      ),
-                      _list(
-                        serviceType: PolicyApplicableService.daycare,
-                        emptyText: '目前沒有安親條款同意紀錄',
-                        currentVersion: _daycareCurrentVersion,
-                      ),
-                    ],
-                  ),
-                ),
-              ],
             ),
+          ),
+        ],
+      );
+    }
+    return Column(
+      children: <Widget>[
+        if (tabsInBody) _serviceTabs,
+        Padding(
+          padding: const EdgeInsets.all(8),
+          child: TextField(
+            decoration: const InputDecoration(
+              hintText: '搜尋姓名、email 或電話',
+              prefixIcon: Icon(Icons.search),
+              border: OutlineInputBorder(),
+            ),
+            onChanged: (String value) {
+              setState(() => _search = value);
+            },
+          ),
+        ),
+        Expanded(
+          child: TabBarView(
+            controller: _tabs,
+            children: <Widget>[
+              _list(
+                serviceType: PolicyApplicableService.accommodation,
+                emptyText: '目前沒有住宿條款同意紀錄',
+                currentVersion: _stayCurrentVersion,
+              ),
+              _list(
+                serviceType: PolicyApplicableService.daycare,
+                emptyText: '目前沒有安親條款同意紀錄',
+                currentVersion: _daycareCurrentVersion,
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _stayOnlyBody() {
+    if (_loading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    if (_loadError != null) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              Text(_loadError!),
+              const SizedBox(height: 12),
+              FilledButton(
+                onPressed: () {
+                  setState(() {
+                    _loading = true;
+                    _loadError = null;
+                  });
+                  _load();
+                },
+                child: const Text('重新載入'),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+    return Column(
+      children: <Widget>[
+        Padding(
+          padding: const EdgeInsets.all(8),
+          child: TextField(
+            decoration: const InputDecoration(
+              hintText: '搜尋姓名、email 或電話',
+              prefixIcon: Icon(Icons.search),
+              border: OutlineInputBorder(),
+            ),
+            onChanged: (String value) {
+              setState(() => _search = value);
+            },
+          ),
+        ),
+        Expanded(
+          child: _list(
+            serviceType: PolicyApplicableService.accommodation,
+            emptyText: '目前沒有住宿條款同意紀錄',
+            currentVersion: _stayCurrentVersion,
+          ),
+        ),
+      ],
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<Map<String, dynamic>?>(
+      stream: ShopService.instance.streamShop(widget.shopId),
+      builder:
+          (
+            BuildContext context,
+            AsyncSnapshot<Map<String, dynamic>?> shopSnap,
+          ) {
+            final bool daycareOn = DaycareEnabled.isOn(shop: shopSnap.data);
+            if (widget.embedded) {
+              return _logsBody(daycareOn: daycareOn, tabsInBody: daycareOn);
+            }
+            return Scaffold(
+              appBar: AppBar(
+                title: const Text('條款同意紀錄'),
+                bottom: daycareOn ? _serviceTabs : null,
+              ),
+              body: _logsBody(daycareOn: daycareOn, tabsInBody: false),
+            );
+          },
     );
   }
 

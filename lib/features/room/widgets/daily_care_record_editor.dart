@@ -15,6 +15,7 @@ import '../../../core/models/daily_care_journal_layout.dart';
 import '../../../core/models/daily_care_photo_model.dart';
 import '../../../core/models/daily_care_record_model.dart';
 import '../../../core/models/daily_care_setting_model.dart';
+import '../../../core/services/daily_care_photo_function_service.dart';
 import '../../../core/services/daily_care_photo_service.dart';
 import '../../../core/services/daily_care_photo_upload_service.dart';
 import '../../../core/services/daily_care_record_service.dart';
@@ -88,6 +89,7 @@ class _DailyCareRecordEditorState extends State<DailyCareRecordEditor> {
 
   bool _uploadingPhoto = false;
   final List<Uint8List> _pendingPhotos = <Uint8List>[];
+  int _uploadedPendingCount = 0;
 
   final ImagePicker _imagePicker = ImagePicker();
 
@@ -305,6 +307,7 @@ class _DailyCareRecordEditorState extends State<DailyCareRecordEditor> {
       if (!mounted) return;
       setState(() {
         _pendingPhotos.add(bytes);
+        _uploadedPendingCount = 0;
       });
     } catch (e) {
       if (!mounted) return;
@@ -430,33 +433,19 @@ class _DailyCareRecordEditorState extends State<DailyCareRecordEditor> {
           ? user!.displayName!.trim()
           : user?.email?.trim();
 
-      await DailyCareRecordService.instance.saveRecord(
-        shopId: widget.shopId,
-        bookingId: widget.bookingId,
-        roomId: widget.roomId,
-        roomName: widget.roomName,
-        recordDate: widget.recordDate,
-        sessionIndex: widget.sessionIndex,
-        sessionName: widget.sessionName,
-        values: values,
-
-        // 個別寵物概況目前正式停用。
-        // 暫時保留 Service 現有參數，避免連動修改 Model / Service。
-        petNotes: const <String, String>{},
-
-        operatorUid: user?.uid,
-        operatorName: operatorName,
-        serviceType: widget.serviceType,
-        petIds: widget.petIds,
-      );
-
       if (_pendingPhotos.isNotEmpty) {
-        setState(() {
-          _uploadingPhoto = true;
-        });
-        for (final Uint8List bytes in List<Uint8List>.from(_pendingPhotos)) {
+        if (mounted) {
+          setState(() {
+            _uploadingPhoto = true;
+          });
+        }
+        if (_uploadedPendingCount > _pendingPhotos.length) {
+          _uploadedPendingCount = 0;
+        }
+        final List<Uint8List> queue = List<Uint8List>.from(_pendingPhotos);
+        for (int index = _uploadedPendingCount; index < queue.length; index++) {
           await DailyCarePhotoUploadService.instance.uploadPhoto(
-            originalBytes: bytes,
+            originalBytes: queue[index],
             shopId: widget.shopId,
             bookingId: widget.bookingId,
             roomId: widget.roomId,
@@ -466,9 +455,56 @@ class _DailyCareRecordEditorState extends State<DailyCareRecordEditor> {
             sessionName: widget.sessionName,
             dailyCareRecordId: _dailyCareRecordId,
           );
+          _uploadedPendingCount = index + 1;
         }
-        _pendingPhotos.clear();
       }
+
+      final List<DailyCarePhotoModel> photos = await DailyCarePhotoService
+          .instance
+          .streamRecordPhotos(
+            bookingId: widget.bookingId,
+            dailyCareRecordId: _dailyCareRecordId,
+            recordDate: widget.recordDate,
+            sessionIndex: widget.sessionIndex,
+            roomId: widget.serviceType == DailyCareServiceTypes.daycare
+                ? ''
+                : widget.roomId,
+            shopId: widget.shopId,
+          )
+          .first;
+      final int photoCount = photos.length < _uploadedPendingCount
+          ? _uploadedPendingCount
+          : photos.length;
+
+      await DailyCarePhotoFunctionService.instance.completeDailyCareReport(
+        shopId: widget.shopId,
+        bookingId: widget.bookingId,
+        roomId: widget.roomId,
+        roomName: widget.roomName,
+        recordDate: widget.recordDate,
+        sessionIndex: widget.sessionIndex,
+        sessionName: widget.sessionName,
+        serviceType: widget.serviceType,
+        petIds: widget.petIds,
+        values: values,
+        dailyCareRecordId: _dailyCareRecordId,
+        operatorName: operatorName ?? '',
+        photoCount: photoCount,
+      );
+
+      final DailyCareRecordModel? saved = await DailyCareRecordService.instance
+          .getRecord(
+            shopId: widget.shopId,
+            bookingId: widget.bookingId,
+            recordDate: widget.recordDate,
+            sessionIndex: widget.sessionIndex,
+          );
+      if (saved == null || !saved.countsAsCompleted) {
+        throw StateError('回報內容沒有寫入，請再按一次確認完成');
+      }
+
+      _pendingPhotos.clear();
+      _uploadedPendingCount = 0;
 
       if (!mounted) return;
 
@@ -479,14 +515,14 @@ class _DailyCareRecordEditorState extends State<DailyCareRecordEditor> {
       }
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(const SnackBar(content: Text('本場照護紀錄已儲存')));
+      ).showSnackBar(const SnackBar(content: Text('本場照護紀錄已完成')));
       onSaved();
     } catch (e) {
       if (!mounted) return;
 
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(SnackBar(content: Text('儲存照護紀錄失敗：$e')));
+      ).showSnackBar(SnackBar(content: Text('確認完成失敗：$e')));
     } finally {
       if (mounted) {
         setState(() {
@@ -668,7 +704,7 @@ class _DailyCareRecordEditorState extends State<DailyCareRecordEditor> {
                       child: CircularProgressIndicator(strokeWidth: 2),
                     )
                   : const Icon(Icons.save_outlined),
-              label: Text(_saving ? '儲存中...' : '儲存照護紀錄'),
+              label: Text(_saving ? '送出中' : '確認完成'),
             ),
           ),
         ],
@@ -1061,6 +1097,7 @@ class _DailyCareRecordEditorState extends State<DailyCareRecordEditor> {
                           onTap: () {
                             setState(() {
                               _pendingPhotos.removeAt(index);
+                              _uploadedPendingCount = 0;
                             });
                           },
                           child: const CircleAvatar(

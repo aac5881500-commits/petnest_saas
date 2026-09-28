@@ -9,6 +9,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../models/booking_kind.dart';
 import '../models/daily_care_date_helper.dart';
+import '../models/daily_care_record_model.dart';
 import '../models/daily_care_report_center_item.dart';
 import '../models/daily_care_setting_model.dart';
 import '../models/daily_care_stay_info.dart';
@@ -116,10 +117,19 @@ class ShopTaskCenterService {
                 .snapshots()
                 .listen(
                   (DocumentSnapshot<Map<String, dynamic>> snapshot) {
-                    if (snapshot.exists) {
-                      filledRecordIds.add(session.id);
-                    } else {
+                    if (!snapshot.exists) {
                       filledRecordIds.remove(session.id);
+                    } else {
+                      final DailyCareRecordModel record =
+                          DailyCareRecordModel.fromMap(
+                            id: snapshot.id,
+                            map: snapshot.data() ?? <String, dynamic>{},
+                          );
+                      if (record.countsAsCompleted) {
+                        filledRecordIds.add(session.id);
+                      } else {
+                        filledRecordIds.remove(session.id);
+                      }
                     }
                     emit();
                   },
